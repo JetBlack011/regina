@@ -60,7 +60,7 @@
 #include <QTemporaryFile>
 
 #ifdef LIBGVC_FOUND
-#include "gvc.h"
+#include <graphviz/gvc.h>
 
 // Define LIBGVC_DYNAMIC_PLUGINS if you wish to load plugins dynamically.
 // This requires (amongst other things) the presence of the file config6,

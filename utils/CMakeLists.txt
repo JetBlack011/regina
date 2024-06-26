@@ -10,6 +10,7 @@ set(UTILS
   regfiletype
   retriangulate
   sigcensus
+  surfacefinder
   tricensus
   trisetcmp
   )
