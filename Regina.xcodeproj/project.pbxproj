@@ -161,6 +161,7 @@
 		05135AE028347BF600C4BFDC /* cut.h in Headers */ = {isa = PBXBuildFile; fileRef = 05135ADE28347BF600C4BFDC /* cut.h */; };
 		05135AE128347BF600C4BFDC /* cut.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05135ADF28347BF600C4BFDC /* cut.cpp */; };
 		0514CAEF1D9CE54200EDB2E6 /* docs.conf.in in Resources */ = {isa = PBXBuildFile; fileRef = 052F9C50180600FA00FAE4DF /* docs.conf.in */; };
+		05166B8A2C36140A0014CE97 /* 3d.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05166B892C36140A0014CE97 /* 3d.cpp */; };
 		051691B71C5AD5AC00DC69EC /* hypercompatui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691A31C5AD59000DC69EC /* hypercompatui.cpp */; };
 		051691B81C5AD5AC00DC69EC /* hypercoordinateui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691A51C5AD59000DC69EC /* hypercoordinateui.cpp */; };
 		051691B91C5AD5AC00DC69EC /* hypermatchingui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691A71C5AD59000DC69EC /* hypermatchingui.cpp */; };
@@ -2473,6 +2474,7 @@
 		05135ADF28347BF600C4BFDC /* cut.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = cut.cpp; sourceTree = "<group>"; };
 		0514CAE71D9CD4B500EDB2E6 /* index.docbook */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = index.docbook; sourceTree = "<group>"; };
 		0514CAE81D9CD4CE00EDB2E6 /* index.docbook */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = index.docbook; sourceTree = "<group>"; };
+		05166B892C36140A0014CE97 /* 3d.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = 3d.cpp; sourceTree = "<group>"; };
 		051691A31C5AD59000DC69EC /* hypercompatui.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = hypercompatui.cpp; sourceTree = "<group>"; };
 		051691A41C5AD59000DC69EC /* hypercompatui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hypercompatui.h; sourceTree = "<group>"; };
 		051691A51C5AD59000DC69EC /* hypercoordinateui.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = hypercoordinateui.cpp; sourceTree = "<group>"; };
@@ -2485,6 +2487,8 @@
 		051691AC1C5AD59000DC69EC /* hyperui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hyperui.h; sourceTree = "<group>"; };
 		051806AB2C2B9512001470F1 /* fixedarray.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fixedarray.h; sourceTree = "<group>"; };
 		051806AD2C2BC447001470F1 /* fixedarray.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fixedarray.h; sourceTree = "<group>"; };
+		051806AE2C2CF65D001470F1 /* base64.out */ = {isa = PBXFileReference; lastKnownFileType = text; path = base64.out; sourceTree = "<group>"; };
+		051806AF2C2CF65D001470F1 /* base64.test */ = {isa = PBXFileReference; lastKnownFileType = text; path = base64.test; sourceTree = "<group>"; };
 		051806D3181202BD008EBB01 /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = src/icons; sourceTree = "<group>"; };
 		051806D5181202E0008EBB01 /* examples */ = {isa = PBXFileReference; lastKnownFileType = folder; path = examples; sourceTree = SOURCE_ROOT; };
 		0518B99329D5932C0020ADC1 /* snappy_get_gluing_equations.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = snappy_get_gluing_equations.cpp; sourceTree = "<group>"; };
@@ -5311,6 +5315,7 @@
 			isa = PBXGroup;
 			children = (
 				050F5D2D1B9BAB9C00C1F681 /* CMakeLists.txt */,
+				05166B892C36140A0014CE97 /* 3d.cpp */,
 				05DADB1621928EBF00DC80E1 /* binom.cpp */,
 				050F5D2F1B9BAB9C00C1F681 /* cyclotomic.cpp */,
 				050F5D301B9BAB9C00C1F681 /* integer.cpp */,
@@ -5446,6 +5451,8 @@
 				05431FD11C40F67C009BC072 /* alltypes.test */,
 				05772F03270CFB6000D26D8A /* angles.out */,
 				05772F08270CFB6000D26D8A /* angles.test */,
+				051806AE2C2CF65D001470F1 /* base64.out */,
+				051806AF2C2CF65D001470F1 /* base64.test */,
 				054DF94028CABC2800EC3D81 /* basic.cpp */,
 				054F7DF1278EA2970036B923 /* bool.out */,
 				054F7DF0278EA2970036B923 /* bool.test */,
@@ -9386,6 +9393,7 @@
 				05772EE3270CFAD200D26D8A /* bitmask.cpp in Sources */,
 				05A0669A1DFA67D40047872E /* blockedsfstriple.cpp in Sources */,
 				05A066A31DFA67D40047872E /* pillowtwosphere.cpp in Sources */,
+				05166B8A2C36140A0014CE97 /* 3d.cpp in Sources */,
 				050F5DD71B9BAB9C00C1F681 /* pyalgebra.cpp in Sources */,
 				050F5DDE1B9BAB9C00C1F681 /* example2.cpp in Sources */,
 				051261AB278D65D8006A55B1 /* intersectionform.cpp in Sources */,

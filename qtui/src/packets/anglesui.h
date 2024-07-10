@@ -41,7 +41,6 @@
 #include "triangulation/dim3.h"
 #include "../packetui.h"
 
-#include "reginaqt.h"
 #include <QAbstractItemModel>
 
 class QLabel;

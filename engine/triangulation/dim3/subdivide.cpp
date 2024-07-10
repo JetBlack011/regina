@@ -300,7 +300,7 @@ void Triangulation<3>::connectedSumWith(const Triangulation<3>& other) {
 
     // Insert the other triangulation *before* puncturing this, so that
     // things work in the case where we sum a triangulation with itself.
-    unsigned long n = simplices_.size();
+    size_t n = simplices_.size();
     insertTriangulation(other);
 
     // Make the puncture and record the resulting new boundary triangles.

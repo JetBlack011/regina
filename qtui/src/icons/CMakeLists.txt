@@ -16,6 +16,7 @@ set (IMGS
   csvexport
   dehydrated
   delete
+  disjointunion
   doublecover
   drilledge
   examples
@@ -36,6 +37,7 @@ set (IMGS
   packet_pdf
   packet_script
   packet_snappea
+  packet_spatiallink
   packet_surfaces
   packet_text
   packet_triangulation2
@@ -56,6 +58,7 @@ set (IMGS
   parallel
   puncture
   randomise
+  refine
   reflect
   regina
   reverse
@@ -69,6 +72,8 @@ set (IMGS
   simplify
   simplify-link
   snappea
+  thicker
+  thinner
   troubleshoot
   vtxlinks
   welcome

@@ -535,31 +535,33 @@ class TriangulationBase :
          * work and what their implications are.
          */
         void removeAllSimplices();
+
         /**
          * Moves the contents of this triangulation into the given destination
-         * triangulation, without destroying any pre-existing contents.
+         * triangulation, leaving this triangulation empty but otherwise usable.
          *
-         * All top-dimensional simplices that currently belong to \a dest
-         * will remain there (and will keep the same indices in \a dest).
-         * All top-dimensional simplices that belong to this triangulation
-         * will be moved into \a dest also (but in general their indices will
-         * change).
+         * The top-dimensional simplices of this triangulation will be moved
+         * directly into \a dest, and placed after any pre-existing simplices.
+         * Specifically, if the original size of \a dest was \a N, then
+         * `simplex(i)` of this triangulation will become `dest.simplex(N+i)`.
          *
-         * This triangulation will become empty as a result.
+         * This triangulation will become empty as a result, but it will
+         * otherwise remain a valid and usable Triangulation object.  Any
+         * simplex pointers that referred to either this triangulation or
+         * \a dest will remain valid (and will all now refer to \a dest),
+         * though if they originally referred to this triangulation then they
+         * will now return different indices.  Any locks on top-dimensional
+         * simplices and/or their facets will be preserved.
          *
-         * Any pointers or references to Simplex<dim> objects will remain
-         * valid, and any locks on top-dimensional simplices and/or their
-         * facets will be preserved.
-         *
-         * If your intention is to _replace_ the simplices in \a dest
-         * (i.e., you do not need to preserve the original contents),
-         * then consider using the move assignment operator instead
-         * (which is more streamlined and also moves across any cached
-         * properties from the source triangulation).
+         * Calling `tri.moveContentsTo(dest)` is similar to calling
+         * `dest.insertTriangulation(std::move(tri))`; it is a little slower
+         * but it comes with the benefit of leaving this triangulation in a
+         * usable state.
          *
          * \pre \a dest is not this triangulation.
          *
-         * \param dest the triangulation into which simplices should be moved.
+         * \param dest the triangulation into which the contents of this
+         * triangulation should be moved.
          */
         void moveContentsTo(Triangulation<dim>& dest);
 
@@ -2553,10 +2555,10 @@ class TriangulationBase :
          * Inserts a copy of the given triangulation into this triangulation.
          *
          * The top-dimensional simplices of \a source will be copied into this
-         * triangulation in the same order in which they appear in \a source.
-         * That is, if the original size of this triangulation was \a S,
-         * then the simplex at index \a i in \a source will be copied into
-         * this triangulation as a new simplex at index <i>S</i>+<i>i</i>.
+         * triangulation, and placed after any pre-existing simplices.
+         * Specifically, if the original size of this triangulation was \a N,
+         * then `source.simplex(i)` will be copied to a new simplex which will
+         * appear as `simplex(N+i)` of this triangulation.
          *
          * The copies will use the same vertex numbering and descriptions
          * as the original simplices from \a source, and any gluings
@@ -2571,6 +2573,44 @@ class TriangulationBase :
          * \param source the triangulation whose copy will be inserted.
          */
         void insertTriangulation(const Triangulation<dim>& source);
+
+        /**
+         * Moves the contents of the given triangulation into this
+         * triangulation.
+         *
+         * The top-dimensional simplices of \a source will be moved directly
+         * into this triangulation, and placed after any pre-existing simplices.
+         * Specifically, if the original size of this triangulation was \a N,
+         * then `source.simplex(i)` will become `simplex(N+i)` of this
+         * triangulation.
+         *
+         * As is normal for an rvalue reference, after calling this function
+         * \a source will be unusable.  Any simplex pointers that referred to
+         * either this triangulation or \a source will remain valid (and will
+         * all now refer to this triangulation), though if they originally
+         * referred to \a source then they will now return different indices.
+         * Any locks on top-dimensional simplices and/or their facets will be
+         * preserved.
+         *
+         * Calling `tri.insertTriangulation(source)` (where \a source is an
+         * rvalue reference) is similar to calling `source.moveContentsTo(tri)`,
+         * but it is a little faster since it does not need to leave \a source
+         * in a usable state.
+         *
+         * Regarding packet change events: this function does _not_ fire
+         * a change event on \a source, since it assumes that \a source is
+         * about to be destroyed (which will fire a destruction event instead).
+         *
+         * \pre \a source is not this triangulation.
+         *
+         * \nopython Only the copying version of this function is available
+         * (i.e., the version that takes \a source as a const reference).
+         * If you want a fast move operation, call
+         * `source.moveContentsTo(this)`.
+         *
+         * \param source the triangulation whose contents should be moved.
+         */
+        void insertTriangulation(Triangulation<dim>&& source);
 
         /*@}*/
         /**
@@ -2695,6 +2735,28 @@ class TriangulationBase :
         template <class Type = IsoSigClassic<dim>,
             class Encoding = IsoSigPrintable<dim>>
         typename Encoding::Signature isoSig() const;
+
+        /**
+         * Alias for isoSig(), which constructs the isomorphism signature of
+         * the given type for this triangulation.
+         *
+         * This alias sig() is provided to assist with generic code that can
+         * work with both triangulations and links.
+         *
+         * See isoSig() for further details.
+         *
+         * \python This alias is only available for the default signature type
+         * and encoding (i.e., the default C++ template arguments).
+         * If you wish to use a different signature type and/or encoding, you
+         * can instead use the variants provided with isoSig(); that is, you
+         * can call a function of the form isoSig_<i>Type</i>.  See the
+         * isoSig() documentation for further details.
+         *
+         * \return the isomorphism signature of this triangulation.
+         */
+        template <class Type = IsoSigClassic<dim>,
+            class Encoding = IsoSigPrintable<dim>>
+        typename Encoding::Signature sig() const;
 
         /**
          * Constructs the isomorphism signature for this triangulation, along
@@ -4109,6 +4171,13 @@ inline void TriangulationBase<dim>::removeAllSimplices() {
 
 template <int dim>
 void TriangulationBase<dim>::moveContentsTo(Triangulation<dim>& dest) {
+    if (isEmpty())
+        return;
+    if (dest.isEmpty()) {
+        dest.swap(static_cast<Triangulation<dim>&>(*this));
+        return;
+    }
+
     ChangeAndClearSpan<> span1(*this);
     ChangeAndClearSpan<> span2(dest);
 
@@ -4615,6 +4684,13 @@ inline bool TriangulationBase<dim>::findAllSubcomplexesIn(
 template <int dim>
 void TriangulationBase<dim>::insertTriangulation(
         const Triangulation<dim>& source) {
+    if (source.isEmpty())
+        return;
+    if (isEmpty()) {
+        *this = source;
+        return;
+    }
+
     ChangeAndClearSpan<> span(*this);
 
     size_t nOrig = size();
@@ -4629,12 +4705,10 @@ void TriangulationBase<dim>::insertTriangulation(
         simplices_.push_back(new Simplex<dim>(*source.simplices_[i],
             static_cast<Triangulation<dim>*>(this)));
 
-    Simplex<dim> *me, *you;
-    int f;
     for (i = 0; i < nSource; ++i) {
-        me = simplices_[nOrig + i];
-        you = source.simplices_[i];
-        for (f = 0; f <= dim; ++f) {
+        auto me = simplices_[nOrig + i];
+        auto you = source.simplices_[i];
+        for (int f = 0; f <= dim; ++f) {
             if (you->adj_[f]) {
                 me->adj_[f] = simplices_[nOrig + you->adj_[f]->index()];
                 me->gluing_[f] = you->gluing_[f];
@@ -4642,6 +4716,28 @@ void TriangulationBase<dim>::insertTriangulation(
                 me->adj_[f] = nullptr;
         }
     }
+}
+
+template <int dim>
+void TriangulationBase<dim>::insertTriangulation(Triangulation<dim>&& source) {
+    if (source.isEmpty())
+        return;
+    if (isEmpty()) {
+        *this = std::move(source);
+        return;
+    }
+
+    ChangeAndClearSpan<> span(*this);
+    // Don't worry about change spans for source, since source is about to be
+    // destroyed.
+
+    // The following code is an abuse of MarkedVector, but it's fine;
+    // see the comments in moveContentsTo() for details.
+    for (auto* s : source.simplices_) {
+        s->tri_ = static_cast<Triangulation<dim>*>(this);
+        simplices_.push_back(s);
+    }
+    source.simplices_.clear();
 }
 
 template <int dim>
@@ -5056,6 +5152,12 @@ inline void TriangulationBase<dim>::cloneBoundaryFaces(
     // C++17 fold expression.
     for (auto f : srcFaces)
         bc->push_back(clonedFace(f));
+}
+
+template <int dim>
+template <class Type, class Encoding>
+inline typename Encoding::Signature TriangulationBase<dim>::sig() const {
+    return isoSig<Type, Encoding>();
 }
 
 template <int dim>

@@ -41,6 +41,8 @@
 #include "eltmovedialog4.h"
 #include "tri4gluings.h"
 #include "edittableview.h"
+#include "packetchooser.h"
+#include "packetfilter.h"
 #include "progressdialogs.h"
 #include "reginamain.h"
 #include "reginasupport.h"
@@ -507,6 +509,18 @@ Tri4GluingsUI::Tri4GluingsUI(regina::PacketOf<regina::Triangulation<4>>* packet,
     triActionList.push_back(actFiniteToIdeal);
     connect(actFiniteToIdeal, SIGNAL(triggered()), this, SLOT(finiteToIdeal()));
 
+    auto* actInsertTri = new QAction(this);
+    actInsertTri->setText(tr("Insert Triangulation..."));
+    actInsertTri->setIcon(ReginaSupport::regIcon("disjointunion"));
+    actInsertTri->setToolTip(tr(
+        "Insert another triangulation as additional connected component(s)"));
+    actInsertTri->setWhatsThis(tr("Forms the disjoint union "
+        "of this triangulation with some other triangulation.  "
+        "This triangulation will be modified directly."));
+    triActionList.push_back(actInsertTri);
+    connect(actInsertTri, SIGNAL(triggered()), this,
+        SLOT(insertTriangulation()));
+
     sep = new QAction(this);
     sep->setSeparator(true);
     triActionList.push_back(sep);
@@ -754,7 +768,7 @@ void Tri4GluingsUI::simplify() {
         return;
     }
 
-    if (! tri->intelligentSimplify()) {
+    if (! tri->simplify()) {
         if (tri->countComponents() > 1) {
             ReginaSupport::info(ui,
                 tr("I could not simplify the triangulation."),
@@ -873,7 +887,7 @@ void Tri4GluingsUI::idealToFinite() {
     else {
         regina::Packet::PacketChangeGroup span(*tri);
         tri->idealToFinite();
-        tri->intelligentSimplify();
+        tri->simplify();
     }
 }
 
@@ -899,7 +913,7 @@ void Tri4GluingsUI::finiteToIdeal() {
                 "have ideal boundary."));
             return;
         }
-        tri->intelligentSimplify();
+        tri->simplify();
     }
 }
 
@@ -907,6 +921,23 @@ void Tri4GluingsUI::elementaryMove() {
     endEdit();
 
     (new EltMoveDialog4(ui, tri))->show();
+}
+
+void Tri4GluingsUI::insertTriangulation() {
+    endEdit();
+
+    auto other = std::static_pointer_cast<regina::PacketOf<
+        regina::Triangulation<4>>>(PacketDialog::choose(ui,
+            tri->root(),
+            new SubclassFilter<regina::Triangulation<4>>(),
+            tr("Insert Triangulation"),
+            tr("Insert a copy of which other triangulation?"),
+            tr("Regina will form the disjoint union of this triangulation "
+                "and whatever triangulation you choose here.  "
+                "The current triangulation will be modified directly.")));
+
+    if (other)
+        tri->insertTriangulation(*other);
 }
 
 void Tri4GluingsUI::doubleCover() {

@@ -179,7 +179,7 @@ Link& Link::operator = (Link&& src) {
 
 Link::Link(const std::string& description) {
     try {
-        *this = fromKnotSig(description);
+        *this = fromSig(description);
         return;
     } catch (const InvalidArgument&) {
     }
@@ -212,6 +212,143 @@ Link::Link(const std::string& description) {
         "as representing a link");
 }
 
+bool Link::isConnected() const {
+    if (components_.size() <= 1)
+        return true;
+
+    // Look for any zero-crossing components.
+    for (auto c : components_)
+        if (! c)
+            return false; // since we already know there are other components
+
+    // Run a depth-first search.
+    // We know there is at least one crossing from the tests above.
+    size_t n = crossings_.size();
+
+    FixedArray<bool> visited(n, false);
+    FixedArray<const Crossing*> stack(n);
+
+    size_t stackSize = 1;
+    stack[0] = crossings_.front();
+    visited[0] = true;
+    size_t nFound = 1;
+
+    while (stackSize > 0) {
+        auto curr = stack[--stackSize];
+
+        for (int i = 0; i < 2; ++i) {
+            // We only need to look at next, not prev, since anything we can
+            // reach via prev can also be reached via a sequence of next steps.
+            auto adj = curr->next_[i].crossing();
+            if (! visited[adj->index()]) {
+                ++nFound;
+                if (nFound == n)
+                    return true;
+
+                visited[adj->index()] = true;
+                stack[stackSize++] = adj;
+            }
+        }
+    }
+
+    return false;
+}
+
+std::vector<Link> Link::diagramComponents() const {
+    if (components_.empty())
+        return {};
+    if (components_.size() == 1)
+        return { Link(*this) };
+
+    // We have multiple link components.
+    // Work out how many of these are zero-crossing unknots.
+    size_t nTrivial = 0;
+    for (auto c : components_)
+        if (! c)
+            ++nTrivial;
+
+    if (crossings_.empty()) {
+        std::vector<Link> ans(nTrivial); // all empty links
+        for (auto& link : ans)
+            link.components_.emplace_back(); // make them 0-crossing unknots
+        return ans;
+    }
+
+    // We have at least one crossing.
+    // Run a depth-first search to work out which crossings belong to the same
+    // components.
+
+    size_t n = crossings_.size();
+
+    FixedArray<ssize_t> comp(n, -1);
+    FixedArray<const Crossing*> stack(n);
+
+    size_t next = 0;
+    size_t nComp = 0; // only incremented _after_ finishing the component
+    size_t nFound = 0;
+
+    while (nFound < n) {
+        // Find a starting point to explore the next connected component.
+        while (comp[next] >= 0)
+            ++next;
+
+        size_t stackSize = 1;
+        stack[0] = crossings_[next];
+        comp[next] = nComp;
+        ++next;
+        ++nFound;
+
+        while (stackSize > 0) {
+            auto curr = stack[--stackSize];
+
+            for (int i = 0; i < 2; ++i) {
+                // We only need to look at next, not prev, since anything we
+                // can reach via prev can also be reached via a sequence of
+                // next steps.
+                auto adj = curr->next_[i].crossing();
+                if (comp[adj->index()] < 0) {
+                    stack[stackSize++] = adj;
+                    comp[adj->index()] = nComp;
+                    ++nFound;
+                }
+            }
+        }
+
+        ++nComp;
+    }
+
+    // Extract the components into individual links.
+    //
+    // Do this the easy way for now: clone this link so that we get copies of
+    // all the crossings, hooked together and indexed correctly.
+    //
+    // Like moveContentsTo(), we abuse MarkedVector by having crossings
+    // temporarily belong to two marked vectors at once; see moveContentsTo()
+    // for why this is fine.
+
+    Link clone(*this);
+    std::vector<Link> ans(nComp + nTrivial);
+
+    // We need to distribute link components first, while the new crossings
+    // still have their old indices.
+    for (auto c : clone.components_)
+        if (c)
+            ans[comp[c.crossing()->index()]].components_.push_back(c);
+    clone.components_.clear();
+
+    // Now distribute crossings, which will change their indices and make our
+    // comp[] array useless.
+    for (auto i = 0; i < n; ++i)
+        ans[comp[i]].crossings_.push_back(clone.crossings_[i]);
+    clone.crossings_.clear();
+
+    // Finally add the trivial (0-crossing) diagram components.
+    for (auto i = 0; i < nTrivial; ++i)
+        ans[nComp + i].components_.emplace_back();
+
+    return ans;
+}
+
 bool Link::connected(const Crossing* a, const Crossing* b) const {
     if (components_.size() <= 1)
         return true;
@@ -219,28 +356,20 @@ bool Link::connected(const Crossing* a, const Crossing* b) const {
     // Do a depth-first search.
     size_t n = crossings_.size();
 
-    bool* visited = new bool[n];
-    auto* stack = new Crossing const*[n];
-
-    std::fill(visited, visited + n, false);
+    FixedArray<bool> visited(n, false);
+    FixedArray<const Crossing*> stack(n);
 
     size_t stackSize = 1;
     stack[0] = a;
     visited[a->index()] = true;
 
-    const Crossing *curr, *adj;
-    int i;
     while (stackSize > 0 && ! visited[b->index()]) {
-        curr = stack[--stackSize];
+        auto curr = stack[--stackSize];
 
-        for (i = 0; i < 2; ++i) {
-            adj = curr->next_[i].crossing();
-            if (! visited[adj->index()]) {
-                visited[adj->index()] = true;
-                stack[stackSize++] = adj;
-            }
-
-            adj = curr->prev_[i].crossing();
+        for (int i = 0; i < 2; ++i) {
+            // We only need to look at next, not prev, since anything we can
+            // reach via prev can also be reached via a sequence of next steps.
+            const Crossing* adj = curr->next_[i].crossing();
             if (! visited[adj->index()]) {
                 visited[adj->index()] = true;
                 stack[stackSize++] = adj;
@@ -248,11 +377,7 @@ bool Link::connected(const Crossing* a, const Crossing* b) const {
         }
     }
 
-    bool ans = visited[b->index()];
-
-    delete[] stack;
-    delete[] visited;
-    return ans;
+    return visited[b->index()];
 }
 
 StrandRef Link::overForComponent(StrandRef component) const {
@@ -475,7 +600,7 @@ size_t Link::seifertCircles() const {
     delete[] seen;
 
     // Finish by adding in any zero-crossing components.
-    for (auto c: components_)
+    for (auto c : components_)
         if (! c)
             ++ans;
 
@@ -628,6 +753,86 @@ void Link::rotate() {
         cross->prev_[0].strand_ ^= 1;
         cross->prev_[1].strand_ ^= 1;
     }
+}
+
+void Link::insertLink(const Link& source) {
+    if (source.isEmpty())
+        return;
+    if (isEmpty()) {
+        *this = source;
+        return;
+    }
+
+    ChangeAndClearSpan<> span(*this);
+
+    // From here we can assume source is non-empty.
+    // Clone its crossings, and transfer them directly into this link.
+    // This abuses the MarkedVector API slightly (since an object must
+    // not belong to more than one MarkedVector at a time), but the
+    // implementation of MarkedVector does make it correct.
+    Link clone(source);
+    for (Crossing* c : clone.crossings_)
+        crossings_.push_back(c);
+    clone.crossings_.clear();
+
+    // We can copy or move components from clone, whichever makes more sense.
+    if (isEmpty()) {
+        // Constant time, and correct since this link is empty and we do not
+        // care what happens to clone.components_.
+        clone.components_.swap(components_);
+    } else {
+        components_.insert(components_.end(),
+            clone.components_.begin(), clone.components_.end());
+    }
+}
+
+void Link::insertLink(Link&& source) {
+    if (source.isEmpty())
+        return;
+    if (isEmpty()) {
+        *this = std::move(source);
+        return;
+    }
+
+    ChangeAndClearSpan<> span(*this);
+    // Don't worry about change spans for source, since source is about to be
+    // destroyed.
+
+    // The following code abuses the MarkedVector API slightly, but it's fine;
+    // see the comments in moveContentsTo() below.
+    for (auto* c : source.crossings_)
+        crossings_.push_back(c);
+    source.crossings_.clear();
+
+    components_.insert(components_.end(),
+        source.components_.begin(), source.components_.end());
+    // It should be harmless to leave junk in source.components_, but let's
+    // not risk someone abusing what might become dangling crossing pointers.
+    source.components_.clear();
+}
+
+void Link::moveContentsTo(Link& dest) {
+    if (isEmpty())
+        return;
+    if (dest.isEmpty()) {
+        swap(dest);
+        return;
+    }
+
+    ChangeAndClearSpan<> span(*this);
+    ChangeAndClearSpan<> span2(dest);
+
+    // The following code abuse MarkedVector, since for a brief moment each
+    // crossing belongs to both crossings_ and dest.crossings_.  However, the
+    // subsequent clear() operation does not touch the markings (indices), and
+    // so we end up with the correct result (i.e., markings correct for dest).
+    for (auto* c : crossings_)
+        dest.crossings_.push_back(c);
+    crossings_.clear();
+
+    dest.components_.insert(dest.components_.end(),
+        components_.begin(), components_.end());
+    components_.clear();
 }
 
 void Link::change(Crossing* c) {
@@ -911,7 +1116,7 @@ GroupPresentation Link::group(bool simplify) const {
     delete[] strandToSection;
 
     if (simplify)
-        g.intelligentSimplify();
+        g.simplify();
     return g;
 }
 

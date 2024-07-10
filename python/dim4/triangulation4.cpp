@@ -294,7 +294,8 @@ void addTriangulation4(pybind11::module_& m) {
         .def("reflect", &Triangulation<4>::reflect, rbase::reflect)
         .def("triangulateComponents", &Triangulation<4>::triangulateComponents,
             rbase::triangulateComponents)
-        .def("intelligentSimplify", &Triangulation<4>::intelligentSimplify,
+        .def("simplify", &Triangulation<4>::simplify, rdoc::simplify)
+        .def("intelligentSimplify", &Triangulation<4>::simplify, // deprecated
             rdoc::intelligentSimplify)
         .def("simplifyToLocalMinimum",
             &Triangulation<4>::simplifyToLocalMinimum,
@@ -417,8 +418,11 @@ void addTriangulation4(pybind11::module_& m) {
             rdoc::linkingSurface)
         .def("linkingSurface", &Triangulation<4>::linkingSurface<3>,
             rdoc::linkingSurface)
-        .def("insertTriangulation", &Triangulation<4>::insertTriangulation,
+        .def("insertTriangulation",
+            overload_cast<const Triangulation<4>&>(
+                &Triangulation<4>::insertTriangulation),
             rbase::insertTriangulation)
+        .def("sig", &Triangulation<4>::sig<>, rbase::sig)
         .def("isoSig", &Triangulation<4>::isoSig<>, rbase::isoSig)
         .def("isoSig_EdgeDegrees",
             &Triangulation<4>::isoSig<regina::IsoSigEdgeDegrees<4>>,

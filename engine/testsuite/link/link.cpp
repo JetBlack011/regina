@@ -223,6 +223,75 @@ class LinkTest : public testing::Test {
         }
 };
 
+TEST_F(LinkTest, connected) {
+    // Test connectivity of both the links and their model graphs.
+
+    // The following links should give the same result for both the links and
+    // their underlying graphs: either there are no zero-crossing components,
+    // or there are but these do not change the result.
+    EXPECT_TRUE(empty.link.isConnected());
+    EXPECT_TRUE(empty.link.graph().isConnected());
+
+    EXPECT_TRUE(unknot0.link.isConnected());
+    EXPECT_TRUE(unknot0.link.graph().isConnected());
+    EXPECT_TRUE(unknot1.link.isConnected());
+    EXPECT_TRUE(unknot1.link.graph().isConnected());
+    EXPECT_TRUE(unknot3.link.isConnected());
+    EXPECT_TRUE(unknot3.link.graph().isConnected());
+    EXPECT_TRUE(unknotMonster.link.isConnected());
+    EXPECT_TRUE(unknotMonster.link.graph().isConnected());
+    EXPECT_TRUE(unknotGordian.link.isConnected());
+    EXPECT_TRUE(unknotGordian.link.graph().isConnected());
+
+    EXPECT_TRUE(trefoilLeft.link.isConnected());
+    EXPECT_TRUE(trefoilLeft.link.graph().isConnected());
+    EXPECT_TRUE(trefoilRight.link.isConnected());
+    EXPECT_TRUE(trefoilRight.link.graph().isConnected());
+    EXPECT_TRUE(trefoil_r1x2.link.isConnected());
+    EXPECT_TRUE(trefoil_r1x2.link.graph().isConnected());
+    EXPECT_TRUE(trefoil_r1x6.link.isConnected());
+    EXPECT_TRUE(trefoil_r1x6.link.graph().isConnected());
+    EXPECT_TRUE(figureEight.link.isConnected());
+    EXPECT_TRUE(figureEight.link.graph().isConnected());
+    EXPECT_TRUE(figureEight_r1x2.link.isConnected());
+    EXPECT_TRUE(figureEight_r1x2.link.graph().isConnected());
+    EXPECT_TRUE(conway.link.isConnected());
+    EXPECT_TRUE(conway.link.graph().isConnected());
+    EXPECT_TRUE(kinoshitaTerasaka.link.isConnected());
+    EXPECT_TRUE(kinoshitaTerasaka.link.graph().isConnected());
+    EXPECT_TRUE(gst.link.isConnected());
+    EXPECT_TRUE(gst.link.graph().isConnected());
+
+    EXPECT_TRUE(rht_rht.link.isConnected());
+    EXPECT_TRUE(rht_rht.link.graph().isConnected());
+    EXPECT_TRUE(rht_lht.link.isConnected());
+    EXPECT_TRUE(rht_lht.link.graph().isConnected());
+
+    EXPECT_TRUE(unlink2_r2.link.isConnected());
+    EXPECT_TRUE(unlink2_r2.link.graph().isConnected());
+    EXPECT_FALSE(unlink2_r1r1.link.isConnected());
+    EXPECT_FALSE(unlink2_r1r1.link.graph().isConnected());
+    EXPECT_TRUE(hopf.link.isConnected());
+    EXPECT_TRUE(hopf.link.graph().isConnected());
+    EXPECT_TRUE(whitehead.link.isConnected());
+    EXPECT_TRUE(whitehead.link.graph().isConnected());
+    EXPECT_TRUE(borromean.link.isConnected());
+    EXPECT_TRUE(borromean.link.graph().isConnected());
+    EXPECT_FALSE(trefoil_unknot1.link.isConnected());
+    EXPECT_FALSE(trefoil_unknot1.link.graph().isConnected());
+    EXPECT_TRUE(trefoil_unknot_overlap.link.isConnected());
+    EXPECT_TRUE(trefoil_unknot_overlap.link.graph().isConnected());
+
+    // These links are disconnected, but since their graphs ignore
+    // zero-crossing components the graphs _are_ connected.
+    EXPECT_FALSE(unlink2_0.link.isConnected());
+    EXPECT_TRUE(unlink2_0.link.graph().isConnected());
+    EXPECT_FALSE(unlink3_0.link.isConnected());
+    EXPECT_TRUE(unlink3_0.link.graph().isConnected());
+    EXPECT_FALSE(trefoil_unknot0.link.isConnected());
+    EXPECT_TRUE(trefoil_unknot0.link.graph().isConnected());
+}
+
 TEST_F(LinkTest, components) {
     EXPECT_EQ(empty.link.countComponents(), 0);
 
@@ -255,6 +324,64 @@ TEST_F(LinkTest, components) {
     EXPECT_EQ(trefoil_unknot0.link.countComponents(), 2);
     EXPECT_EQ(trefoil_unknot1.link.countComponents(), 2);
     EXPECT_EQ(trefoil_unknot_overlap.link.countComponents(), 2);
+}
+
+static void verifyDiagramComponents(const Link& link, const char* name,
+        std::initializer_list<std::string> expectBrief) {
+    SCOPED_TRACE_CSTRING(name);
+
+    auto foundComponents = link.diagramComponents();
+    EXPECT_EQ(foundComponents.size(), expectBrief.size());
+
+    auto found = foundComponents.begin();
+    auto expect = expectBrief.begin();
+    for ( ; found != foundComponents.end() && expect != expectBrief.end();
+            ++found, ++expect)
+        EXPECT_EQ(found->brief(), *expect);
+}
+
+TEST_F(LinkTest, diagramComponents) {
+    // Just test a few things manually.
+    {
+        verifyDiagramComponents(empty.link, empty.name, {});
+    }
+    {
+        verifyDiagramComponents(unknot0.link, unknot0.name, { "( )" });
+    }
+    {
+        verifyDiagramComponents(unlink2_0.link, unlink2_0.name,
+            { "( )", "( )" });
+    }
+    {
+        verifyDiagramComponents(figureEight.link, figureEight.name,
+            { "++-- ( _0 ^1 _2 ^3 _1 ^0 _3 ^2 )" });
+    }
+    {
+        verifyDiagramComponents(whitehead.link, whitehead.name,
+            { "--++- ( ^0 _1 ^4 _3 ^2 _4 ) ( _0 ^1 _2 ^3 )" });
+    }
+    {
+        verifyDiagramComponents(trefoil_unknot0.link, trefoil_unknot0.name,
+            { "+++ ( ^0 _1 ^2 _0 ^1 _2 )", "( )" });
+    }
+    {
+        verifyDiagramComponents(trefoil_unknot1.link, trefoil_unknot1.name,
+            { "+++ ( ^0 _1 ^2 _0 ^1 _2 )", "- ( _0 ^0 )" });
+    }
+    {
+        verifyDiagramComponents(trefoil_unknot_overlap.link,
+            trefoil_unknot_overlap.name,
+            { "-++++ ( ^1 _2 _3 _0 ^4 _1 ^2 _4 ) ( ^3 ^0 )" });
+    }
+    {
+        Link link = ExampleLink::whitehead();
+        link.insertLink(Link(2));
+        link.insertLink(ExampleLink::figureEight());
+        link.insertLink(Link(1));
+        verifyDiagramComponents(link, "Whitehead U Figure_Eight U 3x()",
+            { "--++- ( ^0 _1 ^4 _3 ^2 _4 ) ( _0 ^1 _2 ^3 )",
+              "++-- ( _0 ^1 _2 ^3 _1 ^0 _3 ^2 )", "( )", "( )", "( )" });
+    }
 }
 
 TEST_F(LinkTest, linking) {
@@ -646,7 +773,7 @@ static void verifyComplementTrefoilUnknot(const TestCase& test) {
         ASSERT_EQ(cut.countComponents(), 2);
 
         cut.finiteToIdeal(); // Fills the sphere boundaries with balls.
-        cut.intelligentSimplify();
+        cut.simplify();
         auto comp = cut.triangulateComponents();
 
         if (comp[0].isIdeal() && comp[1].isIdeal()) {
@@ -688,7 +815,7 @@ TEST_F(LinkTest, complement) {
     EXPECT_EQ(hopf.link.complement().group().recogniseGroup(), "2 Z");
 
     // For some knots and links, it is reasonable to assume that
-    // intelligentSimplify() will reach a minimal triangulation.
+    // simplify() will reach a minimal triangulation.
 
     EXPECT_TRUE(isFigureEightComplement(figureEight.link.complement()));
     EXPECT_TRUE(isFigureEightComplement(figureEight_r1x2.link.complement()));
@@ -1588,48 +1715,82 @@ static void verifyKnotSig(const Link& link, bool reflect, bool reverse) {
     SCOPED_TRACE_NUMERIC(reflect);
     SCOPED_TRACE_NUMERIC(reverse);
 
-    std::string sig = link.knotSig(reflect, reverse);
+    std::string sig = link.sig(reflect, reverse);
     EXPECT_FALSE(sig.empty());
 
     {
         Link alt(link, false);
         alt.rotate();
-        EXPECT_EQ(alt.knotSig(reflect, reverse), sig);
+        EXPECT_EQ(alt.sig(reflect, reverse), sig);
     }
     if (reflect) {
         Link alt(link, false);
         alt.reflect();
-        EXPECT_EQ(alt.knotSig(reflect, reverse), sig);
+        EXPECT_EQ(alt.sig(reflect, reverse), sig);
     }
     if (reverse) {
         Link alt(link, false);
         alt.reverse();
-        EXPECT_EQ(alt.knotSig(reflect, reverse), sig);
+        EXPECT_EQ(alt.sig(reflect, reverse), sig);
+
+        for (size_t i = 1; i < alt.countComponents(); ++i) {
+            alt.reverse(alt.component(i));
+            EXPECT_EQ(alt.sig(reflect, reverse), sig);
+        }
     }
     if (reflect && reverse) {
         Link alt(link, false);
         alt.reflect();
         alt.reverse();
-        EXPECT_EQ(alt.knotSig(reflect, reverse), sig);
+        EXPECT_EQ(alt.sig(reflect, reverse), sig);
+
+        for (size_t i = 1; i < alt.countComponents(); ++i) {
+            alt.reverse(alt.component(i));
+            EXPECT_EQ(alt.sig(reflect, reverse), sig);
+        }
     }
 
     Link recon;
-    ASSERT_NO_THROW({ recon = Link::fromKnotSig(sig); });
+    ASSERT_NO_THROW({ recon = Link::fromSig(sig); });
 
     EXPECT_EQ(recon.size(), link.size());
     EXPECT_EQ(recon.countComponents(), link.countComponents());
-    EXPECT_EQ(recon.knotSig(reflect, reverse), sig);
-    if (link.size() <= JONES_THRESHOLD && ! reflect)
-        EXPECT_EQ(recon.jones(), link.jones());
+    EXPECT_EQ(recon.sig(reflect, reverse), sig);
+    if (link.size() <= JONES_THRESHOLD) {
+        if (reverse && link.countComponents() > 1) {
+            // We could reverse some but not all components, which will do
+            // unusual things to the Jones polynomial.  At least we can
+            // still span of exponents.
+            auto reconJones = recon.jones();
+            auto linkJones = link.jones();
+            EXPECT_EQ(reconJones.maxExp() - reconJones.minExp(),
+                linkJones.maxExp() - linkJones.minExp());
+        } else if (reflect) {
+            // The only possible change to the Jones polynomial is x -> x^-1.
+            auto reconJones = recon.jones();
+            auto linkJones = link.jones();
+
+            auto reconJonesAlt = recon.jones();
+            auto linkJonesAlt = link.jones();
+            reconJonesAlt.invertX();
+            linkJonesAlt.invertX();
+
+            if (reconJonesAlt < reconJones)
+                reconJones.swap(reconJonesAlt);
+            if (linkJonesAlt < linkJones)
+                linkJones.swap(linkJonesAlt);
+
+            EXPECT_EQ(reconJones, linkJones);
+        } else {
+            EXPECT_EQ(recon.jones(), link.jones());
+        }
+    }
 
     // Verify the "magic" string constructor.
     EXPECT_NO_THROW({ EXPECT_EQ(Link(sig), recon); });
 }
 
 static void verifyKnotSig(const Link& link, const char* name) {
-    if (link.countComponents() != 1)
-        return;
-
     SCOPED_TRACE_CSTRING(name);
 
     verifyKnotSig(link, true, true);
@@ -1638,22 +1799,92 @@ static void verifyKnotSig(const Link& link, const char* name) {
     verifyKnotSig(link, false, false);
 }
 
-TEST_F(LinkTest, knotSig) {
+TEST_F(LinkTest, sig) {
     testManualCases(verifyKnotSig);
 
     // Test signatures that respect / ignore reflection:
-    EXPECT_EQ(trefoilRight.link.knotSig(true, true),  "dabcabcv-");
-    EXPECT_EQ(trefoilRight.link.knotSig(false, true), "dabcabcv-");
-    EXPECT_EQ(trefoilLeft.link.knotSig(true, true),   "dabcabcv-");
-    EXPECT_EQ(trefoilLeft.link.knotSig(false, true) , "dabcabcva");
+    EXPECT_EQ(trefoilRight.link.sig(true, true),  "dabcabcv-");
+    EXPECT_EQ(trefoilRight.link.sig(false, true), "dabcabcv-");
+    EXPECT_EQ(trefoilLeft.link.sig(true, true),   "dabcabcv-");
+    EXPECT_EQ(trefoilLeft.link.sig(false, true) , "dabcabcva");
+
+    // Test that reflection applies to the entire diagram only, not individual
+    // connected components:
+    {
+        Link l = ExampleLink::trefoilRight();
+        l.insertLink(ExampleLink::trefoilRight());
+        EXPECT_EQ(l.sig(true, true), "dabcabcv-dabcabcv-");
+        EXPECT_EQ(l.sig(false, true), "dabcabcv-dabcabcv-");
+    }
+    {
+        Link l = ExampleLink::trefoilRight();
+        l.insertLink(ExampleLink::trefoilLeft());
+        EXPECT_EQ(l.sig(true, true), "dabcabcv-dabcabcva");
+        EXPECT_EQ(l.sig(false, true), "dabcabcv-dabcabcva");
+    }
+    {
+        Link l = ExampleLink::trefoilLeft();
+        l.insertLink(ExampleLink::trefoilRight());
+        EXPECT_EQ(l.sig(true, true), "dabcabcv-dabcabcva");
+        EXPECT_EQ(l.sig(false, true), "dabcabcv-dabcabcva");
+    }
+    {
+        Link l = ExampleLink::trefoilLeft();
+        l.insertLink(ExampleLink::trefoilLeft());
+        EXPECT_EQ(l.sig(true, true), "dabcabcv-dabcabcv-");
+        EXPECT_EQ(l.sig(false, true), "dabcabcvadabcabcva");
+    }
 
     // A link where all four reflection/reversal options give different sigs:
     Link asymmetric = Link::fromOrientedGauss(
         "-<6 +>3 -<5 +>2 -<4 -<1 +>1 +>5 -<3 +>6 -<2 +>4");
-    EXPECT_EQ(asymmetric.knotSig(true, true),   "gaabcdefbcfedPQ--");
-    EXPECT_EQ(asymmetric.knotSig(true, false),  "gaabcdefdcbefPQ--");
-    EXPECT_EQ(asymmetric.knotSig(false, true),  "gaabcdefbcfedPQaa");
-    EXPECT_EQ(asymmetric.knotSig(false, false), "gaabcdefdcbefPQaa");
+    EXPECT_EQ(asymmetric.sig(true, true),   "gaabcdefbcfedPQ--");
+    EXPECT_EQ(asymmetric.sig(true, false),  "gaabcdefdcbefPQ--");
+    EXPECT_EQ(asymmetric.sig(false, true),  "gaabcdefbcfedPQaa");
+    EXPECT_EQ(asymmetric.sig(false, false), "gaabcdefdcbefPQaa");
+
+    // For the Hopf link, reversing one component is the same as reflection.
+    {
+        Link hopfNegative = ExampleLink::hopf(); // positive crossings
+        hopfNegative.reflect();
+
+        EXPECT_EQ(hopfNegative.sig(true, true), "cabcabjp");
+        EXPECT_EQ(hopfNegative.sig(true, false), "cabcabjp");
+        EXPECT_EQ(hopfNegative.sig(false, true), "cabcabjp");
+        EXPECT_EQ(hopfNegative.sig(false, false), "cabcabja");
+    }
+
+    // Verify some signatures against actual hard-coded strings, to ensure
+    // that the single-component knot signature format from Regina ≤ 7.3
+    // matches the more general format in Regina ≥ 7.4.
+    //
+    // The following knot signatures were all computed using Regina 7.3.
+    EXPECT_EQ(unknot0.link.sig(), "a");
+    EXPECT_EQ(unknot1.link.sig(), "baabd");
+    EXPECT_EQ(unknot3.link.sig(), "dabcabchT");
+    EXPECT_EQ(unknotMonster.link.sig(), "kabcdefghijbefgdcjahixfvbdwGd");
+    EXPECT_EQ(unknotGordian.link.sig(), "-cncaabacadaeafagahaiajakalamanaoapaqarasatauavawaxayazaAaBaCaDaEaFavaGataHaIaJapaoaKaLalaMaNaOahaPaQaeaRaSabaTaUaVaWaXajaNaYaZafaQa0a1a2aUa3auaGa4a5a6aza7aBa8a9a+a-aabbbcbdbebfbgbhbibjbkblbmbnbobpbqbrbdbsbtbubvbwbxbybzbAbBb+aEaCbDbxaEb4aFbGbqaJaHbIbJbLamaobKbLbMbNbObibPbxbQbRbSbTb-aSacaUb0aVbWbVaXbHaYbraGbZb0bmb1b2b3bMbfb4b5b6bub7bRbzb8b9bAbSb+b-bsb5bacgbNbbc2b1blbccZbnaKaJbdcXaecWbfc1aUbdaRaabgc+b7bvbhcPbjbicbc3bLbjcpbMakadcIbHbIaYbsaFbkc6ayaDbCbDalc8a9b8bybQbwbhc6btb-bcbmcqbjcKbnb0bcckbicObhbac4bebrbmcbbgcTbBb9alcCa7aAakc5aEbwaFaaaTa2afcVbPagaZaYaOaiaecWaXb3aVB3NNT3NVoYNthlfdnryeRZac44044idYmmqb5MT6MAwhJx3YEkl-T9wMNu-F+rMu86EgBAxURTr1DzB6E60Z-7pYJKn2T");
+    EXPECT_EQ(trefoilLeft.link.sig(), "dabcabcv-");
+    EXPECT_EQ(trefoilRight.link.sig(), "dabcabcv-");
+    EXPECT_EQ(trefoil_r1x2.link.sig(), "faabcdeebcd1eFo");
+    EXPECT_EQ(trefoil_r1x6.link.sig(), "jaabccdeefggbhhdiifnwo-KN");
+    EXPECT_EQ(figureEight.link.sig(), "eabcdbadcvbZa");
+    EXPECT_EQ(figureEight_r1x2.link.sig(), "gaabcdbeffdcevtBy");
+    EXPECT_EQ(conway.link.sig(), "labcdbefcdghiefjkgaijkhRswfFoWa");
+    EXPECT_EQ(kinoshitaTerasaka.link.sig(), "labcdefgahefhijbkdijckgBvQcndZl");
+    EXPECT_EQ(gst.link.sig(), "WabcdefghijklmnopqrsetuvinwxohvyazABCDEpguFbzGBHIJqftKcAGCHLsrMIDNOPQjmRNOSTklUSPVyFKdLMJExwRUTQVFyCHZX4sCdFzZe6yV7-D5cCbUGXTBhbG");
+    EXPECT_EQ(rht_rht.link.sig(), "gabcabcdefdefvv--");
+    EXPECT_EQ(rht_lht.link.sig(), "gabcabcdefdefvv-a");
+
+    // Add some hard-coded link signatures also, to ensure that nothing changes
+    // as we optimise the underlying algorithms.  For now we can only work
+    // with connected link diagrams, hence the fairly small list below.
+    EXPECT_EQ(empty.link.sig(), "_");
+    EXPECT_EQ(hopf.link.sig(), "cabcabjp"); // verified by hand
+    EXPECT_EQ(whitehead.link.sig(), "fabcadefbcedvfpd"); // verified by hand
+    EXPECT_EQ(borromean.link.sig(), "gabcdgaecfgbfdeLwto"); // verified by hand
+    EXPECT_EQ(trefoil_unknot_overlap.link.sig(), "fabcdeadefbcxb7h");
+    EXPECT_EQ(adams6_28.link.sig(), "gabcadefdgbcefvv--"); // verified by hand
 }
 
 static void verifyGaussAndDT(const TestCase& test,
@@ -1664,7 +1895,7 @@ static void verifyGaussAndDT(const TestCase& test,
     // For "non-composite-like" knot diagrams, the only possible ambiguity
     // is reflection.  Use the reflection-distinguishing knot signature to
     // tell whether we reflected upon reconstruction.
-    std::string targetSig = test.link.knotSig(false);
+    std::string targetSig = test.link.sig(false);
 
     if (testGauss) {
         std::string code = test.link.gauss();
@@ -1679,10 +1910,10 @@ static void verifyGaussAndDT(const TestCase& test,
         EXPECT_NO_THROW({ EXPECT_EQ(Link(code), recon); });
 
         // If we reflected, undo this for our subsequent tests.
-        if (recon.knotSig(false) != targetSig)
+        if (recon.sig(false) != targetSig)
             recon.reflect();
 
-        EXPECT_EQ(recon.knotSig(false), targetSig);
+        EXPECT_EQ(recon.sig(false), targetSig);
         if (test.link.size() <= JONES_THRESHOLD)
             EXPECT_EQ(recon.jones(), test.link.jones());
     }
@@ -1711,10 +1942,10 @@ static void verifyGaussAndDT(const TestCase& test,
                 });
 
                 // If we reflected, undo this for our subsequent tests.
-                if (recon.knotSig(false) != targetSig)
+                if (recon.sig(false) != targetSig)
                     recon.reflect();
 
-                EXPECT_EQ(recon.knotSig(false), targetSig);
+                EXPECT_EQ(recon.sig(false), targetSig);
                 if (test.link.size() <= JONES_THRESHOLD)
                     EXPECT_EQ(recon.jones(), test.link.jones());
             }
@@ -1886,7 +2117,7 @@ TEST_F(LinkTest, pdCode) {
 TEST_F(LinkTest, invalidCode) {
     static const char* code = "INVALID";
 
-    EXPECT_THROW({ Link::fromKnotSig(code); }, regina::InvalidArgument);
+    EXPECT_THROW({ Link::fromSig(code); }, regina::InvalidArgument);
     EXPECT_THROW({ Link::fromGauss(code); }, regina::InvalidArgument);
     EXPECT_THROW({ Link::fromDT(code); }, regina::InvalidArgument);
     EXPECT_THROW({ Link::fromOrientedGauss(code); }, regina::InvalidArgument);
@@ -1934,8 +2165,11 @@ static void verifyRewrite(const TestCase& test, int height, size_t count) {
 
 TEST_F(LinkTest, rewrite) {
     // The counts here were computed using Regina 6.0 in single-threaded mode
-    // (except for the unknot0 cases, which were computed by hand).
+    // (except for the zero-crossing cases, which were computed by hand).
 
+    verifyRewrite(empty, 0, 1);
+    verifyRewrite(empty, 1, 1);
+    verifyRewrite(empty, 2, 1);
     verifyRewrite(unknot0, 0, 1);
     verifyRewrite(unknot0, 1, 2);
     verifyRewrite(unknot0, 2, 6);
@@ -1943,6 +2177,12 @@ TEST_F(LinkTest, rewrite) {
     verifyRewrite(unknot3, 0, 22);
     verifyRewrite(unknot3, 1, 131);
     verifyRewrite(unknot3, 2, 998);
+    verifyRewrite(unlink2_0, 0, 1);
+    verifyRewrite(unlink2_0, 1, 2);
+    verifyRewrite(unlink2_0, 2, 9);
+    verifyRewrite(unlink3_0, 0, 1);
+    verifyRewrite(unlink3_0, 1, 2);
+    verifyRewrite(unlink3_0, 2, 9);
     verifyRewrite(figureEight, 0, 1);
     verifyRewrite(figureEight, 1, 8);
     verifyRewrite(figureEight, 2, 137);
@@ -2002,6 +2242,64 @@ static void verifyGroup(const Link& link, const char* name) {
 
 TEST_F(LinkTest, group) {
     testManualCases(verifyGroup, false);
+}
+
+static void verifySmallCells(const Link& link, const char* name) {
+    SCOPED_TRACE_CSTRING(name);
+
+    const regina::ModelLinkGraph graph(link);
+    if (! graph.isConnected()) {
+        // We cannot build the dual cell decomposition.
+        // Don't test this link.
+        return;
+    }
+    const auto& cells = graph.cells();
+
+    // Verify that loops(), bigons() and triangles() match what we see from
+    // the dual cell decomposition.
+    for (auto n : graph.nodes()) {
+        SCOPED_TRACE_NUMERIC(n->index());
+
+        int foundLoops = 0;
+        int foundBigons = 0;
+        int foundTriangles = 0;
+
+        for (int i = 0; i < 4; ++i) {
+            size_t cell = cells.cell(n->arc(i));
+            switch (cells.size(cell)) {
+                case 1:
+                    ++foundLoops;
+                    break;
+                case 2:
+                    {
+                        auto n0 = cells.arc(cell, 0).node();
+                        auto n1 = cells.arc(cell, 1).node();
+                        if (n0 != n1)
+                            ++foundBigons;
+                    }
+                    break;
+                case 3:
+                    {
+                        auto n0 = cells.arc(cell, 0).node();
+                        auto n1 = cells.arc(cell, 1).node();
+                        auto n2 = cells.arc(cell, 2).node();
+                        if (n0 != n1 && n0 != n2 && n1 != n2)
+                            ++foundTriangles;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        EXPECT_EQ(foundLoops, n->loops());
+        EXPECT_EQ(foundBigons, n->bigons());
+        EXPECT_EQ(foundTriangles, n->triangles());
+    }
+}
+
+TEST_F(LinkTest, smallCells) {
+    testManualCases(verifySmallCells);
 }
 
 TEST_F(LinkTest, swapping) {

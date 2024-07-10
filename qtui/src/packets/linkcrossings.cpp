@@ -33,6 +33,7 @@
 // Regina core includes:
 #include "core/engine.h"
 #include "link/link.h"
+#include "packet/container.h"
 #include "progress/progresstracker.h"
 #include "snappea/snappeatriangulation.h"
 
@@ -253,7 +254,7 @@ QSize CrossingDelegate::sizeHint(const QStyleOptionViewItem &option,
 
 LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
         PacketTabbedUI* useParentUI) :
-        PacketEditorTab(useParentUI), link(packet), useCrossing(-1) {
+        PacketEditorTab(useParentUI), link(packet), useStrand(-1) {
     ui = new QWidget();
     layout = new QVBoxLayout(ui);
 
@@ -280,7 +281,7 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
 
     ui->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextCrossing(const QPoint&)));
+        this, SLOT(contextStrand(const QPoint&)));
 
     if (explnPictorial.isNull())
         explnPictorial = tr("Shows a pictorial representation of each "
@@ -425,9 +426,36 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
     actionList.push_back(actComposeWith);
     connect(actComposeWith, SIGNAL(triggered()), this, SLOT(composeWith()));
 
+    auto* actInsertLink = new QAction(this);
+    actInsertLink->setText(tr("&Insert Link..."));
+    actInsertLink->setIcon(ReginaSupport::regIcon("disjointunion"));
+    actInsertLink->setToolTip(
+        tr("Insert another link as additional diagram component(s)"));
+    actInsertLink->setWhatsThis(tr("Forms the split union of "
+        "this link with some other link.  "
+        "This link will be modified directly."));
+    actionList.push_back(actInsertLink);
+    connect(actInsertLink, SIGNAL(triggered()), this, SLOT(insertLink()));
+
     sep = new QAction(this);
     sep->setSeparator(true);
     actionList.push_back(sep);
+
+    auto* actDiagramComponents = new QAction(this);
+    actDiagramComponents->setText(tr("Extract Diagram C&omponents"));
+    actDiagramComponents->setIcon(ReginaSupport::regIcon("components"));
+    actDiagramComponents->setToolTip(tr("Form a new link from each "
+        "connected component of this diagram"));
+    actDiagramComponents->setWhatsThis(tr("<qt>Split a disconnected "
+        "link diagram into its individual connected components.  This "
+        "link diagram will not be changed &ndash; each "
+        "connected component will be added as a new link beneath "
+        "it in the packet tree.<p>"
+        "If this link diagram is already connected, this operation will "
+        "do nothing.</qt>"));
+    actionList.push_back(actDiagramComponents);
+    connect(actDiagramComponents, SIGNAL(triggered()), this,
+        SLOT(diagramComponents()));
 
     actComplement = new QAction(this);
     actComplement->setText(tr("&Complement"));
@@ -633,13 +661,12 @@ void LinkCrossingsUI::simplify() {
         return;
     }
 
-    if (! link->intelligentSimplify()) {
-        if (link->countComponents() > 1) {
+    if (! link->simplify()) {
+        if (link->countComponents() >= 64) {
             ReginaSupport::info(ui, tr("I could not simplify the link."),
-                tr("<qt>I have only tried fast heuristics so far.<p>"
-                    "For knots I can try a more exaustive approach, "
-                    "but for multiple-component links this is not "
-                    "yet available.</qt>"));
+                tr("I have only tried fast heuristics so far, and "
+                    "my more exhaustive approach is not available for "
+                    "links with ≥ 64 crossings."));
             return;
         }
 
@@ -733,8 +760,61 @@ void LinkCrossingsUI::composeWith() {
         link->composeWith(*other);
 }
 
+void LinkCrossingsUI::insertLink() {
+    auto other = std::static_pointer_cast<regina::PacketOf<regina::Link>>(
+        PacketDialog::choose(ui,
+            link->root(),
+            new SingleTypeFilter<regina::PacketOf<regina::Link>>(),
+            tr("Insert Link"),
+            tr("Insert a copy of which other link?"),
+            tr("Regina will form the split union of this link "
+                "and whatever link you choose here.  "
+                "The current link will be modified directly.")));
+
+    if (other)
+        link->insertLink(*other);
+}
+
 void LinkCrossingsUI::moves() {
     (new LinkMoveDialog(ui, link))->show();
+}
+
+void LinkCrossingsUI::diagramComponents() {
+    if (link->isEmpty())
+        ReginaSupport::info(ui,
+            tr("This link diagram is empty."),
+            tr("It has no components."));
+    else if (link->isConnected())
+        ReginaSupport::info(ui,
+            tr("This link diagram is connected."),
+            tr("It has only one diagram component."));
+    else {
+        // If there are already children of this link, insert
+        // the new links at a deeper level.
+        std::shared_ptr<Packet> base;
+        if (link->firstChild()) {
+            base = std::make_shared<regina::Container>();
+            link->append(base);
+            base->setLabel(link->adornedLabel("Diagram components"));
+        } else
+            base = link->shared_from_this();
+
+        // Make the split.
+        size_t which = 0;
+        for (auto& c : link->diagramComponents()) {
+            std::ostringstream label;
+            label << "Component #" << ++which;
+            base->append(regina::make_packet(std::move(c), label.str()));
+        }
+
+        // Make sure the new components are visible.
+        enclosingPane->getMainWindow()->ensureVisibleInTree(
+            *base->firstChild());
+
+        // Tell the user what happened.
+        ReginaSupport::info(ui,
+            tr("%1 diagram components were extracted.").arg(which));
+    }
 }
 
 void LinkCrossingsUI::complement() {
@@ -774,44 +854,55 @@ void LinkCrossingsUI::typeChanged(int) {
         }
 }
 
-void LinkCrossingsUI::contextCrossing(const QPoint& pos) {
+void LinkCrossingsUI::contextStrand(const QPoint& pos) {
     for (auto l : componentLists) {
         if (l && l->geometry().contains(pos)) {
             QModelIndex index = l->indexAt(l->mapFrom(ui, pos));
             if (! index.isValid()) {
-                useCrossing = -1;
+                useStrand = -1;
                 return;
             }
 
-            useCrossing = static_cast<CrossingModel*>(l->model())->
-                strandAt(index).crossing()->index();
+            regina::StrandRef s = static_cast<CrossingModel*>(l->model())->
+                strandAt(index);
+            useStrand = s.id();
+            size_t useCrossing = useStrand >> 1;
 
             QMenu m(tr("Context menu"), ui);
 
             QAction change(tr("Change crossing %1").arg(useCrossing), this);
             QAction resolve(tr("Resolve crossing %1").arg(useCrossing), this);
+            QAction reverse(tr("Reverse component"), this);
             connect(&change, SIGNAL(triggered()), this, SLOT(changeCrossing()));
             connect(&resolve, SIGNAL(triggered()), this, SLOT(resolveCrossing()));
+            connect(&reverse, SIGNAL(triggered()), this, SLOT(reverseComponent()));
             m.addAction(&change);
             m.addAction(&resolve);
+            m.addAction(&reverse);
 
             m.exec(ui->mapToGlobal(pos));
             return;
         }
     }
-    useCrossing = -1;
+    useStrand = -1;
 }
 
 void LinkCrossingsUI::changeCrossing() {
-    if (useCrossing >= 0 && useCrossing < link->size())
-        link->change(link->crossing(useCrossing));
-    useCrossing = -1;
+    if (useStrand >= 0 && useStrand < 2 * link->size())
+        link->change(link->crossing(useStrand >> 1));
+    useStrand = -1;
 }
 
 void LinkCrossingsUI::resolveCrossing() {
-    if (useCrossing >= 0 && useCrossing < link->size())
-        link->resolve(link->crossing(useCrossing));
-    useCrossing = -1;
+    if (useStrand >= 0 && useStrand < 2 * link->size())
+        link->resolve(link->crossing(useStrand >> 1));
+    useStrand = -1;
+}
+
+void LinkCrossingsUI::reverseComponent() {
+    if (useStrand >= 0 && useStrand < 2 * link->size())
+        link->reverse(link->strand(useStrand));
+    useStrand = -1;
 }
 
 void LinkCrossingsUI::updatePreferences() {

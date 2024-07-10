@@ -1310,10 +1310,10 @@ constexpr const char *insertTriangulation =
 R"doc(Inserts a copy of the given triangulation into this triangulation.
 
 The top-dimensional simplices of *source* will be copied into this
-triangulation in the same order in which they appear in *source*. That
-is, if the original size of this triangulation was *S*, then the
-simplex at index *i* in *source* will be copied into this
-triangulation as a new simplex at index *S*+*i*.
+triangulation, and placed after any pre-existing simplices.
+Specifically, if the original size of this triangulation was *N*, then
+``source.simplex(i)`` will be copied to a new simplex which will
+appear as ``simplex(N+i)`` of this triangulation.
 
 The copies will use the same vertex numbering and descriptions as the
 original simplices from *source*, and any gluings between the
@@ -1799,30 +1799,33 @@ Returns:
 // Docstring regina::python::doc::detail::TriangulationBase_::moveContentsTo
 constexpr const char *moveContentsTo =
 R"doc(Moves the contents of this triangulation into the given destination
-triangulation, without destroying any pre-existing contents.
+triangulation, leaving this triangulation empty but otherwise usable.
 
-All top-dimensional simplices that currently belong to *dest* will
-remain there (and will keep the same indices in *dest*). All top-
-dimensional simplices that belong to this triangulation will be moved
-into *dest* also (but in general their indices will change).
+The top-dimensional simplices of this triangulation will be moved
+directly into *dest*, and placed after any pre-existing simplices.
+Specifically, if the original size of *dest* was *N*, then
+``simplex(i)`` of this triangulation will become
+``dest.simplex(N+i)``.
 
-This triangulation will become empty as a result.
+This triangulation will become empty as a result, but it will
+otherwise remain a valid and usable Triangulation object. Any simplex
+pointers that referred to either this triangulation or *dest* will
+remain valid (and will all now refer to *dest*), though if they
+originally referred to this triangulation then they will now return
+different indices. Any locks on top-dimensional simplices and/or their
+facets will be preserved.
 
-Any pointers or references to Simplex<dim> objects will remain valid,
-and any locks on top-dimensional simplices and/or their facets will be
-preserved.
-
-If your intention is to _replace_ the simplices in *dest* (i.e., you
-do not need to preserve the original contents), then consider using
-the move assignment operator instead (which is more streamlined and
-also moves across any cached properties from the source
-triangulation).
+Calling ``tri.moveContentsTo(dest)`` is similar to calling
+``dest.insertTriangulation(std::move(tri))``; it is a little slower
+but it comes with the benefit of leaving this triangulation in a
+usable state.
 
 Precondition:
     *dest* is not this triangulation.
 
 Parameter ``dest``:
-    the triangulation into which simplices should be moved.)doc";
+    the triangulation into which the contents of this triangulation
+    should be moved.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::newSimplex
 constexpr const char *newSimplex =
@@ -2215,6 +2218,27 @@ Precondition:
 
 Parameter ``pres``:
     a new presentation of the fundamental group of this triangulation.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::sig
+constexpr const char *sig =
+R"doc(Alias for isoSig(), which constructs the isomorphism signature of the
+given type for this triangulation.
+
+This alias sig() is provided to assist with generic code that can work
+with both triangulations and links.
+
+See isoSig() for further details.
+
+Python:
+    This alias is only available for the default signature type and
+    encoding (i.e., the default C++ template arguments). If you wish
+    to use a different signature type and/or encoding, you can instead
+    use the variants provided with isoSig(); that is, you can call a
+    function of the form isoSig_*Type*. See the isoSig() documentation
+    for further details.
+
+Returns:
+    the isomorphism signature of this triangulation.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::simplex
 constexpr const char *simplex =

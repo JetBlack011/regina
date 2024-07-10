@@ -63,9 +63,9 @@ LinkCodesUI::LinkCodesUI(regina::PacketOf<regina::Link>* packet,
         "representation for prime knots (but introduces ambiguities "
         "for non-prime knots), and comes in both alphabetical and numerical "
         "variants.<p>"
-        "The <i>knot signature</i> is native to Regina, and identifies "
-        "a knot projection on the sphere uniquely up to relabelling "
-        "and/or reflection.<p>"
+        "The <i>knot/link signature</i> is native to Regina, and identifies "
+        "a knot or link projection on the sphere uniquely up to various "
+        "relabelling, reflection, rotation and/or reversal operations.<p>"
         "The <i>planar diagram code</i> is used in the Knot Atlas, "
         "and supports multiple-component links.<p>"
         "The <i>Jenkins format</i> is the text representation used by "
@@ -75,7 +75,7 @@ LinkCodesUI::LinkCodesUI(regina::PacketOf<regina::Link>* packet,
     type = new QComboBox();
     type->addItem(tr("Gauss codes"));
     type->addItem(tr("Dowker-Thistlethwaite notation"));
-    type->addItem(tr("Knot signature"));
+    type->addItem(tr("Knot/link signature"));
     type->addItem(tr("Planar diagram code"));
     type->addItem(tr("Jenkins format"));
     type->setWhatsThis(msg);
@@ -145,18 +145,20 @@ void LinkCodesUI::refresh() {
 
         code->setWordWrapMode(QTextOption::WordWrap);
     } else if (type->currentIndex() == 2) {
-        code->setWhatsThis("The knot signature of this knot.  Signatures "
-            "are native to Regina, and identify a knot projection "
-            "on the sphere uniquely up to relabelling and/or reflection.<p>"
+        code->setWhatsThis("The knot/link signature of this link diagram.  "
+            "Signatures are native to Regina, and identify a knot or link "
+            "projection on the sphere uniquely up to relabelling, "
+            "reflecting the entire diagram, rotating connected components "
+            "of the diagram, and/or reversing individual link components.<p>"
             "You can copy this text to the clipboard if you need to send it "
             "to some other application.");
-        if (link->countComponents() != 1) {
-            code->setPlainText(tr("Knot signatures are currently "
-                "only available for knots."));
+        if (link->countComponents() >= 64) {
+            code->setPlainText(tr("Knot/link signatures are only available "
+                "for links with fewer than 64 components."));
             code->setWordWrapMode(QTextOption::WordWrap);
             return;
         }
-        ans = link->knotSig().c_str();
+        ans = link->sig().c_str();
 
         code->setWordWrapMode(QTextOption::WrapAnywhere);
     } else if (type->currentIndex() == 3) {

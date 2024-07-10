@@ -33,7 +33,15 @@ This base64 encoding uses the characters: ``a..zA..Z0..9+-``
     symbols from the encoding used in utilities/base64.h. This should
     not be a problem: Regina uses this encoding exclusively for
     signatures, and uses utilities/base64.h exclusively for encoding
-    files.)doc";
+    files.
+
+Python:
+    The type *Iterator* is an implementation detail, and is hidden
+    from Python users. Just use the unadorned type name
+    ``Base64SigDecoder``.
+
+Template parameter ``Iterator``:
+    a forward iterator whose associated value type is ``char``.)doc";
 
 // Docstring regina::python::doc::Base64SigEncoder
 static const char *Base64SigEncoder =
@@ -80,9 +88,19 @@ namespace Base64SigDecoder_ {
 static const char *__init =
 R"doc(Creates a new decoder for the given encoded string.
 
+The string itself should be passed as an iterator range. This iterator
+range must remain valid for the entire lifespan of this decoder.
+
+Python:
+    Instead of an iterator range, this constructor takes a Python
+    string. In Python (but not C++), the decoder will also keep a deep
+    copy of the string, to ensure the lifespan requirements.
+
 Parameter ``encoding``:
-    a reference to the encoded string. This string _must_ remain alive
-    and unchanged for the entire lifespan of this decoder.
+    an iterator pointing to the beginning of the encoded string.
+
+Parameter ``end``:
+    a past-the-end iterator that marks the end of the encoded string.
 
 Parameter ``skipInitialWhitespace``:
     ``True`` if the current position should immediately advance past
@@ -96,8 +114,9 @@ have been encoded using Base64SigEncoder::encodeInt(), with the same
 *nChars* argument.
 
 Specifically, it will be assumed that the integer has been broken into
-*nChars* 6-bit blocks, each encoded as a single base64 character,
-presented in order from lowest to highest significance.
+*nChars* 6-bit blocks, with each block encoded as a single base64
+character, and with the blocks presented in order from lowest to
+highest significance.
 
 The inverse to this routine is Base64SigEncoder::encodeInt().
 
@@ -121,6 +140,45 @@ Parameter ``nChars``:
 
 Returns:
     the integer that was decoded.)doc";
+
+// Docstring regina::python::doc::Base64SigDecoder_::decodeInts
+static const char *decodeInts =
+R"doc(Decodes a sequence of non-negative integer values, assuming that each
+individual value uses a fixed number of base64 characters. Each such
+integer value would typically have been encoded using
+Base64SigEncoder::encodeInt() or Base64SigEncoder::encodeInts(), with
+the same *nChars* argument.
+
+Specifically, it will be assumed that each integer has been broken
+into *nChars* 6-bit blocks, with each block encoded as a single base64
+character, and with the blocks presented in order from lowest to
+highest significance.
+
+The inverse to this routine is Base64SigEncoder::encodeInts().
+
+Exception ``InvalidInput``:
+    There are fewer than ``count × nChars`` characters available in
+    the encoded string, or a character was encountered that was not a
+    valid base64 character.
+
+Python:
+    The template argument *IntType* is taken to be a native C++
+    ``long``. This routine returns a Python list of integers.
+
+Template parameter ``IntType``:
+    a native C++ integer type. The result will be assembled using
+    bitwise OR and bitwise shift lefts, and it is assumed that the
+    programmer has chosen an integer type large enough to contain
+    whatever values they expect to read.
+
+Parameter ``count``:
+    the number of integers to decode.
+
+Parameter ``nChars``:
+    the number of base64 characters to read.
+
+Returns:
+    the sequence of integers that were decoded.)doc";
 
 // Docstring regina::python::doc::Base64SigDecoder_::decodeSingle
 static const char *decodeSingle =
@@ -170,16 +228,6 @@ Exception ``InvalidInput``:
     or a character was encountered that was not a valid base64
     character.
 
-Python:
-    The template argument *IntType* is taken to be a native C++
-    ``long``.
-
-Template parameter ``IntType``:
-    a native C++ integer type. The result will be assembled using
-    bitwise OR and bitwise shift lefts, and it is assumed that the
-    programmer has chosen an integer type large enough to contain
-    whatever values they expect to read.
-
 Returns:
     a pair (*size*, *b*), where *size* is the integer that was
     decoded, and *b* is the number of base64 characters described
@@ -226,6 +274,22 @@ Parameter ``c``:
 Returns:
     ``True`` if and only if *c* is one of the 64 printable characters
     described in the class notes.)doc";
+
+// Docstring regina::python::doc::Base64SigDecoder_::peek
+static const char *peek =
+R"doc(Returns the character at the current position in the encoded string.
+The current position will not move.
+
+Returns:
+    the character at the current position, or 0 if there are no more
+    characters available.)doc";
+
+// Docstring regina::python::doc::Base64SigDecoder_::skip
+static const char *skip =
+R"doc(Advances to the next position in the encoded string.
+
+Precondition:
+    The current position has not yet reached the end of the string.)doc";
 
 // Docstring regina::python::doc::Base64SigDecoder_::skipWhitespace
 static const char *skipWhitespace =
@@ -279,8 +343,7 @@ Each integer in the sequence will be encoded using encodeInt(). That
 is, each integer will be broken into *nChars* distinct 6-bit blocks,
 which will be encoded in order from lowest to highest significance.
 
-The inverse to this routine is Base64SigDecoder::decodeInt(), though
-that function only decodes one integer at a time.
+The inverse to this routine is Base64SigDecoder::decodeInts().
 
 Exception ``InvalidArgument``:
     Some integer in the sequence is negative, or requires more than
@@ -291,7 +354,7 @@ Python:
     Python sequence of integers. Each Python integer will be read as a
     native C++ ``long``.
 
-Template parameter ``InputIterator``:
+Template parameter ``Iterator``:
     an input iterator which, when dereferenced, gives a native C++
     integer type.
 
@@ -345,16 +408,6 @@ crossing numbers). Note that encodeSize() itself might write more than
 
 The inverse to this routine is Base64SigDecoder::decodeSize().
 
-Exception ``InvalidArgument``:
-    The given integer is negative.
-
-Python:
-    The template argument *IntType* is taken to be a native C++
-    ``long``.
-
-Template parameter ``IntType``:
-    a native C++ integer type.
-
 Parameter ``size``:
     the non-negative integer to encode.
 
@@ -382,7 +435,7 @@ Python:
     This routine takes a single argument, which is a Python sequence
     of integer trits.
 
-Template parameter ``InputIterator``:
+Template parameter ``Iterator``:
     an input iterator which, when dereferenced, can be cast as a
     native C++ unsigned 8-bit integer (``uint8_t``).
 

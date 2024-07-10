@@ -444,7 +444,7 @@ static void verifyBoundaryManifolds(const TriangulationTest<4>::TestCase& test,
     auto it = expect.begin();
     for (auto bc : test.tri.boundaryComponents()) {
         Triangulation<3> t = bc->build();
-        t.intelligentSimplify();
+        t.simplify();
 
         if (auto std = regina::StandardTriangulation::recognise(t)) {
             if (auto mfd = std->manifold())
@@ -1102,7 +1102,7 @@ static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
                     tri.countBoundaryComponents());
 
             // Homology can only be computed for valid triangulations.
-            other.intelligentSimplify();
+            other.simplify();
 
             EXPECT_EQ(other.homology<1>(), tri.homology<1>());
             EXPECT_EQ(other.homology<2>(), tri.homology<2>());
@@ -1227,7 +1227,7 @@ static void verifyIBundle(const Triangulation<3>& tri, const char* name) {
     // TODO: Check isomorphisms from tri onto the boundary of b.
 
     // Simplify the triangulation before running any more expensive tests.
-    b.intelligentSimplify();
+    b.simplify();
 
     EXPECT_EQ(b.homology<1>(), tri.homology<1>());
     EXPECT_EQ(b.homology<2>(), tri.homology<2>());
@@ -1256,7 +1256,7 @@ static void verifyS1Bundle(const Triangulation<3>& tri, const char* name) {
     EXPECT_EQ(b.countBoundaryFacets(), 20 * tri.countBoundaryTriangles());
 
     // Simplify the triangulation before running any more expensive tests.
-    b.intelligentSimplify();
+    b.simplify();
 
     {
         regina::AbelianGroup expectH1 = tri.homology<1>();
@@ -1364,6 +1364,9 @@ TEST_F(Dim4Test, retriangulate) {
     // The counts that are commented out are too slow, though they can be
     // brought back in again as the retriangulation code gets faster.
 
+    verifyRetriangulate(empty, 0, 1);
+    verifyRetriangulate(empty, 1, 1);
+    verifyRetriangulate(empty, 2, 1);
     verifyRetriangulate(s4_doubleCone, 0, 1);
     verifyRetriangulate(s4_doubleCone, 1, 1);
     verifyRetriangulate(s4_doubleCone, 2, 15);
@@ -1429,8 +1432,8 @@ TEST_F(Dim4Test, events) {
         EXPECT_EQ(p->homology<2>().rank(), 1);
 
         // Move assignment that changes H2
-        // The extra insertTriangulation() is to ensure that the
-        // move is not optimised away.
+        // The extra insertTriangulation() is to ensure that the move is not
+        // optimised away.
         Triangulation<4> t = rp4.tri;
         t.insertTriangulation(t);
         *p = std::move(t);

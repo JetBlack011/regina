@@ -296,8 +296,11 @@ void addTriangulation2(pybind11::module_& m) {
         .def("subdivide", &Triangulation<2>::subdivide, rbase::subdivide)
         .def("barycentricSubdivision", // deprecated
             &Triangulation<2>::subdivide, rbase::barycentricSubdivision)
-        .def("insertTriangulation", &Triangulation<2>::insertTriangulation,
+        .def("insertTriangulation",
+            overload_cast<const Triangulation<2>&>(
+                &Triangulation<2>::insertTriangulation),
             rbase::insertTriangulation)
+        .def("sig", &Triangulation<2>::sig<>, rbase::sig)
         .def("isoSig", &Triangulation<2>::isoSig<>, rbase::isoSig)
         .def("isoSig_EdgeDegrees",
             &Triangulation<2>::isoSig<regina::IsoSigEdgeDegrees<2>>,

@@ -54,6 +54,7 @@
 #include "triangulation/dim3.h"
 #include "triangulation/detail/retriangulate.h"
 #include "utilities/exception.h"
+#include "utilities/fixedarray.h"
 #include "utilities/listview.h"
 #include "utilities/markedvector.h"
 #include "utilities/tightencoding.h"
@@ -846,7 +847,7 @@ class Link :
          * At present, Regina understands the following types of strings
          * (and attempts to parse them in the following order):
          *
-         * - knot signatures, as used by fromKnotSig();
+         * - knot/link signatures, as used by fromSig();
          * - oriented Gauss codes, as used by fromOrientedGauss();
          * - classical Gauss codes, as used by fromGauss();
          * - numeric or alphabetical Dowker-Thistlethwaite strings, as
@@ -1020,6 +1021,36 @@ class Link :
         StrandRef strand(ssize_t id) const;
 
         /**
+         * Returns a sequence that maps strand IDs to link component numbers.
+         *
+         * This sequence will have length `2n`, where \a n is the number of
+         * crossings in this link diagram.  If \a strand is a non-null strand
+         * reference, \a map is the sequence that is returned, and
+         * `map[strand.id()] == c`, then this indicates that \a strand is part
+         * of the link component defined by `component(c)`.
+         *
+         * Null strand references are not handled by this map: they have a
+         * negative ID (which means calling `map[strand.id()]` is an error),
+         * and they could refer to any 0-crossing unknot component (so the
+         * specific component might not be uniquely determined).
+         *
+         * The return type is deliberately not specified here.  It is
+         * guaranteed to be a container whose elements have type `size_t`,
+         * with value semantics, fast move construction and swap operations,
+         * an array index operator, and random access iterators.  It is _not_
+         * guaranteed to have a copy assignment operator (but it will support
+         * fast move assignment).  At present the specific implementation
+         * returns `FixedArray<size_t>`, though this is subject to change in
+         * future versions of Regina and so end user code should always use
+         * `auto`.
+         *
+         * \python This routine will return a Python list.
+         *
+         * \return a sequence mapping strand IDs to component numbers.
+         */
+        auto componentsByStrand() const;
+
+        /**
          * Translates a strand reference from some other link into the
          * corresponding strand reference from this link.
          *
@@ -1044,23 +1075,68 @@ class Link :
         StrandRef translate(const StrandRef& other) const;
 
         /**
+         * Determines whether this link diagram is connected, if we treat each
+         * crossing as a 4-way intersection.
+         *
+         * This tests whether it is possible to travel from any part of the
+         * link to any other part of the link by:
+         *
+         * - following the link around its components, and/or;
+         * - jumping between upper and lower strands at crossings.
+         *
+         * In particular, the link diagram may be connected even if the link
+         * has multiple components.
+         *
+         * Connectivity is a property of the diagram, not an invariant of the
+         * link itself, since the locations of the crossings matter.
+         * In particular:
+         *
+         * - a disconnected diagram _must_ describe a splittable link;
+         *
+         * - a splittable link, however, could be represented by either a
+         *   connected or disconnected link diagram.
+         *
+         * This is almost, but not quite, equivalent to testing whether the
+         * underlying 4-valent graph of the link diagram is connected.
+         * Specifically, where `link.isConnected()` and
+         * `link.graph().isConnected()` differ is in cases where the link has
+         * zero-crossing components (i.e., unknotted circles disjoint from the
+         * rest of the diagram).  Zero-crossing components are considered here
+         * in `Link.isConnected()` but _not_ in `ModelLinkGraph.isConnected()`,
+         * since such components cannot be represented by a 4-valent graph
+         * (and so the ModelLinkGraph class ignores them completely).
+         *
+         * For the purposes of this routine, an empty link is considered to be
+         * connected.
+         *
+         * Note: for knots and empty links, this routine is constant time.
+         * For multiple-component links, it is linear in the link size.
+         *
+         * See also diagramComponents(), which extracts the connected
+         * components of a link diagram as individual Link objects.
+         *
+         * \return \c true if and only if this link diagram is connected.
+         */
+        bool isConnected() const;
+
+        /**
          * Determines whether the two given crossings are connected in the
-         * underlying 4-valent graph of the link diagram.
+         * link diagram, if we treat each crossing as a 4-way intersection.
          *
-         * Here "the underlying 4-valent graph" means the multigraph
-         * whose vertices are the crossings and whose edges are the arcs
-         * between crossings.  In particular
+         * This tests whether it is possible to travel between the two given
+         * crossings by:
          *
-         * - two crossings may be connected even if they involve
-         *   entirely different components of the link;
+         * - following the link around its components, and/or;
+         * - jumping between upper and lower strands at crossings.
          *
-         * - if two crossings are not connected then the underlying link
-         *   must be splittable (though this need not happen in the
-         *   other direction: one can have a diagram of a splittable
-         *   link in which all crossings are connected with each other).
+         * In particular, two crossings may be connected in the diagram even
+         * if they involve entirely different components of the link.
          *
-         * \warning This routine is slow (linear time), since it may
-         * need to perform a depth-first search through the graph.
+         * See isConnected() for further discussion on the connectivity of
+         * link diagrams.
+         *
+         * Note: for knots and empty links, this routine is constant time.
+         * For multiple-component links, it is linear in the link size.
          *
          * \param a the first of the two crossings to examine.
          * \param b the second of the two crossings to examine.
@@ -1068,6 +1144,45 @@ class Link :
          * connected.
          */
         bool connected(const Crossing* a, const Crossing* b) const;
+
+        /**
+         * Returns the connected components of this link diagram as individual
+         * standalone links.
+         *
+         * Here _connected components_  are not the same as _link components_.
+         * A connected component means a portion of the link diagram that
+         * is connected when we treat each crossing as a 4-way intersection.
+         * In other words, one can travel around the connected component by
+         * following the link around, and/or jumping between upper and lower
+         * strands at crossings.  A single connected component of the diagram
+         * may contain multiple link components, and will always describe a
+         * sublink for which isConnected() returns `true`.
+         *
+         * The connected components are a property of the diagram, not an
+         * invariant of the link itself, since the locations of the crossings
+         * matter.  In particular:
+         *
+         * - a diagram with multiple connected components _must_ describe a
+         *   splittable link;
+         *
+         * - a splittable link, however, could be represented by a diagram
+         *   with multiple connected components or with just one connected
+         *   component.
+         *
+         * The connected components that are returned will be cloned from this
+         * link (so even if this diagram is connected and there is just one
+         * connected component, a deep copy will still take place).  The total
+         * number of crossings across all of the links that are returned will
+         * equal size(), and the total number of _link_ components across all
+         * of the links that are returned will equal countComponents().
+         *
+         * If you simply wish to know whether this diagram is connected, you
+         * should call isConnected() instead which is much more lightweight.
+         *
+         * \return a list containing the individual connected components of
+         * this link diagram.
+         */
+        std::vector<Link> diagramComponents() const;
 
         /**
          * Locates an over-crossing within the same link component as the
@@ -1218,6 +1333,85 @@ class Link :
          * \param other the link whose contents should be swapped with this.
          */
         void swap(Link& other);
+
+        /**
+         * Inserts a copy of the given link into this link.
+         *
+         * The crossings and components of \a source will be copied into this
+         * link, and placed after any pre-existing crossings and components.
+         * Specifically, if the original number of crossings in this link was
+         * \a N, then crossing number \a i of \a source will be copied to
+         * a new crosssing `N+i` of this link; likewise for components.
+         *
+         * This routine behaves correctly when \a source is this link.
+         *
+         * \param source the link whose copy will be inserted.
+         */
+        void insertLink(const Link& source);
+
+        /**
+         * Moves the contents of the given link into this link.
+         *
+         * The crossings and components of \a source will be moved directly
+         * into this link, and placed after any pre-existing crossings and
+         * components.  Specifically, if the original number of crossings in
+         * this link was \a N, then crossing number \a i of \a source will
+         * become crosssing `N+i` of this link; likewise for components.
+         *
+         * As is normal for an rvalue reference, after calling this function
+         * \a source will be unusable.  Any strand references or crossing
+         * pointers that referred to either this link or \a source will remain
+         * valid (and will all now refer to this link), though if they
+         * originally referred to \a source then they will now return
+         * different crossing indices and strand IDs.
+         *
+         * Calling `link.insertLink(source)` (where \a source is an rvalue
+         * reference) is similar to calling `source.moveContentsTo(link)`,
+         * but it is a little faster since it does not need to leave
+         * \a source in a usable state.
+         *
+         * Regarding packet change events: this function does _not_ fire
+         * a change event on \a source, since it assumes that \a source is
+         * about to be destroyed (which will fire a destruction event instead).
+         *
+         * \pre \a source is not this link.
+         *
+         * \nopython Only the copying version of this function is available
+         * (i.e., the version that takes \a source as a const reference).
+         * If you want a fast move operation, call
+         * `source.moveContentsTo(this)`.
+         *
+         * \param source the link whose contents should be moved.
+         */
+        void insertLink(Link&& source);
+
+        /**
+         * Moves the contents of this link into the given destination link,
+         * leaving this link empty but otherwise usable.
+         *
+         * The crossings and components of this link will be moved directly
+         * into \a dest, and placed after any pre-existing crossings and
+         * components.  Specifically, if the original number of crossings in
+         * \a dest was \a N, then crossing number \a i of this link will
+         * become crosssing `N+i` of \a dest; likewise for components.
+         *
+         * This link will become empty as a result, but it will otherwise
+         * remain a valid and usable Link object.  Any strand references or
+         * crossing pointers that referred to either this link or \a dest will
+         * remain valid (and will all now refer to \a dest), though if they
+         * originally referred to this link then they will now return
+         * different crossing indices and strand IDs.
+         *
+         * Calling `link.moveContentsTo(dest)` is similar to calling
+         * `dest.insertLink(std::move(link))`; it is a little slower but it
+         * comes with the benefit of leaving this link in a usable state.
+         *
+         * \pre \a dest is not this link.
+         *
+         * \param dest the link into which the contents of this link should be
+         * moved.
+         */
+        void moveContentsTo(Link& dest);
 
         /**
          * Switches the upper and lower strands of the given crossing.
@@ -1832,15 +2026,15 @@ class Link :
         bool selfFrame();
 
         /**
-         * Attempts to simplify the link diagram using fast and greedy
-         * heuristics.  Specifically, this routine tries combinations of
-         * Reidemeister moves with the aim of reducing the number of
-         * crossings.
+         * Attempts to simplify this link diagram as intelligently as possible
+         * using fast and greedy heuristics.  Specifically, this routine tries
+         * combinations of Reidemeister moves with the aim of reducing the
+         * number of crossings.
          *
          * Currently this routine uses simplifyToLocalMinimum() in
          * combination with random type III Reidemeister moves.
          *
-         * Although intelligentSimplify() often works well, it can sometimes
+         * Although simplify() often works well, it can sometimes
          * get stuck.  If this link is a knot (i.e., it has precisely one
          * component), then in such cases you can try the more powerful but
          * (much) slower simplifyExhaustive() instead.
@@ -1852,14 +2046,33 @@ class Link :
          * decisions.  More broadly, the implementation of this routine
          * (and therefore its results) may change between different releases
          * of Regina.
+         *
+         * \note For long-term users of Regina: this is the routine that was
+         * for a long time called intelligentSimplify().  It was renamed to
+         * simplify() in Regina 7.4.
+         *
+         * \return \c true if and only if the link diagram was successfully
+         * simplified.
          */
-        bool intelligentSimplify();
+        bool simplify();
+        /**
+         * Deprecated alias for simplify(), which attempts to simplify this
+         * link diagram as intelligently as possible using fast and greedy
+         * heuristics.
+         *
+         * \deprecated This routine has been renamed to simplify().
+         * See simplify() for further details.
+         *
+         * \return \c true if and only if the link diagram was successfully
+         * simplified.
+         */
+        [[deprecated]] bool intelligentSimplify();
         /**
          * Uses type I and II Reidemeister moves to reduce the link
          * monotonically to some local minimum number of crossings.
          *
          * End users will probably not want to call this routine.
-         * You should call intelligentSimplify() if you want a fast (and
+         * You should call simplify() if you want a fast (and
          * usually effective) means of simplifying a link.  If this link is
          * a knot (i.e., it has precisely one component), then you can also
          * call simplifyExhaustive() if you are still stuck and you want to
@@ -1867,7 +2080,7 @@ class Link :
          *
          * Type III Reidemeister moves (which do not reduce the number of
          * crossings) are not used in this routine.  Such moves do however
-         * feature in intelligentSimplify().
+         * feature in simplify().
          *
          * This routine will never reflect or reverse the link.
          *
@@ -1886,30 +2099,31 @@ class Link :
         bool simplifyToLocalMinimum(bool perform = true);
 
         /**
-         * Attempts to simplify this knot diagram using a slow but
+         * Attempts to simplify this link diagram using a slow but
          * exhaustive search through the Reidemeister graph.  This routine is
-         * more powerful but much slower than intelligentSimplify().
+         * more powerful but much slower than simplify().
          *
-         * Unlike intelligentSimplify(), this routine **could potentially
+         * Unlike simplify(), this routine **could potentially
          * reflect or reverse the link**.
          *
-         * This routine is only available for knots at the present time.
-         * If this link has multiple (or zero) components, then this
+         * As of Regina 7.4, this routine is now available for any connected
+         * link diagram with fewer than 64 link components.
+         * If this link has 64 or more components then this
          * routine will throw an exception (as described below).
          *
-         * This routine will iterate through all knot diagrams that can be
+         * This routine will iterate through all link diagrams that can be
          * reached from this via Reidemeister moves, without ever exceeding
          * \a height additional crossings beyond the original number.
          *
          * If at any stage it finds a diagram with _fewer_
          * crossings than the original, then this routine will call
-         * intelligentSimplify() to simplify the diagram further if
+         * simplify() to simplify the diagram further if
          * possible and will then return \c true.  If it cannot find a
          * diagram with fewer crossings then it will leave this
-         * knot diagram unchanged and return \c false.
+         * link diagram unchanged and return \c false.
          *
          * This routine can be very slow and very memory-intensive: the
-         * number of knot diagrams it visits may be exponential in
+         * number of link diagrams it visits may be exponential in
          * the number of crossings, and it records every diagram
          * that it visits (so as to avoid revisiting the same diagram
          * again).  It is highly recommended that you begin with \a height = 1,
@@ -1925,13 +2139,13 @@ class Link :
          * (read on for details).
          *
          * If you want a _fast_ simplification routine, you should call
-         * intelligentSimplify() instead.  The benefit of simplifyExhaustive()
-         * is that, for very stubborn knot diagrams where intelligentSimplify()
+         * simplify() instead.  The benefit of simplifyExhaustive()
+         * is that, for very stubborn link diagrams where simplify()
          * finds itself stuck at a local minimum, simplifyExhaustive() is able
          * to "climb out" of such wells.
          *
          * Since Regina 7.0, this routine will not return until either the
-         * knot diagram is simplified or the exhaustive search is complete,
+         * link diagram is simplified or the exhaustive search is complete,
          * regardless of whether a progress tracker was passed.  If you
          * need the old behaviour (where passing a progress tracker caused
          * the exhaustive search to start in the background), simply call
@@ -1941,17 +2155,17 @@ class Link :
          * (multithreaded) mode; simply pass the number of parallel threads
          * in the argument \a threads.  Even in multithreaded mode, this
          * routine will not return until processing has finished (i.e., either
-         * the diagram was simplified or the search was exhausted).
+         * the diagram was simplified or the search was exhausted), and any
+         * change to this link diagram will happen in the calling thread.
          *
-         * If this routine is unable to simplify the knot diagram, then
-         * this knot diagram will not be changed.
+         * If this routine is unable to simplify the link diagram, then
+         * this link diagram will not be changed.
          *
-         * \pre This link has at most one component (i.e., it is empty
-         * or it is a knot).
+         * \pre This link has at most 64 link components.
          *
-         * \exception FailedPrecondition This link has more than one component.
-         * If a progress tracker was passed, it will be marked as finished
-         * before the exception is thrown.
+         * \exception FailedPrecondition This link has 64 or more link
+         * components.  If a progress tracker was passed, it will be marked as
+         * finished before the exception is thrown.
          *
          * \python The global interpreter lock will be released while
          * this function runs, so you can use it with Python-based
@@ -1971,15 +2185,16 @@ class Link :
             ProgressTrackerOpen* tracker = nullptr);
 
         /**
-         * Explores all knot diagrams that can be reached from this via
+         * Explores all link diagrams that can be reached from this via
          * Reidemeister moves, without exceeding a given number of additional
          * crossings.
          *
-         * This routine is only available for knots at the present time.
-         * If this link has multiple (or zero) components, then this
+         * As of Regina 7.4, this routine is now available for any connected
+         * link diagram with fewer than 64 link components.
+         * If this link has 64 or more components then this
          * routine will throw an exception (as described below).
          *
-         * This routine iterates through all knot diagrams that can be reached
+         * This routine iterates through all link diagrams that can be reached
          * from this via Reidemeister moves, without ever exceeding
          * \a height additional crossings beyond the original number.
          * With the current implementation, these diagrams **could become
@@ -1988,16 +2203,16 @@ class Link :
          * behaviour could change and/or become configurable in a future version
          * of Regina.
          *
-         * For every such knot diagram (including this starting
-         * diagram), this routine will call \a action (which must
-         * be a function or some other callable object).
+         * For every such link diagram (including this starting diagram), this
+         * routine will call \a action (which must be a function or some other
+         * callable object).
          *
          * - \a action must take the following initial argument(s).
          *   Either (a) the first argument must be a link (the precise type
-         *   is discussed below), representing the knot diagram that has been
+         *   is discussed below), representing the link diagram that has been
          *   found; or else (b) the first two arguments must be of types
          *   const std::string& followed by a link, representing both the
-         *   knot diagram and its knot signature.
+         *   link diagram and its signature (as returned by sig()).
          *   The second form is offered in order to avoid unnecessarily
          *   recomputation within the \a action function.
          *   If there are any additional arguments supplied in the list \a args,
@@ -2010,23 +2225,23 @@ class Link :
          *
          * - \a action must return a boolean.  If \a action ever returns
          *   \c true, then this indicates that processing should stop
-         *   immediately (i.e., no more knot diagrams will be processed).
+         *   immediately (i.e., no more link diagrams will be processed).
          *
-         * - \a action may, if it chooses, make changes to this knot
-         *   (i.e., the original knot upon which rewrite() was called).
-         *   This will not affect the search: all knot diagrams
+         * - \a action may, if it chooses, make changes to this link
+         *   (i.e., the original link upon which rewrite() was called).
+         *   This will not affect the search: all link diagrams
          *   that this routine visits will be obtained via Reidemeister moves
-         *   from the original knot diagram, before any subsequent changes
+         *   from the original link diagram, before any subsequent changes
          *   (if any) were made.
          *
-         * - \a action will only be called once for each knot diagram
+         * - \a action will only be called once for each link diagram
          *   (including this starting diagram).  In other words, no
-         *   knot diagram will be revisited a second time in a single call
+         *   link diagram will be revisited a second time in a single call
          *   to rewrite().
          *
          * This routine can be very slow and very memory-intensive, since the
-         * number of knot diagrams it visits may be exponential in
-         * the number of crossings, and it records every knot diagram
+         * number of link diagrams it visits may be exponential in
+         * the number of crossings, and it records every link diagram
          * that it visits (so as to avoid revisiting the same diagram
          * again).  It is highly recommended that you begin with \a height = 1,
          * and if necessary try increasing \a height one at a time until
@@ -2035,10 +2250,10 @@ class Link :
          * If \a height is negative, then there will be _no_ bound on
          * the number of additional crossings.  This means that the
          * routine will _never terminate_, unless \a action returns
-         * \c true for some knot diagram that is passed to it.
+         * \c true for some link diagram that is passed to it.
          *
          * Since Regina 7.0, this routine will not return until the exploration
-         * of knot diagrams is complete, regardless of whether a progress
+         * of link diagrams is complete, regardless of whether a progress
          * tracker was passed.  If you need the old behaviour (where passing a
          * progress tracker caused the enumeration to start in the background),
          * simply call this routine in a new detached thread.
@@ -2053,11 +2268,11 @@ class Link :
          * action should avoid expensive operations where possible (otherwise
          * it will become a serialisation bottleneck in the multithreading).
          *
-         * \pre This link has precisely one component (i.e., it is a knot).
+         * \pre This link has fewer than 64 link components.
          *
-         * \exception FailedPrecondition This link is empty or has more than
-         * one component.  If a progress tracker was passed, it will be marked
-         * as finished before the exception is thrown.
+         * \exception FailedPrecondition This link has 64 or more link
+         * components.  If a progress tracker was passed, it will be marked as
+         * finished before the exception is thrown.
          *
          * \apinotfinal
          *
@@ -2066,20 +2281,20 @@ class Link :
          * form is more restricted: the arguments \a tracker and \a args are
          * removed, so you simply call it as rewrite(height, threads, action).
          * Moreover, \a action must take exactly two arguments
-         * (const std::string&, Link&&) representing the knot signature and
-         * the knot diagram, as described in option (b) above.
+         * (const std::string&, Link&&) representing the signature and
+         * the link diagram, as described in option (b) above.
          *
          * \param height the maximum number of _additional_ crossings to
          * allow beyond the number of crossings originally present in this
-         * knot diagram, or a negative number if this should not be bounded.
+         * link diagram, or a negative number if this should not be bounded.
          * \param threads the number of threads to use.  If this is
          * 1 or smaller then the routine will run single-threaded.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
          * \param action a function (or other callable object) to call
-         * for each knot diagram that is found.
+         * for each link diagram that is found.
          * \param args any additional arguments that should be passed to
-         * \a action, following the initial knot argument(s).
+         * \a action, following the initial link argument(s).
          * \return \c true if some call to \a action returned \c true (thereby
          * terminating the search early), or \c false if the search ran to
          * completion.
@@ -3494,46 +3709,91 @@ class Link :
         [[deprecated]] std::string dumpConstruction() const;
 
         /**
-         * Constructs the _signature_ for this knot diagram.
+         * Constructs the _signature_ for this knot or link diagram.
          *
-         * A _signature_ is a compact text representation of a knot
-         * diagram that unique determines the knot up to relabelling,
-         * rotation, and (optionally) reflection and/or reversal.
+         * A _signature_ is a compact text representation of a link
+         * diagram that uniquely determines the diagram up to: relabelling;
+         * rotating connected components of the diagram; and (optionally)
+         * reflecting the entire diagram and/or reversing some or all link
+         * components.
          *
-         * Currently signatures are only implemented for knots, not
-         * empty or multiple component links.  If this link does not
-         * have precisely one component, then this routine will throw an
-         * exception.  It is possible that in future versions of Regina,
-         * knot signatures will be expanded to cover all possible link
-         * diagrams (hence the choice of NotImplemented as the exception type).
+         * Signatures are now supported for all link diagrams with fewer than
+         * 64 link components.  Specifically:
+         *
+         * - Regina 7.3 and earlier only offered signatures for knots.
+         *   As of Regina 7.4, signatures are now supported for arbitrary
+         *   link diagrams (but see the next point), and for knots the new
+         *   signatures are identical to the old.
+         *
+         * - The implementation uses bitmasks, and a side-effect of this is
+         *   that it can only support fewer than 64 link components.  However,
+         *   since the running time is exponential in the number of components
+         *   (if we allow reversal, which is the default) then it would be
+         *   completely infeasible to use this routine in practice with _more_
+         *   components than this.  If there are 64 or more link components
+         *   then this routine will throw an exception.
          *
          * The signature is constructed entirely of printable characters,
          * and has length proportional to `n log n`, where \a n
          * is the number of crossings.
          *
-         * The routine fromKnotSig() can be used to recover a knot from
-         * its signature.  The resulting knot might not be identical to
+         * The routine fromSig() can be used to recover a link diagram from
+         * its signature.  The resulting diagram might not be identical to
          * the original, but it will be related by zero or more applications
-         * of relabelling, rotation, and/or (according to the arguments)
-         * reflection and reversal.
+         * of relabelling, rotating connected components of the diagram, and/or
+         * (according to the arguments) reflection of the entire diagram and/or
+         * reversal of individual link components.
+         *
+         * The running time is quadratic in the number of crossings and (if we
+         * allow reversal, which is the default) exponential in the number of
+         * link components.  For this reason, signatures should not be used
+         * for links with a large number of components.
          *
          * This routine runs in quadratic time.
          *
-         * \exception NotImplemented This link is empty or has multiple
+         * \exception NotImplemented This link diagram has 64 or more link
          * components.
          *
-         * \param useReflection \c true if the reflection of a knot diagram
-         * should have the same signature as the original, or \c false
-         * if these should be distinct (assuming the diagram is not symmetric
-         * under reflection).
-         * \param useReversal \c true if the reversal of a knot diagram
-         * should have the same signature as the original, or \c false
-         * if these should be distinct (assuming the diagram is not symmetric
-         * under reversal).
-         * \return the signature for this knot diagram.
+         * \param allowReflection \c true if reflecting the entire link diagram
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between a diagram and its reflection (unless of course
+         * there is a symmetry).
+         * \param allowReversal \c true if reversing some or all link components
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between different orientations (again, unless of course
+         * there are symmetries).
+         * \return the signature for this link diagram.
          */
-        std::string knotSig(bool useReflection = true, bool useReversal = true)
-            const;
+        std::string sig(
+            bool allowReflection = true, bool allowReversal = true) const;
+
+        /**
+         * Alias for sig(), which constructs the signature for this
+         * knot or link diagram.
+         *
+         * This alias knotSig() has been kept to reflect the fact that, in
+         * older versions of Regina, these signatures were only available for
+         * single-component knots; moreover the old name "knot signatures" can
+         * still be found in the literature.  While this routine is not
+         * deprecated, it is recommended to use sig() in new code.
+         *
+         * See sig() for further details.
+         *
+         * \exception NotImplemented This link diagram has 64 or more link
+         * components.
+         *
+         * \param allowReflection \c true if reflecting the entire link diagram
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between a diagram and its reflection (unless of course
+         * there is a symmetry).
+         * \param allowReversal \c true if reversing some or all link components
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between different orientations (again, unless of course
+         * there are symmetries).
+         * \return the signature for this link diagram.
+         */
+        std::string knotSig(
+            bool allowReflection = true, bool allowReversal = true) const;
 
         /**
          * Writes the tight encoding of this link to the given output stream.
@@ -3740,41 +4000,45 @@ class Link :
             ComponentIterator beginComponents, ComponentIterator endComponents);
 
         /**
-         * Recovers a knot diagram from its signature.
-         * See knotSig() for more information on knot signatures.
+         * Recovers a link diagram from its knot/link signature.
+         * See sig() for more information on these signatures.
          *
-         * Calling knotSig() followed by fromKnotSig() is not guaranteed to
-         * produce an _identical_ knot diagram to the original, but it
-         * is guaranteed to produce one that is related by relabelling,
-         * rotation, and optionally (according to the arguments that
-         * were passed to knotSig()) reflection and/or reversal.
-         *
-         * \exception InvalidArgument The given string was not a valid
-         * knot signature.
-         *
-         * \param sig the signature of the knot diagram to construct.
-         * Note that signatures are case-sensitive.
-         * \return the reconstructed knot.
-         */
-        static Link fromKnotSig(const std::string& sig);
-
-        /**
-         * Alias for fromKnotSig(), to recover a knot diagram from its
-         * signature.
-         *
-         * This alias fromSig() is provided to assist with generic code
-         * that can work with both knots and triangulations.
-         *
-         * See fromKnotSig() for further details.
+         * Calling sig() followed by fromSig() is not guaranteed to
+         * produce an _identical_ knot diagram to the original, but it is
+         * guaranteed to produce one that is related by relabelling, rotating
+         * connected components of the diagram, and optionally (according to
+         * the arguments that were passed to sig()) reflection of the
+         * entire diagram and/or reversal of individual link components.
          *
          * \exception InvalidArgument The given string was not a valid
-         * knot signature.
+         * knot/link signature.
          *
-         * \param sig the signature of the knot diagram to construct.
+         * \param sig the signature of the link diagram to construct.
          * Note that signatures are case-sensitive.
-         * \return the reconstructed knot.
+         * \return the reconstructed link diagram.
          */
         static Link fromSig(const std::string& sig);
+
+        /**
+         * Alias for fromSig(), to recover a link diagram from its
+         * knot/link signature.
+         *
+         * This alias fromKnotSig() has been kept to reflect the fact that, in
+         * older versions of Regina, these signatures were only available for
+         * single-component knots; moreover the old name "knot signatures" can
+         * still be found in the literature.  While this routine is not
+         * deprecated, it is recommended to use fromSig() in new code.
+         *
+         * See fromSig() for further details.
+         *
+         * \exception InvalidArgument The given string was not a valid
+         * knot/link signature.
+         *
+         * \param sig the signature of the link diagram to construct.
+         * Note that signatures are case-sensitive.
+         * \return the reconstructed link diagram.
+         */
+        static Link fromKnotSig(const std::string& sig);
 
         /**
          * Reconstructs a link from its given tight encoding.
@@ -5047,6 +5311,22 @@ inline StrandRef Link::strand(ssize_t id) const {
         StrandRef());
 }
 
+inline auto Link::componentsByStrand() const {
+    // We implement this here in the header because the return type is auto.
+    FixedArray<size_t> ans(2 * crossings_.size());
+    for (size_t c = 0; c < components_.size(); ++c) {
+        StrandRef start = components_[c];
+        if (! start)
+            continue;
+        StrandRef s = start;
+        do {
+            ans[s.id()] = c;
+            ++s;
+        } while (s != start);
+    }
+    return ans;
+}
+
 inline bool Link::operator != (const Link& other) const {
     return ! ((*this) == other);
 }
@@ -5125,18 +5405,22 @@ inline StrandRef Link::translate(const StrandRef& other) const {
         StrandRef(nullptr, other.strand()));
 }
 
+inline bool Link::intelligentSimplify() {
+    return simplify();
+}
+
 template <typename Action, typename... Args>
 inline bool Link::rewrite(int height, unsigned threads,
         ProgressTrackerOpen* tracker, Action&& action, Args&&... args) const {
-    if (countComponents() != 1) {
+    if (components_.size() >= 64) {
         if (tracker)
             tracker->setFinished();
         throw FailedPrecondition(
-            "rewrite() requires a link with exactly one component");
+            "rewrite() requires fewer than 64 link components");
     }
 
     // Use RetriangulateActionTraits to deduce whether the given action takes
-    // a link or both a knot signature and link as its initial argument(s).
+    // a link or both a signature and link as its initial argument(s).
     using Traits = regina::detail::RetriangulateActionTraits<Link, Action>;
     static_assert(Traits::valid,
         "The action that is passed to rewrite() does not take the correct initial argument type(s).");
@@ -5157,21 +5441,15 @@ inline bool Link::rewrite(int height, unsigned threads,
 
 inline bool Link::simplifyExhaustive(int height, unsigned threads,
         ProgressTrackerOpen* tracker) {
-    if (isEmpty()) {
+    if (components_.size() >= 64) {
         if (tracker)
             tracker->setFinished();
-        return false;
+        throw FailedPrecondition(
+            "simplifyExhaustive() requires fewer than 64 link components");
     }
-    return rewrite(height, threads, tracker,
-        [](Link&& alt, Link& original, size_t minCrossings) {
-            if (alt.size() < minCrossings) {
-                PacketChangeGroup span(original);
-                original = std::move(alt);
-                original.intelligentSimplify();
-                return true;
-            } else
-                return false;
-        }, *this, size());
+
+    return regina::detail::simplifyExhaustiveInternal<Link>(
+        *this, height, threads, tracker);
 }
 
 inline void Link::join(const StrandRef& s, const StrandRef& t) {
@@ -5179,8 +5457,12 @@ inline void Link::join(const StrandRef& s, const StrandRef& t) {
     t.crossing_->prev_[t.strand_] = s;
 }
 
-inline Link Link::fromSig(const std::string& sig) {
-    return Link::fromKnotSig(sig);
+inline std::string Link::knotSig(bool allowReflection, bool allowReversal) const {
+    return sig(allowReflection, allowReversal);
+}
+
+inline Link Link::fromKnotSig(const std::string& sig) {
+    return Link::fromSig(sig);
 }
 
 inline std::string Link::dumpConstruction() const {

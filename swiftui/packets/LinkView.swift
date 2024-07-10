@@ -187,7 +187,7 @@ struct LinkView: View {
                 //ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         var p = wrapper.packet
-                        if !p.intelligentSimplify() {
+                        if !p.simplify() {
                             // TODO: Offer a "try harder" option here.
                             errorGeneral = true
                             errorDetail = .init("Could not simplify", detail: "I could not simplify the link diagram any further.")
@@ -202,6 +202,7 @@ struct LinkView: View {
                         Label("Moves", systemImage: "slider.horizontal.2.square")
                     }
                 //}
+                // TODO: Extract diagram components
                 //ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         var p = wrapper.packet.asPacket()
@@ -274,6 +275,7 @@ struct LinkView: View {
                         Label("Cables", image: "Act-Parallel")
                     }
                     // TODO: Compose with
+                    // TODO: Insert link
                 //}
                 #if os(visionOS)
                 .padding()

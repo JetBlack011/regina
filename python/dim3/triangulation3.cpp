@@ -417,8 +417,9 @@ void addTriangulation3(pybind11::module_& m) {
             pybind11::return_value_policy::reference_internal,
             pybind11::arg("canJoinBoundaries") = true,
             rdoc::maximalForestInSkeleton)
-        .def("intelligentSimplify",
-            &Triangulation<3>::intelligentSimplify, rdoc::intelligentSimplify)
+        .def("simplify", &Triangulation<3>::simplify, rdoc::simplify)
+        .def("intelligentSimplify", &Triangulation<3>::simplify, // deprecated
+            rdoc::intelligentSimplify)
         .def("simplifyToLocalMinimum",
             &Triangulation<3>::simplifyToLocalMinimum,
             pybind11::arg("perform") = true, rdoc::simplifyToLocalMinimum)
@@ -653,10 +654,13 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
             rdoc::insertLayeredSolidTorus)
         .def("connectedSumWith", &Triangulation<3>::connectedSumWith,
             rdoc::connectedSumWith)
-        .def("insertTriangulation", &Triangulation<3>::insertTriangulation,
+        .def("insertTriangulation",
+            overload_cast<const Triangulation<3>&>(
+                &Triangulation<3>::insertTriangulation),
             rbase::insertTriangulation)
         .def("dehydrate", &Triangulation<3>::dehydrate, rdoc::dehydrate)
         .def_static("rehydrate", &Triangulation<3>::rehydrate, rdoc::rehydrate)
+        .def("sig", &Triangulation<3>::sig<>, rbase::sig)
         .def("isoSig", &Triangulation<3>::isoSig<>, rbase::isoSig)
         .def("isoSig_EdgeDegrees",
             &Triangulation<3>::isoSig<regina::IsoSigEdgeDegrees<3>>,

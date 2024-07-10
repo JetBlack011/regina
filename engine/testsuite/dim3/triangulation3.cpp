@@ -113,7 +113,7 @@ class Dim3Test : public TriangulationTest<3> {
         TestCase figure8 { Example<3>::figureEight(),
             "Figure eight knot complement" };
         TestCase trefoil { Example<3>::trefoil(), "Trefoil complement" };
-        TestCase knot18 { regina::Link::fromKnotSig(
+        TestCase knot18 { regina::Link::fromSig(
                 "sabcdeafghidejklmnopqgcbfqhinmjrpolkrlLvnvvNdM9aE").
                 complement(),
             "18-crossing knot complement" };
@@ -1419,7 +1419,7 @@ static void verifyFundGroupVsH1(const Triangulation<3>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     regina::GroupPresentation g(tri.group());
-    g.intelligentSimplify();
+    g.simplify();
 
     // Abelianise, and make sure we get H1.
     size_t gen = g.countGenerators();
@@ -1464,7 +1464,7 @@ static void verifySimplificationName(const TriangulationTest<3>::TestCase& test,
     if (t.isOrientable())
         t.orient();
 
-    t.intelligentSimplify();
+    t.simplify();
 
     EXPECT_EQ(t.size(), expectSize);
     EXPECT_EQ(t.isOriented(), test.tri.isOrientable());
@@ -1478,7 +1478,7 @@ static void verifySimplificationName(const TriangulationTest<3>::TestCase& test,
 
     // Make sure it does not simplify any further.
     Triangulation<3> t2(t);
-    EXPECT_FALSE(t2.intelligentSimplify());
+    EXPECT_FALSE(t2.simplify());
     EXPECT_EQ(t2, t);
 }
 
@@ -1490,14 +1490,14 @@ static void verifySimplificationSig(
     if (t.isOrientable())
         t.orient();
 
-    t.intelligentSimplify();
+    t.simplify();
 
     EXPECT_EQ(t.isoSig(), expectIsoSig);
     EXPECT_EQ(t.isOriented(), test.tri.isOrientable());
 
     // Make sure it does not simplify any further.
     Triangulation<3> t2(t);
-    EXPECT_FALSE(t2.intelligentSimplify());
+    EXPECT_FALSE(t2.simplify());
     EXPECT_EQ(t2, t);
 }
 
@@ -1505,7 +1505,7 @@ static void verifyNoSimplification(const TriangulationTest<3>::TestCase& test) {
     SCOPED_TRACE_CSTRING(test.name);
 
     Triangulation<3> t(test.tri);
-    EXPECT_FALSE(t.intelligentSimplify());
+    EXPECT_FALSE(t.simplify());
     EXPECT_EQ(t, test.tri);
 }
 
@@ -1551,7 +1551,7 @@ TEST_F(Dim3Test, simplification) {
     // verifyNoSimplification(knot18);
     // We also exclude idealGenusTwoHandlebody, which has many, many minimal
     // triangulations, making the resulting isosig unpredictable.  Moreover,
-    // intelligentSimplify() does not actually find one (it only gets down to
+    // simplify() does not actually find one (it only gets down to
     // 5 tetrahedra, but the minimal triangulations have 4).
     // verifySimplificationSig(idealGenusTwoHandlebody, "eLAkabcddbrgef");
     verifySimplificationName(figure8_bary, 2, "SnapPea m004");
@@ -1920,7 +1920,7 @@ static void verifyIdealToFinite(const Triangulation<3>& tri,
         EXPECT_EQ(finite.eulerCharManifold(), tri.eulerCharManifold());
 
         // Homology can only be computed for valid triangulations.
-        finite.intelligentSimplify();
+        finite.simplify();
         EXPECT_EQ(finite.homology(), tri.homology());
 
         // All boundary components should be topologically the same.
@@ -1994,7 +1994,7 @@ static void verifyFiniteToIdeal(const Triangulation<3>& tri, const char* name) {
 
     if (tri.isValid()) {
         // Homology can only be computed for valid triangulations.
-        ideal.intelligentSimplify();
+        ideal.simplify();
         EXPECT_EQ(ideal.homology(), tri.homology());
 
         // All boundary components should be topologically the same, with the
@@ -2063,6 +2063,10 @@ static void verifyRetriangulate(const TriangulationTest<3>::TestCase& test,
 TEST_F(Dim3Test, retriangulate) {
     // The counts here were computed using Regina 6.0 in single-threaded mode.
 
+    verifyRetriangulate(empty, 0, 1);
+    verifyRetriangulate(empty, 1, 1);
+    verifyRetriangulate(empty, 2, 1);
+    verifyRetriangulate(empty, 3, 1);
     verifyRetriangulate(s3, 0, 1);
     verifyRetriangulate(s3, 1, 1);
     verifyRetriangulate(s3, 2, 1);
@@ -3162,7 +3166,7 @@ static void verifyFillTorus(size_t p1, size_t q1, size_t r1,
         ASSERT_TRUE(e3->isBoundary());
 
         t.fillTorus(e1, e2, e3, p2, q2, r2);
-        t.intelligentSimplify();
+        t.simplify();
 
         if (lensP <= 4) {
             // Optimistically hope that we simplified t down to ≤ 2 tetrahedra.
@@ -3239,7 +3243,7 @@ static void verifyMeridian(const Triangulation<3>& tri, const char* name) {
     Triangulation<3> use(tri); // something we can modify
     if (use.isIdeal()) {
         use.idealToFinite();
-        use.intelligentSimplify();
+        use.simplify();
     }
     ASSERT_EQ(use.countVertices(), 1);
     ASSERT_EQ(use.countBoundaryComponents(), 1);
@@ -3309,7 +3313,7 @@ static void verifyMeridianLongitude(const Triangulation<3>& tri,
     Triangulation<3> use(tri); // something we can modify
     if (use.isIdeal()) {
         use.idealToFinite();
-        use.intelligentSimplify();
+        use.simplify();
     }
     ASSERT_EQ(use.countVertices(), 1);
     ASSERT_EQ(use.countBoundaryComponents(), 1);
@@ -3474,8 +3478,8 @@ TEST_F(Dim3Test, events) {
         EXPECT_TRUE(p->isSolidTorus());
 
         // Move assignment that changes isSolidTorus()
-        // The extra insertTriangulation() is to ensure that the
-        // move is not optimised away.
+        // The extra insertTriangulation() is to ensure that the move is not
+        // optimised away.
         Triangulation<3> t = rp3_1.tri;
         t.insertTriangulation(t);
         *p = std::move(t);

@@ -361,7 +361,7 @@ string as a link.
 At present, Regina understands the following types of strings (and
 attempts to parse them in the following order):
 
-* knot signatures, as used by fromKnotSig();
+* knot/link signatures, as used by fromSig();
 
 * oriented Gauss codes, as used by fromOrientedGauss();
 
@@ -609,6 +609,36 @@ only, and to call components() again each time you need it.
 Returns:
     access to the list of all components.)doc";
 
+// Docstring regina::python::doc::Link_::componentsByStrand
+static const char *componentsByStrand =
+R"doc(Returns a sequence that maps strand IDs to link component numbers.
+
+This sequence will have length ``2n``, where *n* is the number of
+crossings in this link diagram. If *strand* is a non-null strand
+reference, *map* is the sequence that is returned, and
+``map[strand.id()] == c``, then this indicates that *strand* is part
+of the link component defined by ``component(c)``.
+
+Null strand references are not handled by this map: they have a
+negative ID (which means calling ``map[strand.id()]`` is an error),
+and they could refer to any 0-crossing unknot component (so the
+specific component might not be uniquely determined).
+
+The return type is deliberately not specified here. It is guaranteed
+to be a container whose elements have type ``size_t``, with value
+semantics, fast move construction and swap operations, an array index
+operator, and random access iterators. It is _not_ guaranteed to have
+a copy assignment operator (but it will support fast move assignment).
+At present the specific implementation returns ``FixedArray<size_t>``,
+though this is subject to change in future versions of Regina and so
+end user code should always use ``auto``.
+
+Python:
+    This routine will return a Python list.
+
+Returns:
+    a sequence mapping strand IDs to component numbers.)doc";
+
 // Docstring regina::python::doc::Link_::composeWith
 static const char *composeWith =
 R"doc(Forms the composition of this with the given link. This link will be
@@ -636,24 +666,24 @@ Parameter ``other``:
 
 // Docstring regina::python::doc::Link_::connected
 static const char *connected =
-R"doc(Determines whether the two given crossings are connected in the
-underlying 4-valent graph of the link diagram.
+R"doc(Determines whether the two given crossings are connected in the link
+diagram, if we treat each crossing as a 4-way intersection.
 
-Here "the underlying 4-valent graph" means the multigraph whose
-vertices are the crossings and whose edges are the arcs between
-crossings. In particular
+This tests whether it is possible to travel between the two given
+crossings by:
 
-* two crossings may be connected even if they involve entirely
-  different components of the link;
+* following the link around its components, and/or;
 
-* if two crossings are not connected then the underlying link must be
-  splittable (though this need not happen in the other direction: one
-  can have a diagram of a splittable link in which all crossings are
-  connected with each other).
+* jumping between upper and lower strands at crossings.
 
-.. warning::
-    This routine is slow (linear time), since it may need to perform a
-    depth-first search through the graph.
+In particular, two crossings may be connected in the diagram even if
+they involve entirely different components of the link.
+
+See isConnected() for further discussion on the connectivity of link
+diagrams.
+
+Note: for knots and empty links, this routine is constant time. For
+multiple-component links, it is linear in the link size.
 
 Parameter ``a``:
     the first of the two crossings to examine.
@@ -724,6 +754,44 @@ only, and to call crossings() again each time you need it.
 
 Returns:
     access to the list of all crossings.)doc";
+
+// Docstring regina::python::doc::Link_::diagramComponents
+static const char *diagramComponents =
+R"doc(Returns the connected components of this link diagram as individual
+standalone links.
+
+Here _connected components_ are not the same as _link components_. A
+connected component means a portion of the link diagram that is
+connected when we treat each crossing as a 4-way intersection. In
+other words, one can travel around the connected component by
+following the link around, and/or jumping between upper and lower
+strands at crossings. A single connected component of the diagram may
+contain multiple link components, and will always describe a sublink
+for which isConnected() returns ``True``.
+
+The connected components are a property of the diagram, not an
+invariant of the link itself, since the locations of the crossings
+matter. In particular:
+
+* a diagram with multiple connected components _must_ describe a
+  splittable link;
+
+* a splittable link, however, could be represented by a diagram with
+  multiple connected components or with just one connected component.
+
+The connected components that are returned will be cloned from this
+link (so even if this diagram is connected and there is just one
+connected component, a deep copy will still take place). The total
+number of crossings across all of the links that are returned will
+equal size(), and the total number of _link_ components across all of
+the links that are returned will equal countComponents().
+
+If you simply wish to know whether this diagram is connected, you
+should call isConnected() instead which is much more lightweight.
+
+Returns:
+    a list containing the individual connected components of this link
+    diagram.)doc";
 
 // Docstring regina::python::doc::Link_::dt
 static const char *dt =
@@ -1300,24 +1368,26 @@ Returns:
 
 // Docstring regina::python::doc::Link_::fromKnotSig
 static const char *fromKnotSig =
-R"doc(Recovers a knot diagram from its signature. See knotSig() for more
-information on knot signatures.
+R"doc(Alias for fromSig(), to recover a link diagram from its knot/link
+signature.
 
-Calling knotSig() followed by fromKnotSig() is not guaranteed to
-produce an _identical_ knot diagram to the original, but it is
-guaranteed to produce one that is related by relabelling, rotation,
-and optionally (according to the arguments that were passed to
-knotSig()) reflection and/or reversal.
+This alias fromKnotSig() has been kept to reflect the fact that, in
+older versions of Regina, these signatures were only available for
+single-component knots; moreover the old name "knot signatures" can
+still be found in the literature. While this routine is not
+deprecated, it is recommended to use fromSig() in new code.
+
+See fromSig() for further details.
 
 Exception ``InvalidArgument``:
-    The given string was not a valid knot signature.
+    The given string was not a valid knot/link signature.
 
 Parameter ``sig``:
-    the signature of the knot diagram to construct. Note that
+    the signature of the link diagram to construct. Note that
     signatures are case-sensitive.
 
 Returns:
-    the reconstructed knot.)doc";
+    the reconstructed link diagram.)doc";
 
 // Docstring regina::python::doc::Link_::fromOrientedGauss
 static const char *fromOrientedGauss =
@@ -1612,22 +1682,25 @@ Returns:
 
 // Docstring regina::python::doc::Link_::fromSig
 static const char *fromSig =
-R"doc(Alias for fromKnotSig(), to recover a knot diagram from its signature.
+R"doc(Recovers a link diagram from its knot/link signature. See sig() for
+more information on these signatures.
 
-This alias fromSig() is provided to assist with generic code that can
-work with both knots and triangulations.
-
-See fromKnotSig() for further details.
+Calling sig() followed by fromSig() is not guaranteed to produce an
+_identical_ knot diagram to the original, but it is guaranteed to
+produce one that is related by relabelling, rotating connected
+components of the diagram, and optionally (according to the arguments
+that were passed to sig()) reflection of the entire diagram and/or
+reversal of individual link components.
 
 Exception ``InvalidArgument``:
-    The given string was not a valid knot signature.
+    The given string was not a valid knot/link signature.
 
 Parameter ``sig``:
-    the signature of the knot diagram to construct. Note that
+    the signature of the link diagram to construct. Note that
     signatures are case-sensitive.
 
 Returns:
-    the reconstructed knot.)doc";
+    the reconstructed link diagram.)doc";
 
 // Docstring regina::python::doc::Link_::gauss
 static const char *gauss =
@@ -2008,6 +2081,21 @@ Returns:
     the HOMFLY polynomial, or the zero polynomial if the calculation
     was cancelled via the given progress tracker.)doc";
 
+// Docstring regina::python::doc::Link_::insertLink
+static const char *insertLink =
+R"doc(Inserts a copy of the given link into this link.
+
+The crossings and components of *source* will be copied into this
+link, and placed after any pre-existing crossings and components.
+Specifically, if the original number of crossings in this link was
+*N*, then crossing number *i* of *source* will be copied to a new
+crosssing ``N+i`` of this link; likewise for components.
+
+This routine behaves correctly when *source* is this link.
+
+Parameter ``source``:
+    the link whose copy will be inserted.)doc";
+
 // Docstring regina::python::doc::Link_::insertTorusLink
 static const char *insertTorusLink =
 R"doc(Inserts a new (*p*, *q*) torus link into this link.
@@ -2040,26 +2128,16 @@ Parameter ``positive``:
 
 // Docstring regina::python::doc::Link_::intelligentSimplify
 static const char *intelligentSimplify =
-R"doc(Attempts to simplify the link diagram using fast and greedy
-heuristics. Specifically, this routine tries combinations of
-Reidemeister moves with the aim of reducing the number of crossings.
+R"doc(Deprecated alias for simplify(), which attempts to simplify this link
+diagram as intelligently as possible using fast and greedy heuristics.
 
-Currently this routine uses simplifyToLocalMinimum() in combination
-with random type III Reidemeister moves.
+.. deprecated::
+    This routine has been renamed to simplify(). See simplify() for
+    further details.
 
-Although intelligentSimplify() often works well, it can sometimes get
-stuck. If this link is a knot (i.e., it has precisely one component),
-then in such cases you can try the more powerful but (much) slower
-simplifyExhaustive() instead.
-
-This routine will never reflect or reverse the link.
-
-.. warning::
-    Running this routine multiple times upon the same link may return
-    different results, since the implementation makes random
-    decisions. More broadly, the implementation of this routine (and
-    therefore its results) may change between different releases of
-    Regina.)doc";
+Returns:
+    ``True`` if and only if the link diagram was successfully
+    simplified.)doc";
 
 // Docstring regina::python::doc::Link_::isAlternating
 static const char *isAlternating =
@@ -2075,6 +2153,52 @@ considered alternating.
 Returns:
     ``True`` if this is an alternating diagram, or ``False`` if this
     is a non-alternating diagram.)doc";
+
+// Docstring regina::python::doc::Link_::isConnected
+static const char *isConnected =
+R"doc(Determines whether this link diagram is connected, if we treat each
+crossing as a 4-way intersection.
+
+This tests whether it is possible to travel from any part of the link
+to any other part of the link by:
+
+* following the link around its components, and/or;
+
+* jumping between upper and lower strands at crossings.
+
+In particular, the link diagram may be connected even if the link has
+multiple components.
+
+Connectivity is a property of the diagram, not an invariant of the
+link itself, since the locations of the crossings matter. In
+particular:
+
+* a disconnected diagram _must_ describe a splittable link;
+
+* a splittable link, however, could be represented by either a
+  connected or disconnected link diagram.
+
+This is almost, but not quite, equivalent to testing whether the
+underlying 4-valent graph of the link diagram is connected.
+Specifically, where ``link.isConnected()`` and
+``link.graph().isConnected()`` differ is in cases where the link has
+zero-crossing components (i.e., unknotted circles disjoint from the
+rest of the diagram). Zero-crossing components are considered here in
+``Link.isConnected()`` but _not_ in ``ModelLinkGraph.isConnected()``,
+since such components cannot be represented by a 4-valent graph (and
+so the ModelLinkGraph class ignores them completely).
+
+For the purposes of this routine, an empty link is considered to be
+connected.
+
+Note: for knots and empty links, this routine is constant time. For
+multiple-component links, it is linear in the link size.
+
+See also diagramComponents(), which extracts the connected components
+of a link diagram as individual Link objects.
+
+Returns:
+    ``True`` if and only if this link diagram is connected.)doc";
 
 // Docstring regina::python::doc::Link_::isEmpty
 static const char *isEmpty =
@@ -2256,45 +2380,34 @@ Returns:
 
 // Docstring regina::python::doc::Link_::knotSig
 static const char *knotSig =
-R"doc(Constructs the _signature_ for this knot diagram.
+R"doc(Alias for sig(), which constructs the signature for this knot or link
+diagram.
 
-A _signature_ is a compact text representation of a knot diagram that
-unique determines the knot up to relabelling, rotation, and
-(optionally) reflection and/or reversal.
+This alias knotSig() has been kept to reflect the fact that, in older
+versions of Regina, these signatures were only available for single-
+component knots; moreover the old name "knot signatures" can still be
+found in the literature. While this routine is not deprecated, it is
+recommended to use sig() in new code.
 
-Currently signatures are only implemented for knots, not empty or
-multiple component links. If this link does not have precisely one
-component, then this routine will throw an exception. It is possible
-that in future versions of Regina, knot signatures will be expanded to
-cover all possible link diagrams (hence the choice of NotImplemented
-as the exception type).
-
-The signature is constructed entirely of printable characters, and has
-length proportional to ``n log n``, where *n* is the number of
-crossings.
-
-The routine fromKnotSig() can be used to recover a knot from its
-signature. The resulting knot might not be identical to the original,
-but it will be related by zero or more applications of relabelling,
-rotation, and/or (according to the arguments) reflection and reversal.
-
-This routine runs in quadratic time.
+See sig() for further details.
 
 Exception ``NotImplemented``:
-    This link is empty or has multiple components.
+    This link diagram has 64 or more link components.
 
-Parameter ``useReflection``:
-    ``True`` if the reflection of a knot diagram should have the same
-    signature as the original, or ``False`` if these should be
-    distinct (assuming the diagram is not symmetric under reflection).
+Parameter ``allowReflection``:
+    ``True`` if reflecting the entire link diagram should preserve the
+    signature, or ``False`` if the signature should distinguish
+    between a diagram and its reflection (unless of course there is a
+    symmetry).
 
-Parameter ``useReversal``:
-    ``True`` if the reversal of a knot diagram should have the same
-    signature as the original, or ``False`` if these should be
-    distinct (assuming the diagram is not symmetric under reversal).
+Parameter ``allowReversal``:
+    ``True`` if reversing some or all link components should preserve
+    the signature, or ``False`` if the signature should distinguish
+    between different orientations (again, unless of course there are
+    symmetries).
 
 Returns:
-    the signature for this knot diagram.)doc";
+    the signature for this link diagram.)doc";
 
 // Docstring regina::python::doc::Link_::knowsBracket
 static const char *knowsBracket =
@@ -2361,6 +2474,34 @@ the lowest-index crossing in that piece of the diagram.
 Returns:
     ``True`` if the link diagram was changed, or *false* if it was
     already alternating to begin with.)doc";
+
+// Docstring regina::python::doc::Link_::moveContentsTo
+static const char *moveContentsTo =
+R"doc(Moves the contents of this link into the given destination link,
+leaving this link empty but otherwise usable.
+
+The crossings and components of this link will be moved directly into
+*dest*, and placed after any pre-existing crossings and components.
+Specifically, if the original number of crossings in *dest* was *N*,
+then crossing number *i* of this link will become crosssing ``N+i`` of
+*dest*; likewise for components.
+
+This link will become empty as a result, but it will otherwise remain
+a valid and usable Link object. Any strand references or crossing
+pointers that referred to either this link or *dest* will remain valid
+(and will all now refer to *dest*), though if they originally referred
+to this link then they will now return different crossing indices and
+strand IDs.
+
+Calling ``link.moveContentsTo(dest)`` is similar to calling
+``dest.insertLink(std::move(link))``; it is a little slower but it
+comes with the benefit of leaving this link in a usable state.
+
+Precondition:
+    *dest* is not this link.
+
+Parameter ``dest``:
+    the link into which the contents of this link should be moved.)doc";
 
 // Docstring regina::python::doc::Link_::niceTreeDecomposition
 static const char *niceTreeDecomposition =
@@ -3284,15 +3425,16 @@ Parameter ``component``:
 
 // Docstring regina::python::doc::Link_::rewrite
 static const char *rewrite =
-R"doc(Explores all knot diagrams that can be reached from this via
+R"doc(Explores all link diagrams that can be reached from this via
 Reidemeister moves, without exceeding a given number of additional
 crossings.
 
-This routine is only available for knots at the present time. If this
-link has multiple (or zero) components, then this routine will throw
-an exception (as described below).
+As of Regina 7.4, this routine is now available for any connected link
+diagram with fewer than 64 link components. If this link has 64 or
+more components then this routine will throw an exception (as
+described below).
 
-This routine iterates through all knot diagrams that can be reached
+This routine iterates through all link diagrams that can be reached
 from this via Reidemeister moves, without ever exceeding *height*
 additional crossings beyond the original number. With the current
 implementation, these diagrams **could become reflected and/or
@@ -3300,19 +3442,19 @@ reversed**, and moreover each diagram will only be considered once up
 to reflection and/or reversal; be aware that this behaviour could
 change and/or become configurable in a future version of Regina.
 
-For every such knot diagram (including this starting diagram), this
+For every such link diagram (including this starting diagram), this
 routine will call *action* (which must be a function or some other
 callable object).
 
 * *action* must take the following initial argument(s). Either (a) the
   first argument must be a link (the precise type is discussed below),
-  representing the knot diagram that has been found; or else (b) the
+  representing the link diagram that has been found; or else (b) the
   first two arguments must be of types const std::string& followed by
-  a link, representing both the knot diagram and its knot signature.
-  The second form is offered in order to avoid unnecessarily
-  recomputation within the *action* function. If there are any
-  additional arguments supplied in the list *args*, then these will be
-  passed as subsequent arguments to *action*.
+  a link, representing both the link diagram and its signature (as
+  returned by sig()). The second form is offered in order to avoid
+  unnecessarily recomputation within the *action* function. If there
+  are any additional arguments supplied in the list *args*, then these
+  will be passed as subsequent arguments to *action*.
 
 * The link argument will be passed as an rvalue; a typical action
   could (for example) take it by const reference and query it, or take
@@ -3321,21 +3463,21 @@ callable object).
 
 * *action* must return a boolean. If *action* ever returns ``True``,
   then this indicates that processing should stop immediately (i.e.,
-  no more knot diagrams will be processed).
+  no more link diagrams will be processed).
 
-* *action* may, if it chooses, make changes to this knot (i.e., the
-  original knot upon which rewrite() was called). This will not affect
-  the search: all knot diagrams that this routine visits will be
-  obtained via Reidemeister moves from the original knot diagram,
+* *action* may, if it chooses, make changes to this link (i.e., the
+  original link upon which rewrite() was called). This will not affect
+  the search: all link diagrams that this routine visits will be
+  obtained via Reidemeister moves from the original link diagram,
   before any subsequent changes (if any) were made.
 
-* *action* will only be called once for each knot diagram (including
-  this starting diagram). In other words, no knot diagram will be
+* *action* will only be called once for each link diagram (including
+  this starting diagram). In other words, no link diagram will be
   revisited a second time in a single call to rewrite().
 
 This routine can be very slow and very memory-intensive, since the
-number of knot diagrams it visits may be exponential in the number of
-crossings, and it records every knot diagram that it visits (so as to
+number of link diagrams it visits may be exponential in the number of
+crossings, and it records every link diagram that it visits (so as to
 avoid revisiting the same diagram again). It is highly recommended
 that you begin with *height* = 1, and if necessary try increasing
 *height* one at a time until this routine becomes too expensive to
@@ -3343,11 +3485,11 @@ run.
 
 If *height* is negative, then there will be _no_ bound on the number
 of additional crossings. This means that the routine will _never
-terminate_, unless *action* returns ``True`` for some knot diagram
+terminate_, unless *action* returns ``True`` for some link diagram
 that is passed to it.
 
 Since Regina 7.0, this routine will not return until the exploration
-of knot diagrams is complete, regardless of whether a progress tracker
+of link diagrams is complete, regardless of whether a progress tracker
 was passed. If you need the old behaviour (where passing a progress
 tracker caused the enumeration to start in the background), simply
 call this routine in a new detached thread.
@@ -3363,12 +3505,12 @@ avoid expensive operations where possible (otherwise it will become a
 serialisation bottleneck in the multithreading).
 
 Precondition:
-    This link has precisely one component (i.e., it is a knot).
+    This link has fewer than 64 link components.
 
 Exception ``FailedPrecondition``:
-    This link is empty or has more than one component. If a progress
-    tracker was passed, it will be marked as finished before the
-    exception is thrown.
+    This link has 64 or more link components. If a progress tracker
+    was passed, it will be marked as finished before the exception is
+    thrown.
 
 .. warning::
     The API for this class or function has not yet been finalised.
@@ -3384,12 +3526,12 @@ Python:
     restricted: the arguments *tracker* and *args* are removed, so you
     simply call it as rewrite(height, threads, action). Moreover,
     *action* must take exactly two arguments (const std::string&,
-    Link&&) representing the knot signature and the knot diagram, as
+    Link&&) representing the signature and the link diagram, as
     described in option (b) above.
 
 Parameter ``height``:
     the maximum number of _additional_ crossings to allow beyond the
-    number of crossings originally present in this knot diagram, or a
+    number of crossings originally present in this link diagram, or a
     negative number if this should not be bounded.
 
 Parameter ``threads``:
@@ -3401,12 +3543,12 @@ Parameter ``tracker``:
     ``None`` if no progress reporting is required.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each knot
+    a function (or other callable object) to call for each link
     diagram that is found.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
-    following the initial knot argument(s).
+    following the initial link argument(s).
 
 Returns:
     ``True`` if some call to *action* returned ``True`` (thereby
@@ -3449,31 +3591,126 @@ Returns:
     ``True`` if the link diagram was changed, or ``False`` if every
     component already had zero writhe to begin with.)doc";
 
+// Docstring regina::python::doc::Link_::sig
+static const char *sig =
+R"doc(Constructs the _signature_ for this knot or link diagram.
+
+A _signature_ is a compact text representation of a link diagram that
+uniquely determines the diagram up to: relabelling; rotating connected
+components of the diagram; and (optionally) reflecting the entire
+diagram and/or reversing some or all link components.
+
+Signatures are now supported for all link diagrams with fewer than 64
+link components. Specifically:
+
+* Regina 7.3 and earlier only offered signatures for knots. As of
+  Regina 7.4, signatures are now supported for arbitrary link diagrams
+  (but see the next point), and for knots the new signatures are
+  identical to the old.
+
+* The implementation uses bitmasks, and a side-effect of this is that
+  it can only support fewer than 64 link components. However, since
+  the running time is exponential in the number of components (if we
+  allow reversal, which is the default) then it would be completely
+  infeasible to use this routine in practice with _more_ components
+  than this. If there are 64 or more link components then this routine
+  will throw an exception.
+
+The signature is constructed entirely of printable characters, and has
+length proportional to ``n log n``, where *n* is the number of
+crossings.
+
+The routine fromSig() can be used to recover a link diagram from its
+signature. The resulting diagram might not be identical to the
+original, but it will be related by zero or more applications of
+relabelling, rotating connected components of the diagram, and/or
+(according to the arguments) reflection of the entire diagram and/or
+reversal of individual link components.
+
+The running time is quadratic in the number of crossings and (if we
+allow reversal, which is the default) exponential in the number of
+link components. For this reason, signatures should not be used for
+links with a large number of components.
+
+This routine runs in quadratic time.
+
+Exception ``NotImplemented``:
+    This link diagram has 64 or more link components.
+
+Parameter ``allowReflection``:
+    ``True`` if reflecting the entire link diagram should preserve the
+    signature, or ``False`` if the signature should distinguish
+    between a diagram and its reflection (unless of course there is a
+    symmetry).
+
+Parameter ``allowReversal``:
+    ``True`` if reversing some or all link components should preserve
+    the signature, or ``False`` if the signature should distinguish
+    between different orientations (again, unless of course there are
+    symmetries).
+
+Returns:
+    the signature for this link diagram.)doc";
+
+// Docstring regina::python::doc::Link_::simplify
+static const char *simplify =
+R"doc(Attempts to simplify this link diagram as intelligently as possible
+using fast and greedy heuristics. Specifically, this routine tries
+combinations of Reidemeister moves with the aim of reducing the number
+of crossings.
+
+Currently this routine uses simplifyToLocalMinimum() in combination
+with random type III Reidemeister moves.
+
+Although simplify() often works well, it can sometimes get stuck. If
+this link is a knot (i.e., it has precisely one component), then in
+such cases you can try the more powerful but (much) slower
+simplifyExhaustive() instead.
+
+This routine will never reflect or reverse the link.
+
+.. warning::
+    Running this routine multiple times upon the same link may return
+    different results, since the implementation makes random
+    decisions. More broadly, the implementation of this routine (and
+    therefore its results) may change between different releases of
+    Regina.
+
+.. note::
+    For long-term users of Regina: this is the routine that was for a
+    long time called intelligentSimplify(). It was renamed to
+    simplify() in Regina 7.4.
+
+Returns:
+    ``True`` if and only if the link diagram was successfully
+    simplified.)doc";
+
 // Docstring regina::python::doc::Link_::simplifyExhaustive
 static const char *simplifyExhaustive =
-R"doc(Attempts to simplify this knot diagram using a slow but exhaustive
+R"doc(Attempts to simplify this link diagram using a slow but exhaustive
 search through the Reidemeister graph. This routine is more powerful
-but much slower than intelligentSimplify().
+but much slower than simplify().
 
-Unlike intelligentSimplify(), this routine **could potentially reflect
-or reverse the link**.
+Unlike simplify(), this routine **could potentially reflect or reverse
+the link**.
 
-This routine is only available for knots at the present time. If this
-link has multiple (or zero) components, then this routine will throw
-an exception (as described below).
+As of Regina 7.4, this routine is now available for any connected link
+diagram with fewer than 64 link components. If this link has 64 or
+more components then this routine will throw an exception (as
+described below).
 
-This routine will iterate through all knot diagrams that can be
+This routine will iterate through all link diagrams that can be
 reached from this via Reidemeister moves, without ever exceeding
 *height* additional crossings beyond the original number.
 
 If at any stage it finds a diagram with _fewer_ crossings than the
-original, then this routine will call intelligentSimplify() to
-simplify the diagram further if possible and will then return
-``True``. If it cannot find a diagram with fewer crossings then it
-will leave this knot diagram unchanged and return ``False``.
+original, then this routine will call simplify() to simplify the
+diagram further if possible and will then return ``True``. If it
+cannot find a diagram with fewer crossings then it will leave this
+link diagram unchanged and return ``False``.
 
 This routine can be very slow and very memory-intensive: the number of
-knot diagrams it visits may be exponential in the number of crossings,
+link diagrams it visits may be exponential in the number of crossings,
 and it records every diagram that it visits (so as to avoid revisiting
 the same diagram again). It is highly recommended that you begin with
 *height* = 1, and if this fails then try increasing *height* one at a
@@ -3487,12 +3724,12 @@ exists then the only way to terminate this function is to cancel the
 operation via a progress tracker (read on for details).
 
 If you want a _fast_ simplification routine, you should call
-intelligentSimplify() instead. The benefit of simplifyExhaustive() is
-that, for very stubborn knot diagrams where intelligentSimplify()
-finds itself stuck at a local minimum, simplifyExhaustive() is able to
-"climb out" of such wells.
+simplify() instead. The benefit of simplifyExhaustive() is that, for
+very stubborn link diagrams where simplify() finds itself stuck at a
+local minimum, simplifyExhaustive() is able to "climb out" of such
+wells.
 
-Since Regina 7.0, this routine will not return until either the knot
+Since Regina 7.0, this routine will not return until either the link
 diagram is simplified or the exhaustive search is complete, regardless
 of whether a progress tracker was passed. If you need the old
 behaviour (where passing a progress tracker caused the exhaustive
@@ -3503,18 +3740,18 @@ To assist with performance, this routine can run in parallel
 (multithreaded) mode; simply pass the number of parallel threads in
 the argument *threads*. Even in multithreaded mode, this routine will
 not return until processing has finished (i.e., either the diagram was
-simplified or the search was exhausted).
+simplified or the search was exhausted), and any change to this link
+diagram will happen in the calling thread.
 
-If this routine is unable to simplify the knot diagram, then this knot
+If this routine is unable to simplify the link diagram, then this link
 diagram will not be changed.
 
 Precondition:
-    This link has at most one component (i.e., it is empty or it is a
-    knot).
+    This link has at most 64 link components.
 
 Exception ``FailedPrecondition``:
-    This link has more than one component. If a progress tracker was
-    passed, it will be marked as finished before the exception is
+    This link has 64 or more link components. If a progress tracker
+    was passed, it will be marked as finished before the exception is
     thrown.
 
 Python:
@@ -3544,15 +3781,15 @@ R"doc(Uses type I and II Reidemeister moves to reduce the link monotonically
 to some local minimum number of crossings.
 
 End users will probably not want to call this routine. You should call
-intelligentSimplify() if you want a fast (and usually effective) means
-of simplifying a link. If this link is a knot (i.e., it has precisely
-one component), then you can also call simplifyExhaustive() if you are
+simplify() if you want a fast (and usually effective) means of
+simplifying a link. If this link is a knot (i.e., it has precisely one
+component), then you can also call simplifyExhaustive() if you are
 still stuck and you want to try a slower but more powerful method
 instead.
 
 Type III Reidemeister moves (which do not reduce the number of
 crossings) are not used in this routine. Such moves do however feature
-in intelligentSimplify().
+in simplify().
 
 This routine will never reflect or reverse the link.
 

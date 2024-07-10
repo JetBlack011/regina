@@ -103,6 +103,13 @@ Version 7.4  [ (to be announced) ]
               renamed as scoped enum values (e.g., Framing::Seifert).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Class GroupPresentation:
+            - Renamed intelligentSimplify() to simplify().  The old name is
+              kept as a deprecated alias.
+        Class HomGroupPresentation:
+            - Renamed intelligentSimplify() and intelligentNielsen() to
+              simplify() and nielsen() respectively.  The old names are kept
+              as deprecated aliases.
         Class HomologicalData:
             - New routine triangulation().
         Enum HyperCoords:
@@ -133,13 +140,25 @@ Version 7.4  [ (to be announced) ]
         Class Link:
             - New routine makeAlternating().
             - New routine seifertCircles().
+            - New routines isConnected() and diagramComponents().
+            - New routines insertLink() and moveContentsTo().
             - New routines countTrivialComponents() and pdAmbiguous(), to help
               understand the limitations of planar diagram codes.
             - New routine hash(), which uses the tight encoding.
             - New routines overForComponent() and underForComponent().
             - New variant of reverse() to reverse just one component of a
               multiple-component link.
+            - New routine componentsByStrand().
+            - Extended knotSig(), rewrite() and simplifyExhaustive() to work
+              with all link diagrams with fewer than 64 link components.
+              It is now recommended to use sig() and fromSig() instead of
+              knotSig() and fromKnotSig() since these names better reflect the
+              scope of these routines.  The original names knotSig() and
+              fromKnotSig() have been kept (and are _not_ deprecated).
             - Routine hasReducingPass() can now handle multiple-component links.
+            - Added an alias sig() for knotSig().
+            - Renamed intelligentSimplify() to simplify().  The old name is
+              kept as a deprecated alias.
             - Fixed a bug where calling resolve() would not clear out any
               cached link polynomials that had already been computed.
             - Overhaul of the internal change span classes, including a new
@@ -154,6 +173,8 @@ Version 7.4  [ (to be announced) ]
               (instead of containing a single 0) for zero-crossing components.
             - Routine selfFrame() now returns a boolean indicating whether
               anything changed.
+            - Routine simplifyExhaustive() now ensures that any change to the
+              link diagram happens on the calling thread.
         Class LockViolation:
             - New exception class used when the user attempts to change a
               locked simplex or facet.
@@ -170,9 +191,12 @@ Version 7.4  [ (to be announced) ]
               native C++ floating-point types, and Python now has a new binding
               MatrixReal to represent the C++ type Matrix<double>.
         Class ModelLinkGraph:
-            - New routine isSimple().
-            - Routine generateMinimalLinks now supports multiple-component
+            - New routines isSimple() and isConnected().
+            - New routine generateAnyLink().
+            - Routine generateMinimalLinks() now supports multiple-component
               links.
+        Class ModelLinkGraphNode:
+            - New routines loops(), bigons() and triangles().
         Enum NamedPermGroup:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., PERM_GROUP_TRIVIAL) have been
@@ -249,6 +273,8 @@ Version 7.4  [ (to be announced) ]
         Class SatAnnulus:
             - Routine attachLST() now checks its preconditions, and throws
               an exception if they fail.
+        Class Segment3D:
+            - New class to support floating-point 3-D geometry.
         Class Simplex<dim>:
             - New routines lock(), lockFacet(), unlock(), unlockFacet(),
               unlockAll(), isLocked(), isFacetLocked(), and lockMask().
@@ -295,9 +321,12 @@ Version 7.4  [ (to be announced) ]
             - New routine randomiseLabelling().
             - New routine hash(), which uses the tight encoding.
             - New routines dot() and writeDot().
+            - New alias sig(), which is is identical to isoSig().
             - Renamed dumpConstruction() to source(), and extended it to produce
               either C++ and Python code via an optional language argument.
               The old C++-only dumpConstruction() is kept but deprecated.
+            - Added a variant of insertTriangulation() that takes an rvalue
+              reference (alongside the original which takes a const reference).
             - The two-argument copy constructor is now a three-argument
               copy constructor, giving an additional boolean option for
               whether to clone simplex/facet locks.
@@ -311,6 +340,8 @@ Version 7.4  [ (to be announced) ]
         Class Triangulation<2>:
             - New routine twoZeroMove().
         Class Triangulation<3>:
+            - Renamed intelligentSimplify() to simplify().  The old name is
+              kept as a deprecated alias.
             - Routine puncture() now takes an optional triangle, not an
               optional tetrahedron.  The old version is kept but deprecated.
             - Routine insertLayeredSolidTorus() is now non-recursive, and
@@ -337,8 +368,18 @@ Version 7.4  [ (to be announced) ]
             - Routine from SnapPea() can now take either a filename or file
               contents.  It can also now handle empty lines before the manifold
               name (SnapPy does not write these, but some other tools do).
+            - Routines retriangulate() and simplifyExhaustive() no longer
+              throw an exception when called on an empty triangulation.
+            - Routine simplifyExhaustive() now ensures that any change to the
+              triangulation happens on the calling thread.
         Class Triangulation<4>:
             - New routine simplifyUpDown(); thanks to Rhuaidi Burke.
+            - Renamed intelligentSimplify() to simplify().  The old name is
+              kept as a deprecated alias.
+            - Routines retriangulate() and simplifyExhaustive() no longer
+              throw an exception when called on an empty triangulation.
+            - Routine simplifyExhaustive() now ensures that any change to the
+              triangulation happens on the calling thread.
         Class Vector<T>:
             - Added a copy constructor that takes a vector whose elements are
               of a different type.
@@ -398,6 +439,9 @@ Version 7.4  [ (to be announced) ]
         - No longer reads the syntax highlighting theme from file; instead
           the theme is hard-coded into the executable.  This removes the
           build dependency on the Jansson JSON library.
+        - The summary tabs for normal surfaces and hypersurfaces now split out
+          separate counts for non-embedded (immersed and/or singular)
+          surfaces and hypersurfaces.
     UTILITIES:
         regina-engine-config:
             - Made more robust, and removed obsolete options (--exec-prefix,

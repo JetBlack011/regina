@@ -121,6 +121,12 @@ void addLink(pybind11::module_& m) {
         .def("countTrivialComponents", &Link::countTrivialComponents,
             rdoc::countTrivialComponents)
         .def("strand", &Link::strand, rdoc::strand)
+        .def("componentsByStrand", [](const Link& link) {
+            pybind11::list ans;
+            for (auto val: link.componentsByStrand())
+                ans.append(val);
+            return ans;
+        }, rdoc::componentsByStrand)
         .def("translate", &Link::translate, rdoc::translate)
         .def("graph", &Link::graph, rdoc::graph)
         // In the following overloads, we define functions twice because
@@ -199,6 +205,9 @@ void addLink(pybind11::module_& m) {
         .def_static("fromKnotSig", &Link::fromKnotSig, rdoc::fromKnotSig)
         .def_static("fromSig", &Link::fromSig, rdoc::fromSig)
         .def("swap", &Link::swap, rdoc::swap)
+        .def("insertLink", overload_cast<const Link&>(&Link::insertLink),
+            rdoc::insertLink)
+        .def("moveContentsTo", &Link::moveContentsTo, rdoc::moveContentsTo)
         .def("reflect", &Link::reflect, rdoc::reflect)
         .def("rotate", &Link::rotate, rdoc::rotate)
         .def("reverse", overload_cast<>(&Link::reverse), rdoc::reverse)
@@ -224,7 +233,10 @@ void addLink(pybind11::module_& m) {
         .def("parallel", &Link::parallel,
             pybind11::arg(), pybind11::arg("framing") = Framing::Seifert,
             rdoc::parallel)
+        .def("isConnected", &Link::isConnected, rdoc::isConnected)
         .def("connected", &Link::connected, rdoc::connected)
+        .def("diagramComponents", &Link::diagramComponents,
+            rdoc::diagramComponents)
         .def("bracket", &Link::bracket,
             pybind11::return_value_policy::reference_internal,
             pybind11::arg("alg") = regina::Algorithm::Default,
@@ -289,9 +301,13 @@ void addLink(pybind11::module_& m) {
         .def("pdAmbiguous", &Link::pdAmbiguous, rdoc::pdAmbiguous)
         .def("pace", &Link::pace, rdoc::pace)
         .def("knotSig", &Link::knotSig,
-            pybind11::arg("useReflection") = true,
-            pybind11::arg("useReversal") = true,
+            pybind11::arg("allowReflection") = true,
+            pybind11::arg("allowReversal") = true,
             rdoc::knotSig)
+        .def("sig", &Link::sig,
+            pybind11::arg("allowReflection") = true,
+            pybind11::arg("allowReversal") = true,
+            rdoc::sig)
         .def("source", &Link::source,
             // The default should be Language::Current, but in C++ that
             // evaluates to Language::Cxx.  We need it to evaluate to
@@ -349,7 +365,8 @@ void addLink(pybind11::module_& m) {
             rdoc::r3_2)
         .def("hasReducingPass", &Link::hasReducingPass, rdoc::hasReducingPass)
         .def("selfFrame", &Link::selfFrame, rdoc::selfFrame)
-        .def("intelligentSimplify", &Link::intelligentSimplify,
+        .def("simplify", &Link::simplify, rdoc::simplify)
+        .def("intelligentSimplify", &Link::simplify, // deprecated
             rdoc::intelligentSimplify)
         .def("simplifyToLocalMinimum", &Link::simplifyToLocalMinimum,
             pybind11::arg("perform") = true,

@@ -77,22 +77,21 @@
     The codes that &regina; understands include:
     <itemizedlist>
      <listitem id="link-new-knotsig">
-      <para>&regina;'s own <firstterm>knot signatures</firstterm>,
+      <para>&regina;'s own <firstterm>knot/link signatures</firstterm>,
        which are compact sequences of letters, digits and/or punctuation
-       that uniquely identify a knot up to combinatorial isomorphism.
+       that uniquely identify a link diagram up to combinatorial isomorphism.
        Here <firstterm>combinatorial isomorphism</firstterm>
-       includes relabelling the crossings,
-       reflecting or rotating the entire diagram,
-       and/or reversing the orientation of the knot (i.e., the direction
-       of travel).
+       includes relabelling the crossings and/or components,
+       reflecting the entire diagram, rotating connected components of the
+       diagram, and/or reversing individual link components.
       </para>
       <para>
-       An example is <literal>dabcabcv-</literal>, which represents
-       the trefoil.
+       An example is <literal>dabcabcv-</literal>, which represents the trefoil.
       </para>
       <para>
-       Knot signatures played a significant role in the 19-crossing
+       Knot/link signatures played a significant role in the 19-crossing
        knot tabulation <xref linkend="bib-burton-knots"/>.
+       They are supported for all links with fewer than 64 components.
       </para>
      </listitem>
      <listitem id="link-new-classical-gauss">
@@ -116,7 +115,7 @@
        (more importantly) for composite knots they may not even uniquely
        define the topology of the knot.
        If this is a problem, consider using either
-       <emphasis>oriented</emphasis> Gauss codes or knot signatures
+       <emphasis>oriented</emphasis> Gauss codes or knot/link signatures
        instead.
       </para>
      </listitem>
@@ -183,7 +182,7 @@
        (more importantly) for composite knots may not uniquely
        define the topology of the knot.
        If this is a problem, consider using either oriented Gauss codes
-       or knot signatures instead.
+       or knot/link signatures instead.
       </para>
      </listitem>
      <listitem id="link-new-pd">
@@ -237,7 +236,7 @@
     <link linkend="link-codes">codes tab</link>.
    </para>
    <caution><para>
-    Knot signatures and Dowker-Thistlethwaite notation are
+    Knot/link signatures and Dowker-Thistlethwaite notation are
     both <emphasis>case sensitive</emphasis>!
     Be sure that you are entering upper-case and lower-case correctly
     (or better, copy and paste the text using the clipboard if you can).
@@ -641,25 +640,25 @@
       </glossdef>
      </glossentry>
      <glossentry>
-      <glossterm><guilabel>Knot signature</guilabel></glossterm>
+      <glossterm><guilabel>Knot/link signature</guilabel></glossterm>
       <glossdef>
        <para>
-        Knot signatures are &regina;s own text-based format, and were
+        Knot/link signatures are &regina;s own text-based format, and were
         designed to have a combinatorial uniqueness property:
-        two knot diagrams have the same signature
+        two link diagrams have the same signature
         if and only if they are combinatorially isomorphic
-        (which includes relabelling crossings, reflecting,
-        rotating and/or reversing the knot).
+        (which includes relabelling crossings and/or components,
+        reflecting the entire diagram, rotating connected components of the
+        diagram, and/or reversing individual link components).
        </para>
        <para>
-        For a more detailed discussion of knot signatures,
+        For a more detailed discussion of knot/link signatures,
         see the section on <link linkend="link-new-knotsig">creating
-        knots from knot signatures</link>.
+        knots from knot/link signatures</link>.
        </para>
        <para>
-        Currently &regina; only displays knot signatures
-        for knots, not multiple component links.
-        Be aware that knot signatures are case-sensitive
+        These signatures are supported for all links with fewer than
+        64 components.  Be aware that they are case-sensitive
         (i.e., upper-case and lower-case matters).
        </para>
       </glossdef>
@@ -969,6 +968,8 @@
     To change or resolve a crossing, switch to the
     <guilabel>Crossings</guilabel> tab, right-click on the crossing you
     want to change, and choose which operation you wish to perform.
+    (You will also see an extra option to
+    <link linkend="link-flip">reverse a single component</link>.)
    </para>
    <para>
     <inlinemediaobject>
@@ -1023,7 +1024,7 @@
     <para>
      If &regina; cannot
      simplify the link immediately using its fast heuristics,
-     and if your link has only one component (i.e., you have a knot),
+     and if your link has fewer than 64 components,
      then it will offer to perform a slower, more exhaustive search.  Press
      the <guilabel>Try harder</guilabel> button, as shown below:
     </para>
@@ -1079,7 +1080,8 @@
       Unlike the fast simplification process when you first press the
       <guilabel>Simplify</guilabel> button, this exhaustive
       simplification process could well
-      <link linkend="link-flip">reflect or reverse</link> your link.
+      <link linkend="link-flip">reflect your link</link>
+      and/or <link linkend="link-flip">reverse individual components</link>.
      </para>
     </warning>
     <tip id="link-gordian">
@@ -1214,8 +1216,8 @@
    <title>Reflection, Rotation and Reversal</title>
    <para>
     &regina; offers some simple transformations related to orientation:
-    each of these changes will alter the knot diagram, but the
-    <link linkend="link-new-knotsig">knot signature</link> will stay
+    each of these changes will alter the link diagram, but the
+    <link linkend="link-new-knotsig">knot/link signature</link> will stay
     the same.
    </para>
    <para>
@@ -1262,6 +1264,21 @@
      through its crossings in reverse order.
     </para></listitem>
    </itemizedlist>
+   <para>
+    For a link with multiple components, you can reverse an individual
+    component by switching to the <guilabel>Crossings</guilabel> tab and
+    right-clicking on any part of the component that you wish to reverse.
+    On computers where right-click is not supported (e.g.,
+    computers with a one-button mouse), you should use the normal
+    secondary-click mechanism for bringing up a pop-up context menu.
+   </para>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-editcrossing"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
   </sect2>
 
   <sect2 id="link-cables">
