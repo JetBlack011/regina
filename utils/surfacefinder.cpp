@@ -16,6 +16,7 @@
 #include <iostream>
 #include <ostream>
 #include <set>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -46,9 +47,14 @@ static const regina::Triangulation<2> GENUS_2_SURFACE =
 static const std::vector<int> NUM_TRIANGLES = {0, 0, 1, 4, 10, 20, 35};
 
 /* Custom types */
-template <int n>
-using TriangleMap =
-    std::unordered_map<const regina::Triangle<n> *, regina::Triangle<2> *>;
+using TriangleMap = std::unordered_map<int, int>;
+std::ostream &operator<<(std::ostream &os, const TriangleMap &triMap) {
+    os << "{ ";
+    for (const auto &[key, val] : triMap) {
+        os << "(" << key << "," << val << ") ";
+    }
+    return os << "}";
+}
 
 enum SurfaceCondition { closed, boundary, links };
 
@@ -56,23 +62,14 @@ enum SurfaceCondition { closed, boundary, links };
 template <int n>
 class EmbSurface {
    private:
-    const regina::Triangulation<n> tri_;
+    const regina::Triangulation<n> *tri_;
     const regina::Triangulation<2> surface_;
-    const TriangleMap<n> triMap_;
+    const TriangleMap triMap_;
     const SurfaceCondition cond_;
-
-    // TODO: if this is actually slow in practice make a second map
-    const regina::Edge<n> *findEdgeInTri_(const regina::Triangle<2> *triangle,
-                                          int edgeIndex) {
-        for (const auto &[key, val] : triMap_) {
-            if (val == triangle) {
-                return key->edge(edgeIndex);  // TODO: Check, hmm...
-            }
-        }
-
-        throw regina::InvalidArgument(
-            "Given triangle doesn't exist in triangle map!");
-    }
+    const bool isOrientable_;
+    const int punctures_;
+    const int genus_;
+    std::string detail_;
 
     /**
      * Checks whether the boundary of the embedded surface is contained entirely
@@ -89,13 +86,9 @@ class EmbSurface {
             for (const regina::Edge<2> *edge : comp->edges()) {
                 assert(edge->embeddings().size() == 1);  // Sanity check
 
-                for (const regina::EdgeEmbedding<2> &embedding :
-                     edge->embeddings()) {
-                    const regina::Edge<n> *triEdge =
-                        findEdgeInTri_(embedding.triangle(), embedding.edge());
-                    if (!triEdge->isBoundary()) {
-                        return false;
-                    }
+                const regina::Edge<4> *triEdge = findEdgeInTri(edge);
+                if (!triEdge->isBoundary()) {
+                    return false;
                 }
             }
         }
@@ -103,11 +96,97 @@ class EmbSurface {
         return true;
     }
 
+    static std::pair<std::vector<int>, std::vector<int>> getTriIndexList_(
+        const EmbSurface<n> &lhs, const EmbSurface<n> &rhs) {
+        std::vector<int> lhsKeys, rhsKeys;
+
+        for (const auto &[key, _] : lhs.triMap_) {
+            lhsKeys.push_back(key);
+        }
+        for (const auto &[key, _] : rhs.triMap_) {
+            rhsKeys.push_back(key);
+        }
+
+        std::sort(lhsKeys.begin(), lhsKeys.end());
+        std::sort(rhsKeys.begin(), rhsKeys.end());
+
+        return {lhsKeys, rhsKeys};
+    }
+
    public:
-    EmbSurface(const regina::Triangulation<n> &tri,
+    EmbSurface(const regina::Triangulation<n> *tri,
                const regina::Triangulation<2> &surface,
-               const TriangleMap<n> &triMap, SurfaceCondition cond)
-        : tri_(tri), surface_(surface), triMap_(triMap), cond_(cond) {}
+               const TriangleMap &triMap, SurfaceCondition cond)
+        : tri_(tri),
+          surface_(surface),
+          triMap_(triMap),
+          cond_(cond),
+          isOrientable_(surface.isOrientable()),
+          punctures_(surface.countBoundaryComponents()),
+          genus_(isOrientable_ ? (2 - surface.eulerChar() - punctures_) / 2
+                               : 2 - surface.eulerChar() - punctures_) {
+        std::ostringstream ans;
+        if (!surface_.isConnected()) {
+            throw regina::InvalidArgument("Surface must be connceted!");
+        }
+
+        if (isOrientable_) {
+            // Special names for surface_s with boundary:
+            if (genus_ == 0 && punctures_ == 1)
+                ans << "Disc";
+            else if (genus_ == 0 && punctures_ == 2)
+                ans << "Annulus";
+            else {
+                if (genus_ == 0)
+                    ans << "Sphere";
+                else if (genus_ == 1)
+                    ans << "Torus";
+                else
+                    ans << "genus_ " << genus_ << " torus";
+
+                if (punctures_ == 1)
+                    ans << ", 1 puncture";
+                else if (punctures_ > 1)
+                    ans << ", " << punctures_ << " punctures";
+            }
+        } else {
+            // Special names for surface_s with boundary:
+            if (genus_ == 1 && punctures_ == 1)
+                ans << "Möbius band";
+            else {
+                if (genus_ == 1)
+                    ans << "Projective plane";
+                else if (genus_ == 2)
+                    ans << "Klein bottle";
+                else
+                    ans << "Non-orientable genus " << genus_ << " surface";
+
+                if (punctures_ == 1)
+                    ans << ", 1 puncture";
+                else if (punctures_ > 1)
+                    ans << ", " << punctures_ << " punctures";
+            }
+        }
+
+        detail_ = ans.str();
+    }
+
+    // TODO: if this is actually slow in practice make a second map
+    const regina::Edge<n> *findEdgeInTri(const regina::Edge<2> *edge) const {
+        for (const regina::EdgeEmbedding<2> &embedding : edge->embeddings()) {
+            int triIndex = embedding.triangle()->index();
+            const regina::Edge<n> *triEdge;
+            for (const auto &[key, val] : triMap_) {
+                if (val == triIndex) {
+                    // TODO: Check, hmm...
+                    return tri_->triangle(key)->edge(edge->index());
+                }
+            }
+        }
+
+        throw regina::InvalidArgument(
+            "Given edge doesn't exist in triangle map!");
+    }
 
     /**
      * Based on the provided boundary condition, check whether we should keep
@@ -115,113 +194,51 @@ class EmbSurface {
      */
     bool isAdmissible() {
         if (cond_ == closed)
-            return surface_.isClosed();
+            return isOrientable_ && surface_.isClosed();
         else
-            return isBoundaryContainment_();
+            return isOrientable_ && isBoundaryContainment_();
     }
 
+    std::string detail() const { return detail_; }
+
     const regina::Triangulation<2> &surface() const { return surface_; }
+
+    bool isOrientable() const { return isOrientable_; }
+
+    int punctures() const { return punctures_; }
+
+    int genus() const { return genus_; }
 
     /**
      * Two embedded surfaces are considered equal if they use exactly the same
      * triangles in tri_ (the keys of a TriangleMap)
      */
     friend bool operator==(const EmbSurface<n> &lhs, const EmbSurface<n> &rhs) {
-        std::vector<const regina::Triangle<n> *> lhsKeys;
-        std::vector<const regina::Triangle<n> *> rhsKeys;
-        for (const regina::Triangle<n> *triangle : lhs.triMap_) {
-            lhsKeys.push_back(triangle);
-        }
-        for (const regina::Triangle<n> *triangle : rhs.triMap_) {
-            rhsKeys.push_back(triangle);
-        }
-        std::sort(lhsKeys.begin(), lhsKeys.end());
-        std::sort(rhsKeys.begin(), rhsKeys.end());
-
-        return lhsKeys == rhsKeys;
+        auto [lhsKeys, rhsKeys] = getTriIndexList_(lhs, rhs);
+        return lhsKeys == rhsKeys && lhs.isOrientable_ == rhs.isOrientable_ &&
+               lhs.punctures_ == rhs.punctures_ && lhs.genus_ == rhs.genus_;
     }
 
     /**
      * Arbitrary tie breaker for sorting in a set by lexicographic ordering on
-     * the key set's indices. This may be O(nlog(n)), but, ideally, it happens
+     * the key set's Keys. This may be O(nlog(n)), but, ideally, it happens
      * so infrequently relative to the recursive step of the program that it's
      * ok
      */
     friend bool operator<(const EmbSurface<n> &lhs, const EmbSurface<n> &rhs) {
-        std::vector<int> lhsIndices, rhsIndices;
-
-        for (const auto &[key, val] : lhs.triMap_) {
-            lhsIndices.push_back(key->index());
-        }
-        for (const auto &[key, val] : rhs.triMap_) {
-            rhsIndices.push_back(key->index());
-        }
-
-        std::sort(lhsIndices.begin(), lhsIndices.end());
-        std::sort(rhsIndices.begin(), rhsIndices.end());
-
-        return lhsIndices < rhsIndices;
-    }
-};
-
-class ClosedConnectedSurface {
-   private:
-    const regina::Triangulation<2> surface_;
-    bool isOrientable_;
-    int genus_;
-
-   public:
-    ClosedConnectedSurface(const regina::Triangulation<2> &surface)
-        : surface_(surface), isOrientable_(surface.isOrientable()) {
-        if (!surface.isClosed() || !surface.isConnected()) {
-            throw regina::InvalidArgument(
-                "Surface must be closed and connected!");
-        }
-
-        if (isOrientable_) {
-            genus_ = 1 - surface.eulerChar() / 2;
-        } else {
-            genus_ = 2 - surface.eulerChar();
-        }
+        auto [lhsKeys, rhsKeys] = getTriIndexList_(lhs, rhs);
+        lhsKeys.push_back(lhs.isOrientable_);
+        lhsKeys.push_back(lhs.punctures_);
+        lhsKeys.push_back(lhs.genus_);
+        rhsKeys.push_back(rhs.isOrientable_);
+        rhsKeys.push_back(rhs.punctures_);
+        rhsKeys.push_back(rhs.genus_);
+        return lhsKeys < rhsKeys;
     }
 
     friend std::ostream &operator<<(std::ostream &os,
-                                    const ClosedConnectedSurface &surface) {
-        if (surface.isOrientable_ && surface.genus_ <= 1) {
-            if (surface.genus_ == 0) {
-                os << "S^2";
-            } else {
-                os << "Torus";
-            }
-        } else if (!surface.isOrientable_ && surface.genus_ <= 2) {
-            if (surface.genus_ == 1) {
-                os << "RP^2";
-            } else {
-                os << "Klein Bottle";
-            }
-        } else {
-            if (surface.isOrientable_) {
-                os << "Orientable";
-            } else {
-                os << "Non-orientable";
-            }
-            os << " surface of genus " << surface.genus_;
-        }
-
-        return os;
-    }
-
-    friend bool operator==(const ClosedConnectedSurface &lhs,
-                           const ClosedConnectedSurface &rhs) {
-        return lhs.isOrientable_ == rhs.isOrientable_ &&
-               lhs.genus_ == rhs.genus_;
-    }
-
-    friend bool operator<(const ClosedConnectedSurface &lhs,
-                          const ClosedConnectedSurface &rhs) {
-        std::vector<int> lhsLex = {lhs.isOrientable_, lhs.genus_};
-        std::vector<int> rhsLex = {rhs.isOrientable_, rhs.genus_};
-        return lhsLex < rhsLex;
+                                    const EmbSurface<n> &embSurface) {
+        return os << surfaceDescription(embSurface.surface());
     }
 };
 
@@ -319,7 +336,7 @@ class GluingGraph {
 
     SurfaceCondition cond_;
 
-    regina::Triangulation<n> tri_;
+    const regina::Triangulation<n> *tri_;
     /**< The given triangulation of an n-manifold */
 
     std::vector<GluingNode> nodes_;
@@ -328,18 +345,12 @@ class GluingGraph {
     regina::Triangulation<2> surface_;
     /**< To keep track of surfaces we built during DFS */
 
-    std::set<EmbSurface<n>> embSurfaces_;
-    /**< The surfaces we find embedded in the given triangulation */
-
-    TriangleMap<n> triangleMap_;
+    TriangleMap triangleMap_;
     /**< A mapping between the triangles in the given triangulation and those in
      * the surface we build during DFS */
 
     std::set<GluingNode> addTriangle_(const regina::Triangle<n> *triangle) {
         std::set<GluingNode> nodes;
-        const regina::Triangulation<n> &tri = triangle->triangulation();
-
-        // std::cout << "Adding " << *triangle << "\n";
 
         // For each edge of our triangle, find all of the ways adjacent
         // triangles are glued to that edge in the given triangulation
@@ -347,7 +358,7 @@ class GluingGraph {
             const regina::Edge<n> *edge = triangle->edge(facet);
             regina::Perm<n + 1> edgeToTriangle = triangle->edgeMapping(facet);
 
-            for (const regina::Triangle<n> *other : tri.triangles()) {
+            for (const regina::Triangle<n> *other : tri_->triangles()) {
                 for (int i = 0; i < 3; ++i) {
                     // Only glue identified edges and ignore identity mappings
                     if (other->edge(i) != edge ||
@@ -374,11 +385,11 @@ class GluingGraph {
         return nodes;
     }
 
-    void buildGluingNodes_(const regina::Triangulation<n> &tri) {
+    void buildGluingNodes_(const regina::Triangulation<n> *tri) {
         std::set<GluingNode> nodes;
 
         // TODO: Can we do better than O(|tri.triangles()|^2)?
-        for (const regina::Triangle<n> *triangle : tri.triangles()) {
+        for (const regina::Triangle<n> *triangle : tri->triangles()) {
             std::set<GluingNode> newNodes = addTriangle_(triangle);
 
             for (const GluingNode &node : newNodes) {
@@ -408,7 +419,8 @@ class GluingGraph {
         }
     }
 
-    void dfs_(regina::Triangle<2> *triangle, GluingNode *node, int layer) {
+    void dfs_(std::set<EmbSurface<n>> &embSurfaces,
+              regina::Triangle<2> *srcTriangle, GluingNode *node, int layer) {
         if (node->visited_ || !node->valid_) {
             // Don't perform the same gluing twice, and stop if adding this
             // gluing would result in an invalid triangulation
@@ -419,33 +431,34 @@ class GluingGraph {
 
         node->visited_ = true;
 
-        regina::Triangle<2> *nextTriangle;
+        regina::Triangle<2> *dstTriangle;
 
-        auto search = triangleMap_.find(node->gluing_.dst);
+        auto search = triangleMap_.find(node->gluing_.dst->index());
         bool isNewTriangle = search == triangleMap_.end();
 
         if (isNewTriangle) {
-            nextTriangle = surface_.newTriangle();
-            triangleMap_.insert({node->gluing_.dst, nextTriangle});
+            dstTriangle = surface_.newTriangle();
+            triangleMap_.insert(
+                {node->gluing_.dst->index(), dstTriangle->index()});
         } else {
-            nextTriangle = search->second;
+            dstTriangle = surface_.triangle(search->second);
         }
 
         // TODO: Is there some way to move this root check outside the
         // recursion? Probably doesn't matter
-        if (triangle != nullptr) {
+        if (srcTriangle != nullptr) {
             try {
-                triangle->join(node->gluing_.srcFacet, nextTriangle,
-                               node->gluing_.gluing);
+                srcTriangle->join(node->gluing_.srcFacet, dstTriangle,
+                                  node->gluing_.gluing);
             } catch (regina::InvalidArgument &e) {
-                std::cout << e.what() << "\n";
                 if (isNewTriangle) {
                     // If this is the first time we've seen this triangle and
                     // the gluing is invalid, we're safe to remove it from
                     // surface_
-                    surface_.removeTriangle(nextTriangle);
+                    surface_.removeTriangle(dstTriangle);
                     // Note that find is guaranteed to return a valid iterator
-                    triangleMap_.erase(triangleMap_.find(node->gluing_.dst));
+                    triangleMap_.erase(
+                        triangleMap_.find(node->gluing_.dst->index()));
                 }
 
                 return;
@@ -454,28 +467,28 @@ class GluingGraph {
 
         EmbSurface<n> embSurface(tri_, surface_, triangleMap_, cond_);
         if (embSurface.isAdmissible()) {  // TODO: Don't check this here
-            embSurfaces_.insert(embSurface);
+            embSurfaces.insert(embSurface);
         }
+        // nspaces_(layer);
+        // std::cout << layer << ": adding " << embSurface << "\n";
 
         // Recursive step: walk along each possible next gluing
         for (GluingNode *nextNode : node->adjList_) {
-            dfs_(nextTriangle, nextNode, layer + 1);
+            dfs_(embSurfaces, dstTriangle, nextNode, layer + 1);
         }
 
         // Remember to remove triangles as we move back up the recursion and
         // mark this node as not visited
         if (isNewTriangle) {
-            surface_.removeTriangle(nextTriangle);
-            triangleMap_.erase(triangleMap_.find(node->gluing_.dst));
+            surface_.removeTriangle(dstTriangle);
+            triangleMap_.erase(triangleMap_.find(node->gluing_.dst->index()));
         }
 
-        // nspaces(layer);
-        // std::cout << layer << ": DONE\n";
         node->visited_ = false;
     }
 
    public:
-    GluingGraph(const regina::Triangulation<n> &tri, SurfaceCondition cond)
+    GluingGraph(const regina::Triangulation<n> *tri, SurfaceCondition cond)
         : tri_(tri), cond_(cond) {
         buildGluingNodes_(tri);
         buildGluingEdges_();
@@ -485,7 +498,6 @@ class GluingGraph {
     void reset() {
         surface_ = {};
         triangleMap_.clear();
-        embSurfaces_.clear();
 
         for (GluingNode &node : nodes_) {
             node.valid_ = true;
@@ -493,12 +505,11 @@ class GluingGraph {
         }
     }
 
-    std::set<EmbSurface<n>> findEmbSurfaces(regina::Triangle<n> *triangle) {
-        if (!embSurfaces_.empty()) {
-            return embSurfaces_;
-        }
+    std::set<EmbSurface<n>> findEmbSurfaces(
+        const regina::Triangle<n> *triangle) {
+        std::set<EmbSurface<n>> ans;
 
-        reset();  // No real need to call this here, but why not
+        reset();
         GluingNode root = {nullptr, -1, triangle, {}};
         for (auto &node : nodes_) {
             if (node.gluing_.src == triangle) {
@@ -506,19 +517,22 @@ class GluingGraph {
             }
         }
         // Call DFS with dummy root node
-        dfs_(nullptr, &root, 0);
+        dfs_(ans, nullptr, &root, 0);
+
+        std::cout << "TOTAL DFS CALLS = " << calls_ << "\n";
 
         // std::cout << "\n";
 
-        return embSurfaces_;
+        return ans;
     }
 
     std::set<EmbSurface<n>> findEmbSurfaces() {
+        // TODO: Account for surface condition in choosing the triangles we
+        // iterate over
         std::set<EmbSurface<n>> ans;
 
-        for (int i = 0; i < tri_.countTriangles(); ++i) {
-            std::set<EmbSurface<n>> embSurfaces =
-                findEmbSurfaces(tri_.triangle(i));
+        for (const regina::Triangle<n> *triangle : tri_->triangles()) {
+            auto embSurfaces = findEmbSurfaces(triangle);
             for (const EmbSurface<n> &surface : embSurfaces) {
                 ans.insert(surface);
             }
@@ -605,57 +619,92 @@ int main(int argc, char *argv[]) {
 
     // regina::Triangulation<3> bdry = tri.boundaryComponent(0)->build();
 
-    // auto tri = regina::Example<4>::cp2();
-    //regina::Triangulation<4> tri(isoSig);
-    regina::Triangulation<3> tri;
-    tri.newTetrahedron();
-    // tri.subdivide();
+    // auto tri = regina::Example<4>::fourSphere();
+    regina::Triangulation<4> tri(isoSig);
+    // regina::Triangulation<3> tri;
     std::cout << tri.detail() << "\n\n";
-    // tri.subdivide();
-    //  tri.newSimplex();
-    //  tri.newSimplex();
-    //  tri.tetrahedron(0)->join(0, tri.tetrahedron(1), {});
+
+    std::cout << "Boundary = ";
+    for (const auto comp : tri.boundaryComponents()) {
+        for (const auto edge : comp->edges()) {
+            std::cout << edge->index() << " ";
+        }
+    }
+    std::cout << "\n\n";
 
     std::cout << "--- Closed Surfaces ---\n";
-    std::map<ClosedConnectedSurface, int> closedSurfaces;
     int surfaceCount = 0;
     int closedCount = 0;
-    GluingGraph graph(tri, cond);
+    GluingGraph graph(&tri, cond);
 
-    auto ans = graph.findEmbSurfaces();
+    auto embSurfaces = graph.findEmbSurfaces();
+    std::map<std::string, int> countMap;
 
-    for (const auto &embSurface : ans) {
+    for (const auto &embSurface : embSurfaces) {
         ++surfaceCount;
-        // if (embSurface.isAdmissible()) {
-        ++closedCount;
-        ClosedConnectedSurface ccs(embSurface.surface());
-        auto search = closedSurfaces.find(ccs);
-        if (search == closedSurfaces.end()) {
-            closedSurfaces.insert({ccs, 1});
+        if (embSurface.surface().isClosed()) {
+            ++closedCount;
         } else {
-            search->second++;
+            std::cout << "Surface boundary = ";
+            for (const auto comp : embSurface.surface().boundaryComponents()) {
+                for (const auto edge : comp->edges()) {
+                    std::cout << embSurface.findEdgeInTri(edge)->index() << " ";
+                }
+            }
+            std::cout << "\n";
         }
-        //}
+        // std::cout << " - " << embSurface << "\n";
+        auto search = countMap.find(embSurface.detail());
+        if (search == countMap.end()) {
+            countMap.insert({embSurface.detail(), 1});
+        } else {
+            ++search->second;
+        }
     }
-
-    // std::cout << "Total surfaces = " << ans.size()
-    //           << "\nTotal closed surfaces = " << closedCount << "\n\n";
 
     graph.reset();
 
-    std::cout << "Total surfaces = " << surfaceCount
-              << "\nTotal closed surfaces = " << closedCount << "\n\n";
+    std::cout << "\n";
 
-    if (closedSurfaces.size() == 0) {
-        std::cout << "Didn't find any closed surfaces!";
-    } else {
-        std::cout << "Found the following surfaces:\n";
-        for (auto &[ccs, count] : closedSurfaces) {
-            std::cout << "- " << count << " "
-                      << (count == 1 ? "copy" : "copies") << " of " << ccs
-                      << "\n";
-        }
+    std::vector<std::string> descriptions;
+    descriptions.reserve(countMap.size());
+    for (const auto &[description, count] : countMap) {
+        descriptions.push_back(description);
     }
+
+    std::sort(descriptions.begin(), descriptions.end(),
+              [](const std::string &first, const std::string &second) {
+                  return first.size() < second.size() ||
+                         (first.size() == second.size() && first < second);
+              });
+
+    for (std::string &description : descriptions) {
+        int count = countMap.find(description)->second;
+        std::cout << "- " << count << (count == 1 ? " copy of " : " copies of ")
+                  << description << "\n";
+    }
+
+    std::cout << "\n";
+    std::cout << "Total admissible surfaces = " << surfaceCount
+              << "\nTotal closed surfaces = " << closedCount << "\n\n";
 
     return 0;
 }
+
+/*
+[[  0  0  0  0  0  0  0  1  1  1  0  0  0  0  0  1 ]
+ [  0  0  0  0  0  1  1  0  0 -1  0  0  0  0  1  0 ]
+ [  0  0  0  0  1  0 -1  0 -1  0  0  0  0  1  0  0 ]
+ [  0  0  0  0 -1 -1  0 -1  0  0  0  0  0  0  0  0 ]
+ [  0  0  1  1  0  0  0  0  0  1  0  0  1  0  0  0 ]
+ [  0  1  0 -1  0  0  0  0  1  0  0  1  0  0  0  0 ]
+ [  0 -1 -1  0  0  0  0  1  0  0  0  0  0  0  0  0 ]
+ [  1  0  0  1  0  0  1  0  0  0  1  0  0  0  0  0 ]
+ [ -1  0  1  0  0  1  0  0  0  0  0  0  0  0  0  0 ]
+ [  1  1  0  0  1  0  0  0  0  0  0  0  0  0  0  0 ]
+ [  0  0  0  0  0  0  0  0  0  0  0  0  0 -1 -1 -1 ]
+ [  0  0  0  0  0  0  0  0  0  0  0 -1 -1  0  0  1 ]
+ [  0  0  0  0  0  0  0  0  0  0 -1  0  1  0  1  0 ]
+ [  0  0  0  0  0  0  0  0  0  0  1  1  0  1  0  0 ]
+]
+*/
