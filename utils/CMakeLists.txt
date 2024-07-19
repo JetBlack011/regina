@@ -2,6 +2,7 @@ include_directories(${ENGINE_INCLUDES})
 include_directories("${CMAKE_BINARY_DIR}/engine")
 
 set(UTILS
+  bogocheck
   censuslookup
   dgt
   regconcat
