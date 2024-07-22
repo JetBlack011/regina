@@ -123,82 +123,81 @@ int main(int argc, char *argv[]) {
     // regina::Triangulation<3> bdry = tri.boundaryComponent(0)->build();
 
     // auto tri = regina::Example<4>::fourSphere();
-    // regina::Triangulation<4> tri(isoSig);
-    regina::Triangulation<3> tri("bkaagj");
+    regina::Triangulation<4> tri(isoSig);
+    //regina::Triangulation<3> tri("bkaagj");
     std::cout << tri.detail() << "\n\n";
     // Knot<3> k;
 
     // knotComplement(tri, k);
 
-    // std::cout << "Boundary = ";
-    // for (const auto comp : tri.boundaryComponents()) {
-    //     for (const auto edge : comp->edges()) {
-    //         std::cout << edge->index() << " ";
-    //     }
-    // }
-    // std::cout << "\n\n";
+    std::cout << "Boundary = ";
+    for (const auto comp : tri.boundaryComponents()) {
+        for (const auto edge : comp->edges()) {
+            std::cout << edge->index() << " ";
+        }
+    }
+    std::cout << "\n\n";
 
-    // std::cout << "--- Closed Surfaces ---\n";
-    // int surfaceCount = 0;
-    // int closedCount = 0;
-    // GluingGraph graph(&tri, cond);
+    std::cout << "--- Closed Surfaces ---\n";
+    int surfaceCount = 0;
+    int closedCount = 0;
+    GluingGraph graph(&tri, cond);
 
-    // auto surfaceKnots = graph.findSurfaceKnots();
-    // std::map<std::string, int> countMap;
+    auto surfaceKnots = graph.findSurfaceKnots();
+    std::map<std::string, int> countMap;
 
-    // for (const auto &surfaceKnot : surfaceKnots) {
-    //     ++surfaceCount;
-    //     if (surfaceKnot.surface().isClosed()) {
-    //         ++closedCount;
-    //     } else {
-    //         // std::cout << "Surface boundary = ";
-    //         for (const auto comp :
-    //         surfaceKnot.surface().boundaryComponents())
-    //         {
-    //             for (const auto edge : comp->edges()) {
-    //                 // std::cout << surfaceKnot.findEdgeInTri(edge)->index()
-    //                 << "
-    //                 // ";
-    //             }
-    //         }
-    //         // regina::snappea::DualOneSkeletonCurve curve;
-    //         // std::cout << "\n";
-    //     }
-    //     // std::cout << " - " << surfaceKnot << "\n";
-    //     auto search = countMap.find(surfaceKnot.detail());
-    //     if (search == countMap.end()) {
-    //         countMap.insert({surfaceKnot.detail(), 1});
-    //     } else {
-    //         ++search->second;
-    //     }
-    // }
+    for (const auto &surfaceKnot : surfaceKnots) {
+        ++surfaceCount;
+        if (surfaceKnot.surface().isClosed()) {
+            ++closedCount;
+        } else {
+            // std::cout << "Surface boundary = ";
+            for (const auto comp :
+            surfaceKnot.surface().boundaryComponents())
+            {
+                for (const auto edge : comp->edges()) {
+                    // std::cout << surfaceKnot.findEdgeInTri(edge)->index() << "
+                    // ";
+                }
+            }
+            // regina::snappea::DualOneSkeletonCurve curve;
+            // std::cout << "\n";
+        }
+        // std::cout << " - " << surfaceKnot << "\n";
+        auto search = countMap.find(surfaceKnot.detail());
+        if (search == countMap.end()) {
+            countMap.insert({surfaceKnot.detail(), 1});
+        } else {
+            ++search->second;
+        }
+    }
 
-    // graph.reset();
+    graph.reset();
 
-    // std::cout << "\n";
+    std::cout << "\n";
 
-    // std::vector<std::string> descriptions;
-    // descriptions.reserve(countMap.size());
-    // for (const auto &[description, count] : countMap) {
-    //     descriptions.push_back(description);
-    // }
+    std::vector<std::string> descriptions;
+    descriptions.reserve(countMap.size());
+    for (const auto &[description, count] : countMap) {
+        descriptions.push_back(description);
+    }
 
-    // std::sort(descriptions.begin(), descriptions.end(),
-    //           [](const std::string &first, const std::string &second) {
-    //               return first.size() < second.size() ||
-    //                      (first.size() == second.size() && first < second);
-    //           });
+    std::sort(descriptions.begin(), descriptions.end(),
+              [](const std::string &first, const std::string &second) {
+                  return first.size() < second.size() ||
+                         (first.size() == second.size() && first < second);
+              });
 
-    // for (std::string &description : descriptions) {
-    //     int count = countMap.find(description)->second;
-    //     std::cout << "- " << count << (count == 1 ? " copy of " : " copies of
-    //     ")
-    //               << description << "\n";
-    // }
+    for (std::string &description : descriptions) {
+        int count = countMap.find(description)->second;
+        std::cout << "- " << count << (count == 1 ? " copy of " : " copies of
+        ")
+                  << description << "\n";
+    }
 
-    // std::cout << "\n";
-    // std::cout << "Total admissible surfaces = " << surfaceCount
-    //           << "\nTotal closed surfaces = " << closedCount << "\n\n";
+    std::cout << "\n";
+    std::cout << "Total admissible surfaces = " << surfaceCount
+              << "\nTotal closed surfaces = " << closedCount << "\n\n";
 
     return 0;
 }

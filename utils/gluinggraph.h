@@ -22,28 +22,17 @@
 #include <unordered_set>
 #include <vector>
 
+#include "knottedsurfaces.h"
 #include "maths/perm.h"
-#include "surfaceknots.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
 
 template <int n>
 class GluingGraph {
    private:
-    struct Gluing {
-        // Only included to make edge building easier
-        const regina::Triangle<n> *src;
-        const int srcFacet;
-        const regina::Triangle<n> *dst;
-        const regina::Perm<3> gluing;
-
-        template <int>
-        friend std::ostream &operator<<(std::ostream &os, const Gluing &gluing);
-    };
-
     class GluingNode {
        public:
-        const Gluing gluing_;
+        const Gluing<n> gluing_;
         std::unordered_set<GluingNode *> adjList_;
         std::unordered_set<GluingNode *> invalids_;  // Make sure to precompute
         bool valid_ = true;

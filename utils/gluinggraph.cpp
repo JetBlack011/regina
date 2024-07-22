@@ -19,25 +19,10 @@
 #include <vector>
 
 #include "maths/perm.h"
-#include "surfaceknots.h"
+#include "knottedsurfaces.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
 #include "utilities/exception.h"
-
-template <int n>
-std::ostream &operator<<(std::ostream &os,
-                         const typename GluingGraph<n>::Gluing &gluing) {
-    os << "(Triangle ";
-    if (gluing.src == nullptr) {
-        os << -1;
-    } else {
-        os << gluing.src->index();
-    }
-    os << ", " << gluing.srcFacet << ", Triangle " << gluing.dst->index()
-       << ", " << gluing.gluing << ")";
-
-    return os;
-}
 
 template <int n>
 GluingGraph<n>::GluingNode::GluingNode(const regina::Triangle<n> *src,
@@ -101,7 +86,7 @@ std::ostream &operator<<(std::ostream &os,
 template <int n>
 std::set<typename GluingGraph<n>::GluingNode> GluingGraph<n>::addTriangle_(
     const regina::Triangle<n> *triangle) {
-    std::set<typename GluingGraph<n>::GluingNode> nodes;
+    std::set<GluingGraph<n>::GluingNode> nodes;
 
     // For each edge of our triangle, find all of the ways adjacent
     // triangles are glued to that edge in the given triangulation
@@ -124,7 +109,7 @@ std::set<typename GluingGraph<n>::GluingNode> GluingGraph<n>::addTriangle_(
                     p[edgeToTriangle[i]] = edgeToOther[i];
                 }
 
-                typename GluingGraph<n>::GluingNode node = {
+                GluingGraph<n>::GluingNode node = {
                     triangle, facet, other, {p[0], p[1], p[2]}};
                 // std::cout << "NEW NODE " << node;
                 nodes.insert(node);
@@ -138,27 +123,26 @@ std::set<typename GluingGraph<n>::GluingNode> GluingGraph<n>::addTriangle_(
 
 template <int n>
 void GluingGraph<n>::buildGluingNodes_(const regina::Triangulation<n> *tri) {
-    std::set<typename GluingGraph<n>::GluingNode> nodes;
+    std::set<GluingGraph<n>::GluingNode> nodes;
 
     // TODO: Can we do better than O(|tri.triangles()|^2)?
     for (const regina::Triangle<n> *triangle : tri->triangles()) {
-        std::set<typename GluingGraph<n>::GluingNode> newNodes =
-            addTriangle_(triangle);
+        std::set<GluingGraph<n>::GluingNode> newNodes = addTriangle_(triangle);
 
-        for (const typename GluingGraph<n>::GluingNode &node : newNodes) {
+        for (const GluingGraph<n>::GluingNode &node : newNodes) {
             nodes.insert(node);
         }
     }
 
-    for (const typename GluingGraph<n>::GluingNode &node : nodes) {
+    for (const GluingGraph<n>::GluingNode &node : nodes) {
         nodes_.push_back(node);
     }
 }
 
 template <int n>
 void GluingGraph<n>::buildGluingEdges_() {
-    for (typename GluingGraph<n>::GluingNode &node : nodes_) {
-        for (typename GluingGraph<n>::GluingNode &other : nodes_) {
+    for (GluingGraph<n>::GluingNode &node : nodes_) {
+        for (GluingGraph<n>::GluingNode &other : nodes_) {
             // std::cout << node << ", " << other;
             if (node.gluing_.dst == other.gluing_.src) {
                 node.adjList_.insert(&other);
@@ -170,8 +154,7 @@ void GluingGraph<n>::buildGluingEdges_() {
 template <int n>
 void GluingGraph<n>::dfs_(std::set<SurfaceKnot> &surfaceKnots,
                           regina::Triangle<2> *srcTriangle,
-                          typename GluingGraph<n>::GluingNode *node,
-                          int layer) {
+                          GluingGraph<n>::GluingNode *node, int layer) {
     if (node->visited_ || !node->valid_) {
         // Don't perform the same gluing twice, and stop if adding this
         // gluing would result in an invalid triangulation
@@ -223,7 +206,7 @@ void GluingGraph<n>::dfs_(std::set<SurfaceKnot> &surfaceKnots,
     // std::cout << layer << ": adding " << surfaceKnot << "\n";
 
     // Recursive step: walk along each possible next gluing
-    for (typename GluingGraph<n>::GluingNode *nextNode : node->adjList_) {
+    for (GluingGraph<n>::GluingNode *nextNode : node->adjList_) {
         dfs_(surfaceKnots, dstTriangle, nextNode, layer + 1);
     }
 
@@ -242,7 +225,7 @@ void GluingGraph<n>::reset_() {
     surface_ = {};
     triangleMap_.clear();
 
-    for (typename GluingGraph<n>::GluingNode &node : nodes_) {
+    for (GluingGraph<n>::GluingNode &node : nodes_) {
         node.valid_ = true;
         node.visited_ = false;
     }
@@ -254,7 +237,7 @@ std::set<SurfaceKnot> GluingGraph<n>::findSurfaceKnots_(
     std::set<SurfaceKnot> ans;
 
     reset_();
-    typename GluingGraph<n>::GluingNode root = {nullptr, -1, triangle, {}};
+    GluingGraph<n>::GluingNode root = {nullptr, -1, triangle, {}};
     for (auto &node : nodes_) {
         if (node.gluing_.src == triangle) {
             root.adjList_.insert(&node);
