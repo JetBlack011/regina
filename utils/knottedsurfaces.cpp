@@ -137,7 +137,8 @@ bool TriangulationEmbedding<dim, subdim>::isProper() const {
 
 template <int dim, int subdim>
 void TriangulationEmbedding<dim, subdim>::updateIsProper() {
-    for (const regina::BoundaryComponent<subdim> *comp : sub_.boundaryComponents()) {
+    for (const regina::BoundaryComponent<subdim> *comp :
+         sub_.boundaryComponents()) {
         for (const regina::Face<subdim, subdim - 1> *f : comp->facets()) {
             regina::Face<dim, subdim - 1> *im = image(f);
             if (!im->isBoundary()) {
@@ -157,7 +158,7 @@ regina::Face<dim, facedim> *TriangulationEmbedding<dim, subdim>::image(
     static_assert(0 <= facedim <= subdim, "Must have 0 <= facedim <= subdim");
 
     regina::FaceEmbedding<subdim, facedim> &fEmb = f->front();
-    return emb_.at(fEmb.simplex()).face<facedim>(fEmb.face());
+    return emb_.at(fEmb.simplex()).template face<facedim>(fEmb.face());
 }
 
 template <int dim, int subdim>
@@ -201,11 +202,20 @@ bool TriangulationEmbedding<dim, subdim>::addGluing(Gluing<dim> g) {
     }
 
     if (isProper_) {
+        // Quick optimization, boundary containment is entirely determined by
+        // the new facets we've made
         for (int i = 0; i < subdim + 1; ++i) {
             if (i == g.gluing[g.srcFacet]) continue;
 
-            if (g.dst->face<dim-1>(i))
+            const regina::Face<subdim, subdim - 1> *facet =
+                dst->template face<subdim - 1>(i);
+            const regina::Face<dim, subdim - 1> *im = image(facet);
+            if (facet->isBoundary() && !im->isBoundary()) {
+                isProper_ = false;
+            }
         }
+    } else {
+        updateIsProper();
     }
 
     return true;
@@ -258,18 +268,13 @@ std::ostream &operator<<(std::ostream &os,
 
 KnottedSurface::KnottedSurface(const regina::Triangulation<4> &tri)
     : TriangulationEmbedding(tri) {
-    bool isOrientable = sub_.isOrientable();
-    int punctures = sub_.countBoundaryComponents();
-    int genus = isOrientable ? (2 - sub_.eulerChar() - punctures) / 2
-                             : 2 - sub_.eulerChar() - punctures;
-
-    invariants_ = {isOrientable, punctures, genus};
+    computeInvariants_();
 }
 
-regina::Triangulation<2> &KnottedSurface::surface() { return sub_; }
+const regina::Triangulation<2> &KnottedSurface::surface() const { return sub_; }
 
-std::string KnottedSurface::detail() {
-    if (!detail_.empty()) return detail_;
+std::string KnottedSurface::detail() const {
+    // if (!detail_.empty()) return detail_;
 
     /* Generate surface details */
     bool isOrientable = sub_.isOrientable();
@@ -320,5 +325,15 @@ std::string KnottedSurface::detail() {
         }
     }
 
-    detail_ = ans.str();
+    return ans.str();
+    // return detail_ = ans.str();
+}
+
+void KnottedSurface::computeInvariants_() {
+    bool isOrientable = sub_.isOrientable();
+    int punctures = sub_.countBoundaryComponents();
+    int genus = isOrientable ? (2 - sub_.eulerChar() - punctures) / 2
+                             : 2 - sub_.eulerChar() - punctures;
+
+    invariants_ = {isOrientable, punctures, genus};
 }

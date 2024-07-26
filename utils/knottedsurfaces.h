@@ -4,9 +4,9 @@
 //  Created by John Teague on 06/19/2024.
 //
 
-#ifndef SURFACE_KNOTS_H
+#ifndef KNOTTED_SURFACES_H
 
-#define SURFACE_KNOTS_H
+#define KNOTTED_SURFACES_H
 
 #include <gmpxx.h>
 #include <link/link.h>
@@ -190,6 +190,7 @@ class TriangulationEmbedding {
      * Two embeddings are considered equal if they have isomorphic
      * sub-triangulations and have the same embedding data.
      */
+    template <int, int>
     friend bool operator==(const TriangulationEmbedding &lhs,
                            const TriangulationEmbedding &rhs);
 
@@ -197,16 +198,18 @@ class TriangulationEmbedding {
      * Arbitrary tie breaker for sorting in a set by lexicographic ordering on
      * some integer invariants and the sorted set of embedded face indices.
      */
+    template <int, int>
     friend bool operator<(const TriangulationEmbedding &lhs,
                           const TriangulationEmbedding &rhs);
 
+    template <int, int>
     friend std::ostream &operator<<(
         std::ostream &os, const TriangulationEmbedding &TriangulationEmbedding);
 };
 
-class KnottedSurface : TriangulationEmbedding<4, 2> {
+class KnottedSurface : public TriangulationEmbedding<4, 2> {
    private:
-    std::string detail_;
+    //std::string detail_;
     /**< A textual description of the underlying surface, e.g. "Non-orientable
      * genus 5 surface, 2 punctures" */
 
@@ -215,9 +218,12 @@ class KnottedSurface : TriangulationEmbedding<4, 2> {
    public:
     KnottedSurface(const regina::Triangulation<4> &tri);
 
-    regina::Triangulation<2> &surface();
+    const regina::Triangulation<2> &surface() const;
 
-    std::string detail();
+    std::string detail() const;
+
+private:
+    void computeInvariants_();
 };
 
 #endif

@@ -22,10 +22,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "knottedsurfaces.h"
 #include "maths/perm.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
+
+#include "knottedsurfaces.h"
 
 template <int n>
 class GluingGraph {
@@ -38,7 +39,6 @@ class GluingGraph {
         bool valid_ = true;
         bool visited_ = false;
 
-        // TODO: figure out C++
         GluingNode(const regina::Triangle<n> *src, int srcFacet,
                    const regina::Triangle<n> *dst, regina::Perm<3> gluing);
 
@@ -61,22 +61,23 @@ class GluingGraph {
 
     SurfaceCondition cond_;
 
-    const regina::Triangulation<n> *tri_;
+    const regina::Triangulation<n> &tri_;
     /**< The given triangulation of an n-manifold */
 
     std::vector<GluingNode> nodes_;
     /**< Guaranteed not to be nodes with the same gluing data */
 
-    regina::Triangulation<2> surface_;
-    /**< To keep track of surfaces we built during DFS */
+    KnottedSurface surface_;
 
-    TriangleMap triangleMap_;
-    /**< A mapping between the triangles in the given triangulation and those in
-     * the surface we build during DFS */
+   public:
+    GluingGraph(const regina::Triangulation<n> &tri, SurfaceCondition cond);
 
+    std::set<KnottedSurface> findSurfaces();
+
+   private:
     std::set<GluingNode> addTriangle_(const regina::Triangle<n> *triangle);
 
-    void buildGluingNodes_(const regina::Triangulation<n> *tri);
+    void buildGluingNodes_(const regina::Triangulation<n> &tri);
 
     void buildGluingEdges_();
 
@@ -86,18 +87,11 @@ class GluingGraph {
         }
     }
 
-    void dfs_(std::set<SurfaceKnot> &surfaceKnots,
-              regina::Triangle<2> *srcTriangle, GluingNode *node, int layer);
+    void dfs_(GluingNode *node, std::set<KnottedSurface> &surfaces, int layer);
 
     void reset_();
 
-    std::set<SurfaceKnot> findSurfaceKnots_(
-        const regina::Triangle<n> *triangle);
-
-   public:
-    GluingGraph(const regina::Triangulation<n> *tri, SurfaceCondition cond);
-
-    std::set<SurfaceKnot> findSurfaceKnots();
+    std::set<KnottedSurface> findSurfaces_(const regina::Triangle<n> *triangle);
 };
 
 #endif
