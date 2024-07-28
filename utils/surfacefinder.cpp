@@ -21,11 +21,13 @@
 #include <utility>
 
 #include "maths/perm.h"
+#include "triangulation/example2.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
 #include "triangulation/generic/face.h"
 #include "triangulation/generic/faceembedding.h"
 #include "triangulation/generic/triangulation.h"
+#include "utilities/exception.h"
 
 /* Constants */
 static const regina::Triangulation<2> GENUS_2_SURFACE =
@@ -45,7 +47,7 @@ static const regina::Triangulation<2> GENUS_2_SURFACE =
 //     return linkComplement(t, {k});
 // }
 
-enum SurfaceCondition { closed, boundary };
+enum SurfaceCondition { all, boundary, closed };
 
 template <int n>
 using Curve = std::vector<regina::Edge<n> *>;
@@ -55,28 +57,24 @@ using DualCurve = std::vector<regina::Triangle<n> *>;
 
 /** Gluing Implementation */
 
-template <int dim, int subdim>
+template <int dim>
 struct Gluing {
-    regina::Face<dim, subdim> *src;
+    regina::Face<dim, 2> *src;
     int srcFacet;
-    regina::Face<dim, subdim> *dst;
-    regina::Perm<subdim + 1> gluing;
+    regina::Face<dim, 2> *dst;
+    regina::Perm<3> gluing;
 
     Gluing() = default;
 
-    Gluing(regina::Face<dim, subdim> *src, int srcFacet,
-           regina::Face<dim, subdim> *dst, regina::Perm<subdim + 1> gluing)
+    Gluing(regina::Face<dim, 2> *src, int srcFacet, regina::Face<dim, 2> *dst,
+           regina::Perm<3> gluing)
         : src(src), srcFacet(srcFacet), dst(dst), gluing(gluing) {}
 
-    template <int, int>
-    friend std::ostream &operator<<(std::ostream &os, const Gluing &gluing);
+    friend std::ostream &operator<<(std::ostream &os, const Gluing &g) {
+        return os << "(" << g.src->index() << ", " << g.srcFacet << ", "
+                  << g.dst->index() << ", " << g.gluing << ")";
+    }
 };
-
-template <int dim, int subdim>
-std::ostream &operator<<(std::ostream &os, const Gluing<dim, subdim> &g) {
-    return os << "(" << g.src->index() << ", " << g.srcFacet << ", "
-              << g.dst->index() << ", " << g.gluing << ")";
-}
 
 /** Knot implementation */
 
@@ -184,32 +182,32 @@ class Knot {
     }
 
     void fourOneMove(regina::Tetrahedron<3> *tet) {
-        std::array<std::optional<Gluing<3, 3>>, 4> gluings;
-        std::vector<regina::Edge<3> *> edgeMap;
-        std::unordered_map<regina::Edge<3> *, std::pair<int, int>> edges;
+        // std::array<std::optional<Gluing>, 4> gluings;
+        // std::vector<regina::Edge<3> *> edgeMap;
+        // std::unordered_map<regina::Edge<3> *, std::pair<int, int>> edges;
 
-        int numTets = tri_.countTetrahedra();
+        // int numTets = tri_.countTetrahedra();
 
-        // For each triangle in tet
-        for (int i = 0; i < 4; ++i) {
-            regina::Tetrahedron<3> *adjTet = tet->adjacentSimplex(i);
-            if (adjTet != nullptr) {
-                gluings[i] = {tet, i, adjTet, tet->adjacentGluing(i)};
-            }
-        }
+        //// For each triangle in tet
+        // for (int i = 0; i < 4; ++i) {
+        //     regina::Tetrahedron<3> *adjTet = tet->adjacentSimplex(i);
+        //     if (adjTet != nullptr) {
+        //         gluings[i] = {tet, i, adjTet, tet->adjacentGluing(i)};
+        //     }
+        // }
 
-        tri_.removeTetrahedron(tet);
-        auto tets = fourOneTet();
+        // tri_.removeTetrahedron(tet);
+        // auto tets = fourOneTet();
 
-        for (int i = 0; i < 4; ++i) {
-            if (auto g = gluings[i]) {
-                tets[i]->join(i, g->dst, g->gluing);
-            }
-        }
+        // for (int i = 0; i < 4; ++i) {
+        //     if (auto g = gluings[i]) {
+        //         tets[i]->join(i, g->dst, g->gluing);
+        //     }
+        // }
 
-        // Update edge data
-        for (int i = 0; i < numTets - 1; ++i) {
-        }
+        //// Update edge data
+        // for (int i = 0; i < numTets - 1; ++i) {
+        // }
     }
 };
 
@@ -282,224 +280,190 @@ class Link {
     // }
 };
 
-/** TriangulationEmbedding Implementation */
-
-template <int dim, int subdim>
-class TriangulationEmbedding {
+template <int dim>
+class GluingNode {
    public:
-    using EmbeddingMap = std::unordered_map<regina::Simplex<subdim> *,
-                                            const regina::Face<dim, subdim> *>;
-    using InverseMap = std::unordered_map<const regina::Face<dim, subdim> *,
-                                          regina::Simplex<subdim> *>;
+    using AdjList = std::unordered_map<GluingNode *, Gluing<dim>>;
 
+    regina::Triangle<dim> *f;
+    AdjList adjList;
+    AdjList invalids;
+    bool valid = true;
+    bool visited = false;
+
+    GluingNode(regina::Face<dim, 2> *f) : f(f) {}
+
+    friend std::ostream &operator<<(std::ostream &os, const GluingNode &node) {
+        os << "(" << node.f->index() << " { ";
+        for (const auto &[_, gluing] : node.adjList) {
+            os << gluing << " ";
+        }
+
+        os << "})";
+
+        return os;
+    }
+};
+
+/** KnottedSurface Implementation */
+
+template <int dim>
+class KnottedSurface {
+   private:
     const regina::Triangulation<dim> *tri_;
     /**< The dim-manifold triangulation in which this subdim-manifold is
      * embedded */
-    regina::Triangulation<subdim> sub_;
+    regina::Triangulation<2> surface_;
     /**< The triangulation of the sub-triangulation induced by the embedding
      */
 
-    EmbeddingMap emb_;
+    std::unordered_map<regina::Triangle<2> *, const regina::Triangle<dim> *>
+        emb_;
     /**< A mapping from the top-dimensional simplices of the
      * sub-triangulation into the subdim-simplices of the dim-triangulation
      */
-    InverseMap inv_;
+    std::unordered_map<const regina::Triangle<dim> *, regina::Triangle<2> *>
+        inv_;
     /**< A mapping from the subdim-simplices of the dim-triangulation to the
      * top-dimensional simplices of the sub-triangulation. Note that
      * inv_.at(emb_.at(face)) = face */
 
-    bool isProper_ = true;
+    std::array<int, 3> invariants_;
+
+    std::set<int> indices_;
+
+   public:
+    std::unordered_set<const regina::Edge<dim> *> improperEdges_;
     /**< Notes whether an embedding is proper, in the sense that the image
      * of the boundary of the sub-triangulation is entirely contained within
      * the boundary of the dim-manifold triangulation */
+    KnottedSurface(const regina::Triangulation<dim> *tri) : tri_(tri) {}
 
-    // std::vector<int> cmp_;
-    /**< A precomputed list used to compare two embeddings for insertion
-     * into e.g. a set. In general, this will consist of some easy
-     * invariants like genus for subdim = 2 followed by the list of
-     * subdim-simplices appearing in the embedding of the sub-triangulation
-     * into the dim-triangulation. */
-
-    TriangulationEmbedding(const regina::Triangulation<dim> *tri) : tri_(tri) {
-        static_assert(2 <= subdim <= dim, "Must have 2 <= subdim <= dim");
+    KnottedSurface(const KnottedSurface &other)
+        : tri_(other.tri_),
+          surface_(other.surface_),
+          improperEdges_(other.improperEdges_),
+          invariants_(other.invariants_),
+          indices_(other.indices_) {
+        // Connect the wires...
+        for (regina::Triangle<2> *t : other.surface_.triangles()) {
+            const regina::Triangle<dim> *f = other.emb_.at(t);
+            regina::Triangle<2> *newT = surface_.triangle(t->index());
+            emb_[newT] = f;
+            inv_[f] = newT;
+        }
     }
 
-    TriangulationEmbedding<dim, subdim> &operator=(
-        const TriangulationEmbedding<dim, subdim> &src) = default;
+    KnottedSurface &operator=(const KnottedSurface &other) {
+        if (this != &other) {
+            tri_ = other.tri_;
+            surface_ = other.surface_;
+            improperEdges_ = other.improperEdges_;
+            invariants_ = other.invariants_;
+            indices_ = other.indices_;
 
-    bool isProper() const { return isProper_; }
+            // Connect the wires...
+            for (regina::Triangle<2> *t : other.surface_.triangles()) {
+                const regina::Triangle<dim> *f = other.emb_.at(t);
+                regina::Triangle<2> *newT = surface_.triangle(t->index());
+                emb_[newT] = f;
+                inv_[f] = newT;
+            }
+        }
+
+        return *this;
+    }
+
+    const regina::Triangulation<2> &surface() const { return surface_; }
+
+    bool isProper() const { return improperEdges_.empty(); }
 
     template <int facedim>
-    regina::Face<dim, facedim> *image(
-        const regina::Face<subdim, facedim> *f) const {
-        static_assert(0 <= facedim <= subdim,
-                      "Must have 0 <= facedim <= subdim");
+    regina::Face<dim, facedim> *image(const regina::Face<2, facedim> *f) const {
+        static_assert(0 <= dim <= 2, "Must have 0 <= facedim <= 2");
 
-        const regina::FaceEmbedding<subdim, facedim> &fEmb = f->front();
+        // for (auto &[t, f] : emb_) {
+        //     std::cout << "(" << t->index() << ", " << f->index() << ") ";
+        // }
+        // std::cout << "\n";
+
+        const regina::FaceEmbedding<2, facedim> &fEmb = f->front();
         return emb_.at(fEmb.simplex())->template face<facedim>(fEmb.face());
     }
 
-    regina::Face<dim, subdim> *image(const regina::Simplex<subdim> *s) const {
-        return emb_.at(s);
+    const regina::Triangle<dim> *image(regina::Triangle<2> *t) const {
+        return emb_.at(t);
     }
 
-    regina::Simplex<subdim> *preimage(
-        const regina::Face<dim, subdim> *s) const {
-        auto search = inv_.find(s);
+    regina::Triangle<2> *preimage(const regina::Triangle<dim> *f) const {
+        auto search = inv_.find(f);
         if (search == inv_.end()) return nullptr;
         return search->second;
     }
 
-    regina::Simplex<subdim> *addFace(const regina::Face<dim, subdim> *f) {
-        auto search = inv_.find(f);
-
-        if (search != inv_.end()) {
-            return search->second;
-        }
-
-        regina::Simplex<subdim> *s = sub_.newSimplex();
-        emb_[s] = f;
-        inv_[f] = s;
-
-        return s;
-    }
-
     /** Mutation methods */
 
-    bool addGluing(Gluing<dim, subdim> g) {
-        regina::Simplex<subdim> *src = inv_.at(g.src);
-        regina::Simplex<subdim> *dst = addFace(g.dst);
+    bool addTriangle(const regina::Triangle<dim> *f,
+                     const typename GluingNode<dim>::AdjList &adj) {
+        regina::Triangle<2> *src = surface_.newSimplex();
+        std::array<bool, 3> isBoundaryEdge = {true, true, true};
 
-        try {
+        emb_[src] = f;
+        inv_[f] = src;
+
+        for (const auto &[adjNode, g] : adj) {
+            auto search = inv_.find(adjNode->f);
+            if (search == inv_.end()) continue;
+
+            regina::Triangle<2> *dst = search->second;
+            int dstFacet = g.gluing[g.srcFacet];
+
+            // Saves us from catching an error
+            if (dst->adjacentSimplex(dstFacet) != nullptr ||
+                src->adjacentSimplex(g.srcFacet) != nullptr) {
+                surface_.removeSimplex(src);
+                emb_.erase(src);
+                inv_.erase(f);
+                return false;
+            }
+
+            isBoundaryEdge[g.srcFacet] = false;
             src->join(g.srcFacet, dst, g.gluing);
-        } catch (regina::InvalidArgument &e) {
-            if (!sub_.isConnected()) {
-                sub_.removeSimplex(dst);
-                emb_.erase(dst);
-                inv_.erase(g.dst);
-            }
-            return false;
         }
 
-        if (isProper_) {
-            // Quick optimization, boundary containment is entirely
-            // determined by the new facets we've made
-            for (int i = 0; i < subdim + 1; ++i) {
-                if (i == g.gluing[g.srcFacet]) continue;
-
-                const regina::Face<subdim, subdim - 1> *facet =
-                    dst->template face<subdim - 1>(i);
-                const regina::Face<dim, subdim - 1> *im = image(facet);
-                if (facet->isBoundary() && !im->isBoundary()) {
-                    isProper_ = false;
-                }
-            }
-        } else {
-            updateIsProper_();
-        }
-
-        return true;
-    }
-
-    bool removeGluing(Gluing<dim, subdim> g) {
-        regina::Simplex<subdim> *src = inv_.at(g.src);
-
-        if (src->unjoin(g.srcFacet) == nullptr) {
-            return false;
-        }
-
-        // If removing this gluing resulted in an isolated simplex
-        if (!sub_.isConnected()) {
-            regina::Simplex<subdim> *dst = inv_.at(g.dst);
-            sub_.removeSimplex(dst);
-            emb_.erase(dst);
-            inv_.erase(g.dst);
-        }
-
-        return true;
-    }
-
-    /**
-     * Two embeddings are considered equal if they have isomorphic
-     * sub-triangulations and have the same embedding data.
-     */
-    // template <int, int>
-    // friend bool operator==(const TriangulationEmbedding &lhs,
-    //                        const TriangulationEmbedding &rhs);
-
-    /**
-     * Arbitrary tie breaker for sorting in a set by lexicographic ordering
-     * on some integer invariants and the sorted set of embedded face
-     * indices.
-     */
-    // template <int, int>
-    // friend bool operator<(const TriangulationEmbedding &lhs,
-    //                       const TriangulationEmbedding &rhs);
-
-    template <int, int>
-    friend std::ostream &operator<<(
-        std::ostream &os, const TriangulationEmbedding &TriangulationEmbedding);
-
-   private:
-    void updateIsProper_() {
-        for (const regina::BoundaryComponent<subdim> *comp :
-             sub_.boundaryComponents()) {
-            for (const regina::Face<subdim, subdim - 1> *f : comp->facets()) {
-                regina::Face<dim, subdim - 1> *im = image(f);
-                if (!im->isBoundary()) {
-                    isProper_ = false;
-                    return;
-                }
+        for (int i = 0; i < 3; ++i) {
+            if (!isBoundaryEdge[i]) {
+                improperEdges_.erase(f->edge(i));
+            } else if (isBoundaryEdge[i] && !f->edge(i)->isBoundary()) {
+                improperEdges_.insert(f->edge(i));
             }
         }
 
-        isProper_ = true;
-    }
-};
-
-// template <int dim, int subdim>
-// bool operator==(const TriangulationEmbedding<dim, subdim> &lhs,
-//                 const TriangulationEmbedding<dim, subdim> &rhs) {
-//     return lhs.cmp_ == rhs.cmp_;
-// }
-//
-// template <int dim, int subdim>
-// bool operator<(const TriangulationEmbedding<dim, subdim> &lhs,
-//                const TriangulationEmbedding<dim, subdim> &rhs) {
-//     return lhs.cmp_ < rhs.cmp_;
-// }
-
-template <int dim, int subdim>
-std::ostream &operator<<(std::ostream &os,
-                         const TriangulationEmbedding<dim, subdim> &emb) {
-    os << "{ ";
-    for (const auto [key, val] : emb.emb_) {
-        os << "(" << key->index() << "," << val->index() << ") ";
-    }
-
-    return os << "}";
-}
-
-/** SurfaceEmbedding Implementation */
-
-template <int dim>
-class SurfaceEmbedding : public TriangulationEmbedding<dim, 2> {
-   private:
-    // std::string detail_;
-    /**< A textual description of the underlying surface, e.g.
-     * "Non-orientable genus 5 surface, 2 punctures" */
-    std::vector<int> invariants_;
-    std::set<int> faceIndices_;
-
-   public:
-    SurfaceEmbedding(const regina::Triangulation<dim> *tri)
-        : TriangulationEmbedding<dim, 2>(tri) {
-        invariants_ = {0, 0, 0};
+        indices_.insert(f->index());
         updateInvariants_();
+
+        return true;
     }
 
-    const regina::Triangulation<2> &surface() const {
-        return TriangulationEmbedding<dim, 2>::sub_;
+    void removeTriangle(const regina::Triangle<dim> *f) {
+        regina::Triangle<2> *src = inv_.at(f);
+
+        for (int i = 0; i < 3; ++i) {
+            regina::Triangle<2> *dst = src->adjacentSimplex(i);
+
+            if (dst != nullptr) {
+                regina::Edge<dim> *edge = f->edge(i);
+                if (!edge->isBoundary()) {
+                    improperEdges_.insert(edge);
+                }
+            }
+        }
+
+        surface_.removeSimplex(src);
+        emb_.erase(src);
+        inv_.erase(f);
+        indices_.erase(f->index());
+        updateInvariants_();
     }
 
     std::string detail() const {
@@ -511,7 +475,7 @@ class SurfaceEmbedding : public TriangulationEmbedding<dim, 2> {
         int genus = invariants_[2];
         std::ostringstream ans;
 
-        if (!TriangulationEmbedding<dim, 2>::sub_.isConnected()) {
+        if (!surface_.isConnected()) {
             throw regina::InvalidArgument("Surface must be connceted!");
         }
 
@@ -554,76 +518,27 @@ class SurfaceEmbedding : public TriangulationEmbedding<dim, 2> {
         }
 
         return ans.str();
-        // return detail_ = ans.str();
     }
 
-    regina::Triangle<2> *addFace(const regina::Triangle<dim> *f) {
-        int numSimplices =
-            TriangulationEmbedding<dim, 2>::sub_.countTriangles();
-        regina::Triangle<2> *t = TriangulationEmbedding<dim, 2>::addFace(f);
-        if (numSimplices <
-            TriangulationEmbedding<dim, 2>::sub_.countTriangles()) {
-            faceIndices_.insert(f->index());
-        }
-
-        return t;
-    }
-
-    bool addGluing(Gluing<dim, 2> g) {
-        int numSimplices =
-            TriangulationEmbedding<dim, 2>::sub_.countTriangles();
-        bool success = TriangulationEmbedding<dim, 2>::addGluing(g);
-
-        if (success) {
-            updateInvariants_();
-            if (numSimplices <
-                TriangulationEmbedding<dim, 2>::sub_.countTriangles())
-                faceIndices_.insert(g.dst->index());
-        }
-
-        return success;
-    }
-
-    bool removeGluing(Gluing<dim, 2> g) {
-        int numSimplices =
-            TriangulationEmbedding<dim, 2>::sub_.countTriangles();
-        bool success = TriangulationEmbedding<dim, 2>::removeGluing(g);
-
-        if (success) {
-            updateInvariants_();
-            if (TriangulationEmbedding<dim, 2>::sub_.countTriangles() <
-                numSimplices)
-                faceIndices_.erase(g.dst->index());
-        }
-
-        return success;
-    }
-
-    friend bool operator==(const SurfaceEmbedding &lhs,
-                           const SurfaceEmbedding &rhs) {
+    friend bool operator==(const KnottedSurface &lhs,
+                           const KnottedSurface &rhs) {
         return lhs.invariants_ == rhs.invariants_ &&
-               lhs.faceIndices_ == rhs.faceIndices_;
+               lhs.indices_ == rhs.indices_;
     }
 
-    friend bool operator<(const SurfaceEmbedding &lhs,
-                          const SurfaceEmbedding &rhs) {
+    friend bool operator<(const KnottedSurface &lhs,
+                          const KnottedSurface &rhs) {
         return lhs.invariants_ < rhs.invariants_ ||
                (lhs.invariants_ == rhs.invariants_ &&
-                lhs.faceIndices_ < rhs.faceIndices_);
+                lhs.indices_ < rhs.indices_);
     }
 
    private:
     void updateInvariants_() {
-        bool isOrientable = TriangulationEmbedding<dim, 2>::sub_.isOrientable();
-        int punctures =
-            TriangulationEmbedding<dim, 2>::sub_.countBoundaryComponents();
-        int genus =
-            isOrientable
-                ? (2 - TriangulationEmbedding<dim, 2>::sub_.eulerChar() -
-                   punctures) /
-                      2
-                : 2 - TriangulationEmbedding<dim, 2>::sub_.eulerChar() -
-                      punctures;
+        bool isOrientable = surface_.isOrientable();
+        int punctures = surface_.countBoundaryComponents();
+        int genus = isOrientable ? (2 - surface_.eulerChar() - punctures) / 2
+                                 : 2 - surface_.eulerChar() - punctures;
 
         invariants_[0] = isOrientable;
         invariants_[1] = punctures;
@@ -631,112 +546,42 @@ class SurfaceEmbedding : public TriangulationEmbedding<dim, 2> {
     }
 };
 
-using KnottedSurface = SurfaceEmbedding<4>;
-
 template <int dim>
 class GluingGraph {
-   public:
-    class GluingNode {
-       public:
-        const Gluing<dim, 2> gluing_;
-        std::unordered_set<GluingNode *> adjList_;
-        std::unordered_set<GluingNode *> invalids_;  // Make sure to precompute
-        bool valid_ = true;
-        bool visited_ = false;
-
-        GluingNode(regina::Triangle<dim> *src, int srcFacet,
-                   regina::Triangle<dim> *dst, regina::Perm<3> gluing)
-            : gluing_(src, srcFacet, dst, gluing) {}
-
-        /**
-         * Comparison operators let us guarantee gluing uniqueness using
-         * std::set, since I really don't want to come up with a hash
-         * function.
-         */
-        friend bool operator==(const GluingNode &lhs, const GluingNode &rhs) {
-            // We never want two gluing nodes with the same gluing, use this
-            // to distinguish the nodes
-            return lhs.gluing_.src == rhs.gluing_.src &&
-                   lhs.gluing_.srcFacet == rhs.gluing_.srcFacet &&
-                   lhs.gluing_.dst == rhs.gluing_.dst &&
-                   lhs.gluing_.gluing == rhs.gluing_.gluing;
-        }
-
-        friend bool operator<(const GluingNode &lhs, const GluingNode &rhs) {
-            // Arbitrary tie breaker. If by some miracle you manage to
-            // stick in a triangulation with over LONG_MAX triangles, God
-            // help you.
-            std::vector<long> lhsLex = {
-                lhs.gluing_.src == nullptr
-                    ? -1
-                    : static_cast<long>(lhs.gluing_.src->index()),
-                static_cast<long>(lhs.gluing_.dst->index()),
-                lhs.gluing_.srcFacet,
-                lhs.gluing_.gluing[0],
-                lhs.gluing_.gluing[1],
-                lhs.gluing_.gluing[2]};
-            std::vector<long> rhsLex = {
-                rhs.gluing_.src == nullptr
-                    ? -1
-                    : static_cast<long>(rhs.gluing_.src->index()),
-                static_cast<long>(rhs.gluing_.dst->index()),
-                rhs.gluing_.srcFacet,
-                rhs.gluing_.gluing[0],
-                rhs.gluing_.gluing[1],
-                rhs.gluing_.gluing[2]};
-
-            return lhsLex < rhsLex;
-        }
-
-        friend std::ostream &operator<<(std::ostream &os,
-                                        const GluingNode &node) {
-            os << "(" << node.gluing_ << " { ";
-            for (const typename GluingGraph<dim>::GluingNode *adj :
-                 node.adjList_) {
-                os << adj->gluing_ << " ";
-            }
-
-            os << "})";
-
-            return os;
-        }
-    };
-
    private:
     size_t calls_ = 0;
 
     SurfaceCondition cond_;
 
-    const regina::Triangulation<dim> *tri_;
-    /**< The given triangulation of an n-manifold */
+    const regina::Triangulation<dim> &tri_;
+    /**< The given triangulation of a dim-manifold */
 
-    std::vector<GluingNode> nodes_;
+    std::map<regina::Triangle<dim> *, GluingNode<dim>> nodes_;
     /**< Guaranteed not to be nodes with the same gluing data */
 
-    SurfaceEmbedding<dim> surface_;
+    std::set<KnottedSurface<dim>> surfaces_;
+
+    KnottedSurface<dim> surface_;
 
    public:
-    GluingGraph(regina::Triangulation<dim> *tri, SurfaceCondition cond)
-        : tri_(tri), surface_(tri), cond_(cond) {
-        buildGluingNodes_(tri);
+    GluingGraph(const regina::Triangulation<dim> &tri, SurfaceCondition cond)
+        : tri_(tri), surface_(&tri), cond_(cond) {
+        buildGluingNodes_();
         buildGluingEdges_();
         // buildGluingInvalids_();
     }
 
-    std::set<SurfaceEmbedding<dim>> findSurfaces() {
-        std::set<SurfaceEmbedding<dim>> ans;
+    std::set<KnottedSurface<dim>> &findSurfaces() {
+        if (!surfaces_.empty()) return surfaces_;
 
-        for (const regina::Triangle<dim> *triangle : tri_->triangles()) {
-            auto surfaces = findSurfaces_(triangle);
-            for (const SurfaceEmbedding<dim> &surface : surfaces) {
-                ans.insert(surface);
-            }
-            break;
+        for (regina::Triangle<dim> *triangle : tri_.triangles()) {
+            reset_();
+            dfs_(&nodes_.at(triangle), 0);
+            // std::cout << "TOTAL DFS CALLS = " << calls_ << "\n";
         }
-
         std::cout << "TOTAL DFS CALLS = " << calls_ << "\n";
 
-        return ans;
+        return surfaces_;
     }
 
    private:
@@ -746,146 +591,97 @@ class GluingGraph {
         }
     }
 
-    std::set<GluingNode> addTriangle_(regina::Triangle<dim> *triangle) {
-        std::set<GluingNode> nodes;
-
-        // For each edge of our triangle, find all of the ways adjacent
-        // triangles are glued to that edge in the given triangulation
-        for (int facet = 0; facet < 3; ++facet) {
-            const regina::Edge<dim> *edge = triangle->edge(facet);
-            regina::Perm<dim + 1> edgeToTriangle = triangle->edgeMapping(facet);
-
-            for (regina::Triangle<dim> *other : tri_->triangles()) {
-                for (int i = 0; i < 3; ++i) {
-                    // Only glue identified edges and ignore identity
-                    // mappings
-                    if (other->edge(i) != edge ||
-                        (other->edge(i) == edge && triangle == other))
-                        continue;
-
-                    regina::Perm<dim + 1> edgeToOther = other->edgeMapping(i);
-                    // regina::Perm is immutable, use std::array instead
-                    std::array<int, 3> p;
-
-                    for (int i = 0; i < 3; ++i) {
-                        p[edgeToTriangle[i]] = edgeToOther[i];
-                    }
-
-                    GluingNode node = {
-                        triangle, facet, other, {p[0], p[1], p[2]}};
-                    nodes.insert(node);
-                }
-            }
-        }
-
-        return nodes;
-    }
-
-    void buildGluingNodes_(regina::Triangulation<dim> *tri) {
-        std::set<GluingNode> nodes;
-
-        // TODO: Can we do better than O(|triangles|^2)?
-        for (regina::Triangle<dim> *triangle : tri->triangles()) {
-            std::set<GluingNode> newNodes = addTriangle_(triangle);
-
-            for (const GluingNode &node : newNodes) {
-                nodes.insert(node);
-            }
-        }
-
-        for (const GluingNode &node : nodes) {
-            nodes_.push_back(node);
+    void buildGluingNodes_() {
+        for (regina::Triangle<dim> *triangle : tri_.triangles()) {
+            nodes_.insert({triangle, triangle});
         }
     }
 
     void buildGluingEdges_() {
-        for (GluingNode &node : nodes_) {
-            for (GluingNode &other : nodes_) {
-                if (node.gluing_.dst == other.gluing_.src) {
-                    node.adjList_.insert(&other);
+        for (auto &[triangle, node] : nodes_) {
+            std::unordered_set<int> selfGluingEdges;
+            for (int i = 0; i < 3; ++i) {
+                regina::Edge<dim> *edge = triangle->edge(i);
+                regina::Perm<dim + 1> edgeToTriangle = triangle->edgeMapping(i);
+
+                for (auto &[other, otherNode] : nodes_) {
+                    for (int j = 0; j < 3; ++j) {
+                        // Only glue identified edges and ignore identity
+                        // mappings/opposite self gluings
+                        if (other->edge(j) != edge ||
+                            (triangle == other &&
+                             (i == j || selfGluingEdges.find(i) !=
+                                            selfGluingEdges.end())))
+                            continue;
+
+                        if (triangle == other) {
+                            selfGluingEdges.insert(j);
+                        }
+
+                        regina::Perm<dim + 1> edgeToOther =
+                            other->edgeMapping(j);
+                        // regina::Perm is immut able, use std::array instead
+                        std::array<int, 3> p;
+                        for (int k = 0; k < 3; ++k) {
+                            p[edgeToTriangle[k]] = edgeToOther[k];
+                        }
+
+                        node.adjList[&otherNode] = {triangle, i, other, p};
+                    }
                 }
             }
         }
     }
 
-    void dfs_(GluingNode *node, std::set<SurfaceEmbedding<dim>> &surfaces,
-              int layer) {
+    void dfs_(GluingNode<dim> *node, int layer) {
         ++calls_;
+        if (calls_ % 100000 == 0)
+            std::cout << "Call " << calls_ << ", Layer " << layer
+                      << ", Surfaces " << surfaces_.size() << "\n";
 
-        if (calls_ % 10000 == 0)
-            std::cout << "Call " << calls_ << "\n";
-
-        if (!node->valid_) {
+        if (node->visited || !node->valid) {
             return;
         }
 
-        // std::cout << "GLUING " << node->gluing_ << "\n";
-
-        if (!surface_.addGluing(node->gluing_)) {
+        // nspaces_(layer);
+        // std::cout << layer << ": ";
+        if (!surface_.addTriangle(node->f, node->adjList)) {
+            // std::cout << "Failed to add " << *node << "\n";
             return;
         }
 
-        for (GluingNode *nextNode : node->adjList_) {
-            if (nextNode->gluing_.dst == node->gluing_.src) continue;
-            regina::Triangle<2> *t = surface_.preimage(nextNode->gluing_.dst);
-            if (t != nullptr) {
-                if (surface_.addGluing(nextNode->gluing_))
-                    nextNode->visited_ = true;
-            }
+        // std::cout << "Added " << *node << "\n";
+
+        node->visited = true;
+
+        if (surface_.isProper()) {
+            // nspaces_(layer);
+            // std::cout << "IMPROPER EDGES: { ";
+            // for (const regina::Edge<dim> *edge : surface_.improperEdges_) {
+            //    std::cout << edge->index() << " ";
+            //}
+            // std::cout << "}\n";
+            surfaces_.insert(surface_);
         }
 
-        if (tri_->isClosed() && surface_.surface().isClosed() || surface_.isProper()) {
-            surfaces.insert(surface_);
-            std::cout << layer << ": " << surface_ << "\n"
-                      << surface_.detail() << "\n"
-                      << surface_.surface().detail() << "\n";
+        for (auto &[nextNode, g] : node->adjList) {
+            ////nspaces_(layer);
+            // std::cout << layer << ": Gluing " << node->f->index() << " to "
+            //           << nextNode->f->index() << " along (" << g.srcFacet
+            //           << ", " << g.gluing[g.srcFacet] << ")\n";
+            dfs_(nextNode, layer + 1);
         }
 
-        // Recursive step: walk along each possible next gluing
-        for (GluingNode *nextNode : node->adjList_) {
-            if (nextNode->gluing_.dst != node->gluing_.src &&
-                !nextNode->visited_)
-                dfs_(nextNode, surfaces, layer + 1);
-        }
-
-        // Clean up
-        for (GluingNode *nextNode : node->adjList_) {
-            if (nextNode->gluing_.dst != node->gluing_.src &&
-                nextNode->visited_) {
-                surface_.removeGluing(nextNode->gluing_);
-                nextNode->visited_ = false;
-            }
-        }
-
-        surface_.removeGluing(node->gluing_);
+        surface_.removeTriangle(node->f);
     }
 
     void reset_() {
-        surface_ = {tri_};
+        surface_ = {&tri_};
 
-        for (GluingNode &node : nodes_) {
-            node.valid_ = true;
-            node.visited_ = false;
+        for (auto &[_, node] : nodes_) {
+            node.valid = true;
+            node.visited = false;
         }
-    }
-
-    std::set<SurfaceEmbedding<dim>> findSurfaces_(
-        const regina::Triangle<dim> *triangle) {
-        std::set<SurfaceEmbedding<dim>> ans;
-
-        reset_();
-
-        surface_.addFace(triangle);
-
-        for (GluingNode &node : nodes_) {
-            if (node.gluing_.src == triangle) {
-                dfs_(&node, ans, 1);
-            }
-        }
-
-        std::cout << "TOTAL DFS CALLS = " << calls_ << "\n";
-
-        return ans;
     }
 };
 
@@ -894,22 +690,27 @@ void usage(const char *progName, const std::string &error = std::string()) {
 
     std::cerr << "Usage:\n";
     std::cerr << "    " << progName
-              << " [ -c, --closed | -b, --boundary | -l, --links ] <isosig>\n"
+              << " { -a, --all | -b, --boundary | -c, --closed | -l, --links } "
+                 "<isosig>\n"
                  "    "
               << progName << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -c, --closed   : Find closed surfaces in the given "
+    std::cerr << "    -a, --all      : Find all surfaces, regardless of "
+                 "boundary conditions\n";
+    std::cerr
+        << "    -b, --boundary : Find surfaces such that their boundary is "
+           "contained entirely in\n"
+           "                     the boundary of the given 4-manifold (Note, "
+           "if the 4-manifold\n                     is closed, this is "
+           "equivalent to --closed)\n";
+    std::cerr << "    -c, --closed   : Find only closed surfaces in the given "
                  "4-manifold\n";
-    std::cerr << "    -b, --boundary : Find surfaces such that its boundary is "
-                 "contained entirely in\n"
-                 "                     the boundary of the given 4-manifold\n";
     std::cerr << "    -l, --links    : Same as --boundary, but also gives "
-                 "a list of "
-                 "link types which\n"
+                 "a list of link types which\n"
                  "                     are the boundaries of the surfaces "
-                 "we find\n";
+                 "we find\n\n";
     std::cerr << "    -v, --version  : Show which version of Regina is "
                  "being used\n";
-    std::cerr << "    -?, --help     : Display this help\n";
+    std::cerr << "    -h, --help     : Display this help\n";
     exit(1);
 }
 
@@ -937,64 +738,42 @@ int main(int argc, char *argv[]) {
     std::string isoSig = argv[2];
     SurfaceCondition cond;
 
-    if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--closed") == 0) {
-        cond = SurfaceCondition::closed;
+    if (strcmp(argv[1], "-a") == 0 || strcmp(argv[1], "--all") == 0) {
+        cond = SurfaceCondition::all;
     } else if (strcmp(argv[1], "-b") == 0 ||
-               strcmp(argv[1], "--boundary") == 0) {
+               strcmp(argv[1], "--boundary") == 0 ||
+               strcmp(argv[1], "-l") == 0 || strcmp(argv[1], "--links") == 0) {
         cond = SurfaceCondition::boundary;
-    } else if (strcmp(argv[1], "-l") == 0 || strcmp(argv[1], "--links") == 0) {
-        cond = SurfaceCondition::boundary;
+    } else if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--closed") == 0) {
+        cond = SurfaceCondition::closed;
     } else {
         usage(argv[0], "Please specify a valid surface condition.");
     }
 
-    regina::Triangulation<3> tri(isoSig);
+    // regina::Triangulation<4> tri(isoSig);
+    regina::Triangulation<4> tri;
+    //regina::Triangulation<2> tri = regina::Example<2>::orientable(5, 1);
+    tri.newSimplex();
+    tri.subdivide();
     //tri.subdivide();
 
-    // regina::Triangulation<3> tri;
-    // tri.newSimplex();
-    // tri.newSimplex();
-    // tri.newSimplex();
-    // tri.newSimplex();
 
-    // tri.tetrahedron(0)->join(0, tri.tetrahedron(1), {0, 1, 2, 3});
-    // tri.tetrahedron(1)->join(1, tri.tetrahedron(2), {0, 1, 2, 3});
-
-    // for (int i = 0; i < tri.countTetrahedra(); ++i) {
-    //     std::cout << "Tetrahedron " << i << ": " << tri.tetrahedron(i) <<
-    //     "\n"; for (int j = 0; j < 6; ++j) {
-    //         auto mapping = tri.tetrahedron(i)->edgeMapping(j);
-    //         std::cout << "Edge " << tri.tetrahedron(i)->edge(j)->index() << "
-    //         ("
-    //                   << mapping[0] << ", " << mapping[1]
-    //                   << "): " << tri.tetrahedron(i)->edge(j) << "\n";
-    //     }
-    //     std::cout << "\n";
-    // }
-
-    // tri.removeTetrahedron(tri.tetrahedron(2));
-    ////tri.newTetrahedron()->join(3, tri.tetrahedron(0), {0, 1, 2, 3});
-
-    // for (int i = 0; i < tri.countTetrahedra(); ++i) {
-    //     std::cout << "Tetrahedron " << i << ": " << tri.tetrahedron(i) <<
-    //     "\n"; for (int j = 0; j < 6; ++j) {
-    //         auto mapping = tri.tetrahedron(i)->edgeMapping(j);
-    //         std::cout << "Edge " << tri.tetrahedron(i)->edge(j)->index() << "
-    //         ("
-    //                   << mapping[0] << ", " << mapping[1]
-    //                   << "): " << tri.tetrahedron(i)->edge(j) << "\n";
-    //     }
-    //     std::cout << "\n";
-    // }
-
-    // tri.subdivide();
-    ////  auto tri = regina::Example<4>::fourSphere();
-    //// regina::Triangulation<4> tri(isoSig);
-    //// regina::Triangulation<3> tri("caba");
-    std::cout << tri.detail() << "\n\n";
+    std::cout << tri.detail() << "\n";
     // Knot<3> k;
 
     // knotComplement(tri, k);
+
+    std::cout << "--- "
+              << (cond == SurfaceCondition::all
+                      ? ""
+                      : (cond == SurfaceCondition::boundary
+                             ? "Proper "
+                             : (cond == SurfaceCondition::closed ? "Closed "
+                                                                 : "")))
+              << "Surfaces ---\n";
+    int surfaceCount = 0;
+    int closedCount = 0;
+    GluingGraph graph(tri, cond);
 
     std::cout << "Boundary = ";
     for (const auto comp : tri.boundaryComponents()) {
@@ -1003,11 +782,6 @@ int main(int argc, char *argv[]) {
         }
     }
     std::cout << "\n\n";
-
-    std::cout << "--- Closed Surfaces ---\n";
-    int surfaceCount = 0;
-    int closedCount = 0;
-    GluingGraph graph(&tri, cond);
 
     auto surfaces = graph.findSurfaces();
     std::map<std::string, int> countMap;
@@ -1018,7 +792,23 @@ int main(int argc, char *argv[]) {
             ++closedCount;
         }
 
-        // std::cout << " - " << surface << "\n";
+        bool isProper = true;
+        for (const regina::BoundaryComponent<2> *comp :
+             surface.surface().boundaryComponents()) {
+            for (const regina::Edge<2> *edge : comp->edges()) {
+                if (edge->isBoundary() && !surface.image(edge)->isBoundary()) {
+                    std::cout << "NOTE: " << surface.detail()
+                              << " is not proper!!\n";
+                    isProper = false;
+                }
+            }
+        }
+
+        if (isProper) {
+            std::cout << surface.detail() << " is PROPER!"
+                      << "\n";
+        }
+
         auto search = countMap.find(surface.detail());
         if (search == countMap.end()) {
             countMap.insert({surface.detail(), 1});
@@ -1048,8 +838,10 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "\n";
-    std::cout << "Total admissible surfaces = " << surfaceCount
-              << "\nTotal closed surfaces = " << closedCount << "\n\n";
+    if (cond != SurfaceCondition::closed) {
+        std::cout << "Total admissible surfaces = " << surfaceCount << "\n";
+    }
+    std::cout << "Total closed surfaces = " << closedCount << "\n\n";
 
     return 0;
 }
