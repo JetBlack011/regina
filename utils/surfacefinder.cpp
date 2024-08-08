@@ -13,6 +13,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
+#include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -82,10 +84,11 @@ struct Gluing {
 
 class Knot {
    private:
-    regina::Triangulation<3> &tri_;
-    Curve<3> edges_;
-    std::unordered_map<const regina::Tetrahedron<3> *, std::unordered_set<int>>
+    regina::Triangulation<3> tri_;
+    std::unordered_map<const regina::Tetrahedron<3> *,
+                       std::unordered_set<size_t>>
         tetEdges_;
+    size_t numEdges_;
 
     bool isUnknot_ = false;
 
@@ -98,10 +101,12 @@ class Knot {
 
    public:
     Knot(regina::Triangulation<3> &tri, const Curve<3> &edges)
-        : tri_(tri), edges_(edges) {
+        : tri_(tri), numEdges_(edges.size()) {
         for (const regina::Edge<3> *edge : edges) {
-            addEdge_(edge);
+            addEdge_(tri_.edge(edge->index()));
         }
+
+        if (edges.size() <= 4) isUnknot_ = true;
     }
 
     bool isUnknot() const { return isUnknot_; }
@@ -131,11 +136,21 @@ class Knot {
         if (k.isUnknot_) {
             return os << "Unknot";
         }
-        for (auto edge : k.edges_) {
-            os << "(" << edge->vertex(0)->index() << ", "
-               << edge->vertex(1)->index() << ") ";
+
+        std::unordered_set<const regina::Edge<3> *> edges;
+        for (const auto &[tet, tetEdges] : k.tetEdges_) {
+            for (size_t e : tetEdges) {
+                edges.insert(tet->edge(e));
+            }
         }
-        return os;
+
+        os << "{ ";
+        for (const regina::Edge<3> *e : edges) {
+            os << "(" << e->vertex(0)->index() << ", " << e->vertex(1)->index()
+               << ") ";
+        }
+        return os << "}";
+
         //// wtf...
         // if (k.isUnknot_) {
         //     return os << "Unknot";
@@ -161,20 +176,25 @@ class Knot {
     }
 
    private:
+    bool updateIsUnknot_() {
+        if (tetEdges_.size() <= 1) {
+            return isUnknot_ = true;
+        }
+
+        bool isAllInOneTet = false;
+
+        for (const auto &[_, edges] : tetEdges_) {
+            if (edges.size() == numEdges_) {
+                return isUnknot_ = true;
+            }
+        }
+
+        return false;
+    }
+
     void shrink_() {
         bool isDone = false;
-        while (!isDone || isUnknot_) {
-            bool isAllInOneTet = false;
-
-            for (const auto &[_, edges] : tetEdges_) {
-                if (edges.size() == edges_.size()) isAllInOneTet = true;
-            }
-
-            if (tetEdges_.size() <= 1 || isAllInOneTet) {
-                isUnknot_ = true;
-                return;
-            }
-
+        while (updateIsUnknot_() || !isDone) {
             isDone = true;
             for (const auto &[tet, _] : tetEdges_) {
                 // If we find a tetrahedron we can shrink, we need to keep going
@@ -188,14 +208,30 @@ class Knot {
         }
     }
 
-    void separate_() {}
+    void separate_() {
+        bool isDone = false;
+        while (updateIsUnknot_() || !isDone) {
+            // TODO: Obvious optimizations
+            isDone = true;
+            for (regina::Tetrahedron<3> *tet : tri_.tetrahedra()) {
+                const auto &edges = tetEdges_.at(tet);
+                assert(edges.size() <= 2);
+
+                if (edges.size() == 2) {
+                    fourOneMove_(tet);
+                    isDone = false;
+                    break;
+                }
+            }
+        }
+    }
 
     bool shrink_(const regina::Tetrahedron<3> *tet) {
-        std::unordered_set<int> edges = tetEdges_.at(tet);
+        std::unordered_set<size_t> edges = tetEdges_.at(tet);
 
-        std::unordered_map<int, int> vertCounts;
-        for (int i : edges) {
-            regina::Perm<4> p = tet->edgeMapping(i);
+        std::unordered_map<size_t, size_t> vertCounts;
+        for (size_t e : edges) {
+            regina::Perm<4> p = tet->edgeMapping(e);
             ++vertCounts[p[0]];
             ++vertCounts[p[1]];
         }
@@ -203,34 +239,21 @@ class Knot {
         if (edges.size() < 2 || (edges.size() == 2 && vertCounts.size() == 4))
             return false;
 
-        /* Remove edges */
-        int minIndex = edges_.size();
-        int maxIndex = -1;
-
-        for (int i : edges) {
-            // TODO: Some relatively easy optimizations here
-            const regina::Edge<3> *edge = tet->edge(i);
-            int index = index_(edge);
-            minIndex = std::min(index, minIndex);
-            maxIndex = std::max(index, maxIndex);
-            removeEdge_(edge);
+        for (size_t e : edges) {
+            removeEdge_(tet->edge(e));
         }
-
-        edges_.erase(edges_.begin() + minIndex, edges_.begin() + maxIndex + 1);
 
         /* Add the new edge */
         // In this case, there are exactly two endpoints in this
         // tet
-        std::array<int, 2> endVerts;
-        int i = 0;
+        std::array<size_t, 2> endVerts;
+        size_t i = 0;
         for (auto [vert, count] : vertCounts) {
             if (count == 1) endVerts[i++] = vert;
             if (i >= 2) break;
         }
 
-        const regina::Edge<3> *newEdge = tet->edge(endVerts[0], endVerts[1]);
-        addEdge_(newEdge);
-        edges_.insert(edges_.begin() + minIndex, newEdge);
+        addEdge_(tet->edge(endVerts[0], endVerts[1]));
 
         return true;
     }
@@ -251,17 +274,7 @@ class Knot {
         }
     }
 
-    int index_(const regina::Edge<3> *edge) {
-        for (int i = 0; i < edges_.size(); ++i) {
-            if (edges_[i] == edge) {
-                return i;
-            }
-        }
-
-        throw regina::InvalidArgument("Invalid edge!");
-    }
-
-    std::array<regina::Tetrahedron<3> *, 4> fourOneTet_() {
+    std::array<regina::Tetrahedron<3> *, 4> fourOneTets_() {
         auto tets = tri_.newTetrahedra<4>();
 
         for (int i = 0; i < 3; ++i) {
@@ -284,9 +297,7 @@ class Knot {
     void fourOneMove_(regina::Tetrahedron<3> *tet) {
         std::array<std::optional<Gluing<3, 3>>, 4> gluings;
 
-        int numTets = tri_.countTetrahedra();
-
-        // For each triangle in tet
+        // For each face of tet, track gluings
         for (int i = 0; i < 4; ++i) {
             regina::Tetrahedron<3> *adjTet = tet->adjacentSimplex(i);
             if (adjTet != nullptr) {
@@ -294,17 +305,22 @@ class Knot {
             }
         }
 
-        tri_.removeTetrahedron(tet);
-        auto tets = fourOneTet_();
+        std::array<regina::Tetrahedron<3> *, 4> tets = fourOneTets_();
+        // Add the edges contained in tet to their appropriate position in tets
+        for (size_t e : tetEdges_.at(tet)) {
+            regina::Perm<4> p = tet->edgeMapping(e);
+            tetEdges_[tets[p[2]]].insert(e);
+            tetEdges_[tets[p[3]]].insert(e);
+        }
 
+        tri_.removeTetrahedron(tet);
+        tetEdges_.erase(tet);
+
+        // Glue in the new tetrahedra
         for (int i = 0; i < 4; ++i) {
             if (auto g = gluings[i]) {
                 tets[i]->join(i, g->dst, g->gluing);
             }
-        }
-
-        // Update edge data
-        for (int i = 0; i < numTets - 1; ++i) {
         }
     }
 };
@@ -455,16 +471,17 @@ class KnottedSurface {
     /**< Notes whether an embedding is proper, in the sense that the image
      * of the boundary of the sub-triangulation is entirely contained within
      * the boundary of the dim-manifold triangulation */
-    KnottedSurface(const regina::Triangulation<dim> *tri)
-        : tri_(tri), bdry_(tri_->boundaryComponent(0)->build()) {}
+    KnottedSurface(const regina::Triangulation<dim> *tri) : tri_(tri) {
+        if (!tri_->isClosed()) bdry_ = tri_->boundaryComponent(0)->build();
+    }
 
     KnottedSurface(const KnottedSurface &other)
         : tri_(other.tri_),
-          bdry_(tri_->boundaryComponent(0)->build()),
           surface_(other.surface_),
           improperEdges_(other.improperEdges_),
           invariants_(other.invariants_),
           indices_(other.indices_) {
+        if (!tri_->isClosed()) bdry_ = tri_->boundaryComponent(0)->build();
         // Connect the wires...
         for (regina::Triangle<2> *t : other.surface_.triangles()) {
             const regina::Triangle<dim> *f = other.emb_.at(t);
@@ -665,7 +682,7 @@ class KnottedSurface {
         }
 
         if (isOrientable) {
-            // Special names for surface_s with boundary:
+            // Special names for surfaces with boundary:
             if (genus == 0 && punctures == 1)
                 ans << "Disc";
             else if (genus == 0 && punctures == 2)
@@ -684,7 +701,7 @@ class KnottedSurface {
                     ans << ", " << punctures << " punctures";
             }
         } else {
-            // Special names for surface_s with boundary:
+            // Special names for surfaces with boundary:
             if (genus == 1 && punctures == 1)
                 ans << "Möbius band";
             else {
@@ -1116,72 +1133,12 @@ int main(int argc, char *argv[]) {
     // k.simplify();
     // std::cout << k;
 
-    regina::Triangulation<4> tri(
-        "-cyjfvurLKLrLuPurwgMvPQrfzzKvPAjvgMvPAIvwQzPMHrLHzvQMuvQvQfgzvQgwzPzPz"
-        "OLLQzPzyPQPHgzvQHvwAwAgAvAwAgLQPHkvLALAHLLQzzgwQMHwQwPwOLQzOwAQKuvALwy"
-        "zPAwMHLQzOLwPfwQMHwAkPvPzPzuQMgAPwPwOLAHAzkPLMHLQPHAPPKMPQPyvAwMrPMHwQ"
-        "vQfAPwOwMsAzgLAgAPPKMPAILwPfwQMHwAkzPfwQMgQLjPLAkAPAgQLMsMPQjMAQwwPfwQ"
-        "fAzswAHLQPHAzsAPMIwQfwAsMPQjMMQLzuQzOLMsAMQjwQzOwAkzPMyMQwMsAMQjMAQAQw"
-        "wuQzOLjPLMyPMHAPPKLAIzQwMKzQgMAQAQLAHLMKzQAIPPAzsAMQjMPMQLAkMMQPQAPfwA"
-        "swQjwQLjPzQMyMAQLAIPPMQQLjzMQHPMQMAPjMMAQAMQMQLrMPAyMAAPjMMAQAMAQwQjMM"
-        "AQQLQPAQAPHPPPAPAQPAMAQAQAPPAQMQMQjahamaqatapaxazasaDaEaAavaHaFaKaMaQa"
-        "RaNaUaSaJaXaWa1a2aZa5a3a0aPaQa2a9a-aTa4abb-"
-        "aVaabgbfbkblbibobmbjblbsbubnbwbubvbBbCbhbFbDbAbBbJbLbEbNbLbGbMbHbqbrbR"
-        "bUbsbTbKbWbVbwbXbxb0bOb1bPbYbZb2b5b6b9b7b4b5bbcdc8bfcdc+bec-"
-        "bjcmclcccocncpcscgctchcqcrcuc4b6bycAc8bCcAcBcwcxcGcJcycIcLcKcCcMcDcPcQ"
-        "cNcOcRcjcHcUckcTcWcmcncWcXc0cMc1cNc2c0cscQc4cRc2cvc6c+"
-        "cadcdadbd8c9cgdjd+"
-        "cidldkdcdmdddpdqdndodrdhdudtdwdwdxdAdmdBdndCdAdqdEdrdCdGd8cIdLdKd-"
-        "cNdMdOdRdddSdedPdQdTdIdWdJdVdYdLdMdYdZd2d3d4d2dRd6d4dUd8dVd+"
-        "dudXdvdxdce-"
-        "ddeaeydzdeece3dge4dfeiege6d7dkeFdle8djeHdmeneqepeseretewexeueveyeneBeo"
-        "eAeDeqereDeEeHeIeJeHeweLeJezeNeAePeCeTeQeUeReVeTeIeXeJeWeZeXeLeMe1e2eN"
-        "e0e3eoe5e4e7e7e8e-eteafuebf-exedfyebfffhf5e6e8elfifmfjf9e+"
-        "enflfpfofrfpftfefufsfgfvfhfQeifwfxfReSeyfTexfAfyfVeCfpfqfEfBfFfrfDfGft"
-        "f1euf2eGfIfvfKfJfMfMfNfQfRfSfQfUfSfWfYfKfLfNf2fZf3f0fOfPf4f2f6f5f8f6f+"
-        "fVf-f9fXfagYfZfbgcgdgcgfgdghg6f7fjgggkg8figlg+f-"
-        "flgngagJfogLfsgpgtgqgugsgRfwgSfvgygwgUfVfAgBgWfzgCgpgDgEgqgrgFgsgEgHgF"
-        "gugJgLgIgMgKgNgAgBgNgPgbgDgQgdgGgSgfgQgRgUgVgSgigWgLgUgMgVgYgNgXgOgmgZ"
-        "gPgng0g4g1g5g2g6g4g8g7g+g8gahbh-"
-        "gch1gdheh2g3gfh4gehhhfh6gjhlhihmhkhnhahbhnhphdhqhghshqhrhuhvhshwhlhuhm"
-        "hvhyhnhxhohzhph0g1gAhBhChBhEhChGh8g9gIhFhJh+"
-        "gHhKhahbhKhMhchAhNhChPhEhNhOhRhShPhHhThRhShVhUhLhWhMhqhXhOhYhthQhZhXhY"
-        "hwh1hZhUh0h2hVh1h2hWhzh3h4h5h4h7h5h9h-h8hai+"
-        "hbibidi3hei5hgi7heifiiijigi+"
-        "hkiiijimilicinidioifipihiqioipisiqiliritimisitini3hui6hwiuiviyiziwiAi-"
-        "hyiaiziCibiBiciDidiuiEiFixiGiEiFiAiIiGiHiJiIiJiDiEiFiqiLiriKiMiLiJiMiN"
-        "iPiNiOiRiSiPiTiRiSiViUiWiNiXiYiQiZiXiYiTi1iZi0i2i1i2iWiXiYi4i3i5i4i2i5"
-        "i6iOi7iQi8i6i7i+i8iUi9i-iVi+i-"
-        "iWi8ibj9iajcjbjcj3iajdjbj5idjejfjgjejfjijgjhjjjijjjgjljhjkjmjljmjkjnjl"
-        "jnjejfjpjojqjpjjjqjojrjqjrjnjrjtjsjujtjujsjvjujvjvjsjwjtjwjwjxjxjxjxja"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        "a");
+    regina::Triangulation<4> tri;
+    tri.newSimplex();
+
     // regina::Triangulation<2> tri = regina::Example<2>::orientable(6, 0);
-    //tri.newSimplex();
-    //tri.subdivide();
+    // tri.newSimplex();
+    // tri.subdivide();
     // tri.subdivide();
     //    tri.subdivide();
 
@@ -1192,8 +1149,8 @@ int main(int argc, char *argv[]) {
 
     surfacesDetail(surfaces, cond);
 
-    for (const regina::BoundaryComponent<4> *comp : tri.boundaryComponents()) {
-        for (const regina::Vertex<4> *v : comp->vertices()) {
+    for (const auto *comp : tri.boundaryComponents()) {
+        for (const auto *v : comp->vertices()) {
             std::cout << v->index() << " ";
         }
         std::cout << "\n";
