@@ -53,7 +53,70 @@
 #include <deque>
 #include <vector>
 
-namespace regina::detail {
+namespace regina {
+
+/**
+ * The combinatorial _type_ of a triangle, which indicates how the vertices
+ * and edges of the triangle are identified together.  Here the vertices of
+ * the triangle are considered unlabelled (so a relabelling will not change
+ * the combinatorial type).
+ *
+ * This is the result of calling `f.triangleType()`, where \a f is a 2-face
+ * within a triangulation of any dimension ≥ 3.
+ *
+ * \ingroup triangulation
+ */
+enum class TriangleType {
+        /**
+         * Indicates that the triangle type has not yet been determined.
+         */
+        Unknown = 0,
+        /**
+         * Specifies a triangle with no identified vertices or edges.
+         */
+        Triangle = 1,
+        /**
+         * Specifies a triangle with two identified vertices, and no other
+         * edge or vertex identifications.
+         */
+        Scarf = 2,
+        /**
+         * Specifies a triangle with three identified vertices, but no edge
+         * identifications.
+         */
+        Parachute = 3,
+        /**
+         * Specifies a triangle with two edges identified to form a cone.
+         * The apex of the cone is not identified with the other two vertices,
+         * and the base of the cone is not identified with the other two edges.
+         */
+        Cone = 4,
+        /**
+         * Specifies a triangle with two edges identified to form a Möbius band.
+         * The boundary of the Möbius band is not identified with the other
+         * two edges.
+         */
+        Mobius = 5,
+        /**
+         * Specifies a triangle with two edges identified to form a cone, and
+         * with all three vertices identified.  The base of the cone is not
+         * identified with the other two edges.
+         */
+        Horn = 6,
+        /**
+         * Specifies a triangle with all three edges identified, some via
+         * orientation-preserving and some via orientation-reversing gluings.
+         */
+        DunceHat = 7,
+        /**
+         * Specifies a triangle with all three edges identified using
+         * orientation-reversing gluings.  Note that this forms a spine
+         * for the lens space `L(3,1)`.
+         */
+        L31 = 8
+};
+
+namespace detail {
 
 template <int dim> class TriangulationBase;
 
@@ -366,6 +429,15 @@ class FaceBase :
             /**< Is this face valid?  This is for use in non-standard
                  dimensions, where we only test for one type of validity
                  (bad self-identifications). */
+        EnableIf<subdim == 2, TriangleType, TriangleType::Unknown>
+                triangleType_;
+            /**< The combinatorial type of this triangle, or
+                 TriangleType::Unknown if this has not yet been determined. */
+        EnableIf<subdim == 2, int, -1> triangleSubtype_;
+            /**< Indicates the vertex or edge number that plays a special role
+                 for the triangle type specified by triangleType_.  This is only
+                 relevant for some triangle types, and it will be -1 if this is
+                 either irrelevant or not yet determined. */
 
     public:
         /**
@@ -964,6 +1036,59 @@ class FaceBase :
         Perm<dim + 1> pentachoronMapping(int face) const;
 
         /**
+         * For edges, determines whether this face is a loop.
+         * A _loop_ is an edge whose two endpoints are identified.
+         *
+         * \pre The facial dimension \a subdim is precisely 1.
+         *
+         * \return \c true if and only if this edge is a loop.
+         */
+        bool isLoop() const;
+
+        /**
+         * For triangles, returns the combinatorial type of this face.
+         * This will be one of the eight shapes described by the TriangleType
+         * enumeration, which indicates how the edges and vertices of the
+         * triangle are identified.
+         *
+         * If one or more edges of this triangle are invalid due to bad
+         * self-identifications, then the triangle type might not be
+         * well-defined and so the return value will likewise be undefined.
+         *
+         * The reason this routine is non-const is because the triangle type
+         * and subtype are cached when first computed.
+         *
+         * \pre The facial dimension \a subdim is precisely 2, and the
+         * triangulation dimension \a dim is at least 3.
+         *
+         * \return the combinatorial type of this triangle.  This routine will
+         * never return TriangleType::Unknown.
+         */
+        TriangleType triangleType();
+
+        /**
+         * For triangles, returns the vertex or edge number in this face
+         * that plays a special role for this triangle's combinatorial type.
+         * Note that only some triangle types have a special vertex or edge.
+         * The triangle type itself is returned by triangleType().
+         *
+         * If one or more edges of this triangle are invalid due to bad
+         * self-identifications, then the triangle type might not be
+         * well-defined and so the return value will likewise be undefined.
+         *
+         * The reason this routine is non-const is because the triangle type
+         * and subtype are cached when first computed.
+         *
+         * \pre The facial dimension \a subdim is precisely 2, and the
+         * triangulation dimension \a dim is at least 3.
+         *
+         * \return The vertex or edge number (0, 1 or 2) that plays a special
+         * role, or -1 if this triangle's combinatorial type has no special
+         * vertex or edge.
+         */
+        int triangleSubtype();
+
+        /**
          * Locks this codimension-1-face.
          *
          * Essentially, locking a face of dimension (<i>dim</i>-1) means
@@ -1331,6 +1456,92 @@ inline Perm<dim + 1> FaceBase<dim, subdim>::pentachoronMapping(int face) const {
 }
 
 template <int dim, int subdim>
+inline bool FaceBase<dim, subdim>::isLoop() const {
+    static_assert(subdim == 1, "isLoop() is only available for edges.");
+
+    const auto& emb = front();
+    const Simplex<dim>* simp = emb.simplex();
+    return simp->vertex(emb.vertices()[0]) == simp->vertex(emb.vertices()[1]);
+}
+
+template <int dim, int subdim>
+inline TriangleType FaceBase<dim, subdim>::triangleType() {
+    static_assert(subdim == 2,
+        "triangleType() is only available for triangles.");
+    static_assert(dim >= 3,
+        "triangleType() is only available in triangulations of dimension ≥ 3.");
+
+    if (triangleType_.value != TriangleType::Unknown)
+        return triangleType_.value;
+
+    triangleSubtype_.value = -1;
+
+    // Determine the triangle type.
+    Vertex<dim>* v[3];
+    Edge<dim>* e[3];
+    for (int i = 0; i < 3; i++) {
+        v[i] = vertex(i);
+        e[i] = edge(i);
+    }
+
+    if (e[0] != e[1] && e[1] != e[2] && e[2] != e[0]) {
+        // Three distinct edges.
+        if (v[0] == v[1] && v[1] == v[2])
+            return (triangleType_.value = TriangleType::Parachute);
+        for (int i = 0; i < 3; i++)
+            if (v[(i+1)%3] == v[(i+2)%3]) {
+                triangleSubtype_.value = i;
+                return (triangleType_.value = TriangleType::Scarf);
+            }
+        return (triangleType_.value = TriangleType::Triangle);
+    }
+
+    if (e[0] == e[1] && e[1] == e[2]) {
+        // All edges identified.
+        if (edgeMapping(0).sign() == edgeMapping(1).sign() &&
+                edgeMapping(1).sign() == edgeMapping(2).sign())
+            return (triangleType_.value = TriangleType::L31);
+
+        for (int i = 0; i < 3; i++)
+            if (edgeMapping((i+1)%3).sign() ==
+                    edgeMapping((i+2)%3).sign()) {
+                triangleSubtype_.value = i;
+                return (triangleType_.value = TriangleType::DunceHat);
+            }
+    }
+
+    // Two edges identified.
+    for (int i = 0; i < 3; i++)
+        if (e[(i+1)%3] == e[(i+2)%3]) {
+            triangleSubtype_.value = i;
+
+            if (edgeMapping((i+1)%3).sign() ==
+                    edgeMapping((i+2)%3).sign())
+                return (triangleType_.value = TriangleType::Mobius);
+
+            if (v[0] == v[1] && v[1] == v[2])
+                return (triangleType_.value = TriangleType::Horn);
+
+            return (triangleType_.value = TriangleType::Cone);
+        }
+
+    // We should never reach this point.
+    return TriangleType::Unknown;
+}
+
+template <int dim, int subdim>
+inline int FaceBase<dim, subdim>::triangleSubtype() {
+    static_assert(subdim == 2,
+        "triangleSubtype() is only available for triangles.");
+    static_assert(dim >= 3,
+        "triangleSubtype() is only available in triangulations of "
+        "dimension ≥ 3.");
+
+    triangleType();
+    return triangleSubtype_.value;
+}
+
+template <int dim, int subdim>
 inline void FaceBase<dim, subdim>::lock() {
     static_assert(subdim == dim - 1,
         "lock() is only available for faces of codimension 1.");
@@ -1413,7 +1624,7 @@ void FaceBase<dim, subdim>::writeTextShort(std::ostream& out) const {
     }
 }
 
-} // namespace regina::detail
+} } // namespace regina::detail
 
 #endif
 

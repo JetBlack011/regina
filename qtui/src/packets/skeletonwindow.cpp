@@ -297,11 +297,11 @@ QVariant Edge3Model::data(const QModelIndex& index, int role) const {
                 return index.row();
             case 1:
                 if (! item->isValid())
-                    return tr("Invalid");
+                    return item->isLoop() ? tr("Invalid, loop") : tr("Invalid");
                 else if (item->isBoundary())
-                    return tr("Bdry");
+                    return item->isLoop() ? tr("Bdry, loop") : tr("Bdry");
                 else
-                    return QString();
+                    return item->isLoop() ? tr("Loop") : QString();
             case 2:
                 return static_cast<unsigned>(item->degree());
             case 3:
@@ -389,22 +389,22 @@ QVariant Triangle3Model::data(const QModelIndex& index, int role) const {
                 if (item->isBoundary())
                     prefix = tr("(Bdry) ");
 
-                auto type = item->type();
-                if (type == Triangle<3>::Type::Triangle)
+                auto type = item->triangleType();
+                if (type == regina::TriangleType::Triangle)
                     return prefix + tr("Triangle");
-                if (type == Triangle<3>::Type::Scarf)
+                if (type == regina::TriangleType::Scarf)
                     return prefix + tr("Scarf");
-                if (type == Triangle<3>::Type::Parachute)
+                if (type == regina::TriangleType::Parachute)
                     return prefix + tr("Parachute");
-                if (type == Triangle<3>::Type::Mobius)
+                if (type == regina::TriangleType::Mobius)
                     return prefix + tr("Möbius band");
-                if (type == Triangle<3>::Type::Cone)
+                if (type == regina::TriangleType::Cone)
                     return prefix + tr("Cone");
-                if (type == Triangle<3>::Type::Horn)
+                if (type == regina::TriangleType::Horn)
                     return prefix + tr("Horn");
-                if (type == Triangle<3>::Type::DunceHat)
+                if (type == regina::TriangleType::DunceHat)
                     return prefix + tr("Dunce hat");
-                if (type == Triangle<3>::Type::L31)
+                if (type == regina::TriangleType::L31)
                     return prefix + tr("L(3,1)");
                 return prefix + tr("UNKNOWN");
             }
@@ -776,9 +776,9 @@ QVariant Edge2Model::data(const QModelIndex& index, int role) const {
                 return index.row();
             case 1:
                 if (item->isBoundary())
-                    return tr("Bdry");
+                    return item->isLoop() ? tr("Bdry, loop") : tr("Bdry");
                 else
-                    return QString();
+                    return item->isLoop() ? tr("Loop") : QString();
             case 2:
                 return static_cast<unsigned>(item->degree());
             case 3:
@@ -1120,17 +1120,19 @@ QVariant Edge4Model::data(const QModelIndex& index, int role) const {
                 return index.row();
             case 1:
                 if (! item->isValid()) {
+                    QString suffix = (item->isLoop() ? tr(", loop") :
+                        QString());
                     if (item->hasBadIdentification())
-                        return tr("Invalid (reverse gluing)");
+                        return tr("Invalid (reverse gluing)") + suffix;
                     else if (item->hasBadLink())
-                        return tr("Invalid (bad link)");
+                        return tr("Invalid (bad link)") + suffix;
                     else // should never happen
-                        return tr("Invalid (unknown reason)");
+                        return tr("Invalid (unknown reason)") + suffix;
                 }
                 else if (item->isBoundary())
-                    return tr("Bdry");
+                    return item->isLoop() ? tr("Bdry, loop") : tr("Bdry");
                 else
-                    return QString();
+                    return item->isLoop() ? tr("Loop") : QString();
             case 2:
                 return static_cast<unsigned>(item->degree());
             case 3:
