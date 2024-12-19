@@ -30,13 +30,12 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/perm.h"
 #include "utilities/typeutils.h"
 #include "../helpers.h"
-#include "../helpers/arraylike.h"
 #include "../docstrings/maths/perm5.h"
 
 using pybind11::overload_cast;
@@ -94,7 +93,6 @@ void addPerm5(pybind11::module_& m) {
         .def("inc", [](Perm<5>& p) {
             return p++;
         }, rdoc::__inc)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
         .def_static("rot", &Perm<5>::rot, rdoc::rot)
         .def_static("rand", static_cast<Perm<5>(&)(bool)>(Perm<5>::rand),
             pybind11::arg("even") = false, rdoc::rand)
@@ -118,18 +116,32 @@ void addPerm5(pybind11::module_& m) {
         .def_readonly_static("imageBits", &Perm<5>::imageBits)
         .def_readonly_static("imageMask", &Perm<5>::imageMask)
         .def_readonly_static("nPerms", &Perm<5>::nPerms)
-        .def_readonly_static("nPerms_1", &Perm<5>::nPerms_1)
+        .def_readonly_static("nPerms_1", &Perm<4>::nPerms) // deprecated
         .def_readonly_static("S5", &Perm<5>::S5)
         .def_readonly_static("Sn", &Perm<5>::Sn)
         .def_readonly_static("orderedS5", &Perm<5>::orderedS5)
         .def_readonly_static("orderedSn", &Perm<5>::orderedSn)
-        .def_readonly_static("S4", &Perm<5>::S4)
-        .def_readonly_static("Sn_1", &Perm<5>::Sn_1)
-        .def_readonly_static("orderedS4", &Perm<5>::orderedS4)
-        .def_readonly_static("S3", &Perm<5>::S3)
-        .def_readonly_static("orderedS3", &Perm<5>::orderedS3)
-        .def_readonly_static("S2", &Perm<5>::S2)
     ;
+    #if defined(__GNUC__)
+    // The following members are deprecated, but we still need to bind
+    // them.  Silence the inevitable deprecation warnings that will occur.
+    #pragma GCC diagnostic push
+    #if defined(__clang__)
+    #pragma GCC diagnostic ignored "-Wdeprecated"
+    #else
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    #endif
+    #endif
+    c.def_readonly_static("Sn_1", &Perm<5>::S4) // deprecated
+        .def_readonly_static("S4", &Perm<5>::S4) // deprecated
+        .def_readonly_static("orderedS4", &Perm<5>::orderedS4) // deprecated
+        .def_readonly_static("S3", &Perm<5>::S3) // deprecated
+        .def_readonly_static("orderedS3", &Perm<5>::orderedS3) // deprecated
+        .def_readonly_static("S2", &Perm<5>::S2) // deprecated
+    ;
+    #if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+    #endif
     regina::for_constexpr<6, 17>([&c](auto i) {
         c.def_static("contract", &Perm<5>::template contract<i>,
             rdoc::contract);
@@ -137,22 +149,8 @@ void addPerm5(pybind11::module_& m) {
     regina::python::add_output_basic(c, rdoc::str);
     regina::python::add_tight_encoding(c, rdoc::tightEncoding,
         rdoc::tightDecoding, rdoc::hash);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
-
-    regina::python::add_lightweight_array<decltype(Perm<5>::S5)>(c,
-        "_S5", rdoc::S5Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::orderedS5)>(c,
-        "_orderedS5", rdoc::OrderedS5Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::S4)>(c,
-        "_S4", rdoc::S4Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::orderedS4)>(c,
-        "_orderedS4", rdoc::OrderedS4Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::S3)>(c,
-        "_S3", rdoc::S3Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::orderedS3)>(c,
-        "_orderedS3", rdoc::OrderedS3Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<5>::S2)>(c,
-        "_S2", rdoc::S2Lookup);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     RDOC_SCOPE_END
 }

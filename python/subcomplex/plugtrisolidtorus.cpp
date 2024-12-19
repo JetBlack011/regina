@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/plugtrisolidtorus.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -59,7 +59,7 @@ void addPlugTriSolidTorus(pybind11::module_& m) {
         .def_readonly_static("EQUATOR_MAJOR", &PlugTriSolidTorus::EQUATOR_MAJOR)
         .def_readonly_static("EQUATOR_MINOR", &PlugTriSolidTorus::EQUATOR_MINOR)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<PlugTriSolidTorus>(m, rdoc::global_swap);

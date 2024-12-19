@@ -54,7 +54,7 @@
 using regina::NormalSurfaces;
 using regina::Packet;
 
-SurfaceModel::SurfaceModel(regina::NormalSurfaces* surfaces) :
+SurfaceModel::SurfaceModel(NormalSurfaces* surfaces) :
         surfaces_(surfaces), coordSystem_(surfaces->coords()) {
     nFiltered = surfaces_->size();
     if (nFiltered == 0)
@@ -243,11 +243,11 @@ QVariant SurfaceModel::data(const QModelIndex& index, int role) const {
                 if (tot == 1) {
                     return tr("K%1: %2 (1 oct)").
                         arg(oct.tetIndex).
-                        arg(regina::quadString[oct.type]);
+                        arg(regina::quadString[oct.type].c_str());
                 } else {
                     return tr("K%1: %2 (%3 octs)").
                         arg(oct.tetIndex).
-                        arg(regina::quadString[oct.type]).
+                        arg(regina::quadString[oct.type].c_str()).
                         arg(tot.stringValue().c_str());
                 }
             }
@@ -390,7 +390,7 @@ bool SurfaceModel::setData(const QModelIndex& index, const QVariant& value,
         // At present, NormalSurface::setName() does not fire a change
         // event (since a normal surface does not know what list it
         // belongs to).  Fire it here instead.
-        regina::NormalSurfaces::PacketChangeSpan span(*surfaces_);
+        NormalSurfaces::PacketChangeSpan span(*surfaces_);
         const_cast<regina::NormalSurface&>(
             (*surfaces_)[realIndex[index.row()]]).
             setName(value.toString().toUtf8().constData());
@@ -475,7 +475,7 @@ QString SurfaceModel::propertyColDesc(int whichCol) const {
 }
 
 SurfacesCoordinateUI::SurfacesCoordinateUI(
-        regina::PacketOf<regina::NormalSurfaces>* packet,
+        regina::PacketOf<NormalSurfaces>* packet,
         PacketTabbedUI* useParentUI) :
         PacketEditorTab(useParentUI), surfaces(packet), appliedFilter(nullptr),
         currentlyResizing(false) {
@@ -508,7 +508,7 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     hdrLayout->addWidget(label);
     filter = new PacketChooser(surfaces->root(),
         new SingleTypeFilter<regina::SurfaceFilter>(),
-        PacketChooser::ROOT_AS_PACKET, true, nullptr, ui);
+        PacketChooser::RootRole::Packet, true, nullptr, ui);
     filter->setAutoUpdate(true);
     connect(filter, SIGNAL(activated(int)), this, SLOT(refresh()));
     hdrLayout->addWidget(filter);

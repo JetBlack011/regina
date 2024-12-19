@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "manifold/sfsalt.h"
 #include "../helpers.h"
 #include "../docstrings/manifold/sfsalt.h"
@@ -58,7 +58,7 @@ void addSFSAlt(pybind11::module_& m) {
         .def("reflected", &SFSAlt::reflected, rdoc::reflected)
     ;
     regina::python::add_output(s);
-    regina::python::add_eq_operators(s, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(s, rdoc::__eq);
 
     regina::python::add_global_swap<SFSAlt>(m, rdoc::global_swap);
 

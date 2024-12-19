@@ -63,21 +63,27 @@ This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
 possible, even when passing or returning objects by value.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields
-static const char *SurfaceExportFields =
+// Docstring regina::python::doc::SurfaceExport
+static const char *SurfaceExport =
 R"doc(Used to describe a field, or a set of fields, that can be exported
-alongside a normal surface list. This enumeration type, and the
-corresponding flags class SurfaceExport, is used with export routines
-such as NormalSurfaces::saveCSVStandard() or
+alongside a normal surface list. This enumeration type is used with
+export routines such as NormalSurfaces::saveCSVStandard() or
 NormalSurfaces::saveCSVEdgeWeight().
 
-This type describes fields in addition to normal coordinates, not the
-normal coordinates themselves (which are always exported). Each field
-describes some property of a single normal surface, and corresponds to
-a single column in a table of normal surfaces.
+This type describes fields to export _in addition_ to normal
+coordinates, not the normal coordinates themselves (which are always
+exported). Each field describes some property of a single normal
+surface, and corresponds to a single column in a table of normal
+surfaces.
 
-You can describe a set of fields by combining the values for
-individual fields using the bitwise OR operator.
+This enumeration names individual fields, as well as some common
+combinations of fields (such as ``None`` and ``All``). Fields can be
+combined using the bitwise OR operator (resulting in an object of type
+``Flags<SurfaceExport>``). In particular, if a surface export function
+takes an argument of type ``Flags<SurfaceExport>``, then you can pass
+a single SurfaceExport constant, or a bitwise combination of such
+constants ``(field1 | field2)``, or empty braces ``{}`` to indicate no
+fields at all.
 
 The list of available fields may grow with future releases of Regina.)doc";
 
@@ -108,8 +114,8 @@ that at most one octagon type is non-zero across the entire
 triangulation.
 
 These are the constraints that will be used when enumerating embedded
-surfaces in the given coordinate system (i.e., when the default
-NS_EMBEDDED_ONLY flag is used). They will not be used when the
+surfaces in the given coordinate system (i.e., when the default flag
+NormalList::EmbeddedOnly is used). They will not be used when the
 enumeration allows for immersed and/or singular surfaces.
 
 Parameter ``triangulation``:
@@ -221,19 +227,19 @@ This choice of coordinate system will affect which surfaces are
 produced, since vertex/fundamental surfaces in one system are not
 necessarily vertex/fundamental in another.
 
-The NormalList argument is a combination of flags that allows you to
+The *whichList* argument is a combination of flags that allows you to
 specify exactly which normal surfaces you require. This includes (i)
 whether you want all vertex surfaces or all fundamental surfaces,
-which defaults to NS_VERTEX if you specify neither or both; and (ii)
-whether you want only properly embedded surfaces or you also wish to
-include immersed and/or singular surfaces, which defaults to
-NS_EMBEDDED_ONLY if you specify neither or both.
+which defaults to NormalList::Vertex if you specify neither or both;
+and (ii) whether you want only properly embedded surfaces or you also
+wish to include immersed and/or singular surfaces, which defaults to
+NormalList::EmbeddedOnly if you specify neither or both.
 
-The NormalAlg argument is a combination of flags that allows you to
+The *algHints* argument is a combination of flags that allows you to
 control the underlying enumeration algorithm. These flags are treated
 as hints only: if your selection of algorithm is invalid, unavailable
 or unsupported then Regina will choose something more appropriate.
-Unless you have some specialised need, the default NS_ALG_DEFAULT
+Unless you have some specialised need, the default NormalAlg::Default
 (which makes no hints at all) will allow Regina to choose what it
 thinks will be the most efficient method.
 
@@ -351,8 +357,9 @@ surfaces from the given list that pass the given filter.
 Unlike the old filter() function, this constructor will _not_ insert
 the new normal surface list into the packet tree.
 
-For this new filtered list, which() will include the NS_CUSTOM flag,
-and algorithm() will include the NS_ALG_CUSTOM flag.
+For this new filtered list, which() will include the
+NormalList::Custom flag, and algorithm() will include the
+NormalAlg::Custom flag.
 
 Parameter ``src``:
     the normal surface list that we wish to filter; this will not be
@@ -376,44 +383,11 @@ for s in list:
 Returns:
     an iterator over the normal surfaces in this list.)doc";
 
-// Docstring regina::python::doc::NormalSurfaces_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given list contain different sets of
-normal (or almost normal) surfaces.
-
-The lists will be compared as multisets: the order of the surfaces in
-each list does not matter; however, in the unusual scenario where a
-list the same surface multiple times, multiplicity does matter.
-
-Like the comparison operators for NormalSurface, it does not matter
-whether the lists work with different triangulations, or different
-encodings, or if one but not the other supports almost normal and/or
-spun-normal surfaces. The individual surfaces will simply be compared
-by examining or computing the number of discs of each type.
-
-In particular, this routine is safe to call even if this and the given
-list work with different triangulations:
-
-* If the two triangulations have the same size, then this routine will
-  compare surfaces as though they were transplanted into the same
-  triangulation using the same tetrahedron numbering and the same disc
-  types.
-
-* If the two triangulations have different sizes, then this comparison
-  will return ``True`` (i.e., the lists will be considered different).
-
-Parameter ``other``:
-    the list to be compared with this list.
-
-Returns:
-    ``True`` if both lists do not represent the same multiset of
-    normal or almost normal surfaces, or ``False`` if they do.)doc";
-
 // Docstring regina::python::doc::NormalSurfaces_::algorithm
 static const char *algorithm =
 R"doc(Returns details of the algorithm that was used to enumerate this list.
 
-These may not be the same NormalAlg flags that were passed to the
+These may not be the same algorithm flags that were passed to the
 class constructor. In particular, default values will have been
 explicitly filled in, invalid and/or redundant values will have been
 removed, and unavailable and/or unsupported combinations of algorithm
@@ -523,8 +497,8 @@ As well as the normal surface coordinates, additional properties of
 the normal surfaces (such as Euler characteristic, orientability, and
 so on) can be included as extra fields in the export. Users can select
 precisely which properties to include by passing a bitwise OR
-combination of constants from the regina::SurfaceExportFields
-enumeration type.
+combination of constants from the regina::SurfaceExport enumeration
+type.
 
 The CSV format used here begins with a header row, and uses commas as
 field separators. Text fields with arbitrary contents are placed
@@ -543,9 +517,9 @@ Parameter ``filename``:
     the name of the CSV file to export to.
 
 Parameter ``additionalFields``:
-    a bitwise OR combination of constants from
-    regina::SurfaceExportFields indicating which additional properties
-    of surfaces should be included in the export.
+    a bitwise OR combination of constants from regina::SurfaceExport
+    indicating which additional properties of surfaces should be
+    included in the export.
 
 Returns:
     ``True`` if the export was successful, or ``False`` otherwise.)doc";
@@ -566,8 +540,8 @@ As well as the normal surface coordinates, additional properties of
 the normal surfaces (such as Euler characteristic, orientability, and
 so on) can be included as extra fields in the export. Users can select
 precisely which properties to include by passing a bitwise OR
-combination of constants from the regina::SurfaceExportFields
-enumeration type.
+combination of constants from the regina::SurfaceExport enumeration
+type.
 
 The CSV format used here begins with a header row, and uses commas as
 field separators. Text fields with arbitrary contents are placed
@@ -586,9 +560,9 @@ Parameter ``filename``:
     the name of the CSV file to export to.
 
 Parameter ``additionalFields``:
-    a bitwise OR combination of constants from
-    regina::SurfaceExportFields indicating which additional properties
-    of surfaces should be included in the export.
+    a bitwise OR combination of constants from regina::SurfaceExport
+    indicating which additional properties of surfaces should be
+    included in the export.
 
 Returns:
     ``True`` if the export was successful, or ``False`` otherwise.)doc";
@@ -700,34 +674,35 @@ static const char *which =
 R"doc(Returns details of which normal surfaces this list represents within
 the underlying triangulation.
 
-This may not be the same NormalList that was passed to the class
+These may not be the same list flags that were passed to the class
 constructor. In particular, default values will have been explicitly
-filled in (such as NS_VERTEX and/or NS_EMBEDDED_ONLY), and invalid
-and/or redundant values will have been removed.
+filled in (such as NormalList::Vertex and/or
+NormalList::EmbeddedOnly), and invalid and/or redundant values will
+have been removed.
 
 Returns:
     details of what this list represents.)doc";
 
 }
 
-namespace SurfaceExportFields_ {
+namespace SurfaceExport_ {
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportAll
-static const char *surfaceExportAll =
+// Docstring regina::python::doc::SurfaceExport_::All
+static const char *All =
 R"doc(Indicates that all available fields should be exported, including the
 user-assigned surface name. Since the list of available fields may
 grow with future releases, the numerical value of this constant may
 change as a result.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportAllButName
-static const char *surfaceExportAllButName =
+// Docstring regina::python::doc::SurfaceExport_::AllButName
+static const char *AllButName =
 R"doc(Indicates that all available fields should be exported, except for the
 user-assigned surface name. Since the list of available fields may
 grow with future releases, the numerical value of this constant may
 change as a result.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportBdry
-static const char *surfaceExportBdry =
+// Docstring regina::python::doc::SurfaceExport_::Bdry
+static const char *Bdry =
 R"doc(Represents the calculated property of whether a surface is bounded. In
 most cases, this will be one of the strings "closed", "real bdry" or
 "infinite" (where "infinite" indicates a surface with infinitely many
@@ -739,39 +714,45 @@ around the meridian and *q* times around the longitude. See
 NormalSurface::boundaryIntersections() for further information on
 interpreting these values.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportEuler
-static const char *surfaceExportEuler =
+// Docstring regina::python::doc::SurfaceExport_::Euler
+static const char *Euler =
 R"doc(Represents the calculated Euler characteristic of a surface. This will
 be an integer, and will be left empty if the Euler characteristic
 cannot be computed.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportLink
-static const char *surfaceExportLink =
+// Docstring regina::python::doc::SurfaceExport_::Link
+static const char *Link =
 R"doc(Represents whether a surface is a single vertex link or a thin edge
 link. See NormalSurface::isVertexLink() and
 NormalSurface::isThinEdgeLink() for details. This will be written as a
 human-readable string.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportName
-static const char *surfaceExportName = R"doc(Represents the user-assigned surface name.)doc";
+// Docstring regina::python::doc::SurfaceExport_::Name
+static const char *Name = R"doc(Represents the user-assigned surface name.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportNone
-static const char *surfaceExportNone = R"doc(Indicates that no additional fields should be exported.)doc";
+// Docstring regina::python::doc::SurfaceExport_::None
+static const char *None =
+R"doc(Indicates that no fields should be exported (except for the normal
+coordinates, which are always exported).
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportOrient
-static const char *surfaceExportOrient =
+Python:
+    This constant is called ``Nil``, since ``None`` is a reserved word
+    in Python.)doc";
+
+// Docstring regina::python::doc::SurfaceExport_::Orient
+static const char *Orient =
 R"doc(Represents the calculated property of whether a surface is orientable.
 This will be the string ``TRUE`` or ``FALSE``, or will be left empty
 if the orientability cannot be computed.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportSides
-static const char *surfaceExportSides =
+// Docstring regina::python::doc::SurfaceExport_::Sides
+static const char *Sides =
 R"doc(Represents the calculated property of whether a surface is one-sided
 or two-sided. This will be the integer 1 or 2, or will be left empty
 if the "sidedness" cannot be computed.)doc";
 
-// Docstring regina::python::doc::SurfaceExportFields_::surfaceExportType
-static const char *surfaceExportType =
+// Docstring regina::python::doc::SurfaceExport_::Type
+static const char *Type =
 R"doc(Represents any additional high-level properties of a surface, such as
 whether it is a splitting surface or a central surface. This will be
 written as a human-readable string. This field is somewhat arbitrary,

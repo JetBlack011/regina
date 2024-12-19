@@ -109,36 +109,23 @@ struct DiscSpec {
     DiscSpec(size_t newTetIndex, int newType, unsigned long newNumber);
     /**
      * Creates a new disc specifier that is a clone of the given specifier.
-     *
-     * \param cloneMe the disc specifier to clone.
      */
-    DiscSpec(const DiscSpec& cloneMe) = default;
+    DiscSpec(const DiscSpec&) = default;
 
     /**
      * Copies the values from the given disc specifier into this specifier.
      *
-     * \param cloneMe the disc specifier whose values should be copied.
      * \return a reference to this disc specifier.
      */
-    DiscSpec& operator = (const DiscSpec& cloneMe) = default;
+    DiscSpec& operator = (const DiscSpec&) = default;
     /**
      * Determines if this and the given disc specifier contain identical
      * information.
      *
-     * \param other the disc specifier to compare with this.
      * \return \c true if and only if this and the given disc specifier
      * contain identical information.
      */
-    bool operator == (const DiscSpec& other) const;
-    /**
-     * Determines if this and the given disc specifier contain different
-     * information.
-     *
-     * \param other the disc specifier to compare with this.
-     * \return \c true if and only if this and the given disc specifier
-     * contain different information.
-     */
-    bool operator != (const DiscSpec& other) const;
+    bool operator == (const DiscSpec&) const = default;
 
     friend std::ostream& operator << (std::ostream& out, const DiscSpec& spec);
 };
@@ -295,19 +282,6 @@ class DiscSetTet {
          * described above.
          */
         bool operator == (const DiscSetTet& other) const;
-
-        /**
-         * Determines whether this and the given set do not have the same
-         * number of discs of each type.
-         *
-         * This routine does not consider whether the two underlying
-         * tetrahedra are the same; it merely compares the ten disc
-         * counts in each set.
-         *
-         * \return \c true if and only if both sets are not the same, as
-         * described above.
-         */
-        bool operator != (const DiscSetTet& other) const;
 
         /**
          * Determines the number of discs of the given type inside this
@@ -611,25 +585,6 @@ class DiscSetTetData : public DiscSetTet {
         }
 
         /**
-         * Determines whether this and the given set either do not have the
-         * same number of discs of each type, or do not contain the same data
-         * for corresponding discs.
-         *
-         * This routine does not consider whether the two underlying
-         * tetrahedra are the same; it merely compares the disc counts
-         * and associated data within each set.
-         *
-         * The associated data (of type \a T) will be compared using the
-         * equality operator (==).
-         *
-         * \return \c true if and only if both sets are not the same, as
-         * described above.
-         */
-        bool operator != (const DiscSetTetData& other) const {
-            return ! ((*this) == other);
-        }
-
-        /**
          * Swaps the contents of this and the given disc set.
          *
          * \param other the disc set whose contents should be swapped with this.
@@ -927,28 +882,6 @@ class DiscSetSurfaceDataImpl {
         }
 
         /**
-         * Determines whether this and the given set have different
-         * numbers of discs of some type in some tetrahedron, or contain
-         * different data for some pair of corresponding discs.
-         *
-         * This routine does not consider whether the two underlying
-         * triangulations are the same; it merely compares the disc counts
-         * and associated data within each set.  If the two disc sets
-         * come from triangulations with different sizes, and/or
-         * surfaces with different disc counts in one or more tetarhedra,
-         * then this comparison will return \c true.
-         *
-         * The associated data (of type \a T) will be compared using the
-         * equality operator (==).
-         *
-         * \return \c true if and only if both sets are not the same, as
-         * described above.
-         */
-        bool operator != (const DiscSetSurfaceDataImpl& other) const {
-            return ! ((*this) == other);
-        }
-
-        /**
          * Returns the number of tetrahedra in the underlying triangulation.
          *
          * \return the number of tetrahedra.
@@ -1161,6 +1094,10 @@ using DiscSetSurface = DiscSetSurfaceDataImpl<DiscSetTet>;
  * from a DiscSetSurfaceData<T> the template argument can be automatically
  * deduced.
  *
+ * As of Regina 7.4, this class no longer provides the iterator type aliases
+ * \a value_type, \a iterator_category, \a difference_type, \a pointer and
+ * \a reference. Instead you can access these through `std::iterator_traits`.
+ *
  * \warning This class converts the indices of normal discs of a
  * given type from LargeInteger to `unsigned long`.  See the
  * precondition below.
@@ -1182,18 +1119,6 @@ using DiscSetSurface = DiscSetSurfaceDataImpl<DiscSetTet>;
  */
 template <class TetData>
 class DiscSpecIterator {
-    public:
-        using iterator_category = std::forward_iterator_tag;
-            /**< Declares this to be a forward iterator type. */
-        using value_type = regina::DiscSpec;
-            /**< Indicates what type the iterator points to. */
-        using difference_type = long;
-            /**< The type obtained by subtracting iterators. */
-        using pointer = const regina::DiscSpec*;
-            /**< A pointer to \a value_type. */
-        using reference = const regina::DiscSpec&;
-            /**< The type obtained when dereferencing iterators. */
-
     private:
         const DiscSetSurfaceDataImpl<TetData>* internalDiscSet;
             /**< The disc set through which we are iterating. */
@@ -1341,22 +1266,6 @@ class DiscSpecIterator {
             return internalDiscSet == other.internalDiscSet &&
                 current == other.current;
         }
-        /**
-         * Determines if this and the given iterator are different.
-         *
-         * Two iterators are considered equal if (i) they were constructed
-         * from the same DiscSetSurface object (not two different
-         * DiscSetSurface objects with identical contents), and (ii) they
-         * point to the same disc of the same tetrahedron.
-         *
-         * \param other the iterator to compare with this.
-         * \return \c true if and only if this and the given iterator
-         * are equal.
-         */
-        bool operator != (const DiscSpecIterator& other) const {
-            return internalDiscSet != other.internalDiscSet ||
-                current != other.current;
-        }
 
     private:
         /**
@@ -1387,20 +1296,24 @@ class DiscSpecIterator {
     friend class DiscSetSurfaceDataImpl<TetData>;
 };
 
+#ifndef __APIDOCS
+} namespace std {
+    template <class TetData>
+    struct iterator_traits<regina::DiscSpecIterator<TetData>> {
+        using value_type = regina::DiscSpec;
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = long;
+        using pointer = const value_type*;
+        using reference = const value_type&;
+    };
+} namespace regina {
+#endif
+
 // Inline functions for DiscSpec
 
 inline DiscSpec::DiscSpec(size_t newTetIndex, int newType,
         unsigned long newNumber) : tetIndex(newTetIndex), type(newType),
         number(newNumber) {
-}
-
-inline bool DiscSpec::operator == (const DiscSpec& other) const {
-    return (tetIndex == other.tetIndex && type == other.type &&
-        number == other.number);
-}
-inline bool DiscSpec::operator != (const DiscSpec& other) const {
-    return (tetIndex != other.tetIndex || type != other.type ||
-        number != other.number);
 }
 
 inline std::ostream& operator << (std::ostream& out, const DiscSpec& spec) {
@@ -1418,10 +1331,6 @@ inline DiscSetTet::DiscSetTet(unsigned long tri0, unsigned long tri1,
 
 inline bool DiscSetTet::operator == (const DiscSetTet& other) const {
     return std::equal(discs_, discs_ + 10, other.discs_);
-}
-
-inline bool DiscSetTet::operator != (const DiscSetTet& other) const {
-    return ! std::equal(discs_, discs_ + 10, other.discs_);
 }
 
 inline unsigned long DiscSetTet::nDiscs(int type) const {

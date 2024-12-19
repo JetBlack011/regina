@@ -39,7 +39,7 @@ namespace regina {
 HyperbolicMinSearcher::HyperbolicMinSearcher(FacetPairing<3> pairing,
         FacetPairing<3>::IsoList autos, bool orientableOnly) :
         EulerSearcher(0, std::move(pairing), std::move(autos), orientableOnly,
-            PURGE_NON_MINIMAL_HYP) {
+            CensusPurge::NonMinimalHyp) {
 }
 
 void HyperbolicMinSearcher::searchImpl(long maxDepth, ActionWrapper&& action_) {
@@ -107,7 +107,7 @@ void HyperbolicMinSearcher::searchImpl(long maxDepth, ActionWrapper&& action_) {
 
         // We are sitting on a new permutation to try.
         perms_.permIndex(adj) =
-            Perm<3>::S3[perms_.permIndex(face)].inverse().S3Index();
+            Perm<3>::Sn[perms_.permIndex(face)].inverse().S3Index();
 
         // Merge edge links and run corresponding tests.
         if (mergeEdgeClasses()) {

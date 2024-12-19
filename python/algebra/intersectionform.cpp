@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "algebra/intersectionform.h"
 #include "../helpers.h"
 #include "../docstrings/algebra/intersectionform.h"
@@ -54,7 +54,7 @@ void addIntersectionForm(pybind11::module_& m) {
         .def("odd", &IntersectionForm::odd, rdoc::odd)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<IntersectionForm>(m, rdoc::global_swap);
 

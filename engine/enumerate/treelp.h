@@ -357,21 +357,6 @@ class LPMatrix : public Output<LPMatrix<IntType>> {
         inline bool operator == (const LPMatrix& other) const;
 
         /**
-         * Determines whether this and the given matrix are not equal.
-         *
-         * Two matrices are equal if and only if their dimensions are the same,
-         * and the corresponding elements of each matrix are equal.
-         *
-         * It is safe to compare matrices of different dimensions, and
-         * it is safe to compare matrices that might not yet be initialised.
-         * Two uninitialised matrices will compare as equal.
-         *
-         * \param other the matrix to compare with this.
-         * \return \c true if and only if the two matrices are not equal.
-         */
-        inline bool operator != (const LPMatrix& other) const;
-
-        /**
          * Swaps the two given rows of this matrix.
          * The two arguments \a r1 and \a r2 may be equal (in which case
          * the matrix will be left unchanged).
@@ -630,10 +615,10 @@ class LPSystem : public ShortOutput<LPSystem> {
         /**
          * The three possible classes of vector encodings.
          */
-        enum System {
-            LP_STANDARD = 1,
-            LP_QUAD = 2,
-            LP_ANGLE = 4
+        enum class System {
+            Standard = 1,
+            Quad = 2,
+            Angle = 4
         } system_;
 
     public:
@@ -646,9 +631,9 @@ class LPSystem : public ShortOutput<LPSystem> {
          * structure encoding.
          */
         constexpr LPSystem(NormalEncoding enc) : system_(
-                enc.storesAngles() ? LP_ANGLE :
-                enc.storesTriangles() ? LP_STANDARD :
-                LP_QUAD) {
+                enc.storesAngles() ? System::Angle :
+                enc.storesTriangles() ? System::Standard :
+                System::Quad) {
         }
         /**
          * Creates a new copy of the given class of vector encodings.
@@ -672,17 +657,6 @@ class LPSystem : public ShortOutput<LPSystem> {
             return system_ == other.system_;
         }
         /**
-         * Determines whether this and the given object represent
-         * different classes of vector encodings.
-         *
-         * \param other the object to compare with this.
-         * \return \c true if and only if both objects represent
-         * different classes of encodings.
-         */
-        constexpr bool operator != (const LPSystem& other) const {
-            return system_ != other.system_;
-        }
-        /**
          * Identifies whether this is one of the two classes of
          * encodings that represent normal or almost normal surfaces.
          *
@@ -695,7 +669,7 @@ class LPSystem : public ShortOutput<LPSystem> {
          * surface encodings.
          */
         constexpr bool normal() const {
-            return (system_ != LP_ANGLE);
+            return (system_ != System::Angle);
         };
         /**
          * Identifies whether this is the class of encodings that represent
@@ -706,7 +680,7 @@ class LPSystem : public ShortOutput<LPSystem> {
          * \return \c true if this is the class of angle encodings.
          */
         constexpr bool angle() const {
-            return (system_ == LP_ANGLE);
+            return (system_ == System::Angle);
         }
         /**
          * Identifies whether this is the class of standard encodings.
@@ -716,7 +690,7 @@ class LPSystem : public ShortOutput<LPSystem> {
          * \return \c true if this is the class of standard encodings.
          */
         constexpr bool standard() const {
-            return (system_ == LP_STANDARD);
+            return (system_ == System::Standard);
         }
         /**
          * Identifies whether this is the class of quad encodings.
@@ -726,7 +700,7 @@ class LPSystem : public ShortOutput<LPSystem> {
          * \return \c true if this is the class of quad encodings.
          */
         constexpr bool quad() const {
-            return (system_ == LP_QUAD);
+            return (system_ == System::Quad);
         }
         /**
          * Returns the number of coordinate columns that a tableaux will use
@@ -739,9 +713,9 @@ class LPSystem : public ShortOutput<LPSystem> {
          */
         constexpr size_t coords(size_t nTet) const {
             switch (system_) {
-                case LP_STANDARD: return 7 * nTet;
-                case LP_QUAD: return 3 * nTet;
-                case LP_ANGLE: return 3 * nTet + 1;
+                case System::Standard: return 7 * nTet;
+                case System::Quad: return 3 * nTet;
+                case System::Angle: return 3 * nTet + 1;
                 default: return 0;
             }
         }
@@ -756,9 +730,9 @@ class LPSystem : public ShortOutput<LPSystem> {
          */
         void writeTextShort(std::ostream& out) const {
             switch (system_) {
-                case LP_STANDARD: out << "standard"; return;
-                case LP_QUAD: out << "quad"; return;
-                case LP_ANGLE: out << "angle"; return;
+                case System::Standard: out << "standard"; return;
+                case System::Quad: out << "quad"; return;
+                case System::Angle: out << "angle"; return;
                 default: out << "invalid"; return;
             }
         }
@@ -2085,11 +2059,6 @@ inline bool LPMatrix<IntType>::operator == (const LPMatrix& other) const {
         return std::equal(dat_, dat_ + rows_ * cols_, other.dat_);
     else
         return true;
-}
-
-template <typename IntType>
-inline bool LPMatrix<IntType>::operator != (const LPMatrix& other) const {
-    return ! ((*this) == other);
 }
 
 template <typename IntType>

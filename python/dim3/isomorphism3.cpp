@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "triangulation/dim3.h"
 #include "triangulation/facetpairing3.h"
 #include "../helpers.h"
@@ -99,7 +99,7 @@ void addIsomorphism3(pybind11::module_& m) {
     ;
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Isomorphism<3>>(m, rdoc::global_swap);
 

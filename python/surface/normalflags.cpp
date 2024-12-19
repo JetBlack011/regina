@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "surface/normalflags.h"
 #include "../helpers.h"
 #include "../helpers/flags.h"
@@ -38,63 +38,95 @@
 
 using pybind11::overload_cast;
 using regina::NormalAlg;
-using regina::NormalAlgFlags;
 using regina::NormalList;
-using regina::NormalListFlags;
+using regina::NormalTransform;
 
 void addNormalFlags(pybind11::module_& m) {
-    RDOC_SCOPE_BEGIN(NormalListFlags)
+    RDOC_SCOPE_BEGIN(NormalList)
 
-    regina::python::add_flags<regina::NormalListFlags>(
-        m, "NormalListFlags", "NormalList", {
-            { "NS_LIST_DEFAULT", regina::NS_LIST_DEFAULT,
-                rdoc::NS_LIST_DEFAULT },
-            { "NS_EMBEDDED_ONLY", regina::NS_EMBEDDED_ONLY,
-                rdoc::NS_EMBEDDED_ONLY },
-            { "NS_IMMERSED_SINGULAR", regina::NS_IMMERSED_SINGULAR,
-                rdoc::NS_IMMERSED_SINGULAR },
-            { "NS_VERTEX", regina::NS_VERTEX, rdoc::NS_VERTEX },
-            { "NS_FUNDAMENTAL", regina::NS_FUNDAMENTAL, rdoc::NS_FUNDAMENTAL },
-            { "NS_LEGACY", regina::NS_LEGACY, rdoc::NS_LEGACY },
-            { "NS_CUSTOM", regina::NS_CUSTOM, rdoc::NS_CUSTOM }
+    regina::python::add_flags<NormalList>(m, "NormalList", {
+            { "Default", NormalList::Default, rdoc::Default },
+            { "EmbeddedOnly", NormalList::EmbeddedOnly, rdoc::EmbeddedOnly },
+            { "ImmersedSingular", NormalList::ImmersedSingular,
+                rdoc::ImmersedSingular },
+            { "Vertex", NormalList::Vertex, rdoc::Vertex },
+            { "Fundamental", NormalList::Fundamental, rdoc::Fundamental },
+            { "Legacy", NormalList::Legacy, rdoc::Legacy },
+            { "Custom", NormalList::Custom, rdoc::Custom }
         }, rdoc_scope, rdoc_global::__bor);
 
-    RDOC_SCOPE_SWITCH(NormalAlgFlags)
+    RDOC_SCOPE_SWITCH_MAIN
 
-    regina::python::add_flags<regina::NormalAlgFlags>(
-        m, "NormalAlgFlags", "NormalAlg", {
-            { "NS_ALG_DEFAULT", regina::NS_ALG_DEFAULT, rdoc::NS_ALG_DEFAULT },
-            { "NS_VERTEX_VIA_REDUCED", regina::NS_VERTEX_VIA_REDUCED,
-                rdoc::NS_VERTEX_VIA_REDUCED },
-            { "NS_VERTEX_STD_DIRECT", regina::NS_VERTEX_STD_DIRECT,
-                rdoc::NS_VERTEX_STD_DIRECT },
-            { "NS_VERTEX_TREE", regina::NS_VERTEX_TREE, rdoc::NS_VERTEX_TREE },
-            { "NS_VERTEX_DD", regina::NS_VERTEX_DD, rdoc::NS_VERTEX_DD },
-            { "NS_HILBERT_PRIMAL", regina::NS_HILBERT_PRIMAL,
-                rdoc::NS_HILBERT_PRIMAL },
-            { "NS_HILBERT_DUAL", regina::NS_HILBERT_DUAL,
-                rdoc::NS_HILBERT_DUAL },
-            { "NS_HILBERT_CD", regina::NS_HILBERT_CD, rdoc::NS_HILBERT_CD },
-            { "NS_HILBERT_FULLCONE", regina::NS_HILBERT_FULLCONE,
-                rdoc::NS_HILBERT_FULLCONE },
-            { "NS_ALG_LEGACY", regina::NS_ALG_LEGACY, rdoc::NS_ALG_LEGACY },
-            { "NS_ALG_CUSTOM", regina::NS_ALG_CUSTOM, rdoc::NS_ALG_CUSTOM }
+    // Deprecated type alias and constants:
+    m.attr("NormalListFlags") = m.attr("NormalList");
+    m.attr("NS_LIST_DEFAULT") = NormalList::Default;
+    m.attr("NS_EMBEDDED_ONLY") = NormalList::EmbeddedOnly;
+    m.attr("NS_IMMERSED_SINGULAR") = NormalList::ImmersedSingular;
+    m.attr("NS_VERTEX") = NormalList::Vertex;
+    m.attr("NS_FUNDAMENTAL") = NormalList::Fundamental;
+    m.attr("NS_LEGACY") = NormalList::Legacy;
+    m.attr("NS_CUSTOM") = NormalList::Custom;
+
+    RDOC_SCOPE_SWITCH(NormalAlg)
+
+    regina::python::add_flags<NormalAlg>(m, "NormalAlg", {
+            { "Default", NormalAlg::Default, rdoc::Default },
+            { "VertexViaReduced", NormalAlg::VertexViaReduced,
+                rdoc::VertexViaReduced },
+            { "VertexStandardDirect", NormalAlg::VertexStandardDirect,
+                rdoc::VertexStandardDirect },
+            { "VertexTree", NormalAlg::VertexTree, rdoc::VertexTree },
+            { "VertexDD", NormalAlg::VertexDD, rdoc::VertexDD },
+            { "HilbertPrimal", NormalAlg::HilbertPrimal, rdoc::HilbertPrimal },
+            { "HilbertDual", NormalAlg::HilbertDual, rdoc::HilbertDual },
+            { "HilbertCD", NormalAlg::HilbertCD, rdoc::HilbertCD },
+            { "HilbertFullCone", NormalAlg::HilbertFullCone,
+                rdoc::HilbertFullCone },
+            { "Legacy", NormalAlg::Legacy, rdoc::Legacy },
+            { "Custom", NormalAlg::Custom, rdoc::Custom }
         }, rdoc_scope, rdoc_global::__bor);
+
+    RDOC_SCOPE_SWITCH_MAIN
+
+    // Deprecated type alias and constants:
+    m.attr("NormalAlgFlags") = m.attr("NormalAlg");
+    m.attr("NS_ALG_DEFAULT") = NormalAlg::Default;
+    m.attr("NS_VERTEX_VIA_REDUCED") = NormalAlg::VertexViaReduced;
+    m.attr("NS_VERTEX_STD_DIRECT") = NormalAlg::VertexStandardDirect;
+    m.attr("NS_VERTEX_TREE") = NormalAlg::VertexTree;
+    m.attr("NS_VERTEX_DD") = NormalAlg::VertexDD;
+    m.attr("NS_HILBERT_PRIMAL") = NormalAlg::HilbertPrimal;
+    m.attr("NS_HILBERT_DUAL") = NormalAlg::HilbertDual;
+    m.attr("NS_HILBERT_CD") = NormalAlg::HilbertCD;
+    m.attr("NS_HILBERT_FULLCONE") = NormalAlg::HilbertFullCone;
+    m.attr("NS_ALG_LEGACY") = NormalAlg::Legacy;
+    m.attr("NS_ALG_CUSTOM") = NormalAlg::Custom;
 
     RDOC_SCOPE_SWITCH(NormalTransform)
 
-    pybind11::enum_<regina::NormalTransform>(m, "NormalTransform", rdoc_scope)
-        .value("NS_CONV_REDUCED_TO_STD", regina::NS_CONV_REDUCED_TO_STD,
-            rdoc::NS_CONV_REDUCED_TO_STD)
-        .value("NS_CONV_STD_TO_REDUCED", regina::NS_CONV_STD_TO_REDUCED,
-            rdoc::NS_CONV_STD_TO_REDUCED)
-        .value("NS_FILTER_COMPATIBLE", regina::NS_FILTER_COMPATIBLE,
-            rdoc::NS_FILTER_COMPATIBLE)
-        .value("NS_FILTER_DISJOINT", regina::NS_FILTER_DISJOINT,
-            rdoc::NS_FILTER_DISJOINT)
-        .value("NS_FILTER_INCOMPRESSIBLE", regina::NS_FILTER_INCOMPRESSIBLE,
-            rdoc::NS_FILTER_INCOMPRESSIBLE)
-        .export_values();
+    pybind11::enum_<NormalTransform>(m, "NormalTransform", rdoc_scope)
+        .value("ConvertReducedToStandard",
+            NormalTransform::ConvertReducedToStandard,
+            rdoc::ConvertReducedToStandard)
+        .value("ConvertStandardToReduced",
+            NormalTransform::ConvertStandardToReduced,
+            rdoc::ConvertStandardToReduced)
+        .value("FilterCompatible", NormalTransform::FilterCompatible,
+            rdoc::FilterCompatible)
+        .value("FilterDisjoint", NormalTransform::FilterDisjoint,
+            rdoc::FilterDisjoint)
+        .value("FilterIncompressible", NormalTransform::FilterIncompressible,
+            rdoc::FilterIncompressible)
+        ;
+
+    // Deprecated constants:
+    m.attr("NS_CONV_REDUCED_TO_STD") =
+        NormalTransform::ConvertReducedToStandard;
+    m.attr("NS_CONV_STD_TO_REDUCED") =
+        NormalTransform::ConvertStandardToReduced;
+    m.attr("NS_FILTER_COMPATIBLE") = NormalTransform::FilterCompatible;
+    m.attr("NS_FILTER_DISJOINT") = NormalTransform::FilterDisjoint;
+    m.attr("NS_FILTER_INCOMPRESSIBLE") = NormalTransform::FilterIncompressible;
 
     RDOC_SCOPE_END
 }

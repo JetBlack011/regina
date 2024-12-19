@@ -40,6 +40,29 @@
 
 #include "testhelper.h"
 
+namespace {
+    /**
+     * We need a way to compute (n choose k) where n could be large but
+     * either k or n-k is very small.
+     *
+     * Our binomMedium() is not helpful since it puts a cap on the size of n.
+     */
+    int binomEdge(int n, int k) {
+        if (k < 0 || k > n)
+            return 0;
+        if (k == 0 || k == n)
+            return 1;
+        if (k == 1 || k == n - 1)
+            return n;
+        if (k == 2 || k == n - 2)
+            return (n * (n - 1)) / 2;
+        if (k == 3 || k == n - 3)
+            return (n * (n - 1) * (n - 2)) / 6;
+        throw regina::NotImplemented("The test suite's binomEdge(n,k) is only "
+            "implemented for small k or small n-k");
+    }
+}
+
 TEST(BitmaskTest, assignment) {
     // Try using assignment to initialise a bitmask.
     regina::Bitmask a;
@@ -77,6 +100,9 @@ TEST(BitmaskTest, sizes) {
     EXPECT_GE(sizeof(regina::Bitmask1<uint16_t>), 2);
     EXPECT_GE(sizeof(regina::Bitmask1<uint32_t>), 4);
     EXPECT_GE(sizeof(regina::Bitmask1<uint64_t>), 8);
+#ifdef INT128_AVAILABLE
+    EXPECT_GE(sizeof(regina::Bitmask1<regina::IntOfSize<16>::utype>), 16);
+#endif
 }
 
 template <typename BitmaskType>
@@ -105,6 +131,9 @@ TEST(BitmaskTest, firstLastBit) {
     testFirstLastBit<regina::Bitmask1<uint16_t>>(16);
     testFirstLastBit<regina::Bitmask1<uint32_t>>(32);
     testFirstLastBit<regina::Bitmask1<uint64_t>>(64);
+#ifdef INT128_AVAILABLE
+    testFirstLastBit<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
+#endif
     testFirstLastBit<regina::Bitmask1<unsigned char>>(8);
     testFirstLastBit<regina::Bitmask1<unsigned long>>(longBits);
     testFirstLastBit<regina::Bitmask2<unsigned char, unsigned char>>(16);
@@ -142,6 +171,9 @@ TEST(BitmaskTest, bits) {
     testBits<regina::Bitmask1<uint16_t>>(16);
     testBits<regina::Bitmask1<uint32_t>>(32);
     testBits<regina::Bitmask1<uint64_t>>(64);
+#ifdef INT128_AVAILABLE
+    testBits<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
+#endif
     testBits<regina::Bitmask1<unsigned char>>(8);
     testBits<regina::Bitmask1<unsigned long>>(longBits);
     testBits<regina::Bitmask2<unsigned char, unsigned char>>(16);
@@ -179,6 +211,9 @@ TEST(BitmaskTest, truncate) {
     testTruncate<regina::Bitmask1<uint16_t>>(16);
     testTruncate<regina::Bitmask1<uint32_t>>(32);
     testTruncate<regina::Bitmask1<uint64_t>>(64);
+#ifdef INT128_AVAILABLE
+    testTruncate<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
+#endif
     testTruncate<regina::Bitmask1<unsigned char>>(8);
     testTruncate<regina::Bitmask1<unsigned long>>(longBits);
     testTruncate<regina::Bitmask2<unsigned char, unsigned char>>(16);
@@ -221,6 +256,9 @@ TEST(BitmaskTest, lexOrder) {
     testLexOrder<regina::Bitmask1<uint16_t>>(16);
     testLexOrder<regina::Bitmask1<uint32_t>>(32);
     testLexOrder<regina::Bitmask1<uint64_t>>(64);
+#ifdef INT128_AVAILABLE
+    testLexOrder<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
+#endif
     testLexOrder<regina::Bitmask1<unsigned char>>(8);
     testLexOrder<regina::Bitmask1<unsigned long>>(longBits);
     testLexOrder<regina::Bitmask2<unsigned char, unsigned char>>(16);
@@ -247,17 +285,14 @@ static void verifyNextPermutationFor() {
             if (last == k - 1) {
                 EXPECT_EQ(count, 0);
             } else {
-                EXPECT_GE(count, regina::binomMedium(last, k));
-                EXPECT_LT(count, regina::binomMedium(last + 1, k));
+                EXPECT_GE(count, binomEdge(last, k));
+                EXPECT_LT(count, binomEdge(last + 1, k));
             }
         }
         ++count;
     }
 
-    // Yes, binonMedium is only supposed to work for n <= 29.
-    // But in reality, it works for all sufficiently small
-    // values of (n choose k).  So we are fine to use it here.
-    EXPECT_EQ(count, regina::binomMedium(sizeof(T) * 8, k));
+    EXPECT_EQ(count, binomEdge(sizeof(T) * 8, k));
 }
 
 template <typename T>

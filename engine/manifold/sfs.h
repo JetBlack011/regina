@@ -86,7 +86,7 @@ struct SFSFibre {
     /**
      * Creates a new uninitialised exceptional fibre.
      */
-    SFSFibre() = default;
+    constexpr SFSFibre() = default;
     /**
      * Creates a new exceptional fibre with the given parameters.
      *
@@ -95,49 +95,40 @@ struct SFSFibre {
      * \param newBeta the second parameter of this exceptional fibre;
      * this must have no common factors with the first parameter \a newAlpha.
      */
-    SFSFibre(long newAlpha, long newBeta);
+    constexpr SFSFibre(long newAlpha, long newBeta);
     /**
      * Creates a new exceptional fibre that is a clone of the given
      * fibre.
-     *
-     * \param cloneMe the exceptional fibre to clone.
      */
-    SFSFibre(const SFSFibre& cloneMe) = default;
+    constexpr SFSFibre(const SFSFibre&) = default;
 
     /**
      * Makes this exceptional fibre a clone of the given fibre.
-     *
-     * \param cloneMe the exceptional fibre to clone.
      */
-    SFSFibre& operator = (const SFSFibre& cloneMe) = default;
+    SFSFibre& operator = (const SFSFibre&) = default;
     /**
      * Determines if this and the given exceptional fibre are identical.
      * This requires both fibres to have the same values for \a alpha
      * and the same values for \a beta.
      *
-     * \param compare the fibre with which this will be compared.
      * \return \c true if and only if this and the given fibre are
      * identical.
      */
-    bool operator == (const SFSFibre& compare) const;
+    constexpr bool operator == (const SFSFibre&) const = default;
     /**
-     * Determines if this and the given exceptional fibre are different.
-     * This requires the fibres to have different values for \a alpha and/or
-     * to have different values for \a beta.
+     * Compares two exceptional fibres.
+     * Fibres are ordered first by \a alpha and then by \a beta.
      *
-     * \param compare the fibre with which this will be compared.
-     * \return \c true if and only if this and the given fibre are
-     * different.
-     */
-    bool operator != (const SFSFibre& compare) const;
-    /**
-     * Determines if this exceptional fibre is smaller than the given
-     * fibre.  Fibres are sorted by \a alpha and then by \a beta.
+     * This generates all of the usual comparison operators, including
+     * `<`, `<=`, `>`, and `>=`.
      *
-     * \param compare the fibre with which this will be compared.
-     * \return \c true if and only if this is smaller than the given fibre.
+     * \python This spaceship operator `x <=> y` is not available, but the
+     * other comparison operators that it generates _are_ available.
+     *
+     * \return The result of the comparison between this and the given fibre.
      */
-    bool operator < (const SFSFibre& compare) const;
+    constexpr std::strong_ordering operator <=> (const SFSFibre&) const =
+        default;
 };
 
 /**
@@ -218,7 +209,7 @@ class SFSpace : public Manifold {
          * \c bo1, \c b02, \c bn1, \c bn2, \c bn3 for base orbifolds
          * with boundaries.
          */
-        enum ClassType {
+        enum class Class {
             /**
              * Indicates that the base orbifold is orientable with
              * no punctures or reflector boundaries, and that none
@@ -293,8 +284,104 @@ class SFSpace : public Manifold {
             bn3 = 403
         };
 
+        /**
+         * A deprecated type alias that represents a class of base orbifold.
+         *
+         * \deprecated This has been renamed to Class, and is now a scoped
+         * enumeration.
+         */
+        using ClassType [[deprecated]] = Class;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::o1.
+         */
+        [[deprecated]] inline static constexpr Class o1 = Class::o1;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::o2.
+         */
+        [[deprecated]] inline static constexpr Class o2 = Class::o2;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::n1.
+         */
+        [[deprecated]] inline static constexpr Class n1 = Class::n1;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::n2.
+         */
+        [[deprecated]] inline static constexpr Class n2 = Class::n2;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::n3.
+         */
+        [[deprecated]] inline static constexpr Class n3 = Class::n3;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::n4.
+         */
+        [[deprecated]] inline static constexpr Class n4 = Class::n4;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::bo1.
+         */
+        [[deprecated]] inline static constexpr Class bo1 = Class::bo1;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::bo2.
+         */
+        [[deprecated]] inline static constexpr Class bo2 = Class::bo2;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::bn1.
+         */
+        [[deprecated]] inline static constexpr Class bn1 = Class::bn1;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::bn2.
+         */
+        [[deprecated]] inline static constexpr Class bn2 = Class::bn2;
+
+        /**
+         * A deprecated constant indicating one of the base orbifold classes.
+         *
+         * \deprecated This has been renamed to the scoped enumeration constant
+         * Class::bn3.
+         */
+        [[deprecated]] inline static constexpr Class bn3 = Class::bn3;
+
     private:
-        ClassType class_;
+        Class class_;
             /**< Indicates which of the classes above this space belongs to. */
         unsigned long genus_;
             /**< The genus of the base orbifold.  For non-orientable
@@ -352,7 +439,7 @@ class SFSpace : public Manifold {
          * \param useClass indicates whether the base orbifold is closed
          * and/or orientable, and gives information about fibre-reversing
          * paths in the 3-manifold.  See the SFSpace class notes and the
-         * ClassType enumeration notes for details.
+         * Class enumeration notes for details.
          * \param genus the genus of the base orbifold (the
          * number of tori or projective planes that it contains).
          * Note that for non-orientable base surfaces, this is the
@@ -372,7 +459,7 @@ class SFSpace : public Manifold {
          * components of the base orbifold.  These are in addition to
          * the ordinary boundary components described by \a puncturesTwisted.
          */
-        SFSpace(ClassType useClass, unsigned long genus,
+        SFSpace(Class useClass, unsigned long genus,
             unsigned long punctures = 0, unsigned long puncturesTwisted = 0,
             unsigned long reflectors = 0, unsigned long reflectorsTwisted = 0);
         /**
@@ -418,11 +505,11 @@ class SFSpace : public Manifold {
          * addHandle(), addCrosscap(), addPuncture() or addReflector().
          *
          * For more information on the eleven predefined classes, see the
-         * SFSpace class notes or the ClassType enumeration notes.
+         * SFSpace class notes or the Class enumeration notes.
          *
          * \return the particular class to which this space belongs.
          */
-        ClassType baseClass() const;
+        Class baseClass() const;
         /**
          * Returns the genus of the base orbifold.  All punctures and
          * reflector boundaries in the base orbifold are ignored (i.e.,
@@ -582,7 +669,7 @@ class SFSpace : public Manifold {
          * a punctured torus.
          *
          * Note that this operation may alter which of the classes
-         * described by ClassType this space belongs to.
+         * described by Class this space belongs to.
          *
          * The exceptional fibres and the obstruction constant \a b are
          * not modified by this routine.
@@ -602,7 +689,7 @@ class SFSpace : public Manifold {
          * a Mobius band.
          *
          * Note that this operation may alter which of the classes
-         * described by ClassType this space belongs to.
+         * described by Class this space belongs to.
          *
          * The exceptional fibres and the obstruction constant \a b are
          * not modified by this routine.
@@ -773,41 +860,31 @@ class SFSpace : public Manifold {
         bool operator == (const SFSpace& compare) const;
 
         /**
-         * Determines whether this and the given object do not contain
-         * precisely the same presentations of the same Seifert fibred space.
+         * Compares representations of two Seifert fibred spaces according to
+         * an aesthetic ordering.
          *
-         * This routine does _not_ test for homeomorphism.  Instead it
-         * compares the exact presentations, including the precise details of
-         * the base orbifold and the exact parameters of the exceptional fibres,
-         * and determines whether or not these _presentations_ are identical.
-         * If you have two different presentations of the same Seifert fibred
-         * space, they will be treated as not equal by this routine.
+         * The only purpose of this routine is to implement a consistent
+         * ordering of Seifert fibred space representations.  The specific
+         * ordering used is purely aesthetic on the part of the author, and
+         * is subject to change in future versions of Regina.
          *
-         * \param compare the presentation with which this will be compared.
-         * \return \c true if and only if this and the given object do not
-         * contain identical presentations of the same Seifert fibred space.
+         * It does not matter whether the two spaces are homeomorphic; this
+         * routine compares the specific _representations_ of these spaces
+         * (and so in particular, different representations of the same
+         * Seifert fibred space will be ordered differently).
+         *
+         * This operator generates all of the usual comparison operators,
+         * including `<`, `<=`, `>`, and `>=`.
+         *
+         * \python This spaceship operator `x <=> y` is not available, but the
+         * other comparison operators that it generates _are_ available.
+         *
+         * \param rhs the other representation to compare this with.
+         * \return A result that indicates how this and the given Seifert
+         * fibred space representation should be ordered with respect to
+         * each other.
          */
-        bool operator != (const SFSpace& compare) const;
-
-        /**
-         * Determines in a fairly ad-hoc fashion whether this representation
-         * of this space is "smaller" than the given representation of the
-         * given space.
-         *
-         * The ordering imposed on Seifert fibred space representations
-         * is purely aesthetic on the part of the author, and is subject to
-         * change in future versions of Regina.  It also depends upon the
-         * particular representation, so that different representations
-         * of the same space may be ordered differently.
-         *
-         * All that this routine really offers is a well-defined way of
-         * ordering Seifert fibred space representations.
-         *
-         * \param compare the representation with which this will be compared.
-         * \return \c true if and only if this is "smaller" than the given
-         * Seifert fibred space representation.
-         */
-        bool operator < (const SFSpace& compare) const;
+        std::strong_ordering operator <=> (const SFSpace& rhs) const;
 
         Triangulation<3> construct() const override;
         AbelianGroup homology() const override;
@@ -895,30 +972,19 @@ void swap(SFSpace& a, SFSpace& b) noexcept;
 
 // Inline functions for SFSFibre
 
-inline SFSFibre::SFSFibre(long newAlpha, long newBeta) :
+inline constexpr SFSFibre::SFSFibre(long newAlpha, long newBeta) :
         alpha(newAlpha), beta(newBeta) {
-}
-
-inline bool SFSFibre::operator == (const SFSFibre& compare) const {
-    return (alpha == compare.alpha && beta == compare.beta);
-}
-inline bool SFSFibre::operator != (const SFSFibre& compare) const {
-    return (alpha != compare.alpha || beta != compare.beta);
-}
-inline bool SFSFibre::operator < (const SFSFibre& compare) const {
-    return (alpha < compare.alpha ||
-        (alpha == compare.alpha && beta < compare.beta));
 }
 
 // Inline functions for SFSpace
 
-inline SFSpace::SFSpace() : class_(o1), genus_(0),
+inline SFSpace::SFSpace() : class_(Class::o1), genus_(0),
         punctures_(0), puncturesTwisted_(0),
         reflectors_(0), reflectorsTwisted_(0),
         nFibres_(0), b_(0) {
 }
 
-inline SFSpace::SFSpace(SFSpace::ClassType useClass, unsigned long genus,
+inline SFSpace::SFSpace(SFSpace::Class useClass, unsigned long genus,
         unsigned long punctures, unsigned long puncturesTwisted,
         unsigned long reflectors, unsigned long reflectorsTwisted) :
         class_(useClass), genus_(genus),
@@ -939,11 +1005,7 @@ inline void SFSpace::swap(SFSpace& other) noexcept {
     std::swap(b_, other.b_);
 }
 
-inline bool SFSpace::operator != (const SFSpace& compare) const {
-    return ! ((*this) == compare);
-}
-
-inline SFSpace::ClassType SFSpace::baseClass() const {
+inline SFSpace::Class SFSpace::baseClass() const {
     return class_;
 }
 
@@ -952,15 +1014,18 @@ inline unsigned long SFSpace::baseGenus() const {
 }
 
 inline bool SFSpace::baseOrientable() const {
-    return (class_ == o1 || class_ == o2 || class_ == bo1 || class_ == bo2);
+    return (class_ == Class::o1 || class_ == Class::o2 ||
+        class_ == Class::bo1 || class_ == Class::bo2);
 }
 
 inline bool SFSpace::fibreReversing() const {
-    return ! (class_ == o1 || class_ == n1 || class_ == bo1 || class_ == bn1);
+    return ! (class_ == Class::o1 || class_ == Class::n1 ||
+        class_ == Class::bo1 || class_ == Class::bn1);
 }
 
 inline bool SFSpace::fibreNegating() const {
-    return ! (class_ == o1 || class_ == n2 || class_ == bo1 || class_ == bn2);
+    return ! (class_ == Class::o1 || class_ == Class::n2 ||
+        class_ == Class::bo1 || class_ == Class::bn2);
 }
 
 inline unsigned long SFSpace::punctures() const {

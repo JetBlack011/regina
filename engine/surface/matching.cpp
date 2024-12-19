@@ -160,7 +160,8 @@ MatrixInt makeMatchingEquations(const Triangulation<3>& triangulation,
             if (! (triangulation.isOriented() && triangulation.isIdeal() &&
                     triangulation.countBoundaryComponents() == 1 &&
                     triangulation.countVertices() == 1 &&
-                    triangulation.vertex(0)->linkType() == Vertex<3>::TORUS))
+                    triangulation.vertex(0)->linkType() ==
+                        Vertex<3>::Link::Torus))
                 throw InvalidArgument(
                     "NormalCoords::QuadClosed and NormalCoords::QuadOctClosed "
                     "require an oriented ideal triangulation with "
@@ -175,7 +176,9 @@ MatrixInt makeMatchingEquations(const Triangulation<3>& triangulation,
 
             MatrixInt coeffs = snapPea.slopeEquations();
 
-            if (snapPea != triangulation)
+            // Use a static_cast to ensure we are using the Triangulation<3>
+            // equality test. Otherwise C++20 complains about ambiguity.
+            if (static_cast<const Triangulation<3>&>(snapPea) != triangulation)
                 throw UnsolvedCase("SnapPea retriangulated "
                     "when attempting to build the matching equations");
 

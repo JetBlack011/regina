@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "link/link.h"
 #include "treewidth/treedecomposition-impl.h"
 #include "triangulation/facetpairing.h"
@@ -225,7 +225,7 @@ void addTreeDecomposition(pybind11::module_& m) {
             rdoc::fromPACE)
     ;
     regina::python::add_output(td);
-    regina::python::add_eq_operators(td, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(td, rdoc::__eq);
 
     regina::python::add_global_swap<TreeDecomposition>(m, rdoc::global_swap);
 

@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/trisolidtorus.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -57,7 +57,7 @@ void addTriSolidTorus(pybind11::module_& m) {
             rdoc::areAnnuliLinkedAxis)
         .def_static("recognise", &TriSolidTorus::recognise, rdoc::recognise)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<TriSolidTorus>(m, rdoc::global_swap);

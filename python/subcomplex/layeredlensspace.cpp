@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/layeredlensspace.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -56,7 +56,7 @@ void addLayeredLensSpace(pybind11::module_& m) {
         .def("isTwisted", &LayeredLensSpace::isTwisted, rdoc::isTwisted)
         .def_static("recognise", &LayeredLensSpace::recognise, rdoc::recognise)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<LayeredLensSpace>(m, rdoc::global_swap);

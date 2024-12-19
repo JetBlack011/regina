@@ -90,15 +90,15 @@ class Rational {
         /**
          * Represents the available flavours of rational number.
          */
-        enum flavourType {
-            f_infinity,
+        enum class Flavour {
+            Infinity,
                 /**< Infinity; there is only one rational of this type. */
-            f_undefined,
+            Undefined,
                 /**< Undefined; there is only one rational of this type. */
-            f_normal
+            Normal
                 /**< An ordinary rational (the denominator is non-zero). */
         };
-        flavourType flavour;
+        Flavour flavour;
             /**< Stores whether this rational is infinity, undefined or
              *   normal (non-zero denominator). */
         mpq_t data;
@@ -355,45 +355,22 @@ class Rational {
          */
         bool operator == (const Rational& compare) const;
         /**
-         * Determines if this is not equal to the given rational.
+         * Compares this to the given rational.
          *
-         * \param compare the rational with which this will be compared.
-         * \return \c true if and only if this rational is not equal to
-         * \a compare.
-         */
-        bool operator != (const Rational& compare) const;
-        /**
-         * Determines if this is less than the given rational.
+         * This is a numerical comparison; that is, it uses the usual ordering
+         * of the rationals.  Infinity is considered greater than any rational,
+         * and undefined is considered less than any rational.
          *
-         * \param compare the rational with which this will be compared.
-         * \return \c true if and only if this rational is less than
-         * \a compare.
-         */
-        bool operator < (const Rational& compare) const;
-        /**
-         * Determines if this is greater than the given rational.
+         * This generates all of the usual comparison operators, including
+         * `<`, `<=`, `>`, and `>=`.
          *
-         * \param compare the rational with which this will be compared.
-         * \return \c true if and only if this rational is greater than
-         * \a compare.
-         */
-        bool operator > (const Rational& compare) const;
-        /**
-         * Determines if this is less than or equal to the given rational.
+         * \python This spaceship operator `x <=> y` is not available, but the
+         * other comparison operators that it generates _are_ available.
          *
-         * \param compare the rational with which this will be compared.
-         * \return \c true if and only if this rational is less than or
-         * equal to \a compare.
+         * \return The result of the numerical comparison between this
+         * and the given rational.
          */
-        bool operator <= (const Rational& compare) const;
-        /**
-         * Determines if this is greater than or equal to the given rational.
-         *
-         * \param compare the rational with which this will be compared.
-         * \return \c true if and only if this rational is greater than
-         * or equal to \a compare.
-         */
-        bool operator >= (const Rational& compare) const;
+        std::strong_ordering operator <=> (const Rational&) const;
 
         /**
          * Attempts to convert this rational to a real number.
@@ -496,12 +473,12 @@ std::ostream& operator << (std::ostream& out, const Rational& rat);
 
 // Inline functions for Rational
 
-inline Rational::Rational() : flavour(f_normal) {
+inline Rational::Rational() : flavour(Flavour::Normal) {
     mpq_init(data);
 }
 inline Rational::Rational(const Rational& value) : flavour(value.flavour) {
     mpq_init(data);
-    if (flavour == f_normal)
+    if (flavour == Flavour::Normal)
         mpq_set(data, value.data);
 }
 inline Rational::Rational(Rational&& src) noexcept : flavour(src.flavour) {
@@ -510,16 +487,16 @@ inline Rational::Rational(Rational&& src) noexcept : flavour(src.flavour) {
 }
 template <bool withInfinity>
 inline Rational::Rational(const IntegerBase<withInfinity>& value) :
-        flavour(f_normal) {
+        flavour(Flavour::Normal) {
     mpq_init(data);
     if (value.isInfinite())
-        flavour = f_infinity;
+        flavour = Flavour::Infinity;
     else if (value.isNative())
         mpq_set_si(data, value.longValue(), 1);
     else
         mpq_set_z(data, value.rawData());
 }
-inline Rational::Rational(long value) : flavour(f_normal) {
+inline Rational::Rational(long value) : flavour(Flavour::Normal) {
     mpq_init(data);
     mpq_set_si(data, value, 1);
 }
@@ -529,11 +506,11 @@ Rational::Rational(const IntegerBase<withInfinity>& num,
     mpq_init(data);
     if (den.isZero()) {
         if (num.isZero())
-            flavour = f_undefined;
+            flavour = Flavour::Undefined;
         else
-            flavour = f_infinity;
+            flavour = Flavour::Infinity;
     } else {
-        flavour = f_normal;
+        flavour = Flavour::Normal;
         if (num.isNative() && den.isNative())
             mpq_set_si(data, num.longValue(), den.longValue());
         else if (num.isNative()) {
@@ -562,25 +539,25 @@ inline Rational& Rational::operator = (const Rational& value) {
     // - the libgmpxx classes do not special-case self-assignment.
     // The C++ test suite tests self-assignment of Rationals also.
     flavour = value.flavour;
-    if (flavour == f_normal)
+    if (flavour == Flavour::Normal)
         mpq_set(data, value.data);
     return *this;
 }
 template <bool withInfinity>
 inline Rational& Rational::operator = (const IntegerBase<withInfinity>& value) {
     if (value.isInfinite())
-        flavour = f_infinity;
+        flavour = Flavour::Infinity;
     else if (value.isNative()) {
-        flavour = f_normal;
+        flavour = Flavour::Normal;
         mpq_set_si(data, value.longValue(), 1);
     } else {
-        flavour = f_normal;
+        flavour = Flavour::Normal;
         mpq_set_z(data, value.rawData());
     }
     return *this;
 }
 inline Rational& Rational::operator = (long value) {
-    flavour = f_normal;
+    flavour = Flavour::Normal;
     mpq_set_si(data, value, 1);
     return *this;
 }
@@ -599,18 +576,8 @@ inline void Rational::swap(Rational& other) noexcept {
 }
 
 inline void Rational::negate() {
-    if (flavour == f_normal)
+    if (flavour == Flavour::Normal)
         mpq_neg(data, data);
-}
-
-inline bool Rational::operator <= (const Rational& compare) const {
-    return ! (*this > compare);
-}
-inline bool Rational::operator >= (const Rational& compare) const {
-    return ! (*this < compare);
-}
-inline bool Rational::operator != (const Rational& compare) const {
-    return ! (*this == compare);
 }
 
 inline void swap(Rational& a, Rational& b) noexcept {

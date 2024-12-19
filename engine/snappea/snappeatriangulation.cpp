@@ -167,7 +167,7 @@ SnapPeaTriangulation::SnapPeaTriangulation(SnapPeaTriangulation&& src)
 SnapPeaTriangulation& SnapPeaTriangulation::operator = (
         SnapPeaTriangulation&& src) {
     // Use the Triangulation<3> assignment operator instead of sync().
-    SnapPeaChangeSpan<changeTriangulationNoSync> span(*this);
+    SnapPeaChangeSpan<ChangePolicy::TriangulationNoSync> span(*this);
     Triangulation<3>::operator = (std::move(src));
 
     // We have already moved out of src, but this only touches the
@@ -307,9 +307,9 @@ SnapPeaTriangulation::SnapPeaTriangulation(const Triangulation<3>& tri, bool) :
     if (tri.isClosed())
         regina::snappea::do_Dehn_filling(data_);
 
-    auto soln = static_cast<SolutionType>(
-        regina::snappea::get_filled_solution_type(data_));
-    if (soln == geometric_solution || soln == nongeometric_solution) {
+    auto soln = regina::snappea::get_filled_solution_type(data_);
+    if (soln == regina::snappea::geometric_solution ||
+            soln == regina::snappea::nongeometric_solution) {
         try {
             regina::snappea::install_shortest_bases(data_);
         } catch (regina::SnapPeaFatalError& err) {
@@ -453,8 +453,8 @@ void SnapPeaTriangulation::swap(SnapPeaTriangulation& other) {
 
     // Instead of sync(), we use Triangulation<3>::swap() to update the
     // regina triangulations.
-    SnapPeaChangeSpan<changeTriangulationNoSync> span1(*this);
-    SnapPeaChangeSpan<changeTriangulationNoSync> span2(other);
+    SnapPeaChangeSpan<ChangePolicy::TriangulationNoSync> span1(*this);
+    SnapPeaChangeSpan<ChangePolicy::TriangulationNoSync> span2(other);
     Triangulation<3>::swap(other);
 
     std::swap(data_, other.data_);
@@ -479,11 +479,11 @@ std::string SnapPeaTriangulation::name() const {
     return (data_ ? get_triangulation_name(data_) : "");
 }
 
-SnapPeaTriangulation::SolutionType SnapPeaTriangulation::solutionType()
+SnapPeaTriangulation::Solution SnapPeaTriangulation::solutionType()
         const {
     if (! data_)
-        return SnapPeaTriangulation::not_attempted;
-    return static_cast<SolutionType>(
+        return Solution::NotAttempted;
+    return static_cast<Solution>(
         regina::snappea::get_filled_solution_type(data_));
 }
 
@@ -556,7 +556,7 @@ void SnapPeaTriangulation::unfill(unsigned whichCusp) {
         return;
     }
 
-    SnapPeaChangeSpan<changeFillingsOnly> span(*this);
+    SnapPeaChangeSpan<ChangePolicy::FillingsOnly> span(*this);
 
     regina::snappea::set_cusp_info(data_, whichCusp, true, 0, 0);
 
@@ -600,7 +600,7 @@ bool SnapPeaTriangulation::fill(int m, int l, unsigned whichCusp) {
 
     // Do it.
 
-    SnapPeaChangeSpan<changeFillingsOnly> span(*this);
+    SnapPeaChangeSpan<ChangePolicy::FillingsOnly> span(*this);
 
     regina::snappea::set_cusp_info(data_, whichCusp, false, mReal, lReal);
 
@@ -1080,9 +1080,9 @@ void SnapPeaTriangulation::fillingsHaveChanged() {
     if (data_) {
         // Refresh the array of tetrahedron shapes.
         regina::snappea::Tetrahedron* stet;
-        auto soln = static_cast<SolutionType>(
-            regina::snappea::get_filled_solution_type(data_));
-        if (soln == not_attempted || soln == no_solution) {
+        auto soln = regina::snappea::get_filled_solution_type(data_);
+        if (soln == regina::snappea::not_attempted ||
+                soln == regina::snappea::no_solution) {
             shape_ = nullptr;
         } else {
             // Fetch the shapes directly from SnapPea's internal
@@ -1129,8 +1129,8 @@ void SnapPeaTriangulation::fillRegina(regina::snappea::Triangulation* src,
 }
 
 size_t SnapPeaTriangulation::enumerateCoversInternal(int sheets,
-        CoverEnumerationType type,
-        std::function<void(SnapPeaTriangulation&&, CoverType)>&& action) const {
+        CoverEnumeration type,
+        std::function<void(SnapPeaTriangulation&&, Cover)>&& action) const {
     if (! data_)
         return 0;
 
@@ -1142,7 +1142,7 @@ size_t SnapPeaTriangulation::enumerateCoversInternal(int sheets,
     for (auto rep = reps->list; rep; rep = rep->next) {
         action(SnapPeaTriangulation(regina::snappea::construct_cover(
                 data_, rep, sheets)),
-            static_cast<CoverType>(rep->covering_type));
+            static_cast<Cover>(rep->covering_type));
         ++ans;
     }
 

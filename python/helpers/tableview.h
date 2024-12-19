@@ -39,7 +39,7 @@
  */
 
 #include "../helpers.h"
-#include "../pybind11/stl.h"
+#include <pybind11/stl.h>
 #include "utilities/tableview.h"
 #include "../docstrings/utilities/tableview.h"
 
@@ -147,7 +147,7 @@ void addTableView(pybind11::module_& m) {
         }
         out << ']';
     });
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_END
 }

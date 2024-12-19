@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/snappedball.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -54,7 +54,7 @@ void addSnappedBall(pybind11::module_& m) {
         .def("internalEdge", &SnappedBall::internalEdge, rdoc::internalEdge)
         .def_static("recognise", &SnappedBall::recognise, rdoc::recognise)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<SnappedBall>(m, rdoc::global_swap);

@@ -44,30 +44,30 @@ def evalFlag(x):
 	# Evaluate as a rich flags object:
 	evalObj(x | x)
 
-evalFlag(regina.PURGE_NONE)
-evalFlag(regina.PURGE_NON_MINIMAL)
+evalFlag(regina.CensusPurge.Nil)
+evalFlag(regina.CensusPurge.NonMinimal)
 
-evalFlag(regina.AS_ALG_DEFAULT)
-evalFlag(regina.AS_ALG_TREE)
+evalFlag(regina.AngleAlg.Default)
+evalFlag(regina.AngleAlg.Tree)
 
-evalFlag(regina.HS_LIST_DEFAULT)
-evalFlag(regina.HS_VERTEX)
+evalFlag(regina.HyperList.Default)
+evalFlag(regina.HyperList.Vertex)
 
-evalFlag(regina.HS_ALG_DEFAULT)
-evalFlag(regina.HS_VERTEX_DD)
+evalFlag(regina.HyperAlg.Default)
+evalFlag(regina.HyperAlg.VertexDD)
 
-evalFlag(regina.NS_LIST_DEFAULT)
-evalFlag(regina.NS_FUNDAMENTAL)
+evalFlag(regina.NormalList.Default)
+evalFlag(regina.NormalList.Fundamental)
 
-evalFlag(regina.NS_ALG_DEFAULT)
-evalFlag(regina.NS_VERTEX_TREE)
+evalFlag(regina.NormalAlg.Default)
+evalFlag(regina.NormalAlg.VertexTree)
 
-evalFlag(regina.surfaceExportNone)
-evalFlag(regina.surfaceExportName)
+evalFlag(regina.SurfaceExport.Nil)
+evalFlag(regina.SurfaceExport.Name)
 
 # Some enum types that are NOT intended to be used as flags:
 
 evalObj(regina.NormalCoords.Standard)            # value is zero
 evalObj(regina.NormalCoords.Quad)                # value is non-zero
-evalObj(regina.Triangle3.UNKNOWN_TYPE) # value is zero
-evalObj(regina.Triangle3.PARACHUTE)    # value is non-zero
+evalObj(regina.Triangle3.Type.Unknown)           # value is zero
+evalObj(regina.Triangle3.Type.Parachute)         # value is non-zero

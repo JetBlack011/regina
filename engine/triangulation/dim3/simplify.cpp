@@ -120,231 +120,10 @@ bool Triangulation<3>::fourFourMove(Edge<3>* e, int newAxis, bool check,
 
     PacketChangeGroup span(*this);
 
-    pachner(tri23, false, true);
-    pachner(oldTet[3]->edge(edge32), false, true);
+    pachner(tri23, regina::unprotected);
+    pachner(oldTet[3]->edge(edge32), regina::unprotected);
 
     // Done!
-    return true;
-}
-
-bool Triangulation<3>::twoZeroMove(Edge<3>* e, bool check, bool perform) {
-    using LockMask = Simplex<3>::LockMask;
-
-    if (check) {
-        if (e->isBoundary() || ! e->isValid())
-            return false;
-        if (e->degree() != 2)
-            return false;
-    }
-
-    Tetrahedron<3>* tet[2];
-    Perm<4> perm[2];
-
-    int i = 0;
-    for (auto& emb : *e) {
-        tet[i] = emb.tetrahedron();
-        perm[i] = emb.vertices();
-
-        if (tet[i]->locks_) {
-            // The only things that can be locked are the two exterior facets.
-            if (tet[i]->isLocked()) {
-                if (check)
-                    return false;
-                if (perform)
-                    throw LockViolation("An attempt was made to perform a "
-                        "2-0 move using a locked tetrahedron");
-            }
-            for (int v = 2; v < 4; ++v)
-                if (tet[i]->isFacetLocked(perm[i][v])) {
-                    if (check)
-                        return false;
-                    if (perform)
-                        throw LockViolation("An attempt was made to perform a "
-                            "2-0 move around a locked triangle");
-                }
-        }
-
-        i++;
-    }
-
-    if (check)
-        if (tet[0] == tet[1])
-            return false;
-
-    if (check) {
-        Edge<3>* edge[2];
-        Triangle<3>* triangle[2][2];
-            // triangle[i][j] will be on tetrahedron i opposite vertex j of the
-            // internal edge.
-        for (i=0; i<2; i++) {
-            edge[i] = tet[i]->edge(Edge<3>::edgeNumber[perm[i][2]][perm[i][3]]);
-            triangle[i][0] = tet[i]->triangle(perm[i][0]);
-            triangle[i][1] = tet[i]->triangle(perm[i][1]);
-        }
-
-        if (edge[0] == edge[1])
-            return false;
-        if (edge[0]->isBoundary() && edge[1]->isBoundary())
-            return false;
-        if (triangle[0][0] == triangle[1][0])
-            return false;
-        if (triangle[0][1] == triangle[1][1])
-            return false;
-
-        // The cases with two pairs of identified triangles and with one
-        // pair of identified triangles plus one pair of boundary triangles are
-        // all covered by the following check.
-        if (tet[0]->component()->size() == 2)
-            return false;
-    }
-
-    if (! perform)
-        return true;
-
-    // Actually perform the move.
-    // The following ChangeAndClearSpan is essential, since we use
-    // "raw" routines (newSimplexRaw, joinRaw, etc.) below.
-    ChangeAndClearSpan<ChangeType::PreserveTopology> span(*this);
-
-    // Unglue faces from the doomed tetrahedra and glue them to each other.
-    Perm<4> crossover = tet[0]->adjacentGluing(perm[0][2]);
-    for (i=0; i<2; i++) {
-        // Process the facets opposite vertex i of the edge e.
-        Tetrahedron<3>* top = tet[0]->adjacentTetrahedron(perm[0][i]);
-        Tetrahedron<3>* bottom = tet[1]->adjacentTetrahedron(perm[1][i]);
-
-        if (! top) {
-            // Bottom triangle becomes boundary.
-            if (tet[0]->isFacetLocked(perm[0][i]))
-                bottom->lockFacetRaw(tet[1]->adjacentFacet(perm[1][i]));
-            tet[1]->unjoinRaw(perm[1][i]);
-        } else if (! bottom) {
-            // Top triangle becomes boundary.
-            if (tet[1]->isFacetLocked(perm[1][i]))
-                top->lockFacetRaw(tet[0]->adjacentFacet(perm[0][i]));
-            tet[0]->unjoinRaw(perm[0][i]);
-        } else {
-            // Bottom and top triangles join.
-            int topFace = tet[0]->adjacentFace(perm[0][i]);
-            int bottomFace = tet[1]->adjacentFace(perm[1][i]);
-
-            if (tet[0]->isFacetLocked(perm[0][i]))
-                bottom->lockFacetRaw(bottomFace);
-            if (tet[1]->isFacetLocked(perm[1][i]))
-                top->lockFacetRaw(topFace);
-
-            Perm<4> gluing = tet[1]->adjacentGluing(perm[1][i]) *
-                crossover * top->adjacentGluing(topFace);
-            tet[0]->unjoinRaw(perm[0][i]);
-            tet[1]->unjoinRaw(perm[1][i]);
-            top->joinRaw(topFace, bottom, gluing);
-        }
-    }
-
-    // Finally remove and dispose of the tetrahedra.
-    removeSimplexRaw(tet[0]);
-    removeSimplexRaw(tet[1]);
-
-    return true;
-}
-
-bool Triangulation<3>::twoZeroMove(Vertex<3>* v, bool check, bool perform) {
-    using LockMask = Simplex<3>::LockMask;
-
-    if (check) {
-        if (v->linkType() != Vertex<3>::SPHERE)
-            return false;
-        if (v->degree() != 2)
-            return false;
-    }
-
-    Tetrahedron<3>* tet[2];
-    int vertex[2];
-    bool lockExterior = false;
-
-    int i = 0;
-    for (auto& emb : *v) {
-        tet[i] = emb.tetrahedron();
-        vertex[i] = emb.vertex();
-
-        if (tet[i]->locks_) {
-            // The only thing that can be locked is the exterior facet.
-            if (tet[i]->locks_ != (LockMask(1) << vertex[i])) {
-                if (check)
-                    return false;
-                if (perform)
-                    throw LockViolation("An attempt was made to perform a "
-                        "2-0 move using a locked tetrahedron and/or facet");
-            }
-            // Remember that, when we perform the move, the two merged
-            // exterior facets need to be locked from both sides.
-            lockExterior = true;
-        }
-
-        i++;
-    }
-
-    if (check) {
-        if (tet[0] == tet[1])
-            return false;
-
-        Triangle<3>* triangle[2];
-        for (i = 0; i < 2; i++)
-            triangle[i] = tet[i]->triangle(vertex[i]);
-        if (triangle[0] == triangle[1])
-            return false;
-        if (triangle[0]->isBoundary() && triangle[1]->isBoundary())
-            return false;
-
-        // Check that the tetrahedra are joined along all three triangles.
-        for (i = 0; i < 4; i++) {
-            if (i == vertex[0])
-                continue;
-            if (tet[0]->adjacentTetrahedron(i) != tet[1])
-                return false;
-        }
-    }
-
-    if (! perform)
-        return true;
-
-    // Actually perform the move.
-    // The following ChangeAndClearSpan is essential, since we use
-    // "raw" routines (newSimplexRaw, joinRaw, etc.) below.
-    ChangeAndClearSpan<ChangeType::PreserveTopology> span(*this);
-
-    // Unglue faces from the doomed tetrahedra and glue them to each
-    // other.
-    Tetrahedron<3>* top = tet[0]->adjacentTetrahedron(vertex[0]);
-    Tetrahedron<3>* bottom = tet[1]->adjacentTetrahedron(vertex[1]);
-
-    if (! top) {
-        if (lockExterior)
-            bottom->lockFacetRaw(tet[1]->adjacentFacet(vertex[1]));
-        tet[1]->unjoinRaw(vertex[1]);
-    } else if (! bottom) {
-        if (lockExterior)
-            top->lockFacetRaw(tet[0]->adjacentFacet(vertex[0]));
-        tet[0]->unjoinRaw(vertex[0]);
-    } else {
-        int topFace = tet[0]->adjacentFace(vertex[0]);
-        int bottomFace = tet[1]->adjacentFace(vertex[1]);
-        if (lockExterior) {
-            top->lockFacetRaw(topFace);
-            bottom->lockFacetRaw(bottomFace);
-        }
-        Perm<4> crossover = tet[0]->adjacentGluing(vertex[0] == 0 ? 1 : 0);
-        Perm<4> gluing = tet[1]->adjacentGluing(vertex[1]) *
-            crossover * top->adjacentGluing(topFace);
-        tet[0]->unjoinRaw(vertex[0]);
-        tet[1]->unjoinRaw(vertex[1]);
-        top->joinRaw(topFace, bottom, gluing);
-    }
-
-    // Finally remove and dispose of the tetrahedra.
-    removeSimplexRaw(tet[0]);
-    removeSimplexRaw(tet[1]);
-
     return true;
 }
 
@@ -763,7 +542,7 @@ bool Triangulation<3>::openBook(Triangle<3>* f, bool check, bool perform) {
 
         if (nBdry != 2)
             return false;
-        if (tet->vertex(vertices[fVertex])->linkType() != Vertex<3>::DISC)
+        if (tet->vertex(vertices[fVertex])->linkType() != Vertex<3>::Link::Disc)
             return false;
         if (! f->edge(fVertex)->isValid())
             return false;
@@ -810,8 +589,8 @@ bool Triangulation<3>::closeBook(Edge<3>* e, bool check, bool perform) {
     if (check) {
         if (t0->vertex(p0[2]) == t1->vertex(p1[3]))
             return false;
-        if (t0->vertex(p0[2])->linkType() != Vertex<3>::DISC ||
-               t1->vertex(p1[3])->linkType() != Vertex<3>::DISC)
+        if (t0->vertex(p0[2])->linkType() != Vertex<3>::Link::Disc ||
+               t1->vertex(p1[3])->linkType() != Vertex<3>::Link::Disc)
             return false;
     }
 
@@ -825,81 +604,6 @@ bool Triangulation<3>::closeBook(Edge<3>* e, bool check, bool perform) {
     // know that the topology will be preserved.
     TopologyLock lock(*this);
     t0->join(p0[3], t1, p1 * Perm<4>(2, 3) * p0.inverse());
-    return true;
-}
-
-bool Triangulation<3>::shellBoundary(Tetrahedron<3>* t,
-        bool check, bool perform) {
-    if (t->isLocked()) {
-        if (check)
-            return false;
-        if (perform)
-            throw LockViolation("An attempt was made to perform a "
-                "boundary shelling move on a locked tetrahedron");
-    }
-    for (int i = 0; i < 4; ++i)
-        if ((! t->adjacentSimplex(i)) && t->isFacetLocked(i)) {
-            if (check)
-                return false;
-            if (perform)
-                throw LockViolation("An attempt was made to perform a "
-                    "boundary shelling move that would remove a "
-                    "locked boundary triangle");
-        }
-
-    // To perform the move we don't even need a skeleton.
-    if (check) {
-        ensureSkeleton();
-
-        int nBdry = 0;
-        int i, j;
-        int bdry[4];
-        for (i=0; i<4; i++)
-            if (t->triangle(i)->isBoundary())
-                bdry[nBdry++] = i;
-        if (nBdry < 1 || nBdry > 3)
-            return false;
-        if (nBdry == 1) {
-            if (t->vertex(bdry[0])->isBoundary())
-                return false;
-
-            Edge<3>* internal[3];
-            j = 0;
-            for (i = 0; i < 4; ++i)
-                if (i != bdry[0])
-                    internal[j++] = t->edge(Edge<3>::edgeNumber[bdry[0]][i]);
-
-            if (! (internal[0]->isValid() &&
-                    internal[1]->isValid() &&
-                    internal[2]->isValid()))
-                return false;
-
-            if (internal[0] == internal[1] ||
-                    internal[1] == internal[2] ||
-                    internal[2] == internal[0])
-                return false;
-        } else if (nBdry == 2) {
-            i = Edge<3>::edgeNumber[bdry[0]][bdry[1]];
-            if (t->edge(i)->isBoundary())
-                return false;
-            if (! t->edge(i)->isValid())
-                return false;
-            if (t->adjacentTetrahedron(Edge<3>::edgeVertex[5 - i][0]) == t)
-                return false;
-        }
-    }
-
-    if (! perform)
-        return true;
-
-    // Actually perform the move.
-    // The following ChangeAndClearSpan is essential, since we use the
-    // "raw" routine removeSimplexRaw() below.  This is because
-    // the facets on the internal side of the shelling _are_ allowed
-    // to be locked, and we do not want to throw an exception because of this.
-    ChangeAndClearSpan<ChangeType::PreserveTopology> span(*this);
-
-    removeSimplexRaw(t);
     return true;
 }
 
@@ -934,9 +638,9 @@ bool Triangulation<3>::collapseEdge(Edge<3>* e, bool check, bool perform) {
         if (e->vertex(0)->isBoundary() && e->vertex(1)->isBoundary()) {
             if (! e->isBoundary())
                 return false;
-            if (e->vertex(0)->linkType() != Vertex<3>::DISC)
+            if (e->vertex(0)->linkType() != Vertex<3>::Link::Disc)
                 return false;
-            if (e->vertex(1)->linkType() != Vertex<3>::DISC)
+            if (e->vertex(1)->linkType() != Vertex<3>::Link::Disc)
                 return false;
         }
 

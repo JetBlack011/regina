@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "triangulation/dim4.h"
 #include "../helpers.h"
 #include "../helpers/tableview.h"
@@ -67,7 +67,7 @@ void addTriangle4(pybind11::module_& m) {
         .def("vertices", &TriangleEmbedding<4>::vertices, rbase::vertices)
     ;
     regina::python::add_output(e);
-    regina::python::add_eq_operators(e, rbase::__eq, rbase::__ne);
+    regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
     RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)

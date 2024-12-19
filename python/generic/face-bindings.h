@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "triangulation/generic.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
@@ -72,7 +72,7 @@ void addFace(pybind11::module_& m, const char* name, const char* embName) {
         e.def("pentachoron", &FaceEmbedding<dim, subdim>::pentachoron,
             rbase2::pentachoron);
     regina::python::add_output(e);
-    regina::python::add_eq_operators(e, rbase::__eq, rbase::__ne);
+    regina::python::add_eq_operators(e, rbase::__eq);
 
     // We use the global scope here because all of Face's members are
     // inherited, and so Face's own docstring namespace does not exist.
@@ -106,8 +106,6 @@ void addFace(pybind11::module_& m, const char* name, const char* embName) {
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
         .def("isBoundary", &Face<dim, subdim>::isBoundary, rbase::isBoundary)
         .def_static("ordering", &Face<dim, subdim>::ordering, rbase2::ordering)
-        .def_static("faceNumber", &Face<dim, subdim>::faceNumber,
-            rbase2::faceNumber)
         .def_static("containsVertex", &Face<dim, subdim>::containsVertex,
             rbase2::containsVertex)
         .def_readonly_static("nFaces", &Face<dim, subdim>::nFaces)
@@ -116,6 +114,18 @@ void addFace(pybind11::module_& m, const char* name, const char* embName) {
         .def_readonly_static("dimension", &Face<dim, subdim>::dimension)
         .def_readonly_static("subdimension", &Face<dim, subdim>::subdimension)
     ;
+    if constexpr (subdim == 1) {
+        c.def_static("faceNumber",
+            pybind11::overload_cast<regina::Perm<dim+1>>(
+                &Face<dim, subdim>::faceNumber),
+            rbase2::faceNumber);
+        c.def_static("faceNumber",
+            pybind11::overload_cast<int, int>(&Face<dim, subdim>::faceNumber),
+            rbase2::faceNumber);
+    } else {
+        c.def_static("faceNumber", &Face<dim, subdim>::faceNumber,
+            rbase2::faceNumber);
+    }
     if constexpr (subdim > 0) {
         c.def("face", &regina::python::face<Face<dim, subdim>, subdim, int>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),

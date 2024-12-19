@@ -747,11 +747,11 @@ static void verifyComplementBasic(const Link& link, const char* name) {
 
     size_t ideal = 0;
     for (auto v : c.vertices()) {
-        regina::Vertex<3>::LinkType t = v->linkType();
-        if (t == regina::Vertex<3>::TORUS)
+        auto t = v->linkType();
+        if (t == regina::Vertex<3>::Link::Torus)
             ++ideal;
         else
-            EXPECT_EQ(t, regina::Vertex<3>::SPHERE);
+            EXPECT_EQ(t, regina::Vertex<3>::Link::Sphere);
     }
     EXPECT_EQ(ideal, link.countComponents());
 }
@@ -841,28 +841,24 @@ static void verifyR1Count(const TestCase& test, size_t up, size_t down) {
 
     SCOPED_TRACE_CSTRING(test.name);
 
-    // We solemnly promise not to alter the link; however, r1() requires the
-    // link to be non-const.
-    Link& link(const_cast<Link&>(test.link));
-
     size_t foundUp = 0, foundDown = 0;
 
     for (int side = 0; side < 2; ++side)
         for (int sign = -1; sign <= 1; sign += 2)
-            if (link.r1(StrandRef(), side, sign, true, false))
+            if (test.link.hasR1(StrandRef(), side, sign))
                 ++foundUp;
 
-    if (link.r1(nullptr, true, false))
+    if (test.link.hasR1(nullptr))
         ++foundDown;
 
-    for (auto c : link.crossings()) {
+    for (auto c : test.link.crossings()) {
         for (int side = 0; side < 2; ++side)
             for (int sign = -1; sign <= 1; sign += 2)
                 for (int strand = 0; strand < 2; ++strand)
-                    if (link.r1(c->strand(strand), side, sign, true, false))
+                    if (test.link.hasR1(c->strand(strand), side, sign))
                         ++foundUp;
 
-        if (link.r1(c, true, false))
+        if (test.link.hasR1(c))
             ++foundDown;
     }
 
@@ -915,45 +911,41 @@ static void verifyR2Count(const TestCase& test, size_t up,
 
     SCOPED_TRACE_CSTRING(test.name);
 
-    // We solemnly promise not to alter the link; however, r2() requires the
-    // link to be non-const.
-    Link& link(const_cast<Link&>(test.link));
-
     size_t foundUp = 0, foundDownByCrossing = 0, foundDownByStrand = 0;
 
     for (int side1 = 0; side1 < 2; ++side1)
         for (int side2 = 0; side2 < 2; ++side2)
-            if (link.r2({}, side1, {}, side2, true, false))
+            if (test.link.hasR2({}, side1, {}, side2))
                 ++foundUp;
 
-    for (auto c : link.crossings()) {
+    for (auto c : test.link.crossings()) {
         for (int side1 = 0; side1 < 2; ++side1)
             for (int side2 = 0; side2 < 2; ++side2)
                 for (int str1 = 0; str1 < 2; ++str1) {
-                    if (link.r2({}, side1, c->strand(str1), side2, true, false))
+                    if (test.link.hasR2({}, side1, c->strand(str1), side2))
                         ++foundUp;
-                    if (link.r2(c->strand(str1), side1, {}, side2, true, false))
+                    if (test.link.hasR2(c->strand(str1), side1, {}, side2))
                         ++foundUp;
 
-                    for (auto c2 : link.crossings())
+                    for (auto c2 : test.link.crossings())
                         for (int str2 = 0; str2 < 2; ++str2)
-                            if (link.r2(c->strand(str1), side1,
-                                    c2->strand(str2), side2, true, false))
+                            if (test.link.hasR2(c->strand(str1), side1,
+                                    c2->strand(str2), side2))
                                 ++foundUp;
                 }
 
-        if (link.r2(c, true, false))
+        if (test.link.hasR2(c))
             ++foundDownByCrossing;
 
         for (int strand = 0; strand < 2; ++strand)
-            if (link.r2(c->strand(strand), true, false))
+            if (test.link.hasR2(c->strand(strand)))
                 ++foundDownByStrand;
     }
 
-    if (link.r2(nullptr, true, false))
+    if (test.link.hasR2(nullptr))
         ++foundDownByCrossing;
 
-    if (link.r2(StrandRef(), true, false))
+    if (test.link.hasR2(StrandRef()))
         ++foundDownByStrand;
 
     EXPECT_EQ(foundUp, up);
@@ -1002,27 +994,23 @@ static void verifyR3Count(const TestCase& test, size_t movesByCrossing) {
 
     SCOPED_TRACE_CSTRING(test.name);
 
-    // We solemnly promise not to alter the link; however, r2() requires the
-    // link to be non-const.
-    Link& link(const_cast<Link&>(test.link));
-
     size_t foundByCrossing = 0, foundByStrand = 0;
 
     for (int side = 0; side < 2; ++side) {
-        if (link.r3(nullptr, side, true, false))
+        if (test.link.hasR3(nullptr, side))
             ++foundByCrossing;
 
-        if (link.r3(StrandRef(), side, true, false))
+        if (test.link.hasR3(StrandRef(), side))
             ++foundByStrand;
     }
 
-    for (auto c : link.crossings())
+    for (auto c : test.link.crossings())
         for (int side = 0; side < 2; ++side) {
-            if (link.r3(c, side, true, false))
+            if (test.link.hasR3(c, side))
                 ++foundByCrossing;
 
             for (int strand = 0; strand < 2; ++strand)
-                if (link.r3(c->strand(strand), side, true, false))
+                if (test.link.hasR3(c->strand(strand), side))
                     ++foundByStrand;
         }
 
@@ -2334,8 +2322,6 @@ void verifyCopyMove(const Link& link, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     if (link.size() == 0) {
-        Crossing* c0 = nullptr;
-
         Link copy(link);
         EXPECT_EQ(copy.size(), 0);
         EXPECT_TRUE(looksIdentical(copy, link));

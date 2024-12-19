@@ -32,6 +32,20 @@ identity permutation, or 1 for the (unique) non-identity permutation.
 This is consistent with the second-generation codes used in classes
 Perm<4>,...,Perm<7>.
 
+You can iterate through all permutations using a range-based ``for``
+loop over *Sn*, and this will be extremely fast in both C++ and
+Python:
+
+```
+for (auto p : Perm<2>::Sn) { ... }
+```
+
+This behaviour does not generalise to the large permutation classes
+Perm<n> with *n* ≥ 8, which are not as tightly optimised: such range-
+based ``for`` loops are still supported for *n* ≥ 8 but will be
+significantly slower in Python than in C++. See the generic Perm class
+notes for further details.
+
 To use this class, simply include the main permutation header
 maths/perm.h.
 
@@ -53,12 +67,9 @@ Python:
 
 namespace Perm_ {
 
-// Docstring regina::python::doc::Perm_::S1Lookup
-static const char *S1Lookup = R"doc(A lightweight array-like object used to implement Perm<2>::S1.)doc";
-
 // Docstring regina::python::doc::Perm_::S2Index
 static const char *S2Index =
-R"doc(Returns the index of this permutation in the Perm<2>::S2 array.
+R"doc(Returns the index of this permutation in the Perm<2>::Sn array.
 
 This is a dimension-specific alias for SnIndex(). In general, for
 every *n* there will be a member function Perm<n>::SnIndex(); however,
@@ -69,10 +80,7 @@ See Sn for further information on how these permutations are indexed.
 
 Returns:
     the index *i* for which this permutation is equal to
-    Perm<2>::S2[i]. This will be 0 or 1.)doc";
-
-// Docstring regina::python::doc::Perm_::S2Lookup
-static const char *S2Lookup = R"doc(A lightweight array-like object used to implement Perm<2>::S2.)doc";
+    Perm<2>::Sn[i]. This will be 0 or 1.)doc";
 
 // Docstring regina::python::doc::Perm_::SnIndex
 static const char *SnIndex =
@@ -94,6 +102,28 @@ Parameter ``source``:
 Returns:
     the image of *source*.)doc";
 
+// Docstring regina::python::doc::Perm_::__cmp
+static const char *__cmp =
+R"doc(Compares two permutations according to which appears earlier in the
+array Perm<2>::Sn.
+
+For the special case of permutations on two elements, this ordering is
+consistent with the ordering implied by compareWith() (but beware: for
+other permutation classes this is not true). Also, like all
+permutation classes, this ordering is consistent with the ordering
+implied by the ++ operators.
+
+This generates all of the usual comparison operators, including ``<``,
+``<=``, ``>``, and ``>=``.
+
+Python:
+    This spaceship operator ``x <=> y`` is not available, but the
+    other comparison operators that it generates _are_ available.
+
+Returns:
+    The result that indicates which permutation appears earlier in
+    *Sn*.)doc";
+
 // Docstring regina::python::doc::Perm_::__copy
 static const char *__copy =
 R"doc(Creates a permutation that is a clone of the given permutation.
@@ -108,9 +138,6 @@ static const char *__default = R"doc(Creates the identity permutation.)doc";
 static const char *__eq =
 R"doc(Determines if this is equal to the given permutation. This is true if
 and only if both permutations have the same images for 0 and 1.
-
-Parameter ``other``:
-    the permutation with which to compare this.
 
 Returns:
     ``True`` if and only if this and the given permutation are equal.)doc";
@@ -153,23 +180,6 @@ Precondition:
 Parameter ``image``:
     the array of images.)doc";
 
-// Docstring regina::python::doc::Perm_::__lt
-static const char *__lt =
-R"doc(Determines if this appears earlier than the given permutation in the
-array Perm<2>::Sn.
-
-For the special case of permutations on two elements, this ordering is
-consistent with the ordering implied by compareWith() (but beware: for
-other permutation classes this is not true). Also, like all
-permutation classes, this ordering is consistent with the ordering
-implied by the ++ operators.
-
-Parameter ``rhs``:
-    the permutation to compare this against.
-
-Returns:
-    ``True`` if and only if this appears before *rhs* in *Sn*.)doc";
-
 // Docstring regina::python::doc::Perm_::__mul
 static const char *__mul =
 R"doc(Returns the composition of this permutation with the given
@@ -181,18 +191,6 @@ Parameter ``q``:
 
 Returns:
     the composition of both permutations.)doc";
-
-// Docstring regina::python::doc::Perm_::__ne
-static const char *__ne =
-R"doc(Determines if this differs from the given permutation. This is true if
-and only if the two permutations have different images for at least
-one of 0 or 1.
-
-Parameter ``other``:
-    the permutation with which to compare this.
-
-Returns:
-    ``True`` if and only if this and the given permutation differ.)doc";
 
 // Docstring regina::python::doc::Perm_::cachedComp
 static const char *cachedComp =
@@ -723,54 +721,6 @@ Parameter ``len``:
 Returns:
     the corresponding prefix of the string representation of this
     permutation.)doc";
-
-}
-
-namespace Perm_::S1Lookup_ {
-
-// Docstring regina::python::doc::Perm_::S1Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array S1. See
-Perm<2>::S1 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index; the only allowed value is 0.
-
-Returns:
-    the corresponding permutation in S1.)doc";
-
-// Docstring regina::python::doc::Perm_::S1Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array S1.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::S2Lookup_ {
-
-// Docstring regina::python::doc::Perm_::S2Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array S2. See
-Perm<2>::S2 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 1 inclusive.
-
-Returns:
-    the corresponding permutation in S2.)doc";
-
-// Docstring regina::python::doc::Perm_::S2Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array S2.
-
-Returns:
-    the size of this array.)doc";
 
 }
 

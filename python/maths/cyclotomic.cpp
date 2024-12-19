@@ -30,10 +30,10 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/complex.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/complex.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/cyclotomic.h"
 #include "../helpers.h"
 #include "../docstrings/maths/cyclotomic.h"
@@ -97,7 +97,7 @@ void addCyclotomic(pybind11::module_& m) {
             &Cyclotomic::utf8, pybind11::const_), rdoc::utf8)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Cyclotomic>(m, rdoc::global_swap);
 

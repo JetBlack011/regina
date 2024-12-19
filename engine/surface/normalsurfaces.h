@@ -62,45 +62,50 @@ class SurfaceFilter;
 
 /**
  * Used to describe a field, or a set of fields, that can be exported
- * alongside a normal surface list.  This enumeration type, and the
- * corresponding flags class SurfaceExport, is used with export routines such
- * as NormalSurfaces::saveCSVStandard() or NormalSurfaces::saveCSVEdgeWeight().
+ * alongside a normal surface list.  This enumeration type is used with
+ * export routines such as NormalSurfaces::saveCSVStandard() or
+ * NormalSurfaces::saveCSVEdgeWeight().
  *
- * This type describes fields in addition to normal coordinates, not the
- * normal coordinates themselves (which are always exported).  Each field
- * describes some property of a single normal surface, and corresponds to a
- * single column in a table of normal surfaces.
+ * This type describes fields to export _in addition_ to normal coordinates,
+ * not the normal coordinates themselves (which are always exported).
+ * Each field describes some property of a single normal surface, and
+ * corresponds to a single column in a table of normal surfaces.
  *
- * You can describe a set of fields by combining the values for individual
- * fields using the bitwise OR operator.
+ * This enumeration names individual fields, as well as some common
+ * combinations of fields (such as `None` and `All`).  Fields can be combined
+ * using the bitwise OR operator (resulting in an object of type
+ * `Flags<SurfaceExport>`).  In particular, if a surface export function takes
+ * an argument of type `Flags<SurfaceExport>`, then you can pass a single
+ * SurfaceExport constant, or a bitwise combination of such constants
+ * `(field1 | field2)`, or empty braces `{}` to indicate no fields at all.
  *
  * The list of available fields may grow with future releases of Regina.
  *
  * \ingroup surfaces
  */
-enum SurfaceExportFields {
+enum class SurfaceExport {
     /**
      * Represents the user-assigned surface name.
      */
-    surfaceExportName = 0x0001,
+    Name = 0x0001,
     /**
      * Represents the calculated Euler characteristic of a
      * surface.  This will be an integer, and will be left empty
      * if the Euler characteristic cannot be computed.
      */
-    surfaceExportEuler = 0x0002,
+    Euler = 0x0002,
     /**
      * Represents the calculated property of whether a surface is
      * orientable.  This will be the string \c TRUE or \c FALSE, or
      * will be left empty if the orientability cannot be computed.
      */
-    surfaceExportOrient = 0x0004,
+    Orient = 0x0004,
     /**
      * Represents the calculated property of whether a surface is
      * one-sided or two-sided.  This will be the integer 1 or 2,
      * or will be left empty if the "sidedness" cannot be computed.
      */
-    surfaceExportSides = 0x0008,
+    Sides = 0x0008,
     /**
      * Represents the calculated property of whether a surface is
      * bounded.  In most cases, this will be one of the strings "closed",
@@ -114,14 +119,14 @@ enum SurfaceExportFields {
      * around the longitude.  See NormalSurface::boundaryIntersections()
      * for further information on interpreting these values.
      */
-    surfaceExportBdry = 0x0010,
+    Bdry = 0x0010,
     /**
      * Represents whether a surface is a single vertex link or a
      * thin edge link.  See NormalSurface::isVertexLink() and
      * NormalSurface::isThinEdgeLink() for details.  This will be
      * written as a human-readable string.
      */
-    surfaceExportLink = 0x0020,
+    Link = 0x0020,
     /**
      * Represents any additional high-level properties of a
      * surface, such as whether it is a splitting surface or a
@@ -130,39 +135,144 @@ enum SurfaceExportFields {
      * properties it describes are subject to change in future
      * releases of Regina.
      */
-    surfaceExportType = 0x0040,
+    Type = 0x0040,
 
     /**
-     * Indicates that no additional fields should be exported.
+     * Indicates that no fields should be exported (except for the
+     * normal coordinates, which are always exported).
+     *
+     * \python This constant is called `Nil`, since `None` is a reserved word
+     * in Python.
      */
-    surfaceExportNone = 0,
+    None = 0,
     /**
      * Indicates that all available fields should be exported,
      * except for the user-assigned surface name.  Since the list
      * of available fields may grow with future releases, the numerical
      * value of this constant may change as a result.
      */
-    surfaceExportAllButName = 0x007e,
+    AllButName = 0x007e,
     /**
      * Indicates that all available fields should be exported,
      * including the user-assigned surface name.  Since the list
      * of available fields may grow with future releases, the numerical
      * value of this constant may change as a result.
      */
-    surfaceExportAll = 0x007f
+    All = 0x007f
 };
 
 /**
- * A set of fields to export alongside a normal surface list.
+ * A deprecated type alias for a field, or a set of fields, that can be
+ * exported alongside a normal surface list.
  *
- * If a function requires a SurfaceExport object as an argument, you can
- * pass a single SurfaceExportFields constant, or a combination of such
- * constants using the bitwise OR operator, or empty braces {} to indicate
- * no fields at all.
+ * \deprecated As of Regina 7.4, SurfaceExportFields is simply an alias for
+ * the enumeration type SurfaceExport.  A bitwise _combination_ of such fields
+ * will have the type `Flags<SurfaceExport>`, though there is usually no need
+ * for end users to explicitly refer to the flags type by name.
  *
  * \ingroup surfaces
  */
-using SurfaceExport = regina::Flags<SurfaceExportFields>;
+using SurfaceExportFields [[deprecated]] = SurfaceExport;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Name.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportName =
+    SurfaceExport::Name;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Orient.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportOrient =
+    SurfaceExport::Orient;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Euler.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportEuler =
+    SurfaceExport::Euler;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Sides.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportSides =
+    SurfaceExport::Sides;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Bdry.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportBdry =
+    SurfaceExport::Bdry;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Link.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportLink =
+    SurfaceExport::Link;
+
+/**
+ * A deprecated constant indicating one of the fields that can be exported
+ * alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::Type.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportType =
+    SurfaceExport::Type;
+
+/**
+ * A deprecated constant indicating one of the sets of fields that can be
+ * exported alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::None.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportNone =
+    SurfaceExport::None;
+
+/**
+ * A deprecated constant indicating one of the sets of fields that can be
+ * exported alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::AllButName.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportAllButName =
+    SurfaceExport::AllButName;
+
+/**
+ * A deprecated constant indicating one of the sets of fields that can be
+ * exported alongside a normal surface list.
+ *
+ * \deprecated This has been renamed to the scoped enumeration constant
+ * SurfaceExport::All.
+ */
+[[deprecated]] inline static constexpr SurfaceExport surfaceExportAll =
+    SurfaceExport::All;
 
 /**
  * Returns the bitwise OR of the two given flags.
@@ -173,9 +283,8 @@ using SurfaceExport = regina::Flags<SurfaceExportFields>;
  *
  * \ingroup surfaces
  */
-inline SurfaceExport operator | (
-        SurfaceExportFields lhs, SurfaceExportFields rhs) {
-    return SurfaceExport(lhs) | rhs;
+inline Flags<SurfaceExport> operator | (SurfaceExport lhs, SurfaceExport rhs) {
+    return Flags<SurfaceExport>(lhs) | rhs;
 }
 
 /**
@@ -248,10 +357,10 @@ class NormalSurfaces :
         NormalCoords coords_;
             /**< The coordinate system that was originally used to enumerate
                  the normal surfaces in this list. */
-        NormalList which_;
+        Flags<NormalList> which_;
             /**< Indicates which normal surfaces these represent within
                  the underlying triangulation. */
-        NormalAlg algorithm_;
+        Flags<NormalAlg> algorithm_;
             /**< Stores the details of the enumeration algorithm that
                  was used to generate this list.  This might not be the
                  same as the \a algHints flag that was originally
@@ -270,21 +379,21 @@ class NormalSurfaces :
          * produced, since vertex/fundamental surfaces in one system are not
          * necessarily vertex/fundamental in another.
          *
-         * The NormalList argument is a combination of flags that
+         * The \a whichList argument is a combination of flags that
          * allows you to specify exactly which normal surfaces you require.
          * This includes (i) whether you want all vertex surfaces
-         * or all fundamental surfaces, which defaults to NS_VERTEX
+         * or all fundamental surfaces, which defaults to NormalList::Vertex
          * if you specify neither or both; and (ii) whether you want only
          * properly embedded surfaces or you also wish to include
          * immersed and/or singular surfaces, which defaults to
-         * NS_EMBEDDED_ONLY if you specify neither or both.
+         * NormalList::EmbeddedOnly if you specify neither or both.
          *
-         * The NormalAlg argument is a combination of flags that allows
+         * The \a algHints argument is a combination of flags that allows
          * you to control the underlying enumeration algorithm.  These
          * flags are treated as hints only: if your selection of
          * algorithm is invalid, unavailable or unsupported then Regina
          * will choose something more appropriate.  Unless you have
-         * some specialised need, the default NS_ALG_DEFAULT (which
+         * some specialised need, the default NormalAlg::Default (which
          * makes no hints at all) will allow Regina to choose what it
          * thinks will be the most efficient method.
          *
@@ -352,8 +461,8 @@ class NormalSurfaces :
         NormalSurfaces(
             const Triangulation<3>& triangulation,
             NormalCoords coords,
-            NormalList which = NS_LIST_DEFAULT,
-            NormalAlg algHints = NS_ALG_DEFAULT,
+            Flags<NormalList> whichList = NormalList::Default,
+            Flags<NormalAlg> algHints = NormalAlg::Default,
             ProgressTracker* tracker = nullptr);
 
         /**
@@ -395,8 +504,9 @@ class NormalSurfaces :
          * Unlike the old filter() function, this constructor will _not_
          * insert the new normal surface list into the packet tree.
          *
-         * For this new filtered list, which() will include the NS_CUSTOM
-         * flag, and algorithm() will include the NS_ALG_CUSTOM flag.
+         * For this new filtered list, which() will include the
+         * NormalList::Custom flag, and algorithm() will include the
+         * NormalAlg::Custom flag.
          *
          * \param src the normal surface list that we wish to filter;
          * this will not be modified.
@@ -475,19 +585,20 @@ class NormalSurfaces :
          * Returns details of which normal surfaces this list represents
          * within the underlying triangulation.
          *
-         * This may not be the same NormalList that was passed to the
+         * These may not be the same list flags that were passed to the
          * class constructor.  In particular, default values will have been
-         * explicitly filled in (such as NS_VERTEX and/or NS_EMBEDDED_ONLY),
-         * and invalid and/or redundant values will have been removed.
+         * explicitly filled in (such as NormalList::Vertex and/or
+         * NormalList::EmbeddedOnly), and invalid and/or redundant values
+         * will have been removed.
          *
          * \return details of what this list represents.
          */
-        NormalList which() const;
+        Flags<NormalList> which() const;
         /**
          * Returns details of the algorithm that was used to enumerate
          * this list.
          *
-         * These may not be the same NormalAlg flags that were passed to the
+         * These may not be the same algorithm flags that were passed to the
          * class constructor.  In particular, default values will have been
          * explicitly filled in, invalid and/or redundant values will have
          * been removed, and unavailable and/or unsupported combinations
@@ -496,7 +607,7 @@ class NormalSurfaces :
          *
          * \return details of the algorithm used to enumerate this list.
          */
-        NormalAlg algorithm() const;
+        Flags<NormalAlg> algorithm() const;
         /**
          * Determines if the coordinate system that was used for enumeration
          * allows for almost normal surfaces.
@@ -688,40 +799,6 @@ class NormalSurfaces :
         bool operator == (const NormalSurfaces& other) const;
 
         /**
-         * Determines whether this and the given list contain different
-         * sets of normal (or almost normal) surfaces.
-         *
-         * The lists will be compared as multisets: the order of the
-         * surfaces in each list does not matter; however, in the unusual
-         * scenario where a list the same surface multiple times,
-         * multiplicity does matter.
-         *
-         * Like the comparison operators for NormalSurface, it does not
-         * matter whether the lists work with different triangulations,
-         * or different encodings, or if one but not the other supports
-         * almost normal and/or spun-normal surfaces.  The individual
-         * surfaces will simply be compared by examining or computing
-         * the number of discs of each type.
-         *
-         * In particular, this routine is safe to call even if this and the
-         * given list work with different triangulations:
-         *
-         * - If the two triangulations have the same size, then this routine
-         *   will compare surfaces as though they were transplanted into the
-         *   same triangulation using the same tetrahedron numbering and the
-         *   same disc types.
-         *
-         * - If the two triangulations have different sizes, then this
-         *   comparison will return \c true (i.e., the lists will be
-         *   considered different).
-         *
-         * \param other the list to be compared with this list.
-         * \return \c true if both lists do not represent the same multiset of
-         * normal or almost normal surfaces, or \c false if they do.
-         */
-        bool operator != (const NormalSurfaces& other) const;
-
-        /**
          * Writes a short text representation of this object to the
          * given output stream.
          *
@@ -795,9 +872,9 @@ class NormalSurfaces :
          * As well as the normal surface coordinates, additional properties
          * of the normal surfaces (such as Euler characteristic, orientability,
          * and so on) can be included as extra fields in the export.  Users can
-         * select precisely which properties to include by passing a
-         * bitwise OR combination of constants from the
-         * regina::SurfaceExportFields enumeration type.
+         * select precisely which properties to include by passing a bitwise OR
+         * combination of constants from the regina::SurfaceExport enumeration
+         * type.
          *
          * The CSV format used here begins with a header row, and uses commas
          * as field separators.  Text fields with arbitrary contents are
@@ -814,12 +891,12 @@ class NormalSurfaces :
          *
          * \param filename the name of the CSV file to export to.
          * \param additionalFields a bitwise OR combination of constants from
-         * regina::SurfaceExportFields indicating which additional properties
-         * of surfaces should be included in the export.
+         * regina::SurfaceExport indicating which additional properties of
+         * surfaces should be included in the export.
          * \return \c true if the export was successful, or \c false otherwise.
          */
         bool saveCSVStandard(const char* filename,
-            SurfaceExport additionalFields = regina::surfaceExportAll) const;
+            Flags<SurfaceExport> additionalFields = SurfaceExport::All) const;
 
         /**
          * Exports the given list of normal surfaces as a plain text CSV
@@ -835,9 +912,9 @@ class NormalSurfaces :
          * As well as the normal surface coordinates, additional properties
          * of the normal surfaces (such as Euler characteristic, orientability,
          * and so on) can be included as extra fields in the export.  Users can
-         * select precisely which properties to include by passing a
-         * bitwise OR combination of constants from the
-         * regina::SurfaceExportFields enumeration type.
+         * select precisely which properties to include by passing a bitwise OR
+         * combination of constants from the regina::SurfaceExport enumeration
+         * type.
          *
          * The CSV format used here begins with a header row, and uses commas
          * as field separators.  Text fields with arbitrary contents are
@@ -854,12 +931,12 @@ class NormalSurfaces :
          *
          * \param filename the name of the CSV file to export to.
          * \param additionalFields a bitwise OR combination of constants from
-         * regina::SurfaceExportFields indicating which additional properties
-         * of surfaces should be included in the export.
+         * regina::SurfaceExport indicating which additional properties of
+         * surfaces should be included in the export.
          * \return \c true if the export was successful, or \c false otherwise.
          */
         bool saveCSVEdgeWeight(const char* filename,
-            SurfaceExport additionalFields = regina::surfaceExportAll) const;
+            Flags<SurfaceExport> additionalFields = SurfaceExport::All) const;
 
         /**
          * A C++ iterator that gives access to the raw vectors for surfaces
@@ -907,24 +984,16 @@ class NormalSurfaces :
          * A bidirectional iterator that runs through the raw vectors for
          * surfaces in this list.
          *
+         * As of Regina 7.4, this class no longer provides the iterator type
+         * aliases \a value_type, \a iterator_category, \a difference_type,
+         * \a pointer and \a reference. Instead you can access these through
+         * `std::iterator_traits`.
+         *
          * \nopython Instead NormalSurfaces::vectors() returns an object of a
          * different (hidden) class that supports the Python iterable/iterator
          * interface.
          */
         class VectorIterator {
-            public:
-                using iterator_category = std::bidirectional_iterator_tag;
-                    /**< Declares this to be a bidirectional iterator type. */
-                using value_type = Vector<LargeInteger>;
-                    /**< Indicates what type the iterator points to. */
-                using difference_type = typename
-                    std::vector<NormalSurface>::const_iterator::difference_type;
-                    /**< The type obtained by subtracting iterators. */
-                using pointer = const Vector<LargeInteger>*;
-                    /**< A pointer to \a value_type. */
-                using reference = const Vector<LargeInteger>&;
-                    /**< The type obtained when dereferencing iterators. */
-
             private:
                 std::vector<NormalSurface>::const_iterator it_;
                     /**< An iterator into the underlying list of surfaces. */
@@ -950,22 +1019,11 @@ class NormalSurfaces :
                 /**
                  * Compares this with the given iterator for equality.
                  *
-                 * \param other the iterator to compare this with.
                  * \return \c true if the iterators point to the same
                  * element of the same normal surface list, or \c false
                  * if they do not.
                  */
-                bool operator == (const VectorIterator& other) const;
-
-                /**
-                 * Compares this with the given iterator for inequality.
-                 *
-                 * \param other the iterator to compare this with.
-                 * \return \c false if the iterators point to the same
-                 * element of the same normal surface list, or \c true
-                 * if they do not.
-                 */
-                bool operator != (const VectorIterator& other) const;
+                bool operator == (const VectorIterator&) const = default;
 
                 /**
                  * Returns the raw vector for the normal surface that this
@@ -1024,15 +1082,15 @@ class NormalSurfaces :
          * Creates an empty list of normal surfaces with the given
          * parameters.
          */
-        NormalSurfaces(NormalCoords coords, NormalList which,
-            NormalAlg algorithm, const Triangulation<3>& triangulation);
+        NormalSurfaces(NormalCoords coords, Flags<NormalList> whichList,
+            Flags<NormalAlg> algorithm, const Triangulation<3>& triangulation);
 
         /**
          * Creates an empty list of normal surfaces with the given
          * parameters.
          */
-        NormalSurfaces(NormalCoords coords, NormalList which,
-            NormalAlg algorithm,
+        NormalSurfaces(NormalCoords coords, Flags<NormalList> whichList,
+            Flags<NormalAlg> algorithm,
             const SnapshotRef<Triangulation<3>>& triangulation);
 
     private:
@@ -1043,7 +1101,7 @@ class NormalSurfaces :
          * The original surfaces are passed in the argument \a reducedList,
          * and the resulting surfaces will be inserted directly into this list.
          *
-         * See NormalTransform::NS_CONV_REDUCED_TO_STD for full details
+         * See NormalTransform::ConvertReducedToStandard for full details
          * and preconditions for this procedure.
          *
          * An optional progress tracker may be passed.  If so, this routine
@@ -1102,7 +1160,7 @@ class NormalSurfaces :
          * The original surfaces are passed in the argument \a stdList, and the
          * resulting surfaces will be inserted directly into this list.
          *
-         * See NormalTransform::NS_CONV_STD_TO_REDUCED for full details
+         * See NormalTransform::ConvertStandardToReduced for full details
          * and preconditions for this procedure.
          *
          * \pre The coordinate system for this surface list is set to
@@ -1351,6 +1409,19 @@ class NormalSurfaces :
  */
 void swap(NormalSurfaces& lhs, NormalSurfaces& rhs);
 
+#ifndef __APIDOCS
+} namespace std {
+    template <>
+    struct iterator_traits<regina::NormalSurfaces::VectorIterator> {
+        using value_type = regina::Vector<regina::LargeInteger>;
+        using iterator_category = std::bidirectional_iterator_tag;
+        using difference_type = typename std::vector<regina::NormalSurface>::const_iterator::difference_type;
+        using pointer = const value_type*;
+        using reference = const value_type&;
+    };
+} namespace regina {
+#endif
+
 /**
  * Generates the set of normal surface matching equations for the
  * given triangulation using the given coordinate system.
@@ -1396,9 +1467,9 @@ MatrixInt makeMatchingEquations(const Triangulation<3>& triangulation,
  * one octagon type is non-zero across the entire triangulation.
  *
  * These are the constraints that will be used when enumerating embedded
- * surfaces in the given coordinate system (i.e., when the default
- * NS_EMBEDDED_ONLY flag is used).  They will not be used when the enumeration
- * allows for immersed and/or singular surfaces.
+ * surfaces in the given coordinate system (i.e., when the default flag
+ * NormalList::EmbeddedOnly is used).  They will not be used when the
+ * enumeration allows for immersed and/or singular surfaces.
  *
  * \param triangulation the triangulation upon which these validity constraints
  * will be based.
@@ -1413,9 +1484,9 @@ ValidityConstraints makeEmbeddedConstraints(
 // Inline functions for NormalSurfaces
 
 inline NormalSurfaces::NormalSurfaces(const Triangulation<3>& triangulation,
-        NormalCoords coords, NormalList which, NormalAlg algHints,
-        ProgressTracker* tracker) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+        NormalCoords coords, Flags<NormalList> whichList,
+        Flags<NormalAlg> algHints, ProgressTracker* tracker) :
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algHints) {
     try {
         Enumerator(this, makeMatchingEquations(triangulation, coords),
@@ -1457,16 +1528,16 @@ inline NormalCoords NormalSurfaces::coords() const {
     return coords_;
 }
 
-inline NormalList NormalSurfaces::which() const {
+inline Flags<NormalList> NormalSurfaces::which() const {
     return which_;
 }
 
-inline NormalAlg NormalSurfaces::algorithm() const {
+inline Flags<NormalAlg> NormalSurfaces::algorithm() const {
     return algorithm_;
 }
 
 inline bool NormalSurfaces::isEmbeddedOnly() const {
-    return which_.has(NS_EMBEDDED_ONLY);
+    return which_.has(NormalList::EmbeddedOnly);
 }
 
 inline const Triangulation<3>& NormalSurfaces::triangulation() const {
@@ -1505,16 +1576,6 @@ template <typename Comparison>
 inline void NormalSurfaces::sort(Comparison&& comp) {
     PacketChangeSpan span(*this);
     std::stable_sort(surfaces_.begin(), surfaces_.end(), comp);
-}
-
-inline bool NormalSurfaces::VectorIterator::operator ==(
-        const NormalSurfaces::VectorIterator& other) const {
-    return (it_ == other.it_);
-}
-
-inline bool NormalSurfaces::VectorIterator::operator !=(
-        const NormalSurfaces::VectorIterator& other) const {
-    return (it_ != other.it_);
 }
 
 inline const Vector<LargeInteger>& NormalSurfaces::VectorIterator::
@@ -1556,20 +1617,17 @@ inline NormalSurfaces::VectorIterator NormalSurfaces::endVectors() const {
     return VectorIterator(surfaces_.end());
 }
 
-inline bool NormalSurfaces::operator != (const NormalSurfaces& other) const {
-    return ! ((*this) == other);
-}
-
-inline NormalSurfaces::NormalSurfaces(NormalCoords coords, NormalList which,
-        NormalAlg algorithm, const Triangulation<3>& triangulation) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+inline NormalSurfaces::NormalSurfaces(NormalCoords coords,
+        Flags<NormalList> whichList, Flags<NormalAlg> algorithm,
+        const Triangulation<3>& triangulation) :
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algorithm) {
 }
 
-inline NormalSurfaces::NormalSurfaces(NormalCoords coords, NormalList which,
-        NormalAlg algorithm,
+inline NormalSurfaces::NormalSurfaces(NormalCoords coords,
+        Flags<NormalList> whichList, Flags<NormalAlg> algorithm,
         const SnapshotRef<Triangulation<3>>& triangulation) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algorithm) {
 }
 

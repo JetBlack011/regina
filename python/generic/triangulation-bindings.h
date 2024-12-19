@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
 #include "../helpers.h"
 #include "triangulation/facetpairing.h"
 #include "triangulation/generic.h"
@@ -46,6 +46,7 @@
 
 using pybind11::overload_cast;
 using regina::AbelianGroup;
+using regina::Face;
 using regina::Isomorphism;
 using regina::MarkedAbelianGroup;
 using regina::MatrixInt;
@@ -148,19 +149,27 @@ void addTriangulation(pybind11::module_& m, const char* name) {
             pybind11::return_value_policy::reference_internal, rbase::vertex)
         .def("edge", &Triangulation<dim>::edge,
             pybind11::return_value_policy::reference_internal, rbase::edge)
-        // Use static casts because GCC struggles with overload_cast here:
         .def("triangle",
-            static_cast<regina::Face<dim, 2>* (Triangulation<dim>::*)(size_t)>(
-                &Triangulation<dim>::triangle),
+            // gcc-10 struggles with casting: even a static_cast fails here
+            // because gcc-10 cannot handle the "auto" return type.
+            // Just use face<2>(), which triangle() is an alias for.
+            overload_cast<size_t>(&Triangulation<dim>::template face<2>,
+                pybind11::const_),
             pybind11::return_value_policy::reference_internal, rbase::triangle)
         .def("tetrahedron",
-            static_cast<regina::Face<dim, 3>* (Triangulation<dim>::*)(size_t)>(
-                &Triangulation<dim>::tetrahedron),
+            // gcc-10 struggles with casting: even a static_cast fails here
+            // because gcc-10 cannot handle the "auto" return type.
+            // Just use face<3>(), which tetrahedron() is an alias for.
+            overload_cast<size_t>(&Triangulation<dim>::template face<3>,
+                pybind11::const_),
             pybind11::return_value_policy::reference_internal,
             rbase::tetrahedron)
         .def("pentachoron",
-            static_cast<regina::Face<dim, 4>* (Triangulation<dim>::*)(size_t)>(
-                &Triangulation<dim>::pentachoron),
+            // gcc-10 struggles with casting: even a static_cast fails here
+            // because gcc-10 cannot handle the "auto" return type.
+            // Just use face<4>(), which pentachoron() is an alias for.
+            overload_cast<size_t>(&Triangulation<dim>::template face<4>,
+                pybind11::const_),
             pybind11::return_value_policy::reference_internal,
             rbase::pentachoron)
         .def("pairing", &Triangulation<dim>::pairing, rbase::pairing)
@@ -220,6 +229,15 @@ void addTriangulation(pybind11::module_& m, const char* name) {
             &Triangulation<dim>::dualToPrimal), rbase::dualToPrimal)
         .def("finiteToIdeal", &Triangulation<dim>::finiteToIdeal,
             rbase::finiteToIdeal)
+        .def("move20", &Triangulation<dim>::template move20<0>, rbase::move20)
+        .def("move20", &Triangulation<dim>::template move20<1>, rbase::move20)
+        .def("move20", &Triangulation<dim>::template move20<2>, rbase::move20)
+        .def("has20", &Triangulation<dim>::template has20<0>, rbase::has20)
+        .def("has20", &Triangulation<dim>::template has20<1>, rbase::has20)
+        .def("has20", &Triangulation<dim>::template has20<2>, rbase::has20)
+        .def("with20", &Triangulation<dim>::template with20<0>, rbase::with20)
+        .def("with20", &Triangulation<dim>::template with20<1>, rbase::with20)
+        .def("with20", &Triangulation<dim>::template with20<2>, rbase::with20)
         .def("doubleCover", &Triangulation<dim>::doubleCover,
             rbase::doubleCover)
         .def("makeDoubleCover", [](Triangulation<dim>& tri) { // deprecated
@@ -303,21 +321,80 @@ void addTriangulation(pybind11::module_& m, const char* name) {
         }, pybind11::arg("size"), pybind11::arg("gluings"), rbase::fromGluings)
         .def_readonly_static("dimension", &Triangulation<dim>::dimension)
     ;
-    regina::for_constexpr<0, dim>([&c](auto k) {
-        c.def("translate", &Triangulation<dim>::template translate<k>,
-            pybind11::return_value_policy::reference_internal,
-            rbase::translate);
-    });
-    regina::for_constexpr<0, dim + 1>([&c](auto k) {
-        c.def("pachner", &Triangulation<dim>::template pachner<k>,
+    #if defined(__GNUC__)
+    // The following routines are deprecated, but we still need to bind
+    // them.  Silence the inevitable deprecation warnings that will occur.
+    #pragma GCC diagnostic push
+    #if defined(__clang__)
+    #pragma GCC diagnostic ignored "-Wdeprecated"
+    #else
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    #endif
+    #endif
+    c.def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<0>,
             pybind11::arg(),
             pybind11::arg("check") = true,
             pybind11::arg("perform") = true,
+            rbase::twoZeroMove) // deprecated
+        .def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<1>,
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::twoZeroMove) // deprecated
+        .def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<2>,
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::twoZeroMove) // deprecated
+    ;
+    #if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+    #endif
+    regina::for_constexpr<0, dim>([&c](auto k) {
+        c.def("translate", overload_cast<const regina::Face<dim, k>*>(
+                &Triangulation<dim>::template translate<k>, pybind11::const_),
+            pybind11::return_value_policy::reference_internal,
+            rbase::translate);
+        c.def("translate", overload_cast<const regina::FaceEmbedding<dim, k>&>(
+                &Triangulation<dim>::template translate<k>, pybind11::const_),
+            rbase::translate_2);
+    });
+    c.def("translate", overload_cast<const regina::Simplex<dim>*>(
+            &Triangulation<dim>::template translate<dim>, pybind11::const_),
+        pybind11::return_value_policy::reference_internal, rbase::translate);
+    regina::for_constexpr<0, dim + 1>([&c](auto k) {
+        c.def("pachner",
+            overload_cast<Face<dim, k>*>(
+                &Triangulation<dim>::template pachner<k>),
             rbase::pachner);
+        c.def("hasPachner", &Triangulation<dim>::template hasPachner<k>,
+            rbase::hasPachner);
+        c.def("withPachner", &Triangulation<dim>::template withPachner<k>,
+            rbase::withPachner);
+        #if defined(__GNUC__)
+        // The following routines are deprecated, but we still need to bind
+        // them.  Silence the inevitable deprecation warnings that will occur.
+        #pragma GCC diagnostic push
+        #if defined(__clang__)
+        #pragma GCC diagnostic ignored "-Wdeprecated"
+        #else
+        #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+        #endif
+        #endif
+        c.def("pachner",
+            overload_cast<Face<dim, k>*, bool, bool>(
+                &Triangulation<dim>::template pachner<k>),
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::pachner_2); // deprecated
+        #if defined(__GNUC__)
+        #pragma GCC diagnostic pop
+        #endif
     });
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
-    regina::python::packet_eq_operators(c, rbase::__eq, rbase::__ne);
+    regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
     // The ListView classes for faces() are wrapped in face-bindings.h,

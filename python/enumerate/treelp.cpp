@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "enumerate/treelp.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -168,14 +168,14 @@ void addTreeLP(pybind11::module_& m) {
         .def("negateRow", &LPMatrix<Integer>::negateRow, rdoc::negateRow)
         ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<LPMatrix<Integer>>(m, rdoc::global_swap);
 
     RDOC_SCOPE_SWITCH(LPSystem)
 
     auto s = pybind11::class_<LPSystem>(m, "LPSystem", rdoc_scope)
-        .def(pybind11::init<regina::NormalEncoding>(), rdoc::__init)
+        .def(pybind11::init<NormalEncoding>(), rdoc::__init)
         .def(pybind11::init<const LPSystem&>(), rdoc::__copy)
         .def("normal", &LPSystem::normal, rdoc::normal)
         .def("angle", &LPSystem::angle, rdoc::angle)
@@ -184,7 +184,7 @@ void addTreeLP(pybind11::module_& m) {
         .def("coords", &LPSystem::coords, rdoc::coords)
         ;
     regina::python::add_output(s);
-    regina::python::add_eq_operators(s, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(s, rdoc::__eq);
 
     addLPInitialTableaux<LPConstraintNone>(m, "LPInitialTableaux");
     addLPInitialTableaux<LPConstraintEulerPositive>(m,

@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "split/signature.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -53,7 +53,7 @@ void addSignature(pybind11::module_& m) {
             &Signature::str, pybind11::const_), rdoc::str)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Signature>(m, rdoc::global_swap);
 

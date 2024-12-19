@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "triangulation/dim3.h"
 #include "../helpers.h"
 #include "../helpers/tableview.h"
@@ -67,7 +67,7 @@ void addEdge3(pybind11::module_& m) {
         .def("vertices", &EdgeEmbedding<3>::vertices, rbase::vertices)
     ;
     regina::python::add_output(e);
-    regina::python::add_eq_operators(e, rbase::__eq, rbase::__ne);
+    regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
     RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
@@ -108,7 +108,10 @@ void addEdge3(pybind11::module_& m) {
             rbase::isLinkOrientable)
         .def("linkingSurface", &Edge<3>::linkingSurface, rdoc::linkingSurface)
         .def_static("ordering", &Edge<3>::ordering)
-        .def_static("faceNumber", &Edge<3>::faceNumber)
+        .def_static("faceNumber",
+            pybind11::overload_cast<regina::Perm<4>>(&Edge<3>::faceNumber))
+        .def_static("faceNumber",
+            pybind11::overload_cast<int, int>(&Edge<3>::faceNumber))
         .def_static("containsVertex", &Edge<3>::containsVertex)
         .def_readonly_static("nFaces", &Edge<3>::nFaces)
         .def_readonly_static("lexNumbering", &Edge<3>::lexNumbering)

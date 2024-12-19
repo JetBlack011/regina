@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "algebra/markedabeliangroup.h"
 #include "maths/matrix.h"
 #include "../helpers.h"
@@ -108,7 +108,7 @@ void addMarkedAbelianGroup(pybind11::module_& m) {
             rdoc::torsionInclusion)
     ;
     regina::python::add_output(c1);
-    regina::python::add_eq_operators(c1, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c1, rdoc::__eq);
 
     regina::python::add_global_swap<MarkedAbelianGroup>(m, rdoc::global_swap);
 

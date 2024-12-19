@@ -206,31 +206,6 @@ class FaceEmbeddingBase :
         bool operator == (const FaceEmbeddingBase& rhs) const;
 
         /**
-         * Tests whether this and the given object are not identical.
-         *
-         * Here _identical_ means that two FaceEmbedding objects refer to
-         * the same-numbered face of the same-numbered simplex, _and_ have
-         * the same embedding permutations as returned by vertices().
-         *
-         * In particular, since this test only examines face/simplex/vertex
-         * _numbers_ (not object pointers), it is meaningful to compare two
-         * FaceEmbedding objects from different underlying triangulations.
-         *
-         * \warning The meaning of this comparison changed in Regina 7.0.
-         * In older versions of Regina, to compare as equal, two FaceEmbedding
-         * objects (i) had to be faces of the same Simplex object (a stronger
-         * requirement that effectively restricted this test to faces of the
-         * same triangulation); but also (ii) only had to refer to the
-         * same-numbered face, not use the same full embedding permutations
-         * (a weaker requirement that nowadays would incur an unacceptable
-         * performance cost).
-         *
-         * \param rhs the object to compare with this.
-         * \return \c true if and only if both object are identical.
-         */
-        bool operator != (const FaceEmbeddingBase& rhs) const;
-
-        /**
          * Writes a short text representation of this object to the
          * given output stream.
          *
@@ -351,6 +326,9 @@ class FaceBase :
         /**
          * Possible values of \a whyInvalid_.
          * These can be combined using bitwise OR.
+         *
+         * It would be nice to make this a scoped enumeration; if we do this,
+         * `whyInvalid_` would need to have type `Flags<Validity>`.
          */
         enum Validity {
             /**
@@ -1113,13 +1091,6 @@ inline bool FaceEmbeddingBase<dim, subdim>::operator == (
 }
 
 template <int dim, int subdim>
-inline bool FaceEmbeddingBase<dim, subdim>::operator != (
-        const FaceEmbeddingBase& rhs) const {
-    return simplex_->index() != rhs.simplex_->index() ||
-        vertices_ != rhs.vertices_;
-}
-
-template <int dim, int subdim>
 inline void FaceEmbeddingBase<dim, subdim>::writeTextShort(std::ostream& out)
         const {
     if constexpr (subdim == 0)
@@ -1397,17 +1368,17 @@ void FaceBase<dim, subdim>::writeTextShort(std::ostream& out) const {
     if constexpr (dim == 3 && subdim == 0) {
         // Identify vertex links in dimension 3 in more detail.
         switch (static_cast<const Face<dim, subdim>*>(this)->linkType()) {
-            case Face<dim, subdim>::SPHERE:
+            case Face<dim, subdim>::Link::Sphere:
                 out << "internal"; break;
-            case Face<dim, subdim>::DISC:
+            case Face<dim, subdim>::Link::Disc:
                 out << "boundary"; break;
-            case Face<dim, subdim>::TORUS:
+            case Face<dim, subdim>::Link::Torus:
                 out << "torus cusp"; break;
-            case Face<dim, subdim>::KLEIN_BOTTLE:
+            case Face<dim, subdim>::Link::KleinBottle:
                 out << "Klein bottle cusp"; break;
-            case Face<dim, subdim>::NON_STANDARD_CUSP:
+            case Face<dim, subdim>::Link::NonStandardCusp:
                 out << "ideal"; break;
-            case Face<dim, subdim>::INVALID:
+            case Face<dim, subdim>::Link::Invalid:
                 out << "invalid"; break;
         }
     } else if constexpr (dim == 4 && subdim == 0) {

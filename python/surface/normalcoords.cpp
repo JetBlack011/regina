@@ -31,8 +31,8 @@
  **************************************************************************/
 
 #include <iomanip>
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "surface/normalcoords.h"
 #include "../helpers.h"
 #include "../docstrings/surface/normalcoords.h"
@@ -59,6 +59,7 @@ void addNormalCoords(pybind11::module_& m) {
         .value("Angle", NormalCoords::Angle, rdoc::Angle)
         ;
 
+    // Deprecated constants:
     m.attr("NS_STANDARD") = NormalCoords::Standard;
     m.attr("NS_QUAD") = NormalCoords::Quad;
     m.attr("NS_QUAD_CLOSED") = NormalCoords::QuadClosed;
@@ -111,7 +112,7 @@ void addNormalCoords(pybind11::module_& m) {
             return out.str();
         })
         ;
-    regina::python::add_eq_operators(e, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(e, rdoc::__eq);
 
     RDOC_SCOPE_SWITCH(NormalInfo)
 

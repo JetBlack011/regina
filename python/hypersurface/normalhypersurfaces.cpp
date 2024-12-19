@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
 #include "hypersurface/normalhypersurfaces.h"
 #include "maths/matrix.h"
 #include "progress/progresstracker.h"
@@ -59,10 +59,11 @@ void addNormalHypersurfaces(pybind11::module_& m) {
             std::shared_ptr<NormalHypersurfaces>>(m, "NormalHypersurfaces",
             rdoc_scope)
         .def(pybind11::init<const Triangulation<4>&, HyperCoords,
-                regina::HyperList, regina::HyperAlg, ProgressTracker*>(),
+                regina::Flags<regina::HyperList>,
+                regina::Flags<regina::HyperAlg>, ProgressTracker*>(),
             pybind11::arg(), pybind11::arg(),
-            pybind11::arg("which") = regina::HS_LIST_DEFAULT,
-            pybind11::arg("algHints") = regina::HS_ALG_DEFAULT,
+            pybind11::arg("which") = regina::HyperList::Default,
+            pybind11::arg("algHints") = regina::HyperAlg::Default,
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<GILScopedRelease>(),
             rdoc::__init)
@@ -102,16 +103,17 @@ void addNormalHypersurfaces(pybind11::module_& m) {
             rdoc::vectors)
     ;
     regina::python::add_output(l);
-    regina::python::packet_eq_operators(l, rdoc::__eq, rdoc::__ne);
+    regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
     auto wrap = regina::python::add_packet_wrapper<NormalHypersurfaces>(
         m, "PacketOfNormalHypersurfaces");
     regina::python::add_packet_constructor<const Triangulation<4>&, HyperCoords,
-            regina::HyperList, regina::HyperAlg, ProgressTracker*>(wrap,
+            regina::Flags<regina::HyperList>, regina::Flags<regina::HyperAlg>,
+            ProgressTracker*>(wrap,
         pybind11::arg(), pybind11::arg(),
-        pybind11::arg("which") = regina::HS_LIST_DEFAULT,
-        pybind11::arg("algHints") = regina::HS_ALG_DEFAULT,
+        pybind11::arg("which") = regina::HyperList::Default,
+        pybind11::arg("algHints") = regina::HyperAlg::Default,
         pybind11::arg("tracker") = nullptr,
         pybind11::call_guard<GILScopedRelease>(),
         rdoc::__init);

@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
 #include "maths/matrix.h"
 #include "progress/progresstracker.h"
 #include "surface/normalsurfaces.h"
@@ -49,33 +49,37 @@ using regina::SurfaceFilter;
 using regina::Triangulation;
 
 void addNormalSurfaces(pybind11::module_& m) {
-    RDOC_SCOPE_BEGIN(SurfaceExportFields)
+    RDOC_SCOPE_BEGIN(SurfaceExport)
 
-    regina::python::add_flags<regina::SurfaceExportFields>(
-        m, "SurfaceExportFields", "SurfaceExport", {
-            { "surfaceExportName", regina::surfaceExportName,
-                rdoc::surfaceExportName },
-            { "surfaceExportEuler", regina::surfaceExportEuler,
-                rdoc::surfaceExportEuler },
-            { "surfaceExportOrient", regina::surfaceExportOrient,
-                rdoc::surfaceExportOrient },
-            { "surfaceExportSides", regina::surfaceExportSides,
-                rdoc::surfaceExportSides },
-            { "surfaceExportBdry", regina::surfaceExportBdry,
-                rdoc::surfaceExportBdry },
-            { "surfaceExportLink", regina::surfaceExportLink,
-                rdoc::surfaceExportLink },
-            { "surfaceExportType", regina::surfaceExportType,
-                rdoc::surfaceExportType },
-            { "surfaceExportNone", regina::surfaceExportNone,
-                rdoc::surfaceExportNone },
-            { "surfaceExportAllButName", regina::surfaceExportAllButName,
-                rdoc::surfaceExportAllButName },
-            { "surfaceExportAll", regina::surfaceExportAll,
-                rdoc::surfaceExportAll }
+    regina::python::add_flags<regina::SurfaceExport>(m, "SurfaceExport", {
+            { "Name", regina::SurfaceExport::Name, rdoc::Name },
+            { "Euler", regina::SurfaceExport::Euler, rdoc::Euler },
+            { "Orient", regina::SurfaceExport::Orient, rdoc::Orient },
+            { "Sides", regina::SurfaceExport::Sides, rdoc::Sides },
+            { "Bdry", regina::SurfaceExport::Bdry, rdoc::Bdry },
+            { "Link", regina::SurfaceExport::Link, rdoc::Link },
+            { "Type", regina::SurfaceExport::Type, rdoc::Type },
+            // Note: we cannot use "None", since this is reserved in Python.
+            { "Nil", regina::SurfaceExport::None, rdoc::None },
+            { "AllButName", regina::SurfaceExport::AllButName,
+                rdoc::AllButName },
+            { "All", regina::SurfaceExport::All, rdoc::All }
         }, rdoc_scope, rdoc_global::__bor);
 
     RDOC_SCOPE_SWITCH_MAIN
+
+    // Deprecated type alias and constants:
+    m.attr("SurfaceExportFields") = m.attr("SurfaceExport");
+    m.attr("surfaceExportName") = regina::SurfaceExport::Name;
+    m.attr("surfaceExportEuler") = regina::SurfaceExport::Euler;
+    m.attr("surfaceExportOrient") = regina::SurfaceExport::Orient;
+    m.attr("surfaceExportSides") = regina::SurfaceExport::Sides;
+    m.attr("surfaceExportBdry") = regina::SurfaceExport::Bdry;
+    m.attr("surfaceExportLink") = regina::SurfaceExport::Link;
+    m.attr("surfaceExportType") = regina::SurfaceExport::Type;
+    m.attr("surfaceExportNone") = regina::SurfaceExport::None;
+    m.attr("surfaceExportAllButName") = regina::SurfaceExport::AllButName;
+    m.attr("surfaceExportAll") = regina::SurfaceExport::All;
 
     m.def("makeMatchingEquations", regina::makeMatchingEquations,
         rdoc::makeMatchingEquations);
@@ -87,10 +91,11 @@ void addNormalSurfaces(pybind11::module_& m) {
     auto l = pybind11::class_<NormalSurfaces,
             std::shared_ptr<NormalSurfaces>>(m, "NormalSurfaces", rdoc_scope)
         .def(pybind11::init<const Triangulation<3>&, regina::NormalCoords,
-                regina::NormalList, regina::NormalAlg, ProgressTracker*>(),
+                regina::Flags<regina::NormalList>,
+                regina::Flags<regina::NormalAlg>, ProgressTracker*>(),
             pybind11::arg(), pybind11::arg(),
-            pybind11::arg("which") = regina::NS_LIST_DEFAULT,
-            pybind11::arg("algHints") = regina::NS_ALG_DEFAULT,
+            pybind11::arg("which") = regina::NormalList::Default,
+            pybind11::arg("algHints") = regina::NormalAlg::Default,
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<GILScopedRelease>(),
             rdoc::__init)
@@ -130,11 +135,11 @@ void addNormalSurfaces(pybind11::module_& m) {
             rdoc::recreateMatchingEquations)
         .def("saveCSVStandard", &NormalSurfaces::saveCSVStandard,
             pybind11::arg(),
-            pybind11::arg("additionalFields") = regina::surfaceExportAll,
+            pybind11::arg("additionalFields") = regina::SurfaceExport::All,
             rdoc::saveCSVStandard)
         .def("saveCSVEdgeWeight", &NormalSurfaces::saveCSVEdgeWeight,
             pybind11::arg(),
-            pybind11::arg("additionalFields") = regina::surfaceExportAll,
+            pybind11::arg("additionalFields") = regina::SurfaceExport::All,
             rdoc::saveCSVEdgeWeight)
         .def("vectors", [](const NormalSurfaces& list) {
             return pybind11::make_iterator(
@@ -143,17 +148,17 @@ void addNormalSurfaces(pybind11::module_& m) {
             rdoc::vectors)
     ;
     regina::python::add_output(l);
-    regina::python::packet_eq_operators(l, rdoc::__eq, rdoc::__ne);
+    regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
     auto wrap = regina::python::add_packet_wrapper<NormalSurfaces>(
         m, "PacketOfNormalSurfaces");
     regina::python::add_packet_constructor<const Triangulation<3>&,
-            regina::NormalCoords, regina::NormalList, regina::NormalAlg,
-            ProgressTracker*>(wrap,
+            regina::NormalCoords, regina::Flags<regina::NormalList>,
+            regina::Flags<regina::NormalAlg>, ProgressTracker*>(wrap,
         pybind11::arg(), pybind11::arg(),
-        pybind11::arg("which") = regina::NS_LIST_DEFAULT,
-        pybind11::arg("algHints") = regina::NS_ALG_DEFAULT,
+        pybind11::arg("which") = regina::NormalList::Default,
+        pybind11::arg("algHints") = regina::NormalAlg::Default,
         pybind11::arg("tracker") = nullptr,
         pybind11::call_guard<GILScopedRelease>(),
         rdoc::__init);

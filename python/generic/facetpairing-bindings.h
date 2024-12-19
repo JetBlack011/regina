@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
 #include "triangulation/dim2.h"
 #include "triangulation/dim4.h"
 #include "triangulation/facetpairing.h"
@@ -76,6 +76,9 @@ void addFacetPairing(pybind11::module_& m, const char* name) {
             rbase::isUnmatched_2)
         .def("isClosed", &FacetPairing<dim>::isClosed, rbase::isClosed)
         .def("isConnected", &FacetPairing<dim>::isConnected, rbase::isConnected)
+        .def("hasMultiEdge", (bool (FacetPairing<dim>::*)(int) const)(
+                &FacetPairing<dim>::hasMultiEdge),
+            rbase::hasMultiEdge)
         .def("isCanonical", &FacetPairing<dim>::isCanonical, rbase::isCanonical)
         .def("canonical", &FacetPairing<dim>::canonical, rbase::canonical)
         .def("canonicalAll", &FacetPairing<dim>::canonicalAll,
@@ -106,7 +109,7 @@ void addFacetPairing(pybind11::module_& m, const char* name) {
     ;
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
-    regina::python::add_eq_operators(c, rbase::__eq, rbase::__ne);
+    regina::python::add_eq_operators(c, rbase::__eq);
 
     regina::python::add_global_swap<FacetPairing<dim>>(m, rdoc::global_swap);
 

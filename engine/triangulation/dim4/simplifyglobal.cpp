@@ -74,7 +74,7 @@ bool Triangulation<4>::simplifyInternal() {
 
             // Make random 3-3 moves.
             static constexpr int COEFF_3_3 =
-                (context == simplifyUpDownDescent ? 200 : 10);
+                (context == SimplifyContext::UpDownDescent ? 200 : 10);
 
             threeThreeAttempts = threeThreeCap = 0;
             while (true) {
@@ -82,7 +82,7 @@ bool Triangulation<4>::simplifyInternal() {
                 threeThreeAvailable.clear();
                 // Use triangles() to ensure the skeleton has been calculated.
                 for (Triangle<4>* triangle : use->triangles())
-                    if (use->pachner(triangle, true, false))
+                    if (use->hasPachner(triangle))
                         threeThreeAvailable.push_back(triangle);
 
                 // Increment threeThreeCap if needed.
@@ -96,7 +96,7 @@ bool Triangulation<4>::simplifyInternal() {
                 // Perform a random 3-3 move on the clone.
                 threeThreeChoice = threeThreeAvailable[
                     RandomEngine::rand(threeThreeAvailable.size())];
-                use->pachner(threeThreeChoice, false, true);
+                use->pachner(threeThreeChoice, regina::unprotected);
 
                 // See if we can simplify now.
                 if (use->simplifyToLocalMinimumInternal<context>(true)) {
@@ -121,7 +121,7 @@ bool Triangulation<4>::simplifyInternal() {
             // At this point we have decided that 3-3 moves will help us
             // no more.
 
-            if constexpr (context == simplifyUpDownDescent) {
+            if constexpr (context == SimplifyContext::UpDownDescent) {
                 // In this context, we are not allowed to try any other moves.
                 break;
             }
@@ -178,14 +178,57 @@ bool Triangulation<4>::simplifyInternal() {
 
 // Instantiate all variants of simplifyInternal().
 template bool Triangulation<4>::simplifyInternal<
-    Triangulation<4>::simplifyBest>();
+    Triangulation<4>::SimplifyContext::Best>();
 template bool Triangulation<4>::simplifyInternal<
-    Triangulation<4>::simplifyUpDownDescent>();
+    Triangulation<4>::SimplifyContext::UpDownDescent>();
 
 template <Triangulation<4>::SimplifyContext context>
 bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
-    unsigned long nTetrahedra;
-    unsigned long iTet;
+    if (! perform) {
+        ensureSkeleton();
+
+        if constexpr (context != SimplifyContext::UpDownDescent) {
+            // Crush edges if we can.
+            if (countVertices() > countComponents() &&
+                    countVertices() > countBoundaryComponents())
+                for (Edge<4>* e : edges())
+                    if (hasCollapseEdge(e))
+                        return true;
+        }
+
+        // Look for internal simplifications.
+        // Our order of tests follows the case where perform is true.
+        for (Edge<4>* e : edges())
+            if (has20(e))
+                return true;
+
+        for (Triangle<4>* t : triangles())
+            if (has20(t))
+                return true;
+
+        if constexpr (context == SimplifyContext::UpDownDescent) {
+            // In this context, we are not allowed to try any other moves.
+            return false;
+        }
+
+        for (Vertex<4>* v : vertices())
+            if (has20(v))
+                return true;
+
+        for (Edge<4>* e : edges())
+            if (hasPachner(e))
+                return true;
+
+        // Look for boundary simplifications.
+        if (hasBoundaryTetrahedra()) {
+            for (BoundaryComponent<4>* bc : boundaryComponents())
+                for (Tetrahedron<4>* f : bc->facets())
+                    if (hasShellBoundary(f->front().pentachoron()))
+                        return true;
+        }
+
+        return false;
+    }
 
     bool changed = false;   // Has anything changed ever (for return value)?
     bool changedNow = true; // Did we just change something (for loop control)?
@@ -197,12 +240,12 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
             changedNow = false;
             ensureSkeleton();
 
-            if constexpr (context != simplifyUpDownDescent) {
+            if constexpr (context != SimplifyContext::UpDownDescent) {
                 // Crush edges if we can.
                 if (countVertices() > countComponents() &&
                         countVertices() > countBoundaryComponents()) {
                     for (Edge<4>* e : edges()) {
-                        if (collapseEdge(e, true, perform)) {
+                        if (collapseEdge(e)) {
                             changedNow = changed = true;
                             break;
                         }
@@ -225,7 +268,7 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
             // We prioritise edge moves, since in general we are trying to
             // reduce the number of edges.
             for (Edge<4>* e : edges()) {
-                if (twoZeroMove(e, true, perform)) {
+                if (move20(e)) {
                     changedNow = changed = true;
                     break;
                 }
@@ -238,7 +281,7 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
             }
 
             for (Triangle<4>* t : triangles()) {
-                if (twoZeroMove(t, true, perform)) {
+                if (move20(t)) {
                     changedNow = changed = true;
                     break;
                 }
@@ -250,13 +293,13 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
                     return true;
             }
 
-            if constexpr (context == simplifyUpDownDescent) {
+            if constexpr (context == SimplifyContext::UpDownDescent) {
                 // In this context, we are not allowed to try any other moves.
                 break;
             }
 
             for (Vertex<4>* v : vertices()) {
-                if (twoZeroMove(v, true, perform)) {
+                if (move20(v)) {
                     changedNow = changed = true;
                     break;
                 }
@@ -269,7 +312,7 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
             }
 
             for (Edge<4>* e : edges()) {
-                if (pachner(e, true, perform)) {
+                if (pachner(e)) {
                     changedNow = changed = true;
                     break;
                 }
@@ -286,15 +329,11 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
                 for (BoundaryComponent<4>* bc : boundaryComponents()) {
                     // Run through facets of this boundary component looking
                     // for shell boundary moves.
-                    nTetrahedra = bc->countTetrahedra();
-                    for (iTet = 0; iTet < nTetrahedra; ++iTet) {
-                        if (shellBoundary(bc->tetrahedron(iTet)->
-                                front().pentachoron(),
-                                true, perform)) {
+                    for (Tetrahedron<4>* f : bc->facets())
+                        if (shellBoundary(f->front().pentachoron())) {
                             changedNow = changed = true;
                             break;
                         }
-                    }
                     if (changedNow)
                         break;
                 }
@@ -313,9 +352,9 @@ bool Triangulation<4>::simplifyToLocalMinimumInternal(bool perform) {
 
 // Instantiate all variants of simplifyToLocalMinimumInternal().
 template bool Triangulation<4>::simplifyToLocalMinimumInternal<
-    Triangulation<4>::simplifyBest>(bool);
+    Triangulation<4>::SimplifyContext::Best>(bool);
 template bool Triangulation<4>::simplifyToLocalMinimumInternal<
-    Triangulation<4>::simplifyUpDownDescent>(bool);
+    Triangulation<4>::SimplifyContext::UpDownDescent>(bool);
 
 bool Triangulation<4>::simplifyUpDown(ssize_t max24, ssize_t max33,
         bool alwaysModify) {
@@ -334,18 +373,18 @@ bool Triangulation<4>::simplifyUpDown(ssize_t max24, ssize_t max33,
     // things worse, not better.
     Triangulation<4> working(*this, false, true);
 
-    for (size_t attempts = 1; attempts <= max24; ++attempts) {
+    for (ssize_t attempts = 1; attempts <= max24; ++attempts) {
         // Do attempts successive 2-4 moves.
-        for (int i=0; i<attempts; i++) {
+        for (ssize_t i=0; i<attempts; i++) {
             for (auto tet : working.tetrahedra()) {
-                if (working.pachner(tet,true,true)) {
+                if (working.pachner(tet)) {
                     break;
                 }
             }
         }
 
         // Simplify using only 2-0 edge/triangle moves and 3-3 moves.
-        working.simplifyInternal<simplifyUpDownDescent>();
+        working.simplifyInternal<SimplifyContext::UpDownDescent>();
 
         if (working.countEdges() < initEdges) {
             // We simplified!
@@ -356,7 +395,7 @@ bool Triangulation<4>::simplifyUpDown(ssize_t max24, ssize_t max33,
         // Make the requested number of 3-3 moves.
         for (int i=0; i<max33; i++) {
             for (auto tri : working.triangles()) {
-                if (working.pachner(tri,true,true)) {
+                if (working.pachner(tri)) {
                     break;
                 }
             }

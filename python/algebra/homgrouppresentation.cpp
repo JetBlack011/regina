@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "algebra/abeliangroup.h"
 #include "algebra/grouppresentation.h"
 #include "algebra/homgrouppresentation.h"
@@ -94,7 +94,7 @@ void addHomGroupPresentation(pybind11::module_& m) {
             rdoc::markedAbelianisation)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<HomGroupPresentation>(m, rdoc::global_swap);
 

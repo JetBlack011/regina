@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/pillowtwosphere.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -51,7 +51,7 @@ void addPillowTwoSphere(pybind11::module_& m) {
         .def_static("recognise", &PillowTwoSphere::recognise, rdoc::recognise)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_END
 }

@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/pluggedtorusbundle.h"
 #include "subcomplex/satregion.h"
 #include "subcomplex/txicore.h"
@@ -61,7 +61,7 @@ void addPluggedTorusBundle(pybind11::module_& m) {
             rdoc::recognise)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<PluggedTorusBundle>(m, rdoc::global_swap);
 

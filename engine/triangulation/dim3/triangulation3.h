@@ -146,6 +146,8 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
 
             std::optional<bool> zeroEfficient_;
                 /**< Is the triangulation zero-efficient? */
+            std::optional<bool> oneEfficient_;
+                /**< Is the triangulation one-efficient? */
             std::optional<bool> splittingSurface_;
                 /**< Does the triangulation have a normal splitting surface? */
 
@@ -891,6 +893,11 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * this function runs, so you can use it with Python-based
          * multithreading.
          *
+         * \exception FailedPrecondition This triangulation is not valid,
+         * closed and non-empty.
+         *
+         * \exception InvalidArgument The argument \a r is less than 3.
+         *
          * \param r the integer \a r as described above; this must be at
          * least 3.
          * \param parity determines for odd \a r whether \a q₀ is a primitive
@@ -945,8 +952,15 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * double.
          *
          * \pre This triangulation is valid, closed and non-empty.
-         * \pre The argument \a whichRoot is strictly between 0 and <i>2r</i>,
+         * \pre The argument \a whichRoot is strictly between 0 and `2r`,
          * and has no common factors with \a r.
+         *
+         * \exception FailedPrecondition This triangulation is not valid,
+         * closed and non-empty.
+         *
+         * \exception InvalidArgument the argument \a r is less than 3, or
+         * the argument \a whichRoot is not both coprime to \a r and between
+         * 0 and `2r`.
          *
          * \param r the integer \a r as described above; this must be at
          * least 3.
@@ -1278,7 +1292,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
 
         /**
          * Determines if this triangulation is 0-efficient.
-         * A triangulation is 0-efficient if its only normal spheres and
+         * A triangulation is _0-efficient_ if its only normal spheres and
          * discs are vertex linking, and if it has no 2-sphere boundary
          * components.
          *
@@ -1288,12 +1302,10 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
         bool isZeroEfficient() const;
         /**
          * Is it already known whether or not this triangulation is
-         * 0-efficient?
-         * See isZeroEfficient() for further details.
+         * 0-efficient?  See isZeroEfficient() for further details.
          *
-         * If this property is already known, future calls to
-         * isZeroEfficient() will be very fast (simply returning the
-         * precalculated value).
+         * If this property is already known, future calls to isZeroEfficient()
+         * will be very fast (simply returning the precalculated value).
          *
          * \warning This routine does not actually tell you _whether_
          * this triangulation is 0-efficient; it merely tells you whether
@@ -1302,6 +1314,50 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \return \c true if and only if this property is already known.
          */
         bool knowsZeroEfficient() const;
+        /**
+         * Determines if this triangulation is 1-efficient.
+         *
+         * For now, 1-efficiency testing is _only_ available for ideal
+         * triangulations in which every vertex link is a torus or Klein bottle.
+         * In this setting, an ideal triangulation \a T is _1-efficient_ if,
+         * amongst all closed embedded normal surfaces in \a T, there are no
+         * surfaces at all of positive Euler characteristic, and the only
+         * surfaces with zero Euler characteristic are vertex linking.
+         *
+         * The scope of 1-efficiency testing might be expanded to a broader
+         * class of triangulations in future versions of Regina; what is
+         * currently holding this back is the need to choose from the several
+         * different definitions available in the literature.
+         *
+         * \pre This is a valid ideal triangulation in which the link of every
+         * vertex is a torus or Klein bottle.
+         *
+         * \exception FailedPrecondition This triangulation is invalid, empty,
+         * and/or has some vertex whose link is not a torus or Klein bottle.
+         *
+         * \return \c true if and only if this triangulation is 1-efficient.
+         */
+        bool isOneEfficient() const;
+        /**
+         * Is it already known whether or not this triangulation is
+         * 1-efficient?  See isOneEfficient() for further details.
+         *
+         * If this property is already known, future calls to isOneEfficient()
+         * will be very fast (simply returning the precalculated value).
+         *
+         * \pre This is a valid ideal triangulation in which the link of every
+         * vertex is a torus or Klein bottle.
+         *
+         * \warning This routine does not actually tell you _whether_
+         * this triangulation is 1-efficient; it merely tells you whether
+         * the answer has already been computed.
+         *
+         * \exception FailedPrecondition This triangulation is invalid, empty,
+         * and/or has some vertex whose link is not a torus or Klein bottle.
+         *
+         * \return \c true if and only if this property is already known.
+         */
+        bool knowsOneEfficient() const;
         /**
          * Determines whether this triangulation has a normal splitting
          * surface.  See NormalSurface::isSplitting() for details
@@ -2095,114 +2151,6 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
         bool fourFourMove(Edge<3>* e, int newAxis, bool check = true,
                 bool perform = true);
         /**
-         * Checks the eligibility of and/or performs a 2-0 move about the
-         * given edge of degree 2.  This involves taking the two tetrahedra
-         * joined at that edge and squashing them flat.  This can be done if:
-         *
-         * - the edge is valid and non-boundary;
-         *
-         * - the two tetrahedra are distinct;
-         *
-         * - the edges opposite \a e in each tetrahedron are distinct and
-         *   not both boundary;
-         *
-         * - if triangles \a f1 and \a f2 from one tetrahedron are to be
-         *   flattened onto triangles \a g1 and \a g2 of the other
-         *   respectively, then
-         *   (a) \a f1 and \a g1 are distinct,
-         *   (b) \a f2 and \a g2 are distinct,
-         *   (c) we do not have both \a f1 = \a g2 and \a g1 = \a f2,
-         *   (d) we do not have both \a f1 = \a f2 and \a g1 = \a g2, and
-         *   (e) we do not have two of the triangles boundary and the other
-         *   two identified.
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (triangles, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a e)
-         * can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run, it
-         * must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given edge is an edge of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param e the edge about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool twoZeroMove(Edge<3>* e, bool check = true, bool perform = true);
-        /**
-         * Checks the eligibility of and/or performs a 2-0 move about the
-         * given vertex of degree 2.  This involves taking the two tetrahedra
-         * joined at that vertex and squashing them flat.  This can be done if:
-         *
-         * - the vertex is non-boundary and has a 2-sphere vertex link;
-         *
-         * - the two tetrahedra are distinct;
-         *
-         * - the triangles opposite \a v in each tetrahedron are distinct and
-         *   not both boundary;
-         *
-         * - the two tetrahedra meet each other on all three faces touching
-         *   the vertex (as opposed to meeting each other on one face and
-         *   being glued to themselves along the other two).
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (triangles, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a v)
-         * can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run, it
-         * must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given vertex is a vertex of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param v the vertex about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool twoZeroMove(Vertex<3>* v, bool check = true, bool perform = true);
-        /**
          * Checks the eligibility of and/or performs a 2-1 move
          * about the given edge.
          * This involves taking an edge meeting only one tetrahedron
@@ -2319,11 +2267,11 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          *
          * \param e0 an embedding of the common edge \a e of the two
          * triangles about which to perform the move.
-         * \param t0 one of the two triangles about which to perform the
-         * move (associated to the edge embedding \a e0).
+         * \param t0 indicates one of the triangles about which to perform the
+         * move, with respect to the edge embedding \a e0; this must be 2 or 3.
          * \param e1 another embedding of the edge \a e.
-         * \param t1 the other triangle about which to perform move
-         * (associated to the edge embedding \a e1).
+         * \param t1 indicates the other triangle about which to perform the
+         * move, with respect to the edge embedding \a e1; this must be 2 or 3.
          * \param check \c true if we are to check whether the move is
          * allowed (defaults to \c true).
          * \param perform \c true if we are to perform the move (defaults to
@@ -2457,7 +2405,6 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * violate any facet locks.
          * \pre The given triangles \a t0 and \a t1 are triangles of this
          * triangulation.
-         * \pre The numbers \a e0 and \a e1 are both 0, 1 or 2.
          *
          * \exception LockViolation This move would violate a facet lock, and
          * \a check was passed as \c false.  This exception will be thrown
@@ -2465,10 +2412,11 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * details on how facet locks work and what their implications are.
          *
          * \param t0 one of the two triangles about which to perform the move.
-         * \param e0 the edge at which \a t0 meets the other triangle about
-         * which to perform the move.
+         * \param e0 the edge at which \a t0 meets the other triangle \a t1;
+         * this must be 0, 1 or 2.
          * \param t1 the other triangle about which to perform the move.
-         * \param e1 the edge at which \a t1 meets \a t0.
+         * \param e1 the edge at which \a t1 meets the other triangle \a t0;
+         * this must be 0, 1 or 2.
          * \param check \c true if we are to check whether the move is
          * allowed (defaults to \c true).
          * \param perform \c true if we are to perform the move (defaults to
@@ -2592,61 +2540,6 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          */
         bool closeBook(Edge<3>* e, bool check = true, bool perform = true);
         /**
-         * Checks the eligibility of and/or performs a boundary shelling
-         * move on the given tetrahedron.
-         * This involves simply popping off a tetrahedron that touches
-         * the boundary.
-         * This can be done if:
-         *
-         * - all edges of the tetrahedron are valid;
-         *
-         * - precisely one, two or three faces of the tetrahedron lie in
-         *   the boundary;
-         *
-         * - if one face lies in the boundary, then the opposite vertex
-         *   does not lie in the boundary, and no two of the remaining three
-         *   edges are identified;
-         *
-         * - if two faces lie in the boundary, then the remaining edge does
-         *   not lie in the boundary, and the remaining two faces of the
-         *   tetrahedron are not identified.
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will (trivially) preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (triangles, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run, it
-         * must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given tetrahedron is a tetrahedron of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<3>::lock() and
-         * Simplex<3>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param t the tetrahedron upon which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool shellBoundary(Tetrahedron<3>* t,
-                bool check = true, bool perform = true);
-        /**
          * Checks the eligibility of and/or performs a collapse of an edge
          * between two distinct vertices.  This operation (when it is allowed)
          * does not change the topology of the manifold, decreases the
@@ -2707,6 +2600,321 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * is \c false, the function simply returns \c true.
          */
         bool collapseEdge(Edge<3>* e, bool check = true, bool perform = true);
+
+        /**
+         * Determines whether it is possible to perform a 4-4 move about the
+         * given edge of this triangulation, without violating any simplex
+         * and/or facet locks.
+         *
+         * For more detail on 4-4 moves and when they can be performed,
+         * see fourFourMove().
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the candidate edge about which to perform the move.
+         * \param newAxis When performing the move, specifies which axis of
+         * the octahedron the new tetrahedra should meet along; this should be
+         * 0 or 1. See fourFourMove() for details on exactly what this means.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has44(Edge<3>* e, int newAxis) const;
+        /**
+         * Determines whether it is possible to perform a 2-1 move about the
+         * given edge of this triangulation, without violating any simplex
+         * and/or facet locks.
+         *
+         * For more detail on 2-1 moves and when they can be performed,
+         * see twoOneMove().
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the candidate edge about which to perform the move.
+         * \param edgeEnd indicates at which end of the edge \a e the move
+         * does _not_ involve the adjacent tetrahedron; this should be 0 or 1.
+         * See twoOneMove() for details on exactly what this means.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has21(Edge<3>* e, int edgeEnd) const;
+        /**
+         * Determines whether it is possible to perform a 0-2 move about the
+         * two specified triangles of this triangulation, without violating any
+         * facet locks.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(EdgeEmbedding<3>, int, EdgeEmbedding<3>, int, bool, bool).
+         *
+         * \pre The given embeddings refer to edges of this triangulation.
+         *
+         * \param e0 an embedding of the common edge \a e of the two
+         * candidate triangles about which to perform the move.
+         * \param t0 indicates one of the candidate triangles about which to
+         * perform the move, with respect to the edge embedding \a e0; this
+         * must be 2 or 3.
+         * \param e1 another embedding of the edge \a e.
+         * \param t1 indicates the other candidate triangle about which to
+         * perform the move, with respect to the edge embedding \a e1; this
+         * must be 2 or 3.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has02(EdgeEmbedding<3> e0, int t0, EdgeEmbedding<3> e1, int t1)
+            const;
+        /**
+         * Determines whether it is possible to perform a 0-2 move about the
+         * two specified triangles of this triangulation, without violating any
+         * facet locks.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(Edge<3>*, size_t, size_t, bool, bool).
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the common edge of the two candidate triangles about which
+         * to perform the move.
+         * \param t0 the number assigned to one of two candidate triangles
+         * about which to perform the move.
+         * \param t1 the number assigned to the other candidate triangle
+         * about which to perform the move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has02(Edge<3>* e, size_t t0, size_t t1) const;
+        /**
+         * Determines whether it is possible to perform a 0-2 move about the
+         * two given triangles of this triangulation, without violating any
+         * facet locks.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(Triangle<3>*, int, Triangle<3>*, int, bool, bool).
+         *
+         * \pre The given triangles are both triangles of this triangulation.
+         *
+         * \param t0 one of the two candidate triangles about which to perform
+         * the move.
+         * \param e0 the edge at which \a t0 meets the other triangle \a t1;
+         * this must be 0, 1 or 2.
+         * \param t1 the other candidate triangle about which to perform the
+         * move.
+         * \param e1 the edge at which \a t1 meets the other triangle \a t0;
+         * this must be 0, 1 or 2.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has02(Triangle<3>* t0, int e0, Triangle<3>* t1, int e1) const;
+        /**
+         * Determines whether it is possible to perform a book opening move
+         * about the given triangle of this triangulation, without violating
+         * any facet locks.
+         *
+         * For more detail on book opening moves and when they can be
+         * performed, see openBook().
+         *
+         * \pre The given triangle is a triangle of this triangulation.
+         *
+         * \param t the candidate triangle about which to perform the move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasOpenBook(Triangle<3>* t) const;
+        /**
+         * Determines whether it is possible to perform a book closing move
+         * about the given edge of this triangulation, without violating any
+         * facet locks.
+         *
+         * For more detail on book closing moves and when they can be
+         * performed, see closeBook().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the candidate edge about which to perform the move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasCloseBook(Edge<3>* e) const;
+        /**
+         * Determines whether it is possible to collapse the given edge of
+         * this triangulation, without violating any simplex and/or facet locks.
+         *
+         * For more detail on edge collapse moves and when they can be
+         * performed, see collapseEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the candidate edge to collapse.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasCollapseEdge(Edge<3>* e) const;
+
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 4-4 move about the given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 4-4 moves and when they can be performed,
+         * see fourFourMove().
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the edge about which to perform the move.
+         * \param newAxis When performing the move, specifies which axis of
+         * the octahedron the new tetrahedra should meet along; this should be
+         * 0 or 1. See fourFourMove() for details on exactly what this means.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> with44(Edge<3>* e, int newAxis) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 2-1 move about the given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 2-1 moves and when they can be performed,
+         * see twoOneMove().
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the edge about which to perform the move.
+         * \param edgeEnd indicates at which end of the edge \a e the move
+         * does _not_ involve the adjacent tetrahedron; this should be 0 or 1.
+         * See twoOneMove() for details on exactly what this means.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> with21(Edge<3>* e, int edgeEnd) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 0-2 move about the two specified triangles of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(EdgeEmbedding<3>, int, EdgeEmbedding<3>, int, bool, bool).
+         *
+         * \pre The given embeddings refer to edges of this triangulation.
+         *
+         * \param e0 an embedding of the common edge \a e of the two
+         * triangles about which to perform the move.
+         * \param t0 indicates one of the triangles about which to perform the
+         * move, with respect to the edge embedding \a e0; this must be 2 or 3.
+         * \param e1 another embedding of the edge \a e.
+         * \param t1 indicates the other triangle about which to perform the
+         * move, with respect to the edge embedding \a e1; this must be 2 or 3.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> with02(EdgeEmbedding<3> e0, int t0,
+            EdgeEmbedding<3> e1, int t1) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 0-2 move about the two specified triangles of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(Edge<3>*, size_t, size_t, bool, bool).
+         *
+         * \pre The given edge is a edge of this triangulation.
+         *
+         * \param e the common edge of the two triangles about which to
+         * perform the move.
+         * \param t0 the number assigned to one of two triangles about which
+         * to perform the move.
+         * \param t1 the number assigned to the other triangle about which
+         * to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> with02(Edge<3>* e,
+            size_t t0, size_t t1) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 0-2 move about the two given triangles of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 0-2 moves and when they can be performed, and
+         * for full details on what the arguments to this function mean, see
+         * zeroTwoMove(Triangle<3>*, int, Triangle<3>*, int, bool, bool).
+         *
+         * \pre The given triangles are both triangles of this triangulation.
+         *
+         * \param t0 one of the two triangles about which to perform the move.
+         * \param e0 the edge at which \a t0 meets the other triangle \a t1;
+         * this must be 0, 1 or 2.
+         * \param t1 the other triangle about which to perform the move.
+         * \param e1 the edge at which \a t1 meets the other triangle \a t0;
+         * this must be 0, 1 or 2.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> with02(Triangle<3>* t0, int e0,
+            Triangle<3>* t1, int e1) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * book opening move about the given triangle of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on book opening moves and when they can be
+         * performed, see openBook().
+         *
+         * \pre The given triangle is a triangle of this triangulation.
+         *
+         * \param t the triangle about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> withOpenBook(Triangle<3>* t) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * book closing move about the given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on book closing moves and when they can be
+         * performed, see closeBook().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the edge about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> withCloseBook(Edge<3>* e) const;
+        /**
+         * If possible, returns the triangulation obtained by collapsing the
+         * given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on edge collapse moves and when they can be
+         * performed, see collapseEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the edge to collapse.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<3>> withCollapseEdge(Edge<3>* e) const;
 
         /**
          * Deprecated alias for reorderBFS(), which reorders the tetrahedra
@@ -4398,6 +4606,42 @@ inline bool Triangulation<3>::knowsZeroEfficient() const {
     return prop_.zeroEfficient_.has_value();
 }
 
+inline bool Triangulation<3>::knowsOneEfficient() const {
+    // Check the preconditions before examining the cached value, since it's
+    // possible the 1-efficiency value was cached from a newer calculation
+    // engine that supports 1-efficiency testing in more settings.
+    if (! isValid()) {
+        throw FailedPrecondition(
+            "1-efficiency testing requires a valid triangulation");
+    }
+    if (! isIdeal()) {
+        // The empty triangulation is eliminated here.
+        throw FailedPrecondition(
+            "1-efficiency testing requires an ideal triangulation");
+    }
+    for (auto v : vertices()) {
+        if (v->linkType() != Vertex<3>::Link::Torus &&
+                v->linkType() != Vertex<3>::Link::KleinBottle)
+            throw FailedPrecondition(
+                "1-efficiency testing requires a triangulation whose "
+                "vertex links are all tori and/or Klein bottles");
+    }
+
+    if (prop_.oneEfficient_.has_value())
+        return true;
+
+    // We might already know the answer from the 0-efficiency property,
+    // since for the settings in which we are able to test 1-efficiency,
+    // 0-efficiency is a necessary condition.
+    if (prop_.zeroEfficient_.has_value() && ! *prop_.zeroEfficient_) {
+        prop_.oneEfficient_ = false;
+        return true;
+    }
+
+    // We don't know.
+    return false;
+}
+
 inline const AngleStructure& Triangulation<3>::strictAngleStructure() const {
     if (hasStrictAngleStructure())
         return std::get<AngleStructure>(strictAngleStructure_);
@@ -4471,6 +4715,127 @@ inline bool Triangulation<3>::minimizeBoundary() {
 
 inline bool Triangulation<3>::minimizeVertices() {
     return minimiseVertices();
+}
+
+inline bool Triangulation<3>::has44(Edge<3>* e, int newAxis) const {
+    return const_cast<Triangulation<3>*>(this)->fourFourMove(e, newAxis,
+        true, false);
+}
+
+inline bool Triangulation<3>::has21(Edge<3>* e, int edgeEnd) const {
+    return const_cast<Triangulation<3>*>(this)->twoOneMove(e, edgeEnd,
+        true, false);
+}
+
+inline bool Triangulation<3>::has02(EdgeEmbedding<3> e0, int t0,
+        EdgeEmbedding<3> e1, int t1) const {
+    return const_cast<Triangulation<3>*>(this)->zeroTwoMove(e0, t0, e1, t1,
+        true, false);
+}
+
+inline bool Triangulation<3>::has02(Edge<3>* e, size_t t0, size_t t1) const {
+    return const_cast<Triangulation<3>*>(this)->zeroTwoMove(e, t0, t1,
+        true, false);
+}
+
+inline bool Triangulation<3>::has02(Triangle<3>* t0, int e0,
+        Triangle<3>* t1, int e1) const {
+    return const_cast<Triangulation<3>*>(this)->zeroTwoMove(t0, e0, t1, e1,
+        true, false);
+}
+
+inline bool Triangulation<3>::hasOpenBook(Triangle<3>* t) const {
+    return const_cast<Triangulation<3>*>(this)->openBook(t, true, false);
+}
+
+inline bool Triangulation<3>::hasCloseBook(Edge<3>* e) const {
+    return const_cast<Triangulation<3>*>(this)->closeBook(e, true, false);
+}
+
+inline bool Triangulation<3>::hasCollapseEdge(Edge<3>* e) const {
+    return const_cast<Triangulation<3>*>(this)->collapseEdge(e, true, false);
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::with44(
+        Edge<3>* e, int newAxis) const {
+    if (! has44(e, newAxis))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->fourFourMove(ans->translate(e), newAxis, false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::with21(
+        Edge<3>* e, int edgeEnd) const {
+    if (! has21(e, edgeEnd))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->twoOneMove(ans->translate(e), edgeEnd, false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::with02(
+        EdgeEmbedding<3> e0, int t0, EdgeEmbedding<3> e1, int t1) const {
+    if (! has02(e0, t0, e1, t1))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->zeroTwoMove(ans->translate(e0), t0, ans->translate(e1), t1,
+        false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::with02(
+        Edge<3>* e, size_t t0, size_t t1) const {
+    if (! has02(e, t0, t1))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->zeroTwoMove(ans->translate(e), t0, t1, false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::with02(
+        Triangle<3>* t0, int e0, Triangle<3>* t1, int e1) const {
+    if (! has02(t0, e0, t1, e1))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->zeroTwoMove(ans->translate(t0), e0, ans->translate(t1), e1,
+        false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::withOpenBook(
+        Triangle<3>* t) const {
+    if (! hasOpenBook(t))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->openBook(ans->translate(t), false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::withCloseBook(
+        Edge<3>* e) const {
+    if (! hasCloseBook(e))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->closeBook(ans->translate(e), false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<3>> Triangulation<3>::withCollapseEdge(
+        Edge<3>* e) const {
+    if (! hasCollapseEdge(e))
+        return {};
+
+    std::optional<Triangulation<3>> ans(std::in_place, *this);
+    ans->collapseEdge(ans->translate(e), false, true);
+    return ans;
 }
 
 inline void Triangulation<3>::puncture(Tetrahedron<3>* tet) {

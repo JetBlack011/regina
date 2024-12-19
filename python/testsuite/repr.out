@@ -86,61 +86,61 @@ Laurent2
 x^2 - y^2 - 1 + x^-2
 <regina.Laurent2: x^2 - y^2 - 1 + x^-2>
 
-HyperListFlags
-HyperListFlags.HS_VERTEX
-<HyperListFlags.HS_VERTEX: 4>
-
-HyperAlgFlags
-HyperAlgFlags.HS_VERTEX_DD
-<HyperAlgFlags.HS_VERTEX_DD: 32>
-
-NormalListFlags
-NormalListFlags.NS_VERTEX
-<NormalListFlags.NS_VERTEX: 4>
-
-NormalAlgFlags
-NormalAlgFlags.NS_VERTEX_DD
-<NormalAlgFlags.NS_VERTEX_DD: 32>
-
-AngleAlgFlags
-AngleAlgFlags.AS_ALG_DD
-<AngleAlgFlags.AS_ALG_DD: 32>
-
-CensusPurgeFlags
-CensusPurgeFlags.PURGE_NON_MINIMAL
-<CensusPurgeFlags.PURGE_NON_MINIMAL: 1>
-
-SurfaceExportFields
-SurfaceExportFields.surfaceExportName
-<SurfaceExportFields.surfaceExportName: 1>
-
 HyperList
-0x0004
-<regina.HyperList: 0x0004>
+HyperList.Vertex
+<HyperList.Vertex: 4>
 
 HyperAlg
-0x0020
-<regina.HyperAlg: 0x0020>
+HyperAlg.VertexDD
+<HyperAlg.VertexDD: 32>
 
 NormalList
-0x0004
-<regina.NormalList: 0x0004>
+NormalList.Vertex
+<NormalList.Vertex: 4>
 
 NormalAlg
-0x0020
-<regina.NormalAlg: 0x0020>
+NormalAlg.VertexDD
+<NormalAlg.VertexDD: 32>
 
 AngleAlg
-0x0020
-<regina.AngleAlg: 0x0020>
+AngleAlg.DD
+<AngleAlg.DD: 32>
 
 CensusPurge
-0x03
-<regina.CensusPurge: 0x03>
+CensusPurge.NonMinimal
+<CensusPurge.NonMinimal: 1>
 
 SurfaceExport
+SurfaceExport.Name
+<SurfaceExport.Name: 1>
+
+Flags_HyperList
+0x0004
+<regina.Flags_HyperList: 0x0004>
+
+Flags_HyperAlg
+0x0020
+<regina.Flags_HyperAlg: 0x0020>
+
+Flags_NormalList
+0x0004
+<regina.Flags_NormalList: 0x0004>
+
+Flags_NormalAlg
+0x0020
+<regina.Flags_NormalAlg: 0x0020>
+
+Flags_AngleAlg
+0x0020
+<regina.Flags_AngleAlg: 0x0020>
+
+Flags_CensusPurge
+0x03
+<regina.Flags_CensusPurge: 0x03>
+
+Flags_SurfaceExport
 0x0003
-<regina.SurfaceExport: 0x0003>
+<regina.Flags_SurfaceExport: 0x0003>
 
 NormalEncoding
 0x0203
@@ -941,7 +941,7 @@ TreeEnumeration_NonSpun
 Level 1 of 0..1, types: 11
 <regina.TreeEnumeration_NonSpun: Level 1 of 0..1, types: 11>
 
-Perm8._Sn
+PermSn8_Sign
 [ 01234567 01234576 01234675 01234657 ... 76543201 ]
-<regina.Perm8._Sn: [ 01234567 01234576 01234675 01234657 ... 76543201 ]>
+<regina.PermSn8_Sign: [ 01234567 01234576 01234675 01234657 ... 76543201 ]>
 

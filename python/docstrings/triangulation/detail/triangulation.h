@@ -167,41 +167,6 @@ Parameter ``cloneLocks``:
     from the given triangulation, or ``False`` if the new
     triangulation should have no locks at all.)doc";
 
-// Docstring regina::python::doc::detail::TriangulationBase_::__ne
-constexpr const char *__ne =
-R"doc(Determines if this triangulation is not combinatorially identical to
-the given triangulation.
-
-Here "identical" means that the triangulations have the same number of
-top-dimensional simplices, with gluings between the same pairs of
-numbered simplices using the same gluing permutations. In other words,
-"identical" means that the triangulations are isomorphic via the
-identity isomorphism.
-
-For the less strict notion of _isomorphic_ triangulations, which
-allows relabelling of the top-dimensional simplices and their
-vertices, see isIsomorphicTo() instead.
-
-This test does _not_ examine the textual simplex descriptions or
-simplex/facet locks, as seen in Simplex<dim>::description() and
-Simplex<dim>::lockMask(); these may still differ. It also does not
-test whether lower-dimensional faces are numbered identically
-(vertices, edges and so on); this routine is only concerned with top-
-dimensional simplices.
-
-(At the time of writing, two identical triangulations will always
-number their lower-dimensional faces in the same way. However, it is
-conceivable that in future versions of Regina there may be situations
-in which identical triangulations can acquire different numberings for
-vertices, edges, and so on.)
-
-Parameter ``other``:
-    the triangulation to compare with this.
-
-Returns:
-    ``True`` if and only if the two triangulations are not
-    combinatorially identical.)doc";
-
 // Docstring regina::python::doc::detail::TriangulationBase_::barycentricSubdivision
 constexpr const char *barycentricSubdivision =
 R"doc(Deprecated routine that performs a barycentric subdivision of the
@@ -277,8 +242,8 @@ the triangulation, where the face dimension does not need to be known
 until runtime.
 
 For C++ programmers who know *subdim* at compile time, you are better
-off using the template function boundaryMap<subdim>() instead, which
-is slightly faster.
+off using the template function ``boundaryMap<subdim>()`` instead,
+which is slightly faster.
 
 This is the boundary map that you would use if you were building the
 homology groups manually from a chain complex.
@@ -391,7 +356,7 @@ where the face dimension does not need to be known until runtime.
 
 This routine takes linear time in the dimension *dim*. For C++
 programmers who know *subdim* at compile time, you are better off
-using the template function countBoundaryFaces<subdim>() instead,
+using the template function ``countBoundaryFaces<subdim>()`` instead,
 which is fast constant time.
 
 Specifically, this counts the number of *subdim*-faces for which
@@ -453,7 +418,7 @@ face dimension does not need to be known until runtime.
 
 This routine takes linear time in the dimension *dim*. For C++
 programmers who know *subdim* at compile time, you are better off
-using the template function countFaces<subdim>() instead, which is
+using the template function ``countFaces<subdim>()`` instead, which is
 fast constant time.
 
 For convenience, this routine explicitly supports the case *subdim* =
@@ -560,7 +525,7 @@ R"doc(Returns the boundary map from dual *subdim*-faces to dual
 not need to be known until runtime.
 
 For C++ programmers who know *subdim* at compile time, you are better
-off using the template function dualBoundaryMap<subdim>() instead,
+off using the template function ``dualBoundaryMap<subdim>()`` instead,
 which is slightly faster.
 
 This function is analogous to boundaryMap(), but is designed to work
@@ -657,8 +622,8 @@ homology classes, where the chain dimension does not need to be known
 until runtime.
 
 For C++ programmers who know *subdim* at compile time, you are better
-off using the template function dualToPrimal<subdim>() instead, which
-is slightly faster.
+off using the template function ``dualToPrimal<subdim>()`` instead,
+which is slightly faster.
 
 The matrix that is returned should be thought of as acting on column
 vectors. Specifically, the *c*th column of the matrix corresponds to
@@ -1210,6 +1175,28 @@ Precondition:
 Returns:
     the fundamental group.)doc";
 
+// Docstring regina::python::doc::detail::TriangulationBase_::has20
+constexpr const char *has20 =
+R"doc(Determines whether it is possible to perform a 2-0 move about the
+given *k*-face of this triangulation, without violating any simplex
+and/or facet locks.
+
+For more detail on 2-0 moves and when they can be performed, see
+move20().
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be 0, 1 or 2, and must
+    not exceed ``dim - 2``.
+
+Parameter ``f``:
+    the *k*-face about which to perform the candidate move.
+
+Returns:
+    ``True`` if and only if the requested move can be performed.)doc";
+
 // Docstring regina::python::doc::detail::TriangulationBase_::hasBoundaryFacets
 constexpr const char *hasBoundaryFacets =
 R"doc(Determines if this triangulation has any boundary facets.
@@ -1236,6 +1223,55 @@ Returns:
     dimensional simplex or at least one locked facet of a top-
     dimensional simplex within this triangulation.)doc";
 
+// Docstring regina::python::doc::detail::TriangulationBase_::hasPachner
+constexpr const char *hasPachner =
+R"doc(Determines whether it is possible to perform a (*dim* + 1 - *k*)-(*k*
++ 1) Pachner move about the given *k*-face of this triangulation,
+without violating any simplex and/or facet locks.
+
+For more detail on Pachner moves and when they can be performed, see
+pachner().
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be between 0 and
+    (*dim*) inclusive.
+
+Parameter ``f``:
+    the *k*-face about which to perform the candidate move.
+
+Returns:
+    ``True`` if and only if the requested move can be performed.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::hasShellBoundary
+constexpr const char *hasShellBoundary =
+R"doc(Determines whether it is possible to perform a boundary shelling move
+upon the given top-dimensional simplex of this triangulation, without
+violating any simplex and/or facet locks.
+
+This test is _only available in standard dimensions_, since Regina's
+notion of "valid faces" is weaker in higher dimensions (due to the
+need to solve undecidable problems). See Face::isValid() for further
+discussion.
+
+For more detail on boundary shelling moves and when they can be
+performed, see shellBoundary().
+
+Precondition:
+    The dimension *dim* is one of Regina's standard dimensions.
+
+Precondition:
+    The given simplex is a simplex of this triangulation.
+
+Parameter ``s``:
+    the top-dimensional simplex upon which to perform the candidate
+    move.
+
+Returns:
+    ``True`` if and only if the requested move can be performed.)doc";
+
 // Docstring regina::python::doc::detail::TriangulationBase_::homology
 constexpr const char *homology =
 R"doc(Returns the *k*th homology group of this triangulation, treating any
@@ -1243,8 +1279,8 @@ ideal vertices as though they had been truncated, where the parameter
 *k* does not need to be known until runtime.
 
 For C++ programmers who know *k* at compile time, you are better off
-using the template function homology<k>() instead, which is slightly
-faster.
+using the template function ``homology<k>()`` instead, which is
+slightly faster.
 
 A problem with computing homology is that, if *dim* is not one of
 Regina's standard dimensions, then Regina cannot actually _detect_
@@ -1293,7 +1329,7 @@ Exception ``InvalidArgument``:
     see the documentation below for the argument *k*.
 
 Python:
-    Like the C++ template function homology<k>(), you can omit the
+    Like the C++ template function ``homology<k>()``, you can omit the
     homology dimension *k*; this will default to 1.
 
 Parameter ``k``:
@@ -1747,7 +1783,7 @@ the individual *k*-faces of this triangulation, where the parameter
 *k* does not need to be known until runtime.
 
 For C++ programmers who know *k* at compile time, you are better off
-using the template function markedHomology<k>() instead, which is
+using the template function ``markedHomology<k>()`` instead, which is
 slightly faster.
 
 This is a specialised homology routine; you should only use it if you
@@ -1785,8 +1821,8 @@ Exception ``InvalidArgument``:
     less than 1 or greater than or equal to *dim*).
 
 Python:
-    Like the C++ template function markedHomology<k>(), you can omit
-    the homology dimension *k*; this will default to 1.
+    Like the C++ template function ``markedHomology<k>()``, you can
+    omit the homology dimension *k*; this will default to 1.
 
 Parameter ``k``:
     the dimension of the homology group to compute; this must be
@@ -1795,6 +1831,79 @@ Parameter ``k``:
 Returns:
     the *k*th homology group of the union of all simplices in this
     triangulation, as described above.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::move20
+constexpr const char *move20 =
+R"doc(If possible, performs a 2-0 move about the given *k*-face of degree
+two. This involves taking the two top-dimensional simplices joined
+along that face and squashing them flat.
+
+This move is currently only implemented for vertices, edges and
+triangles (i.e., facial dimension ``k ≤ 2``).
+
+This triangulation will be changed directly.
+
+This move will only be performed if it will not change the topology of
+the manifold (as outlined below), _and_ it will not violate any
+simplex and/or facet locks. See Simplex<dim>::lock() and
+Simplex<dim>::lockFacet() for further details on locks.
+
+The requirements for the move to not change the topology depend upon
+the facial dimension *k*. In all cases:
+
+* the face *f* must be valid and non-boundary, and must have degree 2;
+
+* the two top-dimensional simplices on either side of *f* must be
+  distinct;
+
+* the link of *f* must be the standard sphere obtained by identifying
+  the boundaries of two `(dim - k - 1)`-simplices using the identity
+  map;
+
+* the two `(dim - k - 1)`-faces opposite *f* in each top-dimensional
+  simplex must be distinct and not both boundary.
+
+Moreover, there are further requirements depending on the facial
+dimension *k:*
+
+* When performing the move on a vertex (``k = 0``), there are no
+  additional requirements.
+
+* When performing the move on an edge (``k = 1``), there are
+  additional requirements on the `(dim - 1)`-faces. Specifically: the
+  move would effectively flatten facets *f1* and *f2* of one top-
+  dimensional simplex onto facets *g1* and *g2* of the other top-
+  dimensional simplex respectiveyl, and we require that: (a) *f1* and
+  *g1* are distinct, (b) *f2* and *g2* are distinct, (c) we do not
+  have both *f1* = *g2* and *g1* = *f2*, (d) we do not have both *f1*
+  = *f2* and *g1* = *g2*, and (e) we do not have two of the facets
+  boundary and the other two identified.
+
+* When performing the move on a triangle (``k = 2``), there are
+  additional requirements on both the `(dim - 1)`-faces and the `(dim
+  - 2)`-faces. These are move involved, and are discussed in detail in
+  the source code for those who are interested.
+
+If this triangulation is currently oriented, then this 2-0 move will
+preserve the orientation.
+
+Note that after performing this move, all skeletal objects (faces,
+components, etc.) will be reconstructed, which means any pointers to
+old skeletal objects (such as the argument *f*) can no longer be used.
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be 0, 1 or 2, and must
+    not exceed ``dim - 2``.
+
+Parameter ``f``:
+    the *k*-face about which to perform the move.
+
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::moveContentsTo
 constexpr const char *moveContentsTo =
@@ -1953,34 +2062,49 @@ for those simplices that originally had negative orientation).)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::pachner
 constexpr const char *pachner =
-R"doc(Checks the eligibility of and/or performs a (*dim* + 1 - *k*)-(*k* +
-1) Pachner move about the given *k*-face. This involves replacing the
-(*dim* + 1 - *k*) top-dimensional simplices meeting that *k*-face with
-(*k* + 1) new top-dimensional simplices joined along a new internal
-(*dim* - *k*)-face. This can be done iff (i) the given *k*-face is
-valid and non-boundary; (ii) the (*dim* + 1 - *k*) top-dimensional
-simplices that contain it are distinct; and (iii) these simplices are
-joined in such a way that the link of the given *k*-face is the
-standard triangulation of the (*dim* - 1 - *k*)-sphere as the boundary
-of a (*dim* - *k*)-simplex.
+R"doc(If possible, performs a (*dim* + 1 - *k*)-(*k* + 1) Pachner move about
+the given *k*-face. This involves replacing the (*dim* + 1 - *k*) top-
+dimensional simplices meeting that *k*-face with (*k* + 1) new top-
+dimensional simplices joined along a new internal (*dim* - *k*)-face.
 
-If the routine is asked to both check and perform, the move will only
-be performed if the check shows it is legal and will not violate any
-simplex and/or facet locks (see Simplex<dim>::lock() and
-Simplex<dim>::lockFacet() for further details on locks).
+This triangulation will be changed directly.
 
-Note that after performing this move, all skeletal objects (facets,
-components, etc.) will be reconstructed, which means any pointers to
-old skeletal objects (such as the argument *v*) can no longer be used.
+This move will only be performed if it will not change the topology of
+the manifold (as outlined below), _and_ it will not violate any
+simplex and/or facet locks. See Simplex<dim>::lock() and
+Simplex<dim>::lockFacet() for further details on locks.
+
+In order to not change the topology, we require that:
+
+* the given *k*-face is valid and non-boundary;
+
+* the (*dim* + 1 - *k*) top-dimensional simplices that contain it are
+  distinct; and
+
+* these simplices are joined in such a way that the link of the given
+  *k*-face is the standard triangulation of the `(dim - 1 - k)`-sphere
+  as the boundary of a `(dim - k)`-simplex.
 
 If this triangulation is currently oriented, then this Pachner move
 will label the new top-dimensional simplices in a way that preserves
 the orientation.
 
+Note that after performing this move, all skeletal objects (faces,
+components, etc.) will be reconstructed, which means any pointers to
+old skeletal objects (such as the argument *f*) can no longer be used.
+
 See the page on Pachner moves on triangulations for definitions and
 terminology relating to Pachner moves. After the move, the new belt
 face will be formed from vertices 0,1,...,(*dim* - *k*) of
 ``simplices().back()``.
+
+.. warning::
+    The check for this move takes quadratic time in the number of top-
+    dimensional simplices involved (which may become expensive when
+    *dim* is large and *k* is small). If you are certain that the move
+    is legal, and you wish to circumvent this check, C++ users can
+    call the variant of this function that takes an extra Unprotected
+    argument.
 
 .. warning::
     For the case *k* = *dim* in Regina's standard dimensions, the
@@ -1990,39 +2114,60 @@ face will be formed from vertices 0,1,...,(*dim* - *k*) of
     version 5.96 it is now ``simplices().back()->vertex(0)``.
 
 Precondition:
-    If the move is being performed and no check is being run, it must
-    be known in advance that the move is legal and will not violate
-    any simplex and/or facet locks.
-
-Precondition:
     The given *k*-face is a *k*-face of this triangulation.
 
-Exception ``LockViolation``:
-    This move would violate a simplex or facet lock, and *check* was
-    passed as ``False``. This exception will be thrown before any
-    changes are made. See Simplex<dim>::lock() and
-    Simplex<dim>::lockFacet() for further details on how locks work
-    and what their implications are.
+Template parameter ``k``:
+    the dimension of the given face. This must be between 0 and
+    (*dim*) inclusive.
 
 Parameter ``f``:
     the *k*-face about which to perform the move.
 
-Parameter ``check``:
-    ``True`` if we are to check whether the move is allowed (defaults
-    to ``True``).
-
-Parameter ``perform``:
-    ``True`` if we are to perform the move (defaults to ``True``).
-
 Returns:
-    If *check* is ``True``, the function returns ``True`` if and only
-    if the requested move may be performed without changing the
-    topology of the manifold or violating any locks. If *check* is
-    ``False``, the function simply returns ``True``.
+    ``True`` if and only if the requested move was able to be
+    performed.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::pachner_2
+constexpr const char *pachner_2 =
+R"doc(Deprecated routine that tests for and optionally performs a (*dim* + 1
+- *k*)-(*k* + 1) Pachner move about the given *k*-face of this
+triangulation.
+
+For more detail on Pachner moves and when they can be performed, see
+the variant of pachner() without the extra boolean arguments.
+
+This routine will always _check_ whether the requested move is legal
+and will not violate any simplex and/or facet locks (see
+Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further details
+on locks). If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
+
+.. deprecated::
+    If you just wish to test whether a such move is possible, call
+    hasPachner(). If you wish to both check and perform the move, call
+    pachner() without the two extra boolean arguments.
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
 
 Template parameter ``k``:
     the dimension of the given face. This must be between 0 and
-    (*dim*) inclusive.)doc";
+    (*dim*) inclusive.
+
+Parameter ``f``:
+    the *k*-face about which to perform the move.
+
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
+
+Parameter ``perform``:
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
+
+Returns:
+    ``True`` if and only if the requested move could be performed.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::pairing
 constexpr const char *pairing =
@@ -2218,6 +2363,120 @@ Precondition:
 
 Parameter ``pres``:
     a new presentation of the fundamental group of this triangulation.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::shellBoundary
+constexpr const char *shellBoundary =
+R"doc(If possible, performs a boundary shelling move upon the given top-
+dimensional simplex of this triangulation. This involves popping off a
+top-dimensional simplex with one or more facets on the boundary.
+
+This move is _only available in standard dimensions_, since Regina's
+notion of "valid faces" is weaker in higher dimensions (due to the
+need to solve undecidable problems). See Face::isValid() for further
+discussion.
+
+This triangulation will be changed directly.
+
+This move will only be performed if it will not change the topology of
+the manifold (as outlined below), _and_ it will not violate any
+simplex and/or facet locks. See Simplex<dim>::lock() and
+Simplex<dim>::lockFacet() for further details on locks.
+
+In order to not change the topology, we require the conditions below.
+These are conditions are stricter than necessary, but the resulting
+"lost opportunities" only affect invalid triangulations.
+
+In this list of conditions, we let *s* denote the given top-
+dimensional simplex, and we let *f* denote the face of *s* opposite
+the intersection of all its boundary facets. For example, for a
+4-manifold triangulation where *s* has exactly two boundary facets
+meeting in a common boundary triangle, *f* would denote the edge of
+*s* opposite this common triangle. Put differently: *f* is the
+(unique) smallest face of *s* that _might_ not be entirely contained
+in the triangulation boundary. Note that the dimension of *f* will be
+one less than the number of boundary facets of *s*.
+
+Having said all of this, our conditions are:
+
+* all faces of all dimensions of the simplex *s*, except possibly its
+  vertices, are valid;
+
+* at least one but not all of the facets of *s* lie in the boundary of
+  the triangulation;
+
+* the face *f* (defined above) is valid (even if it is a vertex), and
+  does not lie entirely in the boundary of the triangulation;
+
+* for each facial dimension *k*, no two *k*-faces of *s* that both
+  contain *f* are identified (testing this for ``k = dim(f)+1`` is
+  enough to ensure it holds for all *k*).
+
+If this triangulation is currently oriented, then this operation will
+(trivially) preserve the orientation.
+
+Note that after performing this move, all skeletal objects (faces,
+components, etc.) will be reconstructed, which means any pointers to
+old skeletal objects can no longer be used.
+
+Precondition:
+    The dimension *dim* is one of Regina's standard dimensions.
+
+Precondition:
+    The given simplex is a simplex of this triangulation.
+
+Parameter ``s``:
+    the top-dimensional simplex upon which to perform the move.
+
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::shellBoundary_2
+constexpr const char *shellBoundary_2 =
+R"doc(Deprecated routine that tests for and optionally performs a boundary
+shelling move on the given top-dimensional simplex.
+
+For more detail on boundary shelling moves and when they can be
+performed, see the variant of shellBoundary() without the extra
+boolean arguments.
+
+This routine will always _check_ whether the requested move is legal
+and will not violate any simplex and/or facet locks (see
+Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further details
+on locks). If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
+
+This move is _only available in standard dimensions_, since Regina's
+notion of "valid faces" is weaker in higher dimensions (due to the
+need to solve undecidable problems). See Face::isValid() for further
+discussion.
+
+.. deprecated::
+    If you just wish to test whether a such move is possible, call
+    hasShellBoundary(). If you wish to both check and perform the
+    move, call shellBoundary() without the two extra boolean
+    arguments.
+
+Precondition:
+    The dimension *dim* is one of Regina's standard dimensions.
+
+Precondition:
+    The given simplex is a simplex of this triangulation.
+
+Parameter ``s``:
+    the top-dimensional simplex upon which to perform the move.
+
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
+
+Parameter ``perform``:
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
+
+Returns:
+    ``True`` if and only if the requested move could be performed.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::sig
 constexpr const char *sig =
@@ -2449,14 +2708,53 @@ Typically this routine would be used when the given face comes from a
 triangulation that is combinatorially identical to this, and you wish
 to obtain the corresponding face of this triangulation.
 
-Specifically: if *other* refers to face *i* of top-dimensional simplex
-number *k* of some other triangulation, then this routine will return
-face *i* of top-dimensional simplex number *k* of this triangulation.
-Note that this routine does _not_ use the face indices within each
-triangulation (which is outside the user's control), but rather the
-simplex numbering (which the user has full control over).
+Specifically:
+
+* For faces of dimension ``k < dim``, if *other* refers to face *i* of
+  top-dimensional simplex number *k* of some other triangulation, then
+  this routine will return face *i* of top-dimensional simplex number
+  *k* of this triangulation. Note that this routine does _not_ use the
+  face indices within each triangulation (which is outside the user's
+  control), but rather the simplex numbering (which the user has full
+  control over).
+
+* For top-dimensional simplices (i.e., faces of dimension ``k =
+  dim``), this routine will simply translate top-dimensional simplex
+  number *k* of some other triangulation into top-dimensional simplex
+  number *k* of this triangulation.
 
 This routine behaves correctly even if *other* is a null pointer.
+
+Precondition:
+    This triangulation contains at least as many top-dimensional
+    simplices as the triangulation containing *other* (though, as
+    noted above, in typical scenarios both triangulations would
+    actually be combinatorially identical).
+
+Template parameter ``subdim``:
+    the face dimension; this must be between 0 and *dim* inclusive.
+
+Parameter ``other``:
+    the face to translate.
+
+Returns:
+    the corresponding face of this triangulation.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::translate_2
+constexpr const char *translate_2 =
+R"doc(Translates a face embedding from some other triangulation into the
+corresponding face embedding with respect to this triangulation, using
+simplex numbers for the translation.
+
+Typically this routine would be used when the given embedding comes
+from a triangulation that is combinatorially identical to this, and
+you wish to obtain the corresponding face embedding within this
+triangulation.
+
+Specifically: if the embedding *other* refers to face *i* of top-
+dimensional simplex number *k* of some other triangulation, then the
+embedding that is returned will refer to face *i* of top-dimensional
+simplex number *k* of this triangulation.
 
 Precondition:
     This triangulation contains at least as many top-dimensional
@@ -2468,10 +2766,10 @@ Template parameter ``subdim``:
     the face dimension; this must be between 0 and *dim*-1 inclusive.
 
 Parameter ``other``:
-    the face to translate.
+    the face embedding to translate.
 
 Returns:
-    the corresponding face of this triangulation.)doc";
+    the corresponding face embedding in this triangulation.)doc";
 
 // Docstring regina::python::doc::detail::TriangulationBase_::triangle
 constexpr const char *triangle =
@@ -2524,6 +2822,47 @@ newly-triangulated components.
 Returns:
     a list of individual component triangulations.)doc";
 
+// Docstring regina::python::doc::detail::TriangulationBase_::twoZeroMove
+constexpr const char *twoZeroMove =
+R"doc(Deprecated routine that tests for and optionally performs a 2-0 move
+about the given *k*-face of this triangulation.
+
+For more detail on 2-0 moves and when they can be performed, see
+move20().
+
+This routine will always _check_ whether the requested move is legal
+and will not violate any simplex and/or facet locks (see
+Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further details
+on locks). If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
+
+.. deprecated::
+    If you just wish to test whether a such move is possible, call
+    has20(). If you wish to both check and perform the move, call
+    move20(), which does not take the two extra boolean arguments.
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be 0, 1 or 2, and must
+    not exceed ``dim - 2``.
+
+Parameter ``f``:
+    the *k*-face about which to perform the move.
+
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
+
+Parameter ``perform``:
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
+
+Returns:
+    ``True`` if and only if the requested move could be performed.)doc";
+
 // Docstring regina::python::doc::detail::TriangulationBase_::unlockAll
 constexpr const char *unlockAll =
 R"doc(Unlocks all top-dimensional simplices and their facets.
@@ -2550,6 +2889,90 @@ R"doc(A dimension-specific alias for faces<0>().
 This alias is available for all dimensions *dim*.
 
 See faces() for further information.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::with20
+constexpr const char *with20 =
+R"doc(If possible, returns the triangulation obtained by performing a 2-0
+move about the given *k*-face of this triangulation. If such a move is
+not allowed, or if such a move would violate any simplex and/or facet
+locks, then this routine returns no value.
+
+This triangulation will not be changed.
+
+For more detail on 2-0 moves and when they can be performed, see
+move20().
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be 0, 1 or 2, and must
+    not exceed ``dim - 2``.
+
+Parameter ``f``:
+    the *k*-face about which to perform the move.
+
+Returns:
+    The new triangulation obtained by performing the requested move,
+    or no value if the requested move cannot be performed.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::withPachner
+constexpr const char *withPachner =
+R"doc(If possible, returns the triangulation obtained by performing a (*dim*
++ 1 - *k*)-(*k* + 1) Pachner move about the given *k*-face of this
+triangulation. If such a move is not allowed, or if such a move would
+violate any simplex and/or facet locks, then this routine returns no
+value.
+
+This triangulation will not be changed.
+
+For more detail on Pachner moves and when they can be performed, see
+pachner().
+
+Precondition:
+    The given *k*-face is a *k*-face of this triangulation.
+
+Template parameter ``k``:
+    the dimension of the given face. This must be between 0 and
+    (*dim*) inclusive.
+
+Parameter ``f``:
+    the *k*-face about which to perform the move.
+
+Returns:
+    The new triangulation obtained by performing the requested move,
+    or no value if the requested move cannot be performed.)doc";
+
+// Docstring regina::python::doc::detail::TriangulationBase_::withShellBoundary
+constexpr const char *withShellBoundary =
+R"doc(If possible, returns the triangulation obtained by performing a
+boundary shelling move on the given top-dimensional simplex of this
+triangulation. If such a move is not allowed, or if such a move would
+violate any simplex and/or facet locks, then this routine returns no
+value.
+
+This operation is _only available in standard dimensions_, since
+Regina's notion of "valid faces" is weaker in higher dimensions (due
+to the need to solve undecidable problems). See Face::isValid() for
+further discussion.
+
+This triangulation will not be changed.
+
+For more detail on boundary shelling moves and when they can be
+performed, see shellBoundary().
+
+Precondition:
+    The dimension *dim* is one of Regina's standard dimensions.
+
+Precondition:
+    The given simplex is a simplex of this triangulation.
+
+Parameter ``s``:
+    the top-dimensional simplex upon which to perform the move.
+
+Returns:
+    The new triangulation obtained by performing the requested move,
+    or no value if the requested move cannot be performed.)doc";
 
 }
 

@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/snappedball.h"
 #include "subcomplex/snappedtwosphere.h"
 #include "triangulation/dim3.h"
@@ -59,7 +59,7 @@ void addSnappedTwoSphere(pybind11::module_& m) {
             &SnappedTwoSphere::recognise), rdoc::recognise_2)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_END
 }

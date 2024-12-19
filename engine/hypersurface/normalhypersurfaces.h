@@ -124,13 +124,13 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
         HyperCoords coords_;
             /**< The coordinate system that was originally used to enumerate
                  the normal hypersurfaces in this list. */
-        HyperList which_;
+        Flags<HyperList> which_;
             /**< Indicates which normal hypersurfaces these represent
                  within the underlying triangulation. */
-        HyperAlg algorithm_;
+        Flags<HyperAlg> algorithm_;
             /**< Stores the details of the enumeration algorithm that
                  was used to generate this list.  This might not be the
-                 same as the \a algorithmHints flag that was originally
+                 same as the \a algHints flag that was originally
                  passed to the enumeration routine (e.g., if invalid or
                  inappropriate flags were passed). */
 
@@ -146,21 +146,21 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * produced, since vertex/fundamental surfaces in one system are not
          * necessarily vertex/fundamental in another.
          *
-         * The HyperList argument is a combination of flags that
+         * The \a whichList argument is a combination of flags that
          * allows you to specify exactly which normal hypersurfaces you require.
-         * This includes (i) whether you want all vertex hypersurfaces
-         * or all fundamental hypersurfaces, which defaults to HS_VERTEX
+         * This includes (i) whether you want all vertex hypersurfaces or all
+         * fundamental hypersurfaces, which defaults to HyperList::Vertex
          * if you specify neither or both; and (ii) whether you want only
          * properly embedded surfaces or you also wish to include
          * immersed and/or singular hypersurfaces, which defaults to
-         * HS_EMBEDDED_ONLY if you specify neither or both.
+         * HyperList::EmbeddedOnly if you specify neither or both.
          *
-         * The HyperAlg argument is a combination of flags that allows
+         * The \a algHints argument is a combination of flags that allows
          * you to control the underlying enumeration algorithm.  These
          * flags are treated as hints only: if your selection of
          * algorithm is invalid, unavailable or unsupported then Regina
          * will choose something more appropriate.  Unless you have
-         * some specialised need, the default HS_ALG_DEFAULT (which
+         * some specialised need, the default HyperAlg::Default (which
          * makes no hints at all) will allow Regina to choose what it
          * thinks will be the most efficient method.
          *
@@ -229,8 +229,8 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
         NormalHypersurfaces(
             const Triangulation<4>& triangulation,
             HyperCoords coords,
-            HyperList which = HS_LIST_DEFAULT,
-            HyperAlg algHints = HS_ALG_DEFAULT,
+            Flags<HyperList> whichList = HyperList::Default,
+            Flags<HyperAlg> algHints = HyperAlg::Default,
             ProgressTracker* tracker = nullptr);
 
         /**
@@ -304,19 +304,19 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * Returns details of which normal hypersurfaces this list represents
          * within the underlying triangulation.
          *
-         * This may not be the same HyperList that was passed to the class
+         * These may not be the same list flags that were passed to the class
          * constructor.  In particular, default values will have been explicitly
-         * filled in (such as HS_VERTEX and/or HS_EMBEDDED_ONLY), and
-         * invalid and/or redundant values will have been removed.
+         * filled in (such as HyperList::Vertex and/or HyperList::EmbeddedOnly),
+         * and invalid and/or redundant values will have been removed.
          *
          * \return details of what this list represents.
          */
-        HyperList which() const;
+        Flags<HyperList> which() const;
         /**
          * Returns details of the algorithm that was used to enumerate
          * this list.
          *
-         * These may not be the same HyperAlg flags that were passed to the
+         * These may not be the same algorithm flags that were passed to the
          * class constructor.  In particular, default values will have been
          * explicitly filled in, invalid and/or redundant values will have
          * been removed, and unavailable and/or unsupported combinations
@@ -325,7 +325,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          *
          * \return details of the algorithm used to enumerate this list.
          */
-        HyperAlg algorithm() const;
+        Flags<HyperAlg> algorithm() const;
         /**
          * Determines if the coordinate system that was used for enumeration
          * allows for non-compact hypersurfaces.
@@ -508,40 +508,6 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
         bool operator == (const NormalHypersurfaces& other) const;
 
         /**
-         * Determines whether this and the given list contain different
-         * sets of normal hypersurfaces.
-         *
-         * The lists will be compared as multisets: the order of the
-         * hypersurfaces in each list does not matter; however, in the unusual
-         * scenario where a list the same hypersurface multiple times,
-         * multiplicity does matter.
-         *
-         * Like the comparison operators for NormalHypersurface, it does not
-         * matter whether the lists work with different triangulations,
-         * or different encodings, or if one but not the other supports
-         * non-compact hypersurfaces.  The individual hypersurfaces will
-         * simply be compared by examining or computing the number of
-         * normal pieces of each type.
-         *
-         * In particular, this routine is safe to call even if this and the
-         * given list work with different triangulations:
-         *
-         * - If the two triangulations have the same size, then this routine
-         *   will compare hypersurfaces as though they were transplanted into
-         *   the same triangulation using the same pentachoron numbering and
-         *   the same normal piece types.
-         *
-         * - If the two triangulations have different sizes, then this
-         *   comparison will return \c true (i.e., the lists will be
-         *   considered different).
-         *
-         * \param other the list to be compared with this list.
-         * \return \c true if both lists do not represent the same multiset of
-         * normal hypersurfaces, or \c false if they do.
-         */
-        bool operator != (const NormalHypersurfaces& other) const;
-
-        /**
          * Writes a short text representation of this object to the
          * given output stream.
          *
@@ -650,24 +616,16 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * A bidirectional iterator that runs through the raw vectors for
          * hypersurfaces in this list.
          *
+         * As of Regina 7.4, this class no longer provides the iterator type
+         * aliases \a value_type, \a iterator_category, \a difference_type,
+         * \a pointer and \a reference. Instead you can access these through
+         * `std::iterator_traits`.
+         *
          * \nopython Instead NormalHypersurfaces::vectors() returns an object
          * of a different (hidden) class that supports the Python
          * iterable/iterator interface.
          */
         class VectorIterator {
-            public:
-                using iterator_category = std::bidirectional_iterator_tag;
-                    /**< Declares this to be a bidirectional iterator type. */
-                using value_type = Vector<LargeInteger>;
-                    /**< Indicates what type the iterator points to. */
-                using difference_type = typename
-                    std::vector<NormalHypersurface>::const_iterator::difference_type;
-                    /**< The type obtained by subtracting iterators. */
-                using pointer = const Vector<LargeInteger>*;
-                    /**< A pointer to \a value_type. */
-                using reference = const Vector<LargeInteger>&;
-                    /**< The type obtained when dereferencing iterators. */
-
             private:
                 std::vector<NormalHypersurface>::const_iterator it_;
                     /**< An iterator into the underlying list of
@@ -681,39 +639,24 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
 
                 /**
                  * Creates a copy of the given iterator.
-                 *
-                 * \param cloneMe the iterator to clone.
                  */
-                VectorIterator(const VectorIterator& cloneMe) = default;
+                VectorIterator(const VectorIterator&) = default;
 
                 /**
                  * Makes this a copy of the given iterator.
                  *
-                 * \param cloneMe the iterator to clone.
                  * \return a reference to this iterator.
                  */
-                VectorIterator& operator = (const VectorIterator& cloneMe) =
-                    default;
+                VectorIterator& operator = (const VectorIterator&) = default;
 
                 /**
                  * Compares this with the given iterator for equality.
                  *
-                 * \param other the iterator to compare this with.
                  * \return \c true if the iterators point to the same
-                 * element of the same normal surface list, or \c false
+                 * element of the same normal hypersurface list, or \c false
                  * if they do not.
                  */
-                bool operator == (const VectorIterator& other) const;
-
-                /**
-                 * Compares this with the given iterator for inequality.
-                 *
-                 * \param other the iterator to compare this with.
-                 * \return \c false if the iterators point to the same
-                 * element of the same normal surface list, or \c true
-                 * if they do not.
-                 */
-                bool operator != (const VectorIterator& other) const;
+                bool operator == (const VectorIterator&) const = default;
 
                 /**
                  * Returns the raw vector for the normal hypersurface that this
@@ -772,15 +715,15 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * Creates an empty list of normal hypersurfaces with the given
          * parameters.
          */
-        NormalHypersurfaces(HyperCoords coords, HyperList which,
-            HyperAlg algorithm, const Triangulation<4>& triangulation);
+        NormalHypersurfaces(HyperCoords coords, Flags<HyperList> whichList,
+            Flags<HyperAlg> algorithm, const Triangulation<4>& triangulation);
 
         /**
          * Creates an empty list of normal hypersurfaces with the given
          * parameters.
          */
-        NormalHypersurfaces(HyperCoords coords, HyperList which,
-            HyperAlg algorithm,
+        NormalHypersurfaces(HyperCoords coords, Flags<HyperList> whichList,
+            Flags<HyperAlg> algorithm,
             const SnapshotRef<Triangulation<4>>& triangulation);
 
     private:
@@ -951,6 +894,19 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
  */
 void swap(NormalHypersurfaces& lhs, NormalHypersurfaces& rhs);
 
+#ifndef __APIDOCS
+} namespace std {
+    template <>
+    struct iterator_traits<regina::NormalHypersurfaces::VectorIterator> {
+        using value_type = regina::Vector<regina::LargeInteger>;
+        using iterator_category = std::bidirectional_iterator_tag;
+        using difference_type = typename std::vector<regina::NormalHypersurface>::const_iterator::difference_type;
+        using pointer = const value_type*;
+        using reference = const value_type&;
+    };
+} namespace regina {
+#endif
+
 /**
  * Generates the set of normal hypersurface matching equations for the
  * given triangulation using the given coordinate system.
@@ -990,8 +946,8 @@ MatrixInt makeMatchingEquations(const Triangulation<4>& triangulation,
  * relative to the given coordinate system.
  *
  * These are the constraints that will be used when enumerating embedded
- * hypersurfaces in the given coordinate system (i.e., when the default
- * HS_EMBEDDED_ONLY flag is used).  They will not be used when the enumeration
+ * hypersurfaces in the given coordinate system (i.e., when the default flag
+ * HyperList::EmbeddedOnly is used).  They will not be used when the enumeration
  * allows for immersed and/or singular hypersurfaces.
  *
  * \param triangulation the triangulation upon which these validity constraints
@@ -1010,9 +966,11 @@ ValidityConstraints makeEmbeddedConstraints(
 
 inline NormalHypersurfaces::NormalHypersurfaces(
         const Triangulation<4>& triangulation,
-        HyperCoords coords, HyperList which, HyperAlg algHints,
+        HyperCoords coords,
+        Flags<HyperList> whichList,
+        Flags<HyperAlg> algHints,
         ProgressTracker* tracker) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algHints) {
     try {
         Enumerator(this, makeMatchingEquations(triangulation, coords),
@@ -1056,16 +1014,16 @@ inline HyperCoords NormalHypersurfaces::coords() const {
     return coords_;
 }
 
-inline HyperList NormalHypersurfaces::which() const {
+inline Flags<HyperList> NormalHypersurfaces::which() const {
     return which_;
 }
 
-inline HyperAlg NormalHypersurfaces::algorithm() const {
+inline Flags<HyperAlg> NormalHypersurfaces::algorithm() const {
     return algorithm_;
 }
 
 inline bool NormalHypersurfaces::isEmbeddedOnly() const {
-    return which_.has(HS_EMBEDDED_ONLY);
+    return which_.has(HyperList::EmbeddedOnly);
 }
 
 inline const Triangulation<4>& NormalHypersurfaces::triangulation() const {
@@ -1114,16 +1072,6 @@ inline MatrixInt NormalHypersurfaces::recreateMatchingEquations() const {
     return makeMatchingEquations(triangulation(), coords_);
 }
 
-inline bool NormalHypersurfaces::VectorIterator::operator ==(
-        const NormalHypersurfaces::VectorIterator& other) const {
-    return (it_ == other.it_);
-}
-
-inline bool NormalHypersurfaces::VectorIterator::operator !=(
-        const NormalHypersurfaces::VectorIterator& other) const {
-    return (it_ != other.it_);
-}
-
 inline const Vector<LargeInteger>&
         NormalHypersurfaces::VectorIterator::operator *() const {
     return it_->vector();
@@ -1165,22 +1113,17 @@ inline NormalHypersurfaces::VectorIterator
     return VectorIterator(surfaces_.end());
 }
 
-inline bool NormalHypersurfaces::operator != (const NormalHypersurfaces& other)
-        const {
-    return ! ((*this) == other);
-}
-
 inline NormalHypersurfaces::NormalHypersurfaces(HyperCoords coords,
-        HyperList which, HyperAlg algorithm,
+        Flags<HyperList> whichList, Flags<HyperAlg> algorithm,
         const Triangulation<4>& triangulation) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algorithm) {
 }
 
 inline NormalHypersurfaces::NormalHypersurfaces(HyperCoords coords,
-        HyperList which, HyperAlg algorithm,
+        Flags<HyperList> whichList, Flags<HyperAlg> algorithm,
         const SnapshotRef<Triangulation<4>>& triangulation) :
-        triangulation_(triangulation), coords_(coords), which_(which),
+        triangulation_(triangulation), coords_(coords), which_(whichList),
         algorithm_(algorithm) {
 }
 

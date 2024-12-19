@@ -45,6 +45,7 @@
 
 using regina::HyperCoords;
 using regina::NormalCoords;
+using regina::NormalHypersurfaces;
 using regina::NormalSurfaces;
 
 void CoordinateChooser::insertSystem(NormalCoords coordSystem) {
@@ -63,13 +64,13 @@ void CoordinateChooser::insertAllCreators() {
     insertSystem(NormalCoords::QuadOctClosed);
 #ifdef SUPPORT_TONS
     if (ReginaPrefSet::global().surfacesSupportOriented) {
-        insertSystem(regina::NS_ORIENTED);
-        insertSystem(regina::NS_ORIENTED_QUAD);
+        insertSystem(NormalCoords::Oriented);
+        insertSystem(NormalCoords::OrientedQuad);
     }
 #endif
 }
 
-void CoordinateChooser::insertAllViewers(regina::NormalSurfaces* surfaces) {
+void CoordinateChooser::insertAllViewers(NormalSurfaces* surfaces) {
     if (surfaces->allowsAlmostNormal()) {
         // For lists created with Regina 4.5.1 or earlier, we have
         // already taken out surfaces with multiple octagons.  Make this
@@ -86,8 +87,8 @@ void CoordinateChooser::insertAllViewers(regina::NormalSurfaces* surfaces) {
 
 #ifdef SUPPORT_TONS
         if (surfaces->allowsOriented()) {
-            insertSystem(regina::NS_ORIENTED);
-            insertSystem(regina::NS_ORIENTED_QUAD);
+            insertSystem(NormalCoords::Oriented);
+            insertSystem(NormalCoords::OrientedQuad);
         }
 #endif
     }
@@ -104,14 +105,14 @@ void CoordinateChooser::setCurrentSystem(NormalCoords newSystem) {
         if (newSystem == NormalCoords::QuadClosed)
             it = std::find(systems.begin(), systems.end(), NormalCoords::Quad);
 #ifdef SUPPORT_TONS
-        else if (newSystem == regina::NS_ORIENTED_QUAD)
+        else if (newSystem == NormalCoords::OrientedQuad)
             it = std::find(systems.begin(), systems.end(), NormalCoords::Quad);
 #endif
         else if (newSystem == NormalCoords::QuadOctClosed)
             it = std::find(systems.begin(), systems.end(),
                 NormalCoords::QuadOct);
 #ifdef SUPPORT_TONS
-        else if (newSystem == regina::NS_ORIENTED)
+        else if (newSystem == NormalCoords::Oriented)
             it = std::find(systems.begin(), systems.end(),
                 NormalCoords::Standard);
 #endif
@@ -134,8 +135,7 @@ void HyperCoordinateChooser::insertAllCreators() {
     insertSystem(HyperCoords::Prism);
 }
 
-void HyperCoordinateChooser::insertAllViewers(
-        regina::NormalHypersurfaces*) {
+void HyperCoordinateChooser::insertAllViewers(NormalHypersurfaces*) {
     insertSystem(HyperCoords::Standard);
     insertSystem(HyperCoords::Prism);
     insertSystem(HyperCoords::Edge);

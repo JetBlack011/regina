@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include <cmath>
+#include <numbers>
 #include "angle/anglestructures.h"
 #include "link/link.h"
 #include "manifold/simplesurfacebundle.h"
@@ -44,11 +44,6 @@
 
 #include "generic/triangulationtest.h"
 #include "testexhaustive.h"
-
-// Pi only becomes a standard language constant in C++20.
-// For now, use the non-standard M_PI (which requires the following #define).
-// This is used in the Turaev-Viro approximation tests.
-#define _USE_MATH_DEFINES
 
 using regina::AbelianGroup;
 using regina::Example;
@@ -653,52 +648,54 @@ TEST_F(Dim3Test, vertexLinksBasic) {
     verifyVertexLinksBasic(disjoint3, 3, 3, 1);
 
     // Verify the specific surfaces for non-spheres/balls:
-    EXPECT_EQ(figure8.tri.vertex(0)->linkType(), Vertex<3>::TORUS);
-    EXPECT_EQ(trefoil.tri.vertex(0)->linkType(), Vertex<3>::TORUS);
-    EXPECT_EQ(knot18.tri.vertex(0)->linkType(), Vertex<3>::TORUS);
+    EXPECT_EQ(figure8.tri.vertex(0)->linkType(), Vertex<3>::Link::Torus);
+    EXPECT_EQ(trefoil.tri.vertex(0)->linkType(), Vertex<3>::Link::Torus);
+    EXPECT_EQ(knot18.tri.vertex(0)->linkType(), Vertex<3>::Link::Torus);
     {
         auto v = idealGenusTwoHandlebody.tri.vertex(1);
-        EXPECT_EQ(v->linkType(), Vertex<3>::NON_STANDARD_CUSP);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::NonStandardCusp);
         EXPECT_EQ(v->linkEulerChar(), -2);
         EXPECT_TRUE(v->isLinkOrientable());
     }
-    EXPECT_EQ(figure8_bary.tri.vertex(0)->linkType(), Vertex<3>::TORUS);
+    EXPECT_EQ(figure8_bary.tri.vertex(0)->linkType(), Vertex<3>::Link::Torus);
 
-    EXPECT_EQ(gieseking.tri.vertex(0)->linkType(), Vertex<3>::KLEIN_BOTTLE);
+    EXPECT_EQ(gieseking.tri.vertex(0)->linkType(),
+        Vertex<3>::Link::KleinBottle);
     {
         auto v = idealRP2xI.tri.vertex(1);
-        EXPECT_EQ(v->linkType(), Vertex<3>::NON_STANDARD_CUSP);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::NonStandardCusp);
         EXPECT_EQ(v->linkEulerChar(), 1);
         EXPECT_FALSE(v->isLinkOrientable());
     }
     {
         auto v = idealRP2xI.tri.vertex(8);
-        EXPECT_EQ(v->linkType(), Vertex<3>::NON_STANDARD_CUSP);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::NonStandardCusp);
         EXPECT_EQ(v->linkEulerChar(), 1);
         EXPECT_FALSE(v->isLinkOrientable());
     }
 
     {
         auto v = pinchedSolidTorus.tri.vertex(0);
-        EXPECT_EQ(v->linkType(), Vertex<3>::INVALID);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::Invalid);
         EXPECT_EQ(v->linkEulerChar(), 0);
         EXPECT_TRUE(v->isLinkOrientable());
     }
     {
         auto v = pinchedSolidKB.tri.vertex(0);
-        EXPECT_EQ(v->linkType(), Vertex<3>::INVALID);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::Invalid);
         EXPECT_EQ(v->linkEulerChar(), 0);
         EXPECT_FALSE(v->isLinkOrientable());
     }
 
-    EXPECT_EQ(disjoint2.tri.vertex(0)->linkType(), Vertex<3>::KLEIN_BOTTLE);
+    EXPECT_EQ(disjoint2.tri.vertex(0)->linkType(),
+        Vertex<3>::Link::KleinBottle);
     {
         auto v = disjoint2.tri.vertex(2);
-        EXPECT_EQ(v->linkType(), Vertex<3>::NON_STANDARD_CUSP);
+        EXPECT_EQ(v->linkType(), Vertex<3>::Link::NonStandardCusp);
         EXPECT_EQ(v->linkEulerChar(), -2);
         EXPECT_TRUE(v->isLinkOrientable());
     }
-    EXPECT_EQ(disjoint3.tri.vertex(6)->linkType(), Vertex<3>::TORUS);
+    EXPECT_EQ(disjoint3.tri.vertex(6)->linkType(), Vertex<3>::Link::Torus);
 }
 
 static void verifyVertexLinks(const Triangulation<3>& tri, const char* name) {
@@ -814,6 +811,13 @@ static void verifyDehydration(const Triangulation<3>& tri, const char* name) {
 
 TEST_F(Dim3Test, dehydration) {
     testManualCases(verifyDehydration);
+
+    // Add some ad-hoc tests for known cases:
+    EXPECT_EQ(Example<3>::figureEight().dehydrate(), "cabbbbaei");
+    EXPECT_EQ(Example<3>::poincare().dehydrate(), "fapaadecedenbokbo");
+    EXPECT_EQ(Example<3>::rp2xs1().dehydrate(), "dadbcccfxfh");
+    EXPECT_EQ(Example<3>::augTriSolidTorus(2,3,1,0,4,5).dehydrate(),
+        "mmpkebeedgehfijhklklfsajaxqhkxhnk");
 }
 
 TEST_F(Dim3Test, pachner) {
@@ -824,24 +828,24 @@ TEST_F(Dim3Test, pachner) {
     verifyPachnerSimplicial();
 }
 
-TEST_F(Dim3Test, twoZeroVertexMove) {
-    testManualCases(TriangulationTest<3>::verifyTwoZeroVertex);
-    runCensusAllClosed(TriangulationTest<3>::verifyTwoZeroVertex);
-    runCensusAllBounded(TriangulationTest<3>::verifyTwoZeroVertex);
-    runCensusAllIdeal(TriangulationTest<3>::verifyTwoZeroVertex);
+TEST_F(Dim3Test, move20Vertex) {
+    testManualCases(TriangulationTest<3>::verify20Vertex);
+    runCensusAllClosed(TriangulationTest<3>::verify20Vertex);
+    runCensusAllBounded(TriangulationTest<3>::verify20Vertex);
+    runCensusAllIdeal(TriangulationTest<3>::verify20Vertex);
 }
 
-static void verifyTwoZeroEdgeMove(Triangulation<3> tri, size_t whichEdge,
+static void verify20EdgeResult(Triangulation<3> tri, size_t whichEdge,
         const Triangulation<3>& result, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
-    EXPECT_TRUE(tri.twoZeroMove(tri.edge(whichEdge)));
+    EXPECT_TRUE(tri.move20(tri.edge(whichEdge)));
     EXPECT_TRUE(tri.isIsomorphicTo(result));
     // Note: in all but one of our 2-0 tests, the triangulations are not just
     // isomorphic but also identical.  (The exception is internal-flat-lens.)
 }
 
-static void verifyTwoZeroEdgeInvalid(const Triangulation<3>& tri,
+static void verify20EdgeInvalid(const Triangulation<3>& tri,
         const char* name) {
     // This is intended for cases that have an internal degree two edge,
     // but where the corresponding 2-0 move is not allowed.
@@ -852,19 +856,26 @@ static void verifyTwoZeroEdgeInvalid(const Triangulation<3>& tri,
     for (auto e : tri.edges()) {
         if (e->degree() == 2 && ! e->isBoundary())
             found = true;
-        // Use a const_cast for now: the move should be illegal.
-        ASSERT_FALSE(const_cast<Triangulation<3>&>(tri).twoZeroMove(e));
+        ASSERT_FALSE(tri.has20(e));
     }
     EXPECT_TRUE(found);
 }
 
-TEST_F(Dim3Test, twoZeroEdgeMove) {
+TEST_F(Dim3Test, move20Edge) {
+    // Some more basic tests over census triangulations:
+    testManualCases(TriangulationTest<3>::verify20Edge);
+    runCensusAllClosed(TriangulationTest<3>::verify20Edge);
+    runCensusAllBounded(TriangulationTest<3>::verify20Edge);
+    runCensusAllIdeal(TriangulationTest<3>::verify20Edge);
+
+    // Some hand-crafted tests:
+
     // -------------------------------------------
     // Cases where a 2-0 edge move should succeed:
     // -------------------------------------------
 
     // A one-boundary-face case that Regina 4.1 used to crash on.
-    verifyTwoZeroEdgeMove(Triangulation<3>::fromGluings(5, {
+    verify20EdgeResult(Triangulation<3>::fromGluings(5, {
             { 0, 1, 2, {3,0,1,2} }, { 0, 2, 4, {3,0,2,1} },
             { 0, 3, 4, {3,0,2,1} }, { 1, 2, 2, {0,1,3,2} },
             { 1, 3, 4, {2,1,3,0} }, { 2, 1, 3, {0,2,3,1} },
@@ -874,7 +885,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
             { 1, 1, 2, {0,2,3,1} }, { 1, 2, 2, {2,1,0,3} }}),
         "one-boundary-face");
 
-    verifyTwoZeroEdgeMove(Triangulation<3>::fromGluings(3, {
+    verify20EdgeResult(Triangulation<3>::fromGluings(3, {
             // Two tetrahedra glued along a degree two edge:
             { 0, 0, 1, {} }, { 0, 1, 1, {} }, // tet 0 <-> tet 1 on edge 23
             // Fold the other two faces of tetrahedron 0 together:
@@ -891,13 +902,13 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
         orig.tetrahedron(0)->join(2, top, {2,3,0,1});
         orig.tetrahedron(0)->join(3, top, {2,3,0,1});
 
-        verifyTwoZeroEdgeMove(std::move(orig), 0,
+        verify20EdgeResult(std::move(orig), 0,
             regina::Example<3>::lst(3, 4), "boundary-layer");
     }
 
     // A degree two edge gadget wedged between two adjacent internal faces in
     // a LST(3,4,7).
-    verifyTwoZeroEdgeMove(Triangulation<3>::fromGluings(5, {
+    verify20EdgeResult(Triangulation<3>::fromGluings(5, {
             { 0, 0, 1, {2,1,3,0} }, { 0, 1, 1, {0,3,1,2} },
             { 1, 0, 4, {3,1,2,0} }, { 1, 1, 4, {0,2,1,3} },
             { 2, 0, 2, {1,2,3,0} }, { 2, 2, 3, {0,1,2,3} },
@@ -917,12 +928,12 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
             { 3, 1, 4, {0,1,2,3} }, { 4, 2, 4, {1,2,3,0} }});
         Triangulation<3> lens = regina::Example<3>::lens(10, 3);
 
-        verifyTwoZeroEdgeMove(orig, 5, lens, "internal-loop-twist");
-        verifyTwoZeroEdgeMove(std::move(orig), 0, lens, "internal-flat-lens");
+        verify20EdgeResult(orig, 5, lens, "internal-loop-twist");
+        verify20EdgeResult(std::move(orig), 0, lens, "internal-flat-lens");
     }
 
     // Two solid Klein bottles glued along a single face.
-    verifyTwoZeroEdgeMove(Triangulation<3>::fromGluings(4, {
+    verify20EdgeResult(Triangulation<3>::fromGluings(4, {
             // Two tetrahedra glued along a degree two edge, with two of the
             // outer faces glued together to form a solid Klein bottle:
             { 0, 0, 1, {} }, { 0, 1, 1, {} }, { 0, 2, 1, {1,2,3,0} },
@@ -938,7 +949,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
     // A hand-constructed example formed by squeezing the same solid Klein
     // bottle from above into a two-sided Mobius band face in K(iii | 1,0 | 0,1)
     // from the 6-tetrahedron non-orientable census.
-    verifyTwoZeroEdgeMove(Triangulation<3>::fromGluings(8, {
+    verify20EdgeResult(Triangulation<3>::fromGluings(8, {
             { 0, 0, 1, {0,2,1,3} }, { 0, 1, 1, {2,1,3,0} },
             { 0, 2, 2, {1,3,0,2} }, { 0, 3, 2, {3,0,2,1} },
             { 1, 2, 6, {2,0,3,1} }, { 1, 3, 3, {2,3,1,0} },
@@ -962,14 +973,14 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
 
     // A degree two edge gadget, with all four outer faces joined together in a
     // simple loop.
-    verifyTwoZeroEdgeInvalid(
+    verify20EdgeInvalid(
         regina::SimpleSurfaceBundle(regina::SimpleSurfaceBundle::S2xS1)
             .construct(),
         "round-loop");
 
     // A degree two edge gadget, with all four outer faces joined together in a
     // crossed loop.
-    verifyTwoZeroEdgeInvalid(
+    verify20EdgeInvalid(
         regina::SimpleSurfaceBundle(regina::SimpleSurfaceBundle::S2xS1_TWISTED)
             .construct(),
         "crossed-loop");
@@ -978,7 +989,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
     // of the four boundary faces (thus the bigon that would normally be
     // flattened forms a properly embedded disc that separates the manifold
     // into two pieces).
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(6, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(6, {
             { 0, 0, 1, {} }, { 0, 1, 1, {} },
             { 0, 2, 2, {} }, { 0, 3, 3, {} },
             { 1, 2, 4, {} }, { 1, 3, 5, {} }}),
@@ -986,7 +997,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
 
     // A degree two edge gadget, with all four outer faces identified so that
     // the bigon that would normally be flattened forms a 2-sphere.
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(6, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(6, {
             { 0, 0, 1, {} }, { 0, 1, 1, {} },
             { 0, 2, 2, {} }, { 0, 3, 3, {} }, { 1, 2, 4, {} },
             { 1, 3, 5, {} }, { 2, 3, 4, {} }, { 3, 2, 5, {} }}),
@@ -994,7 +1005,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
 
     // A degree two edge gadget, with all four outer faces identified so that
     // the bigon that would normally be flattened forms a projective plane.
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(6, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(6, {
             { 0, 0, 1, {} }, { 0, 1, 1, {} },
             { 0, 2, 2, {} }, { 0, 3, 3, {} }, { 1, 2, 4, {} },
             { 1, 3, 5, {} }, { 2, 3, 4, {0,1} }, { 3, 2, 5, {0,1} }}),
@@ -1002,19 +1013,19 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
 
     // A degree two edge gadget, with two adjacent outer faces glued together
     // in a loop.
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(2, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(2, {
             { 0, 0, 1, {} }, { 0, 1, 1, {} }, { 0, 2, 0, {2,3} }}),
         "boundary-loop-boundary");
 
     // A degree two edge gadget, with two diagonally opposite outer faces
     // glued together to form a solid Klein bottle.
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(2, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(2, {
             { 0, 0, 1, {} }, { 0, 1, 1, {} }, { 0, 2, 1, {1,2,3,0} }}),
         "boundary-cross-boundary");
 
     // A degree two edge gadget with two opposite outer faces boundary,
     // and the other two wedged inside an LST(3,4,7).
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(5, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(5, {
             { 0, 0, 1, {2,1,3,0} }, { 0, 1, 1, {0,3,1,2} },
             { 1, 0, 4, {3,1,2,0} }, { 1, 1, 2, {0,2,1,3} },
             { 2, 0, 2, {1,2,3,0} }, { 2, 3, 3, {0,1,2,3} },
@@ -1023,7 +1034,7 @@ TEST_F(Dim3Test, twoZeroEdgeMove) {
 
     // A degree two edge gadtet with two diagonally opposite outer faces
     // boundary, and the other two glued to an LST boundary.
-    verifyTwoZeroEdgeInvalid(Triangulation<3>::fromGluings(5, {
+    verify20EdgeInvalid(Triangulation<3>::fromGluings(5, {
             // LST(3,4,7):
             { 0, 0, 1, {2,1,3,0} }, { 0, 1, 1, {0,3,1,2} },
             { 1, 0, 2, {3,1,2,0} }, { 1, 1, 2, {0,2,1,3} },
@@ -1128,7 +1139,7 @@ static void verifyZeroTwoMove(const Triangulation<3>& tri, const char* name ) {
 
                 // Test the inverse 2-0 move.
                 regina::Triangulation<3> inv(alt);
-                EXPECT_TRUE(inv.twoZeroMove(
+                EXPECT_TRUE(inv.move20(
                     inv.tetrahedron(iso.simpImage(inv.size() - 1))->edge(
                         iso.facetPerm(inv.size() - 1)[2],
                         iso.facetPerm(inv.size() - 1)[3])));
@@ -1215,6 +1226,12 @@ TEST_F(Dim3Test, pinchEdge) {
         tmp.idealToFinite(); // truncate invalid vertex
         EXPECT_TRUE(tmp.isSolidTorus());
     }
+}
+
+TEST_F(Dim3Test, shellBoundary) {
+    testManualCases(TriangulationTest<3>::verifyShellBoundary);
+    runCensusAllBounded(TriangulationTest<3>::verifyShellBoundary);
+    runCensusAllIdeal(TriangulationTest<3>::verifyShellBoundary);
 }
 
 TEST_F(Dim3Test, barycentricSubdivision) {
@@ -1897,8 +1914,8 @@ static void verifyIdealToFinite(const Triangulation<3>& tri,
     EXPECT_EQ(finite.countBoundaryComponents(), tri.countBoundaryComponents());
 
     for (auto v : finite.vertices())
-        EXPECT_TRUE(v->linkType() == regina::Vertex<3>::SPHERE ||
-            v->linkType() == regina::Vertex<3>::DISC);
+        EXPECT_TRUE(v->linkType() == regina::Vertex<3>::Link::Sphere ||
+            v->linkType() == regina::Vertex<3>::Link::Disc);
 
     // Make sure any invalid edges are left alone.
     {
@@ -2126,7 +2143,7 @@ static void verifyAngleStructures(const Triangulation<3>& tri,
             // small cases such as these, so we will happily assume that
             // neither happens for the purpose of this test suite.
             if (regina::SnapPeaTriangulation(tri).solutionType() ==
-                    regina::SnapPeaTriangulation::geometric_solution)
+                    regina::SnapPeaTriangulation::Solution::Geometric)
                 expectStrict = true;
         } else {
             // SnapPea does not handle multiple components well.  Run the same
@@ -2134,7 +2151,7 @@ static void verifyAngleStructures(const Triangulation<3>& tri,
             expectStrict = true;
             for (const auto& c : tri.triangulateComponents()) {
                 if (regina::SnapPeaTriangulation(c).solutionType() !=
-                        regina::SnapPeaTriangulation::geometric_solution) {
+                        regina::SnapPeaTriangulation::Solution::Geometric) {
                     expectStrict = false;
                     break;
                 }
@@ -3018,7 +3035,7 @@ TEST_F(Dim3Test, turaevViro) {
             if (std::gcd(q0, r) == 1) {
                 SCOPED_TRACE_NUMERIC(q0);
 
-                double pow = 2 * sin(M_PI * q0 / r);
+                double pow = 2 * sin(std::numbers::pi_v<double> * q0 / r);
                 EXPECT_NEAR(s3.tri.turaevViroApprox(r, q0),
                     (pow * pow) / (2 * r), epsilon);
                 EXPECT_NEAR(sphere.tri.turaevViroApprox(r, q0),
@@ -3048,8 +3065,8 @@ TEST_F(Dim3Test, turaevViro) {
                     EXPECT_NEAR(rp3_large.tri.turaevViroApprox(r, q0), 0,
                         epsilon);
                 } else {
-                    double real = cos(M_PI * q0 / r) - 1.0;
-                    double imag = sin(M_PI * q0 / r);
+                    double real = cos(std::numbers::pi_v<double> * q0 / r) - 1;
+                    double imag = sin(std::numbers::pi_v<double> * q0 / r);
                     EXPECT_NEAR(rp3_1.tri.turaevViroApprox(r, q0),
                         ((real * real) + (imag * imag)) / r, epsilon);
                     EXPECT_NEAR(rp3_2.tri.turaevViroApprox(r, q0),
@@ -3072,7 +3089,8 @@ TEST_F(Dim3Test, turaevViro) {
             if (std::gcd(q0, r) == 1) {
                 SCOPED_TRACE_NUMERIC(q0);
 
-                double pow = 2 * sin(M_PI * q0 * (((r - 2) / 3) + 1) / r);
+                double pow = 2 * sin(std::numbers::pi_v<double> * q0 *
+                    (((r - 2) / 3) + 1) / r);
                 EXPECT_NEAR(lens3_1.tri.turaevViroApprox(r, q0),
                     (pow * pow) / (2 * r), epsilon);
             }
@@ -3253,13 +3271,13 @@ static void verifyMeridian(const Triangulation<3>& tri, const char* name) {
         // and appears under all possible edge labellings.
         auto s = use.boundaryComponent(0)->edge(i)->front().simplex();
 
-        for (int j = 0; j < 24; ++j) {
+        for (auto p: Perm<4>::Sn) {
             auto iso = Isomorphism<3>::identity(use.size());
             if (s->index() != 0) {
                 iso.simpImage(0) = s->index();
                 iso.simpImage(s->index()) = 0;
             }
-            iso.facetPerm(s->index()) = Perm<4>::S4[j];
+            iso.facetPerm(s->index()) = p;
             Triangulation<3> t = iso(use);
 
             // And now to actually test the meridian.  For this, we use the

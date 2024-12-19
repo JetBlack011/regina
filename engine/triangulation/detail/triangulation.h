@@ -660,7 +660,7 @@ class TriangulationBase :
          *
          * This routine takes linear time in the dimension \a dim.  For C++
          * programmers who know \a subdim at compile time, you are better off
-         * using the template function countFaces<subdim>() instead, which
+         * using the template function `countFaces<subdim>()` instead, which
          * is fast constant time.
          *
          * For convenience, this routine explicitly supports the case
@@ -1085,13 +1085,20 @@ class TriangulationBase :
          * from a triangulation that is combinatorially identical to this,
          * and you wish to obtain the corresponding face of this triangulation.
          *
-         * Specifically: if \a other refers to face \a i of top-dimensional
-         * simplex number \a k of some other triangulation, then this routine
-         * will return face \a i of top-dimensional simplex number \a k of this
-         * triangulation.  Note that this routine does _not_ use the face
-         * indices within each triangulation (which is outside the user's
-         * control), but rather the simplex numbering (which the user has
-         * full control over).
+         * Specifically:
+         *
+         * - For faces of dimension `k < dim`, if \a other refers to face \a i
+         *   of top-dimensional simplex number \a k of some other triangulation,
+         *   then this routine will return face \a i of top-dimensional simplex
+         *   number \a k of this triangulation.  Note that this routine does
+         *   _not_ use the face indices within each triangulation (which is
+         *   outside the user's control), but rather the simplex numbering
+         *   (which the user has full control over).
+         *
+         * - For top-dimensional simplices (i.e., faces of dimension `k = dim`),
+         *   this routine will simply translate top-dimensional simplex
+         *   number \a k of some other triangulation into top-dimensional
+         *   simplex number \a k of this triangulation.
          *
          * This routine behaves correctly even if \a other is a null pointer.
          *
@@ -1101,13 +1108,43 @@ class TriangulationBase :
          * combinatorially identical).
          *
          * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i>-1 inclusive.
+         * <i>dim</i> inclusive.
          *
          * \param other the face to translate.
          * \return the corresponding face of this triangulation.
          */
         template <int subdim>
         Face<dim, subdim>* translate(const Face<dim, subdim>* other) const;
+
+        /**
+         * Translates a face embedding from some other triangulation into the
+         * corresponding face embedding with respect to this triangulation,
+         * using simplex numbers for the translation.
+         *
+         * Typically this routine would be used when the given embedding comes
+         * from a triangulation that is combinatorially identical to this, and
+         * you wish to obtain the corresponding face embedding within this
+         * triangulation.
+         *
+         * Specifically: if the embedding \a other refers to face \a i of
+         * top-dimensional simplex number \a k of some other triangulation,
+         * then the embedding that is returned will refer to face \a i of
+         * top-dimensional simplex number \a k of this triangulation.
+         *
+         * \pre This triangulation contains at least as many top-dimensional
+         * simplices as the triangulation containing \a other (though, as noted
+         * above, in typical scenarios both triangulations would actually be
+         * combinatorially identical).
+         *
+         * \tparam subdim the face dimension; this must be between 0 and
+         * <i>dim</i>-1 inclusive.
+         *
+         * \param other the face embedding to translate.
+         * \return the corresponding face embedding in this triangulation.
+         */
+        template <int subdim>
+        FaceEmbedding<dim, subdim> translate(
+            const FaceEmbedding<dim, subdim>& other) const;
 
         /**
          * Returns the dual graph of this triangulation, expressed as a
@@ -1226,7 +1263,7 @@ class TriangulationBase :
          *
          * This routine takes linear time in the dimension \a dim.  For C++
          * programmers who know \a subdim at compile time, you are better off
-         * using the template function countBoundaryFaces<subdim>() instead,
+         * using the template function `countBoundaryFaces<subdim>()` instead,
          * which is fast constant time.
          *
          * Specifically, this counts the number of <i>subdim</i>-faces
@@ -1474,7 +1511,7 @@ class TriangulationBase :
          * where the parameter \a k does not need to be known until runtime.
          *
          * For C++ programmers who know \a k at compile time, you are better
-         * off using the template function homology<k>() instead, which
+         * off using the template function `homology<k>()` instead, which
          * is slightly faster.
          *
          * A problem with computing homology is that, if \a dim is not one of
@@ -1522,7 +1559,7 @@ class TriangulationBase :
          * dimension \a dim; for details see the documentation below for the
          * argument \a k.
          *
-         * \python Like the C++ template function homology<k>(),
+         * \python Like the C++ template function `homology<k>()`,
          * you can omit the homology dimension \a k; this will default to 1.
          *
          * \param k the dimension of the homology group to return;
@@ -1569,7 +1606,7 @@ class TriangulationBase :
          * where the parameter \a k does not need to be known until runtime.
          *
          * For C++ programmers who know \a k at compile time, you are better
-         * off using the template function markedHomology<k>() instead, which
+         * off using the template function `markedHomology<k>()` instead, which
          * is slightly faster.
          *
          * This is a specialised homology routine; you should only use
@@ -1606,7 +1643,7 @@ class TriangulationBase :
          * the supported range (i.e., less than 1 or greater than or
          * equal to \a dim).
          *
-         * \python Like the C++ template function markedHomology<k>(),
+         * \python Like the C++ template function `markedHomology<k>()`,
          * you can omit the homology dimension \a k; this will default to 1.
          *
          * \param k the dimension of the homology group to compute; this must
@@ -1648,7 +1685,7 @@ class TriangulationBase :
          * face dimension does not need to be known until runtime.
          *
          * For C++ programmers who know \a subdim at compile time, you are
-         * better off using the template function boundaryMap<subdim>()
+         * better off using the template function `boundaryMap<subdim>()`
          * instead, which is slightly faster.
          *
          * This is the boundary map that you would use if you were building
@@ -1734,7 +1771,7 @@ class TriangulationBase :
          * face dimension does not need to be known until runtime.
          *
          * For C++ programmers who know \a subdim at compile time, you are
-         * better off using the template function dualBoundaryMap<subdim>()
+         * better off using the template function `dualBoundaryMap<subdim>()`
          * instead, which is slightly faster.
          *
          * This function is analogous to boundaryMap(), but is designed to
@@ -1859,7 +1896,7 @@ class TriangulationBase :
          * known until runtime.
          *
          * For C++ programmers who know \a subdim at compile time, you are
-         * better off using the template function dualToPrimal<subdim>()
+         * better off using the template function `dualToPrimal<subdim>()`
          * instead, which is slightly faster.
          *
          * The matrix that is returned should be thought of as acting on
@@ -2004,37 +2041,47 @@ class TriangulationBase :
         Isomorphism<dim> randomiseLabelling(bool preserveOrientation = true);
 
         /**
-         * Checks the eligibility of and/or performs a
-         * (\a dim + 1 - \a k)-(\a k + 1) Pachner move about the given
-         * <i>k</i>-face.  This involves replacing the (\a dim + 1 - \a k)
-         * top-dimensional simplices meeting that <i>k</i>-face with
-         * (\a k + 1) new top-dimensional simplices joined along a new
-         * internal (\a dim - \a k)-face.
-         * This can be done iff (i) the given <i>k</i>-face is valid and
-         * non-boundary; (ii) the (\a dim + 1 - \a k) top-dimensional simplices
-         * that contain it are distinct; and (iii) these simplices are joined
-         * in such a way that the link of the given <i>k</i>-face is the
-         * standard triangulation of the (\a dim - 1 - \a k)-sphere as
-         * the boundary of a (\a dim - \a k)-simplex.
+         * If possible, performs a (\a dim + 1 - \a k)-(\a k + 1) Pachner move
+         * about the given <i>k</i>-face.  This involves replacing the
+         * (\a dim + 1 - \a k) top-dimensional simplices meeting that
+         * <i>k</i>-face with (\a k + 1) new top-dimensional simplices joined
+         * along a new internal (\a dim - \a k)-face.
          *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will
-         * not violate any simplex and/or facet locks (see Simplex<dim>::lock()
-         * and Simplex<dim>::lockFacet() for further details on locks).
+         * This triangulation will be changed directly.
          *
-         * Note that after performing this move, all skeletal objects
-         * (facets, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a v)
-         * can no longer be used.
+         * This move will only be performed if it will not change the topology
+         * of the manifold (as outlined below), _and_ it will not violate any
+         * simplex and/or facet locks.  See Simplex<dim>::lock() and
+         * Simplex<dim>::lockFacet() for further details on locks.
+         *
+         * In order to not change the topology, we require that:
+         * - the given <i>k</i>-face is valid and non-boundary;
+         * - the (\a dim + 1 - \a k) top-dimensional simplices that contain it
+         *   are distinct; and
+         * - these simplices are joined in such a way that the link of the given
+         *   <i>k</i>-face is the standard triangulation of the
+         *   `(dim - 1 - k)`-sphere as the boundary of a `(dim - k)`-simplex.
          *
          * If this triangulation is currently oriented, then this Pachner move
          * will label the new top-dimensional simplices in a way that
          * preserves the orientation.
          *
+         * Note that after performing this move, all skeletal objects
+         * (faces, components, etc.) will be reconstructed, which means
+         * any pointers to old skeletal objects (such as the argument \a f)
+         * can no longer be used.
+         *
          * See the page on \ref pachner for definitions and terminology
          * relating to Pachner moves.  After the move, the new belt face
          * will be formed from vertices 0,1,...,(\a dim - \a k) of
          * `simplices().back()`.
+         *
+         * \warning The check for this move takes quadratic time in the number
+         * of top-dimensional simplices involved (which may become expensive
+         * when \a dim is large and \a k is small).  If you are certain that
+         * the move is legal, and you wish to circumvent this check, C++ users
+         * can call the variant of this function that takes an extra
+         * Unprotected argument.
          *
          * \warning For the case \a k = \a dim in Regina's
          * \ref stddim "standard dimensions", the labelling of the belt face
@@ -2043,33 +2090,450 @@ class TriangulationBase :
          * `simplices().back()->vertex(dim)`, and as of version 5.96
          * it is now `simplices().back()->vertex(0)`.
          *
-         * \pre If the move is being performed and no check is being run,
-         * it must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<dim>::lock() and
-         * Simplex<dim>::lockFacet() for further details on how locks work and
-         * what their implications are.
+         * \tparam k the dimension of the given face.  This must be
+         * between 0 and (\a dim) inclusive.
          *
          * \param f the <i>k</i>-face about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true
-         * if and only if the requested move may be performed without changing
-         * the topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
+         * \return \c true if and only if the requested move was able to be
+         * performed.
+         */
+        template <int k>
+        bool pachner(Face<dim, k>* f);
+
+        /**
+         * Performs a (\a dim + 1 - \a k)-(\a k + 1) Pachner move about the
+         * given <i>k</i>-face, without any safety checks.
+         *
+         * This variant of pachner() is offered because it can become expensive
+         * to test whether a Pachner move can be performed on a given face
+         * when \a dim is large and \a k is small (and therefore there are
+         * many top-dimensional simplices involved in the move).
+         *
+         * This function will _always_ perform the requested Pachner move
+         * directy on this triangulation, _without_ first testing whether it is
+         * legal.  The onus is on the programmer to ensure the legality of the
+         * move beforehand.  Getting this wrong could be disastrous: you could
+         * change the topology of the manifold, or possibly end up with an
+         * invalid triangulation, or this function could throw an exception if
+         * you attempt to violate a simplex and/or facet lock.
+         *
+         * The (unnamed) Unprotected argument would typically be the constant
+         * `regina::unprotected`.
+         *
+         * For more detail on Pachner moves and when they can be performed,
+         * see the variant of pachner() that does not take an extra
+         * Unprotected argument.
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \nopython By design, Python users are not able to circumvent the
+         * legality checks for Pachner moves.  If speed is essential, you
+         * should be using C++.
+         *
+         * \exception LockViolation This move would violate a simplex or facet
+         * lock.  This exception will be thrown before any changes are made.
          *
          * \tparam k the dimension of the given face.  This must be
          * between 0 and (\a dim) inclusive.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
          */
         template <int k>
-        bool pachner(Face<dim, k>* f, bool check = true, bool perform = true);
+        void pachner(Face<dim, k>* f, Unprotected);
+
+        /**
+         * If possible, performs a 2-0 move about the given <i>k</i>-face of
+         * degree two.  This involves taking the two top-dimensional simplices
+         * joined along that face and squashing them flat.
+         *
+         * This move is currently only implemented for vertices, edges and
+         * triangles (i.e., facial dimension `k ≤ 2`).
+         *
+         * This triangulation will be changed directly.
+         *
+         * This move will only be performed if it will not change the topology
+         * of the manifold (as outlined below), _and_ it will not violate any
+         * simplex and/or facet locks.  See Simplex<dim>::lock() and
+         * Simplex<dim>::lockFacet() for further details on locks.
+         *
+         * The requirements for the move to not change the topology depend
+         * upon the facial dimension \a k.  In all cases:
+         *
+         * - the face \a f must be valid and non-boundary, and must have
+         *   degree 2;
+         *
+         * - the two top-dimensional simplices on either side of \a f must be
+         *   distinct;
+         *
+         * - the link of \a f must be the standard sphere obtained by
+         *   identifying the boundaries of two `(dim - k - 1)`-simplices
+         *   using the identity map;
+         *
+         * - the two `(dim - k - 1)`-faces opposite \a f in each top-dimensional
+         *   simplex must be distinct and not both boundary.
+         *
+         * Moreover, there are further requirements depending on the facial
+         * dimension \a k:
+         *
+         * - When performing the move on a vertex (`k = 0`), there are no
+         *   additional requirements.
+         *
+         * - When performing the move on an edge (`k = 1`), there are additional
+         *   requirements on the `(dim - 1)`-faces.  Specifically: the move
+         *   would effectively flatten facets \a f1 and \a f2 of one
+         *   top-dimensional simplex onto facets \a g1 and \a g2 of the other
+         *   top-dimensional simplex respectiveyl, and we require that:
+         *   (a) \a f1 and \a g1 are distinct,
+         *   (b) \a f2 and \a g2 are distinct,
+         *   (c) we do not have both \a f1 = \a g2 and \a g1 = \a f2,
+         *   (d) we do not have both \a f1 = \a f2 and \a g1 = \a g2, and
+         *   (e) we do not have two of the facets boundary and the other
+         *   two identified.
+         *
+         * - When performing the move on a triangle (`k = 2`), there are
+         *   additional requirements on both the `(dim - 1)`-faces and the
+         *  `(dim - 2)`-faces.  These are move involved, and are discussed in
+         *   detail in the source code for those who are interested.
+         *
+         * If this triangulation is currently oriented, then this 2-0 move
+         * will preserve the orientation.
+         *
+         * Note that after performing this move, all skeletal objects
+         * (faces, components, etc.) will be reconstructed, which means
+         * any pointers to old skeletal objects (such as the argument \a f)
+         * can no longer be used.
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
+         * and must not exceed `dim - 2`.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
+         * \return \c true if and only if the requested move was able to be
+         * performed.
+         */
+        template <int k>
+        bool move20(Face<dim, k>* f);
+
+        /**
+         * If possible, performs a boundary shelling move upon the given
+         * top-dimensional simplex of this triangulation.  This involves
+         * popping off a top-dimensional simplex with one or more facets on
+         * the boundary.
+         *
+         * This move is _only available in standard dimensions_, since Regina's
+         * notion of "valid faces" is weaker in higher dimensions (due to the
+         * need to solve undecidable problems).  See Face::isValid() for
+         * further discussion.
+         *
+         * This triangulation will be changed directly.
+         *
+         * This move will only be performed if it will not change the topology
+         * of the manifold (as outlined below), _and_ it will not violate any
+         * simplex and/or facet locks.  See Simplex<dim>::lock() and
+         * Simplex<dim>::lockFacet() for further details on locks.
+         *
+         * In order to not change the topology, we require the conditions below.
+         * These are conditions are stricter than necessary, but the resulting
+         * "lost opportunities" only affect invalid triangulations.
+         *
+         * In this list of conditions, we let \a s denote the given
+         * top-dimensional simplex, and we let \a f denote the face of \a s
+         * opposite the intersection of all its boundary facets.
+         * For example, for a 4-manifold triangulation where \a s has
+         * exactly two boundary facets meeting in a common boundary triangle,
+         * \a f would denote the edge of \a s opposite this common triangle.
+         * Put differently: \a f is the (unique) smallest face of \a s that
+         * _might_ not be entirely contained in the triangulation boundary.
+         * Note that the dimension of \a f will be one less than the number of
+         * boundary facets of \a s.
+         *
+         * Having said all of this, our conditions are:
+         *
+         * - all faces of all dimensions of the simplex \a s, except possibly
+         *   its vertices, are valid;
+         *
+         * - at least one but not all of the facets of \a s lie in the
+         *   boundary of the triangulation;
+         *
+         * - the face \a f (defined above) is valid (even if it is a vertex),
+         *   and does not lie entirely in the boundary of the triangulation;
+         *
+         * - for each facial dimension \a k, no two <i>k</i>-faces of \a s
+         *   that both contain \a f are identified (testing this for
+         *   `k = dim(f)+1` is enough to ensure it holds for all \a k).
+         *
+         * If this triangulation is currently oriented, then this operation
+         * will (trivially) preserve the orientation.
+         *
+         * Note that after performing this move, all skeletal objects
+         * (faces, components, etc.) will be reconstructed, which means
+         * any pointers to old skeletal objects can no longer be used.
+         *
+         * \pre The dimension \a dim is one of Regina's
+         * \ref stddim "standard dimensions".
+         * \pre The given simplex is a simplex of this triangulation.
+         *
+         * \param s the top-dimensional simplex upon which to perform the move.
+         * \return \c true if and only if the requested move was able to be
+         * performed.
+         */
+        bool shellBoundary(Simplex<dim>* s);
+
+        /**
+         * Determines whether it is possible to perform a
+         * (\a dim + 1 - \a k)-(\a k + 1) Pachner move about the given
+         * <i>k</i>-face of this triangulation, without violating any
+         * simplex and/or facet locks.
+         *
+         * For more detail on Pachner moves and when they can be performed,
+         * see pachner().
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be
+         * between 0 and (\a dim) inclusive.
+         *
+         * \param f the <i>k</i>-face about which to perform the candidate move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        template <int k>
+        bool hasPachner(Face<dim, k>* f) const;
+
+        /**
+         * Determines whether it is possible to perform a 2-0 move about the
+         * given <i>k</i>-face of this triangulation, without violating any
+         * simplex and/or facet locks.
+         *
+         * For more detail on 2-0 moves and when they can be performed, see
+         * move20().
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
+         * and must not exceed `dim - 2`.
+         *
+         * \param f the <i>k</i>-face about which to perform the candidate move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        template <int k>
+        bool has20(Face<dim, k>* f) const;
+
+        /**
+         * Determines whether it is possible to perform a boundary shelling
+         * move upon the given top-dimensional simplex of this triangulation,
+         * without violating any simplex and/or facet locks.
+         *
+         * This test is _only available in standard dimensions_, since Regina's
+         * notion of "valid faces" is weaker in higher dimensions (due to the
+         * need to solve undecidable problems).  See Face::isValid() for
+         * further discussion.
+         *
+         * For more detail on boundary shelling moves and when they can be
+         * performed, see shellBoundary().
+         *
+         * \pre The dimension \a dim is one of Regina's
+         * \ref stddim "standard dimensions".
+         * \pre The given simplex is a simplex of this triangulation.
+         *
+         * \param s the top-dimensional simplex upon which to perform the
+         * candidate move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasShellBoundary(Simplex<dim>* s) const;
+
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * (\a dim + 1 - \a k)-(\a k + 1) Pachner move about the given
+         * <i>k</i>-face of this triangulation.  If such a move is not allowed,
+         * or if such a move would violate any simplex and/or facet locks,
+         * then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on Pachner moves and when they can be performed,
+         * see pachner().
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be
+         * between 0 and (\a dim) inclusive.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        template <int k>
+        std::optional<Triangulation<dim>> withPachner(Face<dim, k>* f) const;
+
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 2-0 move about the given <i>k</i>-face of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 2-0 moves and when they can be performed, see
+         * move20().
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
+         * and must not exceed `dim - 2`.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        template <int k>
+        std::optional<Triangulation<dim>> with20(Face<dim, k>* f) const;
+
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * boundary shelling move on the given top-dimensional simplex of this
+         * triangulation.  If such a move is not allowed, or if such a move
+         * would violate any simplex and/or facet locks, then this routine
+         * returns no value.
+         *
+         * This operation is _only available in standard dimensions_, since
+         * Regina's notion of "valid faces" is weaker in higher dimensions
+         * (due to the need to solve undecidable problems).
+         * See Face::isValid() for further discussion.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on boundary shelling moves and when they can be
+         * performed, see shellBoundary().
+         *
+         * \pre The dimension \a dim is one of Regina's
+         * \ref stddim "standard dimensions".
+         * \pre The given simplex is a simplex of this triangulation.
+         *
+         * \param s the top-dimensional simplex upon which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<dim>> withShellBoundary(Simplex<dim>* s)
+            const;
+
+        /**
+         * Deprecated routine that tests for and optionally performs a
+         * (\a dim + 1 - \a k)-(\a k + 1) Pachner move about the given
+         * <i>k</i>-face of this triangulation.
+         *
+         * For more detail on Pachner moves and when they can be performed,
+         * see the variant of pachner() without the extra boolean arguments.
+         *
+         * This routine will always _check_ whether the requested move is
+         * legal and will not violate any simplex and/or facet locks (see
+         * Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further
+         * details on locks).  If the move _is_ allowed, and if the argument
+         * \a perform is \c true, this routine will also _perform_ the move.
+         *
+         * \deprecated If you just wish to test whether a such move is
+         * possible, call hasPachner().  If you wish to both check and perform
+         * the move, call pachner() without the two extra boolean arguments.
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be
+         * between 0 and (\a dim) inclusive.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
+         * \param ignored an argument that is ignored.  In earlier versions of
+         * Regina this argument controlled whether we check if the move can be
+         * performed; however, now this check is done always.
+         * \param perform \c true if we should actually perform the move,
+         * assuming the move is allowed.
+         * \return \c true if and only if the requested move could be performed.
+         */
+        template <int k>
+        [[deprecated]] bool pachner(Face<dim, k>* f, bool ignored,
+            bool perform = true);
+
+        /**
+         * Deprecated routine that tests for and optionally performs a 2-0 move
+         * about the given <i>k</i>-face of this triangulation.
+         *
+         * For more detail on 2-0 moves and when they can be performed, see
+         * move20().
+         *
+         * This routine will always _check_ whether the requested move is
+         * legal and will not violate any simplex and/or facet locks (see
+         * Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further
+         * details on locks).  If the move _is_ allowed, and if the argument
+         * \a perform is \c true, this routine will also _perform_ the move.
+         *
+         * \deprecated If you just wish to test whether a such move is possible,
+         * call has20().  If you wish to both check and perform the move, call
+         * move20(), which does not take the two extra boolean arguments.
+         *
+         * \pre The given <i>k</i>-face is a <i>k</i>-face of this
+         * triangulation.
+         *
+         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
+         * and must not exceed `dim - 2`.
+         *
+         * \param f the <i>k</i>-face about which to perform the move.
+         * \param ignored an argument that is ignored.  In earlier versions of
+         * Regina this argument controlled whether we check if the move can be
+         * performed; however, now this check is done always.
+         * \param perform \c true if we should actually perform the move,
+         * assuming the move is allowed.
+         * \return \c true if and only if the requested move could be performed.
+         */
+        template <int k>
+        [[deprecated]] bool twoZeroMove(Face<dim, k>* f, bool ignored,
+            bool perform = true);
+
+        /**
+         * Deprecated routine that tests for and optionally performs a
+         * boundary shelling move on the given top-dimensional simplex.
+         *
+         * For more detail on boundary shelling moves and when they can be
+         * performed, see the variant of shellBoundary() without the extra
+         * boolean arguments.
+         *
+         * This routine will always _check_ whether the requested move is
+         * legal and will not violate any simplex and/or facet locks (see
+         * Simplex<dim>::lock() and Simplex<dim>::lockFacet() for further
+         * details on locks).  If the move _is_ allowed, and if the argument
+         * \a perform is \c true, this routine will also _perform_ the move.
+         *
+         * This move is _only available in standard dimensions_, since Regina's
+         * notion of "valid faces" is weaker in higher dimensions (due to the
+         * need to solve undecidable problems).  See Face::isValid() for
+         * further discussion.
+         *
+         * \deprecated If you just wish to test whether a such move is possible,
+         * call hasShellBoundary().  If you wish to both check and perform the
+         * move, call shellBoundary() without the two extra boolean arguments.
+         *
+         * \pre The dimension \a dim is one of Regina's
+         * \ref stddim "standard dimensions".
+         * \pre The given simplex is a simplex of this triangulation.
+         *
+         * \param s the top-dimensional simplex upon which to perform the move.
+         * \param ignored an argument that is ignored.  In earlier versions of
+         * Regina this argument controlled whether we check if the move can be
+         * performed; however, now this check is done always.
+         * \param perform \c true if we should actually perform the move,
+         * assuming the move is allowed.
+         * \return \c true if and only if the requested move could be performed.
+         */
+        [[deprecated]] bool shellBoundary(Simplex<dim>* s, bool ignored,
+            bool perform = true);
 
         /*@}*/
         /**
@@ -2290,40 +2754,7 @@ class TriangulationBase :
          * \return \c true if and only if the two triangulations are
          * combinatorially identical.
          */
-        bool operator == (const Triangulation<dim>& other) const;
-
-        /**
-         * Determines if this triangulation is not combinatorially identical
-         * to the given triangulation.
-         *
-         * Here "identical" means that the triangulations have the same
-         * number of top-dimensional simplices, with gluings between the same
-         * pairs of numbered simplices using the same gluing permutations.
-         * In other words, "identical" means that the triangulations
-         * are isomorphic via the identity isomorphism.
-         *
-         * For the less strict notion of _isomorphic_ triangulations,
-         * which allows relabelling of the top-dimensional simplices and their
-         * vertices, see isIsomorphicTo() instead.
-         *
-         * This test does _not_ examine the textual simplex descriptions or
-         * simplex/facet locks, as seen in Simplex<dim>::description() and
-         * Simplex<dim>::lockMask(); these may still differ.
-         * It also does not test whether lower-dimensional faces are
-         * numbered identically (vertices, edges and so on); this routine
-         * is only concerned with top-dimensional simplices.
-         *
-         * (At the time of writing, two identical triangulations will
-         * always number their lower-dimensional faces in the same way.
-         * However, it is conceivable that in future versions of Regina there
-         * may be situations in which identical triangulations can acquire
-         * different numberings for vertices, edges, and so on.)
-         *
-         * \param other the triangulation to compare with this.
-         * \return \c true if and only if the two triangulations are
-         * not combinatorially identical.
-         */
-        bool operator != (const Triangulation<dim>& other) const;
+        bool operator == (const TriangulationBase<dim>& other) const;
 
         /**
          * Determines if this triangulation is combinatorially
@@ -3531,6 +3962,76 @@ class TriangulationBase :
                 const FaceList& srcFaces);
 
         /**
+         * Implements testing for and/or performing Pachner moves.
+         * See pachner() for details on what the location arguments mean.
+         *
+         * \pre The arguments \a check and \a perform are not both \c false.
+         * \pre If \a perform is \c true but \a check is \c false, then it must
+         * be known in advance that the requested move is legal and will not
+         * violate any simplex and/or facet locks.
+         *
+         * \exception LockViolation This move would violate a simplex or facet
+         * lock, and \a check was passed as \c false.  This exception will be
+         * thrown before any changes are made.
+         *
+         * \param check indicates whether we should check whether the move is
+         * legal and will not violate any locks.
+         * \param perform indicates whether we should actually perform the
+         * move, assuming any requested checks are successful.
+         * \return \c true if the requested checks pass, or if \a check was
+         * \c false (which means no checks were performed at all).
+         */
+        template <int k>
+        bool internalPachner(Face<dim, k>* f, bool check, bool perform);
+
+        /**
+         * Implements testing for and/or performing 2-0 moves.
+         * See move20() for details on what the location arguments mean.
+         *
+         * \pre The arguments \a check and \a perform are not both \c false.
+         * \pre If \a perform is \c true but \a check is \c false, then it must
+         * be known in advance that the requested move is legal and will not
+         * violate any simplex and/or facet locks.
+         *
+         * \exception LockViolation This move would violate a simplex or facet
+         * lock, and \a check was passed as \c false.  This exception will be
+         * thrown before any changes are made.
+         *
+         * \param check indicates whether we should check whether the move is
+         * legal and will not violate any locks.
+         * \param perform indicates whether we should actually perform the
+         * move, assuming any requested checks are successful.
+         * \return \c true if the requested checks pass, or if \a check was
+         * \c false (which means no checks were performed at all).
+         */
+        template <int k>
+        bool internal20(Face<dim, k>* f, bool check, bool perform);
+
+        /**
+         * Implements testing for and/or performing boundary shelling moves.
+         * See shellBoundary() for details on what the location arguments mean.
+         *
+         * \pre The dimension \a dim is one of Regina's
+         * \ref stddim "standard dimensions".
+         * \pre The arguments \a check and \a perform are not both \c false.
+         * \pre If \a perform is \c true but \a check is \c false, then it must
+         * be known in advance that the requested move is legal and will not
+         * violate any simplex and/or facet locks.
+         *
+         * \exception LockViolation This move would violate a simplex or facet
+         * lock, and \a check was passed as \c false.  This exception will be
+         * thrown before any changes are made.
+         *
+         * \param check indicates whether we should check whether the move is
+         * legal and will not violate any locks.
+         * \param perform indicates whether we should actually perform the
+         * move, assuming any requested checks are successful.
+         * \return \c true if the requested checks pass, or if \a check was
+         * \c false (which means no checks were performed at all).
+         */
+        bool internalShellBoundary(Simplex<dim>* s, bool check, bool perform);
+
+        /**
          * Internal to isoSig().
          *
          * Constructs a candidate isomorphism signature for a single
@@ -4533,15 +5034,29 @@ template <int dim>
 template <int subdim>
 inline Face<dim, subdim>* TriangulationBase<dim>::translate(
         const Face<dim, subdim>* other) const {
-    static_assert(0 <= subdim && subdim < dim, "translate() requires a "
-        "facial dimension between 0 and dim-1 inclusive.");
+    static_assert(0 <= subdim && subdim <= dim, "translate() for faces "
+        "requires a facial dimension between 0 and dim inclusive.");
 
     if (other) {
-        const auto& emb = other->front();
-        return simplices_[emb.simplex()->index()]->template face<subdim>(
-            emb.face());
+        if constexpr (subdim < dim) {
+            const auto& emb = other->front();
+            return simplices_[emb.simplex()->index()]->template face<subdim>(
+                emb.face());
+        } else
+            return simplices_[other->index()];
     } else
         return nullptr;
+}
+
+template <int dim>
+template <int subdim>
+inline FaceEmbedding<dim, subdim> TriangulationBase<dim>::translate(
+        const FaceEmbedding<dim, subdim>& other) const {
+    static_assert(0 <= subdim && subdim < dim,
+        "translate() for face embeddings requires a facial dimension between "
+        "0 and dim-1 inclusive.");
+
+    return { simplices_[other.simplex()->index()], other.vertices() };
 }
 
 template <int dim>
@@ -4610,7 +5125,7 @@ inline bool TriangulationBase<dim>::isConnected() const {
 }
 
 template <int dim>
-bool TriangulationBase<dim>::operator == (const Triangulation<dim>& other)
+bool TriangulationBase<dim>::operator == (const TriangulationBase<dim>& other)
         const {
     if (simplices_.size() != other.simplices_.size())
         return false;
@@ -4633,12 +5148,6 @@ bool TriangulationBase<dim>::operator == (const Triangulation<dim>& other)
     }
 
     return true;
-}
-
-template <int dim>
-inline bool TriangulationBase<dim>::operator != (
-        const Triangulation<dim>& other) const {
-    return ! ((*this) == other);
 }
 
 template <int dim>
@@ -4979,6 +5488,138 @@ inline Isomorphism<dim> TriangulationBase<dim>::randomiseLabelling(
     TopologyLock lock(*this);
     *this = iso(static_cast<Triangulation<dim>&>(*this));
     return iso;
+}
+
+template <int dim>
+template <int k>
+inline bool TriangulationBase<dim>::pachner(Face<dim, k>* f) {
+    static_assert(0 <= k && k <= dim, "pachner() requires a "
+        "facial dimension between 0 and dim inclusive.");
+
+    return internalPachner(f, true, true);
+}
+
+template <int dim>
+template <int k>
+inline void TriangulationBase<dim>::pachner(Face<dim, k>* f, Unprotected) {
+    static_assert(0 <= k && k <= dim, "pachner() requires a "
+        "facial dimension between 0 and dim inclusive.");
+
+    internalPachner(f, false, true);
+}
+
+template <int dim>
+template <int k>
+inline bool TriangulationBase<dim>::move20(Face<dim, k>* f) {
+    static_assert(0 <= k && k <= 2 && k <= dim - 2,
+        "move20() requires a facial dimension of 0, 1 or 2 that does "
+        "not exceed dim - 2.");
+
+    return internal20(f, true, true);
+}
+
+template <int dim>
+inline bool TriangulationBase<dim>::shellBoundary(Simplex<dim>* s) {
+    return internalShellBoundary(s, true, true);
+}
+
+template <int dim>
+template <int k>
+bool TriangulationBase<dim>::hasPachner(Face<dim, k>* f) const {
+    static_assert(0 <= k && k <= dim, "hasPachner() requires a "
+        "facial dimension between 0 and dim inclusive.");
+
+    return const_cast<TriangulationBase<dim>*>(this)->internalPachner(f,
+        true, false);
+}
+
+template <int dim>
+template <int k>
+bool TriangulationBase<dim>::has20(Face<dim, k>* f) const {
+    static_assert(0 <= k && k <= 2 && k <= dim - 2,
+        "has20() requires a facial dimension of 0, 1 or 2 that does "
+        "not exceed dim - 2.");
+
+    return const_cast<TriangulationBase<dim>*>(this)->internal20(f,
+        true, false);
+}
+
+template <int dim>
+bool TriangulationBase<dim>::hasShellBoundary(Simplex<dim>* s) const {
+    return const_cast<TriangulationBase<dim>*>(this)->internalShellBoundary(s,
+        true, false);
+}
+
+template <int dim>
+template <int k>
+std::optional<Triangulation<dim>> TriangulationBase<dim>::withPachner(
+        Face<dim, k>* f) const {
+    static_assert(0 <= k && k <= dim, "withPachner() requires a "
+        "facial dimension between 0 and dim inclusive.");
+
+    if (! hasPachner(f))
+        return {};
+
+    std::optional<Triangulation<dim>> ans(std::in_place,
+        static_cast<const Triangulation<dim>&>(*this));
+    ans->internalPachner(ans->translate(f), false, true);
+    return ans;
+}
+
+template <int dim>
+template <int k>
+std::optional<Triangulation<dim>> TriangulationBase<dim>::with20(
+        Face<dim, k>* f) const {
+    static_assert(0 <= k && k <= 2 && k <= dim - 2,
+        "with20() requires a facial dimension of 0, 1 or 2 that does "
+        "not exceed dim - 2.");
+
+    if (! has20(f))
+        return {};
+
+    std::optional<Triangulation<dim>> ans(std::in_place,
+        static_cast<const Triangulation<dim>&>(*this));
+    ans->internal20(ans->translate(f), false, true);
+    return ans;
+}
+
+template <int dim>
+std::optional<Triangulation<dim>> TriangulationBase<dim>::withShellBoundary(
+        Simplex<dim>* s) const {
+    if (! hasShellBoundary(s))
+        return {};
+
+    std::optional<Triangulation<dim>> ans(std::in_place,
+        static_cast<const Triangulation<dim>&>(*this));
+    ans->internalShellBoundary(ans->simplex(s->index()), false, true);
+    return ans;
+}
+
+template <int dim>
+template <int k>
+inline bool TriangulationBase<dim>::pachner(Face<dim, k>* f, bool,
+        bool perform) {
+    static_assert(0 <= k && k <= dim, "pachner() requires a "
+        "facial dimension between 0 and dim inclusive.");
+
+    return internalPachner(f, true, perform);
+}
+
+template <int dim>
+template <int k>
+inline bool TriangulationBase<dim>::twoZeroMove(Face<dim, k>* f, bool,
+        bool perform) {
+    static_assert(0 <= k && k <= 2 && k <= dim - 2,
+        "twoZeroMove() requires a facial dimension of 0, 1 or 2 that does "
+        "not exceed dim - 2.");
+
+    return internal20(f, true, perform);
+}
+
+template <int dim>
+inline bool TriangulationBase<dim>::shellBoundary(Simplex<dim>* s, bool,
+        bool perform) {
+    return internalShellBoundary(s, true, perform);
 }
 
 template <int dim>

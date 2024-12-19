@@ -397,6 +397,8 @@
   <primaryie>components</primaryie>
   <secondaryie><link linkend="tri-decomposition-component">decomposing into,
    for triangulations</link></secondaryie>
+  <secondaryie><link linkend="link-decomposition-components">diagram components,
+   for links</link></secondaryie>
   <secondaryie><link linkend="link-crossings">viewing,
    for links</link></secondaryie>
   <secondaryie><link linkend="tri-components">viewing,
@@ -423,6 +425,11 @@
    interaction</link></secondaryie>
   <secondaryie><link linkend="options-tools">tools,
    third-party</link></secondaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>connected components</primaryie>
+  <seeie>See: components</seeie>
  </indexentry>
 
  <indexentry>
@@ -524,7 +531,9 @@
  <indexentry>
   <primaryie>decomposition</primaryie>
   <secondaryie><link linkend="tri-decomposition-component">by
-   components</link></secondaryie>
+   components, for triangulations</link></secondaryie>
+  <secondaryie><link linkend="link-decomposition-components">by
+   diagram components, for links</link></secondaryie>
   <secondaryie><link linkend="tri-decomposition-connsum">by
    connected sum</link></secondaryie>
  </indexentry>
@@ -549,6 +558,11 @@
  </indexentry>
 
  <indexentry>
+  <primaryie>diagram components</primaryie>
+  <seeie>See: components</seeie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>diagram graphs, for links</primaryie>
   <secondaryie><link linkend="link-graphs-tree">tree
    decomposition of</link></secondaryie>
@@ -567,6 +581,12 @@
  <indexentry>
   <primaryie>disjoint normal surfaces</primaryie>
   <seeie>See: compatibility matrices for normal surfaces</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>disjoint union</primaryie>
+  <secondaryie><link linkend="link-insert">of links</link></secondaryie>
+  <secondaryie><link linkend="tri-insert">of triangulations</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -991,6 +1011,12 @@
  </indexentry>
 
  <indexentry>
+  <primaryie>inserting</primaryie>
+  <secondaryie><link linkend="link-insert">links</link></secondaryie>
+  <secondaryie><link linkend="tri-insert">triangulations</link></secondaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>interface</primaryie>
   <seeie>See: user interface</seeie>
  </indexentry>
@@ -1145,6 +1171,8 @@
   <secondaryie><link linkend="link-cables">blackboard framing</link></secondaryie>
   <secondaryie><link linkend="link-cables">cabling</link></secondaryie>
   <secondaryie><link linkend="link-complement">complements</link></secondaryie>
+  <secondaryie><link linkend="link-decomposition-components">components,
+   decomposition</link></secondaryie>
   <secondaryie><link linkend="link-crossings">components,
    viewing</link></secondaryie>
   <secondaryie><link linkend="link-composewith">composite link,
@@ -1156,8 +1184,11 @@
    resolving (or splicing)</link></secondaryie>
   <secondaryie><link linkend="link-crossings">crossings,
    viewing</link></secondaryie>
+  <secondaryie><link linkend="link-decomposition-components">diagram components,
+   decomposition</link></secondaryie>
   <secondaryie><link linkend="link-graphs">diagram
    graphs</link></secondaryie>
+  <secondaryie><link linkend="link-insert">disjoint union</link></secondaryie>
   <secondaryie><link linkend="link-new-code">Dowker-Thistlethwaite notation,
    recreating from</link></secondaryie>
   <secondaryie><link linkend="link-codes">Dowker-Thistlethwaite notation,
@@ -1174,6 +1205,8 @@
   <secondaryie><link linkend="link-algebra">group</link></secondaryie>
   <secondaryie><link linkend="link-polynomials">&homflypt;
    polynomial</link></secondaryie>
+  <secondaryie><link linkend="link-insert">inserting other
+   links</link></secondaryie>
   <secondaryie><link linkend="link-codes-construct">Jenkins format,
    recreating from</link></secondaryie>
   <secondaryie><link linkend="link-codes">Jenkins format,
@@ -2044,6 +2077,7 @@
   <secondaryie><link linkend="tri-faces">cusps</link></secondaryie>
   <secondaryie><link linkend="tri-new-dehydration">dehydration
    string, rehydrating</link></secondaryie>
+  <secondaryie><link linkend="tri-insert">disjoint union</link></secondaryie>
   <secondaryie><link linkend="tri-puncturedrill">drilling
    edges</link></secondaryie>
   <secondaryie><link linkend="tri-graphs-dual">dual
@@ -2080,6 +2114,8 @@
    truncation</link></secondaryie>
   <secondaryie><link linkend="foreign-import">importing from
    external files</link></secondaryie>
+  <secondaryie><link linkend="tri-insert">inserting other
+   triangulations</link></secondaryie>
   <secondaryie><link linkend="tri-algebra-homiform">intersection
    form</link></secondaryie>
   <secondaryie><link linkend="tri-composition-isomorphism">isomorphism
@@ -2161,6 +2197,11 @@
  <indexentry>
   <primaryie><link linkend="options-unicode">unicode symbols,
    enabling / disabling</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>union</primaryie>
+  <seeie>See: disjoint union</seeie>
  </indexentry>
 
  <indexentry>

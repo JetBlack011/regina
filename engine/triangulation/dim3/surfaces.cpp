@@ -222,6 +222,67 @@ bool Triangulation<3>::isZeroEfficient() const {
     return *prop_.zeroEfficient_;
 }
 
+bool Triangulation<3>::isOneEfficient() const {
+    // Check the preconditions before examining the cached value, since it's
+    // possible the 1-efficiency value was cached from a newer calculation
+    // engine that supports 1-efficiency testing in more settings.
+    if (! isValid()) {
+        throw FailedPrecondition(
+            "1-efficiency testing requires a valid triangulation");
+    }
+    if (! isIdeal()) {
+        // The empty triangulation is eliminated here.
+        throw FailedPrecondition(
+            "1-efficiency testing requires an ideal triangulation");
+    }
+    for (auto v : vertices()) {
+        if (v->linkType() != Vertex<3>::Link::Torus &&
+                v->linkType() != Vertex<3>::Link::KleinBottle)
+            throw FailedPrecondition(
+                "1-efficiency testing requires a triangulation whose "
+                "vertex links are all tori and/or Klein bottles");
+    }
+
+    if (prop_.oneEfficient_.has_value())
+        return *prop_.oneEfficient_;
+
+    // We might already know the answer from the 0-efficiency property,
+    // since for the settings in which we are able to test 1-efficiency,
+    // 0-efficiency is a necessary condition.
+    if (prop_.zeroEfficient_.has_value() && ! *prop_.zeroEfficient_)
+        return *(prop_.oneEfficient_ = false);
+
+    // For now we just enumerate and test all vertex normal surfaces.
+    // In the future we should consider fetching one surface at a time using
+    // the tree traversal method, which will allow us to fail early if a bad
+    // surface is discovered.
+
+    // TODO: Do this in quad closed coordinates if we can.
+
+    for (const auto& s : NormalSurfaces(*this, NormalCoords::Standard)) {
+        auto euler = s.eulerChar();
+        if (euler > 0) {
+            // Note: due to the preconditions on the triangulation, this
+            // surface cannot be vertex linking.
+            if (isOrientable() || euler == 2 || ! s.isTwoSided()) {
+                // Either this is a non-trivial sphere, or its double cover is.
+                // Record the 0-efficiency failure also.
+                // Note: the only way this test can _fail_ is if we have a
+                // two-sided projective plane in a non-orientable manifold
+                // (which does not actually violate our definition of
+                // 0-efficiency, but which _does_ violate our definition of
+                // 1-efficiency).
+                prop_.zeroEfficient_ = false;
+            }
+            return *(prop_.oneEfficient_ = false);
+        } else if (euler == 0 && ! s.isVertexLinking()) {
+            return *(prop_.oneEfficient_ = false);
+        }
+    }
+
+    return *(prop_.oneEfficient_ = true);
+}
+
 bool Triangulation<3>::hasSplittingSurface() const {
     if (prop_.splittingSurface_.has_value())
         return *prop_.splittingSurface_;
@@ -244,10 +305,10 @@ bool Triangulation<3>::hasSplittingSurface() const {
 
     // We keep track of whether an edge has been assumed to be disjoint
     // or not from a putative splitting surface.
-    enum EdgeState {
-        EDGE_UNKNOWN = 0,
-        EDGE_DISJOINT = 1,
-        EDGE_INTERSECTING = 2
+    enum class EdgeState {
+        Unknown = 0,
+        Disjoint = 1,
+        Intersecting = 2
     };
     auto* state = new EdgeState[countEdges()];
 
@@ -264,7 +325,7 @@ bool Triangulation<3>::hasSplittingSurface() const {
 
     for (int i = 0; i < 3; i++){
         candidate_disjoint.clear();
-        std::fill(state, state + countEdges(), EDGE_UNKNOWN);
+        std::fill(state, state + countEdges(), EdgeState::Unknown);
 
         // Outset
         candidate_disjoint.push_back(tri->edge(i));
@@ -286,30 +347,30 @@ bool Triangulation<3>::hasSplittingSurface() const {
                 Edge<3>* lat03 = tet_e->edge(v_perm[0],v_perm[3]);
                 Edge<3>* lat12 = tet_e->edge(v_perm[1],v_perm[2]);
                 Edge<3>* lat13 = tet_e->edge(v_perm[1],v_perm[3]);
-                state[lat02->index()] = EDGE_INTERSECTING;
-                state[lat03->index()] = EDGE_INTERSECTING;
-                state[lat12->index()] = EDGE_INTERSECTING;
-                state[lat13->index()] = EDGE_INTERSECTING;
+                state[lat02->index()] = EdgeState::Intersecting;
+                state[lat03->index()] = EdgeState::Intersecting;
+                state[lat12->index()] = EdgeState::Intersecting;
+                state[lat13->index()] = EdgeState::Intersecting;
             }
 
             // Now we check for a local obstruction to a splitting surface
             // opposite e.
-            if (state[e->index()] == EDGE_INTERSECTING) {
+            if (state[e->index()] == EdgeState::Intersecting) {
                 broken = true;
                 break;
             } else {
-                state[e->index()] = EDGE_DISJOINT;
+                state[e->index()] = EdgeState::Disjoint;
                 // Regard the edges opposite e as candidates if they're not
                 // already assumed disjoint.
                 for (auto& emb : *e) {
                     Tetrahedron<3>* tet_e = emb.simplex();
                     Perm<4> v_perm = emb.vertices();
                     Edge<3>* opp = tet_e->edge(v_perm[2],v_perm[3]);
-                    if (state[opp->index()] == EDGE_INTERSECTING) {
+                    if (state[opp->index()] == EdgeState::Intersecting) {
                         broken = true;
                         break;
                     }
-                    if (state[opp->index()] != EDGE_DISJOINT)
+                    if (state[opp->index()] != EdgeState::Disjoint)
                         candidate_disjoint.push_back(opp);
                 }
             }

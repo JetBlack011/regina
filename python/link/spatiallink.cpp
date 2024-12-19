@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "link/spatiallink.h"
 #include "../helpers.h"
 #include "../docstrings/link/spatiallink.h"
@@ -84,7 +84,7 @@ void addSpatialLink(pybind11::module_& m) {
             rdoc::fromKnotPlot)
     ;
     regina::python::add_output(l);
-    regina::python::packet_eq_operators(l, rdoc::__eq, rdoc::__ne);
+    regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
     regina::python::addListView<decltype(SpatialLink().components())>(m);

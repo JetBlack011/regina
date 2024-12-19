@@ -32,7 +32,7 @@
 
 #include "triangulation/detail/algebra-impl.h"
 #include "triangulation/detail/isosig-impl.h"
-#include "triangulation/detail/pachner-impl.h"
+#include "triangulation/detail/moves-impl.h"
 #include "triangulation/detail/skeleton-impl.h"
 #include "triangulation/detail/triangulation-impl.h"
 #include "triangulation/dim4.h"
@@ -73,11 +73,18 @@ template void TriangulationBase<4>::cloneSkeleton(const TriangulationBase<4>&);
 template void TriangulationBase<4>::clearBaseProperties();
 template void TriangulationBase<4>::swapBaseData(TriangulationBase<4>&);
 
-template bool TriangulationBase<4>::pachner(Face<4, 0>*, bool, bool);
-template bool TriangulationBase<4>::pachner(Face<4, 1>*, bool, bool);
-template bool TriangulationBase<4>::pachner(Face<4, 2>*, bool, bool);
-template bool TriangulationBase<4>::pachner(Face<4, 3>*, bool, bool);
-template bool TriangulationBase<4>::pachner(Face<4, 4>*, bool, bool);
+template bool TriangulationBase<4>::internalPachner(Face<4, 0>*, bool, bool);
+template bool TriangulationBase<4>::internalPachner(Face<4, 1>*, bool, bool);
+template bool TriangulationBase<4>::internalPachner(Face<4, 2>*, bool, bool);
+template bool TriangulationBase<4>::internalPachner(Face<4, 3>*, bool, bool);
+template bool TriangulationBase<4>::internalPachner(Face<4, 4>*, bool, bool);
+
+template bool TriangulationBase<4>::internal20(Face<4, 0>*, bool, bool);
+template bool TriangulationBase<4>::internal20(Face<4, 1>*, bool, bool);
+template bool TriangulationBase<4>::internal20(Face<4, 2>*, bool, bool);
+
+template bool TriangulationBase<4>::internalShellBoundary(Simplex<4>*,
+    bool, bool);
 
 template void TriangulationBase<4>::writeTextShort(std::ostream&) const;
 template void TriangulationBase<4>::writeTextLong(std::ostream&) const;

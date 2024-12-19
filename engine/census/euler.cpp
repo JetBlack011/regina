@@ -193,9 +193,9 @@ bool EulerSearcher::TetEdgeState::readData(std::istream& in, size_t nTets) {
 
 EulerSearcher::EulerSearcher(int useEuler, FacetPairing<3> pairing,
         FacetPairing<3>::IsoList autos, bool orientableOnly,
-        CensusPurge whichPurge) :
+        Flags<CensusPurge> purge) :
         GluingPermSearcher<3>(std::move(pairing), std::move(autos),
-            orientableOnly, useEuler == 2 /* finiteOnly */, whichPurge),
+            orientableOnly, useEuler == 2 /* finiteOnly */, purge),
         euler_(useEuler) {
     // Initialise the internal arrays to accurately reflect the underlying
     // face pairing.
@@ -316,7 +316,7 @@ void EulerSearcher::searchImpl(long maxDepth, ActionWrapper&& action_) {
 
         // We are sitting on a new permutation to try.
         perms_.permIndex(adj) =
-            Perm<3>::S3[perms_.permIndex(face)].inverse().S3Index();
+            Perm<3>::Sn[perms_.permIndex(face)].inverse().S3Index();
 
         // Merge edge links and run corresponding tests.
         if (mergeEdgeClasses()) {

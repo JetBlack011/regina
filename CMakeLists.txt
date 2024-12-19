@@ -161,15 +161,10 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
   SET(CMAKE_CXX_FLAGS "-pthread ${CMAKE_CXX_FLAGS}")
 ENDIF(CMAKE_COMPILER_IS_GNUCXX)
 
-# Make everything use C++17 (or later).
-SET(CMAKE_CXX_STANDARD 17)
+# Make everything use C++20 (or later).
+SET(CMAKE_CXX_STANDARD 20)
 SET(CMAKE_CXX_STANDARD_REQUIRED YES)
 SET(CMAKE_CXX_EXTENSIONS OFF)
-
-CHECK_STDFS()
-IF (NOT STDFS_FOUND)
-  MESSAGE(FATAL_ERROR "Your compiler does not appear to support either the C++17 std::filesystem or the alternative std::experimental::filesystem.")
-ENDIF (NOT STDFS_FOUND)
 
 # Always include . in the header search path:
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -276,6 +271,21 @@ CHECK_CXX_SOURCE_COMPILES("
   int main() { return 0; }"
   NUMERIC_64_LL_FOUND)
 
+# Test for the C++20 function std::lexicographical_compare_three_way, which
+# is missing from some older versions of clang's libc++.
+# It's not clear to me whether there is a C++20 feature test that could replace
+# this; however, the only setting I've seen where this function is missing
+# (debian buster with libc++-13) is also missing std::string::operator <=>,
+# which is detected via __cpp_lib_three_way_comparison.  Anyway, let's just
+# keep the explicit test for now.
+CHECK_CXX_SOURCE_COMPILES("
+  #include <algorithm>
+  int x[3] = { 1, 2, 3 }, y[3] = { 1, 2, 3 };
+  int main() {
+    std::lexicographical_compare_three_way(x, x + 3, y, y + 3); return 0;
+  }"
+  LEXCMP_FOUND)
+
 # Dependencies used by all components of Regina
 
 # Note that pkg-config is optional, but it does help us find some libraries
@@ -355,8 +365,8 @@ IF (NOT DISABLE_PYTHON)
     IF (${Python_VERSION_MAJOR} EQUAL 2)
       MESSAGE(FATAL_ERROR "Regina no longer supports Python 2.")
     ELSEIF (${Python_VERSION_MAJOR} EQUAL 3)
-      IF (${Python_VERSION_MINOR} LESS 4)
-        MESSAGE(FATAL_ERROR "Regina needs Python >= 3.4.")
+      IF (${Python_VERSION_MINOR} LESS 7)
+        MESSAGE(FATAL_ERROR "Regina needs Python >= 3.7.")
       ENDIF ()
     ELSE ()
       MESSAGE(FATAL_ERROR "Unknown Python major version: ${Python_VERSION_MAJOR}")
@@ -405,7 +415,7 @@ ELSE (${REGINA_INSTALL_TYPE} STREQUAL HPC)
     FORCE)
 
   FIND_PACKAGE(Doxygen)
-  SET (DOXYGEN_MIN_VERSION 1.8.17)
+  SET (DOXYGEN_MIN_VERSION 1.9.2)
   IF (DOXYGEN_FOUND AND (DOXYGEN_VERSION VERSION_LESS DOXYGEN_MIN_VERSION))
     MESSAGE (STATUS "Doxygen version ${DOXYGEN_VERSION} is too old; Regina requires Doxygen >= ${DOXYGEN_MIN_VERSION}.")
     SET (DOXYGEN_FOUND FALSE)

@@ -111,22 +111,22 @@ QWidget* HyperHeaderUI::getInterface() {
 }
 
 void HyperHeaderUI::refresh() {
-    regina::HyperList which = surfaces->which();
+    regina::Flags<regina::HyperList> which = surfaces->which();
 
     QString sEmb, sType;
-    if (which.has(regina::HS_EMBEDDED_ONLY))
+    if (which.has(regina::HyperList::EmbeddedOnly))
         sEmb = header->tr("embedded");
-    else if (which.has(regina::HS_IMMERSED_SINGULAR))
+    else if (which.has(regina::HyperList::ImmersedSingular))
         sEmb = header->tr("embedded / immersed / singular");
     else
         sEmb = header->tr("unknown");
-    if (which.has(regina::HS_VERTEX))
+    if (which.has(regina::HyperList::Vertex))
         sType = header->tr("vertex");
-    else if (which.has(regina::HS_FUNDAMENTAL))
+    else if (which.has(regina::HyperList::Fundamental))
         sType = header->tr("fundamental");
-    else if (which.has(regina::HS_CUSTOM))
+    else if (which.has(regina::HyperList::Custom))
         sType = header->tr("custom");
-    else if (which.has(regina::HS_LEGACY))
+    else if (which.has(regina::HyperList::Legacy))
         sType = header->tr("legacy");
     else
         sType = header->tr("unknown");

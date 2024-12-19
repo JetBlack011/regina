@@ -76,7 +76,7 @@ namespace regina {
  *
  * - _Second-generation_ codes are used internally in Regina 7.0 and above.
  *   These codes are integers between 0 and 119 inclusive, representing the
- *   index of the permutation in the array Perm<5>::S5.  The routines
+ *   index of the permutation in the array Perm<5>::Sn.  The routines
  *   permCode2(), setPermCode2(), fromPermCode2() and isPermCode2()
  *   work with second-generation codes.
  *
@@ -85,6 +85,18 @@ namespace regina {
  * is because the first-generation routines incur additional overhead
  * in converting back and forth between the second-generation codes
  * (which are used internally by Perm<5>).
+ *
+ * You can iterate through all permutations using a range-based \c for loop
+ * over \a Sn, and this will be extremely fast in both C++ and Python:
+ *
+ * \code{.cpp}
+ * for (auto p : Perm<5>::Sn) { ... }
+ * \endcode
+ *
+ * This behaviour does not generalise to the large permutation classes Perm<n>
+ * with \a n ≥ 8, which are not as tightly optimised: such range-based \c for
+ * loops are still supported for \a n ≥ 8 but will be significantly slower in
+ * Python than in C++.  See the generic Perm class notes for further details.
  *
  * To use this class, simply include the main permutation header maths/perm.h.
  *
@@ -125,10 +137,12 @@ class Perm<5> {
         static constexpr Index nPerms = 120;
 
         /**
-         * The total number of permutations on four elements.
-         * This is the size of the array Sn_1.
+         * Deprecated constant holding the total number of permutations on
+         * four elements.
+         *
+         * \deprecated Just use Perm<4>::nPerms instead.
          */
-        static constexpr Index nPerms_1 = 24;
+        [[deprecated]] static constexpr Index nPerms_1 = 24;
 
         /**
          * Indicates the number of bits used in an image pack to store the
@@ -167,168 +181,6 @@ class Perm<5> {
          */
         using Code2 = uint8_t;
 
-    private:
-        /**
-         * A lightweight array-like object used to implement Perm<5>::S5.
-         */
-        struct S5Lookup {
-            /**
-             * Returns the permutation at the given index in the array S5.
-             * See Perm<5>::S5 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 119 inclusive.
-             * \return the corresponding permutation in S5.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array S5.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 120; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::orderedS5.
-         */
-        struct OrderedS5Lookup {
-            /**
-             * Returns the permutation at the given index in the array
-             * orderedS5.  See Perm<5>::orderedS5 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 119 inclusive.
-             * \return the corresponding permutation in orderedS5.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array orderedS5.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 120; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::S4.
-         */
-        struct S4Lookup {
-            /**
-             * Returns the permutation at the given index in the array S4.
-             * See Perm<5>::S4 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 23 inclusive.
-             * \return the corresponding permutation in S4.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array S4.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 24; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::orderedS4.
-         */
-        struct OrderedS4Lookup {
-            /**
-             * Returns the permutation at the given index in the array
-             * orderedS4.  See Perm<5>::orderedS4 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 23 inclusive.
-             * \return the corresponding permutation in orderedS4.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array orderedS4.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 24; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::S3.
-         */
-        struct S3Lookup {
-            /**
-             * Returns the permutation at the given index in the array S3.
-             * See Perm<5>::S3 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 5 inclusive.
-             * \return the corresponding permutation in S3.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array S3.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 6; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::orderedS3.
-         */
-        struct OrderedS3Lookup {
-            /**
-             * Returns the permutation at the given index in the array
-             * orderedS3.  See Perm<5>::orderedS3 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 5 inclusive.
-             * \return the corresponding permutation in orderedS3.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array orderedS3.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 6; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<5>::S2.
-         */
-        struct S2Lookup {
-            /**
-             * Returns the permutation at the given index in the array S2.
-             * See Perm<5>::S2 for details.
-             *
-             * This operation is extremely fast (and constant time).
-             *
-             * \param index an index between 0 and 1 inclusive.
-             * \return the corresponding permutation in S2.
-             */
-            constexpr Perm<5> operator[] (int index) const;
-
-            /**
-             * Returns the number of permutations in the array S2.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return 2; }
-        };
-
     public:
         /**
          * A do-nothing routine that assists with writing generic code.
@@ -353,56 +205,78 @@ class Perm<5> {
         static constexpr void precompute();
 
         /**
-         * Gives fast array-like access to all possible permutations of
-         * five elements.
+         * Gives fast access to all possible permutations of five elements in
+         * a sign-based order, with support for both array-like indexing and
+         * iteration.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `Sn[i]`.  The index \a i must be
          * between 0 and 119 inclusive.
-         * This element access is extremely fast (a fact that is not true for
-         * the larger permutation classes Perm<n> with \a n ≥ 8).
+         *
+         * You can also iterate over all permutations in \a Sn using a
+         * range-based \c for loop:
+         *
+         * \code{.cpp}
+         * for (auto p : Perm<5>::Sn) { ... }
+         * \endcode
+         *
+         * For this class (and all Perm<n> with \a n ≤ 7), such index-based
+         * access and iteration are both extremely fast.
          *
          * The permutations with even indices in the array are the even
-         * permutations, and those with odd indices in the array are the
-         * odd permutations.
+         * permutations, and those with odd indices in the array are the odd
+         * permutations.  The first permutation (at index 0) is the identity.
          *
          * This array is different from Perm<5>::orderedSn, since \a Sn
          * alternates between even and odd permutations, whereas \a orderedSn
-         * stores permutations in lexicographical order.
+         * accesses permutations in lexicographical order.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * See the PermSn documentation for further details, including time
+         * complexity of lookup and iteration.
          */
-        static constexpr S5Lookup Sn {};
+        static constexpr PermSn<5, PermOrder::Sign> Sn {};
 
         /**
-         * Gives fast array-like access to all possible permutations of
-         * five elements.
+         * Gives fast access to all possible permutations of five elements in
+         * a sign-based order, with support for both array-like indexing and
+         * iteration.
          *
          * This is a dimension-specific alias for Perm<5>::Sn; see that member
          * for further information.  In general, for every \a n there will be
          * a static member Perm<n>::Sn; however, these numerical aliases
-         * Perm<2>::S2, ..., Perm<5>::S5 are only available for small \a n.
+         * Perm<2>::S2, ..., Perm<7>::S7 are only available for small \a n.
          */
-        static constexpr S5Lookup S5 {};
+        static constexpr PermSn<5, PermOrder::Sign> S5 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of five
-         * elements in lexicographical order.
+         * Gives fast access to all possible permutations of five elements
+         * in lexicographical order, with support for both array-like indexing
+         * and iteration.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `orderedSn[i]`.  The index \a i
          * must be between 0 and 119 inclusive.
-         * This element access is extremely fast (a fact that is not true for
-         * the larger permutation classes Perm<n> with \a n ≥ 8).
+         *
+         * You can also iterate over all permutations in \a orderedSn using a
+         * range-based \c for loop:
+         *
+         * \code{.cpp}
+         * for (auto p : Perm<5>::orderedSn) { ... }
+         * \endcode
+         *
+         * For this class (and all Perm<n> with \a n ≤ 7), such index-based
+         * access and iteration are both extremely fast.
          *
          * Lexicographical ordering treats each permutation \a p as the
-         * ordered pair (\a p[0], ..., \a p[4]).
+         * ordered tuple `(p[0], ..., p[4])`.
          *
-         * This array is different from Perm<5>::Sn, since \a orderedSn stores
+         * This array is different from Perm<5>::Sn, since \a orderedSn accesses
          * permutations in lexicographical order, whereas \a Sn alternates
          * between even and odd permutations.
          *
@@ -412,169 +286,158 @@ class Perm<5> {
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
          */
-        static constexpr OrderedS5Lookup orderedSn {};
+        static constexpr PermSn<5, PermOrder::Lex> orderedSn {};
 
         /**
-         * Gives fast array-like access to all possible permutations of five
-         * elements in lexicographical order.
+         * Gives fast access to all possible permutations of five elements
+         * in lexicographical order, with support for both array-like indexing
+         * and iteration.
          *
          * This is a dimension-specific alias for Perm<5>::orderedSn; see that
          * member for further information.  In general, for every \a n there
          * will be a static member Perm<n>::orderedSn; however, these numerical
-         * aliases Perm<2>::orderedS2, ..., Perm<5>::orderedS5 are only
+         * aliases Perm<2>::orderedS2, ..., Perm<7>::orderedS7 are only
          * available for small \a n.
          */
-        static constexpr OrderedS5Lookup orderedS5 {};
+        static constexpr PermSn<5, PermOrder::Lex> orderedS5 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of
-         * four elements.  In each permutation, 4 maps to 4.
+         * Deprecated array-like object that lists all possible permutations
+         * of four elements in a sign-based order.  In each permutation,
+         * 4 maps to 4.
          *
          * To access the permutation at index \a i, you simply use the
-         * square bracket operator: `Sn_1[i]`.  The index \a i must be
-         * between 0 and 23 inclusive.
+         * square bracket operator: `S4[i]`.  The index \a i must be
+         * between 0 and 23 inclusive.  Unlike \a Sn, you cannot iterate over
+         * \a S4 in C++ (though you can still do this in Python).
          *
-         * The permutations with even indices in the array are the even
-         * permutations, and those with odd indices in the array are the
-         * odd permutations.
-         *
-         * This array is different from Perm<5>::orderedS4, since \a Sn_1
-         * (or equivalently, \a S4) alternates between even and odd
-         * permutations, whereas \a orderedS4 stores permutations in
-         * lexicographical order.
+         * This array uses the same sign-based ordering as `Perm<4>::S4`:
+         * it begins with the identity and alternates between even and odd
+         * permutations.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * \deprecated Instead of `Perm<5>::S4[i]`, you can use
+         * `Perm<5>::extend(Perm<4>::Sn[i])`.
          */
-        static constexpr S4Lookup Sn_1 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 4> S4 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of
-         * four elements.
+         * Deprecated alias for \a S4, which gives fast array-like access to
+         * all possible permutations of four elements in a sign-based order.
          *
-         * This is a dimension-specific alias for Perm<5>::Sn_1; see that
-         * member for further information.
+         * See the S4 documentation for further information.
          *
-         * Note that both permutation classes Perm<4> and Perm<5> have
-         * an \a S4 array; these both store the same 24 permutations in the
-         * same order (but of course using different data types).
+         * \deprecated Instead of `Perm<5>::Sn_1[i]`, you can use
+         * `Perm<5>::extend(Perm<4>::Sn[i])`.
          */
-        static constexpr S4Lookup S4 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 4> Sn_1 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of four
-         * elements in lexicographical order.  In each permutation, 4 maps to 4.
+         * Deprecated array-like object that lists all possible permutations
+         * of four elements in lexicographical order.  In each permutation,
+         * 4 maps to 4.
          *
          * To access the permutation at index \a i, you simply use the
-         * square bracket operator: `orderedS4[i]`.  The index \a i
-         * must be between 0 and 23 inclusive.
+         * square bracket operator: `orderedS4[i]`.  The index \a i must be
+         * between 0 and 23 inclusive.  Unlike \a Sn, you cannot iterate over
+         * \a orderedS4 in C++ (though you can still do this in Python).
          *
-         * Lexicographical ordering treats each permutation \a p as the
-         * ordered pair (\a p[0], ..., \a p[3]).
-         *
-         * This array is different from Perm<5>::S4, since \a orderedS4 stores
-         * permutations in lexicographical order, whereas \a S4 (or
-         * equivalently, \a Sn_1) alternates between even and odd permutations.
-         *
-         * Note that both permutation classes Perm<4> and Perm<5> have an
-         * \a orderedS4 array; these both store the same 24 permutations
-         * in the same order (but of course using different data types).
+         * This array uses the same lexicographical ordering as
+         * `Perm<4>::orderedS4`: specifically, it treats each permutation
+         * \a p as the ordered tuple `(p[0], ..., p[3])`.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * \deprecated Instead of `Perm<5>::orderedS4[i]`, you can use
+         * `Perm<5>::extend(Perm<4>::orderedSn[i])`.
          */
-        static constexpr OrderedS4Lookup orderedS4 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 4, PermOrder::Lex>
+            orderedS4 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of three
-         * elements.  In each permutation, 3 maps to 3 and 4 maps to 4.
+         * Deprecated array-like object that lists all possible permutations
+         * of three elements in a sign-based order.  In each permutation,
+         * 3 maps to 3 and 4 maps to 4.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `S3[i]`.  The index \a i must be
-         * between 0 and 5 inclusive.
+         * between 0 and 5 inclusive.  Unlike \a Sn, you cannot iterate over
+         * \a S3 in C++ (though you can still do this in Python).
          *
-         * The permutations with even indices in the array are the even
-         * permutations, and those with odd indices in the array are the
-         * odd permutations.
-         *
-         * This array is different from Perm<5>::orderedS3, since \a S3
-         * alternates between even and odd permutations, whereas \a orderedS3
-         * stores permutations in lexicographical order.
-         *
-         * Note that the small permutation classes Perm<3>, Perm<4> and Perm<5>
-         * all have an \a S3 array; these all store the same six permutations
-         * in the same order (but of course using different data types).
+         * This array uses the same sign-based ordering as `Perm<3>::S3`:
+         * it begins with the identity and alternates between even and odd
+         * permutations.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * \deprecated Instead of `Perm<5>::S3[i]`, you can use
+         * `Perm<5>::extend(Perm<3>::Sn[i])`.
          */
-        static constexpr S3Lookup S3 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 3> S3 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of three
-         * elements in lexicographical order.  In each permutation,
+         * Deprecated array-like object that lists all possible permutations
+         * of three elements in lexicographical order.  In each permutation,
          * 3 maps to 3 and 4 maps to 4.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `orderedS3[i]`.  The index \a i
-         * must be between 0 and 5 inclusive.
+         * must be between 0 and 5 inclusive.  Unlike \a Sn, you cannot iterate
+         * over \a orderedS3 in C++ (though you can still do this in Python).
          *
-         * Lexicographical ordering treats each permutation \a p as the
-         * ordered pair (\a p[0], ..., \a p[2]).
-         *
-         * This array is different from Perm<5>::S3, since \a orderedS3 stores
-         * permutations in lexicographical order, whereas \a S3 alternates
-         * between even and odd permutations.
-         *
-         * Note that the small permutation classes Perm<3>, Perm<4> and Perm<5>
-         * all have an \a orderedS3 array; these all store the same six
-         * permutations in the same order (but of course using different data
-         * types).
+         * This array uses the same lexicographical ordering as
+         * `Perm<3>::orderedS3`: specifically, it treats each permutation
+         * \a p as the ordered tuple `(p[0], ..., p[2])`.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * \deprecated Instead of `Perm<5>::orderedS3[i]`, you can use
+         * `Perm<5>::extend(Perm<3>::orderedSn[i])`.
          */
-        static constexpr OrderedS3Lookup orderedS3 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 3, PermOrder::Lex>
+            orderedS3 {};
 
         /**
-         * Gives fast array-like access to all possible permutations of
+         * Deprecated array-like object that lists all possible permutations of
          * two elements.  In each permutation, 2 maps to 2, 3 maps to 3,
          * and 4 maps to 4.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `S2[i]`.  The index \a i must be
-         * between 0 and 1 inclusive.
+         * between 0 and 1 inclusive.  Unlike \a Sn, you cannot iterate over
+         * \a S2 in C++ (though you can still do this in Python).
          *
-         * The permutations with even indices in the array are the even
-         * permutations, and those with odd indices in the array are the
-         * odd permutations.
-         *
-         * Note that all small permutation classes (Perm<2>, ..., Perm<5>)
-         * have an \a S2 array: these all store the same two permutations in
-         * the same order (but of course using different data types).
-         *
-         * There is no corresponding \a orderedS2 array, since the
-         * (trivial) arrays \a S2 and \a orderedS2 are identical.
+         * This array uses the same sign-based ordering as `Perm<2>::S2`:
+         * it begins with the identity and alternates between even and odd
+         * permutations.
          *
          * In Regina 6.0.1 and earlier, this was a hard-coded C-style array;
          * since Regina 7.0 it has changed type, but accessing elements as
          * described above remains extremely fast.  This is now a lightweight
          * object, and is defined in the headers only; in particular, you
          * cannot make a reference to it (but you can always make a copy).
+         *
+         * \deprecated Instead of `Perm<5>::S2[i]`, you can use
+         * `Perm<5>::extend(Perm<2>::Sn[i])`.
          */
-        static constexpr S2Lookup S2 {};
+        [[deprecated]] static constexpr detail::PermSubSn<5, 2> S2 {};
 
     protected:
         Code2 code2_;
@@ -1080,22 +943,10 @@ class Perm<5> {
          * This is true if and only if both permutations have the same
          * images for 0, 1, 2, 3 and 4.
          *
-         * \param other the permutation with which to compare this.
          * \return \c true if and only if this and the given permutation
          * are equal.
          */
-        constexpr bool operator == (const Perm<5>& other) const;
-
-        /**
-         * Determines if this differs from the given permutation.
-         * This is true if and only if the two permutations have
-         * different images for at least one of 0, 1, 2, 3 or 4.
-         *
-         * \param other the permutation with which to compare this.
-         * \return \c true if and only if this and the given permutation
-         * differ.
-         */
-        constexpr bool operator != (const Perm<5>& other) const;
+        constexpr bool operator == (const Perm&) const = default;
 
         /**
          * Lexicographically compares the images of (0,1,2,3,4) under this
@@ -1149,18 +1000,25 @@ class Perm<5> {
         constexpr Perm<5> operator ++(int);
 
         /**
-         * Determines if this appears earlier than the given permutation
-         * in the array Perm<5>::Sn.
+         * Compares two permutations according to which appears earlier in the
+         * array Perm<5>::Sn.
          *
          * Note that this is _not_ the same ordering of permutations as
-         * the ordering implied by compareWith().  This is, however,
+         * the ordering implied by compareWith().  This ordering is, however,
          * consistent with the ordering implied by the ++ operators,
-         * and this order is also faster to compute than compareWith().
+         * and this ordering is also faster to compute than compareWith().
          *
-         * \param rhs the permutation to compare this against.
-         * \return \c true if and only if this appears before \a rhs in \a Sn.
+         * This generates all of the usual comparison operators, including
+         * `<`, `<=`, `>`, and `>=`.
+         *
+         * \python This spaceship operator `x <=> y` is not available, but the
+         * other comparison operators that it generates _are_ available.
+         *
+         * \return The result that indicates which permutation appears earlier
+         * in \a Sn.
          */
-        constexpr bool operator < (const Perm<5>& rhs) const;
+        constexpr std::strong_ordering operator <=> (const Perm&) const =
+            default;
 
         /**
          * Returns the <i>i</i>th rotation.
@@ -1389,7 +1247,7 @@ class Perm<5> {
         constexpr Index SnIndex() const;
 
         /**
-         * Returns the index of this permutation in the Perm<5>::S5 array.
+         * Returns the index of this permutation in the Perm<5>::Sn array.
          *
          * This is a dimension-specific alias for SnIndex().  In general,
          * for every \a n there will be a member function Perm<n>::SnIndex();
@@ -1399,7 +1257,7 @@ class Perm<5> {
          * See Sn for further information on how these permutations are indexed.
          *
          * \return the index \a i for which this permutation is equal to
-         * Perm<5>::S5[i].  This will be between 0 and 119 inclusive.
+         * Perm<5>::Sn[i].  This will be between 0 and 119 inclusive.
          */
         constexpr Index S5Index() const;
 
@@ -1708,21 +1566,6 @@ class Perm<5> {
             5, 6, 3, 4, 3, 2, 2, 4, 5, 4, 2, 6, 5, 6, 5, 6, 5, 6, 2, 4
         };
 
-        /**
-         * Contains the S5 indices of the elements of S4, where the
-         * element 4 maps to itself.
-         */
-        static constexpr Code2 S4Table[24] = {
-            0, 3, 8, 7, 12, 15, 26, 25, 30, 33, 38, 37,
-            48, 51, 56, 55, 60, 63, 74, 73, 78, 81, 86, 85
-        };
-
-        /**
-         * Contains the S5 indices of the elements of S3, where the
-         * elements 3 and 4 map to themselves.
-         */
-        static constexpr Code2 S3Table[6] = { 0, 7, 30, 25, 48, 55 };
-
     protected:
         /**
          * Creates a permutation from the given second-generation
@@ -1734,11 +1577,11 @@ class Perm<5> {
          * \param code the second-generation code from which the new
          * permutation will be created.
          */
-        constexpr Perm<5>(Code2 code);
+        constexpr Perm(Code2 code);
 
     private:
         /**
-         * Returns the index into the Perm<5>::S5 array of the permutation that
+         * Returns the index into the Perm<5>::Sn array of the permutation that
          * maps (0,...,5) to (<i>a</i>,...,<i>e</i>) respectively.
          *
          * \pre {<i>a</i>,<i>b</i>,<i>c</i>,<i>d</i>,<i>e</i>} = {0,1,2,3,4}.
@@ -1749,13 +1592,13 @@ class Perm<5> {
          * \param d the desired image of 3.
          * \param e the desired image of 4.
          * \return the index \a i for which the given permutation is equal to
-         * Perm<5>::S5[i].  This will be between 0 and 119 inclusive.
+         * Perm<5>::Sn[i].  This will be between 0 and 119 inclusive.
          */
         static constexpr int S5Index(int a, int b, int c, int d, int e);
 
         /**
-         * Converts between an index into Perm<5>::S5 and an index into
-         * Perm<5>::orderedS5.  This conversion works in either direction.
+         * Converts between an index into Perm<5>::Sn and an index into
+         * Perm<5>::orderedSn.  This conversion works in either direction.
          *
          * \tparam Int a native integer type; this would typically be
          * either \c int or \a Code2.
@@ -1794,6 +1637,9 @@ class Perm<5> {
         template <typename iterator>
         static Perm tightDecode(iterator start, iterator limit,
             bool noTrailingData);
+
+    friend class PermSn<5, PermOrder::Sign>;
+    friend class PermSn<5, PermOrder::Lex>;
 };
 
 // Inline functions for Perm<5>
@@ -1809,37 +1655,6 @@ inline constexpr Int Perm<5>::convOrderedUnordered(Int index) {
     // Here we use (index >> 1), which is equivalent to (index / 2).
     //
     return ((((index >> 1) ^ (index / 24)) & 1) ? (index ^ 1) : index);
-}
-
-inline constexpr Perm<5> Perm<5>::S5Lookup::operator[] (int index) const {
-    return Perm<5>(static_cast<Code2>(index));
-}
-
-inline constexpr Perm<5> Perm<5>::OrderedS5Lookup::operator[] (int index)
-        const {
-    return Perm<5>(static_cast<Code2>(convOrderedUnordered(index)));
-}
-
-inline constexpr Perm<5> Perm<5>::S4Lookup::operator[] (int index) const {
-    return Perm<5>(S4Table[index]);
-}
-
-inline constexpr Perm<5> Perm<5>::OrderedS4Lookup::operator[] (int index)
-        const {
-    return Perm<5>(S4Table[Perm<4>::orderedS4[index].S4Index()]);
-}
-
-inline constexpr Perm<5> Perm<5>::S3Lookup::operator[] (int index) const {
-    return Perm<5>(S3Table[index]);
-}
-
-inline constexpr Perm<5> Perm<5>::OrderedS3Lookup::operator[] (int index)
-        const {
-    return Perm<5>(S3Table[Perm<3>::orderedS3[index].S3Index()]);
-}
-
-inline constexpr Perm<5> Perm<5>::S2Lookup::operator[] (int index) const {
-    return Perm<5>(index == 0 ? 0 : 25);
 }
 
 inline constexpr void Perm<5>::precompute() {
@@ -1865,8 +1680,7 @@ inline constexpr Perm<5>::Perm(const std::array<int, 5>& image) :
 
 inline constexpr Perm<5>::Perm(int a0, int a1, int b0, int b1,
         int c0, int c1, int d0, int d1, int e0, int e1) : code2_(0) {
-    // TODO: When we move to C++20, we can get rid of the zero initialisers.
-    int image[5] = { 0, 0, 0, 0, 0 };
+    int image[5];
     image[a0] = a1;
     image[b0] = b1;
     image[c0] = c1;
@@ -2023,14 +1837,6 @@ inline constexpr int Perm<5>::pre(int image) const {
     return imageTable[invS5[code2_]][image];
 }
 
-inline constexpr bool Perm<5>::operator == (const Perm<5>& other) const {
-    return (code2_ == other.code2_);
-}
-
-inline constexpr bool Perm<5>::operator != (const Perm<5>& other) const {
-    return (code2_ != other.code2_);
-}
-
 inline constexpr int Perm<5>::compareWith(const Perm<5>& other) const {
     // Computing orderedS5Index() is very fast, now that we use S5 indices
     // for internal permutation codes.  Use this instead of comparing images
@@ -2055,10 +1861,6 @@ inline constexpr Perm<5> Perm<5>::operator ++(int) {
     if (++code2_ == 120)
         code2_ = 0;
     return ans;
-}
-
-inline constexpr bool Perm<5>::operator < (const Perm<5>& rhs) const {
-    return code2_ < rhs.code2_;
 }
 
 inline constexpr Perm<5> Perm<5>::rot(int i) {

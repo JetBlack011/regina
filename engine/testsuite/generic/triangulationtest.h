@@ -348,23 +348,24 @@ class TriangulationTest : public testing::Test {
                             EXPECT_FALSE(v->isLinkClosed());
                             EXPECT_FALSE(v->isStandard());
                             EXPECT_FALSE(v->isIdeal());
-                            EXPECT_EQ(v->linkType(), Vertex<dim>::INVALID);
+                            EXPECT_EQ(v->linkType(),
+                                Vertex<dim>::Link::Invalid);
                         }
                     } else if (v->isIdeal()) {
                         ++foundIdeal;
                         if constexpr (dim == 3) {
+                            using Link = typename Vertex<dim>::Link;
                             EXPECT_TRUE(v->isBoundary());
                             EXPECT_TRUE(v->isLinkClosed());
                             if (v->isStandard()) {
                                 EXPECT_TRUE(
-                                    v->linkType() == Vertex<dim>::TORUS ||
-                                    v->linkType() == Vertex<dim>::KLEIN_BOTTLE);
+                                    v->linkType() == Link::Torus ||
+                                    v->linkType() == Link::KleinBottle);
                                 EXPECT_EQ(v->linkEulerChar(), 0);
                                 EXPECT_EQ(v->isLinkOrientable(),
-                                    v->linkType() == Vertex<dim>::TORUS);
+                                    v->linkType() == Link::Torus);
                             } else {
-                                EXPECT_EQ(v->linkType(),
-                                    Vertex<dim>::NON_STANDARD_CUSP);
+                                EXPECT_EQ(v->linkType(), Link::NonStandardCusp);
                                 EXPECT_NE(v->linkEulerChar(), 2);
                                 EXPECT_NE(v->linkEulerChar(), 0);
                             }
@@ -375,7 +376,7 @@ class TriangulationTest : public testing::Test {
                             EXPECT_FALSE(v->isLinkClosed());
                             EXPECT_TRUE(v->isLinkOrientable());
                             EXPECT_TRUE(v->isStandard());
-                            EXPECT_EQ(v->linkType(), Vertex<dim>::DISC);
+                            EXPECT_EQ(v->linkType(), Vertex<dim>::Link::Disc);
                             EXPECT_EQ(v->linkEulerChar(), 1);
                         }
                     } else {
@@ -384,7 +385,7 @@ class TriangulationTest : public testing::Test {
                             EXPECT_TRUE(v->isLinkClosed());
                             EXPECT_TRUE(v->isLinkOrientable());
                             EXPECT_TRUE(v->isStandard());
-                            EXPECT_EQ(v->linkType(), Vertex<dim>::SPHERE);
+                            EXPECT_EQ(v->linkType(), Vertex<dim>::Link::Sphere);
                             EXPECT_EQ(v->linkEulerChar(), 2);
                         }
                     }
@@ -661,12 +662,14 @@ class TriangulationTest : public testing::Test {
                             EXPECT_TRUE(v->isValid());
                             EXPECT_FALSE(v->isIdeal());
                             if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(), Vertex<dim>::SPHERE);
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Sphere);
                         } else if (link.isBall()) {
                             EXPECT_TRUE(v->isValid());
                             EXPECT_FALSE(v->isIdeal());
                             if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(), Vertex<dim>::DISC);
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Disc);
                         } else if (link.isValid() && link.isClosed()) {
                             EXPECT_TRUE(v->isValid());
                             EXPECT_TRUE(v->isIdeal());
@@ -674,14 +677,14 @@ class TriangulationTest : public testing::Test {
                                 if (link.eulerCharTri() == 0) {
                                     if (link.isOrientable())
                                         EXPECT_EQ(v->linkType(),
-                                            Vertex<dim>::TORUS);
+                                            Vertex<dim>::Link::Torus);
                                     else
                                         EXPECT_EQ(v->linkType(),
-                                            Vertex<dim>::KLEIN_BOTTLE);
+                                            Vertex<dim>::Link::KleinBottle);
                                 } else {
                                     allStandard = false;
                                     EXPECT_EQ(v->linkType(),
-                                        Vertex<dim>::NON_STANDARD_CUSP);
+                                        Vertex<dim>::Link::NonStandardCusp);
                                 }
                             }
                         } else {
@@ -689,7 +692,8 @@ class TriangulationTest : public testing::Test {
                             EXPECT_FALSE(v->isValid());
                             EXPECT_FALSE(v->isIdeal());
                             if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(), Vertex<dim>::INVALID);
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Invalid);
                         }
 
                         if constexpr (dim == 3)
@@ -727,17 +731,17 @@ class TriangulationTest : public testing::Test {
                 for (auto t : tri.triangles()) {
                     int sub = t->subtype();
                     switch (t->type()) {
-                        case regina::Triangle<dim>::TRIANGLE:
-                        case regina::Triangle<dim>::PARACHUTE:
-                        case regina::Triangle<dim>::L31:
+                        case regina::Triangle<dim>::Type::Triangle:
+                        case regina::Triangle<dim>::Type::Parachute:
+                        case regina::Triangle<dim>::Type::L31:
                             EXPECT_EQ(sub, -1);
                             break;
 
-                        case regina::Triangle<dim>::SCARF:
-                        case regina::Triangle<dim>::CONE:
-                        case regina::Triangle<dim>::MOBIUS:
-                        case regina::Triangle<dim>::HORN:
-                        case regina::Triangle<dim>::DUNCEHAT:
+                        case regina::Triangle<dim>::Type::Scarf:
+                        case regina::Triangle<dim>::Type::Cone:
+                        case regina::Triangle<dim>::Type::Mobius:
+                        case regina::Triangle<dim>::Type::Horn:
+                        case regina::Triangle<dim>::Type::DunceHat:
                             EXPECT_GE(sub, 0);
                             EXPECT_LE(sub, 2);
                             break;
@@ -1111,6 +1115,108 @@ class TriangulationTest : public testing::Test {
             verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(tri);
         }
 
+        /**
+         * Tests all potential local moves of the form tri.move(f), where f is
+         * a subdim-face of the triangulation tri.
+         *
+         * These tests are of a general nature that can be used with any type
+         * of move - essentialy they verify that, if the move was performed,
+         * it did not change the topology.
+         *
+         * More specific tests can be included through the optional preTest and
+         * postTest arguments.  Specifically, when attempting to perform the
+         * move on the ith face:
+         *
+         * - preTest(tri, i) will be called to determine in advance whether
+         *   the move should be legal.  This returns a std::optional<bool>,
+         *   which is true if the move should be legal, false if the move
+         *   should be illegal, or has no value if the legality is not known
+         *   in advance.
+         *
+         * - If the move was performed, postTest(pre_move_tri, post_move_tri, i)
+         *   will be called.  This may run any additional tests (e.g,. verifying
+         *   the combinatorics of the resulting triangulation).
+         *
+         * It should surely be possible to deduce subdim automatically, and even
+         * to make move and sizeChange template parameters (so that verifyMove
+         * can be plugged into exhaustive testing code), but I am struggling
+         * to work out how to do this with pointers to member functions.
+         * I think the fact that Triangulation is templated is not helping.
+         */
+        template <int subdim>
+        static void verifyMove(const Triangulation<dim>& tri,
+                const char* name,
+                bool(Triangulation<dim>::*move)(regina::Face<dim, subdim>*),
+                int sizeChange,
+                std::optional<bool>(*preTest)(const Triangulation<dim>&,
+                    size_t) = nullptr,
+                void(*postTest)(const Triangulation<dim>&,
+                    const Triangulation<dim>&, size_t) = nullptr) {
+            static_assert(0 <= subdim && subdim <= dim);
+            SCOPED_TRACE_CSTRING(name);
+            SCOPED_TRACE_NAMED_NUMERIC("subdim", subdim);
+
+            Triangulation<dim> oriented(tri);
+            if (tri.isOrientable())
+                oriented.orient();
+
+            for (size_t i = 0; i < tri.template countFaces<subdim>(); ++i) {
+                SCOPED_TRACE_NAMED_NUMERIC("face", i);
+
+                Triangulation<dim> result(oriented);
+
+                // Perform the move (if we can).
+                std::optional<bool> expect =
+                    (preTest ? preTest(tri, i) : std::nullopt);
+                bool performed;
+                if constexpr (subdim == dim)
+                    performed = (result.*move)(result.simplex(i));
+                else
+                    performed = (result.*move)(result.template face<subdim>(i));
+                if (expect.has_value())
+                    EXPECT_EQ(performed, *expect);
+
+                // Ensure that properties we are about to verify have been
+                // explicitly recomputed.
+                clearProperties(result);
+
+                if (! performed) {
+                    // Verify that the move was indeed not performed.
+                    EXPECT_EQ(result, oriented);
+                    continue;
+                }
+
+                // The move was performed.
+
+                EXPECT_EQ(result.size(), tri.size() + sizeChange);
+                EXPECT_EQ(result.isValid(), tri.isValid());
+                EXPECT_EQ(result.isIdeal(), tri.isIdeal());
+                EXPECT_EQ(result.isOrientable(), tri.isOrientable());
+                if (tri.isOrientable())
+                    EXPECT_TRUE(result.isOriented());
+                EXPECT_EQ(result.countBoundaryComponents(),
+                    tri.countBoundaryComponents());
+                EXPECT_EQ(result.eulerCharTri(), tri.eulerCharTri());
+
+                // Closedness can only be tested in standard dimensions.
+                if constexpr (regina::standardDim(dim))
+                    EXPECT_EQ(result.isClosed(), tri.isClosed());
+
+                // Homology can only be tested for valid triangulations.
+                if (tri.size() <= HOMOLOGY_THRESHOLD && tri.isValid()) {
+                    EXPECT_EQ(result.homology(), tri.homology());
+                    // We only test H2 in small dimensions, since for higher
+                    // dimensions this becomes too slow.
+                    if constexpr (dim == 3 || dim == 4)
+                        EXPECT_EQ(result.template homology<2>(),
+                            tri.template homology<2>());
+                }
+
+                if (postTest)
+                    postTest(oriented, result, i);
+            }
+        }
+
         template <int k>
         static void verifyPachnerDetail(const Triangulation<dim>& tri,
                 bool standardSimplex) {
@@ -1213,14 +1319,13 @@ class TriangulationTest : public testing::Test {
                 regina::Triangulation<dim> inv(result);
                 if constexpr (k == 0) {
                     performed = inv.pachner(
-                        inv.simplex(iso.simpImage(result.size() - 1)),
-                        true, true);
+                        inv.simplex(iso.simpImage(result.size() - 1)));
                 } else {
                     auto face = inv.simplex(iso.simpImage(result.size() - 1))->
                         template face<dim - k>(
                             regina::Face<dim, dim - k>::faceNumber(
                                 iso.facetPerm(result.size() - 1)));
-                    performed = inv.pachner(face, true, true);
+                    performed = inv.pachner(face);
                 }
                 EXPECT_TRUE(performed);
 
@@ -1247,75 +1352,60 @@ class TriangulationTest : public testing::Test {
             });
         }
 
-        static void verifyTwoZeroVertex(const Triangulation<dim>& tri,
+        static void verify20Vertex(const Triangulation<dim>& tri,
                 const char* name) {
-            SCOPED_TRACE_CSTRING(name);
+            verifyMove<0>(tri, name,
+                &Triangulation<dim>::template move20<0>,
+                -2,
+                nullptr /* preTest */,
+                [](const Triangulation<dim>& pre,
+                        const Triangulation<dim>& post, size_t i) {
+                    // Verify that the vertex link was correct, and that
+                    // the move did the right thing.
+                    // Here the "right thing" is a 2-dim Pachner move followed
+                    // by a (dim+1)-1 Pachner move.
+                    Triangulation<dim> alt(pre);
 
-            Triangulation<dim> oriented(tri);
-            if (oriented.isOrientable())
-                oriented.orient();
+                    Vertex<dim>* v = alt.vertex(i);
+                    auto emb0 = v->front();
+                    auto emb1 = v->back();
+                    if (! emb0.simplex()->adjacentSimplex(emb0.face()))
+                        std::swap(emb0, emb1);
 
-            for (size_t i = 0; i < oriented.countVertices(); ++i) {
-                SCOPED_TRACE_NUMERIC(i);
-
-                Vertex<dim>* v = oriented.vertex(i);
-                if (v->degree() != 2 || v->isBoundary()) {
-                    EXPECT_FALSE(oriented.twoZeroMove(v, true, false));
-                    continue;
-                }
-
-                regina::VertexEmbedding<dim> emb0 = v->front();
-                regina::VertexEmbedding<dim> emb1 = v->back();
-                if (emb0.simplex() == emb1.simplex()) {
-                    EXPECT_FALSE(oriented.twoZeroMove(v, true, false));
-                    continue;
-                }
-
-                int v0 = emb0.face();
-                int v1 = emb1.face();
-                auto opp0 = emb0.simplex()->template face<dim-1>(v0);
-                auto opp1 = emb1.simplex()->template face<dim-1>(v1);
-                if (opp0 == opp1 ||
-                        (opp0->isBoundary() && opp1->isBoundary())) {
-                    EXPECT_FALSE(oriented.twoZeroMove(v, true, false));
-                    continue;
-                }
-
-                auto glue = emb0.simplex()->adjacentGluing(v0 != 0 ? 0 : 1);
-                bool correctLink = true;
-                for (int i = 0; i <= dim; ++i)
-                    if (i != v0 && ! (
-                            emb0.simplex()->adjacentSimplex(i) ==
-                                emb1.simplex() &&
-                            emb0.simplex()->adjacentGluing(i) == glue)) {
-                        correctLink = false;
-                        break;
+                    auto glue = emb0.simplex()->adjacentGluing(
+                        emb0.vertices()[dim]);
+                    for (int j = 1; j <= dim; ++j) {
+                        int f = emb0.vertices()[j];
+                        EXPECT_EQ(emb0.simplex()->adjacentSimplex(f),
+                            emb1.simplex());
+                        EXPECT_EQ(emb0.simplex()->adjacentGluing(f), glue);
                     }
-                if (! correctLink) {
-                    EXPECT_FALSE(oriented.twoZeroMove(v, true, false));
-                    continue;
-                }
 
-                // The move should be legal.
-                Triangulation<dim> alt(oriented);
-                EXPECT_TRUE(alt.twoZeroMove(alt.vertex(i)));
-                EXPECT_EQ(alt.isOriented(), alt.isOrientable());
+                    EXPECT_TRUE(alt.pachner(
+                        emb0.simplex()->template face<dim-1>(emb0.face())));
+                    EXPECT_TRUE(alt.pachner(
+                        emb1.simplex()->vertex(emb1.face())));
+                    EXPECT_TRUE(alt.isIsomorphicTo(post));
+                });
+        }
 
-                // Verify that the move did the right thing.
-                // Here the "right thing" is a 2-dim Pachner move followed by a
-                // (dim+1)-1 Pachner move.
-                Triangulation<dim> alt2(oriented);
-                Simplex<dim>* simp0 = alt2.simplex(emb0.simplex()->index());
-                Simplex<dim>* simp1 = alt2.simplex(emb1.simplex()->index());
-                if (simp0->adjacentSimplex(v0)) {
-                    EXPECT_TRUE(alt2.pachner(simp0->template face<dim-1>(v0)));
-                    EXPECT_TRUE(alt2.pachner(simp1->vertex(v1)));
-                } else {
-                    EXPECT_TRUE(alt2.pachner(simp1->template face<dim-1>(v1)));
-                    EXPECT_TRUE(alt2.pachner(simp0->vertex(v0)));
-                }
-                EXPECT_TRUE(alt.isIsomorphicTo(alt2));
-            }
+        static void verify20Edge(const Triangulation<dim>& tri,
+                const char* name) {
+            verifyMove<1>(tri, name,
+                &Triangulation<dim>::template move20<1>,
+                -2);
+        }
+
+        static void verify20Triangle(const Triangulation<dim>& tri,
+                const char* name) {
+            verifyMove<2>(tri, name,
+                &Triangulation<dim>::template move20<2>,
+                -2);
+        }
+
+        static void verifyShellBoundary(const Triangulation<dim>& tri,
+                const char* name) {
+            verifyMove<dim>(tri, name, &Triangulation<dim>::shellBoundary, -1);
         }
 
         static void verifyBarycentricSubdivision(const Triangulation<dim>& tri,

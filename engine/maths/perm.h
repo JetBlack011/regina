@@ -127,6 +127,52 @@ enum class PermCodeType {
 };
 
 /**
+ * Represents different ways in which permutations on \a n objects can be
+ * ordered.
+ *
+ * In all of these orderings, it is guaranteed that the identity permutation
+ * comes first.
+ */
+enum class PermOrder {
+    /**
+     * Indicates that permutations should be ordered by sign, beginning with
+     * the identity permutation and then alternating between even and odd
+     * permutations.
+     *
+     * In particular, if we assign each permutation an index according to this
+     * ordering, then the identity will have index 0, all even permutations
+     * will have even indices, and all odd permutations will have odd indices.
+     *
+     * More specifically: for each \a i, the permutations at indices `2i` and
+     * `2i+1` will be the same under both ordering methods \a Sign and \a Lex,
+     * but they might be swapped to ensure the correct signs and/or
+     * lexicographical ordering.
+     *
+     * PermOrder::Sign is the ordering used by `Perm<n>::Sn`.
+     */
+    Sign = 0,
+    /**
+     * Indicates that permutations should be ordered lexicographically,
+     * beginning with the identity permutation.
+     *
+     * Specifically, we order permutations lexicographically according to the
+     * sequence of images `p[0],p[1],...,p[n-1]` (where \a p denotes an
+     * arbitrary permutation on \a n objects).
+     *
+     * PermOrder::Lex is the ordering used by `Perm<n>::orderedSn`.
+     */
+    Lex = 1
+};
+
+} // namespace regina
+
+// We need to include permsn.h now so that Perm<n> can see the default
+// template arguments for PermSn<...>.
+#include "maths/permsn.h"
+
+namespace regina {
+
+/**
  * A deprecated constant indicating a type of internal permutation code.
  *
  * \deprecated This has been renamed to the scoped enumeration constant
@@ -249,6 +295,21 @@ namespace detail {
  * this template is generic and most operations require more time (in
  * particular, there are no harded-coded lookup tables).
  *
+ * You can iterate through all permutations using a range-based \c for loop
+ * over `Perm<n>::Sn`:
+ *
+ * \code{.cpp}
+ * for (auto p : Perm<n>::Sn) { ... }
+ * \endcode
+ *
+ * For the optimised permutation classes \a n ≤ 7, this iteration will be
+ * extremely fast in both C++ and Python.  For the larger permutation classes
+ * \a n ≥ 8, this will still be reasonably fast in C++ (since it uses the
+ * increment operator internally), but it will be slower in Python (since it
+ * reconstructs `Sn[i]` for each integer \a i).  If you are in Python and you
+ * need to iterate over all permutations for \a n ≥ 8, you may wish to
+ * implement a loop using `Perm<n>.inc()`.
+ *
  * \python Python does not support templates.  For each
  * \a n = 2,...,16, this class is available in Python under the
  * corresponding name Perm2, Perm3, ..., Perm16.
@@ -337,10 +398,12 @@ class Perm {
         static constexpr Index nPerms = factorial(n);
 
         /**
-         * The total number of permutations on <i>n</i>-1 elements.  This is
-         * the size of the symmetric group <i>S</i><sub><i>n</i>-1</sub>.
+         * Deprecated constant holding the total number of permutations on
+         * `n-1` elements.
+         *
+         * \deprecated Just use `Perm<n-1>::nPerms` instead.
          */
-        static constexpr Index nPerms_1 = factorial(n-1);
+        [[deprecated]] static constexpr Index nPerms_1 = factorial(n-1);
 
     private:
         /**
@@ -386,109 +449,71 @@ class Perm {
         static constexpr int tightChars_ = (n == 8 || n == 9 ? 3 :
              n == 10 || n == 11 ? 4 : n == 12 || n == 13 ? 5 : n == 14 ? 6 : 7);
 
-        /**
-         * A lightweight array-like object used to implement Perm<n>::Sn.
-         */
-        struct SnLookup {
-            /**
-             * Returns the permutation at the given index in the array Sn.
-             * See Perm<n>::Sn for details.
-             *
-             * For \a n ≤ 7, this operator is very fast (and constant time).
-             * However, for \a n ≥ 8 it is not constant time; the current
-             * implementation is quadratic in \a n.
-             *
-             * \param index an index between 0 and <i>n</i>!-1 inclusive.
-             * \return the corresponding permutation in Sn.
-             */
-            constexpr Perm<n> operator[] (Index index) const;
-
-            /**
-             * Returns the number of permutations in the array Sn.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return nPerms; }
-        };
-
-        /**
-         * A lightweight array-like object used to implement Perm<n>::orderedSn.
-         */
-        struct OrderedSnLookup {
-            /**
-             * Returns the permutation at the given index in the array
-             * orderedSn.  See Perm<n>::orderedSn for details.
-             *
-             * For \a n ≤ 7, this operator is very fast (and constant time).
-             * However, for \a n ≥ 8 it is not constant time; the current
-             * implementation is quadratic in \a n.
-             *
-             * \param index an index between 0 and <i>n</i>!-1 inclusive.
-             * \return the corresponding permutation in orderedSn.
-             */
-            constexpr Perm<n> operator[] (Index index) const;
-
-            /**
-             * Returns the number of permutations in the array orderedSn.
-             *
-             * \return the size of this array.
-             */
-            static constexpr Index size() { return nPerms; }
-        };
-
     public:
         /**
-         * Gives array-like access to all possible permutations of
-         * \a n elements.
+         * Gives access to all possible permutations of \a n elements in a
+         * sign-based order, with support for both array-like indexing and
+         * iteration.
          *
          * To access the permutation at index \a i, you simply use the
          * square bracket operator: `Sn[i]`.  The index \a i must be
-         * between 0 and <i>n</i>!-1 inclusive.
+         * between 0 and `n!-1` inclusive.
+         *
+         * You can also iterate over all permutations in \a Sn using a
+         * range-based \c for loop:
+         *
+         * \code{.cpp}
+         * for (auto p : Perm<n>::Sn) { ... }
+         * \endcode
          *
          * The permutations with even indices in the array are the even
-         * permutations, and those with odd indices in the array are the
-         * odd permutations.
+         * permutations, and those with odd indices in the array are the odd
+         * permutations.  The first permutation (at index 0) is the identity.
          *
          * This array is different from Perm<n>::orderedSn, since \a Sn
          * alternates between even and odd permutations, whereas \a orderedSn
-         * stores permutations in lexicographical order.
+         * accesses permutations in lexicographical order.
          *
          * This is a lightweight object, and it is defined in the headers only.
          * In particular, you cannot make a reference to it (but it is cheap
          * to make a copy).
          *
-         * \warning For \a n ≤ 7, the square bracket operator is a
-         * very fast constant-time routine.  However, for \a n ≥ 8,
-         * this is not constant time; the current implementation is
-         * quadratic in \a n.
+         * See the PermSn documentation for further details, including time
+         * complexity of lookup and iteration.
          */
-        static constexpr SnLookup Sn {};
+        static constexpr PermSn<n, PermOrder::Sign> Sn {};
 
         /**
-         * Gives array-like access to all possible permutations of
-         * \a n elements in lexicographical order.
+         * Gives access to all possible permutations of \a n elements in
+         * lexicographical order, with support for both array-like indexing
+         * and iteration.
          *
          * To access the permutation at index \a i, you simply use the
-         * square bracket operator: `orderedSn[i]`.  The index \a i
-         * must be between 0 and <i>n</i>!-1 inclusive.
+         * square bracket operator: `orderedSn[i]`.  The index \a i must be
+         * between 0 and `n!-1` inclusive.
+         *
+         * You can also iterate over all permutations in \a orderedSn using a
+         * range-based \c for loop:
+         *
+         * \code{.cpp}
+         * for (auto p : Perm<n>::orderedSn) { ... }
+         * \endcode
          *
          * Lexicographical ordering treats each permutation \a p as the
-         * <i>n</i>-tuple (\a p[0], \a p[1], ..., \a p[<i>n</i>-1]).
+         * <i>n</i>-tuple `(p[0], p[1], ..., p[n-1])`.
          *
          * This array is different from Perm<n>::Sn, since \a orderedSn
-         * stores permutations in lexicographical order, whereas \a Sn
+         * accesses permutations in lexicographical order, whereas \a Sn
          * alternates between even and odd permutations.
          *
          * This is a lightweight object, and it is defined in the headers only.
          * In particular, you cannot make a reference to it (but it is cheap
          * to make a copy).
          *
-         * \warning For \a n ≤ 7, the square bracket operator is a
-         * very fast constant-time routine.  However, for \a n ≥ 8,
-         * this is not constant time; the current implementation is
-         * quadratic in \a n.
+         * See the PermSn documentation for further details, including time
+         * complexity of lookup and iteration.
          */
-        static constexpr OrderedSnLookup orderedSn {};
+        static constexpr PermSn<n, PermOrder::Lex> orderedSn {};
 
     protected:
         Code code_;
@@ -499,7 +524,7 @@ class Perm {
          * Internal helper routine.  This routine recursively computes the
          * private constant idCode_ at compile time.
          */
-        static constexpr typename Perm<n>::Code idCodePartial(int k);
+        static consteval typename Perm<n>::Code idCodePartial(int k);
 
         static constexpr Code idCode_ = idCodePartial(n - 1);
             /**< The internal code for the identity permutation. */
@@ -959,22 +984,10 @@ class Perm {
          * This is true if and only if both permutations have the same
          * images for all 0 ≤ \a i < \a n.
          *
-         * \param other the permutation with which to compare this.
          * \return \c true if and only if this and the given permutation
          * are equal.
          */
-        constexpr bool operator == (const Perm& other) const;
-
-        /**
-         * Determines if this differs from the given permutation.
-         * This is true if and only if the two permutations have
-         * different images for some 0 ≤ \a i < \a n.
-         *
-         * \param other the permutation with which to compare this.
-         * \return \c true if and only if this and the given permutation
-         * differ.
-         */
-        constexpr bool operator != (const Perm& other) const;
+        constexpr bool operator == (const Perm&) const = default;
 
         /**
          * Lexicographically compares the images of (0,1,...,\a n-1) under this
@@ -1024,11 +1037,11 @@ class Perm {
         Perm operator ++(int);
 
         /**
-         * Determines if this appears earlier than the given permutation
-         * in the array Perm<n>::Sn.
+         * Compares two permutations according to which appears earlier in the
+         * array Perm<n>::Sn.
          *
          * Note that this is _not_ the same ordering of permutations as
-         * the ordering implied by compareWith().  This is, however,
+         * the ordering implied by compareWith().  This ordering is, however,
          * consistent with the ordering implied by the ++ operators.
          *
          * Unlike the smaller permutation classes that use \a Sn indices
@@ -1040,10 +1053,17 @@ class Perm {
          * (ii) just compare permutation codes if you are happy with an
          * arbitrary ordering (which will be _much_ faster).
          *
-         * \param rhs the permutation to compare this against.
-         * \return \c true if and only if this appears before \a rhs in \a Sn.
+         * This generates all of the usual comparison operators, including
+         * `<`, `<=`, `>`, and `>=`.
+         *
+         * \python This spaceship operator `x <=> y` is not available, but the
+         * other comparison operators that it generates _are_ available.
+         *
+         * \param rhs the permutation to compare this with.
+         * \return The result that indicates which permutation appears earlier
+         * in \a Sn.
          */
-        constexpr bool operator < (const Perm& rhs) const;
+        constexpr std::strong_ordering operator <=> (const Perm& rhs) const;
 
         /**
          * Returns the <i>i</i>th rotation.
@@ -1327,6 +1347,13 @@ class Perm {
 
     private:
         /**
+         * Increments this to become the next permutation in a lexicographical
+         * ordering.  If there is no next permutation then this will become
+         * the identity permutation.
+         */
+        void lexInc();
+
+        /**
          * Encodes a "partial" permutation, as a one-to-one map from [0..len)
          * into [0..n).  The main point of this class is to iterate through
          * all such partial permutations, for use in building our precomputed
@@ -1355,7 +1382,7 @@ class Perm {
              * a lexicographical ordering.  If there is no next permutation
              * then this does nothing and returns \c false.
              */
-            bool inc();
+            bool lexInc();
 
             /**
              * Constructs a "partial image pack" corresponding to this
@@ -1405,6 +1432,9 @@ class Perm {
         template <typename iterator>
         static Perm tightDecode(iterator start, iterator limit,
             bool noTrailingData);
+
+    friend class PermSn<n, PermOrder::Sign>;
+    friend class PermSn<n, PermOrder::Lex>;
 };
 
 /**
@@ -1515,17 +1545,6 @@ class PermClass {
          * are identical.
          */
         bool operator == (const PermClass& other) const;
-        /**
-         * Determines whether this and the given object describe
-         * different conjugacy classes.
-         *
-         * Two past-the-end conjugacy classes will be treated as equal.
-         *
-         * \param other the conjugacy class to compare with this.
-         * \return \c true if and only if this and the given conjugacy class
-         * are different.
-         */
-        bool operator != (const PermClass& other) const;
 
         /**
          * Determines whether this is the conjugacy class for the identity
@@ -1685,91 +1704,7 @@ template <int n> typename Perm<n>::ImagePack* Perm<n>::invUpper_ = nullptr;
 // Inline functions for Perm
 
 template <int n>
-constexpr Perm<n> Perm<n>::OrderedSnLookup::operator[] (
-        Perm<n>::Index i) const {
-    Code code = 0;
-    for (int p = 1; p <= n; ++p) {
-        // n - p -> i % p;
-        code |= (static_cast<Code>(i % p) << ((n - p) * imageBits));
-        i /= p;
-    }
-    for (int pos1 = imageBits * (n - 1); pos1 >= 0; pos1 -= imageBits) {
-        for (int pos2 = pos1 + imageBits; pos2 < n * imageBits;
-                pos2 += imageBits) {
-            if (((code >> pos2) & imageMask) >= ((code >> pos1) & imageMask))
-                code += (Code(1) << pos2); // increment image at pos2
-        }
-    }
-    return Perm<n>(code);
-}
-
-template <int n>
-constexpr Perm<n> Perm<n>::SnLookup::operator[] (Perm<n>::Index i) const {
-    Code code = 0;
-
-    // We begin by constructing a code whose successive digits are "base"
-    // n, n-1, ... 2, 1.
-    // We can already see whether the resulting permutation will be even
-    // or odd just from the parity of the sum of these "digits".
-    bool parity = (i % 2 == 0);
-    bool even = true;
-    for (int p = 1; p <= n; ++p) {
-        // Here p tells us how far back from the *end* of the code we are.
-        int digit = i % p;
-        // n - p -> digit
-        code |= (static_cast<Code>(digit) << ((n - p) * imageBits));
-        if (digit % 2)
-            even = ! even;
-        i /= p;
-    }
-
-    if (even != parity) {
-        // Our algorithm below computes orderedSn, not Sn, and these
-        // differ at index i.  We adjust the code now to compensate.
-        if (even) {
-            // i is odd: move to the previous permutation.
-            for (int p = 1; p <= n; ++p) {
-                int digit = ((code >> ((n - p) * imageBits)) & imageMask);
-                // This digit is treated mod p.
-                if (digit > 0) {
-                    // Decrement digit and stop.
-                    code -= (Code(1) << ((n - p) * imageBits));
-                    break;
-                } else {
-                    // Set digit to (p-1) and carry.
-                    code |= (Code(p - 1) << ((n - p) * imageBits));
-                }
-            }
-        } else {
-            // i is even: move to the next permutation.
-            for (int p = 1; p <= n; ++p) {
-                int digit = ((code >> ((n - p) * imageBits)) & imageMask);
-                // This digit is treated mod p.
-                if (digit < p - 1) {
-                    // Increment digit and stop.
-                    code += (Code(1) << ((n - p) * imageBits));
-                    break;
-                } else {
-                    // Set digit to zero and carry.
-                    code ^= (static_cast<Code>(digit) << ((n - p) * imageBits));
-                }
-            }
-        }
-    }
-
-    // Carry on as with do with orderedSn.
-    for (int pos1 = imageBits * (n - 1); pos1 >= 0; pos1 -= imageBits) {
-        for (int pos2 = pos1 + imageBits; pos2 < n * imageBits;
-                pos2 += imageBits) {
-            if (((code >> pos2) & imageMask) >= ((code >> pos1) & imageMask))
-                code += (Code(1) << pos2); // increment image at pos2
-        }
-    }
-    return Perm<n>(code);
-}
-
-template <int n>
-inline constexpr typename Perm<n>::Code Perm<n>::idCodePartial(int k) {
+inline consteval typename Perm<n>::Code Perm<n>::idCodePartial(int k) {
     return (k == 0 ? 0 :
         (static_cast<Code>(k) << (Perm<n>::imageBits * k)) |
             idCodePartial(k - 1));
@@ -2066,16 +2001,6 @@ inline constexpr int Perm<n>::pre(int image) const {
 }
 
 template <int n>
-inline constexpr bool Perm<n>::operator == (const Perm& other) const {
-    return (code_ == other.code_);
-}
-
-template <int n>
-inline constexpr bool Perm<n>::operator != (const Perm& other) const {
-    return (code_ != other.code_);
-}
-
-template <int n>
 constexpr int Perm<n>::compareWith(const Perm& other) const {
     Code mask = imageMask;
     for (int i = 0; i < n; ++i) {
@@ -2103,9 +2028,9 @@ inline Perm<n> Perm<n>::operator ++(int) {
 }
 
 template <int n>
-constexpr bool Perm<n>::operator < (const Perm<n>& rhs) const {
+constexpr std::strong_ordering Perm<n>::operator <=> (const Perm& rhs) const {
     if (code_ == rhs.code_)
-        return false;
+        return std::strong_ordering::equal;
 
     // The following mask blots out the images of n-2 and n-1.
     Code mask = ~((imageMask | (imageMask << imageBits))
@@ -2113,12 +2038,14 @@ constexpr bool Perm<n>::operator < (const Perm<n>& rhs) const {
     if ((code_ & mask) == (rhs.code_ & mask)) {
         // The two permutations differ precisely in the last two images.
         // In this case, the even permutation will have smaller Sn index.
-        return sign() > 0;
+        return sign() > 0 ? std::strong_ordering::less :
+            std::strong_ordering::greater;
     } else {
         // The two permutations do not just differ in the last two images.
         // This means that comparison by Sn indices will give the same
         // result as comparison by orderedSn indices.
-        return compareWith(rhs) < 0;
+        return compareWith(rhs) < 0 ? std::strong_ordering::less :
+            std::strong_ordering::greater;
     }
 }
 
@@ -2427,7 +2354,7 @@ inline Perm<n>::Slice<len>::Slice() {
 
 template <int n>
 template <int len>
-bool Perm<n>::Slice<len>::inc() {
+bool Perm<n>::Slice<len>::lexInc() {
     int pos = len - 1;
     while (pos >= 0) {
         used[image[pos]] = false;
@@ -2489,12 +2416,6 @@ template <int n>
 inline bool PermClass<n>::operator == (const PermClass& other) const {
     return nCycles_ == other.nCycles_ &&
         std::equal(cycle_, cycle_ + n, other.cycle_);
-}
-
-template <int n>
-inline bool PermClass<n>::operator != (const PermClass& other) const {
-    return nCycles_ != other.nCycles_ ||
-        ! std::equal(cycle_, cycle_ + n, other.cycle_);
 }
 
 template <int n>
@@ -2683,8 +2604,7 @@ inline constexpr Perm<4> Perm<4>::extend(Perm<2> p) {
 
 template <>
 inline constexpr Perm<4> Perm<4>::extend(Perm<3> p) {
-    // This is implemented as an array lookup.
-    return Perm<4>::S3[p.S3Index()];
+    return detail::PermSubSn<4, 3>::at(p.SnIndex());
 }
 
 template <int k>
@@ -2709,14 +2629,12 @@ inline constexpr Perm<5> Perm<5>::extend(Perm<2> p) {
 
 template <>
 inline constexpr Perm<5> Perm<5>::extend(Perm<3> p) {
-    // This is implemented as an array lookup.
-    return Perm<5>::S3[p.S3Index()];
+    return detail::PermSubSn<5, 3>::at(p.SnIndex());
 }
 
 template <>
 inline constexpr Perm<5> Perm<5>::extend(Perm<4> p) {
-    // This is implemented as an array lookup.
-    return Perm<5>::S4[p.S4Index()];
+    return detail::PermSubSn<5, 4>::at(p.SnIndex());
 }
 
 template <int k>

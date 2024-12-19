@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h" // for Action
-#include "../pybind11/stl.h" // for IsoList
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h> // for Action
+#include <pybind11/stl.h> // for IsoList
 #include "census/gluingpermsearcher3.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -71,7 +71,7 @@ void addGluingPermSearcher3(pybind11::module_& m) {
         .def_static("bestSearcher", &GluingPermSearcher<3>::bestSearcher,
             rdoc::bestSearcher)
         .def_static("fromTaggedData",
-            pybind11::overload_cast<const std::string&>(
+            pybind11::overload_cast<std::string>(
                 &GluingPermSearcher<3>::fromTaggedData), rdoc::fromTaggedData)
         .def_readonly_static("dataTag", &GluingPermSearcher<3>::dataTag)
         ;

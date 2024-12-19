@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
 #include "../helpers.h"
 #include "algebra/grouppresentation.h"
 #include "triangulation/dim2.h"
@@ -47,9 +47,11 @@
 
 using pybind11::overload_cast;
 using regina::AbelianGroup;
+using regina::Face;
 using regina::Isomorphism;
 using regina::MarkedAbelianGroup;
 using regina::MatrixInt;
+using regina::Simplex;
 using regina::Triangulation;
 
 void addTriangulation2(pybind11::module_& m) {
@@ -75,10 +77,11 @@ void addTriangulation2(pybind11::module_& m) {
             pybind11::keep_alive<0, 1>(), rbase::triangles)
         .def("simplices", &Triangulation<2>::simplices,
             pybind11::keep_alive<0, 1>(), rbase::simplices)
-        // Use a static cast because GCC struggles with the overload_cast here:
         .def("triangle",
-            static_cast<regina::Simplex<2>* (Triangulation<2>::*)(size_t)>(
-                &Triangulation<2>::triangle),
+            // gcc-10 struggles with casting: even a static_cast fails here
+            // because gcc-10 cannot handle the "auto" return type.
+            // Just use simplex(), which triangle() is an alias for.
+            overload_cast<size_t>(&Triangulation<2>::simplex),
             pybind11::return_value_policy::reference_internal, rbase::triangle)
         .def("simplex",
             overload_cast<size_t>(&Triangulation<2>::simplex),
@@ -166,10 +169,21 @@ void addTriangulation2(pybind11::module_& m) {
             pybind11::return_value_policy::reference_internal, rbase::vertex)
         .def("edge", &Triangulation<2>::edge,
             pybind11::return_value_policy::reference_internal, rbase::edge)
-        .def("translate", &Triangulation<2>::translate<0>,
+        .def("translate", overload_cast<const regina::Face<2, 0>*>(
+                &Triangulation<2>::translate<0>, pybind11::const_),
             pybind11::return_value_policy::reference_internal, rbase::translate)
-        .def("translate", &Triangulation<2>::translate<1>,
+        .def("translate", overload_cast<const regina::Face<2, 1>*>(
+                &Triangulation<2>::translate<1>, pybind11::const_),
             pybind11::return_value_policy::reference_internal, rbase::translate)
+        .def("translate", overload_cast<const regina::Simplex<2>*>(
+                &Triangulation<2>::translate<2>, pybind11::const_),
+            pybind11::return_value_policy::reference_internal, rbase::translate)
+        .def("translate", overload_cast<const regina::FaceEmbedding<2, 0>&>(
+                &Triangulation<2>::translate<0>, pybind11::const_),
+            rbase::translate_2)
+        .def("translate", overload_cast<const regina::FaceEmbedding<2, 1>&>(
+                &Triangulation<2>::translate<1>, pybind11::const_),
+            rbase::translate_2)
         .def("pairing", &Triangulation<2>::pairing, rbase::pairing)
         .def("isIsomorphicTo", &Triangulation<2>::isIsomorphicTo,
             rbase::isIsomorphicTo)
@@ -267,26 +281,34 @@ void addTriangulation2(pybind11::module_& m) {
         .def("dualToPrimal",
             static_cast<MatrixInt (Triangulation<2>::*)(int) const>(
             &Triangulation<2>::dualToPrimal), rbase::dualToPrimal)
-        .def("pachner", &Triangulation<2>::pachner<2>,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("pachner",
+            overload_cast<Face<2, 2>*>(&Triangulation<2>::pachner<2>),
             rbase::pachner)
-        .def("pachner", &Triangulation<2>::pachner<1>,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("pachner",
+            overload_cast<Face<2, 1>*>(&Triangulation<2>::pachner<1>),
             rbase::pachner)
-        .def("pachner", &Triangulation<2>::pachner<0>,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("pachner",
+            overload_cast<Face<2, 0>*>(&Triangulation<2>::pachner<0>),
             rbase::pachner)
-        .def("twoZeroMove", &Triangulation<2>::twoZeroMove,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::twoZeroMove)
+        .def("move20", &Triangulation<2>::move20<0>, rbase::move20)
+        .def("shellBoundary",
+            overload_cast<Simplex<2>*>(&Triangulation<2>::shellBoundary),
+            rbase::shellBoundary)
+        .def("hasPachner", &Triangulation<2>::hasPachner<0>, rbase::hasPachner)
+        .def("hasPachner", &Triangulation<2>::hasPachner<1>, rbase::hasPachner)
+        .def("hasPachner", &Triangulation<2>::hasPachner<2>, rbase::hasPachner)
+        .def("has20", &Triangulation<2>::has20<0>, rbase::has20)
+        .def("hasShellBoundary", &Triangulation<2>::hasShellBoundary,
+            rbase::hasShellBoundary)
+        .def("withPachner", &Triangulation<2>::withPachner<0>,
+            rbase::withPachner)
+        .def("withPachner", &Triangulation<2>::withPachner<1>,
+            rbase::withPachner)
+        .def("withPachner", &Triangulation<2>::withPachner<2>,
+            rbase::withPachner)
+        .def("with20", &Triangulation<2>::with20<0>, rbase::with20)
+        .def("withShellBoundary", &Triangulation<2>::withShellBoundary,
+            rbase::withShellBoundary)
         .def("finiteToIdeal", &Triangulation<2>::finiteToIdeal,
             rbase::finiteToIdeal)
         .def("doubleCover", &Triangulation<2>::doubleCover, rbase::doubleCover)
@@ -341,9 +363,56 @@ void addTriangulation2(pybind11::module_& m) {
         }, pybind11::arg("size"), pybind11::arg("gluings"), rbase::fromGluings)
         .def_readonly_static("dimension", &Triangulation<2>::dimension)
     ;
+    #if defined(__GNUC__)
+    // The following routines are deprecated, but we still need to bind
+    // them.  Silence the inevitable deprecation warnings that will occur.
+    #pragma GCC diagnostic push
+    #if defined(__clang__)
+    #pragma GCC diagnostic ignored "-Wdeprecated"
+    #else
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    #endif
+    #endif
+    c.def("pachner",
+            overload_cast<Face<2, 2>*, bool, bool>(
+                &Triangulation<2>::pachner<2>),
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::pachner_2) // deprecated
+        .def("pachner",
+            overload_cast<Face<2, 1>*, bool, bool>(
+                &Triangulation<2>::pachner<1>),
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::pachner_2) // deprecated
+        .def("pachner",
+            overload_cast<Face<2, 0>*, bool, bool>(
+                &Triangulation<2>::pachner<0>),
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::pachner_2) // deprecated
+        .def("twoZeroMove", &Triangulation<2>::twoZeroMove<0>,
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::twoZeroMove) // deprecated
+        .def("shellBoundary",
+            overload_cast<Simplex<2>*, bool, bool>(
+                &Triangulation<2>::shellBoundary),
+            pybind11::arg(),
+            pybind11::arg("check") = true,
+            pybind11::arg("perform") = true,
+            rbase::shellBoundary_2) // deprecated
+    ;
+    #if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+    #endif
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
-    regina::python::packet_eq_operators(c, rbase::__eq, rbase::__ne);
+    regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
     regina::python::addListView<decltype(Triangulation<2>().vertices())>(m);

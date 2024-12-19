@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "triangulation/dim3.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
@@ -66,7 +66,7 @@ void addTriangle3(pybind11::module_& m) {
         .def("vertices", &TriangleEmbedding<3>::vertices, rbase::vertices)
     ;
     regina::python::add_output(e);
-    regina::python::add_eq_operators(e, rbase::__eq, rbase::__ne);
+    regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
     RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
@@ -137,19 +137,28 @@ void addTriangle3(pybind11::module_& m) {
     RDOC_SCOPE_INNER_BEGIN(Type)
 
     // Embed this enum in the Triangle3 class.
-    pybind11::enum_<regina::Triangle<3>::Type>(c, "Type", rdoc_inner_scope)
-        .value("UNKNOWN_TYPE", regina::Triangle<3>::UNKNOWN_TYPE,
-            rdoc_inner::UNKNOWN_TYPE)
-        .value("TRIANGLE", regina::Triangle<3>::TRIANGLE, rdoc_inner::TRIANGLE)
-        .value("SCARF", regina::Triangle<3>::SCARF, rdoc_inner::SCARF)
-        .value("PARACHUTE", regina::Triangle<3>::PARACHUTE,
-            rdoc_inner::PARACHUTE)
-        .value("CONE", regina::Triangle<3>::CONE, rdoc_inner::CONE)
-        .value("MOBIUS", regina::Triangle<3>::MOBIUS, rdoc_inner::MOBIUS)
-        .value("HORN", regina::Triangle<3>::HORN, rdoc_inner::HORN)
-        .value("DUNCEHAT", regina::Triangle<3>::DUNCEHAT, rdoc_inner::DUNCEHAT)
-        .value("L31", regina::Triangle<3>::L31, rdoc_inner::L31)
-        .export_values();
+    pybind11::enum_<Triangle<3>::Type>(c, "Type", rdoc_inner_scope)
+        .value("Unknown", Triangle<3>::Type::Unknown, rdoc_inner::Unknown)
+        .value("Triangle", Triangle<3>::Type::Triangle, rdoc_inner::Triangle)
+        .value("Scarf", Triangle<3>::Type::Scarf, rdoc_inner::Scarf)
+        .value("Parachute", Triangle<3>::Type::Parachute, rdoc_inner::Parachute)
+        .value("Cone", Triangle<3>::Type::Cone, rdoc_inner::Cone)
+        .value("Mobius", Triangle<3>::Type::Mobius, rdoc_inner::Mobius)
+        .value("Horn", Triangle<3>::Type::Horn, rdoc_inner::Horn)
+        .value("DunceHat", Triangle<3>::Type::DunceHat, rdoc_inner::DunceHat)
+        .value("L31", Triangle<3>::Type::L31, rdoc_inner::L31)
+        ;
+
+    // Deprecated constants:
+    c.attr("UNKNOWN_TYPE") = Triangle<3>::Type::Unknown;
+    c.attr("TRIANGLE") = Triangle<3>::Type::Triangle;
+    c.attr("SCARF") = Triangle<3>::Type::Scarf;
+    c.attr("PARACHUTE") = Triangle<3>::Type::Parachute;
+    c.attr("CONE") = Triangle<3>::Type::Cone;
+    c.attr("MOBIUS") = Triangle<3>::Type::Mobius;
+    c.attr("HORN") = Triangle<3>::Type::Horn;
+    c.attr("DUNCEHAT") = Triangle<3>::Type::DunceHat;
+    c.attr("L31") = Triangle<3>::Type::L31;
 
     RDOC_SCOPE_INNER_END
     RDOC_SCOPE_END

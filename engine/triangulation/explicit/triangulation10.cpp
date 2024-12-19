@@ -32,7 +32,7 @@
 
 #include "triangulation/detail/algebra-impl.h"
 #include "triangulation/detail/isosig-impl.h"
-#include "triangulation/detail/pachner-impl.h"
+#include "triangulation/detail/moves-impl.h"
 #include "triangulation/detail/skeleton-impl.h"
 #include "triangulation/detail/triangulation-impl.h"
 #include "triangulation/generic.h"
@@ -97,17 +97,21 @@ template void TriangulationBase<10>::cloneSkeleton(
 template void TriangulationBase<10>::clearBaseProperties();
 template void TriangulationBase<10>::swapBaseData(TriangulationBase<10>&);
 
-template bool TriangulationBase<10>::pachner(Face<10, 0>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 1>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 2>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 3>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 4>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 5>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 6>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 7>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 8>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 9>*, bool, bool);
-template bool TriangulationBase<10>::pachner(Face<10, 10>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 0>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 1>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 2>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 3>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 4>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 5>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 6>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 7>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 8>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 9>*, bool, bool);
+template bool TriangulationBase<10>::internalPachner(Face<10, 10>*, bool, bool);
+
+template bool TriangulationBase<10>::internal20(Face<10, 0>*, bool, bool);
+template bool TriangulationBase<10>::internal20(Face<10, 1>*, bool, bool);
+template bool TriangulationBase<10>::internal20(Face<10, 2>*, bool, bool);
 
 template void TriangulationBase<10>::writeTextShort(std::ostream&) const;
 template void TriangulationBase<10>::writeTextLong(std::ostream&) const;

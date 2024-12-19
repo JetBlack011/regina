@@ -30,11 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#define _USE_MATH_DEFINES // for M_PI, which is non-standard
-
 #include <algorithm>
-#include <cmath>
 #include <complex>
+#include <numbers>
 #include <numeric> // for std::gcd()
 #include <thread>
 #include "regina-config.h"
@@ -191,7 +189,7 @@ namespace {
             bracket_(new TVResult[r]),
             fact_(new TVResult[r]),
             inv_(new TVResult[r]) {
-        TVResult angle = (M_PI * whichRoot) / r;
+        TVResult angle = (std::numbers::pi_v<TVResult> * whichRoot) / r;
         bracket_[0] = bracket_[1] = fact_[0] = fact_[1] =
             inv_[0] = inv_[1] = 1.0;
         for (unsigned long i = 2; i < r; i++) {
@@ -398,7 +396,7 @@ namespace {
             whichRoot(newWhichRoot),
             halfField(r % 2 != 0 && whichRoot % 2 == 0),
             fact(r, whichRoot) {
-        double tmp = sin(M_PI * whichRoot / r);
+        double tmp = sin(std::numbers::pi_v<double> * whichRoot / r);
         vertexContrib = 2.0 * tmp * tmp / r;
     }
 
@@ -1339,12 +1337,17 @@ namespace {
 double Triangulation<3>::turaevViroApprox(unsigned long r,
         unsigned long whichRoot, Algorithm alg) const {
     // Do some basic parameter checks.
+    if (isEmpty() || ! (isValid() && isClosed()))
+        throw FailedPrecondition("turaevViroApprox() requires a "
+            "valid, closed, non-empty triangulation");
     if (r < 3)
-        return 0;
-    if (whichRoot >= 2 * r)
-        return 0;
+        throw InvalidArgument("turaevViroApprox() requires the argument r ≥ 3");
+    if (whichRoot <= 0 || whichRoot >= 2 * r)
+        throw InvalidArgument("turaevViroApprox() requires the argument "
+            "whichRoot to be strictly between 0 and 2r");
     if (std::gcd(r, whichRoot) > 1)
-        return 0;
+        throw InvalidArgument("turaevViroApprox() requires the arguments "
+            "r and whichRoot to be coprime");
 
     // Set up our initial data.
     InitialData<false> init(r, whichRoot);
@@ -1384,10 +1387,16 @@ double Triangulation<3>::turaevViroApprox(unsigned long r,
 Cyclotomic Triangulation<3>::turaevViro(unsigned long r, bool parity,
         Algorithm alg, ProgressTracker* tracker) const {
     // Do some basic parameter checks.
+    if (isEmpty() || ! (isValid() && isClosed())) {
+        if (tracker)
+            tracker->setFinished();
+        throw FailedPrecondition(
+            "turaevViro() requires a valid, closed, non-empty triangulation");
+    }
     if (r < 3) {
         if (tracker)
             tracker->setFinished();
-        return Cyclotomic();
+        throw InvalidArgument("turaevViro() requires the argument r ≥ 3");
     }
     if (r % 2 == 0)
         parity = false; // As required by allCalculatedTuraevViroInvariants().

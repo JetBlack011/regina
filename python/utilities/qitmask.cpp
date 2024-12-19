@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "utilities/qitmask.h"
 #include "utilities/intutils.h"
 #include "../helpers.h"
@@ -60,7 +60,7 @@ void addQitmaskOpt(pybind11::module_& m, const char* name) {
         .def("hasNonZeroMatch", &Q::hasNonZeroMatch, rdoc::hasNonZeroMatch)
     ;
     regina::python::add_output_ostream(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_END
 }

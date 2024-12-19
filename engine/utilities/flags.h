@@ -49,15 +49,20 @@ namespace regina {
  * This class allows the user to form and test bitwise combinations of the
  * individual enum values, without losing type safety.
  *
+ * There is usually no need for end users to refer to the type `Flags<T>`
+ * explicitly by name.  If a function takes an argument of type `Flags<T>`,
+ * then you can pass a single flag of type \a T, or a bitwise combination of
+ * such flags `(flag1 | flag2)`, or empty braces `{}` to indicate no flags
+ * at all.
+ *
  * These objects are small enough to pass by value and swap with std::swap(),
  * with no need for any specialised move operations or swap functions.
  *
  * \python Present only for some particular enumeration types \a T,
  * when explicitly noted in the corresponding enum documentation.
- * The enumeration type is typically the flag class name with the suffix
- * \c Flags or \c Fields; for instance, the flags classes NormalAlg
- * and SurfaceExport work with the enum types NormalAlgFlags and
- * SurfaceExportFields respectively.
+ * The Python name of the flags class will be the enumeration type name with
+ * the prefix `Flags_`; for instance, the C++ type `Flags<NormalAlg>` will
+ * appear in Python as `Flags_NormalAlg`.
  *
  * \tparam T the enumeration type holding the individual flags that can be
  * combined.  This may be a scoped or unscoped enumeration; however, for now
@@ -96,10 +101,8 @@ class Flags {
 
         /**
          * Creates a clone of the given flag set.
-         *
-         * \param init the flag set to clone.
          */
-        inline Flags(const Flags<T>& init) = default;
+        inline Flags(const Flags<T>&) = default;
 
         /**
          * Returns the integer representation of this set.
@@ -185,31 +188,7 @@ class Flags {
          * \return \c true if and only if this and the given flag set are
          * identical.
          */
-        inline bool operator == (const Flags<T>& rhs) const {
-            return (value_ == rhs.value_);
-        }
-
-        /**
-         * Determines whether this set is not equal to the given flag.
-         *
-         * \param rhs the flag to test this against.
-         * \return \c true if and only if this and the given flag are not
-         * identical.
-         */
-        inline bool operator != (T rhs) const {
-            return (value_ != static_cast<int>(rhs));
-        }
-
-        /**
-         * Determines whether this set is not equal to the given flag set.
-         *
-         * \param rhs the flag to test this against.
-         * \return \c true if and only if this and the given flag set are not
-         * identical.
-         */
-        inline bool operator != (const Flags<T>& rhs) const {
-            return (value_ != rhs.value_);
-        }
+        bool operator == (const Flags<T>&) const = default;
 
         /**
          * Sets this flag set to contain precisely the given flag only.
@@ -225,10 +204,9 @@ class Flags {
         /**
          * Sets this flag set to contain a copy of the given flag set.
          *
-         * \param rhs the new value of this flag set.
          * \return a reference to this flag set.
          */
-        inline Flags<T>& operator = (const Flags<T>& rhs) = default;
+        Flags<T>& operator = (const Flags<T>&) = default;
 
         /**
          * Changes this flag set by taking a bitwise OR with the given

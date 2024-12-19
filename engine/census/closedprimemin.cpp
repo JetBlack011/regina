@@ -48,7 +48,7 @@ const char ClosedPrimeMinSearcher::coneNoTwist[12] = {
 ClosedPrimeMinSearcher::ClosedPrimeMinSearcher(FacetPairing<3> pairing,
         FacetPairing<3>::IsoList autos, bool orientableOnly) :
         CompactSearcher(std::move(pairing), std::move(autos), orientableOnly,
-            PURGE_NON_MINIMAL_PRIME | PURGE_P2_REDUCIBLE) {
+            CensusPurge::NonMinimalPrime | CensusPurge::P2Reducible) {
     // Initialise internal arrays, specifically those relating to face
     // orderings and properties of chains, to accurately reflect the
     // underlying face pairing.
@@ -317,7 +317,7 @@ void ClosedPrimeMinSearcher::searchImpl(long maxDepth,
 
         // Begin by testing for face pairings that can never lead to such a
         // triangulation.
-        if (perms_.pairing().hasTripleEdge() ||
+        if (perms_.pairing().hasMultiEdge<3>() ||
                 perms_.pairing().hasBrokenDoubleEndedChain() ||
                 perms_.pairing().hasOneEndedChainWithDoubleHandle() ||
                 perms_.pairing().hasOneEndedChainWithStrayBigon() ||
@@ -417,7 +417,7 @@ void ClosedPrimeMinSearcher::searchImpl(long maxDepth,
 
         // We are sitting on a new permutation to try.
         perms_.permIndex(adj) =
-            Perm<3>::S3[perms_.permIndex(face)].inverse().S3Index();
+            Perm<3>::Sn[perms_.permIndex(face)].inverse().S3Index();
 
         // In the following code we use several results from
         // "Face pairing graphs and 3-manifold enumeration", B. A. Burton,

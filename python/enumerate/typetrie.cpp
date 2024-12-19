@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "enumerate/typetrie.h"
 #include "utilities/exception.h"
 #include "../helpers.h"
@@ -95,7 +95,7 @@ void addTypeTrieFor(pybind11::module_& m, const char* name) {
             return ans;
         }, pybind11::arg("vec"), rdoc::dominates)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<TypeTrie<nTypes>>(m, rdoc::global_swap);

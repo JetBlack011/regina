@@ -31,8 +31,8 @@
  **************************************************************************/
 
 #include <iomanip>
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "hypersurface/hypercoords.h"
 #include "../helpers.h"
 #include "../docstrings/hypersurface/hypercoords.h"
@@ -44,12 +44,13 @@ using regina::HyperInfo;
 void addHyperCoords(pybind11::module_& m) {
     RDOC_SCOPE_BEGIN(HyperCoords)
 
-    pybind11::enum_<regina::HyperCoords>(m, "HyperCoords", rdoc_scope)
+    pybind11::enum_<HyperCoords>(m, "HyperCoords", rdoc_scope)
         .value("Standard", HyperCoords::Standard, rdoc::Standard)
         .value("Prism", HyperCoords::Prism, rdoc::Prism)
         .value("Edge", HyperCoords::Edge, rdoc::Edge)
         ;
 
+    // Deprecated constants:
     m.attr("HS_STANDARD") = HyperCoords::Standard;
     m.attr("HS_PRISM") = HyperCoords::Prism;
     m.attr("HS_EDGE_WEIGHT") = HyperCoords::Edge;
@@ -87,7 +88,7 @@ void addHyperCoords(pybind11::module_& m) {
             return out.str();
         })
         ;
-    regina::python::add_eq_operators(e, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(e, rdoc::__eq);
 
     RDOC_SCOPE_SWITCH(HyperInfo)
 

@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
 #include "maths/permgroup.h"
 #include "../helpers.h"
 #include "../docstrings/maths/permgroup.h"
@@ -57,6 +57,7 @@ void addPermGroup(pybind11::module_& m, const char* name) {
         }), pybind11::arg("parent"), pybind11::arg("test"),
             rdoc::__init_3)
         .def("size", &Group::size, rdoc::size)
+        .def("__len__", &Group::size, rdoc::size)
         .def("contains", &Group::contains, rdoc::contains)
         .def("__iter__", [](const Group& g) {
             return g.begin();
@@ -65,7 +66,7 @@ void addPermGroup(pybind11::module_& m, const char* name) {
         .def_static("centraliser", &Group::centraliser, rdoc::centraliser)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_INNER_BEGIN(iterator)
 
@@ -77,7 +78,7 @@ void addPermGroup(pybind11::module_& m, const char* name) {
             else
                 throw pybind11::stop_iteration();
         }, rdoc_inner::__next__);
-    regina::python::add_eq_operators(it, rdoc_inner::__eq, rdoc_inner::__ne);
+    regina::python::add_eq_operators(it, rdoc_inner::__eq);
 
     RDOC_SCOPE_INNER_END
 

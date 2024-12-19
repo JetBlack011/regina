@@ -30,17 +30,20 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/perm.h"
 #include "utilities/typeutils.h"
 #include "../helpers.h"
-#include "../helpers/arraylike.h"
 #include "../docstrings/maths/perm2.h"
 
 using pybind11::overload_cast;
 using regina::Perm;
+
+namespace {
+    static const int nPerms_1 = 1; // supporting deprecated constant below
+}
 
 void addPerm2(pybind11::module_& m) {
     RDOC_SCOPE_BEGIN(Perm)
@@ -81,7 +84,6 @@ void addPerm2(pybind11::module_& m) {
         .def("inc", [](Perm<2>& p) {
             return p++;
         }, rdoc::__inc)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
         .def_static("rot", &Perm<2>::rot, rdoc::rot)
         .def_static("rand", static_cast<Perm<2>(&)(bool)>(Perm<2>::rand),
             pybind11::arg("even") = false, rdoc::rand)
@@ -96,14 +98,28 @@ void addPerm2(pybind11::module_& m) {
         .def_readonly_static("degree", &Perm<2>::degree)
         .def_readonly_static("codeType", &Perm<2>::codeType)
         .def_readonly_static("nPerms", &Perm<2>::nPerms)
-        .def_readonly_static("nPerms_1", &Perm<2>::nPerms_1)
+        .def_readonly_static("nPerms_1", &nPerms_1) // deprecated
         .def_readonly_static("S2", &Perm<2>::S2)
         .def_readonly_static("Sn", &Perm<2>::Sn)
         .def_readonly_static("orderedS2", &Perm<2>::orderedS2)
         .def_readonly_static("orderedSn", &Perm<2>::orderedSn)
-        .def_readonly_static("S1", &Perm<2>::S1)
-        .def_readonly_static("Sn_1", &Perm<2>::Sn_1)
     ;
+    #if defined(__GNUC__)
+    // The following members are deprecated, but we still need to bind
+    // them.  Silence the inevitable deprecation warnings that will occur.
+    #pragma GCC diagnostic push
+    #if defined(__clang__)
+    #pragma GCC diagnostic ignored "-Wdeprecated"
+    #else
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    #endif
+    #endif
+    c.def_readonly_static("S1", &Perm<2>::S1) // deprecated
+        .def_readonly_static("Sn_1", &Perm<2>::S1) // deprecated
+    ;
+    #if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+    #endif
     regina::for_constexpr<3, 17>([&c](auto i) {
         c.def_static("contract", &Perm<2>::template contract<i>,
             rdoc::contract);
@@ -111,12 +127,8 @@ void addPerm2(pybind11::module_& m) {
     regina::python::add_output_basic(c, rdoc::str);
     regina::python::add_tight_encoding(c, rdoc::tightEncoding,
         rdoc::tightDecoding, rdoc::hash);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
-
-    regina::python::add_lightweight_array<decltype(Perm<2>::S2)>(c,
-        "_S2", rdoc::S2Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<2>::S1)>(c,
-        "_S1", rdoc::S1Lookup);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     RDOC_SCOPE_END
 }

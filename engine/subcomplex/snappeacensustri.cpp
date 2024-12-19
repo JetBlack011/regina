@@ -63,10 +63,10 @@ std::unique_ptr<SnapPeaCensusTri> SnapPeaCensusTri::recognise(
 
     size_t nVertices = comp->countVertices();
     size_t nEdges = comp->countEdges();
-    int link;
     for (size_t i = 0; i < nVertices; i++) {
-        link = comp->vertex(i)->linkType();
-        if (link != Vertex<3>::TORUS && link != Vertex<3>::KLEIN_BOTTLE)
+        auto link = comp->vertex(i)->linkType();
+        if (link != Vertex<3>::Link::Torus &&
+                link != Vertex<3>::Link::KleinBottle)
             return nullptr;
     }
     for (size_t i = 0; i < nEdges; i++)
@@ -97,7 +97,7 @@ std::unique_ptr<SnapPeaCensusTri> SnapPeaCensusTri::recognise(
             // Now we know it's either m003 or m004.  We distinguish
             // between them by triangle types, since all of m003's triangles
             // are Mobius bands and all of m004's triangles are horns.
-            if (comp->triangle(0)->type() == Triangle<3>::MOBIUS)
+            if (comp->triangle(0)->type() == Triangle<3>::Type::Mobius)
                 return std::unique_ptr<SnapPeaCensusTri>(
                     new SnapPeaCensusTri(SEC_5, 3));
             else
@@ -116,7 +116,8 @@ std::unique_ptr<SnapPeaCensusTri> SnapPeaCensusTri::recognise(
                     return nullptr;
                 // Census says it's m001 if no triangle forms a dunce hat.
                 for (int t = 0; t < 4; ++t)
-                    if (comp->triangle(t)->type() == Triangle<3>::DUNCEHAT)
+                    if (comp->triangle(t)->type() ==
+                            Triangle<3>::Type::DunceHat)
                         return nullptr;
                 return std::unique_ptr<SnapPeaCensusTri>(
                     new SnapPeaCensusTri(SEC_5, 1));
@@ -129,7 +130,8 @@ std::unique_ptr<SnapPeaCensusTri> SnapPeaCensusTri::recognise(
                     return nullptr;
                 // Census says it's m002 if some triangle forms a dunce hat.
                 for (int t = 0; t < 4; ++t)
-                    if (comp->triangle(t)->type() == Triangle<3>::DUNCEHAT)
+                    if (comp->triangle(t)->type() ==
+                            Triangle<3>::Type::DunceHat)
                         return std::unique_ptr<SnapPeaCensusTri>(
                             new SnapPeaCensusTri(SEC_5, 2));
                 return nullptr;
@@ -145,9 +147,9 @@ std::unique_ptr<SnapPeaCensusTri> SnapPeaCensusTri::recognise(
                 return nullptr;
             if (comp->countEdges() != 4)
                 return nullptr;
-            if (comp->vertex(0)->linkType() != Vertex<3>::TORUS)
+            if (comp->vertex(0)->linkType() != Vertex<3>::Link::Torus)
                 return nullptr;
-            if (comp->vertex(1)->linkType() != Vertex<3>::TORUS)
+            if (comp->vertex(1)->linkType() != Vertex<3>::Link::Torus)
                 return nullptr;
             if (comp->vertex(0)->degree() != 8)
                 return nullptr;

@@ -129,17 +129,6 @@ Exception ``InvalidInput``:
 Parameter ``in``:
     the input stream from which to read.)doc";
 
-// Docstring regina::python::doc::detail::FacetPairingBase_::__ne
-constexpr const char *__ne =
-R"doc(Determines if this and the given facet pairing are not identical.
-
-Parameter ``other``:
-    the facet pairing to compare with this.
-
-Returns:
-    ``True`` if and only if this and the given facet pairing are not
-    identical.)doc";
-
 // Docstring regina::python::doc::detail::FacetPairingBase_::canonical
 constexpr const char *canonical =
 R"doc(Returns the canonical form of this facet pairing, along with one
@@ -474,6 +463,32 @@ Parameter ``rep``:
 
 Returns:
     the corresponding facet pairing.)doc";
+
+// Docstring regina::python::doc::detail::FacetPairingBase_::hasMultiEdge
+constexpr const char *hasMultiEdge =
+R"doc(Determines whether the underlying graph for this facet pairing
+contains an edge of multiplicity *k*, where *k* does not need to be
+known until runtime.
+
+An edge of multiplicity *k* corresponds to two distinct top-
+dimensional simplices joined to each other along *k* of their facets.
+
+Note that this routine does not consider loops in the underlying
+graph, only edges between distinct nodes.
+
+For C++ programmers who know *k* at compile time, it is faster to call
+the template function ``hasMultiEdge<k>()`` instead.
+
+Exception ``InvalidArgument``:
+    The argument *k* is outside the supported range.
+
+Parameter ``k``:
+    the multiplicity of edges to search for; this must be between 2
+    and ``dim+1`` inclusive.
+
+Returns:
+    ``True`` if and only if the underyling graph has an edge of
+    multiplicity *k*.)doc";
 
 // Docstring regina::python::doc::detail::FacetPairingBase_::isCanonical
 constexpr const char *isCanonical =

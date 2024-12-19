@@ -21,6 +21,11 @@ it is iterating over. This guarantees that the packet will not be
 destroyed mid-iteration, but it also means that you must ensure that
 you dispose of your iterators once you are finished with them.
 
+As of Regina 7.4, this class no longer provides the iterator type
+aliases *value_type*, *iterator_category*, *difference_type*,
+*pointer* and *reference*. Instead you can access these through
+``std::iterator_traits``.
+
 Template parameter ``const_``:
     Indicates whether this iterator should offer const or non-const
     access to the child packets.
@@ -428,6 +433,11 @@ it is iterating over. This guarantees that the packet will not be
 destroyed mid-iteration, but it also means that you must ensure that
 you dispose of your iterators once you are finished with them.
 
+As of Regina 7.4, this class no longer provides the iterator type
+aliases *value_type*, *iterator_category*, *difference_type*,
+*pointer* and *reference*. Instead you can access these through
+``std::iterator_traits``.
+
 Template parameter ``const_``:
     Indicates whether this iterator should offer const or non-const
     access to the packet tree.
@@ -441,42 +451,6 @@ Python:
     ``StopException`` if there are no more packets to return. All
     iteration in Python is non-const (i.e., Python exclusively uses
     the classes where *const_* is ``False``).)doc";
-
-// Docstring regina::python::doc::__eq
-static const char *__eq =
-R"doc(Identifies if the given shell refers to the given packet.
-
-This test is also available the other way around (with PacketShell on
-the left); this reversed test is defined as a member function of
-PacketShell.
-
-Parameter ``packet``:
-    the packet to test against; this may be ``None``.
-
-Parameter ``shell``:
-    the packet shell to test against.
-
-Returns:
-    ``True`` if and only if the given shell refers to the given
-    packet.)doc";
-
-// Docstring regina::python::doc::__ne
-static const char *__ne =
-R"doc(Identifies if the given shell does not refer to the given packet.
-
-This test is also available the other way around (with PacketShell on
-the left); this reversed test is defined as a member function of
-PacketShell.
-
-Parameter ``packet``:
-    the packet to test against; this may be ``None``.
-
-Parameter ``shell``:
-    the packet shell to test against.
-
-Returns:
-    ``True`` if and only if the given shell does not refer to the
-    given packet.)doc";
 
 // Docstring regina::python::doc::make_packet
 static const char *make_packet =
@@ -498,6 +472,8 @@ Python:
     The *src* argument is a const reference, and this routine makes a
     deep copy of *src*. This is because Python will still maintain a
     reference to *src*, and so it is not possible to move from *src*.
+    Also, Python users can access this function using either name
+    ``make_packet()`` or the more regina-esque ``makePacket()``.
 
 Parameter ``src``:
     the *Held* object that will be moved into the new packet; this
@@ -526,6 +502,8 @@ Python:
     The *src* argument is a const reference, and this routine makes a
     deep copy of *src*. This is because Python will still maintain a
     reference to *src*, and so it is not possible to move from *src*.
+    Also, Python users can access this function using either name
+    ``make_packet()`` or the more regina-esque ``makePacket()``.
 
 Parameter ``src``:
     the *Held* object that will be moved into the new packet; this
@@ -576,13 +554,6 @@ R"doc(Tests whether this and the given iterator are equal.
 Returns:
     true if and only if the two iterators are equal.)doc";
 
-// Docstring regina::python::doc::ChildIterator_::__ne
-static const char *__ne =
-R"doc(Tests whether this and the given iterator are different.
-
-Returns:
-    true if and only if the two iterators are different.)doc";
-
 // Docstring regina::python::doc::ChildIterator_::__next__
 static const char *__next__ =
 R"doc(Returns the current child packet and increments this iterator.
@@ -613,15 +584,6 @@ R"doc(Returns a Python iterator over all immediate child packets.
 
 Returns:
     an iterator over all immediate child packets.)doc";
-
-// Docstring regina::python::doc::PacketChildren_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given object are designed to iterate
-over children of different parent packets.
-
-Returns:
-    ``True`` if and only if this object and *rhs* iterate over
-    children of different packets.)doc";
 
 }
 
@@ -733,15 +695,6 @@ R"doc(Returns a Python iterator over all strict descendant packets.
 
 Returns:
     an iterator over all strict descendant packets.)doc";
-
-// Docstring regina::python::doc::PacketDescendants_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given object are designed to iterate
-over strict descendants of different packets.
-
-Returns:
-    ``True`` if and only if this object and *rhs* iterate over
-    descendants of different packets.)doc";
 
 }
 
@@ -1060,8 +1013,8 @@ Returns:
 static const char *__eq_2 =
 R"doc(Identifies if this shell refers to the given packet.
 
-This test is also available the other way around (with PacketShell on
-the right); this reversed test is defined as a global function.
+This test can also be used the other way around (with Packet on the
+left and PacketShell on the right).
 
 Parameter ``packet``:
     the packet to test against; this may be ``None``.
@@ -1075,31 +1028,6 @@ R"doc(Creates a new shell referring to the given packet.
 
 Parameter ``packet``:
     the packet to refer to.)doc";
-
-// Docstring regina::python::doc::PacketShell_::__ne
-static const char *__ne =
-R"doc(Identifies if this and the given shell refer to different underlying
-packets.
-
-Parameter ``shell``:
-    the shell to compare with this.
-
-Returns:
-    ``True`` if and only if both shells refer to different packets.)doc";
-
-// Docstring regina::python::doc::PacketShell_::__ne_2
-static const char *__ne_2 =
-R"doc(Identifies if this shell does not refer to the given packet.
-
-This test is also available the other way around (with PacketShell on
-the right); this reversed test is defined as a global function.
-
-Parameter ``packet``:
-    the packet to test against; this may be ``None``.
-
-Returns:
-    ``True`` if and only if this shell does not refer to the given
-    packet.)doc";
 
 // Docstring regina::python::doc::PacketShell_::hasTag
 static const char *hasTag =
@@ -2329,16 +2257,6 @@ subtree.
 
 Returns:
     an iterator over all members of the relevant packet subtree.)doc";
-
-// Docstring regina::python::doc::SubtreeIterator_::__ne
-static const char *__ne =
-R"doc(Tests whether this and the given iterator are different.
-
-This routine only compares the packets that each iterator is currently
-pointing to. It does not compare the roots of the subtrees themselves.
-
-Returns:
-    true if and only if the two iterators are different.)doc";
 
 // Docstring regina::python::doc::SubtreeIterator_::__next__
 static const char *__next__ =

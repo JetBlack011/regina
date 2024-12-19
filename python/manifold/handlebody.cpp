@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "manifold/handlebody.h"
 #include "../helpers.h"
 #include "../docstrings/manifold/handlebody.h"
@@ -48,7 +48,7 @@ void addHandlebody(pybind11::module_& m) {
         .def("swap", &Handlebody::swap, rdoc::swap)
         .def("genus", &Handlebody::genus, rdoc::genus)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<Handlebody>(m, rdoc::global_swap);

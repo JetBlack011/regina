@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/spiralsolidtorus.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
@@ -57,7 +57,7 @@ void addSpiralSolidTorus(pybind11::module_& m) {
         .def("isCanonical", &SpiralSolidTorus::isCanonical, rdoc::isCanonical)
         .def_static("recognise", &SpiralSolidTorus::recognise, rdoc::recognise)
     ;
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_output(c);
 
     regina::python::add_global_swap<SpiralSolidTorus>(m, rdoc::global_swap);

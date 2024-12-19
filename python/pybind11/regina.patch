@@ -1,47 +1,47 @@
 diff --git a/python/pybind11/functional.h b/python/pybind11/functional.h
-index 87ec4d10c..5fb4d7876 100644
+index 4b3610117..64e6a7acf 100644
 --- a/python/pybind11/functional.h
 +++ b/python/pybind11/functional.h
-@@ -89,12 +89,18 @@ public:
-             }
-             func_handle(const func_handle &f_) { operator=(f_); }
-             func_handle &operator=(const func_handle &f_) {
--                gil_scoped_acquire acq;
-+                // Called on the way into a Regina function that expects
-+                // a std::function argument.  In such situations the
-+                // interpreter should already be holding the GIL.
-+                // gil_scoped_acquire acq;
-                 f = f_.f;
-                 return *this;
-             }
-             ~func_handle() {
--                gil_scoped_acquire acq;
-+                // Called on the way into and also out of a Regina function
-+                // that expects a std::function argument.  In such situations
-+                // the interpreter should already be holding the GIL.
-+                // gil_scoped_acquire acq;
-                 function kill_f(std::move(f));
-             }
-         };
-@@ -104,7 +110,10 @@ public:
-             func_handle hfunc;
-             explicit func_wrapper(func_handle &&hf) noexcept : hfunc(std::move(hf)) {}
-             Return operator()(Args... args) const {
--                gil_scoped_acquire acq;
-+                // Called when a std::function is executed as a callback within
-+                // one of Regina's own functions.  In such situations Regina's
-+                // Python bindings are responsible for ensuring the GIL is held.
-+                // gil_scoped_acquire acq;
-                 // casts the returned object as a rvalue to the return type
-                 return hfunc.f(std::forward<Args>(args)...).template cast<Return>();
-             }
+@@ -31,12 +31,18 @@ struct func_handle {
+     }
+     func_handle(const func_handle &f_) { operator=(f_); }
+     func_handle &operator=(const func_handle &f_) {
+-        gil_scoped_acquire acq;
++        // Called on the way into a Regina function that expects
++        // a std::function argument.  In such situations the
++        // interpreter should already be holding the GIL.
++        // gil_scoped_acquire acq;
+         f = f_.f;
+         return *this;
+     }
+     ~func_handle() {
+-        gil_scoped_acquire acq;
++        // Called on the way into and also out of a Regina function
++        // that expects a std::function argument.  In such situations
++        // the interpreter should already be holding the GIL.
++        // gil_scoped_acquire acq;
+         function kill_f(std::move(f));
+     }
+ };
+@@ -51,7 +57,10 @@ template <typename Return, typename... Args>
+ struct func_wrapper : func_wrapper_base {
+     using func_wrapper_base::func_wrapper_base;
+     Return operator()(Args... args) const {
+-        gil_scoped_acquire acq;
++        // Called when a std::function is executed as a callback within
++        // one of Regina's own functions.  In such situations Regina's
++        // Python bindings are responsible for ensuring the GIL is held.
++        // gil_scoped_acquire acq;
+         // casts the returned object as a rvalue to the return type
+         return hfunc.f(std::forward<Args>(args)...).template cast<Return>();
+     }
 diff --git a/python/pybind11/gil.h b/python/pybind11/gil.h
-index 570a5581d..93355f245 100644
+index 6b0edaee4..739c888a4 100644
 --- a/python/pybind11/gil.h
 +++ b/python/pybind11/gil.h
-@@ -236,4 +236,30 @@ public:
+@@ -216,4 +216,30 @@ public:
  
- #endif // WITH_THREAD
+ #endif // PYBIND11_SIMPLE_GIL_MANAGEMENT
  
 +/**
 + * A less lightweight version of gil_scoped_acquire that actually checks
@@ -84,10 +84,21 @@ index 1878089e3..60586b9d7 100644
              auto size = static_cast<size_t>(pptr() - pbase());
              size_t remainder = utf8_remainder();
 diff --git a/python/pybind11/pybind11.h b/python/pybind11/pybind11.h
-index 6205effd6..7686d0faa 100644
+index 5219c0ff8..66bd96adb 100644
 --- a/python/pybind11/pybind11.h
 +++ b/python/pybind11/pybind11.h
-@@ -35,6 +35,10 @@
+@@ -26,6 +26,10 @@
+ #include <utility>
+ #include <vector>
+ 
++// This allows us to verify that we are #including our own patched pybind11,
++// not some other pybind11 that has been installed system-wide.
++#define REGINA_PYBIND11 1
++
+ #if defined(__cpp_lib_launder) && !(defined(_MSC_VER) && (_MSC_VER < 1914))
+ #    define PYBIND11_STD_LAUNDER std::launder
+ #    define PYBIND11_HAS_STD_LAUNDER 1
+@@ -37,6 +41,10 @@
  #    include <cxxabi.h>
  #endif
  
@@ -98,7 +109,7 @@ index 6205effd6..7686d0faa 100644
  PYBIND11_NAMESPACE_BEGIN(PYBIND11_NAMESPACE)
  
  /* https://stackoverflow.com/questions/46798456/handling-gccs-noexcept-type-warning
-@@ -432,15 +436,27 @@ protected:
+@@ -464,15 +472,39 @@ protected:
                  if (!t) {
                      pybind11_fail("Internal error while parsing type signature (1)");
                  }
@@ -109,29 +120,41 @@ index 6205effd6..7686d0faa 100644
                      handle th((PyObject *) tinfo->type);
 -                    signature += th.attr("__module__").cast<std::string>() + "."
 -                                 + th.attr("__qualname__").cast<std::string>();
++                    std::string qualname;
++                    try {
++                        qualname = th.attr("__qualname__").cast<std::string>();
++                    } catch (...) {
++                        // In Python 3.12 we get an error in our stripped-down
++                        // interpreter since PythonOutputStream is missing both
++                        // __qualname__ and __name__.  Do not make this fatal.
++                        qualname = "<unknown>";
++                    }
 +                    const auto m = th.attr("__module__").cast<std::string>();
 +                    if (m == "regina.engine")
-+                        signature += "regina." +
-+                            th.attr("__qualname__").cast<std::string>();
++                        signature += "regina." + qualname;
 +                    else
-+                        signature += m + "." +
-+                            th.attr("__qualname__").cast<std::string>();
++                        signature += m + "." + qualname;
                  } else if (rec->is_new_style_constructor && arg_index == 0) {
                      // A new-style `__init__` takes `self` as `value_and_holder`.
                      // Rewrite it to the proper class type.
 -                    signature += rec->scope.attr("__module__").cast<std::string>() + "."
 -                                 + rec->scope.attr("__qualname__").cast<std::string>();
++                    std::string qualname;
++                    try {
++                        qualname = rec->scope.attr("__qualname__").cast<std::string>();
++                    } catch (...) {
++                        // See above for the explanation here.
++                        qualname = "<unknown>";
++                    }
 +                    const auto m = rec->scope.attr("__module__").cast<std::string>();
 +                    if (m == "regina.engine")
-+                        signature += "regina."
-+                            + rec->scope.attr("__qualname__").cast<std::string>();
++                        signature += "regina." + qualname;
 +                    else
-+                        signature += m + "."
-+                            + rec->scope.attr("__qualname__").cast<std::string>();
++                        signature += m + "." + qualname;
                  } else {
-                     std::string tname(t->name());
-                     detail::clean_type_id(tname);
-@@ -989,6 +1005,16 @@ protected:
+                     signature += detail::quote_cpp_type_name(detail::clean_type_id(t->name()));
+                 }
+@@ -1021,6 +1053,16 @@ protected:
          } catch (abi::__forced_unwind &) {
              throw;
  #endif
@@ -143,12 +166,12 @@ index 6205effd6..7686d0faa 100644
 +               blocks, and in settings where try/catch is slow (e.g., running
 +               within SageMath on macOS), this can add to a noticeable
 +               performance penalty when using iterators. */
-+           PyErr_SetString(PyExc_StopIteration, stop.what());
-+           return nullptr;
++            PyErr_SetString(PyExc_StopIteration, stop.what());
++            return nullptr;
          } catch (...) {
-             /* When an exception is caught, give each registered exception
-                translator a chance to translate it to a Python exception. First
-@@ -2649,13 +2675,13 @@ void print(Args &&...args) {
+             try_translate_exceptions();
+             return nullptr;
+@@ -2726,13 +2768,13 @@ void print(Args &&...args) {
  
  inline void
  error_already_set::m_fetched_error_deleter(detail::error_fetch_and_normalize *raw_ptr) {
@@ -164,7 +187,7 @@ index 6205effd6..7686d0faa 100644
      error_scope scope;
      return m_fetched_error->error_string().c_str();
  }
-@@ -2770,7 +2796,7 @@ function get_override(const T *this_ptr, const char *name) {
+@@ -2862,7 +2904,7 @@ function get_override(const T *this_ptr, const char *name) {
  
  #define PYBIND11_OVERRIDE_IMPL(ret_type, cname, name, ...)                                        \
      do {                                                                                          \

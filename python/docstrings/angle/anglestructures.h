@@ -136,11 +136,11 @@ filled with all vertices of the angle structure solution space. If
 taut angle structures (a subset of the vertex angle structures); these
 are usually much faster to enumerate.
 
-The AngleAlg argument is a combination of flags that allows you to
+The *algHints* argument is a combination of flags that allows you to
 control the underlying enumeration algorithm. These flags are treated
 as hints only: if your selection of algorithm is invalid, unavailable
 or unsupported then Regina will choose something more appropriate.
-Unless you have some specialised need, the default AS_ALG_DEFAULT
+Unless you have some specialised need, the default AngleAlg::Default
 (which makes no hints at all) will allow Regina to choose what it
 thinks will be the most efficient method.
 
@@ -199,43 +199,15 @@ for s in list:
 Returns:
     an iterator over the angle structures in this list.)doc";
 
-// Docstring regina::python::doc::AngleStructures_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given list contain different sets of
-angle structures.
-
-The lists will be compared as multisets: the order of the angle
-structures in each list does not matter; however, in the unusual
-scenario where a list the same angle structure multiple times,
-multiplicity does matter.
-
-Like the comparison operators for AngleStructure, it does not matter
-whether the two lists work with different triangulations:
-
-* If the two triangulations have the same size, then this routine will
-  compare angle structures as though they were transplanted into the
-  same triangulation using the same tetrahedron numbering and the same
-  angle coordinates.
-
-* If the two triangulations have different sizes, then this comparison
-  will return ``True`` (i.e., the lists will be considered different).
-
-Parameter ``other``:
-    the list to be compared with this list.
-
-Returns:
-    ``True`` if both lists do not represent the same multiset of angle
-    structures, or ``False`` if they do.)doc";
-
 // Docstring regina::python::doc::AngleStructures_::algorithm
 static const char *algorithm =
 R"doc(Returns details of the algorithm that was used to enumerate this list.
 
-These may not be the same AngleAlg flags that were passed to the class
-constructor. In particular, default values will have been explicitly
-filled in, invalid and/or redundant values will have been removed, and
-unavailable and/or unsupported combinations of algorithm flags will be
-replaced with whatever algorithm was actually used.
+These may not be the same algorithm flags that were passed to the
+class constructor. In particular, default values will have been
+explicitly filled in, invalid and/or redundant values will have been
+removed, and unavailable and/or unsupported combinations of algorithm
+flags will be replaced with whatever algorithm was actually used.
 
 Returns:
     details of the algorithm used to enumerate this list.)doc";

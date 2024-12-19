@@ -30,19 +30,19 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/perm.h"
 #include "utilities/typeutils.h"
 #include "../helpers.h"
-#include "../helpers/arraylike.h"
 #include "../docstrings/maths/perm.h"
 
 using pybind11::overload_cast;
 using regina::Perm;
 using regina::PermClass;
 using regina::PermCodeType;
+using regina::PermOrder;
 
 template <int n>
 void addPerm(pybind11::module_& m, const char* name) {
@@ -88,7 +88,6 @@ void addPerm(pybind11::module_& m, const char* name) {
         .def("inc", [](Perm<n>& p) {
             return p++;
         }, rdoc::__inc)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
         .def_static("rot", &Perm<n>::rot, rdoc::rot)
         .def_static("rand", static_cast<Perm<n>(&)(bool)>(Perm<n>::rand),
             pybind11::arg("even") = false, rdoc::rand)
@@ -104,7 +103,7 @@ void addPerm(pybind11::module_& m, const char* name) {
         .def_readonly_static("imageBits", &Perm<n>::imageBits)
         .def_readonly_static("imageMask", &Perm<n>::imageMask)
         .def_readonly_static("nPerms", &Perm<n>::nPerms)
-        .def_readonly_static("nPerms_1", &Perm<n>::nPerms_1)
+        .def_readonly_static("nPerms_1", &Perm<n-1>::nPerms) // deprecated
         .def_readonly_static("Sn", &Perm<n>::Sn)
         .def_readonly_static("orderedSn", &Perm<n>::orderedSn)
     ;
@@ -118,12 +117,8 @@ void addPerm(pybind11::module_& m, const char* name) {
     regina::python::add_output_basic(c, rdoc::str);
     regina::python::add_tight_encoding(c, rdoc::tightEncoding,
         rdoc::tightDecoding, rdoc::hash);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
-
-    regina::python::add_lightweight_array<decltype(Perm<n>::Sn)>(c,
-        "_Sn", rdoc::SnLookup);
-    regina::python::add_lightweight_array<decltype(Perm<n>::orderedSn)>(c,
-        "_OrderedSn", rdoc::OrderedSnLookup);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     RDOC_SCOPE_END
 }
@@ -146,7 +141,7 @@ void addPermClass(pybind11::module_& m, const char* name) {
         .def_readonly_static("count", &PermClass<n>::count)
     ;
     regina::python::add_output_basic(c, rdoc::str);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_END
 }
@@ -167,6 +162,13 @@ void addPerm(pybind11::module_& m) {
     // Deprecated constants:
     m.attr("PERM_CODE_IMAGES") = PermCodeType::Images;
     m.attr("PERM_CODE_INDEX") = PermCodeType::Index;
+
+    RDOC_SCOPE_SWITCH(PermOrder)
+
+    pybind11::enum_<regina::PermOrder>(m, "PermOrder", rdoc_scope)
+        .value("Sign", PermOrder::Sign, rdoc::Sign)
+        .value("Lex", PermOrder::Lex, rdoc::Lex)
+        ;
 
     RDOC_SCOPE_END
 

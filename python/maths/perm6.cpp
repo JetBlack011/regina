@@ -30,13 +30,12 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/perm.h"
 #include "utilities/typeutils.h"
 #include "../helpers.h"
-#include "../helpers/arraylike.h"
 #include "../docstrings/maths/perm6.h"
 
 using pybind11::overload_cast;
@@ -94,7 +93,6 @@ void addPerm6(pybind11::module_& m) {
         .def("inc", [](Perm<6>& p) {
             return p++;
         }, rdoc::__inc)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
         .def_static("rot", &Perm<6>::rot, rdoc::rot)
         .def_static("rand", static_cast<Perm<6>(&)(bool)>(Perm<6>::rand),
             pybind11::arg("even") = false, rdoc::rand)
@@ -116,7 +114,7 @@ void addPerm6(pybind11::module_& m) {
         .def_readonly_static("imageBits", &Perm<6>::imageBits)
         .def_readonly_static("imageMask", &Perm<6>::imageMask)
         .def_readonly_static("nPerms", &Perm<6>::nPerms)
-        .def_readonly_static("nPerms_1", &Perm<6>::nPerms_1)
+        .def_readonly_static("nPerms_1", &Perm<5>::nPerms) // deprecated
         .def_readonly_static("S6", &Perm<6>::S6)
         .def_readonly_static("Sn", &Perm<6>::Sn)
         .def_readonly_static("orderedS6", &Perm<6>::orderedS6)
@@ -129,12 +127,8 @@ void addPerm6(pybind11::module_& m) {
     regina::python::add_output_basic(c, rdoc::str);
     regina::python::add_tight_encoding(c, rdoc::tightEncoding,
         rdoc::tightDecoding, rdoc::hash);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
-
-    regina::python::add_lightweight_array<decltype(Perm<6>::S6)>(c,
-        "_S6", rdoc::S6Lookup);
-    regina::python::add_lightweight_array<decltype(Perm<6>::orderedS6)>(c,
-        "_orderedS6", rdoc::OrderedS6Lookup);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     RDOC_SCOPE_END
 }

@@ -94,12 +94,23 @@ sized) amount of data to be copied even in a move operation.
 
 namespace SFSFibre_ {
 
-// Docstring regina::python::doc::SFSFibre_::__copy
-static const char *__copy =
-R"doc(Creates a new exceptional fibre that is a clone of the given fibre.
+// Docstring regina::python::doc::SFSFibre_::__cmp
+static const char *__cmp =
+R"doc(Compares two exceptional fibres. Fibres are ordered first by *alpha*
+and then by *beta*.
 
-Parameter ``cloneMe``:
-    the exceptional fibre to clone.)doc";
+This generates all of the usual comparison operators, including ``<``,
+``<=``, ``>``, and ``>=``.
+
+Python:
+    This spaceship operator ``x <=> y`` is not available, but the
+    other comparison operators that it generates _are_ available.
+
+Returns:
+    The result of the comparison between this and the given fibre.)doc";
+
+// Docstring regina::python::doc::SFSFibre_::__copy
+static const char *__copy = R"doc(Creates a new exceptional fibre that is a clone of the given fibre.)doc";
 
 // Docstring regina::python::doc::SFSFibre_::__default
 static const char *__default = R"doc(Creates a new uninitialised exceptional fibre.)doc";
@@ -109,9 +120,6 @@ static const char *__eq =
 R"doc(Determines if this and the given exceptional fibre are identical. This
 requires both fibres to have the same values for *alpha* and the same
 values for *beta*.
-
-Parameter ``compare``:
-    the fibre with which this will be compared.
 
 Returns:
     ``True`` if and only if this and the given fibre are identical.)doc";
@@ -128,38 +136,44 @@ Parameter ``newBeta``:
     the second parameter of this exceptional fibre; this must have no
     common factors with the first parameter *newAlpha*.)doc";
 
-// Docstring regina::python::doc::SFSFibre_::__lt
-static const char *__lt =
-R"doc(Determines if this exceptional fibre is smaller than the given fibre.
-Fibres are sorted by *alpha* and then by *beta*.
-
-Parameter ``compare``:
-    the fibre with which this will be compared.
-
-Returns:
-    ``True`` if and only if this is smaller than the given fibre.)doc";
-
-// Docstring regina::python::doc::SFSFibre_::__ne
-static const char *__ne =
-R"doc(Determines if this and the given exceptional fibre are different. This
-requires the fibres to have different values for *alpha* and/or to
-have different values for *beta*.
-
-Parameter ``compare``:
-    the fibre with which this will be compared.
-
-Returns:
-    ``True`` if and only if this and the given fibre are different.)doc";
-
 }
 
 namespace SFSpace_ {
 
-// Docstring regina::python::doc::SFSpace_::ClassType
-static const char *ClassType =
+// Docstring regina::python::doc::SFSpace_::Class
+static const char *Class =
 R"doc(Lists the six classes ``o1``, ``o2``, ``n1``, ``n2``, ``n3``, ``n4``
 for base orbifolds without boundaries, plus five classes ``bo1``,
 ``b02``, ``bn1``, ``bn2``, ``bn3`` for base orbifolds with boundaries.)doc";
+
+// Docstring regina::python::doc::SFSpace_::__cmp
+static const char *__cmp =
+R"doc(Compares representations of two Seifert fibred spaces according to an
+aesthetic ordering.
+
+The only purpose of this routine is to implement a consistent ordering
+of Seifert fibred space representations. The specific ordering used is
+purely aesthetic on the part of the author, and is subject to change
+in future versions of Regina.
+
+It does not matter whether the two spaces are homeomorphic; this
+routine compares the specific _representations_ of these spaces (and
+so in particular, different representations of the same Seifert fibred
+space will be ordered differently).
+
+This operator generates all of the usual comparison operators,
+including ``<``, ``<=``, ``>``, and ``>=``.
+
+Python:
+    This spaceship operator ``x <=> y`` is not available, but the
+    other comparison operators that it generates _are_ available.
+
+Parameter ``rhs``:
+    the other representation to compare this with.
+
+Returns:
+    A result that indicates how this and the given Seifert fibred
+    space representation should be ordered with respect to each other.)doc";
 
 // Docstring regina::python::doc::SFSpace_::__copy
 static const char *__copy = R"doc(Creates a new copy of the given Seifert fibred space.)doc";
@@ -207,8 +221,8 @@ Precondition:
 Parameter ``useClass``:
     indicates whether the base orbifold is closed and/or orientable,
     and gives information about fibre-reversing paths in the
-    3-manifold. See the SFSpace class notes and the ClassType
-    enumeration notes for details.
+    3-manifold. See the SFSpace class notes and the Class enumeration
+    notes for details.
 
 Parameter ``genus``:
     the genus of the base orbifold (the number of tori or projective
@@ -237,47 +251,6 @@ Parameter ``reflectorsTwisted``:
     orbifold. These are in addition to the ordinary boundary
     components described by *puncturesTwisted*.)doc";
 
-// Docstring regina::python::doc::SFSpace_::__lt
-static const char *__lt =
-R"doc(Determines in a fairly ad-hoc fashion whether this representation of
-this space is "smaller" than the given representation of the given
-space.
-
-The ordering imposed on Seifert fibred space representations is purely
-aesthetic on the part of the author, and is subject to change in
-future versions of Regina. It also depends upon the particular
-representation, so that different representations of the same space
-may be ordered differently.
-
-All that this routine really offers is a well-defined way of ordering
-Seifert fibred space representations.
-
-Parameter ``compare``:
-    the representation with which this will be compared.
-
-Returns:
-    ``True`` if and only if this is "smaller" than the given Seifert
-    fibred space representation.)doc";
-
-// Docstring regina::python::doc::SFSpace_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given object do not contain precisely
-the same presentations of the same Seifert fibred space.
-
-This routine does _not_ test for homeomorphism. Instead it compares
-the exact presentations, including the precise details of the base
-orbifold and the exact parameters of the exceptional fibres, and
-determines whether or not these _presentations_ are identical. If you
-have two different presentations of the same Seifert fibred space,
-they will be treated as not equal by this routine.
-
-Parameter ``compare``:
-    the presentation with which this will be compared.
-
-Returns:
-    ``True`` if and only if this and the given object do not contain
-    identical presentations of the same Seifert fibred space.)doc";
-
 // Docstring regina::python::doc::SFSpace_::addCrosscap
 static const char *addCrosscap =
 R"doc(Inserts a new crosscap into the base orbifold.
@@ -287,7 +260,7 @@ orientable genus by one. It is equivalent to removing a disc from the
 base orbifold and replacing it with a Mobius band.
 
 Note that this operation may alter which of the classes described by
-ClassType this space belongs to.
+Class this space belongs to.
 
 The exceptional fibres and the obstruction constant *b* are not
 modified by this routine.
@@ -306,7 +279,7 @@ the non-orientable genus by two. It is equivalent to removing a disc
 from the base orbifold and replacing it with a punctured torus.
 
 Note that this operation may alter which of the classes described by
-ClassType this space belongs to.
+Class this space belongs to.
 
 The exceptional fibres and the obstruction constant *b* are not
 modified by this routine.
@@ -373,7 +346,7 @@ The class can be (indirectly) modified by calling addHandle(),
 addCrosscap(), addPuncture() or addReflector().
 
 For more information on the eleven predefined classes, see the SFSpace
-class notes or the ClassType enumeration notes.
+class notes or the Class enumeration notes.
 
 Returns:
     the particular class to which this space belongs.)doc";
@@ -658,72 +631,72 @@ Parameter ``other``:
 
 }
 
-namespace SFSpace_::ClassType_ {
+namespace SFSpace_::Class_ {
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::bn1
+// Docstring regina::python::doc::SFSpace_::Class_::bn1
 static const char *bn1 =
 R"doc(Indicates that the base orbifold contains punctures and/or reflector
 boundaries, that it is non-orientable, and that it contains no fibre-
 reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::bn2
+// Docstring regina::python::doc::SFSpace_::Class_::bn2
 static const char *bn2 =
 R"doc(Indicates that the base orbifold contains punctures and/or reflector
 boundaries, that it is non-orientable, and that its fibre-reversing
 paths correspond precisely to its orientation-reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::bn3
+// Docstring regina::python::doc::SFSpace_::Class_::bn3
 static const char *bn3 =
 R"doc(Indicates that the base orbifold contains punctures and/or reflector
 boundaries, that it is non-orientable, that it contains at least one
 fibre-reversing path, and that its fibre-reversing paths do not
 correspond precisely to its orientation-reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::bo1
+// Docstring regina::python::doc::SFSpace_::Class_::bo1
 static const char *bo1 =
 R"doc(Indicates that the base orbifold contains punctures and/or reflector
 boundaries, that it is orientable, and that it contains no fibre-
 reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::bo2
+// Docstring regina::python::doc::SFSpace_::Class_::bo2
 static const char *bo2 =
 R"doc(Indicates that the base orbifold contains punctures and/or reflector
 boundaries, that it is orientable, and that it contains at least one
 fibre-reversing path.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::n1
+// Docstring regina::python::doc::SFSpace_::Class_::n1
 static const char *n1 =
 R"doc(Indicates that the base orbifold is non-orientable with no punctures
 or reflector boundaries, and that none of its generators give fibre-
 reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::n2
+// Docstring regina::python::doc::SFSpace_::Class_::n2
 static const char *n2 =
 R"doc(Indicates that the base orbifold is non-orientable with no punctures
 or reflector boundaries, and that all of its generators give fibre-
 reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::n3
+// Docstring regina::python::doc::SFSpace_::Class_::n3
 static const char *n3 =
 R"doc(Indicates that the base orbifold is non-orientable with no punctures
 or reflector boundaries, that it has non-orientable genus at least
 two, and that precisely one of its generators gives a fibre-reversing
 path.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::n4
+// Docstring regina::python::doc::SFSpace_::Class_::n4
 static const char *n4 =
 R"doc(Indicates that the base orbifold is non-orientable with no punctures
 or reflector boundaries, that it has non-orientable genus at least
 three, and that precisely two of its generators give fibre-reversing
 paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::o1
+// Docstring regina::python::doc::SFSpace_::Class_::o1
 static const char *o1 =
 R"doc(Indicates that the base orbifold is orientable with no punctures or
 reflector boundaries, and that none of its generators give fibre-
 reversing paths.)doc";
 
-// Docstring regina::python::doc::SFSpace_::ClassType_::o2
+// Docstring regina::python::doc::SFSpace_::Class_::o2
 static const char *o2 =
 R"doc(Indicates that the base orbifold is orientable with no punctures or
 reflector boundaries, and that all of its generators give fibre-

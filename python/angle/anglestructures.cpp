@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/functional.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
 #include "angle/anglestructures.h"
 #include "progress/progresstracker.h"
 #include "triangulation/dim3.h"
@@ -53,11 +53,11 @@ void addAngleStructures(pybind11::module_& m) {
 
     auto l = pybind11::class_<AngleStructures,
             std::shared_ptr<AngleStructures>>(m, "AngleStructures", rdoc_scope)
-        .def(pybind11::init<const Triangulation<3>&, bool, regina::AngleAlg,
-                ProgressTracker*>(),
+        .def(pybind11::init<const Triangulation<3>&, bool,
+                regina::Flags<regina::AngleAlg>, ProgressTracker*>(),
             pybind11::arg(),
             pybind11::arg("tautOnly") = false,
-            pybind11::arg("algHints") = regina::AS_ALG_DEFAULT,
+            pybind11::arg("algHints") = regina::AngleAlg::Default,
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<GILScopedRelease>(),
             rdoc::__init)
@@ -87,16 +87,16 @@ void addAngleStructures(pybind11::module_& m) {
             rdoc::sort)
     ;
     regina::python::add_output(l);
-    regina::python::packet_eq_operators(l, rdoc::__eq, rdoc::__ne);
+    regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
     auto wrap = regina::python::add_packet_wrapper<AngleStructures>(
         m, "PacketOfAngleStructures");
     regina::python::add_packet_constructor<const Triangulation<3>&, bool,
-            regina::AngleAlg, ProgressTracker*>(wrap,
+            regina::Flags<regina::AngleAlg>, ProgressTracker*>(wrap,
         pybind11::arg(),
         pybind11::arg("tautOnly") = false,
-        pybind11::arg("algHints") = regina::AS_ALG_DEFAULT,
+        pybind11::arg("algHints") = regina::AngleAlg::Default,
         pybind11::arg("tracker") = nullptr,
         pybind11::call_guard<GILScopedRelease>(),
         rdoc::__init);

@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "utilities/bitmanip.h"
 #include "../helpers.h"
 #include "../docstrings/utilities/bitmanip.h"
@@ -43,6 +43,12 @@ void addBitManipulator(pybind11::module_& m) {
         .def_static("firstBit", &BitManip::firstBit, rdoc::firstBit)
         .def_static("lastBit", &BitManip::lastBit, rdoc::lastBit)
         .def_static("swapBits", &BitManip::swapBits, rdoc::swapBits)
+        // TODO: Bind subsetComparison() once we have std::partial_ordering
+        // (or a good substitute for it).
+        /*
+        .def_static("subsetComparison", &BitManip::subsetComparison,
+            rdoc::subsetComparison)
+        */
         .def_readonly_static("specialised", &BitManip::specialised)
     ;
     regina::python::no_eq_static(c);

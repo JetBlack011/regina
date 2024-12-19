@@ -30,10 +30,10 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/iostream.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/iostream.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "maths/matrix.h"
 #include "surface/normalsurfaces.h"
 #include "triangulation/dim3.h"
@@ -169,10 +169,10 @@ void addNormalSurface(pybind11::module_& m) {
         .def(pybind11::self + pybind11::self, rdoc::__add)
         .def(pybind11::self * regina::LargeInteger(), rdoc::__mul)
         .def(pybind11::self *= regina::LargeInteger(), rdoc::__imul)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     regina::python::add_global_swap<NormalSurface>(m, rdoc::global_swap);
 
@@ -186,10 +186,6 @@ void addNormalSurface(pybind11::module_& m) {
     m.attr("triDiscArcs") = wrapTableView(m, regina::triDiscArcs);
     m.attr("quadDiscArcs") = wrapTableView(m, regina::quadDiscArcs);
     m.attr("octDiscArcs") = wrapTableView(m, regina::octDiscArcs);
-
-    // Make sure that quadString is treated as a 1-D array of strings, not
-    // a 2-D array of chars.
-    regina::python::addTableView<char[6], 3>(m);
-    m.attr("quadString") = regina::TableView<char[6], 3>(regina::quadString);
+    m.attr("quadString") = wrapTableView(m, regina::quadString);
 }
 

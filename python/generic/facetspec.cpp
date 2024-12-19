@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
 #include "regina-config.h" // for REGINA_HIGHDIM
 #include "triangulation/facetspec.h"
 #include "../helpers.h"
@@ -65,12 +65,11 @@ void addFacetSpec(pybind11::module_& m, const char* name) {
         .def("dec", [](FacetSpec<dim>& s) {
             return s--;
         }, rdoc::__dec)
-        .def(pybind11::self < pybind11::self, rdoc::__lt)
-        .def(pybind11::self <= pybind11::self, rdoc::__le)
     ;
     regina::python::add_output_ostream(c);
     regina::python::add_tight_encoding(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
+    regina::python::add_cmp_operators(c, rdoc::__cmp);
 
     RDOC_SCOPE_END
 }

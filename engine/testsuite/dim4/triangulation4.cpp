@@ -38,6 +38,7 @@
 #include "triangulation/dim4.h"
 #include "triangulation/example3.h"
 #include "triangulation/example4.h"
+#include "triangulation/facetpairing.h"
 
 #include "generic/triangulationtest.h"
 #include "testexhaustive.h"
@@ -718,10 +719,80 @@ TEST_F(Dim4Test, pachner) {
     TriangulationTest<4>::verifyPachnerSimplicial();
 }
 
-TEST_F(Dim4Test, twoZeroVertexMove) {
-    testManualCases(TriangulationTest<4>::verifyTwoZeroVertex);
-    runCensusAllBounded(TriangulationTest<4>::verifyTwoZeroVertex);
-    runCensusAllNoBdry(TriangulationTest<4>::verifyTwoZeroVertex);
+TEST_F(Dim4Test, move20Vertex) {
+    // Note: we need at least 3 pentachora and a quadruple edge for
+    // 2-0 vertex moves to become legal.
+    testManualCases(TriangulationTest<4>::verify20Vertex);
+
+    // The exhaustive cases below are slow, and so we disable them for now.
+    // On my machine (December 2024) they take around 45 seconds.
+    #if 0
+    // Exhaustive, with boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<4>() && ! p.isClosed();
+    }, TriangulationTest<4>::verify20Vertex, 3, true /* orientable only */);
+    // Exhaustive, without boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<4>() && p.isClosed();
+    }, TriangulationTest<4>::verify20Vertex, 4, true /* orientable only */);
+    #endif
+}
+
+TEST_F(Dim4Test, move20Edge) {
+    // Note: we need at least 3 pentachora and a triple edge for
+    // 2-0 edge moves to become legal.
+    testManualCases(TriangulationTest<4>::verify20Edge);
+
+    // The exhaustive cases below are slow, and so we disable them for now.
+    // On my machine (December 2024) they take around 3.5 minutes.
+    #if 0
+    // Exhaustive, with boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<3>() && ! p.isClosed();
+    }, TriangulationTest<4>::verify20Edge, 3, true /* orientable only */);
+    // Exhaustive, without boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<3>() && p.isClosed();
+    }, TriangulationTest<4>::verify20Edge, 4, true /* orientable only */);
+    #endif
+}
+
+TEST_F(Dim4Test, move20Triangle) {
+    // Note: we need at least 3 pentachora and a double edge for
+    // 2-0 triangle moves to become legal.
+    testManualCases(TriangulationTest<4>::verify20Triangle);
+
+    // The exhaustive cases below are slow, and so we disable them for now.
+    // On my machine (December 2024) they take around 6 minutes.
+    #if 0
+    // Exhaustive, with boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<2>() && ! p.isClosed();
+    }, TriangulationTest<4>::verify20Triangle, 3, true /* orientable only */);
+    // Exhaustive, without boundary facets:
+    runCensus([](const regina::FacetPairing<4>& p) {
+        return p.hasMultiEdge<2>() && p.isClosed();
+    }, TriangulationTest<4>::verify20Triangle, 4, true /* orientable only */);
+    #endif
+}
+
+TEST_F(Dim4Test, shellBoundary) {
+    testManualCases(TriangulationTest<4>::verifyShellBoundary);
+    runCensusAllBounded(TriangulationTest<4>::verifyShellBoundary);
+    runCensusAllNoBdry(TriangulationTest<4>::verifyShellBoundary);
+
+    // Some additional cases where the subface identification criterion
+    // matters but none of the other criteria fail.  These are included here
+    // because such a scenario is not picked up by the small census used by
+    // runCensusAllBounded().
+    std::string sigs[] = {
+        "dHHIbcccWakaka2a", "dHHIbccc4asasa2a", "dHHIbcccWa0a0a2a",
+        "dHHIbccc4aebeb2a", "dHHcaacccalb1a", "dHHcaacccaZanb"
+    };
+    for (const auto& sig: sigs) {
+        TriangulationTest<4>::verifyShellBoundary(
+            Triangulation<4>::fromIsoSig(sig), sig.c_str());
+    }
 }
 
 TEST_F(Dim4Test, barycentricSubdivision) {

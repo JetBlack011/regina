@@ -10,29 +10,57 @@ Regina - A Normal Surface Theory Calculator
 Version 7.4  [ (to be announced) ]
 
     GENERAL:
+        - Now requires C++20 (not C++17), and Python 3.7 or newer.
         - Added support for simplex and facet locks throughout the API.  See
           Simplex<dim>::lock() and Simplex<dim>::lockFacet() for an overview
           of how locks work.  Many routines throughout the API could now
           potentially throw a LockViolation (and this is now explicitly noted
           in their respective docs); other routines now examine locks as part
           of their validity checks (e.g., local moves on triangulations).
-        - Updated the SnapPea kernel to the one shipped with SnapPy 3.0.3.
-        - All global enumerations are now C++11 scoped enumerations, with the
-          old names kept as deprecated constants in the regina:: namespace.
+        - All enumerations are now C++11 scoped enumerations, with the old
+          names kept as deprecated constants in the regina:: namespace (for
+          global enumerations) or the relevant class namespace (for class
+          enumerations).
+        - Explicit inequality tests (!=) have been removed, and are now
+          automatically generated from equality tests (==) instead.
+        - Explicit comparisons (<, <=, >, >=) have been removed, and are now
+          automatically generated from the new spaceship operator (<=>).
+        - For several iterator classes, the associated type aliases
+          (value_type, etc.) are no longer provided as class members, since
+          these were confusing pybind11.  Instead you can (and should) access
+          these through the C++ standard iterator library (e.g.,
+          std::iterator_traits<T>::value_type, or std::iter_value_t<T>).
         - Several build dependencies are gone: Jansson, Popt, CppUnit.
           See the individual sections below for details.
+        - Updated the SnapPea kernel to the one shipped with SnapPy 3.0.3.
+        - Updated the bundled copy of Normaliz to version 3.10.3 (30 May 2024).
     ENGINE:
         Class AbelianGroup:
             - New routine hash(), which uses the tight encoding.
+            - Added a spaceship operator (<=>) for comparisons.
         Enum Algorithm:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., ALG_BACKTRACK) have been
               renamed as scoped enum values (e.g., Algorithm::Backtrack).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Enum AngleAlg, AngleAlgFlags:
+            - The individual flags now live inside AngleAlg, which is now a
+              scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., AS_ALG_TREE) have been renamed as scoped
+              enum values (e.g., AngleAlg::Tree).  The old constants have
+              been kept as deprecated compile-time constants in the regina
+              namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<AngleAlg>, and this should all be happening
+              automatically behind the scenes.  AngleAlgFlags is now
+              just a deprecated alias for AngleAlg.
         Class AngleStructure:
             - The vector constructors are now templated, so that you can pass a
               vector of some type other than regina::Integer.
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
         Class AngleStructures:
             - New routine sort().
         Enum Attachment::OwnershipPolicy:
@@ -55,13 +83,40 @@ Version 7.4  [ (to be announced) ]
               Base64SigDecoder.
         Class BitManipulator<T>:
             - New routine swapBits().
+            - New routine subsetComparison().
+        Class Bitmask, Bitmask1<T>, Bitmask2<T, U>:
+            - Added a spaceship operator (<=>) for subset comparisons.  This
+              has the effect of implementing all comparison operators, not just
+              less-than-or-equal (<=) as before.
         Class BoolSet:
             - New routine full().
             - Renamed empty() to clear(), without a deprecated alias, to avoid
               confusion with the more common pattern where empty() queries
               whether or not a container is empty.
+            - Added a spaceship operator (<=>) for subset comparisons.
+        Enum CensusPurge, CensusPurgeFlags:
+            - The individual flags now live inside CensusPurge, which is now
+              a scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., PURGE_NON_MINIMAL) have been renamed
+              as scoped enum values (e.g., CensusPurge::NonMinimal).  The old
+              constants have been kept as deprecated compile-time constants
+              in the regina namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<CensusPurge>, and this should all be happening
+              automatically behind the scenes.  CensusPurgeFlags is now
+              just a deprecated alias for CensusPurge.
         Enum ChangeType:
             - New enum for internal use with triangulation/link change spans.
+        Class DiscSpecIterator:
+            - This class no longer provides its iterator-related type aliases
+              (value_type, etc.) as members, since these confused pybind11.
+              Instead you should access them through the C++ standard
+              iterator library (e.g., via std::iterator_traits).  The old
+              member type aliases have been removed completely.
+        Struct DiscType:
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
         Class Example<3>:
             - New routine b5().
             - Routines lst(), lens(), augTriSolidTorus() and sfsOverSphere()
@@ -72,12 +127,23 @@ Version 7.4  [ (to be announced) ]
             - New routine chen().
             - Added several new routines that return 3-dimensional embeddings
               of links (i.e., SpatialLink objects).
+        Class Face<dim, 1>, FaceNumbering<dim, 1>:
+            - New static routine faceNumber(u, v) to return the edge number in
+              a simplex spanned by vertices u and v.  This is implemented in
+              FaceNumbering<dim, 1> and is also accessible to Face<dim, 1>.
         Class Face<dim, dim-1>:
             - New routines lock(), unlock(), and isLocked().
+        Class FacePair:
+            - Added a spaceship operator (<=>) for comparisons.
         Class FacetPairing<dim>:
+            - New generic routine hasMultiEdge(), which generalises the
+              3-D routine hasTripleEdge().
             - New routine hash(), which uses the tight encoding.
         Class FacetSpec<dim>:
             - New routine hash(), which uses the tight encoding.
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) and less-than-or-equal (<=) as before.
         Enum FileFormat:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., REGINA_XML_GEN_3) have been
@@ -104,6 +170,14 @@ Version 7.4  [ (to be announced) ]
               renamed as scoped enum values (e.g., Framing::Seifert).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Class GraphLoop, GraphPair, GraphTriple:
+            - Added a spaceship operator (<=>) for aesthetic comparisons.
+              This has the effect of implementing all comparison operators,
+              not just less-than (<) as before.
+        Struct GroupExpressionTerm:
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
         Class GroupPresentation:
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
@@ -113,16 +187,38 @@ Version 7.4  [ (to be announced) ]
               as deprecated aliases.
         Class HomologicalData:
             - New routine triangulation().
+        Enum HyperAlg, HyperAlgFlags:
+            - The individual flags now live inside HyperAlg, which is now a
+              scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., HS_VERTEX_DD) have been renamed as scoped
+              enum values (e.g., HyperAlg::VertexDD).  The old constants have
+              been kept as deprecated compile-time constants in the regina
+              namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<HyperAlg>, and this should all be happening
+              automatically behind the scenes.  HyperAlgFlags is now
+              just a deprecated alias for HyperAlg.
         Enum HyperCoords:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., HS_STANDARD) have been
               renamed as scoped enum values (e.g., HyperCoords::Standard).
-              The old names have been kept as compile-time constants in the
-              regina:: namespace (and are _not_ deprecated for the time being).
+              The old names have been kept as deprecated compile-time constants
+              in the regina:: namespace.
+        Enum HyperList, HyperListFlags:
+            - The individual flags now live inside HyperList, which is now a
+              scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., HS_VERTEX) have been renamed as scoped enum
+              values (e.g., HyperList::Vertex).  The old constants have been
+              kept as deprecated compile-time constants in the regina namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<HyperList>, and this should all be happening
+              automatically behind the scenes.  HyperListFlags is now
+              just a deprecated alias for HyperList.
         Class Integer:
             - New routine hash(), which hashes the integer down to a size_t.
             - New routine str(), which is an alias for stringValue().
             - New class constant supportsInfinity, which is set to false.
+            - Added a spaceship operator (<=>) for comparisons.
         Class IntOfBits<k>:
             - New type alias to simplify arithmetic when using IntOfSize<...>.
         Class Isomorphism<dim>:
@@ -138,6 +234,14 @@ Version 7.4  [ (to be announced) ]
             - New class constant supportsInfinity, which is set to true.
         Class Laurent<T>, Laurent2<T>:
             - New routine hash(), which uses the tight encoding.
+            - Added a spaceship operator (<=>) for comparisons.
+        Class LensSpace:
+            - Added a spaceship operator (<=>) for aesthetic comparisons, which
+              also adds comparison operators (<, <=, >, >=) to this class.
+        Class LightweightSequence<T>:
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
         Class Link:
             - New routine makeAlternating().
             - New routine seifertCircles().
@@ -150,6 +254,14 @@ Version 7.4  [ (to be announced) ]
             - New variant of reverse() to reverse just one component of a
               multiple-component link.
             - New routine componentsByStrand().
+            - Regarding Reidemeister moves:
+              + The (check, perform) variants of r1(), r2() and r3() are
+                deprecated.  You should now use these routines _without_ extra
+                check/perform arguments: they will always check for and (if
+                possible) perform the relevant moves.
+              + New routines hasR1(), hasR2() and hasR3() for checking only.
+              + New read-only routines withR1(), withR2() and withR3() that (if
+                possible) return a new link with the relevant moves performed.
             - Extended knotSig(), rewrite() and simplifyExhaustive() to work
               with all link diagrams with fewer than 64 link components.
               It is now recommended to use sig() and fromSig() instead of
@@ -157,6 +269,8 @@ Version 7.4  [ (to be announced) ]
               scope of these routines.  The original names knotSig() and
               fromKnotSig() have been kept (and are _not_ deprecated).
             - Routine hasReducingPass() can now handle multiple-component links.
+            - Added a variant of translate() that takes crossings instead of
+              strand references.
             - Added an alias sig() for knotSig().
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
@@ -179,6 +293,10 @@ Version 7.4  [ (to be announced) ]
         Class LockViolation:
             - New exception class used when the user attempts to change a
               locked simplex or facet.
+        Class Manifold:
+            - Added a spaceship operator (<=>) for aesthetic comparisons.
+              This has the effect of implementing all comparison operators,
+              not just less-than (<) as before.
         Class Matrix<T>:
             - Added a copy constructor that takes a matrix whose elements are
               of a different type.
@@ -206,12 +324,40 @@ Version 7.4  [ (to be announced) ]
               in the regina:: namespace.
         Class NativeInteger<bytes>:
             - New routine str().
+            - Added a spaceship operator (<=>) for comparisons.
         Enum NiceType:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., NICE_INTRODUCE) have been
               renamed as scoped enum values (e.g., NiceType::INTRODUCE).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Enum NormalAlg, NormalAlgFlags:
+            - The individual flags now live inside NormalAlg, which is now a
+              scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., NS_VERTEX_DD) have been renamed as scoped
+              enum values (e.g., NormalAlg::VertexDD).  The old constants have
+              been kept as deprecated compile-time constants in the regina
+              namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<NormalAlg>, and this should all be happening
+              automatically behind the scenes.  NormalAlgFlags is now
+              just a deprecated alias for NormalAlg.
+        Enum NormalCoords:
+            - This is now a scoped enumeration, for better type safety.
+              The old enum constants (e.g., NS_STANDARD) have been
+              renamed as scoped enum values (e.g., NormalCoords::Standard).
+              The old names have been kept as deprecated compile-time constants
+              in the regina:: namespace.
+        Enum NormalList, NormalListFlags:
+            - The individual flags now live inside NormalList, which is now a
+              scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., NS_VERTEX) have been renamed as scoped enum
+              values (e.g., NormalList::Vertex).  The old constants have been
+              kept as deprecated compile-time constants in the regina namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<NormalList>, and this should all be happening
+              automatically behind the scenes.  NormalListFlags is now
+              just a deprecated alias for NormalList.
         Class NormalSurface, NormalHypersurface:
             - Fixed a bug where, if a surface was a normalised triangle link
               but not a thin triangle link, then calling isThinTriangleLink()
@@ -225,18 +371,35 @@ Version 7.4  [ (to be announced) ]
               return the entire surface as a single component.
             - The vector constructors are now templated, so that you can pass a
               vector of some type other than regina::LargeInteger.
-        Enum NormalCoords:
-            - This is now a scoped enumeration, for better type safety.
-              The old enum constants (e.g., NS_STANDARD) have been
-              renamed as scoped enum values (e.g., NormalCoords::Standard).
-              The old names have been kept as compile-time constants in the
-              regina:: namespace (and are _not_ deprecated for the time being).
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
+        Class NormalSurfaces, NormalHypersurfaces:
+            - The inner class VectorIterator no longer provides its
+              iterator-related type aliases (value_type, etc.) as members,
+              since these confused pybind11.  Instead you should access them
+              through the C++ standard iterator library (e.g., via
+              std::iterator_traits).  The old member type aliases have been
+              removed completely.
+        Enum NormalTransform:
+            - This is now a scoped enumeration, for better type safety.  The
+              old enum constants (e.g., NS_FILTER_DISJOINT) are now scoped
+              enum values (e.g., NormalTransform::FilterDisjoint).
+              The old names have been kept as deprecated compile-time constants
+              in the regina:: namespace.
         Class Packet:
             - Renamed ChangeEventSpan to PacketChangeSpan, to make it clear
               that this only matters for objects held by packets.  The old
               name is kept as a deprecated alias.
             - New inner type alias PacketChangeGroup, to assist with readability
               when using a ChangeEventSpan for optimisation purposes only.
+            - For Python users, added an alias makePacket() for make_packet().
+            - The inner classes ChildIterator and SubtreeIterator no longer
+              provides their iterator-related type aliases (value_type, etc.)
+              as members, since these confused pybind11.  Instead you should
+              access them through the C++ standard iterator library (e.g., via
+              std::iterator_traits).  The old member type aliases have been
+              removed completely.
         Class PacketData<Held>:
             - Renamed ChangeEventSpan to PacketChangeSpan, to make it clear
               that this only matters for objects held by packets.  The old
@@ -261,21 +424,62 @@ Version 7.4  [ (to be announced) ]
             - New class constant degree.
             - Added an alias Perm<6>::cachedOrder(), for consistency with the
               other permutation classes Perm<2..15>.
+            - Added a spaceship operator (<=>) for comparisons under the Sn
+              ordering.  This has the effect of implementing all comparison
+              operators, not just less-than (<) as before.
+            - Sn and orderedSn now use the new public type PermSn<...> (see
+              below), which now supports both iteration and array-like access.
+            - For n > m, Perm<n>::Sm and Perm<n>::orderedSm are now deprecated,
+              and they now use the new internal type PermSubSn<...> (see below).
+              Likewise, the constants Sn_1 and nPerms_1 are now deprecated.
+            - Classes Perm<2,3> now have a type alias Code2 (which is identical
+              to Code), to help with generic programming.
         Enum PermCodeType:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., PERM_CODE_IMAGES) have been
               renamed as scoped enum values (e.g., PermCodeType::Images).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Enum PermOrder:
+            - New enumeration to represent different ways of ordering
+              permutations.
+        Class PermSn<n, order>:
+            - New type to support Perm<n>::Sn and Perm<n>::orderedSn.  This is
+              now a public type, and it now supports both iteration and
+              array-like access.
+        Class PermSubSn<n, m>:
+            - New internal type to support Perm<n>::Sm where n > m.  This
+              supports array-like access only, not iteration.
+        Struct Unprotected:
+            - New C++-only type that allows in-built safety checks to be
+              disabled in some specific circumstances.
         Class Rational:
             - New function str().
+            - Added a spaceship operator (<=>) for comparisons.
         Class Rotation3D:
             - New class to support floating-point 3-D geometry.
         Class SatAnnulus:
             - Routine attachLST() now checks its preconditions, and throws
               an exception if they fail.
+        Class SatBlock:
+            - Added a spaceship operator (<=>) for ordering.
+              This has the effect of implementing all comparison operators,
+              not just less-than (<) as before.
         Class Segment3D:
             - New class to support floating-point 3-D geometry.
+        Struct SFSFibre:
+            - Added a spaceship operator (<=>) for comparisons.  This has the
+              effect of implementing all comparison operators, not just
+              less-than (<) as before.
+        Class SFSpace:
+            - Added a spaceship operator (<=>) for aesthetic comparisons.
+              This has the effect of implementing all comparison operators,
+              not just less-than (<) as before.
+            - SFSpace::ClassType has been renamed to SFSpace::Class, and is now
+              a scoped enumeration for better type safety.  The old enum
+              constants (e.g., SFSpace::o1) have been renamed as scoped enum
+              values (e.g., SFSpace::Class::o1).  The old names have been kept
+              as deprecated compile-time class constants of SFSpace.
         Class Simplex<dim>:
             - New routines lock(), lockFacet(), unlock(), unlockFacet(),
               unlockAll(), isLocked(), isFacetLocked(), and lockMask().
@@ -285,16 +489,46 @@ Version 7.4  [ (to be announced) ]
               if the file was created by some tool other than SnapPy).  The
               manifold will however be retriangulated (drilled and filled) upon
               creation since the SnapPea kernel requires an ideal triangulation.
+            - The class enumerations SolutionType, CoverEnumerationType and
+              CoverType have been renamed to Solution, CoverEnumeration and
+              Cover, and are now scoped enumerations for better type safety.
+              The old constants (e.g., SnapPeaTriangulation::geometric_solution)
+              have been renamed as scoped enum values (e.g.,
+              SnapPeaTriangulation::Solution::Geometric).  The old names have
+              been kept as deprecated compile-time class constants of
+              SnapPeaTriangulation.
         Class SpatialLink:
             - New packet class for specific embeddings of knots and links in
               the 3-sphere.  Currently this offers very limited features, but
               these should be expanded to become more useful over time.
+        Enum SurfaceExport, SurfaceExportFields:
+            - The individual flags now live inside SurfaceExport, which is now
+              a scoped enumeration for better type safety.  In paticular, the
+              enum constants (e.g., surfaceExportName) have been renamed
+              as scoped enum values (e.g., SurfaceExport::Name).  The old
+              constants have been kept as deprecated compile-time constants
+              in the regina namespace.
+            - Flags can still be combined bitwise; the resulting type is now
+              just Flags<SurfaceExport>, and this should all be happening
+              automatically behind the scenes.  SurfaceExportFields is now
+              just a deprecated alias for SurfaceExport.
         Enum SurfaceFilterType:
             - This is now a scoped enumeration, for better type safety.  The
               old enum constants (e.g., NS_FILTER_PROPERTIES) have been renamed
               as scoped enum values (e.g., SurfaceFilterType::Properties).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Class Tangle:
+            - Regarding Reidemeister moves:
+              + The (check, perform) variants of r1(), r2() are deprecated.
+                You should now use these routines _without_ extra check/perform
+                arguments: they will always check for and (if possible) perform
+                the relevant moves.
+              + New routines hasR1(), hasR2() for checking only.
+              + New read-only routines withR1() and withR2() that (if possible)
+                return a new link with the relevant moves performed.
+            - Added a variant of translate() that takes crossings instead of
+              strand references.
         Class TightEncodable<T>:
             - Now provides a hash() function also, based on the tight encoding.
         Class TopologyLockable, TopologyLock:
@@ -313,16 +547,53 @@ Version 7.4  [ (to be announced) ]
               renamed as scoped enum values (e.g., TreeDecompositionAlg::Upper).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Class Triangle<3>:
+            - Triangle<3>::Type is now a scoped enumeration, for better type
+              safety.  The old enum constants (e.g., Triangle<3>::CONE) are
+              now scoped enum values (e.g., Triangle<3>::Type::Cone).
+              The old names have been kept as deprecated compile-time class
+              constants of Triangle<3>.
         Class Triangulation<dim>:
             - New routines hasLocks(), lockBoundary(), and unlockAll(), to
               work with locked top-dimensional simplices and their facets.
             - New routine reorderBFS(), which essentially makes the old
               Triangulation<3>::reorderTetrahedraBFS() available in all
               dimensions.
+            - Regarding Pachner moves:
+              + The (check, perform) variant of pachner() is deprecated.
+                You should now call pachner() _without_ extra check/perform
+                arguments: the function will always check for and (if possible)
+                perform the relevant move.
+              + New routine hasPachner() for checking only.
+              + New read-only routine withPachner() that (if possible) returns
+                a new triangulation with the relevant move performed.
+            - Regarding 2-0 moves:
+              + These moves are now available for triangulations of all
+                dimensions, but only for facial dimensions ≤ max(2, dim-2).
+              + The (check, perform) function twoZeroMove() is deprecated.
+                You should now call move20() instead, which does _not_ take
+                extra check/perform arguments: move20() will always check for
+                and (if possible) perform the relevant move.
+              + New routine has20() for checking only.
+              + New read-only routine with20() that (if possible) returns
+                a new triangulation with the relevant move performed.
+            - Regarding boundary shelling moves:
+              + These moves are now available for triangulations of all
+                _standard_ dimensions (2, 3 and 4).
+              + The (check, perform) variant of shellBoundary() is deprecated.
+                You should now call shellBoundary() _without_ extra
+                check/perform arguments: the function will always check for
+                and (if possible) perform the relevant move.
+              + New routine hasShellBoundary() for checking only.
+              + New read-only routine withShellBoundary() that (if possible)
+                returns a new triangulation with the relevant move performed.
             - New routine randomiseLabelling().
             - New routine hash(), which uses the tight encoding.
             - New routines dot() and writeDot().
             - New alias sig(), which is is identical to isoSig().
+            - Extended translate() to support top-dimensional simplices (not
+              just lower-dimensional faces), and added a variant of translate()
+              that takes face embeddings instead of faces.
             - Renamed dumpConstruction() to source(), and extended it to produce
               either C++ and Python code via an optional language argument.
               The old C++-only dumpConstruction() is kept but deprecated.
@@ -338,17 +609,22 @@ Version 7.4  [ (to be announced) ]
               The old name is deprecated but kept for backwards compatibility.
             - Overhaul of the internal change span classes, including a new
               inner class ChangeAndClearSpan.
-        Class Triangulation<2>:
-            - New routine twoZeroMove().
         Class Triangulation<3>:
+            - New routines has44(), has21(), has02(), hasOpenBook(),
+              hasCloseBook(), hasCollapseEdge().
+            - New routines with44(), with21(), with02(), withOpenBook(),
+              withCloseBook(), withCollapseEdge().
+            - New routines isOneEfficient() and knowsOneEfficient().  For now,
+              1-efficiency testing is only available for ideal triangulations.
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
             - Routine puncture() now takes an optional triangle, not an
               optional tetrahedron.  The old version is kept but deprecated.
             - Routine insertLayeredSolidTorus() is now non-recursive, and
               throws an exception if its preconditions fail.
-            - Routines layerOn(), pinchEdge() and puncture() now throw an
-              exception if their preconditions fail.
+            - Routines layerOn(), pinchEdge(), puncture(), turaevViro() and
+              turaevViroApprox() now throw an exception if their preconditions
+              fail.
             - Routine reorderTetrahedraBFS() is now a deprecated alias for
               reorderBFS() (which is available in all dimensions).
             - Routine idealToFinite() no longer subdivides the triangulation
@@ -375,6 +651,10 @@ Version 7.4  [ (to be announced) ]
               triangulation happens on the calling thread.
         Class Triangulation<4>:
             - New routine simplifyUpDown(); thanks to Rhuaidi Burke.
+            - New routines has44(), hasOpenBook(), hasCollapseEdge(),
+              hasSnapEdge().
+            - New routines with44(), withOpenBook(), withCollapseEdge(),
+              withSnapEdge().
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
             - Routines retriangulate() and simplifyExhaustive() no longer
@@ -388,6 +668,22 @@ Version 7.4  [ (to be announced) ]
             - New routine hash(), which uses the tight encoding.
         Class Vector3D:
             - New class to support floating-point 3-D geometry.
+        Class Vertex<3>:
+            - Vertex<3>::LinkType has been renamed to Vertex<3>::Link, and is
+              now a scoped enumeration for better type safety.  The old enum
+              constants (e.g., Vertex<3>::SPHERE) have been renamed as scoped
+              enum values (e.g., Vertex<3>::Link::Sphere).  The old names have
+              been kept as deprecated compile-time class constants of Vertex<3>.
+        Function binomMedium():
+            - Now supports arguments n ≤ 61 (not n ≤ 29), and uses a return
+              type large enough to support this (i.e., at least 64 bits).
+            - Now supports k < 0 or k > n (returning 0 as expected).
+            - Now throws an exception if n is outside the allowed range.
+        Function binomSmall():
+            - This is now consteval, which means it cannot be called at
+              runtime.  As a result, Python users can no longer use this
+              function at all: if you are in Python you should call
+              binomMedium() instead.
         Function columnEchelonForm():
             - Cleaned up and relaxed the preconditions.
             - Now checks its preconditions and throws an exception if they fail.
@@ -410,6 +706,12 @@ Version 7.4  [ (to be announced) ]
             - Now checks its preconditions and throws an exception if they fail.
         Function rowBasisAndOrthComp():
             - Now checks its preconditions and throws an exception if they fail.
+        Functions simpler(), simplerThreeWay():
+            - The old simpler() functions that compare 2x2 matrices are now
+              deprecated (both the 2-argument and the 4-argument variants).
+            - To replace them, there are new simplerThreeWay() functions that
+              return a std::strong_ordering instead of a bool (likewise with
+              both 2-argument and 4-argument variants).
         Function torsionAutInverse():
             - Now checks some of its preconditions and throws an exception
               if they fail.
@@ -420,8 +722,14 @@ Version 7.4  [ (to be announced) ]
         Constants is_cpp_integer_v<T>, is_unsigned_cpp_integer_v<T>:
             - New alternatives to using std::is_integeral_v<T> and
               std::is_unsigned_v<T> that allow for 128-bit integers also.
+        Global array quadString:
+            - These are now C++-style strings (std::string), not C-style
+              strings (array of char).  For newer compilers, they are still
+              inline constexpr, but for older compilers that do not support
+              constexpr strings they are instead declared as inline const.
     PYTHON:
-        - Updated the included pybind11 library from 2.10.0 to 2.10.4.
+        - Updated the included pybind11 library from 2.10.0 to 2.13.6.
+          This drops support for Python 3.6.
         - Improved the speed of iteration (specifically, throwing/catching
           StopIteration exceptions).
         - Rich flag types based on regina::Flags<...> (such as NormalAlg,

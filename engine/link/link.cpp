@@ -338,12 +338,12 @@ std::vector<Link> Link::diagramComponents() const {
 
     // Now distribute crossings, which will change their indices and make our
     // comp[] array useless.
-    for (auto i = 0; i < n; ++i)
+    for (size_t i = 0; i < n; ++i)
         ans[comp[i]].crossings_.push_back(clone.crossings_[i]);
     clone.crossings_.clear();
 
     // Finally add the trivial (0-crossing) diagram components.
-    for (auto i = 0; i < nTrivial; ++i)
+    for (size_t i = 0; i < nTrivial; ++i)
         ans[nComp + i].components_.emplace_back();
 
     return ans;
@@ -612,7 +612,7 @@ bool Link::selfFrame() {
     //
     // We arbitrarily decide to put all twists on the left.
     //
-    // We do not check r1 moves for validity, since these are always legal.
+    // Note: the r1 moves we use are always legal.
     //
     // We are safe to iterate through components_ while we add our twists,
     // since r1 does not change the components_ array and does not invalidate
@@ -624,13 +624,13 @@ bool Link::selfFrame() {
         if (w > 0) {
             changed = true;
             do {
-                r1(c, 0 /* left */, -1, false, true);
+                r1(c, 0 /* left */, -1);
                 --w;
             } while (w != 0);
         } else if (w < 0) {
             changed = true;
             do {
-                r1(c, 0 /* left */, 1, false, true);
+                r1(c, 0 /* left */, 1);
                 ++w;
             } while (w != 0);
         }

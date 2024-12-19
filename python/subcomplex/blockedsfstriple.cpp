@@ -30,8 +30,8 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "subcomplex/blockedsfstriple.h"
 #include "subcomplex/satregion.h"
 #include "triangulation/dim3.h"
@@ -57,7 +57,7 @@ void addBlockedSFSTriple(pybind11::module_& m) {
         .def_static("recognise", &BlockedSFSTriple::recognise, rdoc::recognise)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<BlockedSFSTriple>(m, rdoc::global_swap);
 

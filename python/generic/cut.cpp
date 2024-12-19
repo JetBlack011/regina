@@ -30,9 +30,9 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
-#include "../pybind11/operators.h"
-#include "../pybind11/stl.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/operators.h>
+#include <pybind11/stl.h>
 #include "regina-config.h" // for REGINA_HIGHDIM
 #include "triangulation/cut.h"
 #include "triangulation/dim2.h"
@@ -220,7 +220,7 @@ void addCut(pybind11::module_& m) {
         .def("incFixedSizes", &Cut::incFixedSizes, rdoc::incFixedSizes)
     ;
     regina::python::add_output(c);
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Cut>(m, rdoc::global_swap);
 

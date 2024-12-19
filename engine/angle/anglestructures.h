@@ -117,7 +117,7 @@ class AngleStructures :
                  This is an option selected by the user before enumeration
                  takes place. */
 
-        AngleAlg algorithm_;
+        Flags<AngleAlg> algorithm_;
             /**< Stores the details of the enumeration algorithm that was used
                  to generate this list.  This might not be the same as the
                  \a algHints flag that was originally passed to the class
@@ -147,12 +147,12 @@ class AngleStructures :
          * the taut angle structures (a subset of the vertex angle structures);
          * these are usually much faster to enumerate.
          *
-         * The AngleAlg argument is a combination of flags that allows
+         * The \a algHints argument is a combination of flags that allows
          * you to control the underlying enumeration algorithm.  These
          * flags are treated as hints only: if your selection of
          * algorithm is invalid, unavailable or unsupported then Regina
          * will choose something more appropriate.  Unless you have
-         * some specialised need, the default AS_ALG_DEFAULT (which
+         * some specialised need, the default AngleAlg::Default (which
          * makes no hints at all) will allow Regina to choose what it
          * thinks will be the most efficient method.
          *
@@ -189,7 +189,8 @@ class AngleStructures :
          * be reported, or \c null if no progress reporting is required.
          */
         AngleStructures(const Triangulation<3>& triangulation,
-            bool tautOnly = false, AngleAlg algHints = AS_ALG_DEFAULT,
+            bool tautOnly = false,
+            Flags<AngleAlg> algHints = AngleAlg::Default,
             ProgressTracker* tracker = nullptr);
 
         /**
@@ -297,7 +298,7 @@ class AngleStructures :
          * Returns details of the algorithm that was used to enumerate
          * this list.
          *
-         * These may not be the same AngleAlg flags that were passed to
+         * These may not be the same algorithm flags that were passed to
          * the class constructor.  In particular, default values will have been
          * explicitly filled in, invalid and/or redundant values will have
          * been removed, and unavailable and/or unsupported combinations
@@ -306,7 +307,7 @@ class AngleStructures :
          *
          * \return details of the algorithm used to enumerate this list.
          */
-        AngleAlg algorithm() const;
+        Flags<AngleAlg> algorithm() const;
 
         /**
          * Returns the number of angle structures stored in this list.
@@ -450,33 +451,6 @@ class AngleStructures :
         bool operator == (const AngleStructures& other) const;
 
         /**
-         * Determines whether this and the given list contain different
-         * sets of angle structures.
-         *
-         * The lists will be compared as multisets: the order of the angle
-         * structures in each list does not matter; however, in the unusual
-         * scenario where a list the same angle structure multiple times,
-         * multiplicity does matter.
-         *
-         * Like the comparison operators for AngleStructure, it does not
-         * matter whether the two lists work with different triangulations:
-         *
-         * - If the two triangulations have the same size, then this routine
-         *   will compare angle structures as though they were transplanted
-         *   into the same triangulation using the same tetrahedron numbering
-         *   and the same angle coordinates.
-         *
-         * - If the two triangulations have different sizes, then this
-         *   comparison will return \c true (i.e., the lists will be
-         *   considered different).
-         *
-         * \param other the list to be compared with this list.
-         * \return \c true if both lists do not represent the same multiset of
-         * angle structures, or \c false if they do.
-         */
-        bool operator != (const AngleStructures& other) const;
-
-        /**
          * Writes a short text representation of this object to the
          * given output stream.
          *
@@ -529,7 +503,7 @@ class AngleStructures :
          * \param triangulation the triangulation on which the angle
          * structures will lie.
          */
-        AngleStructures(bool tautOnly, AngleAlg algHints,
+        AngleStructures(bool tautOnly, Flags<AngleAlg> algHints,
             const Triangulation<3>& triangulation);
 
         /**
@@ -606,7 +580,7 @@ MatrixInt makeAngleEquations(const Triangulation<3>& tri);
 // Inline functions for AngleStructures
 
 inline AngleStructures::AngleStructures(const Triangulation<3>& triangulation,
-        bool tautOnly, AngleAlg algHints, ProgressTracker* tracker) :
+        bool tautOnly, Flags<AngleAlg> algHints, ProgressTracker* tracker) :
         triangulation_(triangulation), tautOnly_(tautOnly),
         algorithm_(algHints) {
     enumerateInternal(tracker, nullptr);
@@ -651,7 +625,7 @@ inline bool AngleStructures::isTautOnly() const {
     return tautOnly_;
 }
 
-inline AngleAlg AngleStructures::algorithm() const {
+inline Flags<AngleAlg> AngleStructures::algorithm() const {
     return algorithm_;
 }
 
@@ -687,17 +661,13 @@ inline bool AngleStructures::spansTaut() const {
     return *doesSpanTaut_;
 }
 
-inline bool AngleStructures::operator != (const AngleStructures& other) const {
-    return ! ((*this) == other);
-}
-
 template <typename Comparison>
 inline void AngleStructures::sort(Comparison&& comp) {
     PacketChangeSpan span(*this);
     std::stable_sort(structures_.begin(), structures_.end(), comp);
 }
 
-inline AngleStructures::AngleStructures(bool tautOnly, AngleAlg algHints,
+inline AngleStructures::AngleStructures(bool tautOnly, Flags<AngleAlg> algHints,
         const Triangulation<3>& triangulation) :
         triangulation_(triangulation), tautOnly_(tautOnly),
         algorithm_(algHints) {

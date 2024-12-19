@@ -60,7 +60,7 @@ esac
 # For the include path, we grab the pre-rolled macOS config file.
 # The choice of config file shouldn't actually affect the docstrings.
 export PYTHONPATH=".:$PYTHONPATH"
-export CPP_INCLUDE_DIRS="../../engine ../../preconfig/macos"
+export CPP_INCLUDE_DIRS="../../engine ../../preconfig/macos .."
 
 for dir in $dirs; do
   case "$dir" in
@@ -78,16 +78,16 @@ for dir in $dirs; do
   fi
 
   if [ "$dir" = python ]; then
-    "$PYTHON" ./mkdoc.py -std=c++17 \
+    "$PYTHON" ./mkdoc.py -std=c++20 \
       -o python/equality.h "../helpers/equality.h"
   else
     if [ "$dir" = core ]; then
-      "$PYTHON" ./mkdoc.py -std=c++17 \
+      "$PYTHON" ./mkdoc.py -std=c++20 \
         -o core/regina-core.h "../../engine/regina-core.h"
     elif [ "$dir" = maths ]; then
       for i in ../../engine/"$dir"/spec/*.h; do
         header=`basename "$i"`
-        "$PYTHON" ./mkdoc.py -std=c++17 \
+        "$PYTHON" ./mkdoc.py -std=c++20 \
           -o "$dir/$header" ../../engine/"$dir/spec/$header"
       done
     elif [ "$dir" = triangulation ]; then
@@ -98,7 +98,7 @@ for dir in $dirs; do
             *-impl.h ) ;;
             detail/retriangulate.h ) ;;
             * )
-              "$PYTHON" ./mkdoc.py -std=c++17 \
+              "$PYTHON" ./mkdoc.py -std=c++20 \
                 -o "$dir/$sub/$header" ../../engine/"$dir/$sub/$header"
               ;;
           esac
@@ -125,7 +125,7 @@ for dir in $dirs; do
         utilities/typeutils.h ) ;;
         utilities/zstr.h ) ;;
         * )
-          "$PYTHON" ./mkdoc.py -std=c++17 \
+          "$PYTHON" ./mkdoc.py -std=c++20 \
             -o "$dir/$header" ../../engine/"$dir/$header"
           ;;
       esac

@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "subcomplex/txicore.h"
 #include "../helpers.h"
 #include "../docstrings/subcomplex/txicore.h"
@@ -57,7 +57,7 @@ void addTxICore(pybind11::module_& m) {
     ;
     // Leave the output routines for subclasses to wrap, since __repr__
     // will include the (derived) class name.
-    regina::python::add_eq_operators(c, rdoc::__eq, rdoc::__ne);
+    regina::python::add_eq_operators(c, rdoc::__eq);
 
     RDOC_SCOPE_SWITCH(TxIDiagonalCore)
 

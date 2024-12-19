@@ -52,6 +52,21 @@ some extra functionality but not as much as Perm<5> and below. For *n*
 ≥ 8, this template is generic and most operations require more time
 (in particular, there are no harded-coded lookup tables).
 
+You can iterate through all permutations using a range-based ``for``
+loop over `Perm<n>::Sn`:
+
+```
+for (auto p : Perm<n>::Sn) { ... }
+```
+
+For the optimised permutation classes *n* ≤ 7, this iteration will be
+extremely fast in both C++ and Python. For the larger permutation
+classes *n* ≥ 8, this will still be reasonably fast in C++ (since it
+uses the increment operator internally), but it will be slower in
+Python (since it reconstructs ``Sn[i]`` for each integer *i*). If you
+are in Python and you need to iterate over all permutations for *n* ≥
+8, you may wish to implement a loop using ``Perm<n>.inc()``.
+
 Python:
     Python does not support templates. For each *n* = 2,...,16, this
     class is available in Python under the corresponding name Perm2,
@@ -100,6 +115,14 @@ used in Regina's various Perm<n> template classes. See the Perm<n>
 class notes for more information on exactly how these codes are
 constructed. The class constant Perm<n>::codeType indicates which type
 of code is used for which *n*.)doc";
+
+// Docstring regina::python::doc::PermOrder
+static const char *PermOrder =
+R"doc(Represents different ways in which permutations on *n* objects can be
+ordered.
+
+In all of these orderings, it is guaranteed that the identity
+permutation comes first.)doc";
 
 // Docstring regina::python::doc::digit
 static const char *digit =
@@ -195,20 +218,6 @@ Python:
 
 Returns:
     a copy of this conjugacy class before the increment took place.)doc";
-
-// Docstring regina::python::doc::PermClass_::__ne
-static const char *__ne =
-R"doc(Determines whether this and the given object describe different
-conjugacy classes.
-
-Two past-the-end conjugacy classes will be treated as equal.
-
-Parameter ``other``:
-    the conjugacy class to compare with this.
-
-Returns:
-    ``True`` if and only if this and the given conjugacy class are
-    different.)doc";
 
 // Docstring regina::python::doc::PermClass_::countCycles
 static const char *countCycles =
@@ -313,10 +322,40 @@ permutations can be recreated from them by indexing into Perm<n>::Sn.
 
 }
 
-namespace Perm_ {
+namespace PermOrder_ {
 
-// Docstring regina::python::doc::Perm_::OrderedSnLookup
-static const char *OrderedSnLookup = R"doc(A lightweight array-like object used to implement Perm<n>::orderedSn.)doc";
+// Docstring regina::python::doc::PermOrder_::Lex
+static const char *Lex =
+R"doc(Indicates that permutations should be ordered lexicographically,
+beginning with the identity permutation.
+
+Specifically, we order permutations lexicographically according to the
+sequence of images ``p[0],p[1],...,p[n-1]`` (where *p* denotes an
+arbitrary permutation on *n* objects).
+
+PermOrder::Lex is the ordering used by ``Perm<n>::orderedSn``.)doc";
+
+// Docstring regina::python::doc::PermOrder_::Sign
+static const char *Sign =
+R"doc(Indicates that permutations should be ordered by sign, beginning with
+the identity permutation and then alternating between even and odd
+permutations.
+
+In particular, if we assign each permutation an index according to
+this ordering, then the identity will have index 0, all even
+permutations will have even indices, and all odd permutations will
+have odd indices.
+
+More specifically: for each *i*, the permutations at indices ``2i``
+and ``2i+1`` will be the same under both ordering methods *Sign* and
+*Lex*, but they might be swapped to ensure the correct signs and/or
+lexicographical ordering.
+
+PermOrder::Sign is the ordering used by ``Perm<n>::Sn``.)doc";
+
+}
+
+namespace Perm_ {
 
 // Docstring regina::python::doc::Perm_::SnIndex
 static const char *SnIndex =
@@ -327,9 +366,6 @@ See Sn for further information on how these permutations are indexed.
 Returns:
     the index *i* for which this permutation is equal to
     Perm<n>::Sn[i]. This will be between 0 and *n*!-1 inclusive.)doc";
-
-// Docstring regina::python::doc::Perm_::SnLookup
-static const char *SnLookup = R"doc(A lightweight array-like object used to implement Perm<n>::Sn.)doc";
 
 // Docstring regina::python::doc::Perm_::__array
 static const char *__array =
@@ -342,6 +378,38 @@ Parameter ``source``:
 Returns:
     the image of *source*.)doc";
 
+// Docstring regina::python::doc::Perm_::__cmp
+static const char *__cmp =
+R"doc(Compares two permutations according to which appears earlier in the
+array Perm<n>::Sn.
+
+Note that this is _not_ the same ordering of permutations as the
+ordering implied by compareWith(). This ordering is, however,
+consistent with the ordering implied by the ++ operators.
+
+Unlike the smaller permutation classes that use *Sn* indices as
+internal permutation codes, for this generic Perm class the ordering
+defined here is _slower_ to compute than compareWith(). It is
+recommended that, unless you specifically need to align your ordering
+with *Sn* indices, you either (i) use compareWith() for
+lexicographical ordering (which is a little faster), or else (ii) just
+compare permutation codes if you are happy with an arbitrary ordering
+(which will be _much_ faster).
+
+This generates all of the usual comparison operators, including ``<``,
+``<=``, ``>``, and ``>=``.
+
+Python:
+    This spaceship operator ``x <=> y`` is not available, but the
+    other comparison operators that it generates _are_ available.
+
+Parameter ``rhs``:
+    the permutation to compare this with.
+
+Returns:
+    The result that indicates which permutation appears earlier in
+    *Sn*.)doc";
+
 // Docstring regina::python::doc::Perm_::__copy
 static const char *__copy = R"doc(Creates a permutation that is a clone of the given permutation.)doc";
 
@@ -353,9 +421,6 @@ static const char *__eq =
 R"doc(Determines if this is equal to the given permutation. This is true if
 and only if both permutations have the same images for all 0 ≤ *i* <
 *n*.
-
-Parameter ``other``:
-    the permutation with which to compare this.
 
 Returns:
     ``True`` if and only if this and the given permutation are equal.)doc";
@@ -399,30 +464,6 @@ Precondition:
 Parameter ``image``:
     the array of images.)doc";
 
-// Docstring regina::python::doc::Perm_::__lt
-static const char *__lt =
-R"doc(Determines if this appears earlier than the given permutation in the
-array Perm<n>::Sn.
-
-Note that this is _not_ the same ordering of permutations as the
-ordering implied by compareWith(). This is, however, consistent with
-the ordering implied by the ++ operators.
-
-Unlike the smaller permutation classes that use *Sn* indices as
-internal permutation codes, for this generic Perm class the ordering
-defined here is _slower_ to compute than compareWith(). It is
-recommended that, unless you specifically need to align your ordering
-with *Sn* indices, you either (i) use compareWith() for
-lexicographical ordering (which is a little faster), or else (ii) just
-compare permutation codes if you are happy with an arbitrary ordering
-(which will be _much_ faster).
-
-Parameter ``rhs``:
-    the permutation to compare this against.
-
-Returns:
-    ``True`` if and only if this appears before *rhs* in *Sn*.)doc";
-
 // Docstring regina::python::doc::Perm_::__mul
 static const char *__mul =
 R"doc(Returns the composition of this permutation with the given
@@ -434,18 +475,6 @@ Parameter ``q``:
 
 Returns:
     the composition of both permutations.)doc";
-
-// Docstring regina::python::doc::Perm_::__ne
-static const char *__ne =
-R"doc(Determines if this differs from the given permutation. This is true if
-and only if the two permutations have different images for some 0 ≤
-*i* < *n*.
-
-Parameter ``other``:
-    the permutation with which to compare this.
-
-Returns:
-    ``True`` if and only if this and the given permutation differ.)doc";
 
 // Docstring regina::python::doc::Perm_::cachedComp
 static const char *cachedComp =
@@ -1075,58 +1104,6 @@ Parameter ``len``:
 Returns:
     the corresponding prefix of the string representation of this
     permutation.)doc";
-
-}
-
-namespace Perm_::OrderedSnLookup_ {
-
-// Docstring regina::python::doc::Perm_::OrderedSnLookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array orderedSn. See
-Perm<n>::orderedSn for details.
-
-For *n* ≤ 7, this operator is very fast (and constant time). However,
-for *n* ≥ 8 it is not constant time; the current implementation is
-quadratic in *n*.
-
-Parameter ``index``:
-    an index between 0 and *n*!-1 inclusive.
-
-Returns:
-    the corresponding permutation in orderedSn.)doc";
-
-// Docstring regina::python::doc::Perm_::OrderedSnLookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array orderedSn.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::SnLookup_ {
-
-// Docstring regina::python::doc::Perm_::SnLookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array Sn. See
-Perm<n>::Sn for details.
-
-For *n* ≤ 7, this operator is very fast (and constant time). However,
-for *n* ≥ 8 it is not constant time; the current implementation is
-quadratic in *n*.
-
-Parameter ``index``:
-    an index between 0 and *n*!-1 inclusive.
-
-Returns:
-    the corresponding permutation in Sn.)doc";
-
-// Docstring regina::python::doc::Perm_::SnLookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array Sn.
-
-Returns:
-    the size of this array.)doc";
 
 }
 

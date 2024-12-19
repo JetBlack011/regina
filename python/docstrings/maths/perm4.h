@@ -41,7 +41,7 @@ changed as of Regina 4.6.1:
 
 * _Second-generation_ codes are used internally in Regina 4.6.1 and
   above. These codes are integers between 0 and 23 inclusive,
-  representing the index of the permutation in the array Perm<4>::S4.
+  representing the index of the permutation in the array Perm<4>::Sn.
   The routines permCode2(), setPermCode2(), fromPermCode2() and
   isPermCode2() work with second-generation codes.
 
@@ -50,6 +50,20 @@ codes at all, you use second-generation codes where possible. This is
 because the first-generation routines incur additional overhead in
 converting back and forth between the second-generation codes (which
 are used internally by Perm<4>).
+
+You can iterate through all permutations using a range-based ``for``
+loop over *Sn*, and this will be extremely fast in both C++ and
+Python:
+
+```
+for (auto p : Perm<4>::Sn) { ... }
+```
+
+This behaviour does not generalise to the large permutation classes
+Perm<n> with *n* ≥ 8, which are not as tightly optimised: such range-
+based ``for`` loops are still supported for *n* ≥ 8 but will be
+significantly slower in Python than in C++. See the generic Perm class
+notes for further details.
 
 To use this class, simply include the main permutation header
 maths/perm.h.
@@ -60,21 +74,9 @@ Python:
 
 namespace Perm_ {
 
-// Docstring regina::python::doc::Perm_::OrderedS3Lookup
-static const char *OrderedS3Lookup = R"doc(A lightweight array-like object used to implement Perm<4>::orderedS3.)doc";
-
-// Docstring regina::python::doc::Perm_::OrderedS4Lookup
-static const char *OrderedS4Lookup = R"doc(A lightweight array-like object used to implement Perm<4>::orderedS4.)doc";
-
-// Docstring regina::python::doc::Perm_::S2Lookup
-static const char *S2Lookup = R"doc(A lightweight array-like object used to implement Perm<4>::S2.)doc";
-
-// Docstring regina::python::doc::Perm_::S3Lookup
-static const char *S3Lookup = R"doc(A lightweight array-like object used to implement Perm<4>::S3.)doc";
-
 // Docstring regina::python::doc::Perm_::S4Index
 static const char *S4Index =
-R"doc(Returns the index of this permutation in the Perm<4>::S4 array.
+R"doc(Returns the index of this permutation in the Perm<4>::Sn array.
 
 This is a dimension-specific alias for SnIndex(). In general, for
 every *n* there will be a member function Perm<n>::SnIndex(); however,
@@ -85,10 +87,7 @@ See Sn for further information on how these permutations are indexed.
 
 Returns:
     the index *i* for which this permutation is equal to
-    Perm<4>::S4[i]. This will be between 0 and 23 inclusive.)doc";
-
-// Docstring regina::python::doc::Perm_::S4Lookup
-static const char *S4Lookup = R"doc(A lightweight array-like object used to implement Perm<4>::S4.)doc";
+    Perm<4>::Sn[i]. This will be between 0 and 23 inclusive.)doc";
 
 // Docstring regina::python::doc::Perm_::SnIndex
 static const char *SnIndex =
@@ -111,6 +110,27 @@ Parameter ``source``:
 Returns:
     the image of *source*.)doc";
 
+// Docstring regina::python::doc::Perm_::__cmp
+static const char *__cmp =
+R"doc(Compares two permutations according to which appears earlier in the
+array Perm<4>::Sn.
+
+Note that this is _not_ the same ordering of permutations as the
+ordering implied by compareWith(). This ordering is, however,
+consistent with the ordering implied by the ++ operators, and this
+ordering is also faster to compute than compareWith().
+
+This generates all of the usual comparison operators, including ``<``,
+``<=``, ``>``, and ``>=``.
+
+Python:
+    This spaceship operator ``x <=> y`` is not available, but the
+    other comparison operators that it generates _are_ available.
+
+Returns:
+    The result that indicates which permutation appears earlier in
+    *Sn*.)doc";
+
 // Docstring regina::python::doc::Perm_::__copy
 static const char *__copy =
 R"doc(Creates a permutation that is a clone of the given permutation.
@@ -125,9 +145,6 @@ static const char *__default = R"doc(Creates the identity permutation.)doc";
 static const char *__eq =
 R"doc(Determines if this is equal to the given permutation. This is true if
 and only if both permutations have the same images for 0, 1, 2 and 3.
-
-Parameter ``other``:
-    the permutation with which to compare this.
 
 Returns:
     ``True`` if and only if this and the given permutation are equal.)doc";
@@ -223,22 +240,6 @@ Parameter ``c1``:
 Parameter ``d1``:
     the desired image of *d0*.)doc";
 
-// Docstring regina::python::doc::Perm_::__lt
-static const char *__lt =
-R"doc(Determines if this appears earlier than the given permutation in the
-array Perm<4>::Sn.
-
-Note that this is _not_ the same ordering of permutations as the
-ordering implied by compareWith(). This is, however, consistent with
-the ordering implied by the ++ operators, and this order is also
-faster to compute than compareWith().
-
-Parameter ``rhs``:
-    the permutation to compare this against.
-
-Returns:
-    ``True`` if and only if this appears before *rhs* in *Sn*.)doc";
-
 // Docstring regina::python::doc::Perm_::__mul
 static const char *__mul =
 R"doc(Returns the composition of this permutation with the given
@@ -250,18 +251,6 @@ Parameter ``q``:
 
 Returns:
     the composition of both permutations.)doc";
-
-// Docstring regina::python::doc::Perm_::__ne
-static const char *__ne =
-R"doc(Determines if this differs from the given permutation. This is true if
-and only if the two permutations have different images for at least
-one of 0, 1, 2 or 3.
-
-Parameter ``other``:
-    the permutation with which to compare this.
-
-Returns:
-    ``True`` if and only if this and the given permutation differ.)doc";
 
 // Docstring regina::python::doc::Perm_::cachedComp
 static const char *cachedComp =
@@ -985,126 +974,6 @@ have length three.
 
 Returns:
     a truncated string representation of this permutation.)doc";
-
-}
-
-namespace Perm_::OrderedS3Lookup_ {
-
-// Docstring regina::python::doc::Perm_::OrderedS3Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array orderedS3. See
-Perm<4>::orderedS3 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 5 inclusive.
-
-Returns:
-    the corresponding permutation in orderedS3.)doc";
-
-// Docstring regina::python::doc::Perm_::OrderedS3Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array orderedS3.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::OrderedS4Lookup_ {
-
-// Docstring regina::python::doc::Perm_::OrderedS4Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array orderedS4. See
-Perm<4>::orderedS4 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 23 inclusive.
-
-Returns:
-    the corresponding permutation in orderedS4.)doc";
-
-// Docstring regina::python::doc::Perm_::OrderedS4Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array orderedS4.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::S2Lookup_ {
-
-// Docstring regina::python::doc::Perm_::S2Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array S2. See
-Perm<4>::S2 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 1 inclusive.
-
-Returns:
-    the corresponding permutation in S2.)doc";
-
-// Docstring regina::python::doc::Perm_::S2Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array S2.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::S3Lookup_ {
-
-// Docstring regina::python::doc::Perm_::S3Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array S3. See
-Perm<4>::S3 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 5 inclusive.
-
-Returns:
-    the corresponding permutation in S3.)doc";
-
-// Docstring regina::python::doc::Perm_::S3Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array S3.
-
-Returns:
-    the size of this array.)doc";
-
-}
-
-namespace Perm_::S4Lookup_ {
-
-// Docstring regina::python::doc::Perm_::S4Lookup_::__array
-static const char *__array =
-R"doc(Returns the permutation at the given index in the array S4. See
-Perm<4>::S4 for details.
-
-This operation is extremely fast (and constant time).
-
-Parameter ``index``:
-    an index between 0 and 23 inclusive.
-
-Returns:
-    the corresponding permutation in S4.)doc";
-
-// Docstring regina::python::doc::Perm_::S4Lookup_::size
-static const char *size =
-R"doc(Returns the number of permutations in the array S4.
-
-Returns:
-    the size of this array.)doc";
 
 }
 

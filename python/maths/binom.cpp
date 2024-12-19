@@ -30,7 +30,7 @@
  *                                                                        *
  **************************************************************************/
 
-#include "../pybind11/pybind11.h"
+#include <pybind11/pybind11.h>
 #include "maths/binom.h"
 #include "../helpers/docstrings.h"
 #include "../docstrings/maths/binom.h"
@@ -38,7 +38,6 @@
 void addBinom(pybind11::module_& m) {
     RDOC_SCOPE_BEGIN_MAIN
 
-    m.def("binomSmall", regina::binomSmall, rdoc::binomSmall);
     m.def("binomMedium", regina::binomMedium, rdoc::binomMedium);
 
     RDOC_SCOPE_END

@@ -97,18 +97,18 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * Represents different contexts in which a member function might try
          * to simplify a triangulation.
          */
-        enum SimplifyContext {
+        enum class SimplifyContext {
             /**
              * Indicates that we want to use all available techniques to
              * simplify the triangulation as much as possible.
              */
-            simplifyBest,
+            Best,
             /**
              * Indicates that we are within a "down" sequence of
              * simplifyUpDown().  Only 2-0 edge moves, 2-0 triangle moves and
              * 3-3 moves will be considered.
              */
-            simplifyUpDownDescent
+            UpDownDescent
         };
 
         long vertexLinkSummary_ { -1 };
@@ -876,163 +876,6 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
             Action&& action, Args&&... args) const;
 
         /**
-         * Checks the eligibility of and/or performs a 2-0 move about the given
-         * triangle of degree 2.  This involves taking the two pentachora
-         * joined at that triangle and squashing them flat.
-         *
-         * The eligibility requirements for this move are somewhat
-         * involved, and are discussed in detail in the source code for
-         * those who are interested.
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<4>::lock()
-         * and Simplex<4>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (tetrahedra, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a f)
-         * can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run,
-         * it must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given triangle is a triangle of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<4>::lock() and
-         * Simplex<4>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param t the triangle about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool twoZeroMove(Triangle<4>* t, bool check = true,
-            bool perform = true);
-        /**
-         * Checks the eligibility of and/or performs a 2-0 move about the
-         * given edge of degree 2.  This involves taking the two pentachora
-         * joined at that edge and squashing them flat.  This can be done if:
-         *
-         * - the edge is valid and non-boundary and has a 2-sphere edge link;
-         *
-         * - the two pentachora are distinct;
-         *
-         * - the triangles opposite \a e in each pentachoron are
-         *   distinct and not both boundary;
-         *
-         * - if facets \a f1 and \a f2 of one pentachoron are to be
-         *   flattened onto facets \a g1 and \a g2 of the other
-         *   respectively, then
-         *   (a) \a f1 and \a g1 are distinct,
-         *   (b) \a f2 and \a g2 are distinct,
-         *   (c) we do not have both \a f1 = \a g2 and \a g1 = \a f2,
-         *   (d) we do not have both \a f1 = \a f2 and \a g1 = \a g2, and
-         *   (e) we do not have two of the facets boundary and the other
-         *   two identified;
-         *
-         * - the two pentachora meet each other on all three facets
-         *   touching the edge (as opposed to meeting each other on one
-         *   facet and being glued to themselves along the other two).
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<4>::lock()
-         * and Simplex<4>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (tetrahedra, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a f)
-         * can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run,
-         * it must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given edge is an edge of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<4>::lock() and
-         * Simplex<4>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param e the edge about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool twoZeroMove(Edge<4>* e, bool check = true, bool perform = true);
-        /**
-         * Checks the eligibility of and/or performs a 2-0 move about the
-         * given vertex of degree 2.  This involves taking the two pentachora
-         * joined at that vertex and squashing them flat.  This can be done if:
-         *
-         * - the vertex is non-boundary and has a 3-sphere vertex link;
-         *
-         * - the two pentachora are distinct;
-         *
-         * - the tetrahedra opposite \a v in each pentachoron are distinct and
-         *   not both boundary;
-         *
-         * - the two pentachora meet each other on all four facets touching
-         *   the vertex (as opposed to meeting each other on two facets and
-         *   being glued to themselves along the other two).
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<4>::lock()
-         * and Simplex<4>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (tetrahedra, components, etc.) will be reconstructed, which means
-         * any pointers to old skeletal objects (such as the argument \a v)
-         * can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run,
-         * it must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given vertex is a vertex of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<4>::lock() and
-         * Simplex<4>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param v the vertex about which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \c true, the function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check
-         * is \c false, the function simply returns \c true.
-         */
-        bool twoZeroMove(Vertex<4>* v, bool check = true, bool perform = true);
-        /**
          * Checks the eligibility of and/or performs a 4-4 move about the
          * given edge.
          *
@@ -1066,7 +909,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * \pre If the move is being performed and no check is being run,
          * it must be known in advance that the move is legal and will not
          * violate any simplex and/or facet locks.
-         * \pre The given edge \a e is an edge of this triangulation.
+         * \pre The given edge is an edge of this triangulation.
          *
          * \exception LockViolation This move would violate a simplex or facet
          * lock, and \a check was passed as \c false.  This exception will be
@@ -1152,69 +995,6 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
         bool openBook(Tetrahedron<4>* t,
             bool check = true, bool perform = true);
         /**
-         * Checks the eligibility of and/or performs a boundary shelling
-         * move on the given pentachoron.
-         * This involves simply popping off a pentachoron that touches
-         * the boundary.
-         * This can be done if:
-         *
-         * - all edges and triangles of the pentachoron are valid;
-         *
-         * - precisely one, two, three or four facets of the pentachoron
-         *   lie in the boundary;
-         *
-         * - if one facet lies in the boundary, then the opposite vertex
-         *   does not lie in the boundary, and no two of the remaining
-         *   four edges are identified;
-         *
-         * - if two facets lie in the boundary, then the edge that sits
-         *   opposite their common triangle does not lie in the boundary, and
-         *   no two of the remaining three triangles are identified;
-         *
-         * - if three facets lie in the boundary, then the triangle that sits
-         *   opposite their common edge does not lie in the boundary, and
-         *   the remaining two facets of the tetrahedron are not identified.
-         *
-         * The validity condition in particular is stronger than it
-         * needs to be, but the resulting "lost opportunities" only
-         * affect invalid triangulations.
-         *
-         * If the routine is asked to both check and perform, the move
-         * will only be performed if the check shows it is legal and will not
-         * violate any simplex and/or facet locks (see Simplex<4>::lock()
-         * and Simplex<4>::lockFacet() for further details on locks).
-         *
-         * If this triangulation is currently oriented, then this operation
-         * will (trivially) preserve the orientation.
-         *
-         * Note that after performing this move, all skeletal objects
-         * (edges, components, etc.) will be reconstructed, which means
-         * that any pointers to old skeletal objects can no longer be used.
-         *
-         * \pre If the move is being performed and no check is being run, it
-         * must be known in advance that the move is legal and will not
-         * violate any simplex and/or facet locks.
-         * \pre The given pentachoron is a pentachoron of this triangulation.
-         *
-         * \exception LockViolation This move would violate a simplex or facet
-         * lock, and \a check was passed as \c false.  This exception will be
-         * thrown before any changes are made.  See Simplex<4>::lock() and
-         * Simplex<4>::lockFacet() for further details on how locks work and
-         * what their implications are.
-         *
-         * \param p the pentachoron upon which to perform the move.
-         * \param check \c true if we are to check whether the move is
-         * allowed (defaults to \c true).
-         * \param perform \c true if we are to perform the move
-         * (defaults to \c true).
-         * \return If \a check is \a true, this function returns \c true if and
-         * only if the requested move may be performed without changing the
-         * topology of the manifold or violating any locks.  If \a check is
-         * \c false, this function simply returns \c true.
-         */
-        bool shellBoundary(Pentachoron<4>* p,
-            bool check = true, bool perform = true);
-        /**
          * Checks the eligibility of and/or performs a collapse of
          * an edge in such a way that the topology of the manifold
          * does not change and the number of vertices of the triangulation
@@ -1273,7 +1053,6 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * is \c false, the function simply returns \c true.
          */
         bool collapseEdge(Edge<4>* e, bool check = true, bool perform = true);
-
         /**
          * Snaps together the endpoints of an edge connecting an internal
          * vertex with some different (possibly boundary) vertex, which reduces
@@ -1333,7 +1112,135 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          *
          * \author Alex He
          */
-        bool snapEdge( Edge<4>* e, bool check = true, bool perform = true );
+        bool snapEdge(Edge<4>* e, bool check = true, bool perform = true);
+
+        /**
+         * Determines whether it is possible to perform a 4-4 move about the
+         * given edge of this triangulation, without violating any simplex
+         * and/or facet locks.
+         *
+         * For more detail on 4-4 moves and when they can be performed,
+         * see fourFourMove().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the candidate edge about which to perform the move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool has44(Edge<4>* e) const;
+        /**
+         * Determines whether it is possible to perform a book opening move
+         * about the given tetrahedron of this triangulation, without
+         * violating any facet locks.
+         *
+         * For more detail on book opening moves and when they can be
+         * performed, see openBook().
+         *
+         * \pre The given tetrahedron is a tetrahedron of this triangulation.
+         *
+         * \param t the candidate tetrahedron about which to perform the move.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasOpenBook(Tetrahedron<4>* t) const;
+        /**
+         * Determines whether it is possible to collapse the given edge of
+         * this triangulation, without violating any simplex and/or facet locks.
+         *
+         * For more detail on edge collapse moves and when they can be
+         * performed, see collapseEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the candidate edge to collapse.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasCollapseEdge(Edge<4>* e) const;
+        /**
+         * Determines whether it is possible to snap together the endpoints of
+         * the given edge of this triangulation.
+         *
+         * For more detail on snapping moves on edges and when they can be
+         * performed, see snapEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the candidate edge whose endpoints would be snapped
+         * together.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasSnapEdge(Edge<4>* e) const;
+
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * 4-4 move about the given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on 4-4 moves and when they can be performed,
+         * see fourFourMove().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the edge about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<4>> with44(Edge<4>* e) const;
+        /**
+         * If possible, returns the triangulation obtained by performing a
+         * book opening move about the given tetrahedron of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on book opening moves and when they can be
+         * performed, see openBook().
+         *
+         * \pre The given tetrahedron is a tetrahedron of this triangulation.
+         *
+         * \param t the tetrahedron about which to perform the move.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<4>> withOpenBook(Tetrahedron<4>* t) const;
+        /**
+         * If possible, returns the triangulation obtained by collapsing the
+         * given edge of this triangulation.
+         * If such a move is not allowed, or if such a move would violate any
+         * simplex and/or facet locks, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on edge collapse moves and when they can be
+         * performed, see collapseEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the edge to collapse.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<4>> withCollapseEdge(Edge<4>* e) const;
+        /**
+         * If possible, returns the triangulation obtained by snapping together
+         * the endpoints of the given edge of this triangulation.
+         * If such a move is not allowed, then this routine returns no value.
+         *
+         * This triangulation will not be changed.
+         *
+         * For more detail on snapping moves on edges and when they can be
+         * performed, see snapEdge().
+         *
+         * \pre The given edge is an edge of this triangulation.
+         *
+         * \param e the edge whose endpoints are to be snapped together.
+         * \return The new triangulation obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Triangulation<4>> withSnapEdge(Edge<4>* e) const;
 
         /*@}*/
         /**
@@ -1565,15 +1472,15 @@ inline bool Triangulation<4>::isClosed() const {
 }
 
 inline bool Triangulation<4>::simplify() {
-    return simplifyInternal<simplifyBest>();
+    return simplifyInternal<SimplifyContext::Best>();
 }
 
 inline bool Triangulation<4>::intelligentSimplify() {
-    return simplifyInternal<simplifyBest>();
+    return simplifyInternal<SimplifyContext::Best>();
 }
 
 inline bool Triangulation<4>::simplifyToLocalMinimum(bool perform) {
-    return simplifyToLocalMinimumInternal<simplifyBest>(perform);
+    return simplifyToLocalMinimumInternal<SimplifyContext::Best>(perform);
 }
 
 template <typename Action, typename... Args>
@@ -1619,6 +1526,62 @@ inline bool Triangulation<4>::simplifyExhaustive(int height, unsigned threads,
 
     return regina::detail::simplifyExhaustiveInternal<Triangulation<4>>(
         *this, height, threads, tracker);
+}
+
+inline bool Triangulation<4>::has44(Edge<4>* e) const {
+    return const_cast<Triangulation<4>*>(this)->fourFourMove(e, true, false);
+}
+
+inline bool Triangulation<4>::hasOpenBook(Tetrahedron<4>* t) const {
+    return const_cast<Triangulation<4>*>(this)->openBook(t, true, false);
+}
+
+inline bool Triangulation<4>::hasCollapseEdge(Edge<4>* e) const {
+    return const_cast<Triangulation<4>*>(this)->collapseEdge(e, true, false);
+}
+
+inline bool Triangulation<4>::hasSnapEdge(Edge<4>* e) const {
+    return const_cast<Triangulation<4>*>(this)->snapEdge(e, true, false);
+}
+
+inline std::optional<Triangulation<4>> Triangulation<4>::with44(Edge<4>* e)
+        const {
+    if (! has44(e))
+        return {};
+
+    std::optional<Triangulation<4>> ans(std::in_place, *this);
+    ans->fourFourMove(ans->translate(e), false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<4>> Triangulation<4>::withOpenBook(
+        Tetrahedron<4>* t) const {
+    if (! hasOpenBook(t))
+        return {};
+
+    std::optional<Triangulation<4>> ans(std::in_place, *this);
+    ans->openBook(ans->translate(t), false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<4>> Triangulation<4>::withCollapseEdge(
+        Edge<4>* e) const {
+    if (! hasCollapseEdge(e))
+        return {};
+
+    std::optional<Triangulation<4>> ans(std::in_place, *this);
+    ans->collapseEdge(ans->translate(e), false, true);
+    return ans;
+}
+
+inline std::optional<Triangulation<4>> Triangulation<4>::withSnapEdge(
+        Edge<4>* e) const {
+    if (! hasSnapEdge(e))
+        return {};
+
+    std::optional<Triangulation<4>> ans(std::in_place, *this);
+    ans->snapEdge(ans->translate(e), false, true);
+    return ans;
 }
 
 } // namespace regina
