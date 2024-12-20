@@ -1,8 +1,12 @@
 //
-//  surfacefinder.cpp
+//  knottedsurfaces.h
 //
 //  Created by John Teague on 06/19/2024.
 //
+
+#ifndef KNOTTED_SURFACES_H
+
+#define KNOTTED_SURFACES_H
 
 #include <gmpxx.h>
 #include <link/link.h>
@@ -18,7 +22,6 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <map>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -27,8 +30,6 @@
 #include <vector>
 
 #include "maths/perm.h"
-#include "maths/vector.h"
-#include "triangulation/example2.h"
 #include "triangulation/facenumbering.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
@@ -37,52 +38,15 @@
 #include "triangulation/generic/triangulation.h"
 #include "utilities/exception.h"
 
-/* Constants */
-static const regina::Triangulation<2> GENUS_2_SURFACE =
-    regina::Triangulation<2>::fromGluings(6, {{0, 2, 5, {2, 1, 0}},
-                                              {0, 1, 1, {0, 2, 1}},
-                                              {0, 0, 5, {1, 0, 2}},
-                                              {1, 1, 2, {0, 2, 1}},
-                                              {1, 0, 3, {0, 2, 1}},
-                                              {2, 1, 3, {0, 2, 1}},
-                                              {2, 0, 4, {0, 2, 1}},
-                                              {3, 1, 4, {0, 2, 1}},
-                                              {4, 1, 5, {0, 2, 1}}});
+#include "gluing.h"
 
-// template <int n>
-// regina::Triangulation<3> knotComplement(const regina::Triangulation<3> t,
-//                                         const Knot &k) {
-//     return linkComplement(t, {k});
-// }
-
-enum SurfaceCondition { all, boundary, closed };
+enum class SurfaceCondition { all, boundary, closed };
 
 template <int n>
 using Curve = std::vector<regina::Edge<n> *>;
 
 template <int n>
 using DualCurve = std::vector<regina::Triangle<n> *>;
-
-/** Gluing Implementation */
-
-template <int dim, int subdim>
-struct Gluing {
-    regina::Face<dim, subdim> *src;
-    int srcFacet;
-    regina::Face<dim, subdim> *dst;
-    regina::Perm<subdim + 1> gluing;
-
-    Gluing() = default;
-
-    Gluing(regina::Face<dim, subdim> *src, int srcFacet,
-           regina::Face<dim, subdim> *dst, regina::Perm<subdim + 1> gluing)
-        : src(src), srcFacet(srcFacet), dst(dst), gluing(gluing) {}
-
-    friend std::ostream &operator<<(std::ostream &os, const Gluing &g) {
-        return os << "(" << g.src->index() << ", " << g.srcFacet << ", "
-                  << g.dst->index() << ", " << g.gluing << ")";
-    }
-};
 
 /** Knot implementation */
 
@@ -95,7 +59,7 @@ class Knot {
 
     bool isUnknot_ = false;
 
-    enum JoinType { face, edge, vertex };
+    enum class JoinType { face, edge, vertex };
 
    public:
     Knot(regina::Triangulation<3> &tri, const Curve<3> &edges) : tri_(tri) {
@@ -379,8 +343,6 @@ class Knot {
         if (tetEdges_.size() <= 1) {
             return isUnknot_ = true;
         }
-
-        bool isAllInOneTet = false;
 
         for (const auto &[_, edges] : tetEdges_) {
             if (edges.size() == numEdges_) {
@@ -876,29 +838,6 @@ class Link {
     }
 };
 
-template <int dim>
-class GluingNode {
-   public:
-    using AdjList = std::unordered_map<GluingNode *, Gluing<dim, 2>>;
-
-    regina::Triangle<dim> *f;
-    AdjList adjList;
-    bool visited = false;
-
-    GluingNode(regina::Face<dim, 2> *f) : f(f) {}
-
-    friend std::ostream &operator<<(std::ostream &os, const GluingNode &node) {
-        os << "(" << node.f->index() << " { ";
-        for (const auto &[_, gluing] : node.adjList) {
-            os << gluing << " ";
-        }
-
-        os << "})";
-
-        return os;
-    }
-};
-
 /** KnottedSurface Implementation */
 
 template <int dim>
@@ -1053,7 +992,7 @@ class KnottedSurface {
 
     template <int facedim>
     regina::Face<dim, facedim> *image(const regina::Face<2, facedim> *f) const {
-        static_assert(0 <= dim <= 2, "Must have 0 <= facedim <= 2");
+        static_assert(0 <= facedim && facedim <= 2, "Must have 0 <= facedim <= 2");
 
         // for (auto &[t, f] : emb_) {
         //     std::cout << "(" << t->index() << ", " << f->index() << ") ";
@@ -1219,458 +1158,11 @@ class KnottedSurface {
     }
 };
 
-template <int dim>
-class GluingGraph {
-   private:
-    size_t calls_ = 0;
+// template <int n>
+// regina::Triangulation<3> knotComplement(const regina::Triangulation<3> t,
+//                                         const Knot &k) {
+//     return linkComplement(t, {k});
+// }
 
-    SurfaceCondition cond_;
 
-    const regina::Triangulation<dim> &tri_;
-    /**< The given triangulation of a dim-manifold */
-
-    std::map<regina::Triangle<dim> *, GluingNode<dim>> nodes_;
-    /**< Guaranteed not to be nodes with the same gluing data */
-
-    std::set<KnottedSurface<dim>> surfaces_;
-
-    KnottedSurface<dim> surface_;
-
-   public:
-    GluingGraph(const regina::Triangulation<dim> &tri, SurfaceCondition cond)
-        : tri_(tri), surface_(&tri), cond_(cond) {
-        buildGluingNodes_();
-        std::cout << "[+] Built gluing nodes\n";
-        buildGluingEdges_();
-        std::cout << "[+] Built gluing edges\n";
-        // buildGluingInvalids_();
-        // std::cout << "Built gluing invalids\n";
-    }
-
-    void pruneSurfaces() {
-        // TODO: Do this during DFS
-        for (auto it = surfaces_.begin(); it != surfaces_.end();) {
-            if ((*it).hasSelfIntersection()) {
-                it = surfaces_.erase(it);
-                continue;
-            }
-            ++it;
-        }
-    }
-
-    std::set<KnottedSurface<dim>> &findSurfaces() {
-        if (!surfaces_.empty()) return surfaces_;
-
-        std::cout << "\n";
-        for (regina::Triangle<dim> *triangle : tri_.triangles()) {
-            reset_();
-            dfs_(&nodes_.at(triangle), 0);
-            // std::cout << "TOTAL DFS CALLS = " << calls_ << "\n";
-        }
-        std::cout << "\n\n";
-        std::cout << "[+] Total search calls = " << calls_ << "\n\n";
-
-        pruneSurfaces();
-
-        return surfaces_;
-    }
-
-   private:
-    void nspaces_(int m) {
-        for (int i = 0; i < m; ++i) {
-            std::cout << "  ";
-        }
-    }
-
-    void buildGluingNodes_() {
-        for (regina::Triangle<dim> *triangle : tri_.triangles()) {
-            nodes_.insert({triangle, triangle});
-        }
-    }
-
-    void buildGluingEdges_() {
-        for (auto &[triangle, node] : nodes_) {
-            std::unordered_set<int> selfGluingEdges;
-            for (int i = 0; i < 3; ++i) {
-                regina::Edge<dim> *edge = triangle->edge(i);
-                regina::Perm<dim + 1> edgeToTriangle = triangle->edgeMapping(i);
-
-                // for (const regina::TriangleEmbedding<dim> &emb :
-                //      triangle->embeddings()) {
-                //     // TODO: GAH
-                //     const regina::Simplex<dim> *s = emb.simplex();
-                //     for (int j = 0; j < 10; ++j) {
-                //         regina::Triangle<dim> *other = s->triangle(j);
-                //         GluingNode<dim> &otherNode = nodes_.at(other);
-
-                //        for (int k = 0; k < 3; ++k) {
-                //            // Only glue identified edges and ignore identity
-                //            // mappings/opposite self gluings
-                //            if (other->edge(k) != edge ||
-                //                (triangle == other &&
-                //                 (i == k || selfGluingEdges.find(i) !=
-                //                                selfGluingEdges.end())))
-                //                continue;
-
-                //            if (triangle == other) {
-                //                selfGluingEdges.insert(k);
-                //            }
-
-                //            regina::Perm<dim + 1> edgeToOther =
-                //                other->edgeMapping(k);
-                //            // regina::Perm is immutable, use std::array
-                //            instead std::array<int, 3> p; for (int k = 0; k <
-                //            3; ++k) {
-                //                p[edgeToTriangle[k]] = edgeToOther[k];
-                //            }
-
-                //            node.adjList[&otherNode] = {triangle, i, other,
-                //            p};
-                //        }
-                //    }
-                //}
-
-                for (auto &[other, otherNode] : nodes_) {
-                    for (int j = 0; j < 3; ++j) {
-                        // Only glue identified edges and ignore identity
-                        // mappings/opposite self gluings
-                        if (other->edge(j) != edge ||
-                            (triangle == other &&
-                             (i == j || selfGluingEdges.find(i) !=
-                                            selfGluingEdges.end())))
-                            continue;
-
-                        if (triangle == other) {
-                            selfGluingEdges.insert(j);
-                        }
-
-                        regina::Perm<dim + 1> edgeToOther =
-                            other->edgeMapping(j);
-                        // regina::Perm is immutable, use std::array instead
-                        std::array<int, 3> p;
-                        for (int k = 0; k < 3; ++k) {
-                            p[edgeToTriangle[k]] = edgeToOther[k];
-                        }
-
-                        node.adjList[&otherNode] = {triangle, i, other, p};
-                    }
-                }
-            }
-        }
-    }
-
-    // void buildGluingInvalids_() {
-    //     for (auto &[f, node] : nodes_) {
-    //         std::unordered_set<const regina::Triangle<dim> *> adjTriangles;
-    //         std::unordered_set<const regina::Vertex<dim> *> vertices;
-
-    //        for (const auto [adj, _] : node.adjList) {
-    //            adjTriangles.insert(adj->f);
-    //        }
-
-    //        for (int i = 0; i < 3; ++i) {
-    //            vertices.insert(f->vertex(i));
-    //        }
-
-    //        // TODO: Optimize
-    //        for (auto &[adjTriangle, adjNode] : nodes_) {
-
-    //            if (adjTriangles.find(adjTriangle) != adjTriangles.end())
-    //                continue;
-
-    //            bool containsVertex = false;
-    //            for (int i = 0; i < 3; ++i) {
-    //                if (vertices.find(adjTriangle->vertex(i)) !=
-    //                vertices.end())
-    //                    containsVertex = true;
-    //            }
-
-    //            if (containsVertex) node.invalids.push_back(&adjNode);
-    //        }
-    //    }
-    //}
-
-    void dfs_(GluingNode<dim> *node, int layer) {
-        ++calls_;
-        if (calls_ % 100000 == 0)
-            std::cout << "\r" << std::flush << "[*] Call " << calls_
-                      << ", Layer " << layer << ", Surfaces "
-                      << surfaces_.size() << "          ";
-
-        if (node->visited) {
-            return;
-        }
-
-        // nspaces_(layer);
-        // std::cout << layer << ": ";
-        if (!surface_.addTriangle(node->f, node->adjList)) {
-            // std::cout << "Failed to add " << *node << "\n";
-            return;
-        }
-
-        // std::cout << "Added " << *node << "\n";
-
-        node->visited = true;
-
-        if (surface_.isProper()) {
-            //  nspaces_(layer);
-            //  std::cout << "IMPROPER EDGES: { ";
-            //  for (const regina::Edge<dim> *edge : surface_.improperEdges_) {
-            //     std::cout << edge->index() << " ";
-            // }
-            //  std::cout << "}\n";
-            surfaces_.insert(surface_);
-        }
-
-        for (auto &[nextNode, g] : node->adjList) {
-            ////nspaces_(layer);
-            // std::cout << layer << ": Gluing " << node->f->index() << " to "
-            //           << nextNode->f->index() << " along (" << g.srcFacet
-            //           << ", " << g.gluing[g.srcFacet] << ")\n";
-            dfs_(nextNode, layer + 1);
-        }
-
-        surface_.removeTriangle(node->f);
-    }
-
-    void reset_() {
-        surface_ = {&tri_};
-
-        for (auto &[_, node] : nodes_) {
-            node.visited = false;
-        }
-    }
-};
-
-void usage(const char *progName, const std::string &error = std::string()) {
-    if (!error.empty()) std::cerr << error << "\n\n";
-
-    std::cerr << "Usage:\n";
-    std::cerr << "    " << progName
-              << " { -a, --all | -b, --boundary | -c, --closed | -l, --links } "
-                 "<isosig>\n"
-                 "    "
-              << progName << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -a, --all      : Find all surfaces, regardless of "
-                 "boundary conditions\n";
-    std::cerr
-        << "    -b, --boundary : Find surfaces such that their boundary is "
-           "contained entirely in\n"
-           "                     the boundary of the given 4-manifold (Note, "
-           "if the 4-manifold\n                     is closed, this is "
-           "equivalent to --closed)\n";
-    std::cerr << "    -c, --closed   : Find only closed surfaces in the given "
-                 "4-manifold\n";
-    std::cerr << "    -l, --links    : Same as --boundary, but also gives "
-                 "a list of link types which\n"
-                 "                     are the boundaries of the surfaces "
-                 "we find\n\n";
-    std::cerr << "    -v, --version  : Show which version of Regina is "
-                 "being used\n";
-    std::cerr << "    -h, --help     : Display this help\n";
-    exit(1);
-}
-
-template <int dim>
-void surfacesDetail(std::set<KnottedSurface<dim>> &surfaces,
-                    SurfaceCondition cond) {
-    std::cout << "--- "
-              << (cond == SurfaceCondition::all
-                      ? ""
-                      : (cond == SurfaceCondition::boundary
-                             ? "Proper "
-                             : (cond == SurfaceCondition::closed ? "Closed "
-                                                                 : "")))
-              << "Surfaces ---\n";
-    int surfaceCount = 0;
-    int closedCount = 0;
-
-    std::map<std::string, int> countMap;
-
-    for (const auto &surface : surfaces) {
-        ++surfaceCount;
-        if (surface.surface().isClosed()) {
-            ++closedCount;
-        }
-
-        // For checking if properness works
-        // bool isProper = true;
-        // for (const regina::BoundaryComponent<2> *comp :
-        //     surface.surface().boundaryComponents()) {
-        //    for (const regina::Edge<2> *edge : comp->edges()) {
-        //        if (edge->isBoundary() && !surface.image(edge)->isBoundary())
-        //        {
-        //            std::cout << "NOTE: " << surface.detail()
-        //                      << " is not proper!!\n";
-        //            isProper = false;
-        //        }
-        //    }
-        //}
-
-        // if (isProper) {
-        //     std::cout << surface.detail() << " is PROPER!"
-        //               << "\n";
-        // }
-
-        auto search = countMap.find(surface.detail());
-        if (search == countMap.end()) {
-            countMap.insert({surface.detail(), 1});
-        } else {
-            ++search->second;
-        }
-    }
-
-    std::cout << "\n";
-
-    std::vector<std::string> descriptions;
-    descriptions.reserve(countMap.size());
-    for (const auto &[description, count] : countMap) {
-        descriptions.push_back(description);
-    }
-
-    std::sort(descriptions.begin(), descriptions.end(),
-              [](const std::string &first, const std::string &second) {
-                  return first.size() < second.size() ||
-                         (first.size() == second.size() && first < second);
-              });
-
-    for (std::string &description : descriptions) {
-        int count = countMap.find(description)->second;
-        std::cout << "- " << count << (count == 1 ? " copy of " : " copies of ")
-                  << description << "\n";
-    }
-
-    std::cout << "\n";
-    if (cond != SurfaceCondition::closed) {
-        std::cout << "Total admissible surfaces = " << surfaceCount << "\n";
-    }
-    std::cout << "Total closed surfaces = " << closedCount << "\n\n";
-}
-
-int main(int argc, char *argv[]) {
-    // Check for standard arguments:
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "-h" || arg == "--help") usage(argv[0]);
-        if (arg == "-v" || arg == "--version") {
-            if (argc != 2)
-                usage(argv[0],
-                      "Option --version cannot be used with "
-                      "any other arguments.");
-            std::cout << PACKAGE_BUILD_STRING << "\n";
-            exit(0);
-        }
-    }
-
-    if (argc != 3) {
-        usage(argv[0],
-              "Please specify a surface condition and provide an "
-              "isomorphism signature.");
-    }
-
-    std::string arg = argv[1];
-    std::string isoSig = argv[2];
-    SurfaceCondition cond;
-
-    if (arg == "-a" || arg == "--all") {
-        cond = SurfaceCondition::all;
-    } else if (arg == "-b" || arg == "--boundary" || arg == "-l" ||
-               arg == "--links") {
-        cond = SurfaceCondition::boundary;
-    } else if (arg == "-c" || arg == "--closed") {
-        cond = SurfaceCondition::closed;
-    } else {
-        usage(argv[0], "Please specify a valid surface condition.");
-    }
-
-    //    regina::Triangulation<4> tri;
-    //    tri.newSimplex();
-    //    tri.pachner(tri.pentachoron(0));
-    //
-    // regina::Triangulation<3> tri("caba");
-    // for (const regina::Tetrahedron<3> *tet : tri.tetrahedra()) {
-    //     std::cout << "Tetrahedron " << tet->index() << "\n";
-    //     for (int i = 0; i < 4; ++i) {
-    //         std::cout << "Vertex " << i << " = " << tet->vertex(i)->index()
-    //                   << "\n";
-    //     }
-    //     std::cout << "\n";
-    // }
-    // std::vector<int> edgeIndices = {2, 0, 7, 8, 5};
-    // Curve<3> c;
-    // for (int i : edgeIndices) {
-    //     c.push_back(tri.edge(i));
-    // }
-    // Knot k(tri, c);
-    // std::cout << k << "\n";
-    // k.simplify();
-    // std::cout << k;
-
-    regina::Triangulation<4> tri(isoSig);
-    // regina::Triangulation<3> tri("eabbba");
-    // regina::Triangulation<3> tri("gabbbbba");
-    // regina::Triangulation<3> tri("fabbfaa");
-    //regina::Triangulation<3> tri;
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.newSimplex();
-    //tri.tetrahedron(0)->join(0, tri.tetrahedron(1), {});
-    //tri.tetrahedron(1)->join(1, tri.tetrahedron(2), {});
-    //tri.tetrahedron(2)->join(0, tri.tetrahedron(3), {});
-    //tri.tetrahedron(3)->join(1, tri.tetrahedron(4), {});
-    //tri.tetrahedron(4)->join(2, tri.tetrahedron(5), {});
-    //tri.tetrahedron(5)->join(1, tri.tetrahedron(6), {});
-
-    //std::cout << "Original = " << tri.isoSig() << "\n";
-    //Knot k = {tri, {}};
-    //std::vector<regina::Tetrahedron<3> *> tets;
-    //for (regina::Tetrahedron<3> *tet : k.tri_.tetrahedra()) {
-    //    tets.push_back(tet);
-    //}
-
-    //k.subdivideSharedVertexSequence_(tets);
-    //std::cout << "Subdivided = " << k.tri_.isoSig() << "\n";
-    // tri.newSimplex();
-
-    // regina::Triangulation<2> tri = regina::Example<2>::orientable(6, 0);
-    // tri.newSimplex();
-    // tri.subdivide();
-    // tri.subdivide();
-    //    tri.subdivide();
-
-    std::cout << tri.detail() << "\n";
-
-    GluingGraph graph(tri, cond);
-    auto &surfaces = graph.findSurfaces();
-
-    surfacesDetail(surfaces, cond);
-
-    for (const auto *comp : tri.boundaryComponents()) {
-        for (const auto *v : comp->vertices()) {
-            std::cout << v->index() << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
-
-    int numNonUnlinks = 0;
-    for (auto surface : surfaces) {
-        if (surface.surface().isClosed()) continue;
-        Link l = surface.boundary();
-        // std::cout << l << "\n";
-        // l.simplify();
-        if (!l.isUnlink()) {
-            ++numNonUnlinks;
-            std::cout << "DETAIL: " << surface.detail() << "\n";
-            std::cout << l << "\n";
-        }
-    }
-
-    std::cout << "NUMBER OF NONTRIVIAL LINKS = " << numNonUnlinks;
-
-    return 0;
-}
+#endif

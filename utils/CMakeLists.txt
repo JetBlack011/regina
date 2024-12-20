@@ -2,7 +2,6 @@ include_directories(${ENGINE_INCLUDES})
 include_directories("${CMAKE_BINARY_DIR}/engine")
 
 set(UTILS
-  bogocheck
   censuslookup
   dgt
   regconcat
@@ -11,7 +10,6 @@ set(UTILS
   regfiletype
   retriangulate
   sigcensus
-  surfacefinder
   tricensus
   trisetcmp
   )
@@ -25,3 +23,4 @@ endforeach(UTIL)
 install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Runtime)
 
 ADD_SUBDIRECTORY("testsuite")
+ADD_SUBDIRECTORY("surfacefinder")
