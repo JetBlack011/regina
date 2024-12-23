@@ -26,7 +26,7 @@
 
 template <int dim>
 class GluingGraph {
-   private:
+  private:
     size_t calls_ = 0;
 
     SurfaceCondition cond_;
@@ -41,15 +41,13 @@ class GluingGraph {
 
     KnottedSurface<dim> surface_;
 
-   public:
+  public:
     GluingGraph(const regina::Triangulation<dim> &tri, SurfaceCondition cond)
         : tri_(tri), surface_(&tri), cond_(cond) {
         buildGluingNodes_();
         std::cout << "[+] Built gluing nodes\n";
         buildGluingEdges_();
         std::cout << "[+] Built gluing edges\n";
-        // buildGluingInvalids_();
-        // std::cout << "Built gluing invalids\n";
     }
 
     void pruneSurfaces() {
@@ -64,7 +62,8 @@ class GluingGraph {
     }
 
     std::set<KnottedSurface<dim>> &findSurfaces() {
-        if (!surfaces_.empty()) return surfaces_;
+        if (!surfaces_.empty())
+            return surfaces_;
 
         std::cout << "\n";
         for (regina::Triangle<dim> *triangle : tri_.triangles()) {
@@ -80,19 +79,26 @@ class GluingGraph {
         return surfaces_;
     }
 
-   private:
+  private:
     void nspaces_(int m) {
         for (int i = 0; i < m; ++i) {
             std::cout << "  ";
         }
     }
 
+    /**
+     * Start building our gluing graph. Associate a node to each triangle in the
+     * triangulation.
+     */
     void buildGluingNodes_() {
         for (regina::Triangle<dim> *triangle : tri_.triangles()) {
             nodes_.insert({triangle, triangle});
         }
     }
 
+    /**
+     * Populate the node's adjacency lists.
+     */
     void buildGluingEdges_() {
         for (auto &[triangle, node] : nodes_) {
             std::unordered_set<int> selfGluingEdges;
@@ -100,141 +106,63 @@ class GluingGraph {
                 regina::Edge<dim> *edge = triangle->edge(i);
                 regina::Perm<dim + 1> edgeToTriangle = triangle->edgeMapping(i);
 
-                // for (const regina::TriangleEmbedding<dim> &emb :
-                //      triangle->embeddings()) {
-                //     // TODO: GAH
-                //     const regina::Simplex<dim> *s = emb.simplex();
-                //     for (int j = 0; j < 10; ++j) {
-                //         regina::Triangle<dim> *other = s->triangle(j);
-                //         GluingNode<dim> &otherNode = nodes_.at(other);
-
-                //        for (int k = 0; k < 3; ++k) {
-                //            // Only glue identified edges and ignore identity
-                //            // mappings/opposite self gluings
-                //            if (other->edge(k) != edge ||
-                //                (triangle == other &&
-                //                 (i == k || selfGluingEdges.find(i) !=
-                //                                selfGluingEdges.end())))
-                //                continue;
-
-                //            if (triangle == other) {
-                //                selfGluingEdges.insert(k);
-                //            }
-
-                //            regina::Perm<dim + 1> edgeToOther =
-                //                other->edgeMapping(k);
-                //            // regina::Perm is immutable, use std::array
-                //            instead std::array<int, 3> p; for (int k = 0; k <
-                //            3; ++k) {
-                //                p[edgeToTriangle[k]] = edgeToOther[k];
-                //            }
-
-                //            node.adjList[&otherNode] = {triangle, i, other,
-                //            p};
-                //        }
-                //    }
-                //}
-
-                for (auto &[other, otherNode] : nodes_) {
+                // TODO: Would be nice for this to be O(1), not sure if possible
+                for (auto &[otherTriangle, otherNode] : nodes_) {
                     for (int j = 0; j < 3; ++j) {
-                        // Only glue identified edges and ignore identity
-                        // mappings/opposite self gluings
-                        if (other->edge(j) != edge ||
-                            (triangle == other &&
-                             (i == j || selfGluingEdges.find(i) !=
-                                            selfGluingEdges.end())))
+                        // Only glue identified edges and ignore identity mappings/opposite self
+                        // gluings
+                        if (otherTriangle->edge(j) != edge ||
+                            (triangle == otherTriangle &&
+                             (i == j || selfGluingEdges.find(i) != selfGluingEdges.end())))
                             continue;
 
-                        if (triangle == other) {
+                        if (triangle == otherTriangle) {
                             selfGluingEdges.insert(j);
                         }
 
-                        regina::Perm<dim + 1> edgeToOther =
-                            other->edgeMapping(j);
+                        regina::Perm<dim + 1> edgeToOther = otherTriangle->edgeMapping(j);
                         // regina::Perm is immutable, use std::array instead
                         std::array<int, 3> p;
                         for (int k = 0; k < 3; ++k) {
                             p[edgeToTriangle[k]] = edgeToOther[k];
                         }
 
-                        node.adjList[&otherNode] = {triangle, i, other, p};
+                        node.adjList[&otherNode] = {triangle, i, otherTriangle, p};
                     }
                 }
             }
         }
     }
 
-    // void buildGluingInvalids_() {
-    //     for (auto &[f, node] : nodes_) {
-    //         std::unordered_set<const regina::Triangle<dim> *> adjTriangles;
-    //         std::unordered_set<const regina::Vertex<dim> *> vertices;
-
-    //        for (const auto [adj, _] : node.adjList) {
-    //            adjTriangles.insert(adj->f);
-    //        }
-
-    //        for (int i = 0; i < 3; ++i) {
-    //            vertices.insert(f->vertex(i));
-    //        }
-
-    //        // TODO: Optimize
-    //        for (auto &[adjTriangle, adjNode] : nodes_) {
-
-    //            if (adjTriangles.find(adjTriangle) != adjTriangles.end())
-    //                continue;
-
-    //            bool containsVertex = false;
-    //            for (int i = 0; i < 3; ++i) {
-    //                if (vertices.find(adjTriangle->vertex(i)) !=
-    //                vertices.end())
-    //                    containsVertex = true;
-    //            }
-
-    //            if (containsVertex) node.invalids.push_back(&adjNode);
-    //        }
-    //    }
-    //}
-
     void dfs_(GluingNode<dim> *node, int layer) {
         ++calls_;
         if (calls_ % 100000 == 0)
-            std::cout << "\r" << std::flush << "[*] Call " << calls_
-                      << ", Layer " << layer << ", Surfaces "
-                      << surfaces_.size() << "          ";
+            std::cout << "\r" << std::flush << "[*] Call " << calls_ << ", Layer " << layer
+                      << ", Surfaces " << surfaces_.size() << "          ";
 
+        // Avoid cycles
         if (node->visited) {
             return;
         }
 
-        // nspaces_(layer);
-        // std::cout << layer << ": ";
+        // Attempt to add this node's face to the surface triangulation
         if (!surface_.addTriangle(node->f, node->adjList)) {
-            // std::cout << "Failed to add " << *node << "\n";
             return;
         }
 
-        // std::cout << "Added " << *node << "\n";
-
         node->visited = true;
 
+        // Win condition: we've found a surface that meets the given boundary requirement
         if (surface_.isProper()) {
-            //  nspaces_(layer);
-            //  std::cout << "IMPROPER EDGES: { ";
-            //  for (const regina::Edge<dim> *edge : surface_.improperEdges_) {
-            //     std::cout << edge->index() << " ";
-            // }
-            //  std::cout << "}\n";
             surfaces_.insert(surface_);
         }
 
+        // Recursive step: search over all adjacent triangles
         for (auto &[nextNode, g] : node->adjList) {
-            ////nspaces_(layer);
-            // std::cout << layer << ": Gluing " << node->f->index() << " to "
-            //           << nextNode->f->index() << " along (" << g.srcFacet
-            //           << ", " << g.gluing[g.srcFacet] << ")\n";
             dfs_(nextNode, layer + 1);
         }
 
+        // Don't forget to backtrack
         surface_.removeTriangle(node->f);
     }
 

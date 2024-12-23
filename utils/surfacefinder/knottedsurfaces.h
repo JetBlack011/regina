@@ -51,65 +51,65 @@ using DualCurve = std::vector<regina::Triangle<n> *>;
 /** Knot implementation */
 
 class Knot {
-   public:
+  public:
     regina::Triangulation<3> tri_;
-    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-        tetEdges_;
+    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>> tetEdges_;
     size_t numEdges_ = 0;
 
     bool isUnknot_ = false;
 
     enum class JoinType { face, edge, vertex };
 
-   public:
+  public:
     Knot(regina::Triangulation<3> &tri, const Curve<3> &edges) : tri_(tri) {
         for (const regina::Edge<3> *edge : edges) {
             addEdge_(tri_.edge(edge->index()));
         }
 
-        if (edges.size() <= 4) isUnknot_ = true;
+        if (edges.size() <= 4)
+            isUnknot_ = true;
     }
 
     bool isUnknot() const { return isUnknot_; }
 
     /**
-     * Simplifies a given knot so that each tetrahedron it runs through contains
-     * at most one of the knot's edges.
+     * Simplifies a given knot so that each tetrahedron it runs through contains at most one of the
+     * knot's edges.
      *
      * Algorithm:
-     * 0) If we're the unknot (e.g. all edges run through a single tetrahedron)
-     * or if every tetrahedron contains exactly one edge of the knot, then we're
-     * done.
+     * 0) If we're the unknot (e.g. all edges run through a single tetrahedron) or if every
+     * tetrahedron contains exactly one edge of the knot, then we're done.
      *
-     * 1) Perform shrinkage. That is, suppose a tetrahedron contains more than
-     * one edge. If those edges are connected end to end, we can isotope that
-     * edge to go from its start point to its end point.
+     * 1) Perform shrinkage. That is, suppose a tetrahedron contains more than one edge. If those
+     * edges are connected end to end, we can isotope that edge to go from its start point to its
+     * end point.
      *
-     * 2) Separate the remaining edges. After step 1), a tetrahedron containing
-     * an edge of the knot contains either a single edge or two disconnected
-     * edges. In the second case, perform a 1-4 move to separate the edges.
+     * 2) Separate the remaining edges. After step 1), a tetrahedron containing an edge of the knot
+     * contains either a single edge or two disconnected edges. In the second case, perform a 1-4
+     * move to separate the edges.
      */
     void simplify() {
-        if (isUnknot_) return;
+        if (isUnknot_)
+            return;
         shrink_();
         separate_();
     }
 
-    //void map(const std::function<void(regina::Tetrahedron<3> *,
-    //                                  regina::Edge<3> *)> &f) {
-    //    map([f](regina::Tetrahedron<3> *currTet, regina::Edge<3> *currEdge,
-    //            regina::Tetrahedron<3> *, regina::Edge<3> *,
-    //            JoinType) { f(currTet, currEdge); });
-    //}
+    // void map(const std::function<void(regina::Tetrahedron<3> *,
+    //                                   regina::Edge<3> *)> &f) {
+    //     map([f](regina::Tetrahedron<3> *currTet, regina::Edge<3> *currEdge,
+    //             regina::Tetrahedron<3> *, regina::Edge<3> *,
+    //             JoinType) { f(currTet, currEdge); });
+    // }
 
-    //void map(const std::function<
-    //         void(regina::Tetrahedron<3> *, regina::Edge<3> *,
-    //              regina::Tetrahedron<3> *, regina::Edge<3> *, JoinType)> &f) {
-    //    auto it = tetEdges_.begin();
-    //    regina::Tetrahedron<3> *firstTet = it->first;
-    //    regina::Tetrahedron<3> *prevTet = nullptr;
-    //    regina::Tetrahedron<3> *currTet = firstTet;
-    //    regina::Edge<3> *currEdge = currTet->edge(*it->second.begin());
+    // void map(const std::function<
+    //          void(regina::Tetrahedron<3> *, regina::Edge<3> *,
+    //               regina::Tetrahedron<3> *, regina::Edge<3> *, JoinType)> &f) {
+    //     auto it = tetEdges_.begin();
+    //     regina::Tetrahedron<3> *firstTet = it->first;
+    //     regina::Tetrahedron<3> *prevTet = nullptr;
+    //     regina::Tetrahedron<3> *currTet = firstTet;
+    //     regina::Edge<3> *currEdge = currTet->edge(*it->second.begin());
 
     //    do {
     //        // TODO: Optimization, fix later
@@ -166,8 +166,8 @@ class Knot {
     //    } while (currTet != firstTet);
     //}
 
-    //void resolveSingularities() {
-    //    if (isUnknot_) return;
+    // void resolveSingularities() {
+    //     if (isUnknot_) return;
 
     //    map([this](regina::Tetrahedron<3> *currTet, regina::Edge<3> *currEdge,
     //           regina::Tetrahedron<3> *nextTet, regina::Edge<3> *nextEdge,
@@ -184,13 +184,9 @@ class Knot {
 
     void resolveEdgeSingularity_(regina::Tetrahedron<3> *tet1, regina::Tetrahedron<3> *tet2) {
         std::vector<regina::Tetrahedron<3> *> sharedEdgeSeq;
-
-        
     }
 
-    void resolveVertexSingularity_(regina::Vertex<3> *tet1, regina::Vertex<3> *tet2) {
-
-    }
+    void resolveVertexSingularity_(regina::Vertex<3> *tet1, regina::Vertex<3> *tet2) {}
 
     /**
      * Pushes off the knot into the dual 1-skeleton of the given triangulation.
@@ -216,11 +212,11 @@ class Knot {
      * 2) Once every knot satisfies the above, iterate over these shared faces
      * and add them to our dual curve
      */
-    //DualCurve<3> dual() {
-    //    simplify();
-    //    resolveSingularities();
-    //    return getDualCurve_();
-    //}
+    // DualCurve<3> dual() {
+    //     simplify();
+    //     resolveSingularities();
+    //     return getDualCurve_();
+    // }
 
     /**
      * Computes a triangulation of the complement of this knot in the given
@@ -232,90 +228,91 @@ class Knot {
      */
     // regina::Triangulation<3> complement() {}
 
+    /**
+     * Prints the knot in the form { v1, v2, ..., vn } where v1, v2, ..., vn are the indices of the
+     * vertices appearing in the knot
+     */
     friend std::ostream &operator<<(std::ostream &os, const Knot &k) {
-        if (k.isUnknot_) {
-            return os << "Unknot";
-        }
+        //if (k.isUnknot_) {
+        //    return os << "Unknot";
+        //}
 
-        std::unordered_set<const regina::Edge<3> *> edges;
+        std::unordered_set<const regina::Edge<3> *> edgeSet;
         for (const auto &[tet, tetEdges] : k.tetEdges_) {
             for (size_t e : tetEdges) {
-                edges.insert(tet->edge(e));
+                edgeSet.insert(tet->edge(e));
+            }
+        }
+
+        std::vector<const regina::Vertex<3> *> vertices;
+        const auto e = edgeSet.begin();
+        vertices.push_back((*e)->vertex(0));
+        auto currVert = (*e)->vertex(1);
+        edgeSet.erase(e);
+
+        while (!edgeSet.empty()) {
+            for (const regina::Edge<3> *edge : edgeSet) {
+                if (edge->vertex(0) == currVert) {
+                    vertices.push_back(currVert);
+                    currVert = edge->vertex(1);
+                    edgeSet.erase(edge);
+                    break;
+                } else if (edge->vertex(1) == currVert) {
+                    vertices.push_back(currVert);
+                    currVert = edge->vertex(0);
+                    edgeSet.erase(edge);
+                    break;
+                }
             }
         }
 
         os << "{ ";
-        for (const regina::Edge<3> *e : edges) {
-            os << "(" << e->vertex(0)->index() << ", " << e->vertex(1)->index()
-               << ") ";
+        for (const regina::Vertex<3> *v : vertices) {
+            os << v->index() << ", ";
         }
-        return os << "}";
-
-        //// wtf...
-        // if (k.isUnknot_) {
-        //     return os << "Unknot";
-        // }
-        // os << "{";
-        // auto it = k.edges_.begin();
-        // int next;
-        // for (auto it = k.edges_.begin(); it != k.edges_.end() - 1; ++it) {
-        //     int v0 = (*it)->vertex(0)->index();
-        //     int v1 = (*it)->vertex(1)->index();
-        //     int u0 = (*(it + 1))->vertex(0)->index();
-        //     int u1 = (*(it + 1))->vertex(1)->index();
-        //     if (v0 != u0 && v0 != u1) {
-        //         os << v0 << ", ";
-        //         next = v1 == u0 ? u0 : u1;
-        //     } else {
-        //         os << v1 << ", ";
-        //         next = v0 == u0 ? u0 : u1;
-        //     }
-        // }
-
-        // return os << next << "}";
+        return os << vertices[0]->index() << " }";
     }
 
-   private:
-    bool hasSharedVertex_(const regina::Edge<3> *e1,
-                          const regina::Edge<3> *e2) {
-        return e1->vertex(0) == e2->vertex(0) ||
-               e1->vertex(0) == e2->vertex(1) ||
+  public:
+    bool hasSharedVertex_(const regina::Edge<3> *e1, const regina::Edge<3> *e2) const {
+        return e1->vertex(0) == e2->vertex(0) || e1->vertex(0) == e2->vertex(1) ||
                e1->vertex(1) == e2->vertex(0) || e1->vertex(1) == e2->vertex(1);
     }
 
     regina::Triangle<3> *sharedFace_(const regina::Tetrahedron<3> *tet1,
-                                     const regina::Tetrahedron<3> *tet2) {
+                                     const regina::Tetrahedron<3> *tet2) const {
         for (int i = 0; i < 4; ++i) {
-            if (tet1->adjacentSimplex(i) == tet2) return tet1->triangle(i);
+            if (tet1->adjacentSimplex(i) == tet2)
+                return tet1->triangle(i);
         }
 
         return nullptr;
     }
 
-    bool hasSharedEdge_(const regina::Tetrahedron<3> *tet1,
-                        const regina::Tetrahedron<3> *tet2) {
+    bool hasSharedEdge_(const regina::Tetrahedron<3> *tet1, const regina::Tetrahedron<3> *tet2) {
         for (int i = 0; i < 6; ++i) {
             for (int j = 0; j < 6; ++j) {
-                if (tet1->edge(i) == tet2->edge(j)) return true;
+                if (tet1->edge(i) == tet2->edge(j))
+                    return true;
             }
         }
 
         return false;
     }
 
-    bool hasSharedVertex_(const regina::Tetrahedron<3> *tet1,
-                          const regina::Tetrahedron<3> *tet2) {
+    bool hasSharedVertex_(const regina::Tetrahedron<3> *tet1, const regina::Tetrahedron<3> *tet2) {
         for (int i = 0; i < 4; ++i) {
             for (int j = 0; j < 4; ++j) {
-                if (tet1->vertex(i) == tet2->vertex(j)) return true;
+                if (tet1->vertex(i) == tet2->vertex(j))
+                    return true;
             }
         }
 
         return false;
     }
 
-    //DualCurve<3> getDualCurve_() {
-    //    DualCurve<3> ans;
+    // DualCurve<3> getDualCurve_() {
+    //     DualCurve<3> ans;
 
     //    map([&ans, this](regina::Tetrahedron<3> *currTet, regina::Edge<3> *,
     //                     regina::Tetrahedron<3> *nextTet, regina::Edge<3> *,
@@ -329,8 +326,8 @@ class Knot {
     //    return ans;
     //}
 
-    //Curve<3> getCurve_() {
-    //    Curve<3> ans;
+    // Curve<3> getCurve_() {
+    //     Curve<3> ans;
 
     //    map([&ans](regina::Tetrahedron<3> *, regina::Edge<3> *edge) {
     //        ans.push_back(edge);
@@ -353,6 +350,10 @@ class Knot {
         return false;
     }
 
+    /**
+     * Locally "cleans up" the knot by isotoping away redundant edges in every tetrahedron
+     * containing an edge of the knot.
+     */
     void shrink_() {
         bool isDone = false;
         while (!updateIsUnknot_() && !isDone) {
@@ -369,6 +370,10 @@ class Knot {
         }
     }
 
+    /**
+     * In the case where there are two edges in a given tetrahedron which are disjoint, we separate
+     * them by performing a 1-4 move. This should only be run after shrink_() has been called.
+     */
     void separate_() {
         bool isDone = false;
         while (!updateIsUnknot_() && !isDone) {
@@ -400,17 +405,19 @@ class Knot {
             return false;
 
         for (size_t e : edges) {
+            // TODO: Don't be stupid (impossible!)
             removeEdge_(tet->edge(e));
         }
 
         /* Add the new edge */
-        // In this case, there are exactly two endpoints in this
-        // tet
+        // In this case, there are exactly two endpoints in this tet
         std::array<size_t, 2> endVerts;
         size_t i = 0;
         for (auto [vert, count] : vertCounts) {
-            if (count == 1) endVerts[i++] = vert;
-            if (i >= 2) break;
+            if (count == 1)
+                endVerts[i++] = vert;
+            if (i >= 2)
+                break;
         }
 
         addEdge_(tet->edge(endVerts[0], endVerts[1]));
@@ -489,8 +496,7 @@ class Knot {
         }
     }
 
-    std::array<std::unordered_map<int, regina::Tetrahedron<3> *>, 2>
-    twoSixTets_(Gluing<3, 3> g) {
+    std::array<std::unordered_map<int, regina::Tetrahedron<3> *>, 2> twoSixTets_(Gluing<3, 3> g) {
         std::array<std::unordered_map<int, regina::Tetrahedron<3> *>, 2> tets;
 
         for (int i = 0; i < 4; ++i) {
@@ -508,9 +514,11 @@ class Knot {
         for (int i = 0; i < 2; ++i) {
             int gluingFace = i == 0 ? g.srcFacet : g.gluing[g.srcFacet];
             for (int j = 0; j < 4; ++j) {
-                if (j == gluingFace) continue;
+                if (j == gluingFace)
+                    continue;
                 for (int k = j + 1; k < 4; ++k) {
-                    if (k == gluingFace) continue;
+                    if (k == gluingFace)
+                        continue;
                     tets[i][j]->join(k, tets[i][k], {j, k});
                 }
             }
@@ -535,13 +543,11 @@ class Knot {
         // For each face of tet, track gluings
         for (int i = 0; i < 2; ++i) {
             for (int j = 0; j < 4; ++j) {
-                if (j == (i == 0 ? tetGluing.srcFacet
-                                 : tetGluing.gluing[tetGluing.srcFacet]))
+                if (j == (i == 0 ? tetGluing.srcFacet : tetGluing.gluing[tetGluing.srcFacet]))
                     continue;
                 regina::Tetrahedron<3> *adjTet = tets[i]->adjacentSimplex(j);
                 if (adjTet != nullptr)
-                    gluings[i][j] = {tets[i], j, adjTet,
-                                     tets[i]->adjacentGluing(j)};
+                    gluings[i][j] = {tets[i], j, adjTet, tets[i]->adjacentGluing(j)};
             }
         }
 
@@ -579,24 +585,20 @@ class Knot {
         return newTets;
     }
 
-   public:
-    Gluing<3, 3> getGluing_(regina::Tetrahedron<3> *tet0,
-                            regina::Tetrahedron<3> *tet1) const {
+  public:
+    Gluing<3, 3> getGluing_(regina::Tetrahedron<3> *tet0, regina::Tetrahedron<3> *tet1) const {
         Gluing<3, 3> g;
         for (int i = 0; i < 4; ++i) {
             if (tet0->adjacentSimplex(i) == tet1)
                 return {tet0, i, tet1, tet0->adjacentGluing(i)};
         }
 
-        throw regina::InvalidArgument(
-            "Given tetrahedra are not glued together!");
+        throw regina::InvalidArgument("Given tetrahedra are not glued together!");
     }
 
-    void subdivideSharedEdgeSequence_(
-        std::vector<regina::Tetrahedron<3> *> &tets) {
+    void subdivideSharedEdgeSequence_(std::vector<regina::Tetrahedron<3> *> &tets) {
         regina::Perm<4> p;
-        for (const regina::EdgeEmbedding<3> &emb :
-             sharedEdge_(tets)->embeddings()) {
+        for (const regina::EdgeEmbedding<3> &emb : sharedEdge_(tets)->embeddings()) {
             if (emb.tetrahedron() == tets[0]) {
                 p = emb.vertices();
                 break;
@@ -613,39 +615,34 @@ class Knot {
             tets[i + 1] = newTets[0][sharedFace]->adjacentSimplex(g.srcFacet);
 
             p = tets[i + 1]->edgeMapping(
-                regina::FaceNumbering<3, 1>::edgeNumber[g.gluing[p[0]]]
-                                                       [g.gluing[p[1]]]);
+                regina::FaceNumbering<3, 1>::edgeNumber[g.gluing[p[0]]][g.gluing[p[1]]]);
         }
     }
 
-    bool isGlued_(const regina::Tetrahedron<3> *tet0,
-                  const regina::Tetrahedron<3> *tet1) const {
+    bool isGlued_(const regina::Tetrahedron<3> *tet0, const regina::Tetrahedron<3> *tet1) const {
         for (int i = 0; i < 4; ++i) {
-            if (tet0->adjacentSimplex(i) == tet1) return true;
+            if (tet0->adjacentSimplex(i) == tet1)
+                return true;
         }
         return false;
     }
 
-    regina::Edge<3> *sharedEdge_(
-        const std::vector<regina::Tetrahedron<3> *> &tets) {
+    regina::Edge<3> *sharedEdge_(const std::vector<regina::Tetrahedron<3> *> &tets) {
         auto ts = lastThree_(tets);
-        regina::Triangle<3> *t0 =
-            ts[0]->triangle(getGluing_(ts[0], ts[1]).srcFacet);
-        regina::Triangle<3> *t1 =
-            ts[1]->triangle(getGluing_(ts[1], ts[2]).srcFacet);
-        std::unordered_set<regina::Edge<3> *> edges = {t0->edge(0), t0->edge(1),
-                                                       t0->edge(2)};
+        regina::Triangle<3> *t0 = ts[0]->triangle(getGluing_(ts[0], ts[1]).srcFacet);
+        regina::Triangle<3> *t1 = ts[1]->triangle(getGluing_(ts[1], ts[2]).srcFacet);
+        std::unordered_set<regina::Edge<3> *> edges = {t0->edge(0), t0->edge(1), t0->edge(2)};
 
         for (int i = 0; i < 3; ++i) {
-            if (edges.find(t1->edge(i)) != edges.end()) return t1->edge(i);
+            if (edges.find(t1->edge(i)) != edges.end())
+                return t1->edge(i);
         }
 
-        throw regina::InvalidArgument(
-            "Given tetrahedra don't have a shared edge!");
+        throw regina::InvalidArgument("Given tetrahedra don't have a shared edge!");
     }
 
-    std::array<regina::Tetrahedron<3> *, 3> lastThree_(
-        const std::vector<regina::Tetrahedron<3> *> &tets) {
+    std::array<regina::Tetrahedron<3> *, 3>
+    lastThree_(const std::vector<regina::Tetrahedron<3> *> &tets) {
         std::array<regina::Tetrahedron<3> *, 3> ans;
         int j = 0;
         for (int i = tets.size() - 3; i < tets.size(); ++i) {
@@ -654,8 +651,7 @@ class Knot {
         return ans;
     }
 
-    regina::Vertex<3> *sharedVertex_(
-        const std::vector<regina::Tetrahedron<3> *> &tets) const {
+    regina::Vertex<3> *sharedVertex_(const std::vector<regina::Tetrahedron<3> *> &tets) const {
         std::set<regina::Vertex<3> *> verts;
         for (int j = 0; j < 4; ++j) {
             verts.insert(tets[0]->vertex(j));
@@ -668,26 +664,24 @@ class Knot {
             }
 
             std::set<regina::Vertex<3> *> intersection;
-            std::set_intersection(
-                verts.begin(), verts.end(), newVerts.begin(), newVerts.end(),
-                std::inserter(intersection, intersection.begin()));
+            std::set_intersection(verts.begin(), verts.end(), newVerts.begin(), newVerts.end(),
+                                  std::inserter(intersection, intersection.begin()));
             verts = intersection;
 
-            if (verts.size() == 1) return *(verts.begin());
+            if (verts.size() == 1)
+                return *(verts.begin());
         }
 
-        if (verts.size() >= 1) return *(verts.begin());
+        if (verts.size() >= 1)
+            return *(verts.begin());
 
-        throw regina::InvalidArgument(
-            "Given tetrahedra do not share a common vertex!");
+        throw regina::InvalidArgument("Given tetrahedra do not share a common vertex!");
     }
 
-    void subdivideSharedVertexSequence_(
-        std::vector<regina::Tetrahedron<3> *> &tets) {
+    void subdivideSharedVertexSequence_(std::vector<regina::Tetrahedron<3> *> &tets) {
         const regina::Vertex<3> *sharedVertex = sharedVertex_(tets);
         int v;
-        for (const regina::VertexEmbedding<3> &emb :
-             sharedVertex->embeddings()) {
+        for (const regina::VertexEmbedding<3> &emb : sharedVertex->embeddings()) {
             if (emb.simplex() == tets[0]) {
                 v = emb.vertex();
                 break;
@@ -696,13 +690,12 @@ class Knot {
 
         for (int i = 0; i < tets.size() - 1;) {
             int start = i;
-            std::vector<regina::Tetrahedron<3> *> sharedEdgeSubseq = {
-                tets[i], tets[++i], tets[++i]};
+            std::vector<regina::Tetrahedron<3> *> sharedEdgeSubseq = {tets[i], tets[++i],
+                                                                      tets[++i]};
             regina::Edge<3> *sharedEdge = sharedEdge_(sharedEdgeSubseq);
 
             while (i < tets.size() - 1 &&
-                   sharedEdge ==
-                       sharedEdge_({tets[i - 1], tets[i], tets[i + 1]})) {
+                   sharedEdge == sharedEdge_({tets[i - 1], tets[i], tets[i + 1]})) {
                 sharedEdgeSubseq.push_back(tets[++i]);
             }
 
@@ -721,26 +714,24 @@ class Knot {
                 tets[j] = sharedEdgeSubseq[j - start];
             }
 
-            if (i >= tets.size() - 1) return;
+            if (i >= tets.size() - 1)
+                return;
 
             sharedEdge = sharedEdge_(sharedEdgeSubseq);
             sharedVertex = tets[0]->vertex(v);
-            regina::Vertex<3> *otherVertex =
-                sharedEdge->vertex(0) != sharedVertex ? sharedEdge->vertex(0)
-                                                      : sharedEdge->vertex(1);
+            regina::Vertex<3> *otherVertex = sharedEdge->vertex(0) != sharedVertex
+                                                 ? sharedEdge->vertex(0)
+                                                 : sharedEdge->vertex(1);
 
-            for (const regina::VertexEmbedding<3> &emb :
-                 otherVertex->embeddings()) {
+            for (const regina::VertexEmbedding<3> &emb : otherVertex->embeddings()) {
                 if (emb.simplex() == tets[i]) {
                     tets[i] = tets[i]->adjacentSimplex(emb.vertex());
                     break;
                 }
             }
-            for (const regina::VertexEmbedding<3> &emb :
-                 otherVertex->embeddings()) {
+            for (const regina::VertexEmbedding<3> &emb : otherVertex->embeddings()) {
                 if (emb.simplex() == tets[i - 1]) {
-                    tets.insert(tets.begin() + i,
-                                tets[i - 1]->adjacentSimplex(emb.vertex()));
+                    tets.insert(tets.begin() + i, tets[i - 1]->adjacentSimplex(emb.vertex()));
                     break;
                 }
             }
@@ -756,13 +747,12 @@ class Knot {
 // }
 
 class Link {
-   private:
+  private:
     regina::Triangulation<3> &tri_;
     std::vector<Knot> comps_;
 
-   public:
-    Link(regina::Triangulation<3> &tri, const std::vector<Curve<3>> &components)
-        : tri_(tri) {
+  public:
+    Link(regina::Triangulation<3> &tri, const std::vector<Curve<3>> &components) : tri_(tri) {
         for (const Curve<3> &edges : components) {
             comps_.emplace_back(tri, edges);
         }
@@ -770,7 +760,8 @@ class Link {
 
     bool isUnlink() const {
         for (const Knot &k : comps_) {
-            if (!k.isUnknot()) return false;
+            if (!k.isUnknot())
+                return false;
         }
         return true;
     }
@@ -842,7 +833,7 @@ class Link {
 
 template <int dim>
 class KnottedSurface {
-   private:
+  private:
     const regina::Triangulation<dim> *tri_;
     /**< The dim-manifold triangulation in which this subdim-manifold is
      * embedded */
@@ -851,13 +842,11 @@ class KnottedSurface {
     /**< The triangulation of the sub-triangulation induced by the embedding
      */
 
-    std::unordered_map<regina::Triangle<2> *, const regina::Triangle<dim> *>
-        emb_;
+    std::unordered_map<regina::Triangle<2> *, const regina::Triangle<dim> *> emb_;
     /**< A mapping from the top-dimensional simplices of the
      * sub-triangulation into the subdim-simplices of the dim-triangulation
      */
-    std::unordered_map<const regina::Triangle<dim> *, regina::Triangle<2> *>
-        inv_;
+    std::unordered_map<const regina::Triangle<dim> *, regina::Triangle<2> *> inv_;
     /**< A mapping from the subdim-simplices of the dim-triangulation to the
      * top-dimensional simplices of the sub-triangulation. Note that
      * inv_.at(emb_.at(face)) = face */
@@ -866,22 +855,21 @@ class KnottedSurface {
 
     std::set<int> indices_;
 
-   public:
+  public:
     std::unordered_set<const regina::Edge<dim> *> improperEdges_;
     /**< Notes whether an embedding is proper, in the sense that the image
      * of the boundary of the sub-triangulation is entirely contained within
      * the boundary of the dim-manifold triangulation */
     KnottedSurface(const regina::Triangulation<dim> *tri) : tri_(tri) {
-        if (!tri_->isClosed()) bdry_ = tri_->boundaryComponent(0)->build();
+        if (!tri_->isClosed())
+            bdry_ = tri_->boundaryComponent(0)->build();
     }
 
     KnottedSurface(const KnottedSurface &other)
-        : tri_(other.tri_),
-          surface_(other.surface_),
-          improperEdges_(other.improperEdges_),
-          invariants_(other.invariants_),
-          indices_(other.indices_) {
-        if (!tri_->isClosed()) bdry_ = tri_->boundaryComponent(0)->build();
+        : tri_(other.tri_), surface_(other.surface_), improperEdges_(other.improperEdges_),
+          invariants_(other.invariants_), indices_(other.indices_) {
+        if (!tri_->isClosed())
+            bdry_ = tri_->boundaryComponent(0)->build();
         // Connect the wires...
         for (regina::Triangle<2> *t : other.surface_.triangles()) {
             const regina::Triangle<dim> *f = other.emb_.at(t);
@@ -913,15 +901,14 @@ class KnottedSurface {
 
     const regina::Triangulation<2> &surface() const { return surface_; }
 
-    bool isProper() const {
-        return surface_.isClosed() || improperEdges_.empty();
-    }
+    bool isProper() const { return surface_.isClosed() || improperEdges_.empty(); }
 
     bool hasSelfIntersection() const {
         std::unordered_set<const regina::Vertex<dim> *> images;
         for (const regina::Vertex<2> *v : surface_.vertices()) {
             const regina::Vertex<dim> *im = image(v);
-            if (images.find(im) != images.end()) return true;
+            if (images.find(im) != images.end())
+                return true;
             images.insert(im);
         }
         return false;
@@ -929,19 +916,14 @@ class KnottedSurface {
 
     Link boundary() {
         const regina::BoundaryComponent<dim> *b = tri_->boundaryComponent(0);
-        std::unordered_map<const regina::Edge<dim> *,
-                           const regina::Edge<dim - 1> *>
-            bdryMap;
-        std::unordered_map<const regina::Edge<2> *,
-                           const regina::Edge<dim - 1> *>
-            edgeMap;
+        std::unordered_map<const regina::Edge<dim> *, const regina::Edge<dim - 1> *> bdryMap;
+        std::unordered_map<const regina::Edge<2> *, const regina::Edge<dim - 1> *> edgeMap;
 
         for (const regina::Edge<dim - 1> *e : bdry_.edges()) {
             bdryMap[b->edge(e->index())] = e;
         }
 
-        for (const regina::BoundaryComponent<2> *comp :
-             surface_.boundaryComponents()) {
+        for (const regina::BoundaryComponent<2> *comp : surface_.boundaryComponents()) {
             for (const regina::Edge<2> *e : comp->edges()) {
                 edgeMap[e] = bdryMap.at(image(e));
             }
@@ -978,12 +960,11 @@ class KnottedSurface {
         //    comps.push_back(edges);
         //}
 
-        for (const regina::BoundaryComponent<2> *comp :
-             surface_.boundaryComponents()) {
+        for (const regina::BoundaryComponent<2> *comp : surface_.boundaryComponents()) {
             Curve<dim - 1> edges;
-            //for (const regina::Edge<2> *e : comp->edges()) {
-            //    edges.push_back(edgeMap.at(e));
-            //}
+            // for (const regina::Edge<2> *e : comp->edges()) {
+            //     edges.push_back(edgeMap.at(e));
+            // }
             comps.push_back(edges);
         }
 
@@ -1003,20 +984,20 @@ class KnottedSurface {
         return emb_.at(fEmb.simplex())->template face<facedim>(fEmb.face());
     }
 
-    const regina::Triangle<dim> *image(regina::Triangle<2> *t) const {
-        return emb_.at(t);
-    }
+    const regina::Triangle<dim> *image(regina::Triangle<2> *t) const { return emb_.at(t); }
 
     regina::Triangle<2> *preimage(const regina::Triangle<dim> *f) const {
         auto search = inv_.find(f);
-        if (search == inv_.end()) return nullptr;
+        if (search == inv_.end())
+            return nullptr;
         return search->second;
     }
 
     /** Mutation methods */
 
-    bool addTriangle(const regina::Triangle<dim> *f,
-                     const typename GluingNode<dim>::AdjList &adj) {
+    bool addTriangle(const regina::Triangle<dim> *f, const typename GluingNode<dim>::AdjList &adj) {
+        // TODO: Figure out a nice way for this method not to know what an
+        // AdjList is
         regina::Triangle<2> *src = surface_.newSimplex();
         std::array<bool, 3> isBoundaryEdge = {true, true, true};
 
@@ -1025,7 +1006,8 @@ class KnottedSurface {
 
         for (const auto &[adjNode, g] : adj) {
             auto search = inv_.find(adjNode->f);
-            if (search == inv_.end()) continue;
+            if (search == inv_.end())
+                continue;
 
             regina::Triangle<2> *dst = search->second;
             int dstFacet = g.gluing[g.srcFacet];
@@ -1132,20 +1114,16 @@ class KnottedSurface {
         return ans.str();
     }
 
-    friend bool operator==(const KnottedSurface &lhs,
-                           const KnottedSurface &rhs) {
-        return lhs.invariants_ == rhs.invariants_ &&
-               lhs.indices_ == rhs.indices_;
+    friend bool operator==(const KnottedSurface &lhs, const KnottedSurface &rhs) {
+        return lhs.invariants_ == rhs.invariants_ && lhs.indices_ == rhs.indices_;
     }
 
-    friend bool operator<(const KnottedSurface &lhs,
-                          const KnottedSurface &rhs) {
+    friend bool operator<(const KnottedSurface &lhs, const KnottedSurface &rhs) {
         return lhs.invariants_ < rhs.invariants_ ||
-               (lhs.invariants_ == rhs.invariants_ &&
-                lhs.indices_ < rhs.indices_);
+               (lhs.invariants_ == rhs.invariants_ && lhs.indices_ < rhs.indices_);
     }
 
-   private:
+  private:
     void updateInvariants_() {
         bool isOrientable = surface_.isOrientable();
         int punctures = surface_.countBoundaryComponents();
@@ -1163,6 +1141,5 @@ class KnottedSurface {
 //                                         const Knot &k) {
 //     return linkComplement(t, {k});
 // }
-
 
 #endif
