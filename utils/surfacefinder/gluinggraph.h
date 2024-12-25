@@ -79,6 +79,16 @@ class GluingGraph {
         return surfaces_;
     }
 
+    int countNodes() const { return nodes_.size(); }
+
+    int countEdges() const {
+        int count = 0;
+        for (auto &[_, node] : nodes_) {
+            count += node.adjList.size();
+        }
+        return count;
+    }
+
   private:
     void nspaces_(int m) {
         for (int i = 0; i < m; ++i) {
