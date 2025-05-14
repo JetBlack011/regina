@@ -163,7 +163,9 @@ class GluingGraph {
         node->visited = true;
 
         // Win condition: we've found a surface that meets the given boundary requirement
-        if (surface_.isProper()) {
+        if ((cond_ == SurfaceCondition::all) ||
+            (cond_ == SurfaceCondition::closed && surface_.isClosed()) ||
+            (cond_ == SurfaceCondition::boundary && surface_.isProper())) {
             surfaces_.insert(surface_);
         }
 

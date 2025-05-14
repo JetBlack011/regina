@@ -30,7 +30,6 @@
 #include <vector>
 
 #include "maths/perm.h"
-#include "triangulation/example3.h"
 #include "triangulation/facenumbering.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
@@ -63,58 +62,17 @@ class Knot {
     enum class JoinType { face, edge, vertex };
 
   public:
-    Knot(const regina::Triangulation<3> &tri, const std::vector<int> &edges)
-        : tri_(regina::Triangulation(tri)) {
-        for (int edge : edges) {
-            addEdge_(tri_.edge(edge));
-        }
-    }
-
     Knot(const regina::Triangulation<3> &tri, const Curve<3> &edges)
         : tri_(regina::Triangulation(tri)) {
         for (const regina::Edge<3> *edge : edges) {
             addEdge_(tri_.edge(edge->index()));
         }
+
+        if (edges.size() <= 4)
+            isUnknot_ = true;
     }
 
     bool isUnknot() const { return isUnknot_; }
-
-    regina::Triangulation<3> buildComplement() const {
-        if (isUnknot_)
-            return regina::Example<3>::ballBundle();
-
-        regina::Triangulation<3> complement(tri_);
-        std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-            complementTetEdges;
-
-        for (const auto &[tet, edges] : tetEdges_) {
-            complementTetEdges.emplace(complement.tetrahedron(tet->index()),
-                                       edges);
-        }
-
-        while (!complementTetEdges.empty()) {
-            auto &[tet, edges] = *complementTetEdges.begin();
-            regina::Edge<3> *e = tet->edge(*edges.begin());
-
-            for (const regina::EdgeEmbedding<3> &emb : e->embeddings()) {
-                regina::Tetrahedron<3> *embTet = emb.tetrahedron();
-                complementTetEdges[embTet].erase(emb.face());
-                if (complementTetEdges[embTet].empty()) {
-                    complementTetEdges.erase(embTet);
-                }
-            }
-            // std::cout << "BEFORE = " << k.tri_.isoSig() << "\n";
-            complement.pinchEdge(e);
-            // std::cout << "AFTER = " << k.tri_.isoSig() << "\n\n";
-        }
-
-        // std::cout << "Final triangulation = " << k.tri_.isoSig() << "\n";
-
-        complement.idealToFinite();
-        complement.simplify();
-
-        return complement;
-    }
 
     /**
      * Simplifies a given knot so that each tetrahedron it runs through contains
@@ -137,7 +95,6 @@ class Knot {
         if (isUnknot_)
             return;
         shrink_();
-        updateIsUnknot_();
         // separate_();
     }
 
@@ -278,10 +235,6 @@ class Knot {
      * with a known drilling of the unknot. 2)
      */
     // regina::Triangulation<3> complement() {}
-
-    friend bool operator<(const Knot &k1, const Knot &k2) {
-        return k1.numEdges_ < k2.numEdges_;
-    }
 
     /**
      * Prints the knot in the form { v1, v2, ..., vn } where v1, v2, ..., vn are
@@ -838,8 +791,8 @@ class Link {
     Link(const regina::Triangulation<3> &tri,
          const std::vector<Curve<3>> &components)
         : tri_(regina::Triangulation(tri)) {
-        for (const Curve<3> &comp : components) {
-            comps_.emplace_back(tri, comp);
+        for (const Curve<3> &edges : components) {
+            comps_.emplace_back(tri, edges);
         }
     }
 
@@ -947,7 +900,6 @@ class KnottedSurface {
     /**< Notes whether an embedding is proper, in the sense that the image
      * of the boundary of the sub-triangulation is entirely contained within
      * the boundary of the dim-manifold triangulation */
-
     KnottedSurface(const regina::Triangulation<dim> *tri) : tri_(tri) {
         if (!tri_->isClosed()) {
             bdry_ = tri_->boundaryComponent(0)->build();
@@ -992,8 +944,6 @@ class KnottedSurface {
 
     const regina::Triangulation<2> &surface() const { return surface_; }
 
-    bool isClosed() const { return surface_.isClosed(); }
-
     bool isProper() const {
         return surface_.isClosed() || improperEdges_.empty();
     }
@@ -1013,16 +963,16 @@ class KnottedSurface {
         std::vector<Curve<3>> components;
 
         // TODO: Make this O(1) somehow
-        for (const regina::BoundaryComponent<dim> *triBoundaryComp :
+        for (const regina::BoundaryComponent<dim> *bdryComp :
              tri_->boundaryComponents()) {
 
-            for (const regina::BoundaryComponent<2> *surfaceBoundaryComp :
+            for (const regina::BoundaryComponent<2> *comp :
                  surface_.boundaryComponents()) {
                 Curve<3> curve;
-                for (const regina::Edge<2> *e : surfaceBoundaryComp->edges()) {
+                for (const regina::Edge<2> *e : comp->edges()) {
                     const regina::Edge<dim> *im = image(e);
-                    for (int i = 0; i < triBoundaryComp->countEdges(); ++i) {
-                        if (im == triBoundaryComp->edge(i)) {
+                    for (int i = 0; i < bdryComp->countEdges(); ++i) {
+                        if (im == bdryComp->edge(i)) {
                             curve.push_back(bdry_.edge(i));
                             break;
                         }

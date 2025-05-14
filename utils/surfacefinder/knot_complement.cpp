@@ -2,9 +2,9 @@
 //  surfacefinder.cpp
 //
 //  Created by John Teague on 06/19/2024.
-//
 
-#include <algorithm>
+// [81, 22, 153, 45, 47, 17, 8, 117, 168, 109, 240, 132, 134, 104, 95, 204, 255, 196, 327, 219, 221, 191, 182, 291]
+
 #include <cstdio>
 #include <gmpxx.h>
 #include <link/link.h>
@@ -242,46 +242,59 @@ int main(int argc, char *argv[]) {
     // std::cout << "\n";
 
     int numNonUnlinks = 0;
-    std::vector<std::pair<Link, const KnottedSurface<4> *>> links;
+    std::vector<std::pair<Link, const KnottedSurface<4>*>> links;
     for (const auto &surface : surfaces) {
         if (surface.surface().isClosed())
             continue;
 
-        const KnottedSurface<4> *s = &surface;
-        links.emplace_back(surface.boundary(), s);
-        if (!links.back().first.isUnlink()) {
+        Link l = surface.boundary();
+        const KnottedSurface<4>* s = &surface;
+        links.emplace_back(l, s);
+        if (!l.isUnlink()) {
             ++numNonUnlinks;
         }
     }
 
-    std::vector<std::pair<Knot *, const KnottedSurface<4> *>> knots;
-    for (auto &[l, s] : links) {
+    std::cout << "NUMBER OF NONTRIVIAL LINKS = " << numNonUnlinks << "\n";
+
+    std::vector<std::pair<Knot *, const KnottedSurface<4>*>> knots;
+    for (auto &[l,s] : links) {
         for (auto &k : l.comps_) {
             k.simplify();
             knots.emplace_back(&k, s);
         }
     }
 
-    std::cout << "NUMBER OF NONTRIVIAL LINKS = " << numNonUnlinks << "\n";
+    std::sort(knots.begin(), knots.end(), [](auto &a, auto &b) {
+        return a.first->numEdges_ < b.first->numEdges_;
+    });
 
-    std::cout << "[+] Sorting knots by complexity...\n";
-    std::ranges::sort(knots,
-                      [](auto &a, auto &b) { return *b.first < *a.first; });
-
-    std::cout << "here they are:\n";
-    for (const auto &[k, s] : knots) {
-        std::cout << "Number of edges = " << k->numEdges_ << "\n";
-        // std::cout << *k << "\n";
+    for (auto &k : knots) {
+        std::cout << *k.first << "\n";
     }
 
-    int counter = 0;
-    for (const auto &[k, s] : knots) {
-        ++counter;
-        // if (k->isUnknot())
-        //     continue;
-        regina::Triangulation<3> complement = k->buildComplement();
-        std::cout << "TRIANGULATION " << counter << " IS A "
-                  << complement.isoSig() << "\n";
+    for (auto &k : knots) {
+        Knot *knot = k.first;
+        if (knot->isUnknot())
+            continue;
+
+        //std::cout << "Surface = " << 
+        std::cout << "Knot = " << *knot << ", Surface = " << k.second << "\n";
+
+        while (!knot->tetEdges_.empty()) {
+            auto &[tet, tetEdges] = *knot->tetEdges_.begin();
+            auto e = tet->edge(*tetEdges.begin());
+            knot->removeEdge_(e);
+            // std::cout << "BEFORE = " << k.tri_.isoSig() << "\n";
+            knot->tri_.pinchEdge(e);
+            // std::cout << "AFTER = " << k.tri_.isoSig() << "\n\n";
+        }
+
+        // std::cout << "Final triangulation = " << k.tri_.isoSig() << "\n";
+
+        knot->tri_.idealToFinite();
+        knot->tri_.simplify();
+        std::cout << "TRIANGULATION IS A " << knot->tri_.isoSig() << "\n";
     }
 
     return 0;

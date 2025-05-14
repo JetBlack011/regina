@@ -1,3 +1,7 @@
+#ifndef GLUING_H 
+
+#define GLUING_H
+
 #include "triangulation/generic/face.h"
 
 /** Gluing Implementation */
@@ -43,3 +47,5 @@ class GluingNode {
         return os;
     }
 };
+
+#endif

@@ -1,6 +1,8 @@
 set(UTILS
   bogocheck
   surfacefinder
+  fill3manifold
+  knotbuilder
   )
 
 foreach(UTIL ${UTILS})
