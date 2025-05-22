@@ -19,6 +19,7 @@
 #include <cstring>
 #include <map>
 
+#include "census/census.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
 
@@ -50,16 +51,16 @@ class GluingGraph {
         std::cout << "[+] Built gluing edges\n";
     }
 
-    void pruneSurfaces() {
-        // TODO: Do this during DFS
-        for (auto it = surfaces_.begin(); it != surfaces_.end();) {
-            if ((*it).hasSelfIntersection()) {
-                it = surfaces_.erase(it);
-                continue;
-            }
-            ++it;
-        }
-    }
+    // void pruneSurfaces() {
+    //     // TODO: Do this during DFS
+    //     for (auto it = surfaces_.begin(); it != surfaces_.end();) {
+    //         if ((*it).hasSelfIntersection()) {
+    //             it = surfaces_.erase(it);
+    //             continue;
+    //         }
+    //         ++it;
+    //     }
+    // }
 
     std::set<KnottedSurface<dim>> &findSurfaces() {
         if (!surfaces_.empty())
@@ -74,7 +75,7 @@ class GluingGraph {
         std::cout << "\n\n";
         std::cout << "[+] Total search calls = " << calls_ << "\n\n";
 
-        pruneSurfaces();
+        // pruneSurfaces();
 
         return surfaces_;
     }
@@ -119,36 +120,44 @@ class GluingGraph {
                 // TODO: Would be nice for this to be O(1), not sure if possible
                 for (auto &[otherTriangle, otherNode] : nodes_) {
                     for (int j = 0; j < 3; ++j) {
-                        // Only glue identified edges and ignore identity mappings/opposite self
-                        // gluings
+                        // Only glue identified edges and ignore identity
+                        // mappings/opposite self gluings
                         if (otherTriangle->edge(j) != edge ||
                             (triangle == otherTriangle &&
-                             (i == j || selfGluingEdges.find(i) != selfGluingEdges.end())))
+                             (i == j || selfGluingEdges.find(i) !=
+                                            selfGluingEdges.end())))
                             continue;
 
                         if (triangle == otherTriangle) {
                             selfGluingEdges.insert(j);
                         }
 
-                        regina::Perm<dim + 1> edgeToOther = otherTriangle->edgeMapping(j);
+                        regina::Perm<dim + 1> edgeToOther =
+                            otherTriangle->edgeMapping(j);
                         // regina::Perm is immutable, use std::array instead
                         std::array<int, 3> p;
                         for (int k = 0; k < 3; ++k) {
                             p[edgeToTriangle[k]] = edgeToOther[k];
                         }
 
-                        node.adjList[&otherNode] = {triangle, i, otherTriangle, p};
+                        node.adjList[&otherNode] = {triangle, i, otherTriangle,
+                                                    p};
                     }
                 }
             }
         }
     }
 
+    int maxLayer_ = 0;
+
     void dfs_(GluingNode<dim> *node, int layer) {
+        maxLayer_ = std::max(layer, maxLayer_);
         ++calls_;
-        if (calls_ % 100000 == 0)
-            std::cout << "\r" << std::flush << "[*] Call " << calls_ << ", Layer " << layer
-                      << ", Surfaces " << surfaces_.size() << "          ";
+        // if (calls_ % 100000 == 0)
+        //     std::cout << "\r" << std::flush << "[*] Call " << calls_ << ",
+        //     Layer " << layer
+        //               << ", Max layer = " << maxLayer_ << ", Surfaces " <<
+        //               surfaces_.size() << "          ";
 
         // Avoid cycles
         if (node->visited) {
@@ -162,11 +171,69 @@ class GluingGraph {
 
         node->visited = true;
 
-        // Win condition: we've found a surface that meets the given boundary requirement
+        // Win condition: we've found a surface that meets the given boundary
+        // requirement and has no self-intersection
         if ((cond_ == SurfaceCondition::all) ||
             (cond_ == SurfaceCondition::closed && surface_.isClosed()) ||
-            (cond_ == SurfaceCondition::boundary && surface_.isProper())) {
+            (cond_ == SurfaceCondition::boundary && surface_.isProper()) &&
+                !surface_.hasSelfIntersection()) {
             surfaces_.insert(surface_);
+            if (surface_.isClosed()) {
+                std::cout << "[+] Found closed surface: " << surface_.detail()
+                          << " with " << surface_.surface().size() << "\n";
+            }
+            if (cond_ == SurfaceCondition::boundary && !surface_.isClosed()) {
+                Link bdry = surface_.boundary();
+                auto complement = bdry.buildComplement();
+                auto hits = regina::Census::lookup(complement);
+                ssize_t genus = complement.recogniseHandlebody();
+                int numComponents = bdry.countComponents();
+
+                std::cout << surface_.detail() << " has boundary " << bdry
+                          << "\n";
+                if (!hits.empty()) {
+                    std::cout << "      recognized as " << hits.front().name()
+                              << ", " << complement.isoSig() << "\n";
+                } else if (genus == 1) {
+                    std::cout << "      unknot, " << complement.isoSig()
+                              << "\n";
+                } else if (genus != -1 && numComponents == 1) {
+                    std::cout << "[!] WARNING! Recognized as a genus " << genus
+                              << " handlebody, " << complement.isoSig() << "\n";
+                    std::cout << "[!] This is almost definitely a bug, please "
+                                 "report it!\n";
+                } else if (numComponents == 1) {
+                    std::cout << "      NOT unknot, " << complement.isoSig()
+                              << "\n";
+                } else if (numComponents > 1) {
+                    for (int i = 0; i < numComponents; ++i) {
+                        regina::Triangulation<3> complement =
+                            bdry.buildComplement(i);
+                        auto hits = regina::Census::lookup(complement);
+                        ssize_t genus = complement.recogniseHandlebody();
+
+                        std::cout << "    Component " << i + 1 << ": ";
+                        if (!hits.empty()) {
+                            std::cout << "      recognized as "
+                                      << hits.front().name() << ", "
+                                      << complement.isoSig() << "\n";
+                        } else if (genus == 1) {
+                            std::cout << "unknot, " << complement.isoSig()
+                                      << "\n";
+                        } else if (genus != -1) {
+                            std::cout << "\n[!] WARNING! Recognized as a genus "
+                                      << genus << " handlebody, ";
+                            std::cout
+                                << "\n[!] This is almost definitely a bug, "
+                                   "please "
+                                   "report it!\n";
+                        } else {
+                            std::cout << "NOT unknot, " << complement.isoSig()
+                                      << "\n";
+                        }
+                    }
+                }
+            }
         }
 
         // Recursive step: search over all adjacent triangles

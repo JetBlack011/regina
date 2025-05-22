@@ -1,7 +1,7 @@
 set(UTILS
   bogocheck
   surfacefinder
-  fill3manifold
+  fillmanifold
   knotbuilder
   )
 

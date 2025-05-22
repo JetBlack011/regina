@@ -8,66 +8,54 @@
 
 #include <gmpxx.h>
 #include <link/link.h>
-#include <sstream>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
-#include <ostream>
 #include <string>
 
 #include "knottedsurfaces.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
+#include "utilities/exception.h"
 
-namespace {
-void usage(const char *progName, const std::string &error = std::string()) {
-    if (!error.empty())
-        std::cerr << error << "\n\n";
+#include "knotbuilder.h"
 
-    std::cerr << "Usage:\n";
-    std::cerr << "    " << progName << " <PD Code>\n    " << progName
-              << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -v, --version  : Show which version of Regina is "
-                 "being used\n";
-    std::cerr << "    -h, --help     : Display this help\n";
-    exit(1);
-}
+PDCode parsePDCode(std::string pdcode_str) {
+    std::vector<std::array<int, 4>> pdcode;
 
-std::vector<std::vector<int>> parsePDCode(std::string pdcode_str) {
-    std::vector<std::vector<int>> pdcode;
-
-    // remove the brackets
-    pdcode_str = pdcode_str.substr(2, pdcode_str.length() - 4);
-
-    // Replace delineating characters with spaces
-    std::string target = "),(";
-    std::string replacement = " ";
-
-    size_t pos = 0;
-    while ((pos = pdcode_str.find(target, pos)) != std::string::npos) {
-        pdcode_str.replace(pos, target.length(), replacement);
-        pos += replacement.length(); // move past the replacement
+    for (char &c : pdcode_str) {
+        if (!std::isdigit(c)) {
+            c = ' ';
+        }
     }
 
-    // Split into crossings
-    std::istringstream pdcode_iss(pdcode_str);
-    std::string token;
-    std::vector<std::istringstream> crossings;
-
-    while (pdcode_iss >> token) {
-        crossings.emplace_back(token);
+    std::stringstream ss(pdcode_str);
+    std::vector<int> pdlist;
+    int token;
+    while (ss >> token) {
+        pdlist.push_back(token);
     }
 
-    // Convert to final pdcode
-    for (std::istringstream &crossing_iss : crossings) {
-        std::vector<int> crossing;
-        std::string token;
-        while (std::getline(crossing_iss, token, ',')) {
-            crossing.push_back(std::stoi(token));
+    bool isZeroIndexed = false;
+    if (std::ranges::find(pdlist, 0) != pdlist.end()) {
+        isZeroIndexed = true;
+    }
+
+    if (!isZeroIndexed) {
+        for (int &i : pdlist) {
+            --i;
+        }
+    }
+
+    for (int i = 0; i < pdlist.size(); i += 4) {
+        std::array<int, 4> crossing;
+        for (int j = 0; j < 4; j++) {
+            crossing[j] = pdlist[i + j];
         }
         pdcode.push_back(crossing);
     }
@@ -75,100 +63,119 @@ std::vector<std::vector<int>> parsePDCode(std::string pdcode_str) {
     return pdcode;
 }
 
-class Block {
-  private:
-    std::vector<regina::Tetrahedron<3> *> core_;
-    std::array<std::array<regina::Tetrahedron<3> *, 3>, 4> walls_;
+Block::Block(regina::Triangulation<3> &tri) {
+    const regina::Perm<4> id;
+    core_.reserve(6);
+    for (int i = 0; i < 6; ++i) {
+        core_.push_back(tri.newTetrahedron());
+    }
 
-  public:
-    Block(regina::Triangulation<3> &tri) {
-        const regina::Perm<4> id;
-        core_.reserve(6);
-        for (int i = 0; i < 6; ++i) {
-            core_.push_back(tri.newTetrahedron());
-        }
+    core_[0]->join(0, core_[4], id);
+    core_[1]->join(3, core_[5], {1, 2, 3, 0});
+    core_[2]->join(0, core_[5], {0, 1});
+    core_[3]->join(3, core_[4], {0, 2, 3, 1});
+    core_[4]->join(3, core_[5], id);
 
-        core_[0]->join(0, core_[4], id);
-        core_[1]->join(0, core_[5], id);
-        core_[2]->join(0, core_[5], {0, 1});
-        core_[3]->join(0, core_[4], {0, 1});
-        core_[4]->join(2, core_[5], id);
+    std::vector<regina::Tetrahedron<3> *> wallTets;
+    wallTets.reserve(8);
+    for (int i = 0; i < 8; ++i) {
+        wallTets.push_back(tri.newTetrahedron());
+    }
 
-        std::vector<regina::Tetrahedron<3> *> wallTets;
-        wallTets.reserve(8);
-        for (int i = 0; i < 8; ++i) {
-            wallTets.push_back(tri.newTetrahedron());
-        }
+    wallTets[0]->join(1, core_[0], {1, 2});
+    wallTets[1]->join(3, core_[0], id);
+    wallTets[1]->join(0, core_[1], {2, 0, 1, 3});
+    wallTets[2]->join(0, core_[1], {0, 1});
+    wallTets[3]->join(0, core_[1], id);
+    wallTets[3]->join(3, core_[2], {0, 2, 3, 1});
+    wallTets[4]->join(1, core_[2], {1, 2});
+    wallTets[5]->join(3, core_[2], id);
+    wallTets[5]->join(0, core_[3], {2, 0, 1, 3});
+    wallTets[6]->join(0, core_[3], {0, 1});
+    wallTets[7]->join(0, core_[3], id);
+    wallTets[7]->join(3, core_[0], {0, 2, 3, 1});
 
-        wallTets[0]->join(3, core_[0], id);
-        wallTets[1]->join(2, core_[0], id);
-        wallTets[1]->join(0, core_[1], {0, 2});
-        wallTets[2]->join(3, core_[1], id);
-        wallTets[3]->join(1, core_[1], id);
-        wallTets[3]->join(0, core_[2], {0, 1});
-        wallTets[4]->join(3, core_[2], id);
-        wallTets[5]->join(2, core_[2], id);
-        wallTets[5]->join(0, core_[3], {0, 2});
-        wallTets[6]->join(3, core_[3], id);
-        wallTets[7]->join(1, core_[3], id);
-        wallTets[7]->join(0, core_[0], {0, 1});
+    for (size_t i = 0; i < 4; ++i) {
+        walls_[i] = {wallTets[2 * i], wallTets[2 * i + 1],
+                     wallTets[(2 * i + 2) % 8]};
+    }
 
-        for (size_t i = 0; i < 4; ++i) {
-            walls_[i] = {wallTets[2 * i], wallTets[2 * i + 1],
-                         wallTets[(2 * i + 2) % 8]};
+    std::cout << "New block = " << tri.isoSig() << "\n";
+}
+
+void Block::glue(size_t myWall, Block &other, size_t otherWall) {
+    if (*this == other &&
+        std::max(myWall, otherWall) - std::min(myWall, otherWall) == 2)
+        throw regina::InvalidArgument("Invalid block gluing! A block cannot be "
+                                      "glued to itself along opposite faces.");
+
+    int f0, f1, f2;
+    regina::Perm<4> g0, g1, g2;
+
+    if (myWall % 2 == 0 && otherWall % 2 == 0) {
+        f0 = 3;
+        f1 = 2;
+        f2 = 2;
+    } else if (myWall % 2 == 0 && otherWall % 2 == 1) {
+        f0 = 3;
+        g0 = {2, 3};
+        f1 = 2;
+        g1 = {1, 2};
+        f2 = 2;
+        g2 = {1, 2};
+    } else if (myWall % 2 == 1 && otherWall % 2 == 0) {
+        f0 = 1;
+        g0 = {1, 2};
+        f1 = 1;
+        g1 = {1, 2};
+        f2 = 2;
+        g2 = {2, 3};
+    } else if (myWall % 2 == 1 && otherWall % 2 == 1) {
+        f0 = 1;
+        f1 = 1;
+        f2 = 2;
+    }
+
+    if (myWall % 2 == otherWall % 2) {
+        walls_[myWall][0]->join(f0, other.walls_[otherWall][0], g0);
+        walls_[myWall][1]->join(f1, other.walls_[otherWall][1], g1);
+        walls_[myWall][2]->join(f2, other.walls_[otherWall][2], g2);
+    } else {
+        walls_[myWall][0]->join(f0, other.walls_[otherWall][2], g0);
+        walls_[myWall][1]->join(f1, other.walls_[otherWall][1], g1);
+        walls_[myWall][2]->join(f2, other.walls_[otherWall][0], g2);
+    }
+}
+
+template <int dim>
+bool isOrdered(const regina::Triangulation<dim> &tri) {
+    for (const auto &s : tri.simplices()) {
+        for (int f = 0; f < dim; ++f) {
+            if (s->adjacentSimplex(f) == nullptr)
+                continue;
+            regina::Perm<dim + 1> g = s->adjacentGluing(f);
+            std::vector<int> a;
+            for (int i = 0; i < dim + 1; ++i) {
+                if (i == f)
+                    continue;
+                a.push_back(g[i]);
+            }
+
+            if (!std::ranges::is_sorted(a)) {
+                return false;
+            }
         }
     }
 
-    void glue(size_t myWall, Block &other, size_t otherWall) {
-        int minWall, maxWall;
-        Block *minBlock, *maxBlock;
-        if (myWall <= otherWall) {
-            minWall = myWall;
-            minBlock = this;
-            maxWall = otherWall;
-            maxBlock = &other;
-        } else {
-            minWall = otherWall;
-            minBlock = &other;
-            maxWall = myWall;
-            maxBlock = this;
-        }
+    return true;
+}
 
-        int minFace = (minWall % 2 == 0) ? 2 : 1;
-        regina::Perm<4> g0;
-        regina::Perm<4> g1;
-        regina::Perm<4> g2;
-
-        if ((maxWall - minWall) % 2 == 0) {
-            g1 = {0, minFace};
-        } else if (minFace == 2) {
-            g0 = {1, 2};
-            g1 = {1, 2, 0, 3};
-            g2 = {1, 2};
-        } else if (minFace == 1) {
-            g0 = {1, 2};
-            g1 = {2, 0, 1, 3};
-            g2 = {1, 2};
-        }
-
-        minBlock->walls_[minWall][0]->join(minFace,
-                                           maxBlock->walls_[maxWall][2], g0);
-        minBlock->walls_[minWall][1]->join(3, maxBlock->walls_[maxWall][1], g1);
-        minBlock->walls_[minWall][2]->join(minFace,
-                                           maxBlock->walls_[maxWall][0], g2);
-    }
-
-    const std::vector<regina::Edge<3> *> getEdges() const {
-        return {core_[4]->edge(5), core_[5]->edge(5), core_[4]->edge(0)};
-    }
-};
-
-bool buildKnot(regina::Triangulation<3> &tri, std::string &pdcode_str,
-               std::vector<regina::Edge<3> *> &knotEdges) {
-    std::vector<std::vector<int>> pdcode = parsePDCode(pdcode_str);
+bool buildLink(regina::Triangulation<3> &tri, std::string &pdcode_str,
+               std::vector<const regina::Edge<3> *> &edges) {
+    PDCode pdcode = parsePDCode(pdcode_str);
     size_t numCrossings = pdcode.size();
 
-    std::cout << "Building knot with " << numCrossings << " crossings.\n";
+    std::cout << "Building link with " << numCrossings << " crossings.\n";
     std::vector<Block> blocks;
 
     blocks.reserve(numCrossings);
@@ -180,10 +187,10 @@ bool buildKnot(regina::Triangulation<3> &tri, std::string &pdcode_str,
     std::vector<std::vector<std::pair<int, int>>> strands(2 * numCrossings);
 
     for (int n = 0; n < numCrossings; ++n) {
-        strands[pdcode[n][0] - 1].emplace_back(n, 0);
-        strands[pdcode[n][1] - 1].emplace_back(n, 1);
-        strands[pdcode[n][2] - 1].emplace_back(n, 2);
-        strands[pdcode[n][3] - 1].emplace_back(n, 3);
+        strands[pdcode[n][0]].emplace_back(n, 0);
+        strands[pdcode[n][1]].emplace_back(n, 1);
+        strands[pdcode[n][2]].emplace_back(n, 2);
+        strands[pdcode[n][3]].emplace_back(n, 3);
     }
 
     // std::cout << "Strands:\n";
@@ -217,12 +224,29 @@ bool buildKnot(regina::Triangulation<3> &tri, std::string &pdcode_str,
 
     for (const auto &block : blocks) {
         const auto blockEdges = block.getEdges();
-        knotEdges.insert(knotEdges.end(), blockEdges.begin(), blockEdges.end());
+        edges.insert(edges.begin(), blockEdges.begin(), blockEdges.end());
     }
 
     return true;
 }
 
+const std::vector<regina::Edge<3> *> Block::getEdges() const {
+    return {core_[4]->edge(5), core_[5]->edge(5), core_[4]->edge(0)};
+}
+
+namespace {
+void usage(const char *progName, const std::string &error = std::string()) {
+    if (!error.empty())
+        std::cerr << error << "\n\n";
+
+    std::cerr << "Usage:\n";
+    std::cerr << "    " << progName << " <PD Code>\n    " << progName
+              << " [ -v, --version | -h, --help ]\n\n";
+    std::cerr << "    -v, --version  : Show which version of Regina is "
+                 "being used\n";
+    std::cerr << "    -h, --help     : Display this help\n";
+    exit(1);
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -245,18 +269,18 @@ int main(int argc, char *argv[]) {
     }
 
     regina::Triangulation<3> tri;
-    std::vector<regina::Edge<3> *> knotEdges;
+    std::vector<const regina::Edge<3> *> edges;
 
     std::string pdcode_str = argv[1];
-    if (pdcode_str.length() <= 4 || !buildKnot(tri, pdcode_str, knotEdges)) {
+    if (pdcode_str.length() <= 4 || !buildLink(tri, pdcode_str, edges)) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
 
     std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";
 
-    Knot knot(tri, knotEdges);
+    Link l(tri, edges);
     std::cout << "Triangulation of the complement = "
-              << knot.buildComplement().isoSig() << "\n";
+              << l.buildComplement().isoSig() << "\n";
 
     return 0;
 }

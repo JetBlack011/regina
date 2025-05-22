@@ -1,6 +1,8 @@
 include_directories(${ENGINE_INCLUDES})
 include_directories("${CMAKE_BINARY_DIR}/engine")
 
+message(PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR})
+
 set(UTILS
   censuslookup
   dgt

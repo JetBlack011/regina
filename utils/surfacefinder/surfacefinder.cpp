@@ -5,7 +5,6 @@
 //
 
 #include <algorithm>
-#include <cstdio>
 #include <gmpxx.h>
 #include <link/link.h>
 #include <triangulation/dim2.h>
@@ -21,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "census/census.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
 #include "triangulation/generic/triangulation.h"
@@ -29,18 +29,6 @@
 #include "knottedsurfaces.h"
 
 namespace {
-/* Constants */
-static const regina::Triangulation<2> GENUS_2_SURFACE =
-    regina::Triangulation<2>::fromGluings(6, {{0, 2, 5, {2, 1, 0}},
-                                              {0, 1, 1, {0, 2, 1}},
-                                              {0, 0, 5, {1, 0, 2}},
-                                              {1, 1, 2, {0, 2, 1}},
-                                              {1, 0, 3, {0, 2, 1}},
-                                              {2, 1, 3, {0, 2, 1}},
-                                              {2, 0, 4, {0, 2, 1}},
-                                              {3, 1, 4, {0, 2, 1}},
-                                              {4, 1, 5, {0, 2, 1}}});
-
 void usage(const char *progName, const std::string &error = std::string()) {
     if (!error.empty())
         std::cerr << error << "\n\n";
@@ -142,9 +130,9 @@ void surfacesDetail(std::set<KnottedSurface<dim>> &surfaces,
 
     std::cout << "\n";
     if (cond != SurfaceCondition::closed) {
-        std::cout << "Total admissible surfaces = " << surfaceCount << "\n";
+        std::cout << "[+] Total admissible surfaces = " << surfaceCount << "\n";
     }
-    std::cout << "Total closed surfaces = " << closedCount << "\n\n";
+    std::cout << "[+] Total closed surfaces = " << closedCount << "\n\n";
 }
 } // namespace
 
@@ -225,9 +213,11 @@ int main(int argc, char *argv[]) {
     // tri.subdivide();
     //    tri.subdivide();
 
+    std::cout << "[*] Building gluing graph...\n";
     GluingGraph graph(tri, cond);
-    std::cout << "Total nodes = " << graph.countNodes() << " "
-              << "Total edges = " << graph.countEdges() << "\n";
+    std::cout << "[+] Total gluing graph nodes = " << graph.countNodes() << "\n"
+              << "[+] Total gluing graph edges = " << graph.countEdges()
+              << "\n";
 
     auto &surfaces = graph.findSurfaces();
 
@@ -241,47 +231,64 @@ int main(int argc, char *argv[]) {
     // }
     // std::cout << "\n";
 
-    int numNonUnlinks = 0;
-    std::vector<std::pair<Link, const KnottedSurface<4> *>> links;
+    std::vector<std::pair<Link, const KnottedSurface<4> *>> boundaries;
     for (const auto &surface : surfaces) {
-        if (surface.surface().isClosed())
+        if (surface.isClosed())
             continue;
 
-        const KnottedSurface<4> *s = &surface;
-        links.emplace_back(surface.boundary(), s);
-        if (!links.back().first.isUnlink()) {
-            ++numNonUnlinks;
-        }
+        boundaries.emplace_back(surface.boundary(), &surface);
     }
 
-    std::vector<std::pair<Knot *, const KnottedSurface<4> *>> knots;
-    for (auto &[l, s] : links) {
-        for (auto &k : l.comps_) {
-            k.simplify();
-            knots.emplace_back(&k, s);
-        }
-    }
+    std::cout << "[+] Found " << boundaries.size() << " total boundary links\n";
+    std::cout << "[*] Sorting links by complexity...\n";
 
-    std::cout << "NUMBER OF NONTRIVIAL LINKS = " << numNonUnlinks << "\n";
-
-    std::cout << "[+] Sorting knots by complexity...\n";
-    std::ranges::sort(knots,
-                      [](auto &a, auto &b) { return *b.first < *a.first; });
-
-    std::cout << "here they are:\n";
-    for (const auto &[k, s] : knots) {
-        std::cout << "Number of edges = " << k->numEdges_ << "\n";
-        // std::cout << *k << "\n";
-    }
+    std::sort(
+        boundaries.begin(), boundaries.end(),
+        [](const auto &b1, const auto &b2) { return b2.first < b1.first; });
 
     int counter = 0;
-    for (const auto &[k, s] : knots) {
-        ++counter;
-        // if (k->isUnknot())
-        //     continue;
-        regina::Triangulation<3> complement = k->buildComplement();
-        std::cout << "TRIANGULATION " << counter << " IS A "
-                  << complement.isoSig() << "\n";
+    for (const auto &[l, s] : boundaries) {
+        auto complement = l.buildComplement();
+        auto hits = regina::Census::lookup(complement);
+        ssize_t genus = complement.recogniseHandlebody();
+        int numComponents = l.countComponents();
+
+        std::cout << s->detail() << " has boundary " << l << "\n";
+        if (!hits.empty()) {
+            std::cout << "      recognized as " << hits.front().name() << ", "
+                      << complement.isoSig() << "\n";
+        } else if (genus == 1) {
+            std::cout << "      unknot, " << complement.isoSig() << "\n";
+        } else if (genus != -1 && numComponents == 1) {
+            std::cout << "[!] WARNING! Recognized as a genus " << genus
+                      << " handlebody, " << complement.isoSig() << "\n";
+            std::cout << "[!] This is almost definitely a bug, please "
+                         "report it!\n";
+        } else if (numComponents == 1) {
+            std::cout << "      NOT unknot, " << complement.isoSig() << "\n";
+        } else if (numComponents > 1) {
+            for (int i = 0; i < numComponents; ++i) {
+                regina::Triangulation<3> complement = l.buildComplement(i);
+                auto hits = regina::Census::lookup(complement);
+                ssize_t genus = complement.recogniseHandlebody();
+
+                std::cout << "    Component " << i + 1 << ": ";
+                if (!hits.empty()) {
+                    std::cout << "      recognized as " << hits.front().name()
+                              << ", " << complement.isoSig() << "\n";
+                } else if (genus == 1) {
+                    std::cout << "unknot, " << complement.isoSig() << "\n";
+                } else if (genus != -1) {
+                    std::cout << "\n[!] WARNING! Recognized as a genus "
+                              << genus << " handlebody, ";
+                    std::cout << "\n[!] This is almost definitely a bug, "
+                                 "please "
+                                 "report it!\n";
+                } else {
+                    std::cout << "NOT unknot, " << complement.isoSig() << "\n";
+                }
+            }
+        }
     }
 
     return 0;
