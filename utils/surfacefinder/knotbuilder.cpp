@@ -18,14 +18,13 @@
 #include <iostream>
 #include <string>
 
-#include "knottedsurfaces.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/triangulation.h"
 #include "utilities/exception.h"
 
 #include "knotbuilder.h"
 
-PDCode parsePDCode(std::string pdcode_str) {
+knotbuilder::PDCode knotbuilder::parsePDCode(std::string pdcode_str) {
     std::vector<std::array<int, 4>> pdcode;
 
     for (char &c : pdcode_str) {
@@ -63,7 +62,7 @@ PDCode parsePDCode(std::string pdcode_str) {
     return pdcode;
 }
 
-Block::Block(regina::Triangulation<3> &tri) {
+knotbuilder::Block::Block(regina::Triangulation<3> &tri) {
     const regina::Perm<4> id;
     core_.reserve(6);
     for (int i = 0; i < 6; ++i) {
@@ -100,10 +99,10 @@ Block::Block(regina::Triangulation<3> &tri) {
                      wallTets[(2 * i + 2) % 8]};
     }
 
-    std::cout << "New block = " << tri.isoSig() << "\n";
+    //std::cout << "New block = " << tri.isoSig() << "\n";
 }
 
-void Block::glue(size_t myWall, Block &other, size_t otherWall) {
+void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
     if (*this == other &&
         std::max(myWall, otherWall) - std::min(myWall, otherWall) == 2)
         throw regina::InvalidArgument("Invalid block gluing! A block cannot be "
@@ -170,12 +169,14 @@ bool isOrdered(const regina::Triangulation<dim> &tri) {
     return true;
 }
 
-bool buildLink(regina::Triangulation<3> &tri, std::string &pdcode_str,
-               std::vector<const regina::Edge<3> *> &edges) {
+bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
+                            std::string &pdcode_str,
+                            std::vector<const regina::Edge<3> *> &edges) {
     PDCode pdcode = parsePDCode(pdcode_str);
     size_t numCrossings = pdcode.size();
 
     std::cout << "Building link with " << numCrossings << " crossings.\n";
+
     std::vector<Block> blocks;
 
     blocks.reserve(numCrossings);
@@ -230,7 +231,7 @@ bool buildLink(regina::Triangulation<3> &tri, std::string &pdcode_str,
     return true;
 }
 
-const std::vector<regina::Edge<3> *> Block::getEdges() const {
+const std::vector<regina::Edge<3> *> knotbuilder::Block::getEdges() const {
     return {core_[4]->edge(5), core_[5]->edge(5), core_[4]->edge(0)};
 }
 
@@ -249,38 +250,39 @@ void usage(const char *progName, const std::string &error = std::string()) {
 }
 } // namespace
 
-int main(int argc, char *argv[]) {
-    // Check for standard arguments:
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "-h" || arg == "--help")
-            usage(argv[0]);
-        if (arg == "-v" || arg == "--version") {
-            if (argc != 2)
-                usage(argv[0], "Option --version cannot be used with "
-                               "any other arguments.");
-            std::cout << PACKAGE_BUILD_STRING << "\n";
-            exit(0);
-        }
-    }
-
-    if (argc != 2) {
-        usage(argv[0], "Please provide a valid PD Code.");
-    }
-
-    regina::Triangulation<3> tri;
-    std::vector<const regina::Edge<3> *> edges;
-
-    std::string pdcode_str = argv[1];
-    if (pdcode_str.length() <= 4 || !buildLink(tri, pdcode_str, edges)) {
-        usage(argv[0], "Please provide a valid PD Code.");
-    }
-
-    std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";
-
-    Link l(tri, edges);
-    std::cout << "Triangulation of the complement = "
-              << l.buildComplement().isoSig() << "\n";
-
-    return 0;
-}
+// int main(int argc, char *argv[]) {
+//     // Check for standard arguments:
+//     for (int i = 1; i < argc; ++i) {
+//         std::string arg = argv[i];
+//         if (arg == "-h" || arg == "--help")
+//             usage(argv[0]);
+//         if (arg == "-v" || arg == "--version") {
+//             if (argc != 2)
+//                 usage(argv[0], "Option --version cannot be used with "
+//                                "any other arguments.");
+//             std::cout << PACKAGE_BUILD_STRING << "\n";
+//             exit(0);
+//         }
+//     }
+//
+//     if (argc != 2) {
+//         usage(argv[0], "Please provide a valid PD Code.");
+//     }
+//
+//     regina::Triangulation<3> tri;
+//     std::vector<const regina::Edge<3> *> edges;
+//
+//     std::string pdcode_str = argv[1];
+//     if (pdcode_str.length() <= 4 || !knotbuilder::buildLink(tri, pdcode_str,
+//     edges)) {
+//         usage(argv[0], "Please provide a valid PD Code.");
+//     }
+//
+//     std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";
+//
+//     Link l(tri, edges);
+//     std::cout << "Triangulation of the complement = "
+//               << l.buildComplement().isoSig() << "\n";
+//
+//     return 0;
+// }

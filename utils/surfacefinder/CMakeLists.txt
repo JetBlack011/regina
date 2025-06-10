@@ -1,9 +1,12 @@
 set(UTILS
   bogocheck
-  surfacefinder
+  #knotbuilder
+  #surfacefinder
   fillmanifold
-  knotbuilder
   )
+
+add_executable(surfacefinder surfacefinder.cpp knotbuilder.cpp)
+target_link_libraries(surfacefinder ${ENGINE_LIBRARY})
 
 foreach(UTIL ${UTILS})
   add_executable(${UTIL} ${UTIL}.cpp)

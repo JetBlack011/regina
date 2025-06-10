@@ -16,7 +16,6 @@
 #include <unistd.h>
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstring>
 #include <iostream>
@@ -27,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "census/census.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
 #include "triangulation/generic/face.h"
@@ -97,6 +97,22 @@ class EdgeComplement {
         return complement;
     }
 
+    bool recognizeComplement() const {
+        auto complement = buildComplement();
+        auto hits = regina::Census::lookup(complement);
+        ssize_t genus = complement.recogniseHandlebody();
+
+        if (!hits.empty()) {
+            std::cout << "      recognized as " << hits.front().name() << ", "
+                      << complement.isoSig() << "\n";
+            return true;
+        } else if (genus == 1) {
+            std::cout << "      unknot, " << complement.isoSig() << "\n";
+            return true;
+        }
+        return false;
+    }
+
     friend bool operator<(const EdgeComplement &e1, const EdgeComplement &e2) {
         return e1.edges_.size() < e2.edges_.size();
     }
@@ -130,6 +146,7 @@ class Knot : public EdgeComplement {
 class Link : public EdgeComplement {
   public:
     std::vector<Knot> comps_;
+
   public:
     Link(const regina::Triangulation<3> &tri,
          const std::vector<const regina::Edge<3> *> &edges)
@@ -194,6 +211,47 @@ class Link : public EdgeComplement {
     }
 
     int countComponents() const { return comps_.size(); }
+
+    void recognizeComplement() const {
+        if (EdgeComplement::recognizeComplement()) {
+            return;
+        }
+
+        auto complement = buildComplement();
+        ssize_t genus = complement.recogniseHandlebody();
+        int numComponents = countComponents();
+
+        if (genus != -1 && numComponents == 1) {
+            std::cout << "[!] WARNING! Recognized as a genus " << genus
+                      << " handlebody, " << complement.isoSig() << "\n";
+            std::cout << "[!] This is almost definitely a bug, please "
+                         "report it!\n";
+        } else if (numComponents == 1) {
+            std::cout << "      NOT unknot, " << complement.isoSig() << "\n";
+        } else if (numComponents > 1) {
+            for (int i = 0; i < numComponents; ++i) {
+                regina::Triangulation<3> complement = buildComplement(i);
+                auto hits = regina::Census::lookup(complement);
+                ssize_t genus = complement.recogniseHandlebody();
+
+                std::cout << "    Component " << i + 1 << ": ";
+                if (!hits.empty()) {
+                    std::cout << "      recognized as " << hits.front().name()
+                              << ", " << complement.isoSig() << "\n";
+                } else if (genus == 1) {
+                    std::cout << "unknot, " << complement.isoSig() << "\n";
+                } else if (genus != -1) {
+                    std::cout << "\n[!] WARNING! Recognized as a genus "
+                              << genus << " handlebody, ";
+                    std::cout << "\n[!] This is almost definitely a bug, "
+                                 "please "
+                                 "report it!\n";
+                } else {
+                    std::cout << "NOT unknot, " << complement.isoSig() << "\n";
+                }
+            }
+        }
+    }
 
     friend bool operator<(const Link &l1, const Link &l2) {
         if (l1.comps_.size() != l2.comps_.size())
@@ -392,6 +450,13 @@ class KnottedSurface {
 
             isBoundaryEdge[g.srcFacet] = false;
             src->join(g.srcFacet, dst, g.gluing);
+        }
+
+        if (hasSelfIntersection()) {
+            surface_.removeSimplex(src);
+            emb_.erase(src);
+            inv_.erase(f);
+            return false;
         }
 
         for (int i = 0; i < 3; ++i) {

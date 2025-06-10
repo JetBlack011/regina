@@ -20,13 +20,15 @@
 #include <utility>
 #include <vector>
 
-#include "census/census.h"
+#include "knotbuilder.h"
 #include "triangulation/forward.h"
 #include "triangulation/generic/boundarycomponent.h"
 #include "triangulation/generic/triangulation.h"
 
 #include "gluinggraph.h"
 #include "knottedsurfaces.h"
+#include "knotbuilder.h"
+#include "utilities/exception.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
@@ -37,6 +39,9 @@ void usage(const char *progName, const std::string &error = std::string()) {
     std::cerr << "    " << progName
               << " { -a, --all | -b, --boundary | -c, --closed | -l, --links } "
                  "<isosig>\n"
+                 "    "
+              << progName
+              << " <PD Code>\n"
                  "    "
               << progName << " [ -v, --version | -h, --help ]\n\n";
     std::cerr << "    -a, --all      : Find all surfaces, regardless of "
@@ -146,35 +151,51 @@ int main(int argc, char *argv[]) {
             if (argc != 2)
                 usage(argv[0], "Option --version cannot be used with "
                                "any other arguments.");
-            std::cout << PACKAGE_BUILD_STRING << "\n";
-            exit(0);
         }
     }
 
-    if (argc != 3) {
+    regina::Triangulation<4> tri;
+    SurfaceCondition cond = SurfaceCondition::boundary;
+    std::vector<regina::Triangle<4> *> startingTriangles;
+
+    if (argc == 2) {
+        regina::Triangulation<3> threeMfld;
+        std::string pdCode = argv[1];
+        std::vector<const regina::Edge<3> *> linkEdges;
+        knotbuilder::buildLink(threeMfld, pdCode, linkEdges);
+        Link bdry(threeMfld, linkEdges);
+
+        auto res = knotbuilder::thicken(threeMfld, 2);
+        if (!res.has_value()) {
+            throw regina::InvalidArgument(
+                "[!] Given triangulation could not be thickened! Make sure "
+                "it's possible to order it (e.g. make sure the link diagram "
+                "you gave is alternating).\n");
+        }
+        tri = res.value();
+        //std::cout << "[+] Thickened triangulation = " << tri.isoSig() << "\n";
+    } else if (argc == 3) {
+        std::string arg = argv[1];
+        std::string isoSig = argv[2];
+
+        if (arg == "-a" || arg == "--all") {
+            cond = SurfaceCondition::all;
+        } else if (arg == "-b" || arg == "--boundary" || arg == "-l" ||
+                   arg == "--links") {
+            cond = SurfaceCondition::boundary;
+        } else if (arg == "-c" || arg == "--closed") {
+            cond = SurfaceCondition::closed;
+        } else {
+            usage(argv[0], "Please specify a valid surface condition.");
+        }
+
+        tri = regina::Triangulation<4>(isoSig);
+    } else {
+
         usage(argv[0], "Please specify a surface condition and provide an "
                        "isomorphism signature.");
     }
 
-    std::string arg = argv[1];
-    std::string isoSig = argv[2];
-    SurfaceCondition cond;
-
-    if (arg == "-a" || arg == "--all") {
-        cond = SurfaceCondition::all;
-    } else if (arg == "-b" || arg == "--boundary" || arg == "-l" ||
-               arg == "--links") {
-        cond = SurfaceCondition::boundary;
-    } else if (arg == "-c" || arg == "--closed") {
-        cond = SurfaceCondition::closed;
-    } else {
-        usage(argv[0], "Please specify a valid surface condition.");
-    }
-
-    //    regina::Triangulation<4> tri;
-    //    tri.newSimplex();
-    //    tri.pachner(tri.pentachoron(0));
-    //
     // regina::Triangulation<3> tri("caba");
     // for (const regina::Tetrahedron<3> *tet : tri.tetrahedra()) {
     //     std::cout << "Tetrahedron " << tet->index() << "\n";
@@ -193,8 +214,6 @@ int main(int argc, char *argv[]) {
     // std::cout << k << "\n";
     // k.simplify();
     // std::cout << k;
-
-    regina::Triangulation<4> tri(isoSig);
 
     // std::cout << "Original = " << tri.isoSig() << "\n";
     // Knot k = {tri, {}};
@@ -218,6 +237,7 @@ int main(int argc, char *argv[]) {
     std::cout << "[+] Total gluing graph nodes = " << graph.countNodes() << "\n"
               << "[+] Total gluing graph edges = " << graph.countEdges()
               << "\n";
+    //<< "[+] Graph = \n" << graph << "\n";
 
     auto &surfaces = graph.findSurfaces();
 
@@ -246,48 +266,10 @@ int main(int argc, char *argv[]) {
         boundaries.begin(), boundaries.end(),
         [](const auto &b1, const auto &b2) { return b2.first < b1.first; });
 
-    int counter = 0;
-    for (const auto &[l, s] : boundaries) {
-        auto complement = l.buildComplement();
-        auto hits = regina::Census::lookup(complement);
-        ssize_t genus = complement.recogniseHandlebody();
-        int numComponents = l.countComponents();
-
-        std::cout << s->detail() << " has boundary " << l << "\n";
-        if (!hits.empty()) {
-            std::cout << "      recognized as " << hits.front().name() << ", "
-                      << complement.isoSig() << "\n";
-        } else if (genus == 1) {
-            std::cout << "      unknot, " << complement.isoSig() << "\n";
-        } else if (genus != -1 && numComponents == 1) {
-            std::cout << "[!] WARNING! Recognized as a genus " << genus
-                      << " handlebody, " << complement.isoSig() << "\n";
-            std::cout << "[!] This is almost definitely a bug, please "
-                         "report it!\n";
-        } else if (numComponents == 1) {
-            std::cout << "      NOT unknot, " << complement.isoSig() << "\n";
-        } else if (numComponents > 1) {
-            for (int i = 0; i < numComponents; ++i) {
-                regina::Triangulation<3> complement = l.buildComplement(i);
-                auto hits = regina::Census::lookup(complement);
-                ssize_t genus = complement.recogniseHandlebody();
-
-                std::cout << "    Component " << i + 1 << ": ";
-                if (!hits.empty()) {
-                    std::cout << "      recognized as " << hits.front().name()
-                              << ", " << complement.isoSig() << "\n";
-                } else if (genus == 1) {
-                    std::cout << "unknot, " << complement.isoSig() << "\n";
-                } else if (genus != -1) {
-                    std::cout << "\n[!] WARNING! Recognized as a genus "
-                              << genus << " handlebody, ";
-                    std::cout << "\n[!] This is almost definitely a bug, "
-                                 "please "
-                                 "report it!\n";
-                } else {
-                    std::cout << "NOT unknot, " << complement.isoSig() << "\n";
-                }
-            }
+    if (cond == SurfaceCondition::boundary) {
+        for (const auto &[l, s] : boundaries) {
+            std::cout << s->detail() << " has boundary " << l << "\n";
+            l.recognizeComplement();
         }
     }
 
