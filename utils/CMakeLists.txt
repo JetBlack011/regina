@@ -6,6 +6,7 @@ message(PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR})
 set(UTILS
   censuslookup
   dgt
+  katie
   regconcat
   regconvert
   regfiledump

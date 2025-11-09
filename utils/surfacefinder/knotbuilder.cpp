@@ -99,7 +99,7 @@ knotbuilder::Block::Block(regina::Triangulation<3> &tri) {
                      wallTets[(2 * i + 2) % 8]};
     }
 
-    //std::cout << "New block = " << tri.isoSig() << "\n";
+    // std::cout << "New block = " << tri.isoSig() << "\n";
 }
 
 void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
@@ -169,13 +169,9 @@ bool isOrdered(const regina::Triangulation<dim> &tri) {
     return true;
 }
 
-bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
-                            std::string &pdcode_str,
+bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
                             std::vector<const regina::Edge<3> *> &edges) {
-    PDCode pdcode = parsePDCode(pdcode_str);
     size_t numCrossings = pdcode.size();
-
-    std::cout << "Building link with " << numCrossings << " crossings.\n";
 
     std::vector<Block> blocks;
 
@@ -184,7 +180,6 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
         blocks.emplace_back(tri);
     }
 
-    // std::cout << "Building strands.\n";
     std::vector<std::vector<std::pair<int, int>>> strands(2 * numCrossings);
 
     for (int n = 0; n < numCrossings; ++n) {
@@ -194,17 +189,6 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
         strands[pdcode[n][3]].emplace_back(n, 3);
     }
 
-    // std::cout << "Strands:\n";
-    // for (int i = 0; i < strands.size(); ++i) {
-    //     std::cout << "Strand " << i + 1 << ": ";
-    //     for (const auto &pair : strands[i]) {
-    //         std::cout << "(" << pair.first << ", " << pair.second << ") ";
-    //     }
-    //     std::cout << "\n";
-    // }
-
-    // std::cout << tri.isoSig() << "\n";
-    // std::cout << "Gluing blocks.\n";
     for (const auto &strand : strands) {
         if (strand.size() != 2)
             return false;
@@ -214,14 +198,10 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
         int wall1 = strand[0].second;
         int wall2 = strand[1].second;
 
-        // std::cout << "Gluing blocks " << strand[0].first << " and "
-        //           << strand[1].first << " on walls " << wall1 << " and "
-        //           << wall2 << "\n";
-
         block1.glue(wall1, block2, wall2);
     }
 
-    tri.finiteToIdeal();
+    //tri.finiteToIdeal();
 
     for (const auto &block : blocks) {
         const auto blockEdges = block.getEdges();
@@ -234,55 +214,3 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri,
 const std::vector<regina::Edge<3> *> knotbuilder::Block::getEdges() const {
     return {core_[4]->edge(5), core_[5]->edge(5), core_[4]->edge(0)};
 }
-
-namespace {
-void usage(const char *progName, const std::string &error = std::string()) {
-    if (!error.empty())
-        std::cerr << error << "\n\n";
-
-    std::cerr << "Usage:\n";
-    std::cerr << "    " << progName << " <PD Code>\n    " << progName
-              << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -v, --version  : Show which version of Regina is "
-                 "being used\n";
-    std::cerr << "    -h, --help     : Display this help\n";
-    exit(1);
-}
-} // namespace
-
-// int main(int argc, char *argv[]) {
-//     // Check for standard arguments:
-//     for (int i = 1; i < argc; ++i) {
-//         std::string arg = argv[i];
-//         if (arg == "-h" || arg == "--help")
-//             usage(argv[0]);
-//         if (arg == "-v" || arg == "--version") {
-//             if (argc != 2)
-//                 usage(argv[0], "Option --version cannot be used with "
-//                                "any other arguments.");
-//             std::cout << PACKAGE_BUILD_STRING << "\n";
-//             exit(0);
-//         }
-//     }
-//
-//     if (argc != 2) {
-//         usage(argv[0], "Please provide a valid PD Code.");
-//     }
-//
-//     regina::Triangulation<3> tri;
-//     std::vector<const regina::Edge<3> *> edges;
-//
-//     std::string pdcode_str = argv[1];
-//     if (pdcode_str.length() <= 4 || !knotbuilder::buildLink(tri, pdcode_str,
-//     edges)) {
-//         usage(argv[0], "Please provide a valid PD Code.");
-//     }
-//
-//     std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";
-//
-//     Link l(tri, edges);
-//     std::cout << "Triangulation of the complement = "
-//               << l.buildComplement().isoSig() << "\n";
-//
-//     return 0;
-// }

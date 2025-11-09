@@ -2,6 +2,7 @@
 
 #define SIMPLICIALPRISM_H
 
+#include <algorithm>
 #include <gmpxx.h>
 #include <link/link.h>
 #include <triangulation/dim2.h>
@@ -26,93 +27,118 @@ class SimplicialPrism {
         regina::Perm<dim + 1> id;
 
         for (int i = 1; i < dim; ++i) {
-            simplices_[i - 1]->join(i, simplices_[i], id);
+            simplices_[i - 1]->join(i - 1, simplices_[i], id);
         }
     }
 
     template <int facedim>
-    std::array<regina::Face<dim, facedim + 1> *, facedim + 1>
-    faceTimesI(const regina::Perm<dim> &vertices) {
+    std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
+    subprism(const regina::Perm<dim> &vertices) const {
         static_assert(
             facedim >= 0 && facedim < dim - 1,
             "SimplicialPrism::faceTimesI: facedim must be in [0, dim-2]");
 
-        std::array<regina::Face<dim, facedim + 1> *, facedim + 1> faces;
+        std::vector<int> faceVerts;
+        for (int i = 0; i < dim; ++i) {
+            faceVerts.push_back(vertices[i]);
+        }
+        std::sort(faceVerts.begin(), faceVerts.begin() + facedim + 1);
 
-        for (int i = 0; i < facedim + 1; ++i) {
-            // Vertex nonsense
-            std::unordered_set<int> unusedVertices;
-            for (int j = 0; j < dim + 1; ++j) {
-                unusedVertices.insert(j);
+        std::array<const regina::Face<dim, facedim + 1> *, facedim + 1> faces;
+
+        for (int i = 0; i <= facedim; ++i) {
+            std::array<int, dim + 1> facetVerts;
+            std::unordered_set<int> unusedVerts;
+            for (int j = 0; j <= dim; ++j) {
+                unusedVerts.insert(j);
             }
-            std::array<int, dim + 1> faceVertices;
 
             int j = 0;
-            for (; j < facedim - i; ++j) {
-                faceVertices[j] = vertices[j];
-                unusedVertices.erase(faceVertices[j]);
+            for (; j <= i; ++j) {
+                facetVerts[j] = faceVerts[j] == 0 ? dim : faceVerts[j] - 1;
+                unusedVerts.erase(facetVerts[j]);
             }
-            for (; j < facedim + 1; ++j) {
-                int vj = vertices[j - (facedim - i)];
-                faceVertices[j] = vj == 0 ? dim : vj - 1;
-                unusedVertices.erase(faceVertices[j]);
+            for (; j <= facedim + 1; ++j) {
+                facetVerts[j] = faceVerts[j - 1];
+                unusedVerts.erase(facetVerts[j]);
             }
-            for (int v : unusedVertices) {
-                faceVertices[j++] = v;
+            for (; j <= dim; ++j) {
+                facetVerts[j] = *unusedVerts.begin();
+                unusedVerts.erase(unusedVerts.begin());
             }
 
-            int faceIndex =
-                regina::Face<dim, facedim + 1>::faceNumber(faceVertices);
-            faces[i] = simplices_[vertices[i]]->face(faceIndex);
+            int facetIndex =
+                regina::Face<dim, facedim + 1>::faceNumber(facetVerts);
+            faces[i] = simplices_[faceVerts[i]]->template face<facedim + 1>(
+                facetIndex);
         }
 
         return faces;
     }
 
-    void glue(int face, SimplicialPrism<dim> &other, int otherFace) {
-        // Not a fan.... Must be a better way. Maybe prisms just suck.
-        if (!(0 <= face && face <= dim && 0 <= otherFace && otherFace <= dim))
+    inline std::array<const regina::Triangle<dim> *, 2>
+    edgeTimesI(const regina::Perm<dim> &vertices) const {
+        return subprism<1>(vertices);
+    }
+
+    void glue(int facet, SimplicialPrism<dim> &other, int otherFacet) {
+        // Positively heinous code
+        if (!(0 <= facet && facet <= dim && 0 <= otherFacet &&
+              otherFacet <= dim))
             throw regina::InvalidArgument(
                 "SimplicialPrism::glue(): Invalid faces");
 
-        int i = 0;
-        int j = 0;
-
+        int i = 0, j = 0;
         while (i < dim && j < dim) {
-            if (i == face)
+            if (i == facet)
                 ++i;
-            if (j == otherFace)
+            if (j == otherFacet)
                 ++j;
 
-            if (i >= dim || j >= dim)
+            if (i == dim || j == dim)
                 break;
 
-            int k = 0;
-            int l = 0;
-            int k0 = dim;
-            int l0 = dim;
-            std::array<int, dim + 1> gluing;
+            std::array<int, dim + 1> g;
+            int k = 0, l = 0;
+            int k0 = dim, l0 = dim;
+            while (k <= i) {
+                if (k == facet) {
+                    k0 = k == 0 ? dim : k - 1;
+                    ++k;
+                }
+                if (l == otherFacet) {
+                    l0 = l == 0 ? dim : l - 1;
+                    ++l;
+                }
 
-            while (k < dim + 1 && l < dim + 1) {
-                if ((k <= i && k == face) || (k > i && k == face + 1))
+                g[k == 0 ? dim : k - 1] = l == 0 ? dim : l - 1;
+                ++k, ++l;
+            }
+            k--, l--;
+            while (k < dim) {
+                if (k == facet)
                     k0 = k++;
-                if ((l <= j && l == otherFace) || (l > j && l == otherFace + 1))
+                if (l == otherFacet)
                     l0 = l++;
 
-                if (k >= dim + 1 || l >= dim + 1)
-                    break;
-
-                gluing[k] = l;
-                ++k;
-                ++l;
+                g[k++] = l++;
             }
+            g[k0] = l0;
 
-            gluing[k0] = l0;
+            std::cout << "Triangulation = "
+                      << simplices_[i]->triangulation().isoSig() << "\n";
+            std::cout << "facet = " << facet << ", otherFacet = " << otherFacet
+                      << ", i = " << i << ", j = " << j << ", k0 = " << k0
+                      << ", l0 = " << l0 << ", g = {";
+            for (int m = 0; m < dim + 1; ++m) {
+                std::cout << g[m];
+                if (m < dim)
+                    std::cout << ", ";
+            }
+            std::cout << "}\n";
+            simplices_[i]->join(k0, other.simplices_[j], g);
 
-            simplices_[i]->join(k0, other.simplices_[j], gluing);
-
-            ++i;
-            ++j;
+            ++i, ++j;
         }
     }
 };

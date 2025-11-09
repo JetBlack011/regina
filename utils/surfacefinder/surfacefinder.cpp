@@ -26,8 +26,8 @@
 #include "triangulation/generic/triangulation.h"
 
 #include "gluinggraph.h"
-#include "knottedsurfaces.h"
 #include "knotbuilder.h"
+#include "knottedsurfaces.h"
 #include "utilities/exception.h"
 
 namespace {
@@ -160,20 +160,15 @@ int main(int argc, char *argv[]) {
 
     if (argc == 2) {
         regina::Triangulation<3> threeMfld;
-        std::string pdCode = argv[1];
+        std::string pdcode_str = argv[1];
+        knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
         std::vector<const regina::Edge<3> *> linkEdges;
-        knotbuilder::buildLink(threeMfld, pdCode, linkEdges);
+        knotbuilder::buildLink(threeMfld, pdcode, linkEdges);
         Link bdry(threeMfld, linkEdges);
 
-        auto res = knotbuilder::thicken(threeMfld, 2);
-        if (!res.has_value()) {
-            throw regina::InvalidArgument(
-                "[!] Given triangulation could not be thickened! Make sure "
-                "it's possible to order it (e.g. make sure the link diagram "
-                "you gave is alternating).\n");
-        }
-        tri = res.value();
-        //std::cout << "[+] Thickened triangulation = " << tri.isoSig() << "\n";
+        knotbuilder::CobordismBuilder<3> cob(threeMfld);
+
+        tri = cob.thicken(2);
     } else if (argc == 3) {
         std::string arg = argv[1];
         std::string isoSig = argv[2];

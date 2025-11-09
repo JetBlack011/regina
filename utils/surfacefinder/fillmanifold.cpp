@@ -69,135 +69,17 @@ int main(int argc, char *argv[]) {
 
     knotbuilder::PDCode pdcode;
 
-    regina::Triangulation<3> threeMfld = regina::Example<3>::sphere600();
-    std::cout << "Original = " << threeMfld.isoSig() << "\n";
-    regina::Triangulation<4> tri1 = knotbuilder::thicken(threeMfld).value();
-    regina::Triangulation<4> tri2 = knotbuilder::cone(threeMfld);
-    // regina::Triangulation tri = regina::Example<2>::sphere();
-    // tri.subdivide();
-    //regina::Triangulation<2> sphere = regina::Example<2>::sphere();
-    //regina::Triangulation<3> tri1 = thicken(sphere).value();
-    //tri1.subdivide();
-    //regina::Triangulation<3> tri2(tri1);
+    regina::Triangulation<3> bdryTri(isoSig);
+    knotbuilder::CobordismBuilder<3> cob(bdryTri);
+    regina::Triangulation<4> tri = cob.thicken(2);
 
-    //std::cout << "Tri1 = " << tri1.isoSig() << "\n";
+    std::cout << "[+] Thickened isosig = " << tri.isoSig()
+              << "\n";
 
-    // Find all isomorphisms between the two triangulations
-    std::vector<regina::Isomorphism<3>> isos;
-    tri1.boundaryComponent(0)->build().findAllIsomorphisms(
-        tri2.boundaryComponent(0)->build(),
-        [&isos](const regina::Isomorphism<3> &iso) {
-            isos.push_back(iso);
-            return true;
-        });
-    std::cout << "[+] Found " << isos.size() << " isomorphisms\n";
-    for (const auto &iso : isos) {
-        std::cout << iso << "\n";
-    }
-    std::cout << "\n";
-    regina::Triangulation<4> tri = knotbuilder::glue(tri1, 0, tri2, 0, isos[0]);
+    //regina::Triangulation<3> threeMfld = regina::Example<3>::sphere600();
+    //std::cout << "Original = " << threeMfld.isoSig() << "\n";
+    //regina::Triangulation<4> tri1 = knotbuilder::thicken(threeMfld).value();
+    //regina::Triangulation<4> tri2 = knotbuilder::cone(threeMfld);
 
-    //std::cout << "Tri = " << tri.isoSig() << "\n";
-    //if (tri.isValid()) {
-    //    std::cout << "[+] Triangulation is valid\n";
-    //} else {
-    //    std::cout << "[!] Triangulation is NOT valid\n";
-    //}
-
-    //isos.clear();
-    //tri.boundaryComponent(0)->build().findAllIsomorphisms(
-    //    tri2.boundaryComponent(0)->build(),
-    //    [&isos](const regina::Isomorphism<3> &iso) {
-    //        isos.push_back(iso);
-    //        return true;
-    //    });
-    //std::cout << "[+] Found " << isos.size() << " isomorphisms\n";
-    //for (const auto &iso : isos) {
-    //    std::cout << iso << "\n";
-    //}
-    //std::cout << "\n";
-    //regina::Triangulation<4> thickerTri = glue(tri, 0, tri2, 0, isos[0]);
-
-    //std::cout << "Tri = " << thickerTri.isoSig() << "\n";
-    //if (tri.isValid()) {
-    //    std::cout << "[+] Triangulation is valid\n";
-    //} else {
-    //    std::cout << "[!] Triangulation is NOT valid\n";
-    //}
-
-    // auto conedTri = cone(tri);
-
-    // std::cout << "[+] Number of simplices = " << tri.simplices().size() <<
-    // "\n"; std::cout << "[+] Number of cone simplices = "
-    //           << conedTri.simplices().size() << "\n";
-
-    // std::vector<regina::Isomorphism<2>> isos;
-
-    // auto res = thicken(tri);
-    // if (!res.has_value()) {
-    //     std::cout << "[!] Given triangulation could not be thickened! Make "
-    //                  "sure it's possible to order it (e.g. make sure the link
-    //                  " "diagram you gave to knotbuilder is alternating).\n";
-    //     return -1;
-    // }
-    // const auto &thickTri = res.value();
-    // regina::Triangulation evenThickerTri(thickTri);
-
-    // evenThickerTri.boundaryComponent(0)->build().findAllIsomorphisms(
-    //     thickTri.boundaryComponent(1)->build(),
-    //     [&isos](const regina::Isomorphism<2> &iso) {
-    //         isos.push_back(iso);
-    //         return true;
-    //     });
-
-    // for (int i = 0; i < 2; ++i) {
-    //     std::cout << isos[0] << "\n";
-    //     evenThickerTri = glue(evenThickerTri, 0, thickTri, 1, isos[0]);
-    // }
-
-    // isos.clear();
-    // evenThickerTri.boundaryComponent(0)->build().findAllIsomorphisms(
-    //     conedTri.boundaryComponent(0)->build(),
-    //     [&isos](const regina::Isomorphism<2> &iso) {
-    //         isos.push_back(iso);
-    //         return false;
-    //     });
-
-    //// regina::Triangulation<4> thickenedTri =
-    //// regina::Example<4>::iBundle(tri);
-
-    // std::cout << "[+] Number of thickened simplices = "
-    //           << thickTri.simplices().size() << "\n";
-    // std::cout << "[+] Number of even more thickened simplices = "
-    //           << evenThickerTri.simplices().size() << "\n";
-    // std::cout << "[+] Total simplices after gluing = "
-    //           << conedTri.simplices().size() + thickTri.simplices().size()
-    //           << "\n\n";
-    // if (thickTri.isValid()) {
-    //     std::cout << "[+] Thickened triangulation is valid\n";
-    // } else {
-    //     std::cout << "[!] Thickened triangulation is NOT valid\n";
-    // }
-    // if (evenThickerTri.isValid()) {
-    //     std::cout << "[+] Even thicker triangulation is valid\n";
-    // } else {
-    //     std::cout << "[!] Even thicker triangulation is NOT valid\n";
-    // }
-
-    // std::cout << "[+] Cone isosig = " << conedTri.isoSig() << "\n\n";
-    // std::cout << "[+] Thickened isosig = " << thickTri.isoSig() << "\n\n";
-    // std::cout << "[+] Even thicker isosig = " << evenThickerTri.isoSig()
-    //           << "\n\n";
-
-    // for (const auto &iso : isos) {
-    //     auto gluedTri = glue(evenThickerTri, 0, conedTri, 0, iso);
-
-    //    if (gluedTri.isValid()) {
-    //        std::cout << "[+] Thickened + coned triangulation is valid\n";
-    //    } else {
-    //        std::cout << "[!] Thickened + coned triangulation is NOT valid\n";
-    //    }
-    //    std::cout << "ISO SIG = " << gluedTri.isoSig() << "\n";
-    //}
     return 0;
 }

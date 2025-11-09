@@ -47,22 +47,18 @@ class Block {
     }
 };
 
-bool buildLink(regina::Triangulation<3> &tri, std::string &pdcode_str,
+bool buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
                std::vector<const regina::Edge<3> *> &edges);
 
 template <int dim>
-regina::Triangulation<dim>
-glue(const regina::Triangulation<dim> &tri1, int bdryIndex1,
-     const regina::Triangulation<dim> &tri2, int bdryIndex2,
-     const regina::Isomorphism<dim - 1> &iso) {
-    regina::Triangulation<dim> tri;
-    tri.insertTriangulation(tri1);
-    tri.insertTriangulation(tri2);
+regina::Triangulation<dim> &
+glueBoundaries(regina::Triangulation<dim> &tri, int bdryIndex1, int bdryIndex2,
+               const regina::Isomorphism<dim - 1> &iso) {
     std::vector<Gluing<dim, dim>> gluings;
     const regina::BoundaryComponent<dim> *bdry1 =
         tri.boundaryComponent(bdryIndex1);
     const regina::BoundaryComponent<dim> *bdry2 =
-        tri.boundaryComponent(tri1.countBoundaryComponents() + bdryIndex2);
+        tri.boundaryComponent(bdryIndex2);
 
     for (int i = 0; i < bdry1->size(); ++i) {
         // Since these are boundary faces, they belong to exactly 1 simplex
@@ -82,18 +78,9 @@ glue(const regina::Triangulation<dim> &tri1, int bdryIndex1,
         isoPerm[dim] = dim;
 
         gluings.push_back({s1, emb1.face(), s2, i2 * isoPerm * i1.inverse()});
-
-        // std::cout << "bdryIndex = " << i << " to " << iso.simpImage(i) << ",
-        // IsoPerm = " << p
-        //           << ", i1 = " << i1 << ", i1^-1 = " << i1.inverse()
-        //           << ", i2 = " << i2 << "\n";
     }
 
     for (const auto &gluing : gluings) {
-        // std::cout << "Gluing " << gluing.src->index() << " and "
-        //           << gluing.dst->index() << " along " << gluing.srcFacet <<
-        //           ", "
-        //           << gluing.gluing << "\n";
         gluing.src->join(gluing.srcFacet, gluing.dst, gluing.gluing);
     }
 
@@ -101,130 +88,203 @@ glue(const regina::Triangulation<dim> &tri1, int bdryIndex1,
 }
 
 template <int dim>
-regina::Triangulation<dim + 1> cone(regina::Triangulation<dim> &bdryTri) {
-    regina::Triangulation<dim + 1> coneTri;
+regina::Triangulation<dim>
+glueTriangulations(const regina::Triangulation<dim> &tri1, int bdryIndex1,
+                   const regina::Triangulation<dim> &tri2, int bdryIndex2,
+                   const regina::Isomorphism<dim - 1> &iso) {
+    regina::Triangulation<dim> tri;
+    tri.insertTriangulation(tri1);
+    tri.insertTriangulation(tri2);
 
-    for (auto s : bdryTri.simplices()) {
-        coneTri.newSimplex();
-    }
+    return glueBoundaries(tri, bdryIndex1,
+                          tri1.countBoundaryComponents() + bdryIndex2, iso);
+}
 
-    for (int i = 0; i < bdryTri.simplices().size(); ++i) {
-        auto bdrySimplex = bdryTri.simplex(i);
-        auto coneSimplex = coneTri.simplex(i);
+template <int dim>
+class CobordismBuilder {
+  private:
+    using PrismMap = std::unordered_map<const regina::Simplex<dim> *,
+                                        SimplicialPrism<dim + 1>>;
 
-        for (int f = 0; f <= dim; ++f) {
-            if (bdrySimplex->adjacentSimplex(f) == nullptr ||
-                coneSimplex->adjacentSimplex(f) != nullptr)
-                continue;
+    PrismMap topPrisms_;
 
-            regina::Perm<dim + 1> bdryGluing = bdrySimplex->adjacentGluing(f);
-            regina::Simplex<dim + 1> *adjConeSimplex =
-                coneTri.simplex(bdrySimplex->adjacentSimplex(f)->index());
-            std::array<int, dim + 2> coneGluing;
-            for (int i = 0; i < dim + 1; ++i) {
-                coneGluing[i] = bdryGluing[i];
+    const regina::Triangulation<dim> &tri_;
+    regina::Triangulation<dim + 1> cob_;
+
+  public:
+    CobordismBuilder(const regina::Triangulation<dim> &tri) : tri_(tri) {}
+
+    regina::Triangulation<dim + 1> &cone() {
+        regina::Triangulation<dim + 1> coneTri;
+
+        for (auto s : tri_.simplices()) {
+            coneTri.newSimplex();
+        }
+
+        for (int i = 0; i < tri_.simplices().size(); ++i) {
+            auto bdrySimplex = tri_.simplex(i);
+            auto coneSimplex = coneTri.simplex(i);
+
+            for (int f = 0; f <= dim; ++f) {
+                if (bdrySimplex->adjacentSimplex(f) == nullptr ||
+                    coneSimplex->adjacentSimplex(f) != nullptr)
+                    continue;
+
+                regina::Perm<dim + 1> bdryGluing =
+                    bdrySimplex->adjacentGluing(f);
+                regina::Simplex<dim + 1> *adjConeSimplex =
+                    coneTri.simplex(bdrySimplex->adjacentSimplex(f)->index());
+                std::array<int, dim + 2> coneGluing;
+                for (int i = 0; i < dim + 1; ++i) {
+                    coneGluing[i] = bdryGluing[i];
+                }
+                coneGluing[dim + 1] = dim + 1;
+
+                coneSimplex->join(f, adjConeSimplex, coneGluing);
             }
-            coneGluing[dim + 1] = dim + 1;
-
-            coneSimplex->join(f, adjConeSimplex, coneGluing);
         }
-    }
 
-    return coneTri;
-}
-
-template <int dim>
-std::optional<regina::Triangulation<dim + 1>>
-thickenHelper(regina::Triangulation<dim> &tri) {
-    regina::Triangulation<dim + 1> thickenedTri;
-    std::vector<SimplicialPrism<dim + 1>> prisms;
-    prisms.reserve(tri.size());
-    for (int i = 0; i < tri.size(); ++i) {
-        prisms.emplace_back(thickenedTri);
-    }
-    std::set<std::pair<const regina::Simplex<dim> *, int>> visited;
-
-    int counter = 0;
-    for (int i = 0; i < prisms.size(); ++i) {
-        for (int f = 0; f < dim + 1; ++f) {
-            const regina::Simplex<dim> *s = tri.simplex(i);
-            const regina::Simplex<dim> *adj = s->adjacentSimplex(f);
-
-            if (adj == nullptr || visited.contains({s, f}))
-                continue;
-
-            int adjFacet = s->adjacentFacet(f);
-
-            prisms[i].glue(f, prisms[adj->index()], adjFacet);
-            ++counter;
-
-            visited.insert({s, f});
-            visited.insert({adj, adjFacet});
+        if (cob_.isConnected()) {
+            return cob_ = coneTri;
         }
+
+        cob_.insertTriangulation(coneTri);
+        // Glue the cone triangulation to the cobordism triangulation
+        auto iso = cob_.boundaryComponent(0)->build().isIsomorphicTo(
+            cob_.boundaryComponent(2)->build());
+        if (!iso.has_value()) {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::cone(): Cannot glue cone triangulation to "
+                "cobordism triangulation; boundary components are not "
+                "isomorphic.");
+        }
+        glueBoundaries(cob_, 0, 2, iso.value());
+
+        if (!cob_.isValid()) {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::cone(): Resulting triangulation is not "
+                "valid after gluing cone triangulation to cobordism "
+                "triangulation.");
+        }
+
+        return cob_;
     }
 
-    return thickenedTri;
-}
+    inline regina::Triangulation<dim + 1> &thicken() { return thicken_(); }
 
-template <int dim>
-std::optional<regina::Triangulation<dim + 1>> inline thicken(
-    regina::Triangulation<dim> &tri) {
-    thickenHelper<dim>(tri);
-}
+    inline regina::Triangulation<dim + 1> &thicken(int layers) {
+        for (int i = 0; i < layers; ++i) {
+            thicken_();
+        }
 
-// template <>
-// inline std::optional<regina::Triangulation<3>>
-// thicken(regina::Triangulation<2> &tri) {
-//     // std::cout << "Orienting...\n";
-//     // tri.orient();
-//     for (int i = 0; i < tri.simplices().size(); ++i) {
-//         for (int f = 0; f < 3; ++f) {
-//             if (tri.simplex(i)->adjacentSimplex(f) == nullptr)
-//                 continue;
-//             std::cout << "Simplex " << i << " glued along face " << f << " by
-//             "
-//                       << tri.simplex(i)->adjacentGluing(f) << " to "
-//                       << tri.simplex(i)->adjacentSimplex(f)->index() << "\n";
-//         }
-//     }
-//     return thickenHelper(tri);
-// }
+        return cob_;
+    }
+
+    template <int facedim>
+    std::vector<const regina::Face<dim + 1, facedim + 1> *> facesTimesI(
+        const std::vector<const regina::Face<dim, facedim> *> &faces) const {
+        std::vector<const regina::Face<dim + 1, facedim + 1> *> thickenedFaces;
+        thickenedFaces.reserve(faces.size() * (facedim + 1));
+
+        for (const auto &face : faces) {
+            const regina::FaceEmbedding<dim, facedim> &emb = face->front();
+            const SimplicialPrism<dim + 1> &prism =
+                topPrisms_.at(emb.simplex());
+            const auto facesTimesI =
+                prism.template subprism<facedim>(emb.vertices());
+            thickenedFaces.insert(thickenedFaces.end(), facesTimesI.begin(),
+                                  facesTimesI.end());
+        }
+
+        return thickenedFaces;
+    }
+
+    inline std::vector<const regina::Triangle<dim + 1> *>
+    edgesTimesI(const std::vector<const regina::Edge<dim> *> &edges) const {
+        return facesTimesI(edges);
+    }
+
+  private:
+    regina::Triangulation<dim + 1> &thicken_() {
+        topPrisms_.clear();
+        topPrisms_.reserve(tri_.size());
+        for (const auto *s : tri_.simplices()) {
+            topPrisms_.emplace(s, cob_);
+        }
+        std::set<std::pair<const regina::Simplex<dim> *, int>> visited;
+
+        for (int i = 0; i < topPrisms_.size(); ++i) {
+            for (int facet = 0; facet < dim + 1; ++facet) {
+                const regina::Simplex<dim> *s = tri_.simplex(i);
+                const regina::Simplex<dim> *adj = s->adjacentSimplex(facet);
+
+                if (adj == nullptr || visited.contains({s, facet}))
+                    continue;
+
+                int adjFacet = s->adjacentFacet(facet);
+
+                std::cout << "[*] Gluing thickened triangulation: "
+                          << s->index() << " facet " << facet << " to "
+                          << adj->index() << " facet " << adjFacet << "\n";
+                topPrisms_.at(s).glue(facet, topPrisms_.at(adj), adjFacet);
+
+                visited.insert({s, facet});
+                visited.insert({adj, adjFacet});
+            }
+        }
+
+        if (cob_.isConnected()) {
+            return cob_;
+        }
+
+        // Glue the thickened triangulation to the cobordism triangulation
+        auto iso = cob_.boundaryComponent(1)->build().isIsomorphicTo(
+            cob_.boundaryComponent(2)->build());
+        if (!iso.has_value()) {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::thicken(): Cannot glue thickened "
+                "triangulation to cobordism triangulation; boundary components "
+                "are not isomorphic.");
+        }
+
+        std::cout << "[*] Gluing thickened triangulation\n";
+
+        glueBoundaries(cob_, 1, 2, iso.value());
+        std::cout << "[*] Done gluing thickened triangulation\n";
+
+        if (!cob_.isValid()) {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::thicken(): Resulting triangulation is not "
+                "valid after gluing thickened triangulation to cobordism "
+                "triangulation.");
+        }
+
+        return cob_;
+    }
+};
 
 template <>
-inline std::optional<regina::Triangulation<4>>
-thicken(regina::Triangulation<3> &tri) {
-    if (!tri.order())
-        return std::nullopt;
-    return thickenHelper(tri);
+inline regina::Triangulation<4> &CobordismBuilder<3>::thicken() {
+    // if (!tri_.isOrdered() && !tri_.order())
+    //     throw regina::InvalidArgument(
+    //         "CobordismBuilder<3>::thicken(): Could not thicken! Triangulation
+    //         " "is unorderable.");
+    return thicken_();
 }
 
-template <int dim>
-std::optional<regina::Triangulation<dim + 1>>
-thicken(regina::Triangulation<dim> &tri, int layers) {
-    auto layeredTriOpt = thicken(tri);
-    if (!layeredTriOpt.has_value())
-        return std::nullopt;
-    regina::Triangulation<dim + 1> layeredTri = layeredTriOpt.value();
-
-    for (int i = 0; i < layers - 1; ++i) {
-        auto thickenedTri = thicken(tri);
-        if (!thickenedTri.has_value())
-            return std::nullopt;
-
-        auto iso = layeredTri.boundaryComponent(0)->build().isIsomorphicTo(
-            thickenedTri.value().boundaryComponent(0)->build());
-
-        if (iso.has_value()) {
-            layeredTri = glue(layeredTri, 0, thickenedTri.value(), 0, iso.value());
-        } else {
-            throw regina::InvalidArgument(
-                "Cannot thicken triangulation: boundary components are not "
-                "isomorphic; something went wrong while layering.");
-        }
+template <>
+inline regina::Triangulation<4> &CobordismBuilder<3>::thicken(int layers) {
+    // if (!tri_.isOrdered() && !tri_.order())
+    //     throw regina::InvalidArgument("CobordismBuilder<3>::thicken(int): "
+    //                                   "Could not thicken! Triangulation "
+    //                                   "is unorderable.");
+    for (int i = 0; i < layers; ++i) {
+        thicken_();
     }
 
-    return layeredTri;
+    return cob_;
 }
+
 } // namespace knotbuilder
 
 #endif
