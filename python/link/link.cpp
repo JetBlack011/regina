@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,14 +23,16 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
-#include <pybind11/pybind11.h>
+#include "regina-config.h" // for REGINA_PYBIND11_VERSION
+#include "pybind11/pybind11.h"
+#if REGINA_PYBIND11_VERSION == 3
+#include <pybind11/native_enum.h>
+#endif
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 #include "link/link.h"
@@ -44,15 +46,26 @@ using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
 using regina::Crossing;
 using regina::Framing;
+using regina::ProgressTracker;
 using regina::StrandRef;
 using regina::Link;
 
-void addLink(pybind11::module_& m) {
+void addLink(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(Framing)
 
+#if REGINA_PYBIND11_VERSION == 3
+    pybind11::native_enum<regina::Framing>(m, "Framing", "enum.Enum",
+            rdoc_scope)
+#elif REGINA_PYBIND11_VERSION == 2
     pybind11::enum_<regina::Framing>(m, "Framing", rdoc_scope)
+#else
+    #error "Unsupported pybind11 version"
+#endif
         .value("Seifert", Framing::Seifert, rdoc::Seifert)
         .value("Blackboard", Framing::Blackboard, rdoc::Blackboard)
+#if REGINA_PYBIND11_VERSION == 3
+        .finalize()
+#endif
         ;
 
     // Deprecated constants:
@@ -115,11 +128,16 @@ void addLink(pybind11::module_& m) {
             pybind11::return_value_policy::reference_internal, rdoc::crossing)
         .def("crossings", &Link::crossings,
             pybind11::keep_alive<0, 1>(), rdoc::crossings)
-        .def("component", &Link::component, rdoc::component)
+        .def("component",
+            overload_cast<size_t>(&Link::component, pybind11::const_),
+            rdoc::component)
         .def("components", &Link::components,
             pybind11::keep_alive<0, 1>(), rdoc::components)
         .def("countTrivialComponents", &Link::countTrivialComponents,
             rdoc::countTrivialComponents)
+        .def("component",
+            overload_cast<const StrandRef&>(&Link::component, pybind11::const_),
+            rdoc::component_2)
         .def("strand", &Link::strand, rdoc::strand)
         .def("componentsByStrand", [](const Link& link) {
             pybind11::list ans;
@@ -151,6 +169,12 @@ void addLink(pybind11::module_& m) {
         .def_static("fromOrientedGauss", [](const std::vector<std::string>& v) {
             return Link::fromOrientedGauss(v.begin(), v.end());
         }, pybind11::arg("tokens"), rdoc::fromOrientedGauss_2)
+        .def_static("fromSignedGauss", [](const std::string& s) {
+            return Link::fromSignedGauss(s);
+        }, rdoc::fromSignedGauss)
+        .def_static("fromSignedGauss", [](const std::vector<std::string>& v) {
+            return Link::fromSignedGauss(v.begin(), v.end());
+        }, pybind11::arg("tokens"), rdoc::fromSignedGauss_2)
         .def_static("fromJenkins", [](const std::string& s) {
             return Link::fromJenkins(s);
         }, rdoc::fromJenkins)
@@ -221,10 +245,13 @@ void addLink(pybind11::module_& m) {
         .def("change", &Link::change, rdoc::change)
         .def("changeAll", &Link::changeAll, rdoc::changeAll)
         .def("resolve", &Link::resolve, rdoc::resolve)
+        .def("makeVirtual", &Link::makeVirtual, rdoc::makeVirtual)
+        .def("graft", &Link::graft, rdoc::graft)
         .def("composeWith", &Link::composeWith, rdoc::composeWith)
         .def("makeAlternating", &Link::makeAlternating, rdoc::makeAlternating)
         .def("isAlternating", &Link::isAlternating, rdoc::isAlternating)
         .def("linking", &Link::linking, rdoc::linking)
+        .def("linking2", &Link::linking2, rdoc::linking2)
         .def("writhe", &Link::writhe, rdoc::writhe)
         .def("writheOfComponent", overload_cast<StrandRef>(
             &Link::writheOfComponent, pybind11::const_),
@@ -232,9 +259,18 @@ void addLink(pybind11::module_& m) {
         .def("writheOfComponent", overload_cast<size_t>(
             &Link::writheOfComponent, pybind11::const_),
             rdoc::writheOfComponent_2)
+        .def("oddWrithe", &Link::oddWrithe, rdoc::oddWrithe)
+        .def("isClassical", &Link::isClassical, rdoc::isClassical)
+        .def("virtualGenus", &Link::virtualGenus, rdoc::virtualGenus)
         .def("seifertCircles", &Link::seifertCircles, rdoc::seifertCircles)
         .def("complement", &Link::complement,
             pybind11::arg("simplify") = true, rdoc::complement)
+        .def("longComplement", &Link::longComplement,
+            pybind11::arg("breakOpen") = StrandRef(),
+            pybind11::arg("simplify") = true,
+            rdoc::longComplement)
+        .def("whiteheadDouble", &Link::whiteheadDouble,
+            pybind11::arg("positive") = true, rdoc::whiteheadDouble)
         .def("parallel", &Link::parallel,
             pybind11::arg(), pybind11::arg("framing") = Framing::Seifert,
             rdoc::parallel)
@@ -242,18 +278,50 @@ void addLink(pybind11::module_& m) {
         .def("connected", &Link::connected, rdoc::connected)
         .def("diagramComponents", &Link::diagramComponents,
             rdoc::diagramComponents)
-        .def("bracket", &Link::bracket,
+        .def("countDiagramComponents", &Link::countDiagramComponents,
+            rdoc::countDiagramComponents)
+        .def("diagramComponentIndices", [](const Link& link) {
+            auto [ map, count ] = link.diagramComponentIndices();
+            pybind11::list ans;
+            for (auto i : map)
+                ans.append(i);
+            return pybind11::make_tuple(std::move(ans), count);
+        }, rdoc::diagramComponentIndices)
+        .def("alexander", &Link::alexander,
+            pybind11::return_value_policy::reference_internal,
+            rdoc::alexander)
+        .def("bracket",
+            overload_cast<regina::Algorithm, int, regina::ProgressTracker*>(
+                &Link::bracket, pybind11::const_),
             pybind11::return_value_policy::reference_internal,
             pybind11::arg("alg") = regina::Algorithm::Default,
+            pybind11::arg("threads") = 1,
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::bracket)
-        .def("jones", &Link::jones,
+        .def("bracket", // deprecated
+            [](const Link& link, regina::Algorithm alg, ProgressTracker* t) {
+                return link.bracket(alg, 1 /* single-threaded */, t);
+            },
+            pybind11::return_value_policy::reference_internal,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::bracket_2)
+        .def("jones",
+            overload_cast<regina::Algorithm, int, regina::ProgressTracker*>(
+                &Link::jones, pybind11::const_),
             pybind11::return_value_policy::reference_internal,
             pybind11::arg("alg") = regina::Algorithm::Default,
+            pybind11::arg("threads") = 1,
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::jones)
+        .def("jones", // deprecated
+            [](const Link& link, regina::Algorithm alg, ProgressTracker* t) {
+                return link.jones(alg, 1 /* single-threaded */, t);
+            },
+            pybind11::return_value_policy::reference_internal,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::jones_2)
         .def("homfly", &Link::homfly,
             pybind11::return_value_policy::reference_internal,
             pybind11::arg("alg") = regina::Algorithm::Default,
@@ -272,17 +340,40 @@ void addLink(pybind11::module_& m) {
             pybind11::arg("tracker") = nullptr,
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::homflyLM)
+        .def("arrow", &Link::arrow,
+            pybind11::return_value_policy::reference_internal,
+            pybind11::arg("alg") = regina::Algorithm::Default,
+            pybind11::arg("threads") = 1,
+            pybind11::arg("tracker") = nullptr,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::arrow)
+        .def("affineIndex", &Link::affineIndex, rdoc::affineIndex)
+        .def("knowsAlexander", &Link::knowsAlexander, rdoc::knowsAlexander)
         .def("knowsBracket", &Link::knowsBracket, rdoc::knowsBracket)
         .def("knowsJones", &Link::knowsJones, rdoc::knowsJones)
         .def("knowsHomfly", &Link::knowsHomfly, rdoc::knowsHomfly)
         .def_static("homflyAZtoLM", &Link::homflyAZtoLM, rdoc::homflyAZtoLM)
+        .def("knowsArrow", &Link::knowsArrow, rdoc::knowsArrow)
         .def("group", &Link::group,
             pybind11::arg("simplify") = true, rdoc::group)
+        .def("groups", &Link::groups,
+            pybind11::arg("simplify") = true, rdoc::groups)
+        .def("extendedGroup", &Link::extendedGroup,
+            pybind11::arg("simplify") = true, rdoc::extendedGroup)
+        .def("extendedGroups", &Link::extendedGroups,
+            pybind11::arg("simplify") = true, rdoc::extendedGroups)
         .def("niceTreeDecomposition", &Link::niceTreeDecomposition,
             pybind11::return_value_policy::reference_internal,
                 rdoc::niceTreeDecomposition)
         .def("useTreeDecomposition", &Link::useTreeDecomposition,
             rdoc::useTreeDecomposition)
+        .def("improveTreewidth", &Link::improveTreewidth,
+            pybind11::arg("maxAttempts") = 1000,
+            pybind11::arg("height") = 1,
+            pybind11::arg("threads") = 1,
+            pybind11::arg("tracker") = nullptr,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::improveTreewidth)
         .def("brief",
             overload_cast<>(&Link::brief, pybind11::const_), rdoc::brief)
         .def("gauss",
@@ -293,6 +384,10 @@ void addLink(pybind11::module_& m) {
             rdoc::orientedGauss)
         .def("orientedGaussData", &Link::orientedGaussData,
             rdoc::orientedGaussData)
+        .def("signedGauss",
+            overload_cast<>(&Link::signedGauss, pybind11::const_),
+            rdoc::signedGauss)
+        .def("signedGaussData", &Link::signedGaussData, rdoc::signedGaussData)
         .def("jenkins",
             overload_cast<>(&Link::jenkins, pybind11::const_), rdoc::jenkins)
         .def("jenkinsData", &Link::jenkinsData, rdoc::jenkinsData)
@@ -308,10 +403,12 @@ void addLink(pybind11::module_& m) {
         .def("knotSig", &Link::knotSig,
             pybind11::arg("allowReflection") = true,
             pybind11::arg("allowReversal") = true,
+            pybind11::arg("allowRotation") = true,
             rdoc::knotSig)
         .def("sig", &Link::sig,
             pybind11::arg("allowReflection") = true,
             pybind11::arg("allowReversal") = true,
+            pybind11::arg("allowRotation") = true,
             rdoc::sig)
         .def("source", &Link::source,
             // The default should be Language::Current, but in C++ that
@@ -331,6 +428,12 @@ void addLink(pybind11::module_& m) {
         .def("r2", overload_cast<Crossing*>(&Link::r2), rdoc::r2_2)
         .def("r2", overload_cast<StrandRef, int, StrandRef, int>(&Link::r2),
             rdoc::r2_3)
+        .def("r2Virtual",
+            overload_cast<StrandRef, int, StrandRef, int>(&Link::r2Virtual),
+            rdoc::r2Virtual)
+        .def("r2Virtual",
+            overload_cast<StrandRef, int, int>(&Link::r2Virtual),
+            rdoc::r2Virtual_2)
         .def("r3", overload_cast<StrandRef, int>(&Link::r3), rdoc::r3)
         .def("r3", overload_cast<Crossing*, int>(&Link::r3), rdoc::r3_2)
         .def("hasR1",
@@ -349,6 +452,14 @@ void addLink(pybind11::module_& m) {
             overload_cast<StrandRef, int, StrandRef, int>(&Link::hasR2,
                 pybind11::const_),
             rdoc::hasR2_3)
+        .def("hasR2Virtual",
+            overload_cast<StrandRef, int, StrandRef, int>(&Link::hasR2Virtual,
+                pybind11::const_),
+            rdoc::hasR2Virtual)
+        .def("hasR2Virtual",
+            overload_cast<StrandRef, int, int>(&Link::hasR2Virtual,
+                pybind11::const_),
+            rdoc::hasR2Virtual_2)
         .def("hasR3",
             overload_cast<StrandRef, int>(&Link::hasR3, pybind11::const_),
             rdoc::hasR3)
@@ -371,6 +482,14 @@ void addLink(pybind11::module_& m) {
             overload_cast<StrandRef, int, StrandRef, int>(&Link::withR2,
                 pybind11::const_),
             rdoc::withR2_3)
+        .def("withR2Virtual",
+            overload_cast<StrandRef, int, StrandRef, int>(&Link::withR2Virtual,
+                pybind11::const_),
+            rdoc::withR2Virtual)
+        .def("withR2Virtual",
+            overload_cast<StrandRef, int, int>(&Link::withR2Virtual,
+                pybind11::const_),
+            rdoc::withR2Virtual_2)
         .def("withR3",
             overload_cast<StrandRef, int>(&Link::withR3, pybind11::const_),
             rdoc::withR3)
@@ -407,18 +526,37 @@ void addLink(pybind11::module_& m) {
             pybind11::arg("threads"),
             pybind11::arg("action"),
             rdoc::rewrite)
+        .def("rewriteVirtual", [](const Link& link, int height, int threads,
+                const std::function<bool(const std::string&, Link&&)>& action) {
+            if (threads == 1) {
+                return link.rewriteVirtual(height, 1, nullptr, action);
+            } else {
+                GILCallbackManager manager;
+                return link.rewriteVirtual(height, threads, nullptr,
+                    [&](const std::string& sig, Link&& link) -> bool {
+                        GILCallbackManager<>::ScopedAcquire acquire(manager);
+                        return action(sig, std::move(link));
+                    });
+            }
+        }, pybind11::arg("height"),
+            pybind11::arg("threads"),
+            pybind11::arg("action"),
+            rdoc::rewriteVirtual)
         .def("insertTorusLink", &Link::insertTorusLink,
             pybind11::arg(),
             pybind11::arg(),
             pybind11::arg("positive") = true,
             rdoc::insertTorusLink)
+        .def_readonly_static("alexanderVar", Link::alexanderVar)
         .def_readonly_static("jonesVar", Link::jonesVar)
+        .def_readonly_static("bracketVar", Link::bracketVar)
         .def_readonly_static("homflyVarX", Link::homflyVarX)
         .def_readonly_static("homflyVarY", Link::homflyVarY)
         .def_readonly_static("homflyAZVarX", Link::homflyAZVarX)
         .def_readonly_static("homflyAZVarY", Link::homflyAZVarY)
         .def_readonly_static("homflyLMVarX", Link::homflyLMVarX)
         .def_readonly_static("homflyLMVarY", Link::homflyLMVarY)
+        .def_readonly_static("affineIndexVar", Link::affineIndexVar)
     ;
     #if defined(__GNUC__)
     // The following routines are deprecated, but we still need to bind
@@ -432,24 +570,24 @@ void addLink(pybind11::module_& m) {
     #endif
     l.def("r1", overload_cast<Crossing*, bool, bool>(&Link::r1),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r1_3) // deprecated
         .def("r1", overload_cast<StrandRef, int, int, bool, bool>(&Link::r1),
             pybind11::arg(),
             pybind11::arg(),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r1_4) // deprecated
         .def("r2", overload_cast<StrandRef, bool, bool>(&Link::r2),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r2_4) // deprecated
         .def("r2", overload_cast<Crossing*, bool, bool>(&Link::r2),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r2_5) // deprecated
         .def("r2", overload_cast<StrandRef, int, StrandRef, int, bool, bool>(
@@ -458,19 +596,19 @@ void addLink(pybind11::module_& m) {
             pybind11::arg(),
             pybind11::arg(),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r2_6) // deprecated
         .def("r3", overload_cast<StrandRef, int, bool, bool>(&Link::r3),
             pybind11::arg(),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r3_3) // deprecated
         .def("r3", overload_cast<Crossing*, int, bool, bool>(&Link::r3),
             pybind11::arg(),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rdoc::r3_4) // deprecated
     ;
@@ -482,8 +620,10 @@ void addLink(pybind11::module_& m) {
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
-    regina::python::addListView<decltype(Link().crossings())>(m);
-    regina::python::addListView<decltype(Link().components())>(m);
+    regina::python::addListView<decltype(Link().crossings())>(internal,
+        "Link_crossings");
+    regina::python::addListView<decltype(Link().components())>(internal,
+        "Link_components");
 
     auto wrap = regina::python::add_packet_wrapper<Link>(m, "PacketOfLink");
     regina::python::add_packet_constructor<>(wrap, rdoc::__default);

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,35 +23,29 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #ifndef __TIGHTENCODINGTEST_H
 #define __TIGHTENCODINGTEST_H
 
+#include "concepts/io.h"
 #include "testhelper.h"
 
 /**
  * Implements tests for tight encodings (and optionally decodings) of objects
- * of type \a T.  This type \a T must provide equality tests and a str()
- * function that returns a std::string.
+ * of type \a T.
  *
  * Test suites can call these functions directly.  There is no need (or
  * benefit) for using inheritance of test fixture classes, other than the
  * minor convenience of not having to type out the template parameters for
  * TightEncodingTest every time it is used.
  */
-template <class T, bool hasDecoding = true>
+template <typename T, bool hasDecoding = true>
+requires std::equality_comparable<T> && regina::Stringifiable<T>
 class TightEncodingTest {
-    // Ensure that str() returns a std::string.
-    static_assert(
-        std::is_same_v<decltype(std::declval<T>().str()), std::string>,
-        "TightEncodingTest<T> requires T::str() to return a std::string.");
-
     public:
         static void verifyTightEncoding(const T& obj) {
             SCOPED_TRACE_REGINA(obj);

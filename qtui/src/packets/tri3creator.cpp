@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -62,42 +60,47 @@ namespace {
     /**
      * Triangulation type IDs that correspond to indices in the
      * triangulation type combo box.
+     *
+     * These _must_ be kept in sync with the order in which types are added to
+     * the combo box, and they _must_ include gaps for any separators.
      */
     enum {
-        TRI_EMPTY,
-        TRI_LAYERED_LENS_SPACE,
+        TRI_EMPTY = 0,
+        TRI_EXAMPLE = 1,
+        TRI_ISOSIG = 2,
+        TRI_DEHYDRATION = 3,
+        TRI_SPLITTING_SURFACE = 4,
+        // --- separator ---
+        TRI_LAYERED_LENS_SPACE = 6,
         TRI_SFS_SPHERE,
         TRI_LAYERED_SOLID_TORUS,
-        TRI_HANDLEBODY,
-        TRI_ISOSIG,
-        TRI_DEHYDRATION,
-        TRI_SPLITTING_SURFACE,
-        TRI_EXAMPLE
+        TRI_HANDLEBODY
     };
 
     /**
      * The list of ready-made example triangulations.
      */
-    std::vector<ExampleCreator<3>> examples = {
-        ExampleCreator<3>(QObject::tr("3-sphere (minimal)"), &regina::Example<3>::threeSphere),
-        ExampleCreator<3>(QObject::tr("3-sphere (dual to Bing's house)"), &regina::Example<3>::bingsHouse),
-        ExampleCreator<3>(QObject::tr("3-sphere (simplex boundary)"), &regina::Example<3>::simplicialSphere),
-        ExampleCreator<3>(QObject::tr("3-sphere (600-cell)"), &regina::Example<3>::sphere600),
-        ExampleCreator<3>(QObject::tr("Connected sum ℝP³ # ℝP³"), &regina::Example<3>::rp3rp3),
-        ExampleCreator<3>(QObject::tr("Figure eight knot complement"), &regina::Example<3>::figureEight),
-        ExampleCreator<3>(QObject::tr("Gieseking manifold"), &regina::Example<3>::gieseking),
-        ExampleCreator<3>(QObject::tr("Lens space L(8,3)"), [](){ return regina::Example<3>::lens(8, 3); }),
-        ExampleCreator<3>(QObject::tr("Poincaré homology sphere"), &regina::Example<3>::poincare),
-        ExampleCreator<3>(QObject::tr("Product ℝP² × S¹"), &regina::Example<3>::rp2xs1),
-        ExampleCreator<3>(QObject::tr("Product S² × S¹"), &regina::Example<3>::s2xs1),
-        ExampleCreator<3>(QObject::tr("ℝP³"), [](){ return regina::Example<3>::lens(2, 1); }),
-        ExampleCreator<3>(QObject::tr("Solid Klein bottle (B² ×~ S¹)"), &regina::Example<3>::solidKleinBottle),
-        ExampleCreator<3>(QObject::tr("Solid Torus (B² × S¹)"), &regina::Example<3>::ballBundle),
-        ExampleCreator<3>(QObject::tr("Trefoil knot complement"), &regina::Example<3>::trefoil),
-        ExampleCreator<3>(QObject::tr("Twisted product S² ×~ S¹"), &regina::Example<3>::twistedSphereBundle),
-        ExampleCreator<3>(QObject::tr("Weeks manifold"), &regina::Example<3>::weeks),
-        ExampleCreator<3>(QObject::tr("Weber-Seifert dodecahedral space"), &regina::Example<3>::weberSeifert),
-        ExampleCreator<3>(QObject::tr("Whitehead link complement"), &regina::Example<3>::whitehead),
+    std::vector<ExampleCreator<Triangulation<3>>> examples = {
+        { QObject::tr("3-sphere (minimal)"), &regina::Example<3>::threeSphere },
+        { QObject::tr("3-sphere (dual to Bing's house)"), &regina::Example<3>::bingsHouse },
+        { QObject::tr("3-sphere (simplex boundary)"), &regina::Example<3>::simplicialSphere },
+        { QObject::tr("3-sphere (600-cell)"), &regina::Example<3>::sphere600 },
+        { QObject::tr("3-torus"), &regina::Example<3>::threeTorus },
+        { QObject::tr("Connected sum ℝP³ # ℝP³"), &regina::Example<3>::rp3rp3 },
+        { QObject::tr("Figure eight knot complement"), &regina::Example<3>::figureEight },
+        { QObject::tr("Gieseking manifold"), &regina::Example<3>::gieseking },
+        { QObject::tr("Lens space L(8,3)"), [](){ return regina::Example<3>::lens(8, 3); } },
+        { QObject::tr("Poincaré homology sphere"), &regina::Example<3>::poincare },
+        { QObject::tr("Product ℝP² × S¹"), &regina::Example<3>::rp2xs1 },
+        { QObject::tr("Product S² × S¹"), &regina::Example<3>::s2xs1 },
+        { QObject::tr("ℝP³"), [](){ return regina::Example<3>::lens(2, 1); } },
+        { QObject::tr("Solid Klein bottle (B² ×~ S¹)"), &regina::Example<3>::solidKleinBottle },
+        { QObject::tr("Solid Torus (B² × S¹)"), &regina::Example<3>::ballBundle },
+        { QObject::tr("Trefoil knot complement"), &regina::Example<3>::trefoil },
+        { QObject::tr("Twisted product S² ×~ S¹"), &regina::Example<3>::twistedSphereBundle },
+        { QObject::tr("Weeks manifold"), &regina::Example<3>::weeks },
+        { QObject::tr("Weber-Seifert dodecahedral space"), &regina::Example<3>::weberSeifert },
+        { QObject::tr("Whitehead link complement"), &regina::Example<3>::whitehead }
     };
 
     /**
@@ -122,7 +125,7 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
     ui = new QWidget();
     QBoxLayout* layout = new QVBoxLayout(ui);
 
-    QBoxLayout* typeArea = new QHBoxLayout();//layout, 5);
+    QBoxLayout* typeArea = new QHBoxLayout();
     layout->addLayout(typeArea);
     QString expln = QObject::tr("Specifies what type of triangulation to create.");
     auto* label = new QLabel(QObject::tr("Type of triangulation:"), ui);
@@ -138,14 +141,101 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
     layout->addWidget(details, 1);
 
     // Set up the individual types of triangulation.
-    // Note that the order in which these options are added to the combo
-    // box must correspond precisely to the type IDs defined at the head
-    // of this file.
+    // The order in which these options are added to the combo box _must_
+    // correspond precisely to the type IDs defined at the head of this file.
     QWidget* hArea;
     QBoxLayout* hLayout;
 
     type->addItem(QObject::tr("Empty"));
     details->addWidget(new QWidget());
+
+    type->addItem(QObject::tr("Example triangulation"));
+    hArea = new QWidget();
+    hLayout = new QHBoxLayout();
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hArea->setLayout(hLayout);
+    expln = QObject::tr(
+        "<qt>Specifies which particular example triangulation to create.<p>"
+        "A selection of ready-made 3-manifold triangulations is offered "
+        "here to help you experiment and see how Regina works.</qt>");
+    label = new QLabel(QObject::tr("Example:"));
+    label->setWhatsThis(expln);
+    hLayout->addWidget(label);
+    exampleWhich = new QComboBox(hArea);
+    for (const auto& e : examples)
+        exampleWhich->addItem(e.name());
+    exampleWhich->setCurrentIndex(0);
+    exampleWhich->setWhatsThis(expln);
+    hLayout->addWidget(exampleWhich, 1);
+    details->addWidget(hArea);
+
+    type->addItem(QObject::tr("From isomorphism signature"));
+    hArea = new QWidget();
+    hLayout = new QHBoxLayout();
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hArea->setLayout(hLayout);
+    expln = QObject::tr("<qt>The isomorphism signature "
+        "from which the new triangulation will be created.  An example "
+        "isomorphism signature is <i>bkaagj</i>.<p>"
+        "Isomorphism signatures identify triangulations uniquely "
+        "up to combinatorial isomorphism.  They are "
+        "described in detail in <i>Simplification paths in the Pachner graphs "
+        "of closed orientable 3-manifold triangulations</i>, Burton, "
+        "preprint, <tt>arXiv:1110.6080</tt>, October 2011.</qt>");
+    label = new QLabel(QObject::tr("Isomorphism signature:"));
+    label->setWhatsThis(expln);
+    hLayout->addWidget(label);
+    isoSig = new QLineEdit();
+    isoSig->setValidator(new QRegularExpressionValidator(reIsoSig, hArea));
+    isoSig->setWhatsThis(expln);
+    hLayout->addWidget(isoSig, 1);
+    details->addWidget(hArea);
+
+    type->addItem(QObject::tr("From dehydration string"));
+    hArea = new QWidget();
+    hLayout = new QHBoxLayout();
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hArea->setLayout(hLayout);
+    expln = QObject::tr("<qt>The dehydration string "
+        "from which the new triangulation will be created.  An example "
+        "dehydration string is <i>baaaade</i>.<p>"
+        "Dehydration strings are described in detail in "
+        "<i>A census of cusped hyperbolic 3-manifolds</i>, "
+        "Callahan, Hildebrand and Weeks, published in "
+        "<i>Mathematics of Computation</i> <b>68</b>, 1999.</qt>");
+    label = new QLabel(QObject::tr("Dehydration string:"));
+    label->setWhatsThis(expln);
+    hLayout->addWidget(label);
+    dehydrationString = new QLineEdit(hArea);
+    dehydrationString->setValidator(new QRegularExpressionValidator(
+        reDehydration, hArea));
+    dehydrationString->setWhatsThis(expln);
+    hLayout->addWidget(dehydrationString, 1);
+    details->addWidget(hArea);
+
+    type->addItem(QObject::tr("From splitting surface signature"));
+    hArea = new QWidget();
+    hLayout = new QHBoxLayout();
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hArea->setLayout(hLayout);
+    expln = QObject::tr("<qt>The signature of the "
+        "splitting surface from which the new triangulation will be "
+        "created.  An example signature is <i>(abb)(ac)(c)</i>.<p>"
+        "Splitting surface signatures are described in detail in "
+        "<i>Minimal triangulations and normal surfaces</i>, "
+        "Burton, PhD thesis, available from the Regina website.</qt>");
+    label = new QLabel(QObject::tr("Signature:"));
+    label->setWhatsThis(expln);
+    hLayout->addWidget(label);
+    splittingSignature = new QLineEdit(hArea);
+    splittingSignature->setValidator(new QRegularExpressionValidator(
+        reSignature, hArea));
+    splittingSignature->setWhatsThis(expln);
+    hLayout->addWidget(splittingSignature, 1);
+    details->addWidget(hArea);
+
+    type->insertSeparator(type->count());
+    details->addWidget(new QWidget()); // keep indices for type/details in sync
 
     type->addItem(QObject::tr("Layered lens space"));
     hArea = new QWidget();
@@ -163,7 +253,7 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
         reLensParams, hArea));
     lensParams->setWhatsThis(expln);
     hLayout->addWidget(lensParams, 1);
-    details->addWidget(hArea);//, TRI_LAYERED_LENS_SPACE);
+    details->addWidget(hArea);
 
     type->addItem(QObject::tr("Seifert fibred space over 2-sphere"));
     hArea = new QWidget();
@@ -198,7 +288,7 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
         reSFSAllParams, hArea));
     sfsParams->setWhatsThis(expln);
     hLayout->addWidget(sfsParams, 1);
-    details->addWidget(hArea);//, TRI_SFS_SPHERE);
+    details->addWidget(hArea);
 
     type->addItem(QObject::tr("Layered solid torus"));
     hArea = new QWidget();
@@ -218,7 +308,7 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
         reLSTParams, hArea));
     lstParams->setWhatsThis(expln);
     hLayout->addWidget(lstParams, 1);
-    details->addWidget(hArea);//, TRI_LAYERED_SOLID_TORUS);
+    details->addWidget(hArea);
 
     type->addItem(QObject::tr("Orientable handlebody"));
     hArea = new QWidget();
@@ -236,92 +326,7 @@ Tri3Creator::Tri3Creator(ReginaMain*) {
     handlebodyGenus->setValidator(val);
     handlebodyGenus->setWhatsThis(expln);
     hLayout->addWidget(handlebodyGenus, 1);
-    details->addWidget(hArea);//, TRI_HANDLEBODY);
-
-    type->addItem(QObject::tr("From isomorphism signature"));
-    hArea = new QWidget();
-    hLayout = new QHBoxLayout();
-    hLayout->setContentsMargins(0, 0, 0, 0);
-    hArea->setLayout(hLayout);
-    expln = QObject::tr("<qt>The isomorphism signature "
-        "from which the new triangulation will be created.  An example "
-        "isomorphism signature is <i>bkaagj</i>.<p>"
-        "Isomorphism signatures identify triangulations uniquely "
-        "up to combinatorial isomorphism.  They are "
-        "described in detail in <i>Simplification paths in the Pachner graphs "
-        "of closed orientable 3-manifold triangulations</i>, Burton, "
-        "preprint, <tt>arXiv:1110.6080</tt>, October 2011.</qt>");
-    label = new QLabel(QObject::tr("Isomorphism signature:"));
-    label->setWhatsThis(expln);
-    hLayout->addWidget(label);
-    isoSig = new QLineEdit();
-    isoSig->setValidator(new QRegularExpressionValidator(reIsoSig, hArea));
-    isoSig->setWhatsThis(expln);
-    hLayout->addWidget(isoSig, 1);
-    details->addWidget(hArea);//, TRI_ISOSIG);
-
-    type->addItem(QObject::tr("From dehydration"));
-    hArea = new QWidget();
-    hLayout = new QHBoxLayout();
-    hLayout->setContentsMargins(0, 0, 0, 0);
-    hArea->setLayout(hLayout);
-    expln = QObject::tr("<qt>The dehydration string "
-        "from which the new triangulation will be created.  An example "
-        "dehydration string is <i>baaaade</i>.<p>"
-        "Dehydration strings are described in detail in "
-        "<i>A census of cusped hyperbolic 3-manifolds</i>, "
-        "Callahan, Hildebrand and Weeks, published in "
-        "<i>Mathematics of Computation</i> <b>68</b>, 1999.</qt>");
-    label = new QLabel(QObject::tr("Dehydration string:"));
-    label->setWhatsThis(expln);
-    hLayout->addWidget(label);
-    dehydrationString = new QLineEdit(hArea);
-    dehydrationString->setValidator(new QRegularExpressionValidator(
-        reDehydration, hArea));
-    dehydrationString->setWhatsThis(expln);
-    hLayout->addWidget(dehydrationString, 1);
-    details->addWidget(hArea);//, TRI_DEHYDRATION);
-
-    type->addItem(QObject::tr("From splitting surface"));
-    hArea = new QWidget();
-    hLayout = new QHBoxLayout();
-    hLayout->setContentsMargins(0, 0, 0, 0);
-    hArea->setLayout(hLayout);
-    expln = QObject::tr("<qt>The signature of the "
-        "splitting surface from which the new triangulation will be "
-        "created.  An example signature is <i>(abb)(ac)(c)</i>.<p>"
-        "Splitting surface signatures are described in detail in "
-        "<i>Minimal triangulations and normal surfaces</i>, "
-        "Burton, PhD thesis, available from the Regina website.</qt>");
-    label = new QLabel(QObject::tr("Signature:"));
-    label->setWhatsThis(expln);
-    hLayout->addWidget(label);
-    splittingSignature = new QLineEdit(hArea);
-    splittingSignature->setValidator(new QRegularExpressionValidator(
-        reSignature, hArea));
-    splittingSignature->setWhatsThis(expln);
-    hLayout->addWidget(splittingSignature, 1);
-    details->addWidget(hArea);//, TRI_SPLITTING_SURFACE);
-
-    type->addItem(QObject::tr("Example triangulation"));
-    hArea = new QWidget();
-    hLayout = new QHBoxLayout();
-    hLayout->setContentsMargins(0, 0, 0, 0);
-    hArea->setLayout(hLayout);
-    expln = QObject::tr(
-        "<qt>Specifies which particular example triangulation to create.<p>"
-        "A selection of ready-made 3-manifold triangulations is offered "
-        "here to help you experiment and see how Regina works.</qt>");
-    label = new QLabel(QObject::tr("Example:"));
-    label->setWhatsThis(expln);
-    hLayout->addWidget(label);
-    exampleWhich = new QComboBox(hArea);
-    for (const auto& e : examples)
-        exampleWhich->addItem(e.name());
-    exampleWhich->setCurrentIndex(0);
-    exampleWhich->setWhatsThis(expln);
-    hLayout->addWidget(exampleWhich, 1);
-    details->addWidget(hArea);//, TRI_EXAMPLE);
+    details->addWidget(hArea);
 
     // Tidy up.
     {

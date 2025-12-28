@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,6 +51,10 @@ Triangulation<4>::Triangulation(const std::string& description) {
 }
 
 long Triangulation<4>::eulerCharManifold() const {
+    if (! isValid())
+        throw FailedPrecondition("eulerCharManifold() requires a valid "
+            "triangulation");
+
     // Begin with V - E + F - T + P.
     // This call to eulerCharTri() also ensures that the skeleton has
     // been calculated.
@@ -68,11 +70,12 @@ long Triangulation<4>::eulerCharManifold() const {
         // we actually need here.)
         for (auto bc : boundaryComponents())
             if (bc->isIdeal()) {
-                // Because our 4-manifold triangulation is valid, all
-                // vertex links in the 3-manifold boundary must be
-                // spheres or discs.  We can therefore use V - E + F - T
-                // on this boundary component.
-                ans += bc->vertex(0)->link_->eulerCharTri() - 1;
+                // This boundary component consists of a single _valid_ ideal
+                // vertex, which must therefore have a link that is a valid
+                // closed 3-manifold triangulation.  It follows that the Euler
+                // characteristic of the vertex link is zero, and so truncating
+                // the vertex has exactly the following effect:
+                --ans;
             }
     }
 

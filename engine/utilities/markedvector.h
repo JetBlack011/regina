@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,8 +37,9 @@
 #define __REGINA_MARKEDVECTOR_H
 #endif
 
+#include <algorithm>
 #include <vector>
-#include "regina-core.h"
+#include "concepts/iterator.h"
 
 namespace regina {
 
@@ -260,8 +259,7 @@ class MarkedVector : private std::vector<T*> {
         inline typename std::vector<T*>::iterator erase(
                 typename std::vector<T*>::iterator first,
                 typename std::vector<T*>::iterator last) {
-            for (typename std::vector<T*>::iterator it = last;
-                    it != end(); ++it)
+            for (auto it = last; it != end(); ++it)
                 (*it)->marking_ -= (first - last);
             return std::vector<T*>::erase(first, last);
         }
@@ -276,6 +274,29 @@ class MarkedVector : private std::vector<T*> {
         }
 
         /**
+         * Randomly permutes the elements of this vector.
+         * All permutations are obtained with equal probability.
+         *
+         * The thread safety of this routine is dependent on the thread safety
+         * of your uniform random bit generator \a gen.
+         *
+         * \tparam URBG A type which, once any references are removed, must
+         * adhere to the C++ \a UniformRandomBitGenerator concept.
+         *
+         * \param gen the source of randomness to use (e.g., one of the
+         * many options provided in the C++ standard \c random header).
+         */
+        template <typename URBG>
+        void shuffle(URBG&& gen) {
+            std::shuffle(std::vector<T*>::begin(), std::vector<T*>::end(),
+                std::forward<URBG>(gen));
+
+            size_t i = 0;
+            for (auto obj : *this)
+                obj->marking_ = i++;
+        }
+
+        /**
          * Empties this vector and refills it with the given range of items.
          *
          * Calling this routine is equivalent to calling clear() followed by
@@ -285,17 +306,14 @@ class MarkedVector : private std::vector<T*> {
          * The algorithm only makes a single pass through the given
          * range of iterators.
          *
-         * \tparam Iterator an input iterator type, whose dereference
-         * operator returns a pointer of type `T*`.
-         *
          * \param begin an iterator that points to the beginning of the range
          * of items with which to refill this vector.
          * \param end an iterator that points past the end of the range of
          * items with which to refill this vector.
          */
-        template <typename Iterator>
-        void refill(Iterator begin, Iterator end) {
-            Iterator it = begin;
+        template <InputIteratorFor<T*> iterator>
+        void refill(iterator begin, iterator end) {
+            iterator it = begin;
             auto local = std::vector<T*>::begin();
             while (it != end && local != std::vector<T*>::end())
                 *local++ = *it++;

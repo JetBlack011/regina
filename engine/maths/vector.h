@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,7 +40,11 @@
 #include <algorithm>
 #include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include "regina-core.h"
+#include "concepts/core.h"
+#include "concepts/io.h"
+#include "concepts/iterator.h"
 #include "core/output.h"
 #include "maths/integer.h"
 #include "utilities/intutils.h"
@@ -80,19 +82,6 @@ class Rational;
  * (since there are no longer virtual functions you should use the copy
  * constructor instead), and the old makeLinComb() method is also gone
  * (just use operator *= and addCopies()).
- * 
- * \pre Type T has a copy constructor.  That is,
- * if \c a and \c b are of type T, then \c a can be initialised to the value
- * of \c b using `a(b)`.
- * \pre Type T has a default constructor.  That is,
- * an object of type T can be declared with no arguments.  No specific
- * default value is required.
- * \pre Type T allows for operators `=`, `==`, `+=`,
- * `-=`, `*=`, `+`, `-` and `*`.
- * \pre Type T has an integer constructor.  That is, if \c a is of type T,
- * then \c a can be initialised to an integer \c l using `a(l)`.
- * \pre An element \c t of type T can be written to an output stream
- * \c out using the standard expression `out << t`.
  *
  * \python Only the specific types Vector<Integer> and
  * Vector<LargeInteger> are available, under the names VectorInt and
@@ -100,7 +89,8 @@ class Rational;
  *
  * \ingroup maths
  */
-template <class T>
+template <RingLike T>
+requires Writeable<T> && IntegerCompatible<T>
 class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
     public:
         /**
@@ -170,17 +160,11 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
             std::fill(elts_, end_, initValue);
         }
         /**
-         * Creates a new vector containing the given sequence of elements.
+         * Creates a new vector containing a deep copy of the given sequence
+         * of elements.
          *
-         * This constructor induces a deep copy of the given range.
-         *
-         * \pre Objects of type \a T can be assigned values from
-         * dereferenced iterators of type \a iterator.
-         *
-         * \warning This routine computes the length of the given
-         * sequence by subtracting `end - begin`, and so ideally
-         * \a iterator should be a random access iterator type for which
-         * this operation is constant time.
+         * The iterator type must be random access because this allows the
+         * implementation to compute the sequence length in constant time.
          *
          * \python Instead of a pair of iterators, this routine
          * takes a python list of coefficients.
@@ -189,7 +173,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * \param end a past-the-end iterator indicating the end of the
          * sequence of elements.
          */
-        template <typename iterator>
+        template <RandomAccessIteratorFor<T> iterator>
         inline Vector(iterator begin, iterator end) :
                 elts_(new T[end - begin]), end_(elts_ + (end - begin)) {
             std::copy(begin, end, elts_);
@@ -694,16 +678,13 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * Writes the tight encoding of this vector to the given output
          * stream.  See the page on \ref tight "tight encodings" for details.
          *
-         * \pre The element type \a T must have a corresponding
-         * tightEncode() function.  This is true for Regina's arbitrary
-         * precision integer types (Integer and LargeInteger).
-         *
          * \nopython Use tightEncoding() instead, which returns a string.
          *
          * \param out the output stream to which the encoded string will
          * be written.
          */
-        void tightEncode(std::ostream& out) const {
+        void tightEncode(std::ostream& out) const
+                requires InherentlyTightEncodable<T> {
             regina::detail::tightEncodeIndex(out, size());
             for (const T* elt = elts_; elt != end_; ++elt)
                 elt->tightEncode(out);
@@ -721,10 +702,6 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * immediately after the encoding, without skipping any trailing
          * whitespace.
          *
-         * \pre The element type \a T must have a corresponding static
-         * tightDecode() function.  This is true for Regina's arbitrary
-         * precision integer types (Integer and LargeInteger).
-         *
          * \exception InvalidInput The given input stream does not begin with
          * a tight encoding of a vector of elements of type \a T.
          *
@@ -735,7 +712,8 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * for a vector of element of type \a T.
          * \return the vector represented by the given tight encoding.
          */
-        static Vector tightDecode(std::istream& input) {
+        static Vector tightDecode(std::istream& input)
+                requires InherentlyTightEncodable<T> {
             Vector ans(regina::detail::tightDecodeIndex<size_t>(input));
             for (T* elt = ans.elts_; elt != ans.end_; ++elt)
                 *elt = T::tightDecode(input);
@@ -756,16 +734,10 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * elements; such elements are simply ignored and left at
          * infinity.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
-         *
          * \return the integer by which this vector was divided (i.e.,
          * the gcd of its original elements).  This will be strictly positive.
          */
-        T scaleDown() {
-            static_assert(IsReginaInteger<T>::value, "Vector<T>::scaleDown() "
-                "requires type T to be one of Regina's own integer types.");
-
+        T scaleDown() requires ReginaInteger<T> {
             T gcd; // Initialised to 0.
             for (const T* e = elts_; e != end_; ++e) {
                 if (e->isInfinite() || (*e) == 0)
@@ -824,7 +796,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
  *
  * \ingroup maths
  */
-template <typename T>
+template <RingLike T>
 inline void swap(Vector<T>& a, Vector<T>& b) noexcept {
     a.swap(b);
 }
@@ -840,7 +812,7 @@ inline void swap(Vector<T>& a, Vector<T>& b) noexcept {
  *
  * \ingroup maths
  */
-template <class T>
+template <RingLike T>
 std::ostream& operator << (std::ostream& out, const Vector<T>& vector) {
     size_t size = vector.size();
     if (size == 0)

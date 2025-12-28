@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -83,7 +81,7 @@ Tri3SurfacesUI::Tri3SurfacesUI(regina::Triangulation<3>* tri,
 
     layout->addStretch(1);
 
-    auto* grid = new QGridLayout();//, 4, 7, 5);
+    auto* grid = new QGridLayout();
     layout->addLayout(grid);
     grid->setColumnStretch(0, 1);
     grid->setColumnMinimumWidth(2, 5); // Horizontal gap
@@ -110,7 +108,7 @@ Tri3SurfacesUI::Tri3SurfacesUI(regina::Triangulation<3>* tri,
     titleHandlebody->setWhatsThis(msg);
     handlebody->setWhatsThis(msg);
 
-    titleTxI = new QLabel(tr("T x I?"), ui);
+    titleTxI = new QLabel(tr("T × I?"), ui);
     grid->addWidget(titleTxI, row, 1);
     TxI = new QLabel(ui);
     grid->addWidget(TxI, row++, 3);
@@ -500,7 +498,7 @@ void Tri3SurfacesUI::refresh() {
 
                 isHyp = false;
                 if (name.empty())
-                    name = "T x I";
+                    name = "T × I";
             } else {
                 TxI->setText(tr("False"));
                 QPalette pal = TxI->palette();
@@ -766,7 +764,7 @@ void Tri3SurfacesUI::calculateHandlebody() {
 
 void Tri3SurfacesUI::calculateTxI() {
     PatienceDialog* dlg = PatienceDialog::warn(tr(
-        "(T x I) recognition can be quite slow\n"
+        "(T × I) recognition can be quite slow\n"
         "for larger triangulations.\n\n"
         "Please be patient."), ui);
     tri_->isTxI();

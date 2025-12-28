@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2011-2023, Ben Burton
+# Copyright (c) 2011-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Tests support for the modern XML file format
@@ -26,10 +26,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Fetch the python/testsuite path in the source tree, since we will need
 # to access external files.
@@ -39,7 +37,8 @@ if (len(sys.argv) > 1):
 else:
 	testpath = '.'
 
-# A routine that performs essentially the same tasks as regfiledump.
+# A routine that performs essentially the same tasks as regfiledump,
+# but with the addition of dumping cached properties.
 def dump(tree):
 	if tree == None:
 		print('ERROR: Null packet tree.')
@@ -59,12 +58,30 @@ def dump(tree):
 		print('************************************************************')
 		print()
 		print(p.detail())
+		if p.type() == PacketType.Triangulation2:
+			print('Properties:')
+			print('H1 =', p.homology())
+		elif p.type() == PacketType.Triangulation3:
+			print('Properties:')
+			print('H1 =', p.homology())
+			print('H1Rel =', p.homologyRel())
+			print('H1Bdry =', p.homologyBdry())
+			print('H2 =', p.homology(2))
+		elif p.type() == PacketType.Triangulation4:
+			print('Properties:')
+			print('H1 =', p.homology())
+			print('H2 =', p.homology(2))
 		print()
 
 		p = p.nextTreePacket()
 
 # Load and dump some files created by different versions of regina.
+# This includes one ancient file (file4.rga) where gluing permutations were
+# written using _signed_ image packs and negative numbers do appear.
 dump(regina.open(testpath + '/file1.rga'))
 dump(regina.open(testpath + '/file2.rga'))
 dump(regina.open(testpath + '/file3.rga'))
+dump(regina.open(testpath + '/file4.rga'))
+dump(regina.open(testpath + '/file5.rga'))
+dump(regina.open(testpath + '/file6.rga'))
 

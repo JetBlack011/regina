@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -241,7 +239,7 @@ class HomGroupPresentation : public Output<HomGroupPresentation> {
          * \param i the index of a generator in the domain.
          * \return the image of the <i>i</i>th generator in the codomain.
          */
-        GroupExpression evaluate(unsigned long i) const;
+        GroupExpression evaluate(size_t i) const;
 
         /**
          * Evaluate the isomorphisms's inverse at an element of the codomain.
@@ -264,7 +262,7 @@ class HomGroupPresentation : public Output<HomGroupPresentation> {
          * \param i the index of a generator in the codomain.
          * \return the image of this generator in the domain.
          */
-        GroupExpression invEvaluate(unsigned long i) const;
+        GroupExpression invEvaluate(size_t i) const;
 
         /**
          * Simultaneously simplifies the presentation of the domain, the
@@ -515,7 +513,7 @@ inline bool HomGroupPresentation::knowsInverse() const {
     return inv_.has_value();
 }
 
-inline GroupExpression HomGroupPresentation::evaluate(unsigned long i) const {
+inline GroupExpression HomGroupPresentation::evaluate(size_t i) const {
     return map_[i];
 }
 
@@ -531,7 +529,7 @@ inline GroupExpression HomGroupPresentation::invEvaluate(GroupExpression arg)
     return arg;
 }
 
-inline GroupExpression HomGroupPresentation::invEvaluate(unsigned long i)
+inline GroupExpression HomGroupPresentation::invEvaluate(size_t i)
         const {
     return (*inv_)[i];
 }

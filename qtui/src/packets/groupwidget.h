@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -63,12 +61,13 @@ class GroupWidget : public QWidget {
         QLabel* gens_;
         QLabel* relCount_;
         QListWidget* rels_;
+        QWidget* noRels_;
 
     public:
         /**
          * Constructor.
          */
-        GroupWidget(bool allowSimplify, bool paddingStretch);
+        GroupWidget(bool allowSimplify = true, bool paddingStretch = false);
 
         /**
          * Changes the group presentation currently being displayed.
@@ -95,17 +94,9 @@ class GroupWidget : public QWidget {
 
     public slots:
         /**
-         * Group simplification via GAP.
+         * Group simplification.
          */
-        void simplifyGAP();
-        /**
-         * Regina's own simplification code.
-         */
-        void simplifyInternal();
-        /**
-         * Search for more potentially useful relators.
-         */
-        void proliferateRelators();
+        void simplify();
 
     private:
         /**

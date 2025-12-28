@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,14 +23,16 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
-#include <pybind11/pybind11.h>
+#include "regina-config.h" // for REGINA_PYBIND11_VERSION
+#include "pybind11/pybind11.h"
+#if REGINA_PYBIND11_VERSION == 3
+#include <pybind11/native_enum.h>
+#endif
 #include <pybind11/functional.h>
 #include "maths/permgroup.h"
 #include "../helpers.h"
@@ -90,10 +92,20 @@ void addPermGroup(pybind11::module_& m, const char* name) {
 void addPermGroup(pybind11::module_& m) {
     RDOC_SCOPE_BEGIN(NamedPermGroup)
 
+#if REGINA_PYBIND11_VERSION == 3
+    pybind11::native_enum<regina::NamedPermGroup>(m, "NamedPermGroup",
+            "enum.Enum", rdoc_scope)
+#elif REGINA_PYBIND11_VERSION == 2
     pybind11::enum_<regina::NamedPermGroup>(m, "NamedPermGroup", rdoc_scope)
+#else
+    #error "Unsupported pybind11 version"
+#endif
         .value("Trivial", NamedPermGroup::Trivial, rdoc::Trivial)
         .value("Symmetric", NamedPermGroup::Symmetric, rdoc::Symmetric)
         .value("Alternating", NamedPermGroup::Alternating, rdoc::Alternating)
+#if REGINA_PYBIND11_VERSION == 3
+        .finalize()
+#endif
         ;
 
     // Deprecated constants:

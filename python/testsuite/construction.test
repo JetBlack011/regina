@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2015-2023, Ben Burton
+# Copyright (c) 2015-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Tests the behaviour of the various dumpConstruction() functions.
@@ -26,10 +26,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 def testDump(obj):
 	print('----------')
@@ -42,11 +40,14 @@ def testDump(obj):
 	# For Python, print it _and_ test that it works.
 	code = obj.source()
 	print(code)
-	exec(code, globals(), locals())
+	# As of Python 3.13 we need to set up our own locals dictionary (a result
+	# of PEP 667).  See also: https://github.com/python/cpython/issues/118888
+	loc = {}
+	exec(code, globals(), loc)
 	if obj.__class__ == regina.Link:
-		print(locals()['link'])
+		print(loc['link'])
 	else:
-		print(locals()['tri'])
+		print(loc['tri'])
 
 testDump(Link())
 testDump(Link(1))

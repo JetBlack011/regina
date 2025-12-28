@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -62,7 +60,7 @@ namespace {
 
 ReginaPrefSet ReginaPrefSet::instance_;
 
-#ifdef Q_OS_WIN32
+#ifdef Q_OS_WIN
     const char* ReginaPrefSet::defaultGAPExec = "gap.exe";
 #else
     const char* ReginaPrefSet::defaultGAPExec = "gap";
@@ -71,9 +69,11 @@ ReginaPrefSet ReginaPrefSet::instance_;
 ReginaPrefSet::ReginaPrefSet() :
         anglesCreationTaut(false),
         fileRecentMax(10),
+        displaySimpleToolbars(false),
         displayTagsInTree(false),
         displayUnicode(true),
         fileImportExportCodec("UTF-8"),
+        groupSimplification(GroupSimplification::Regina),
         helpIntroOnStartup(true),
         hypersurfacesCreationCoords(regina::HyperCoords::Standard),
         hypersurfacesCreationList(regina::HyperList::Default),
@@ -85,6 +85,7 @@ ReginaPrefSet::ReginaPrefSet() :
         pythonAutoIndent(true),
         pythonSpacesPerTab(4),
         pythonWordWrap(false),
+        snapPeaCreationType(0),
         surfacesCompatThreshold(100),
         surfacesCreationCoords(regina::NormalCoords::Standard),
         surfacesCreationList(regina::NormalList::Default),
@@ -102,6 +103,7 @@ ReginaPrefSet::ReginaPrefSet() :
         tabDim4TriSkeleton(0),
         tabHypersurfaceList(0),
         tabLink(0),
+        tabLinkAlgebra(0),
         tabSnapPeaTri(0),
         tabSnapPeaTriAlgebra(0),
         tabSurfaceList(0),
@@ -117,7 +119,7 @@ ReginaPrefSet::ReginaPrefSet() :
 
 QFont ReginaPrefSet::fixedWidthFont() {
     QFont ans;
-#ifdef Q_OS_MACX
+#ifdef Q_OS_MACOS
     ans.setFamily("menlo");
 #else
     ans.setFamily("monospace");
@@ -136,7 +138,7 @@ void ReginaPrefSet::openHandbook(const char* section, const char* handbook,
     QString handbookName = (handbook ? handbook : "regina");
 
     QString home = QFile::decodeName(regina::GlobalDirs::home().c_str());
-#if defined(REGINA_INSTALL_BUNDLE) && defined(Q_OS_MACX) && defined(REGINA_XCODE_BUNDLE)
+#if defined(REGINA_INSTALL_BUNDLE) && defined(Q_OS_MACOS) && defined(REGINA_XCODE_BUNDLE)
     // The Xcode build installs the handbooks as bundle resources, at the root
     // of the Resources directory.
     QString index = home +
@@ -234,6 +236,7 @@ void ReginaPrefSet::readInternal() {
     settings.beginGroup("Display");
     displayTagsInTree = settings.value("DisplayTagsInTree", false).toBool();
     displayUnicode = settings.value("DisplayUnicode", true).toBool();
+    displaySimpleToolbars = settings.value("SimpleToolbars", false).toBool();
     settings.endGroup();
 
     settings.beginGroup("File");
@@ -254,7 +257,7 @@ void ReginaPrefSet::readInternal() {
         settings.value("CreationList", 0 /* HyperList.Default */).toInt());
 
     settings.beginGroup("Link");
-    linkCreationType = settings.value("CreationType", 0).toInt();
+    linkCreationType = settings.value("CreationTypeV2", 0).toInt();
     str = settings.value("CodeType").toString();
     if (str == "DowkerThistlethwaite")
         linkCodeType = ReginaPrefSet::LinkCode::DowkerThistlethwaite;
@@ -290,6 +293,7 @@ void ReginaPrefSet::readInternal() {
     settings.endGroup();
 
     settings.beginGroup("SnapPea");
+    snapPeaCreationType = settings.value("CreationTypeV2", 0).toInt();
     regina::SnapPeaTriangulation::enableKernelMessages(
         settings.value("KernelMessages", false).toBool());
     settings.endGroup();
@@ -328,15 +332,16 @@ void ReginaPrefSet::readInternal() {
     tabDim4TriSkeleton = settings.value("Tri4Skeleton", 0).toInt();
     tabHypersurfaceList = settings.value("HypersurfaceList", 0).toInt();
     tabLink = settings.value("Link", 0).toInt();
+    tabLinkAlgebra = settings.value("LinkAlgebra", 0).toInt();
     tabSnapPeaTri = settings.value("SnapPeaTri", 0).toInt();
     tabSnapPeaTriAlgebra = settings.value("SnapPeaTriAlgebra", 0).toInt();
     tabSurfaceList = settings.value("SurfaceList", 0).toInt();
     settings.endGroup();
 
     settings.beginGroup("Triangulation");
-    triDim2CreationType = settings.value("Dim2CreationType", 0).toInt();
-    triDim3CreationType = settings.value("Dim3CreationType", 0).toInt();
-    triDim4CreationType = settings.value("Dim4CreationType", 0).toInt();
+    triDim2CreationType = settings.value("Dim2CreationTypeV2", 0).toInt();
+    triDim3CreationType = settings.value("Dim3CreationTypeV2", 0).toInt();
+    triDim4CreationType = settings.value("Dim4CreationTypeV2", 0).toInt();
     triGraphvizLabels = settings.value("GraphvizLabels", true).toBool();
 
     str = settings.value("InitialGraphType").toString();
@@ -352,6 +357,11 @@ void ReginaPrefSet::readInternal() {
     settings.endGroup();
 
     settings.beginGroup("Tools");
+    str = settings.value("GroupSimplification").toString();
+    if (str == "GAP")
+        groupSimplification = GroupSimplification::GAP;
+    else
+        groupSimplification = GroupSimplification::Regina; /* default */
     triGAPExec = settings.value("GAPExec", defaultGAPExec).toString().trimmed();
     settings.endGroup();
 
@@ -397,6 +407,7 @@ void ReginaPrefSet::saveInternal() const {
     settings.beginGroup("Display");
     settings.setValue("DisplayTagsInTree", displayTagsInTree);
     settings.setValue("DisplayUnicode", displayUnicode);
+    settings.setValue("SimpleToolbars", displaySimpleToolbars);
     settings.endGroup();
 
     settings.beginGroup("File");
@@ -414,7 +425,7 @@ void ReginaPrefSet::saveInternal() const {
     settings.setValue("CreationList", hypersurfacesCreationList.intValue());
 
     settings.beginGroup("Link");
-    settings.setValue("CreationType", linkCreationType);
+    settings.setValue("CreationTypeV2", linkCreationType);
     switch (linkCodeType) {
         case ReginaPrefSet::LinkCode::DowkerThistlethwaite:
             settings.setValue("CodeType", "DowkerThistlethwaite"); break;
@@ -454,6 +465,7 @@ void ReginaPrefSet::saveInternal() const {
     settings.endGroup();
 
     settings.beginGroup("SnapPea");
+    settings.setValue("CreationTypeV2", snapPeaCreationType);
     settings.setValue("KernelMessages",
         regina::SnapPeaTriangulation::kernelMessagesEnabled());
     settings.endGroup();
@@ -463,14 +475,12 @@ void ReginaPrefSet::saveInternal() const {
     settings.setValue("CreationCoordinates",
         static_cast<int>(surfacesCreationCoords));
     settings.setValue("CreationList", surfacesCreationList.intValue());
-
     switch (surfacesInitialCompat) {
         case ReginaPrefSet::CompatMatrix::Global:
             settings.setValue("InitialCompat", "Global"); break;
         default:
             settings.setValue("InitialCompat", "Local"); break;
     }
-
     settings.setValue("SupportOriented", surfacesSupportOriented);
     settings.setValue("WarnOnNonEmbedded", warnOnNonEmbedded);
     settings.endGroup();
@@ -483,6 +493,7 @@ void ReginaPrefSet::saveInternal() const {
     settings.setValue("Dim3TriSkeleton", tabDim3TriSkeleton);
     settings.setValue("Dim4Tri", tabDim4Tri);
     settings.setValue("Link", tabLink);
+    settings.setValue("LinkAlgebra", tabLinkAlgebra);
     settings.setValue("Tri4Algebra", tabDim4TriAlgebra);
     settings.setValue("Tri4Skeleton", tabDim4TriSkeleton);
     settings.setValue("HypersurfaceList", tabHypersurfaceList);
@@ -496,11 +507,10 @@ void ReginaPrefSet::saveInternal() const {
     settings.endGroup();
 
     settings.beginGroup("Triangulation");
-    settings.setValue("Dim2CreationType", triDim2CreationType);
-    settings.setValue("Dim3CreationType", triDim3CreationType);
-    settings.setValue("Dim4CreationType", triDim4CreationType);
+    settings.setValue("Dim2CreationTypeV2", triDim2CreationType);
+    settings.setValue("Dim3CreationTypeV2", triDim3CreationType);
+    settings.setValue("Dim4CreationTypeV2", triDim4CreationType);
     settings.setValue("GraphvizLabels", triGraphvizLabels);
-
     switch (triInitialGraphType) {
         case ReginaPrefSet::TriGraph::TreeDecomposition:
             settings.setValue("InitialGraphType", "Tree"); break;
@@ -509,11 +519,16 @@ void ReginaPrefSet::saveInternal() const {
         default:
             settings.setValue("InitialGraphType", "Dual"); break;
     }
-
     settings.setValue("SurfacePropsThreshold", triSurfacePropsThreshold);
     settings.endGroup();
 
     settings.beginGroup("Tools");
+    switch (groupSimplification) {
+        case ReginaPrefSet::GroupSimplification::GAP:
+            settings.setValue("GroupSimplification", "GAP"); break;
+        default:
+            settings.setValue("GroupSimplification", "Regina"); break;
+    }
     settings.setValue("GAPExec", triGAPExec);
     settings.endGroup();
 

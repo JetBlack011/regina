@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -37,8 +35,8 @@
 namespace regina {
 
 class Packet;
-template <class> class PacketData;
-template <class> class PacketOf;
+template <typename> class PacketData;
+template <typename> class PacketOf;
 
 template <typename Held> std::shared_ptr<PacketOf<Held>> make_packet(Held&&);
 template <typename Held> std::shared_ptr<PacketOf<Held>> make_packet(Held&&,
@@ -72,7 +70,7 @@ namespace python {
  * use packet_eq_operators() and not add_eq_operators().  See
  * python/helpers/equality.h for further details.
  */
-template <class Held>
+template <typename Held>
 auto add_packet_wrapper(pybind11::module_& m, const char* className) {
     auto c = pybind11::class_<regina::PacketOf<Held>, Held, regina::Packet,
             std::shared_ptr<regina::PacketOf<Held>>>(m, className,

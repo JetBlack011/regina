@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,16 +37,16 @@
  *  <center><b>
  *  Regina<br>
  *  Software for low-dimensional topology<br>
- *  Copyright &copy; 1999-2023, The Regina development team
+ *  Copyright &copy; 1999&ndash;2025, The Regina development team
  *  </b></center>
  *
  *  This documentation describes the functions, classes and related
  *  entities in the C++ calculation engine, as well as how these can
  *  be accessed through Python.
  *
- *  To start: visit the <a href="modules.html">Modules</a> page and take
- *  a look around, or browse through the classes regina::Triangulation<3>,
- *  regina::Link, and regina::NormalSurfaces.
+ *  To start: visit the \topics page and take
+ *  a look around, or browse through the classes \ref regina::Triangulation<3>,
+ *  \ref regina::Link, and \ref regina::NormalSurfaces.
  *
  *  <h3>Python</h3>
  *
@@ -65,7 +63,7 @@
  *
  *  Benjamin A. Burton, Ryan Budney, William Pettersson, et al.,
  *  "Regina: Software for low-dimensional topology",
- *  http://regina-normal.github.io/ , 1999-2023.
+ *  http://regina-normal.github.io/ , 1999-2025.
  *
  *  <h3>Authors</h3>
  *
@@ -94,10 +92,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- *  MA 02110-1301, USA.
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program.  If not, see https://www.gnu.org/licenses/.
  *
  *  <h3>Online Distribution</h3>
  *

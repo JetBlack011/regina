@@ -1,10 +1,12 @@
 # Files to compile
 SET ( FILES
+  arrow.cpp
   binom.cpp
   cyclotomic.cpp
   integer.cpp
   laurent.cpp
   laurent2.cpp
+  matrix.cpp
   matrixops.cpp
   numbertheory.cpp
   perm.cpp

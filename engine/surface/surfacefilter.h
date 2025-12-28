@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,7 +38,7 @@
 #endif
 
 #include <set>
-#include "regina-core.h"
+#include "concepts/iterator.h"
 #include "maths/integer.h"
 #include "packet/packet.h"
 #include "surface/surfacefiltertype.h"
@@ -70,7 +68,7 @@ class SurfaceFilterProperties;
  * \param id the corresponding SurfaceFilterType constant.
  * \param name a human-readable name for this filter type.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 #define REGINA_SURFACE_FILTER(id, name) \
     public: \
@@ -109,7 +107,7 @@ class SurfaceFilterProperties;
  * filter content, not the packet infrastructure (e.g., they do not touch
  * packet labels, or the packet tree, or event listeners).
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class SurfaceFilter : public Packet {
     REGINA_PACKET(PacketType::SurfaceFilter, "Surface filter")
@@ -174,7 +172,7 @@ class SurfaceFilter : public Packet {
  * infrastructure (e.g., they do not touch packet labels, or the packet
  * tree, or event listeners).
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class SurfaceFilterCombination : public SurfaceFilter {
     REGINA_SURFACE_FILTER(SurfaceFilterType::Combination, "Combination filter")
@@ -269,7 +267,7 @@ class SurfaceFilterCombination : public SurfaceFilter {
  * \param a the first filter whose contents should be swapped.
  * \param b the second filter whose contents should be swapped.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 void swap(SurfaceFilterCombination& a, SurfaceFilterCombination& b);
 
@@ -291,11 +289,10 @@ void swap(SurfaceFilterCombination& a, SurfaceFilterCombination& b);
  * infrastructure (e.g., they do not touch packet labels, or the packet
  * tree, or event listeners).
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class SurfaceFilterProperties : public SurfaceFilter {
-    REGINA_SURFACE_FILTER(SurfaceFilterType::Properties,
-        "Filter by basic properties")
+    REGINA_SURFACE_FILTER(SurfaceFilterType::Properties, "Filter by basic properties")
 
     private:
         std::set<LargeInteger> eulerChar_;
@@ -412,17 +409,14 @@ class SurfaceFilterProperties : public SurfaceFilter {
          * \python Instead of a pair of iterators, the set of
          * allowable Euler characteristic should be passed as a Python list.
          *
-         * \tparam Iterator an iterator type that, when dereferenced,
-         * can be assigned to a LargeInteger.
-         *
          * \param beginEuler the beginning of an iterator range that
          * gives the new set of allowable Euler characteristics.
          * \param endEuler the end of an iterator range (i.e., an iterator
          * past the end of the list) that gives the new set of allowable
          * Euler characteristics.
          */
-        template <typename Iterator>
-        void setEulerChars(Iterator beginEuler, Iterator endEuler);
+        template <InputIteratorFor<LargeInteger> iterator>
+        void setEulerChars(iterator beginEuler, iterator endEuler);
 
         /**
          * Adds the given Euler characteristic to the set of allowable
@@ -511,7 +505,7 @@ class SurfaceFilterProperties : public SurfaceFilter {
  * \param a the first filter whose contents should be swapped.
  * \param b the second filter whose contents should be swapped.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 void swap(SurfaceFilterProperties& a, SurfaceFilterProperties& b);
 
@@ -608,9 +602,9 @@ inline BoolSet SurfaceFilterProperties::realBoundary() const {
     return realBoundary_;
 }
 
-template <typename Iterator>
+template <InputIteratorFor<LargeInteger> iterator>
 inline void SurfaceFilterProperties::setEulerChars(
-        Iterator beginEuler, Iterator endEuler) {
+        iterator beginEuler, iterator endEuler) {
     PacketChangeSpan span(*this);
     eulerChar_.clear();
     eulerChar_.insert(beginEuler, endEuler);

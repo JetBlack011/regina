@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,29 +23,27 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #include "triangulation-bindings.h"
 #include "boundarycomponent-bindings.h"
 #include "component-bindings.h"
-#include "isosig-bindings.h"
 #include "simplex-bindings.h"
 
-void addTriangulations15(pybind11::module_& m) {
+void addTriangulations15(pybind11::module_& m, pybind11::module_& internal) {
     addSimplex<15>(m, "Simplex15");
-    addComponent<15>(m, "Component15");
-    addBoundaryComponent<15>(m, "BoundaryComponent15");
-    addTriangulation<15>(m, "Triangulation15");
+    addComponent<15>(m, internal, "Component15");
+    addBoundaryComponent<15>(m, internal, "BoundaryComponent15");
+    addTriangulation<15>(m, internal, "Triangulation15");
 
     addIsoSigClassic<15>(m, "IsoSigClassic15");
     addIsoSigEdgeDegrees<15>(m, "IsoSigEdgeDegrees15");
     addIsoSigRidgeDegrees<15>(m, "IsoSigRidgeDegrees15");
-    addIsoSigPrintable<15>(m, "IsoSigPrintable15");
+    addIsoSigPrintable<15, true>(m, "IsoSigPrintable15");
+    addIsoSigPrintable<15, false>(m, "IsoSigPrintableLockFree15");
 
     m.attr("Face15_15") = m.attr("Simplex15");
 }

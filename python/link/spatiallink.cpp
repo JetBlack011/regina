@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,7 +37,7 @@
 using pybind11::overload_cast;
 using regina::SpatialLink;
 
-void addSpatialLink(pybind11::module_& m) {
+void addSpatialLink(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(SpatialLink)
 
     auto l = pybind11::class_<SpatialLink, std::shared_ptr<SpatialLink>>(
@@ -87,7 +85,8 @@ void addSpatialLink(pybind11::module_& m) {
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
-    regina::python::addListView<decltype(SpatialLink().components())>(m);
+    regina::python::addListView<decltype(SpatialLink().components())>(internal,
+        "SpatialLink_components");
 
     auto wrap = regina::python::add_packet_wrapper<SpatialLink>(m,
         "PacketOfSpatialLink");

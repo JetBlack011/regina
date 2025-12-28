@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,18 +23,14 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #include "link/link.h"
-#include "maths/laurent.h"
 #include "progress/progresstracker.h"
 #include "utilities/bitmanip.h"
-#include "utilities/sequence.h"
 #include <thread>
 
 // #define DUMP_STAGES
@@ -45,107 +41,235 @@
 // dwarf them in the weightings.)
 #define HARD_BAG_WEIGHT(bag) (double(bag->size())*(bag->size())*(bag->size()))
 
+/**
+ * Bracket skein relation:
+ *
+ * \ /         \ /            \_/
+ *  /   ->   A | |   +   A^-1  _
+ * / \         / \            / \
+ *
+ * O^k  ->  (-A^2 - A^-2)^(k-1)
+ */
+
 namespace regina {
 
 namespace {
     /**
-     * Used as a return value when the Jones/bracket calculation is running in
-     * a new thread and we need to return immediately without a result.
+     * Defines the granularity of how the naive algorithm allocates bitmasks
+     * (resolutions of crossings) to the working threads.
+     */
+    constexpr int sliceBits = 10;
+
+    /**
+     * The polynomial -A^-2 - A^2.
+     */
+    const Laurent<Integer> loopPoly { -2, { -1, 0, 0, 0, -1 } };
+
+    /**
+     * Used as a return value when the Jones/bracket calculation has been
+     * cancelled.
      */
     const regina::Laurent<regina::Integer> noResult;
-}
 
-size_t Link::resolutionLoops(uint64_t mask, size_t* loopIDs,
-        size_t* loopLengths) const {
-    size_t n = crossings_.size();
+    /**
+     * Internal to bracketNaive().
+     *
+     * This function returns the number of loops in the given link that are
+     * produced by resolving each crossing according to the given bitmask:
+     *
+     * - If the <i>i</i>th bit in \a mask is 0, crossing \a i should be
+     *   resolved by turning _left_ when entering along the upper strand.
+     *
+     * - If the <i>i</i>th bit in \a mask is 1, crossing \a i should be
+     *   resolved by turning _right_ when entering along the upper strand.
+     *
+     * If the array \a loopIDs is non-null, then it will be filled with an
+     * identifier for each loop.  Each identifier will be the minimum of the
+     * following values that are computed as you follow the loop: when passing
+     * through crossing \a i, if we encounter the half of the upper strand that
+     * _exits_ the crossing then we take the value `i`, and if we encounter the
+     * half of the upper strand that _enters_ the crossing then we take the
+     * value `i + n`.  These identifiers will be returned in the array
+     * \a loopIDs in sorted order.
+     *
+     * If the array \a loopLengths is non-null, then it will be filled with the
+     * number of strands in each loop (so these should sum to twice the number
+     * of crossings).  These loop lengths will be placed in the array in the
+     * same order as the loop IDs as described above.
+     *
+     * \pre `link.size() < 64` (here 64 is the length of the bitmask type).
+     *
+     * \pre If either or both arrays \a loopIDs and \a loopLengths are not null,
+     * then they are arrays whose size is at least the return value (i.e., the
+     * number of loops).  This typically means that the caller must put an upper
+     * bound on the number of loops in advance, before calling this routine.
+     */
+    size_t resolutionLoops(const Link& link, uint64_t mask,
+            size_t* loopIDs = nullptr, size_t* loopLengths = nullptr) {
+        size_t n = link.size();
 
-    size_t pos;
-    int dirInit, dir;
-    StrandRef s;
+        // Here we store whether we have seen the half of the upper strand
+        // at each crossing...
+        // found[0..n) : ... that exits the crossing
+        // found[n..2n) : ... that enters the crossing
+        FixedArray<bool> found(2 * n, false);
 
-    // found[0..n-1] : seen the half of the upper strand that exits the crossing
-    // found[n..2n-1] : seen the half of the upper strand that enters the crossing
-    bool* found = new bool[2 * n];
-    std::fill(found, found + 2 * n, false);
+        size_t loops = 0;
 
-    size_t loops = 0;
-    size_t len;
+        // The following two loops iterate through indices of found[] in
+        // increasing order.
+        for (int dirInit = 0; dirInit < 2; ++dirInit) {
+            for (size_t pos = 0; pos < n; ++pos) {
+                // dirInit: 1 = with arrows, 0 = against arrows.
+                // This refers to the direction along the strand as you
+                // approach the crossing (before you jump to the other strand).
+                if (! found[pos + (dirInit ? n : 0)]) {
+                    //std::cerr << "LOOP\n";
+                    if (loopIDs)
+                        loopIDs[loops] = pos + (dirInit ? n : 0);
 
-    // The following two loops iterate through indices of found[] in
-    // increasing order.
-    for (dirInit = 0; dirInit < 2; ++dirInit) {
-        for (pos = 0; pos < n; ++pos) {
-            // dirInit: 1 = with arrows, 0 = against arrows.
-            // This refers to the direction along the strand as you
-            // approach the crossing (before you jump to the other strand).
-            if (! found[pos + (dirInit ? n : 0)]) {
-                //std::cerr << "LOOP\n";
-                if (loopIDs)
-                    loopIDs[loops] = pos + (dirInit ? n : 0);
+                    StrandRef s = link.crossing(pos)->upper();
+                    int dir = dirInit;
+                    size_t len = 0;
 
-                s = crossings_[pos]->upper();
-                dir = dirInit;
-                len = 0;
+                    do {
+                        //std::cerr << "At: " << s <<
+                        //    (dir == 1 ? " ->" : " <-") << std::endl;
+                        const uint64_t bit =
+                            uint64_t(1) << s.crossing()->index();
 
-                do {
-                    //std::cerr << "At: " << s <<
-                    //    (dir == 1 ? " ->" : " <-") << std::endl;
-                    const uint64_t bit = (uint64_t)1 << s.crossing()->index();
-
-                    if (    ((mask & bit) && s.crossing()->sign() < 0) ||
-                            ((mask & bit) == 0 && s.crossing()->sign() > 0)) {
-                        // Turn in a way that is consistent with the arrows.
-                        if (dir == 1) {
-                            found[s.crossing()->index() +
-                                (s.strand() ? n : 0)] = true;
-                            s = s.crossing()->next(s.strand() ^ 1);
+                        if (    ((mask & bit) && s.crossing()->sign() < 0) ||
+                                ((mask & bit) == 0 && s.crossing()->sign() > 0)) {
+                            // Turn in a way consistent with the arrows.
+                            if (dir == 1) {
+                                found[s.crossing()->index() +
+                                    (s.strand() ? n : 0)] = true;
+                                s = s.crossing()->next(s.strand() ^ 1);
+                            } else {
+                                found[s.crossing()->index() +
+                                    (s.strand() ? 0 : n)] = true;
+                                s = s.crossing()->prev(s.strand() ^ 1);
+                            }
                         } else {
-                            found[s.crossing()->index() +
-                                (s.strand() ? 0 : n)] = true;
-                            s = s.crossing()->prev(s.strand() ^ 1);
+                            // Turn in a way inconsistent with the arrows.
+                            if (dir == 1) {
+                                found[s.crossing()->index() + n] = true;
+                                s = s.crossing()->prev(s.strand() ^ 1);
+                            } else {
+                                found[s.crossing()->index()] = true;
+                                s = s.crossing()->next(s.strand() ^ 1);
+                            }
+                            dir ^= 1;
                         }
-                    } else {
-                        // Turn in a way that is inconsistent with the arrows.
-                        if (dir == 1) {
-                            found[s.crossing()->index() + n] = true;
-                            s = s.crossing()->prev(s.strand() ^ 1);
-                        } else {
-                            found[s.crossing()->index()] = true;
-                            s = s.crossing()->next(s.strand() ^ 1);
-                        }
-                        dir ^= 1;
-                    }
 
-                    ++len;
-                } while (! (dir == dirInit &&
-                    s.crossing()->index() == pos && s.strand() == 1));
+                        ++len;
+                    } while (! (dir == dirInit &&
+                        s.crossing()->index() == pos && s.strand() == 1));
 
-                if (loopLengths)
-                    loopLengths[loops] = len;
-                ++loops;
+                    if (loopLengths)
+                        loopLengths[loops] = len;
+                    ++loops;
+                }
             }
         }
+
+        return loops;
     }
 
-    delete[] found;
-    return loops;
+    /**
+     * Computes a partial sum in the naive algorithm for a subset of possible
+     * resolutions.  This is used by bracketNaive(), and is designed to support
+     * multithreading - each thread uses its own BracketAccumulator, and works
+     * over a different subset of resolutions.
+     */
+    class BracketAccumulator {
+        private:
+            const Link& link_;
+
+            // The number of trivial zero-crossing unknot components.
+            const size_t trivialLoops_;
+
+            // In count[i-1], the coefficient of A^k reflects the number of
+            // resolutions with i loops and multiplier A^k.
+            //
+            // Note: we will always have 1 <= i <= #components + #crossings.
+            FixedArray<Laurent<Integer>> count_;
+
+            // The largest number of loops that this accumulator has seen.
+            // It is guaranteed that count_[i] == 0 for all i >= maxLoops_.
+            size_t maxLoops_;
+
+        public:
+            BracketAccumulator(const Link& link, size_t trivialLoops) :
+                    link_(link), trivialLoops_(trivialLoops),
+                    count_(link.size() + link.countComponents()), maxLoops_(0) {
+            }
+
+            void accumulate(uint64_t maskBegin, uint64_t maskEnd) {
+                for (uint64_t mask = maskBegin; mask != maskEnd; ++mask) {
+                    size_t loops = trivialLoops_ + resolutionLoops(link_, mask);
+                    if (loops > maxLoops_)
+                        maxLoops_ = loops;
+
+                    --loops;
+
+                    // Set shift = #(0 bits) - #(1 bits) in mask.
+                    long shift = link_.size() -
+                        2 * BitManipulator<uint64_t>::bits(mask);
+
+                    if (shift > count_[loops].maxExp() ||
+                            shift < count_[loops].minExp())
+                        count_[loops].set(shift, 1);
+                    else
+                        count_[loops].set(shift, count_[loops][shift] + 1);
+                }
+            }
+
+            /**
+             * Precondition: this and \a other use the same link, which in
+             * particular means that their internal \a count_ arrays have the
+             * same size.
+             */
+            void accumulate(BracketAccumulator&& other) {
+                if (maxLoops_ >= other.maxLoops_) {
+                    for (size_t i = 0; i < other.maxLoops_; ++i)
+                        count_[i] += std::move(other.count_[i]);
+                } else {
+                    count_.swap(other.count_);
+                    for (size_t i = 0; i < maxLoops_; ++i)
+                        count_[i] += std::move(other.count_[i]);
+                    maxLoops_ = other.maxLoops_;
+                }
+            }
+
+            Laurent<Integer> finalise() {
+                Laurent<Integer> ans;
+
+                Laurent<Integer> loopPow = RingTraits<Laurent<Integer>>::one;
+                for (size_t loops = 0; loops < maxLoops_; ++loops) {
+                    // std::cerr << "count[" << loops << "] = "
+                    //     << count[loops] << std::endl;
+                    if (! count_[loops].isZero()) {
+                        count_[loops] *= loopPow;
+                        ans += count_[loops];
+                    }
+
+                    loopPow *= loopPoly;
+                }
+
+                return ans;
+            }
+    };
 }
 
-Laurent<Integer> Link::bracketNaive(ProgressTracker* tracker) const {
-    /**
-     * \ /         \ /            \_/
-     *  /   ->   A | |   +   A^-1  _
-     * / \         / \            / \
-     *
-     * O^k  ->  (-A^2 - A^-2)^(k-1)
-     */
-
-    if (components_.size() == 0)
-        return Laurent<Integer>();
+Laurent<Integer> Link::bracketNaive(int threads, ProgressTracker* tracker)
+        const {
+    if (components_.empty())
+        return {};
 
     size_t n = crossings_.size();
     if (n >= 64) {
-        // We cannot use the backtracking algorithm, since our bitmask
+        // We cannot use the naive algorithm, since our bitmask
         // type (uint64_t) does not contain enough bits.
         return bracketTreewidth(tracker);
     }
@@ -153,88 +277,60 @@ Laurent<Integer> Link::bracketNaive(ProgressTracker* tracker) const {
     // It is guaranteed that we have at least one strand, though we
     // might have zero crossings.
 
-    // How many zero-crossing components do we start with?
-    size_t initLoops = 0;
-    for (StrandRef s : components_)
-        if (! s)
-            ++initLoops;
-
-    // In count[i-1], the coefficient of A^k reflects the number of
-    // resolutions with i loops and multiplier A^k.
-    // We will always have 1 <= i <= #components + #crossings.
-    auto* count = new Laurent<Integer>[n + components_.size()];
-
-    size_t maxLoops = 0;
-
-    static_assert(BitManipulator<uint64_t>::specialised,
-        "BitManipulator is not specialised for the mask type.");
-
     if (tracker)
         tracker->newStage("Enumerating resolutions");
 
-    size_t loops;
-    long shift;
-    const uint64_t maskEnd = ((uint64_t)1 << n);
-    for (uint64_t mask = 0; mask != maskEnd; ++mask) {
-        // std::cerr << "Mask: " << mask << std::endl;
-
-        // Check for cancellation every 1024 steps.
-        if (tracker && ((mask & 1023) == 0)) {
-            if (! tracker->setPercent(double(mask) * 100.0 / double(maskEnd)))
-                break;
+    size_t nTrivial = countTrivialComponents();
+    BracketAccumulator acc(*this, nTrivial);
+    if (threads <= 1 || n <= sliceBits) {
+        acc.accumulate(0, uint64_t(1) << n);
+    } else {
+        uint64_t nextSlice = 0;
+        uint64_t endSlice = (uint64_t(1) << (n - sliceBits));
+        std::mutex mutex;
+        FixedArray<std::thread> thread(threads);
+        for (int i = 0; i < threads; ++i) {
+            thread[i] = std::thread([=, this, &mutex, &nextSlice, &acc]() {
+                BracketAccumulator sub(*this, nTrivial);
+                uint64_t currSlice;
+                while (true) {
+                    {
+                        std::scoped_lock lock(mutex);
+                        if (tracker) {
+                            // Check for cancellation.
+                            if (! tracker->setPercent(
+                                    double(nextSlice) * 100.0 /
+                                    double(endSlice)))
+                                break;
+                        }
+                        if (nextSlice == endSlice) {
+                            acc.accumulate(std::move(sub));
+                            return;
+                        }
+                        currSlice = nextSlice++;
+                    }
+                    sub.accumulate(currSlice << sliceBits,
+                        (currSlice + 1) << sliceBits);
+                }
+            });
         }
-
-        loops = initLoops + resolutionLoops(mask);
-        if (loops > maxLoops)
-            maxLoops = loops;
-
-        --loops;
-
-        // Set shift = #(0 bits) - #(1 bits) in mask.
-        shift = n - 2 * BitManipulator<uint64_t>::bits(mask);
-        if (shift > count[loops].maxExp() || shift < count[loops].minExp())
-            count[loops].set(shift, 1);
-        else
-            count[loops].set(shift, count[loops][shift] + 1);
+        for (int i = 0; i < threads; ++i) {
+            thread[i].join();
+        }
     }
 
     if (tracker && tracker->isCancelled()) {
-        delete[] count;
-        return Laurent<Integer>();
+        return {};
     }
 
-    Laurent<Integer> ans;
-
-    Laurent<Integer> loopPoly;
-    loopPoly.set(0, -1);
-    loopPoly.set(4, -1);
-    loopPoly.shift(-2);
-
-    Laurent<Integer> loopPow(0); // Initialises to x^0 == 1.
-    for (loops = 0; loops < maxLoops; ++loops) {
-        // std::cerr << "count[" << loops << "] = " << count[loops] << std::endl;
-        if (! count[loops].isZero()) {
-            count[loops] *= loopPow;
-            ans += count[loops];
-        }
-
-        loopPow *= loopPoly;
-    }
-
-    delete[] count;
-    return ans;
+    return acc.finalise();
 }
 
 Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
     if (crossings_.empty())
-        return bracketNaive(tracker);
+        return bracketNaive(1 /* single-threaded */, tracker);
 
     // We are guaranteed >= 1 crossing and >= 1 component.
-
-    Laurent<Integer> loopPoly;
-    loopPoly.set(0, -1);
-    loopPoly.set(4, -1);
-    loopPoly.shift(-2);
 
     // Build a nice tree decomposition.
     if (tracker)
@@ -294,8 +390,7 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
     using Value = Laurent<Integer>;
     using SolnSet = std::map<Key, Value>;
 
-    auto* partial = new SolnSet*[nBags];
-    std::fill(partial, partial + nBags, nullptr);
+    FixedArray<SolnSet*> partial(nBags, nullptr);
 
     for (bag = d.first(); bag; bag = bag->next()) {
         size_t index = bag->index();
@@ -324,7 +419,7 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
             std::fill(k.begin(), k.end(), -2);
 
             partial[index]->emplace(std::move(k),
-                Laurent<Integer>(0) /* x^0 = 1 */);
+                RingTraits<Laurent<Integer>>::one);
         } else if (bag->niceType() == NiceType::Introduce) {
             // Introduce bag.
             child = bag->children();
@@ -401,17 +496,8 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
             for (auto& soln : *(partial[child->index()])) {
                 if (tracker) {
                     percent += increment;
-                    if (! tracker->setPercent(percent)) {
-                        // In normal processing, the loop through solutions
-                        // deletes the child keys and values as it goes.
-                        // Therefore we need to finish the loop to ensure that
-                        // all remaining child keys and values are deleted,
-                        // even if we do not want to process them.
-                        //
-                        // TODO: Now that keys and values are stored by
-                        // value, not by pointer, do we still need this?
-                        continue;
-                    }
+                    if (! tracker->setPercent(percent))
+                        break;
                 }
 
                 const Key& kChild = soln.first;
@@ -546,14 +632,13 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
                         else if (soln2.first[strand] == -2)
                             kNew[strand] = soln1.first[strand];
                         else
-                            std::cerr <<
-                                "ERROR: Incompatible keys in join bag"
-                                << std::endl;
+                            throw ImpossibleScenario(
+                                "Incompatible keys in join bag");
 
                     if (! partial[index]->emplace(std::move(kNew),
                             soln1.second * soln2.second).second)
-                        std::cerr << "ERROR: Combined keys in join bag "
-                            "are not unique" << std::endl;
+                        throw ImpossibleScenario(
+                            "Combined keys in join bag are not unique");
                 }
             }
 
@@ -568,8 +653,7 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
         // deallocated, so check them all.
         for (size_t i = 0; i < nBags; ++i)
             delete partial[i];
-        delete[] partial;
-        return Value();
+        return {};
     }
 
     // Collect the final answer from partial[nBags - 1].
@@ -580,7 +664,6 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
     Value ans = std::move(partial[nBags - 1]->begin()->second);
 
     delete partial[nBags - 1];
-    delete[] partial;
 
     // Finally, factor in any zero-crossing components.
     for (StrandRef s : components_)
@@ -590,22 +673,42 @@ Laurent<Integer> Link::bracketTreewidth(ProgressTracker* tracker) const {
     return ans;
 }
 
-const Laurent<Integer>& Link::bracket(Algorithm alg, ProgressTracker* tracker)
-        const {
+const Laurent<Integer>& Link::bracket(Algorithm alg, int threads,
+        ProgressTracker* tracker) const {
     if (bracket_.has_value()) {
         if (tracker)
             tracker->setFinished();
         return *bracket_;
     }
 
+    if (arrow_.has_value()) {
+        // It is trivial to deduce the Kauffman bracket and Jones polynomial
+        // from the arrow polynomial.
+        bracket_ = arrow_->sumLaurent();
+
+        // Set jones_ while the Kauffman bracket is still normalised.
+        jones_ = bracket_;
+        jones_->scaleDown(-2);
+
+        // Now de-normalise the Kauffman bracket.
+        long w = writhe();
+        bracket_->shift(3 * w);
+        if (w % 2)
+            bracket_->negate();
+
+        if (tracker)
+            tracker->setFinished();
+        return *bracket_;
+    }
+
     if (size() > (INT_MAX >> 1))
-        throw NotImplemented("This link has so many crossings that "
-            "the largest strand ID cannot fit into a native C++ int");
+        throw NotImplemented("This link has so many crossings that the total "
+            "number of strands cannot fit into a native C++ signed int");
 
     Laurent<Integer> ans;
     switch (alg) {
         case Algorithm::Naive:
-            ans = bracketNaive(tracker);
+            ans = bracketNaive(threads, tracker);
             break;
         default:
             ans = bracketTreewidth(tracker);
@@ -624,8 +727,8 @@ const Laurent<Integer>& Link::bracket(Algorithm alg, ProgressTracker* tracker)
     return *bracket_;
 }
 
-const Laurent<Integer>& Link::jones(Algorithm alg, ProgressTracker* tracker)
-        const {
+const Laurent<Integer>& Link::jones(Algorithm alg, int threads,
+        ProgressTracker* tracker) const {
     if (jones_.has_value()) {
         if (tracker)
             tracker->setFinished();
@@ -633,7 +736,7 @@ const Laurent<Integer>& Link::jones(Algorithm alg, ProgressTracker* tracker)
     }
 
     // Computing bracket_ will also set jones_.
-    bracket(alg, tracker); // this marks tracker as finished
+    bracket(alg, threads, tracker); // this marks tracker as finished
     if (tracker && tracker->isCancelled())
         return noResult;
     return *jones_;
@@ -642,18 +745,26 @@ const Laurent<Integer>& Link::jones(Algorithm alg, ProgressTracker* tracker)
 void Link::setPropertiesFromBracket(Laurent<Integer>&& bracket) const {
     bracket_ = std::move(bracket);
 
-    // Convert bracket into jones:
-    // (-A^3)^(-w) * bracket, then multiply all exponents by -1/4.
-    Laurent<Integer> jones(*bracket_);
+    // Normalise the bracket using the writhe: multiply by (-A^3)^(-w).
+    Laurent<Integer> normalised(*bracket_);
     long w = writhe();
-    jones.shift(-3 * w);
+    normalised.shift(-3 * w);
     if (w % 2)
-        jones.negate();
+        normalised.negate();
 
+    if ((! arrow_.has_value()) && isClassical()) {
+        // The arrow polynomial for a _classical_ link is just the normalised
+        // bracket.
+        arrow_ = normalised;
+    }
+
+    // The Jones polynomial is obtained from the normalised bracket by
+    // multiplying all exponents by -1/4.
+    //
     // We only scale exponents by -1/2, since we are returning a Laurent
     // polynomial in sqrt(t).
-    jones.scaleDown(-2);
-    jones_ = std::move(jones);
+    normalised.scaleDown(-2);
+    jones_ = std::move(normalised);
 }
 
 void Link::optimiseForJones(TreeDecomposition& td) const {

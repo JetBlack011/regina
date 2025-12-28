@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -47,7 +45,7 @@ static constexpr regina::SpatialLink::Node orth[3] = {
 namespace regina {
 
 Link ExampleLink::unknot() {
-    return Link(1);
+    return { 1 };
 }
 
 Link ExampleLink::trefoilLeft() {
@@ -165,6 +163,18 @@ Link ExampleLink::chen() {
         { 3, -4, 8, 12, -16, 13, -17, -6 },
         { 4, -1, 5, 9, -13, 14, -18, -7 },
         { 17, -10, 18, -11, 19, -12, 20, -9 });
+}
+
+Link ExampleLink::virtualTrefoil() {
+    return Link::fromData({ +1, +1 }, { 1, -2, -1, 2 });
+}
+
+Link ExampleLink::kishino() {
+    return Link::fromData({ -1, +1, +1, -1 }, { 1, -2, -1, 2, -3, 4, 3, -4 });
+}
+
+Link ExampleLink::gpv() {
+    return Link::fromData({ -1, -1, -1, -1 }, { 1, -2, -1, 2, 3, -4, -3, 4 });
 }
 
 SpatialLink ExampleLink::spatialTrefoil() {

@@ -33,8 +33,14 @@
 /* Define if we are building the Python bindings. */
 /* #undef BUILD_PYTHON_BINDINGS */
 
+/* Indicates which major version of pybind11 we should build against. */
+/* #undef REGINA_PYBIND11_VERSION */
+
 /* Define if the Graphviz libraries are available. */
 #define LIBGVC_FOUND
+
+/* Define if Graphviz plugins should be loaded dynamically at runtime. */
+/* #undef LIBGVC_DYNAMIC_PLUGINS */
 
 /* Define if langinfo.h and nl_langinfo() are available. */
 #define LANGINFO_FOUND
@@ -96,10 +102,10 @@
 #define REGINA_DB_EXT "tdb"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "Regina 7.4"
+#define PACKAGE_STRING "Regina 7.4.1"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "7.4"
+#define PACKAGE_VERSION "7.4.1"
 
 /* Major version number of the package. */
 #define PACKAGE_VERSION_MAJOR 7
@@ -112,7 +118,7 @@
 #define BUILD_INFO "Development build"
 
 /* A nicely formatted combination of PACKAGE_STRING and BUILD_INFO. */
-#define PACKAGE_BUILD_STRING "Regina 7.4 (Development build)"
+#define PACKAGE_BUILD_STRING "Regina 7.4.1 (Development build)"
 
 /* Define to the version of SnapPy that is bundled with Regina. */
 #define SNAPPY_VERSION "3.0.3"

@@ -28,17 +28,26 @@
  </biblioentry>
 
  <biblioentry id="bib-budney-emb11">
-  <abbrev>Bud08</abbrev>
-  <authorgroup><author>
-   <firstname>Ryan</firstname>
-   <surname>Budney</surname>
-  </author></authorgroup>
+  <abbrev>BB22</abbrev>
+  <authorgroup>
+   <author>
+    <firstname>Ryan</firstname>
+    <surname>Budney</surname>
+   </author>
+   <author>
+    <firstname>Benjamin</firstname>
+    <othername>A.</othername>
+    <surname>Burton</surname>
+   </author>
+  </authorgroup>
   <title>Embeddings of 3-manifolds in
    <replaceable>S</replaceable><superscript>4</superscript>
    from the point of view of the 11-tetrahedron census</title>
-  <edition>Preprint</edition>
-  <issuenum>arXiv:0810.2346</issuenum>
-  <date>October 2008</date>
+  <edition>Experimental Math.</edition>
+  <volumenum>vol. 31</volumenum>
+  <issuenum>no. 3</issuenum>
+  <artpagenums>pp. 988&ndash;1013</artpagenums>
+  <date>2022</date>
  </biblioentry>
 
  <biblioentry id="bib-burton-phd">
@@ -707,6 +716,23 @@
   <date>2005</date>
  </biblioentry>
 
+ <biblioentry id="bib-kauffman-virtual">
+  <abbrev>Kau99</abbrev>
+  <authorgroup>
+   <author>
+    <firstname>Louis</firstname>
+    <othername>H.</othername>
+    <surname>Kauffman</surname>
+   </author>
+  </authorgroup>
+  <title>Virtual knot theory</title>
+  <edition>European J. Combin.</edition>
+  <volumenum>vol. 20</volumenum>
+  <issuenum>no. 7</issuenum>
+  <artpagenums>pp. 663&ndash;690</artpagenums>
+  <date>1999</date>
+ </biblioentry>
+
  <biblioentry id="bib-kktorsionlinkingform">
   <abbrev>KK80</abbrev>
   <authorgroup>
@@ -849,6 +875,28 @@
   <publishername>Amer. Math. Soc.</publishername>
   <address>Providence, RI</address>
   <date>1997</date>
+ </biblioentry>
+
+ <biblioentry id="bib-silver-extgrp">
+  <abbrev>SW06</abbrev>
+  <authorgroup>
+   <author>
+    <firstname>Daniel</firstname>
+    <othername>S.</othername>
+    <surname>Silver</surname>
+   </author>
+   <author>
+    <firstname>Susan</firstname>
+    <othername>G.</othername>
+    <surname>Williams</surname>
+   </author>
+  </authorgroup>
+  <title>Crowell's derived group and twisted polynomials</title>
+  <edition>J. Knot Theory Ramifications</edition>
+  <volumenum>vol. 15</volumenum>
+  <issuenum>no. 8</issuenum>
+  <artpagenums>pp. 1079&ndash;1094</artpagenums>
+  <date>2006</date>
  </biblioentry>
 
  <biblioentry id="bib-thinposition">

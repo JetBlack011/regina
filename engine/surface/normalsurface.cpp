@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -389,7 +387,7 @@ void NormalSurface::calculateRealBoundary() const {
     realBoundary_ = false;
 }
 
-MatrixInt NormalSurface::boundaryIntersections() const {
+Matrix<Integer> NormalSurface::boundaryIntersections() const {
     // Make sure this is really a SnapPea triangulation.
     const SnapPeaTriangulation* snapPea = triangulation().isSnapPea();
     if (! snapPea)
@@ -411,11 +409,11 @@ MatrixInt NormalSurface::boundaryIntersections() const {
 
     // Note: slopeEquations() throws SnapPeaIsNull if we have a
     // null SnapPea triangulation.
-    MatrixInt equations = snapPea->slopeEquations();
+    Matrix<Integer> equations = snapPea->slopeEquations();
 
     size_t cusps = equations.rows() / 2;
     size_t numTet = snapPea->size();
-    MatrixInt slopes(cusps, 2);
+    Matrix<Integer> slopes(cusps, 2);
     for(unsigned int i=0; i < cusps; i++) {
         Integer meridian; // constructor sets this to 0
         Integer longitude; // constructor sets this to 0

@@ -17,20 +17,6 @@ R"doc(Represents a single-variable polynomial with coefficients of type *T*.
 All exponents in the polynomial must be non-negative (so you can
 represent ``2+3x`` but not ``1+1/x``).
 
-The type *T* must represent a ring with no zero divisors. In
-particular, it must:
-
-* support basic arithmetic operations;
-
-* support assignments of the form ``x = int`` and tests of the form
-  ``x == int`` and ``x < int``;
-
-* have a default constructor that assigns an explicit value of zero.
-
-This means that Regina's numerical types such as Integer and Rational
-are supported, but native data types such as int and long are not
-(since they have no zero-initialising default constructor).
-
 The underlying storage method for this class is dense (i.e., all
 coefficients are explicitly stored, including zero coefficients).
 
@@ -39,8 +25,16 @@ Swappable requirement. It is designed to avoid deep copies wherever
 possible, even when passing or returning objects by value.
 
 Python:
-    In Python, the class Polynomial refers to the specific template
-    class Polynomial<Rational>.)doc";
+    The C++ types Polynomial<Integer> and Polynomial<Rational> are
+    available using the Python names PolynomialInt and
+    PolynomialRational respectively. The alias Polynomial is also
+    provided for the type Polynomial<Rational>.
+
+Template parameter ``T``:
+    the coefficient type. A typical coefficient type would be Integer
+    or Rational. Note that native C++ integer types are _not_
+    supported (since they have no zero-initialising default
+    constructor).)doc";
 
 // Docstring regina::python::doc::__add
 static const char *__add =
@@ -426,7 +420,14 @@ Returns:
 
 // Docstring regina::python::doc::Polynomial_::__init
 static const char *__init =
-R"doc(Creates the polynomial ``x^d`` for the given degree *d*.
+R"doc(Deprecated constructor that creates the polynomial ``x^d`` for the
+given degree *d*.
+
+.. deprecated::
+    This will be removed in a future version of Regina, since in
+    casual reading of code it is too easy to misread this as creating
+    a polynomial with only a constant term. You can still create
+    ``x^d`` by calling ``initExp(d)`` instead.
 
 Parameter ``degree``:
     the degree of the new polynomial.)doc";
@@ -443,9 +444,8 @@ treated as the zero polynomial.
 
 This constructor induces a deep copy of the given range.
 
-Precondition:
-    Objects of type *T* can be assigned values from dereferenced
-    iterators of type *iterator*.
+The iterator type must be random access because this allows the
+implementation to compute the sequence length in constant time.
 
 Python:
     Instead of a pair of iterators, this routine takes a python list
@@ -569,7 +569,13 @@ static const char *init = R"doc(Sets this to become the zero polynomial.)doc";
 
 // Docstring regina::python::doc::Polynomial_::init_2
 static const char *init_2 =
-R"doc(Sets this to become the polynomial ``x^d`` for the given degree *d*.
+R"doc(Deprecated function that sets this to become the polynomial ``x^d``
+for the given degree *d*.
+
+.. deprecated::
+    This has been renamed to initExp(), since in casual reading of
+    code it is too easy to misread this as setting this polynomial to
+    have only a constant term.
 
 Parameter ``degree``:
     the new degree of this polynomial.)doc";
@@ -586,9 +592,8 @@ treated as the zero polynomial.
 
 This routine induces a deep copy of the given range.
 
-Precondition:
-    Objects of type *T* can be assigned values from dereferenced
-    iterators of type *iterator*.
+The iterator type must be random access because this allows the
+implementation to compute the sequence length in constant time.
 
 Python:
     Instead of a pair of iterators, this routine takes a python list
@@ -600,6 +605,13 @@ Parameter ``begin``:
 Parameter ``end``:
     a past-the-end iterator indicating the end of the sequence of
     coefficients.)doc";
+
+// Docstring regina::python::doc::Polynomial_::initExp
+static const char *initExp =
+R"doc(Sets this to become the polynomial ``x^d`` for the given degree *d*.
+
+Parameter ``degree``:
+    the new degree of this polynomial.)doc";
 
 // Docstring regina::python::doc::Polynomial_::isMonic
 static const char *isMonic =
@@ -629,7 +641,7 @@ Returns:
     the leading coefficient of this polynomial.)doc";
 
 // Docstring regina::python::doc::Polynomial_::negate
-static const char *negate = R"doc(Negates this polynomial. This field element is changed directly.)doc";
+static const char *negate = R"doc(Negates this polynomial. This polynomial is changed directly.)doc";
 
 // Docstring regina::python::doc::Polynomial_::set
 static const char *set =
@@ -653,6 +665,18 @@ Parameter ``exp``:
 
 Parameter ``value``:
     the new value of this coefficient.)doc";
+
+// Docstring regina::python::doc::Polynomial_::shift
+static const char *shift =
+R"doc(Multiplies this polynomial by ``x^s`` for some integer *s*. This
+polynomial is changed directly.
+
+If *s* is negative and this polynomial has lower-degree terms of the
+form ``x^k`` where ``k < |s|``, then these lower-degree terms will
+simply disappear.
+
+Parameter ``s``:
+    the power of *x* to multiply by.)doc";
 
 // Docstring regina::python::doc::Polynomial_::str
 static const char *str =

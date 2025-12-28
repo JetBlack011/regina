@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -151,9 +149,19 @@ class Tri4GluingsUI : public QObject, public PacketEditorTab {
          */
         QAction* actAddPent;
         QAction* actRemovePent;
+        QAction* actUnlock;
         QAction* actSimplify;
+        QAction* actMoves;
         QAction* actOrient;
+        QAction* actReflect;
+        QAction* actSubdivide;
+        QAction* actTruncate;
+        QAction* actMakeIdeal;
+        QAction* actDoubleCover;
+        QAction* actDoubleOverBoundary;
         QAction* actBoundaryComponents;
+        QAction* actVertexLinks;
+        QAction* actSplitIntoComponents;
         std::vector<QAction*> triActionList;
 
     public:
@@ -194,6 +202,7 @@ class Tri4GluingsUI : public QObject, public PacketEditorTab {
          */
         void lockMenu(const QPoint&);
         void changeLock();
+        void unlockAll();
 
         /**
          * Triangulation actions.
@@ -203,11 +212,12 @@ class Tri4GluingsUI : public QObject, public PacketEditorTab {
         void orient();
         void reflect();
         void barycentricSubdivide();
-        void idealToFinite();
-        void finiteToIdeal();
+        void truncateIdeal();
+        void makeIdeal();
         void elementaryMove();
         void insertTriangulation();
         void doubleCover();
+        void doubleOverBoundary();
         void boundaryComponents();
         void vertexLinks();
         void splitIntoComponents();

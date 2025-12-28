@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -46,7 +44,7 @@ using regina::EdgeEmbedding;
 using regina::Face;
 using regina::FaceEmbedding;
 
-void addEdge2(pybind11::module_& m) {
+void addEdge2(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
     RDOC_SCOPE_BASE_3(detail::FaceEmbeddingBase, alias::FaceNumber,
         alias::SimplexVoid)
@@ -105,6 +103,7 @@ void addEdge2(pybind11::module_& m) {
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping)
         .def("vertexMapping", &Edge<2>::vertexMapping, rbase::vertexMapping)
+        .def("join", &Edge<2>::join, rbase::join)
         .def("isLoop", &Edge<2>::isLoop, rbase::isLoop)
         .def("lock", &Edge<2>::lock, rbase::lock)
         .def("unlock", &Edge<2>::unlock, rbase::unlock)
@@ -130,7 +129,8 @@ void addEdge2(pybind11::module_& m) {
     RDOC_SCOPE_END
 
     regina::python::addListView<
-        decltype(std::declval<Edge<2>>().embeddings())>(m);
+        decltype(std::declval<Edge<2>>().embeddings())>(internal,
+        "Face2_1_embeddings");
 
     m.attr("EdgeEmbedding2") = m.attr("FaceEmbedding2_1");
     m.attr("Edge2") = m.attr("Face2_1");

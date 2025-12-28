@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -116,6 +114,22 @@ TEST_F(Dim2Test, orientability) {
     EXPECT_FALSE(disjoint2.tri.isOrientable());
     EXPECT_FALSE(disjoint3.tri.isOrientable());
 }
+TEST_F(Dim2Test, orientedExamples) {
+    // Ensure that the orientable Example<2> constructions are oriented.
+    //
+    // TODO: Several of these tests are commented out because the constructions
+    // are _not_ actually oriented at present; it would be nice to make these
+    // oriented in the future.
+
+    // EXPECT_TRUE(Example<2>::simplicialSphere().isOriented());
+    // EXPECT_TRUE(Example<2>::sphereBundle().isOriented());
+    EXPECT_TRUE(Example<2>::ball().isOriented());
+
+    EXPECT_TRUE(Example<2>::orientable(5, 3).isOriented());
+    EXPECT_TRUE(Example<2>::sphereOctahedron().isOriented());
+    EXPECT_TRUE(Example<2>::disc().isOriented());
+}
+
 TEST_F(Dim2Test, eulerChar) {
     TriangulationTest<2>::eulerCharGenericCases();
 
@@ -158,11 +172,23 @@ TEST_F(Dim2Test, reordering) {
 TEST_F(Dim2Test, doubleCover) {
     testManualCases(TriangulationTest<2>::verifyDoubleCover);
 }
+TEST_F(Dim2Test, doubleOverBoundary) {
+    testManualCases(TriangulationTest<2>::verifyDoubleOverBoundary);
+}
 TEST_F(Dim2Test, makeCanonical) {
     testManualCases(TriangulationTest<2>::verifyMakeCanonical);
 }
 TEST_F(Dim2Test, isomorphismSignature) {
     testManualCases(TriangulationTest<2>::verifyIsomorphismSignature);
+    verifyIsomorphismSignatureWithLocks(torus2.tri, torus2.name);
+    verifyIsomorphismSignatureWithLocks(s2Oct.tri, s2Oct.name);
+    verifyIsomorphismSignatureWithLocks(rp2.tri, rp2.name);
+}
+TEST_F(Dim2Test, lockPropagation) {
+    testManualCases(TriangulationTest<2>::verifyLockPropagation);
+}
+TEST_F(Dim2Test, lockEnforcement) {
+    testManualCases(TriangulationTest<2>::verifyLockEnforcement);
 }
 TEST_F(Dim2Test, pachner) {
     testManualCases(TriangulationTest<2>::verifyPachner);

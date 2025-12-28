@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,89 +40,42 @@
 #include <initializer_list>
 #include <iostream>
 #include <memory>
-#include <type_traits> // for std::enable_if_t
 #include "regina-core.h"
+#include "concepts/core.h"
+#include "concepts/io.h"
 #include "core/output.h"
+#include "maths/forward.h"
 #include "maths/integer.h"
-#include "utilities/intutils.h"
+#include "maths/ring.h"
 
 namespace regina {
 
 class Rational;
-template <class> class Vector;
 
 /**
  * Represents a matrix of elements of the given type \a T.
  *
- * As of Regina 5.96, the old subclasses of Matrix have now been merged into a
- * single Matrix class.  The additional member functions that the old
- * subclasses MatrixRing and MatrixIntDomain used to provide are now part of
- * Matrix, and are enabled or disabled according to the Matrix template
- * parameters.
+ * As of Regina 7.4, the extra boolean \a ring template parameter is gone;
+ * instead the relevant functions are only enabled in scenarios where \a T
+ * adheres to the Ring concept.  Nowadays you should always just use the type
+ * `Matrix<T>`.
  *
- * It is generally safe to just use the type Matrix<T>, since the \c ring
- * argument has a sensible default.  At present, \c ring defaults to \c true
- * (thereby enabling member functions designed for matrices over rings)
- * when \a T is one of the following types:
- *
- * - native C++ integer types (i.e., where std::is_integral_v<T>
- *   is \c true and \a T is not bool);
- *
- * - native C++ floating-point types (i.e., where std::is_floating_point_v<T>
- *   is \c true); or
- *
- * - Regina's own types Integer, LargeInteger, NativeInteger<...>, and Rational.
- *
- * Other types may be added to this list in future versions of Regina.
- *
- * There are several requirements for the underlying type \a T.
- * For all matrix types:
- *
- * - \a T must have a default constructor and an assignment operator.
- *
- * - An element \a t of type \a T must be writable to an output stream
- *   using the standard stream operator `<<`.
- *
- * If \a ring is \c true, then in addition to this:
- *
- * - \a T must support binary operators `+`, `-` and `*`,
- *   and unary operators `+=`, `-=` and `*=`.
- *
- * - \a T must be able to be constructed or assigned to from the integers
- *   0 and 1 (representing the additive and multiplicative identities in the
- *   ring respectively).  Likewise, \a T must be able to be tested for
- *   equality or inequality against 0 or 1 also.
- *
- * In particular, all of Regina's integer and rational types (Integer,
- * LargeInteger, NativeInteger<...> and Rational) satisfy all of these
- * requirements, and will set \a ring to \c true by default.
- *
- * The header maths/matrixops.h contains several other algorithms that
+ * The header maths/matrixops.h contains several additional algorithms that
  * work with the specific class Matrix<Integer>.
  *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
  * even when passing or returning objects by value.
  *
- * \python Only the specific types Matrix<Integer>, Matrix<bool> and
- * Matrix<double> are available, under the names MatrixInt, MatrixBool and
- * MatrixReal respectively.
- *
- * \tparam T the type of each individual matrix element.
- * \tparam ring \c true if we should enable member functions that only
- * work when T represents an element of a ring.  This has a sensible default;
- * see above in the class documentation for details.
+ * \python The C++ types Matrix<Integer>, Matrix<bool> and Matrix<double>
+ * are available using the Python names MatrixInt, MatrixBool and MatrixReal
+ * respectively.
  *
  * \ingroup maths
  */
-template <class T, bool ring = (
-        (std::is_integral_v<T> && ! std::is_same_v<T, bool>) ||
-        std::is_floating_point_v<T> || IsReginaInteger<T>::value ||
-        std::is_same_v<T, Rational>)>
+template <typename T>
+requires std::default_initializable<T> && std::copyable<T> && Writeable<T>
 class Matrix : public Output<Matrix<T>> {
-    static_assert(ring || ! IsReginaInteger<T>::value,
-        "Using Matrix with Regina's own integer types requires ring=true.");
-
     public:
         /**
          * The type of element that is stored in this matrix.
@@ -281,8 +232,8 @@ class Matrix : public Output<Matrix<T>> {
          *
          * \param src the matrix to clone.
          */
-        template <typename U, bool U_ring>
-        explicit Matrix(const Matrix<U, U_ring>& src) :
+        template <typename U>
+        explicit Matrix(const Matrix<U>& src) :
                 rows_(src.rows()), cols_(src.columns()) {
             if (src.initialised()) {
                 data_ = new T*[src.rows()];
@@ -555,13 +506,12 @@ class Matrix : public Output<Matrix<T>> {
          * This routine returns \c true if and only if the inequality operator
          * (!=) returns \c false.
          *
-         * \pre The type \a T provides an equality operator (==).
-         *
          * \param other the matrix to compare with this.
          * \return \c true if the matrices are equal as described above,
          * or \c false otherwise.
          */
-        bool operator == (const Matrix& other) const {
+        bool operator == (const Matrix& other) const
+                requires std::equality_comparable<T> {
             if (rows_ != other.rows_ || cols_ != other.cols_)
                 return false;
 
@@ -666,19 +616,14 @@ class Matrix : public Output<Matrix<T>> {
          * Returns an identity matrix of the given size.
          * The matrix returned will have \a size rows and \a size columns.
          *
-         * \pre The template argument \a ring is \c true.
-         *
          * \param size the number of rows and columns of the matrix to build.
          * \return an identity matrix of the given size.
          */
-        static Matrix identity(size_t size) {
-            static_assert(ring, "Matrix<T>::identity() requires "
-                "type T to represent a ring.");
-
+        static Matrix identity(size_t size) requires Ring<T> {
             Matrix ans(size, size);
-            ans.fill(0);
+            ans.fill(RingTraits<T>::zero);
             for (size_t i = 0; i < size; ++i)
-                ans.data_[i][i] = 1;
+                ans.data_[i][i] = RingTraits<T>::one;
             return ans;
         }
 
@@ -686,16 +631,11 @@ class Matrix : public Output<Matrix<T>> {
          * Turns this matrix into an identity matrix.
          * This matrix need not be square; after this routine it will have
          * `entry(r,c)` equal to 1 if `r == c` and 0 otherwise.
-         *
-         * \pre The template argument \a ring is \c true.
          */
-        void makeIdentity() {
-            static_assert(ring, "Matrix<T>::makeIdentity() requires "
-                "type T to represent a ring.");
-
-            this->fill(0);
+        void makeIdentity() requires Ring<T> {
+            this->fill(RingTraits<T>::zero);
             for (size_t i = 0; i < this->rows_ && i < this->cols_; i++)
-                this->data_[i][i] = 1;
+                this->data_[i][i] = RingTraits<T>::one;
         }
 
         /**
@@ -708,23 +648,18 @@ class Matrix : public Output<Matrix<T>> {
          * If this matrix is not square, isIdentity() will always return
          * \c false (even if makeIdentity() was called earlier).
          *
-         * \pre The template argument \a ring is \c true.
-         *
          * \return \c true if and only if this is a square identity matrix.
          */
-        bool isIdentity() const {
-            static_assert(ring, "Matrix<T>::isIdentity() requires "
-                "type T to represent a ring.");
-
+        bool isIdentity() const requires Ring<T> {
             if (this->rows_ != this->cols_)
                 return false;
 
             size_t r, c;
             for (r = 0; r < this->rows_; ++r)
                 for (c = 0; c < this->cols_; ++c) {
-                    if (r == c && this->data_[r][c] != 1)
+                    if (r == c && this->data_[r][c] != RingTraits<T>::one)
                         return false;
-                    if (r != c && this->data_[r][c] != 0)
+                    if (r != c && this->data_[r][c] != RingTraits<T>::zero)
                         return false;
                 }
 
@@ -734,17 +669,12 @@ class Matrix : public Output<Matrix<T>> {
         /**
          * Determines whether this is the zero matrix.
          *
-         * \pre The template argument \a ring is \c true.
-         *
          * \return \c true if and only if all entries in the matrix are zero.
          */
-        bool isZero() const {
-            static_assert(ring, "Matrix<T>::isZero() requires "
-                "type T to represent a ring.");
-
+        bool isZero() const requires Ring<T> {
             for (size_t r=0; r<this->rows_; ++r)
                 for (size_t c=0; c<this->cols_; ++c)
-                    if (this->data_[r][c] != 0)
+                    if (this->data_[r][c] != RingTraits<T>::zero)
                         return false;
             return true;
         }
@@ -752,7 +682,6 @@ class Matrix : public Output<Matrix<T>> {
         /**
          * Adds the given source row to the given destination row.
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given rows are distinct and between 0 and
          * rows()-1 inclusive.
          *
@@ -765,10 +694,7 @@ class Matrix : public Output<Matrix<T>> {
          * \param source the row to add.
          * \param dest the row that will be added to.
          */
-        void addRow(size_t source, size_t dest) {
-            static_assert(ring, "Matrix<T>::addRow() requires "
-                "type T to represent a ring.");
-
+        void addRow(size_t source, size_t dest) requires Ring<T> {
             for (size_t i = 0; i < this->cols_; i++)
                 this->data_[dest][i] += this->data_[source][i];
         }
@@ -779,7 +705,6 @@ class Matrix : public Output<Matrix<T>> {
          * only be performed for the elements from the column \a fromCol
          * to the rightmost end of the row (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given rows are distinct and between 0 and
          * rows()-1 inclusive.
          * \pre If passed, \a fromCol is between 0 and columns() -1 inclusive.
@@ -789,10 +714,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromCol the starting point in the row from which the
          * operation will be performed.
          */
-        void addRowFrom(size_t source, size_t dest, size_t fromCol) {
-            static_assert(ring, "Matrix<T>::addRowFrom() requires "
-                "type T to represent a ring.");
-
+        void addRowFrom(size_t source, size_t dest, size_t fromCol)
+                requires Ring<T> {
             for (size_t i = fromCol; i < this->cols_; i++)
                 this->data_[dest][i] += this->data_[source][i];
         }
@@ -807,7 +730,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * column to the rightmost end of the row (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given rows are distinct and between 0 and
          * rows()-1 inclusive.
          * \pre If passed, \a fromCol is between 0 and columns() -1 inclusive.
@@ -818,10 +740,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromCol the starting point in the row from which the
          * operation will be performed.
          */
-        void addRow(size_t source, size_t dest, T copies, size_t fromCol = 0) {
-            static_assert(ring, "Matrix<T>::addRow() requires "
-                "type T to represent a ring.");
-
+        void addRow(size_t source, size_t dest, T copies, size_t fromCol = 0)
+                requires Ring<T> {
             for (size_t i = fromCol; i < this->cols_; i++)
                 this->data_[dest][i] += copies * this->data_[source][i];
         }
@@ -834,17 +754,13 @@ class Matrix : public Output<Matrix<T>> {
          * of addCol() that adds _several_ copies of the source column.
          * Instead you will need to call addColFrom().
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given columns are distinct and between 0 and
          * columns()-1 inclusive.
          *
          * \param source the columns to add.
          * \param dest the column that will be added to.
          */
-        void addCol(size_t source, size_t dest) {
-            static_assert(ring, "Matrix<T>::addCol() requires "
-                "type T to represent a ring.");
-
+        void addCol(size_t source, size_t dest) requires Ring<T> {
             for (size_t i = 0; i < this->rows_; i++)
                 this->data_[i][dest] += this->data_[i][source];
         }
@@ -856,7 +772,6 @@ class Matrix : public Output<Matrix<T>> {
          * only be performed for the elements from the row \a fromRow
          * down to the bottom of the column (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given columns are distinct and between 0 and
          * columns()-1 inclusive.
          * \pre If passed, \a fromRow is between 0 and rows() -1 inclusive.
@@ -866,10 +781,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromRow the starting point in the column from which the
          * operation will be performed.
          */
-        void addColFrom(size_t source, size_t dest, size_t fromRow = 0) {
-            static_assert(ring, "Matrix<T>::addColFrom() requires "
-                "type T to represent a ring.");
-
+        void addColFrom(size_t source, size_t dest, size_t fromRow = 0)
+                requires Ring<T> {
             for (size_t i = fromRow; i < this->rows_; i++)
                 this->data_[i][dest] += this->data_[i][source];
         }
@@ -884,7 +797,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * row down to the bottom of the column (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given columns are distinct and between 0 and
          * columns()-1 inclusive.
          * \pre If passed, \a fromRow is between 0 and rows() -1 inclusive.
@@ -895,10 +807,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromRow the starting point in the column from which the
          * operation will be performed.
          */
-        void addCol(size_t source, size_t dest, T copies, size_t fromRow = 0) {
-            static_assert(ring, "Matrix<T>::addCol() requires "
-                "type T to represent a ring.");
-
+        void addCol(size_t source, size_t dest, T copies, size_t fromRow = 0)
+                requires Ring<T> {
             for (size_t i = fromRow; i < this->rows_; i++)
                 this->data_[i][dest] += copies * this->data_[i][source];
         }
@@ -912,7 +822,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * column to the rightmost end of the row (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The given row is between 0 and rows()-1 inclusive.
          * \pre If passed, \a fromCol is between 0 and columns() -1 inclusive.
          *
@@ -921,10 +830,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromCol the starting point in the row from which the
          * operation will be performed.
          */
-        void multRow(size_t row, T factor, size_t fromCol = 0) {
-            static_assert(ring, "Matrix<T>::multRow() requires "
-                "type T to represent a ring.");
-
+        void multRow(size_t row, T factor, size_t fromCol = 0)
+                requires Ring<T> {
             for (size_t i = fromCol; i < this->cols_; i++)
                 this->data_[row][i] *= factor;
         }
@@ -938,7 +845,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * row down to the bottom of the column (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The given column is between 0 and columns()-1 inclusive.
          * \pre If passed, \a fromRow is between 0 and rows() -1 inclusive.
          *
@@ -947,10 +853,8 @@ class Matrix : public Output<Matrix<T>> {
          * \param fromRow the starting point in the column from which the
          * operation will be performed.
          */
-        void multCol(size_t column, T factor, size_t fromRow = 0) {
-            static_assert(ring, "Matrix<T>::multCol() requires "
-                "type T to represent a ring.");
-
+        void multCol(size_t column, T factor, size_t fromRow = 0)
+                requires Ring<T> {
             for (size_t i = fromRow; i < this->rows_; i++)
                 this->data_[i][column] *= factor;
         }
@@ -970,7 +874,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * column to the rightmost end of each row (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given rows are distinct and between 0 and
          * rows()-1 inclusive.
          * \pre If passed, \a fromCol is between 0 and columns() -1 inclusive.
@@ -989,10 +892,7 @@ class Matrix : public Output<Matrix<T>> {
          * operation will be performed.
          */
         void combRows(size_t row1, size_t row2, T coeff11, T coeff12,
-                T coeff21, T coeff22, size_t fromCol = 0) {
-            static_assert(ring, "Matrix<T>::combRows() requires "
-                "type T to represent a ring.");
-
+                T coeff21, T coeff22, size_t fromCol = 0) requires Ring<T> {
             for (size_t i = fromCol; i < this->cols_; ++i) {
                 T tmp = coeff11 * this->data_[row1][i] +
                     coeff12 * this->data_[row2][i];
@@ -1017,7 +917,6 @@ class Matrix : public Output<Matrix<T>> {
          * operation will only be performed for the elements from that
          * column down to the bottom of each column (inclusive).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The two given columns are distinct and between 0 and
          * columns()-1 inclusive.
          * \pre If passed, \a fromCol is between 0 and columns() -1 inclusive.
@@ -1036,10 +935,7 @@ class Matrix : public Output<Matrix<T>> {
          * operation will be performed.
          */
         void combCols(size_t col1, size_t col2, T coeff11, T coeff12,
-                T coeff21, T coeff22, size_t fromRow = 0) {
-            static_assert(ring, "Matrix<T>::combCols() requires "
-                "type T to represent a ring.");
-
+                T coeff21, T coeff22, size_t fromRow = 0) requires Ring<T> {
             for (size_t i = fromRow; i < this->rows_; ++i) {
                 T tmp = coeff11 * this->data_[i][col1] +
                     coeff12 * this->data_[i][col2];
@@ -1060,7 +956,6 @@ class Matrix : public Output<Matrix<T>> {
          * (specifically, it will be the type obtained by multiplying objects
          * of types \a T and \a U using the binary multiplication operator).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The number of columns in this matrix equals the number
          * of rows in the given matrix.
          *
@@ -1068,18 +963,15 @@ class Matrix : public Output<Matrix<T>> {
          * \return the product matrix `this * other`.
          */
         template <typename U>
-        Matrix<decltype(T() * U())> operator * (
-                const Matrix<U, true /* ring */>& other) const {
-            static_assert(ring, "Matrix multiplication can only be "
-                "used with matrices over rings.");
-
+        Matrix<decltype(T() * U())> operator * (const Matrix<U>& other) const
+                requires Ring<decltype(T() * U())> {
             using Ans = decltype(T() * U());
             Matrix<Ans> ans(this->rows_, other.cols_);
 
             size_t row, col, k;
             for (row = 0; row < rows_; ++row)
                 for (col = 0; col < other.cols_; ++col) {
-                    ans.data_[row][col] = 0;
+                    ans.data_[row][col] = RingTraits<Ans>::zero;
                     for (k = 0; k < cols_; ++k)
                         ans.data_[row][col] +=
                             (data_[row][k] * other.data_[k][col]);
@@ -1099,7 +991,6 @@ class Matrix : public Output<Matrix<T>> {
          * (specifically, it will be the type obtained by multiplying objects
          * of types \a T and \a U using the binary multiplication operator).
          *
-         * \pre The template argument \a ring is \c true.
          * \pre The length of the given vector is precisely the number of
          * columns in this matrix.
          *
@@ -1108,16 +999,14 @@ class Matrix : public Output<Matrix<T>> {
          * vector whose length is the number of rows in this matrix.
          */
         template <typename U>
-        Vector<decltype(T() * U())> operator * (const Vector<U>& other) const {
-            static_assert(ring, "Matrix-vector multiplication can only be "
-                "used with matrices over a ring.");
-
+        Vector<decltype(T() * U())> operator * (const Vector<U>& other) const
+                requires Ring<decltype(T() * U())> {
             using Ans = decltype(T() * U());
             Vector<Ans> ans(this->rows_);
 
             size_t row, col;
             for (row = 0; row < rows_; ++row) {
-                Ans elt = 0;
+                Ans elt = RingTraits<Ans>::zero;
                 for (col = 0; col < cols_; ++col)
                     elt += (data_[row][col] * other[col]);
                 ans[row] = elt;
@@ -1139,23 +1028,19 @@ class Matrix : public Output<Matrix<T>> {
          * if this _is_ found to be a 0-by-0 matrix then the determinant
          * returned will be 1.
          *
-         * \pre The template argument \a ring is \c true.
          * \pre This is a square matrix.
          *
          * \exception FailedPrecondition This matrix is not square.
          *
          * \return the determinant of this matrix.
          */
-        T det() const {
-            static_assert(ring, "Matrix<T>::det() requires "
-                "type T to represent a ring.");
-
+        T det() const requires Ring<T> {
             size_t n = this->rows_;
             if (n != this->cols_)
                 throw FailedPrecondition("Determinants can only be "
                     "computed for square matrices.");
             if (n == 0)
-                return 1;
+                return RingTraits<T>::one;
 
             T* partial[2];
             partial[0] = new T[n * n];
@@ -1166,9 +1051,9 @@ class Matrix : public Output<Matrix<T>> {
             // Treat the smallest cases of len = 1 separately.
             int layer = 0; // always 0 or 1
             for (head = 0; head < n; head++) {
-                partial[0][head + head * n] = 1;
+                partial[0][head + head * n] = RingTraits<T>::one;
                 for (curr = head + 1; curr < n; curr++)
-                    partial[0][head + curr * n] = 0;
+                    partial[0][head + curr * n] = RingTraits<T>::zero;
             }
 
             // Work up through incrementing values of len.
@@ -1176,7 +1061,7 @@ class Matrix : public Output<Matrix<T>> {
                 layer ^= 1;
                 for (head = 0; head < n; head++) {
                     // If curr == head, we need to open a new clow.
-                    partial[layer][head + head * n] = 0;
+                    partial[layer][head + head * n] = RingTraits<T>::zero;
                     for (prevHead = 0; prevHead < head; prevHead++)
                         for (prevCurr = prevHead; prevCurr < n; prevCurr++)
                             partial[layer][head + head * n] -=
@@ -1185,7 +1070,7 @@ class Matrix : public Output<Matrix<T>> {
 
                     // If curr > head, we need to continue an existing clow.
                     for (curr = head + 1; curr < n; curr++) {
-                        partial[layer][head + curr * n] = 0;
+                        partial[layer][head + curr * n] = RingTraits<T>::zero;
                         for (prevCurr = head; prevCurr < n; prevCurr++)
                             partial[layer][head + curr * n] +=
                                 (partial[layer ^ 1][head + prevCurr * n] *
@@ -1195,7 +1080,7 @@ class Matrix : public Output<Matrix<T>> {
             }
 
             // All done.  Sum up the determinant.
-            T ans = 0;
+            T ans = RingTraits<T>::zero;
             for (head = 0; head < n; head++)
                 for (curr = head; curr < n; curr++)
                     ans += (partial[layer][head + curr * n] *
@@ -1209,17 +1094,11 @@ class Matrix : public Output<Matrix<T>> {
         /**
          * Negates all elements in the given row.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given row number is between 0 and rows()-1 inclusive.
          *
          * \param row the index of the row whose elements should be negated.
          */
-        void negateRow(size_t row) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::negateRow() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void negateRow(size_t row) requires ReginaInteger<T> {
             for (T* x = this->data_[row]; x != this->data_[row] + cols_; ++x)
                 x->negate();
         }
@@ -1227,17 +1106,11 @@ class Matrix : public Output<Matrix<T>> {
         /**
          * Negates all elements in the given column.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given column number is between 0 and columns()-1 inclusive.
          *
          * \param col the index of the column whose elements should be negated.
          */
-        void negateCol(size_t col) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::negateCol() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void negateCol(size_t col) requires ReginaInteger<T> {
             for (T** row = this->data_; row != this->data_ + rows_; ++row)
                 (*row)[col].negate();
         }
@@ -1248,8 +1121,6 @@ class Matrix : public Output<Matrix<T>> {
          * row elements exactly (with no remainder).  For the Integer class,
          * this may be much faster than ordinary division.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The argument \a divBy is neither zero nor infinity, and
          * none of the elements of the given row are infinity.
          * \pre The argument \a divBy divides exactly into every element
@@ -1260,11 +1131,7 @@ class Matrix : public Output<Matrix<T>> {
          * divided by \a divBy.
          * \param divBy the integer to divide each row element by.
          */
-        void divRowExact(size_t row, const T& divBy) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::divRowExact() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void divRowExact(size_t row, const T& divBy) requires ReginaInteger<T> {
             for (T* x = this->data_[row]; x != this->data_[row] + cols_; ++x)
                 x->divByExact(divBy);
         }
@@ -1275,8 +1142,6 @@ class Matrix : public Output<Matrix<T>> {
          * column elements exactly (with no remainder).  For the Integer class,
          * this may be much faster than ordinary division.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The argument \a divBy is neither zero nor infinity, and
          * none of the elements of the given column are infinity.
          * \pre The argument \a divBy divides exactly into every element
@@ -1287,11 +1152,7 @@ class Matrix : public Output<Matrix<T>> {
          * divided by \a divBy.
          * \param divBy the integer to divide each column element by.
          */
-        void divColExact(size_t col, const T& divBy) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::divColExact() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void divColExact(size_t col, const T& divBy) requires ReginaInteger<T> {
             for (T** row = this->data_; row != this->data_ + rows_; ++row)
                 (*row)[col].divByExact(divBy);
         }
@@ -1300,18 +1161,12 @@ class Matrix : public Output<Matrix<T>> {
          * Computes the greatest common divisor of all elements of the
          * given row.  The value returned is guaranteed to be non-negative.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given row number is between 0 and rows()-1 inclusive.
          *
          * \param row the index of the row whose gcd should be computed.
          * \return the greatest common divisor of all elements of this row.
          */
-        T gcdRow(size_t row) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::gcdRow() requires type T to be one of "
-                "Regina's own integer types.");
-
+        T gcdRow(size_t row) requires ReginaInteger<T> {
             T* x = this->data_[row];
 
             T gcd = *x++;
@@ -1327,18 +1182,12 @@ class Matrix : public Output<Matrix<T>> {
          * Computes the greatest common divisor of all elements of the
          * given column.  The value returned is guaranteed to be non-negative.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given column number is between 0 and columns()-1 inclusive.
          *
          * \param col the index of the column whose gcd should be computed.
          * \return the greatest common divisor of all elements of this column.
          */
-        T gcdCol(size_t col) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::gcdCol() requires type T to be one of "
-                "Regina's own integer types.");
-
+        T gcdCol(size_t col) requires ReginaInteger<T> {
             T** row = this->data_;
 
             T gcd = (*row++)[col];
@@ -1355,17 +1204,11 @@ class Matrix : public Output<Matrix<T>> {
          * greatest common divisor.  It is guaranteed that, if the row is
          * changed at all, it will be divided by a _positive_ integer.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given row number is between 0 and rows()-1 inclusive.
          *
          * \param row the index of the row to reduce.
          */
-        void reduceRow(size_t row) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::reduceRow() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void reduceRow(size_t row) requires ReginaInteger<T> {
             T gcd = gcdRow(row);
             if (gcd != 0 && gcd != 1)
                 divRowExact(row, gcd);
@@ -1376,17 +1219,11 @@ class Matrix : public Output<Matrix<T>> {
          * greatest common divisor.  It is guaranteed that, if the column is
          * changed at all, it will be divided by a _positive_ integer.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
          * \pre The given column number is between 0 and columns()-1 inclusive.
          *
          * \param col the index of the column to reduce.
          */
-        void reduceCol(size_t col) {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::reduceCol() requires type T to be one of "
-                "Regina's own integer types.");
-
+        void reduceCol(size_t col) requires ReginaInteger<T> {
             T gcd = gcdCol(col);
             if (gcd != 0 && gcd != 1)
                 divColExact(col, gcd);
@@ -1412,17 +1249,10 @@ class Matrix : public Output<Matrix<T>> {
          *   already zero by the previous condition);
          * - all the zero rows are at the bottom of the matrix.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
-         *
          * \return the rank of this matrix, i.e., the number of non-zero rows
          * remaining.
          */
-        size_t rowEchelonForm() {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::rowEchelonForm() requires type T to be one of "
-                "Regina's own integer types.");
-
+        size_t rowEchelonForm() requires ReginaInteger<T> {
             size_t i, j;
 
             // The current working row and column:
@@ -1507,17 +1337,10 @@ class Matrix : public Output<Matrix<T>> {
          *   right are already zero by the previous condition);
          * - all the zero columns are at the right hand end of the matrix.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
-         *
          * \return the rank of this matrix, i.e., the number of non-zero
          * columns remaining.
          */
-        size_t columnEchelonForm() {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::columnEchelonForm() requires type T to be one of "
-                "Regina's own integer types.");
-
+        size_t columnEchelonForm() requires ReginaInteger<T> {
             size_t i, j;
 
             // The current working row and column:
@@ -1596,19 +1419,12 @@ class Matrix : public Output<Matrix<T>> {
          * this routine, which will avoid the extra overhead of the deep copy.
          * To do this, replace `matrix.rank()` with `std::move(matrix).rank()`.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
-         *
          * \python Only the const version of rank() (i.e., this version)
          * is available for Python users.
          *
          * \return the rank of this matrix.
          */
-        size_t rank() const& {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::rank() requires type T to be one of "
-                "Regina's own integer types.");
-
+        size_t rank() const& requires ReginaInteger<T> {
             // Make a deep copy, which we can modify as we compute rank.
             return Matrix(*this).rowEchelonForm();
         }
@@ -1630,19 +1446,12 @@ class Matrix : public Output<Matrix<T>> {
          * simply access as `matrix.rank()`.  The (minor) cost of this
          * constness will be the extra overhead of an internal deep copy.
          *
-         * \pre Type \a T is one of Regina's own integer classes (Integer,
-         * LargeInteger, or NativeIntgeger).
-         *
          * \nopython Only the const version of rank() is available for Python
          * users.
          *
          * \return the rank of this matrix.
          */
-        size_t rank() && {
-            static_assert(IsReginaInteger<T>::value,
-                "Matrix<T>::rank() requires type T to be one of "
-                "Regina's own integer types.");
-
+        size_t rank() && requires ReginaInteger<T> {
             return rowEchelonForm();
         }
 };

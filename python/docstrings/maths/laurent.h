@@ -18,20 +18,6 @@ type *T*. A Laurent polynomial differs from an ordinary polynomial in
 that it allows negative exponents (so, unlike the Polynomial class,
 you can represent both ``2+3x`` and ``1+1/x``).
 
-The type *T* must represent a ring with no zero divisors. In
-particular, it must:
-
-* support basic arithmetic operations;
-
-* support assignments of the form ``x = int`` and tests of the form
-  ``x == int`` and ``x < int``;
-
-* have a default constructor that assigns an explicit value of zero.
-
-This means that Regina's numerical types such as Integer and Rational
-are supported, but native data types such as int and long are not
-(since they have no zero-initialising default constructor).
-
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
 possible, even when passing or returning objects by value.
@@ -44,7 +30,13 @@ two variables.
 
 Python:
     In Python, the class Laurent refers to the specific template class
-    Laurent<Integer>.)doc";
+    Laurent<Integer>.
+
+Template parameter ``T``:
+    the coefficient type. A typical coefficient type would be Integer
+    or Rational. Note that native C++ integer types are _not_
+    supported (since they have no zero-initialising default
+    constructor).)doc";
 
 // Docstring regina::python::doc::__add
 static const char *__add =
@@ -384,7 +376,14 @@ Returns:
 
 // Docstring regina::python::doc::Laurent_::__init
 static const char *__init =
-R"doc(Creates the polynomial ``x^d`` for the given exponent *d*.
+R"doc(Deprecated constructor that creates the polynomial ``x^d`` for the
+given exponent *d*.
+
+.. deprecated::
+    This will be removed in a future version of Regina, since in
+    casual reading of code it is too easy to misread this as creating
+    a polynomial with only a constant term. You can still create
+    ``x^d`` by calling ``initExp(d)`` instead.
 
 Parameter ``exponent``:
     the exponent to use for the new polynomial.)doc";
@@ -403,9 +402,8 @@ polynomial.
 
 This constructor induces a deep copy of the given range.
 
-Precondition:
-    Objects of type *T* can be assigned values from dereferenced
-    iterators of type *iterator*.
+The iterator type must be random access because this allows the
+implementation to compute the sequence length in constant time.
 
 Python:
     Instead of the iterators *begin* and *end*, this routine takes a
@@ -453,7 +451,13 @@ static const char *init = R"doc(Sets this to become the zero polynomial.)doc";
 
 // Docstring regina::python::doc::Laurent_::init_2
 static const char *init_2 =
-R"doc(Sets this to become the polynomial ``x^d`` for the given exponent *d*.
+R"doc(Deprecated function that sets this to become the polynomial ``x^d``
+for the given exponent *d*.
+
+.. deprecated::
+    This has been renamed to initExp(), since in casual reading of
+    code it is too easy to misread this as setting this polynomial to
+    have only a constant term.
 
 Parameter ``exponent``:
     the new exponent to use for this polynomial.)doc";
@@ -473,9 +477,8 @@ polynomial.
 
 This routine induces a deep copy of the given range.
 
-Precondition:
-    Objects of type *T* can be assigned values from dereferenced
-    iterators of type *iterator*.
+The iterator type must be random access because this allows the
+implementation to compute the sequence length in constant time.
 
 Python:
     Instead of the iterators *begin* and *end*, this routine takes a
@@ -491,6 +494,13 @@ Parameter ``begin``:
 Parameter ``end``:
     a past-the-end iterator indicating the end of the sequence of
     coefficients.)doc";
+
+// Docstring regina::python::doc::Laurent_::initExp
+static const char *initExp =
+R"doc(Sets this to become the polynomial ``x^d`` for the given exponent *d*.
+
+Parameter ``exponent``:
+    the new exponent to use for this polynomial.)doc";
 
 // Docstring regina::python::doc::Laurent_::invertX
 static const char *invertX =
@@ -541,6 +551,10 @@ Precondition:
 Precondition:
     All exponents in this polynomial with non-zero coefficients are
     multiples of *k*.
+
+Exception ``FailedPrecondition``:
+    Either *k* is zero, or some exponent with a non-zero coefficient
+    is not a multiple of *k*.
 
 Parameter ``k``:
     the scaling factor to divide exponents by.)doc";

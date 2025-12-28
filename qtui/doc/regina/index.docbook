@@ -3,9 +3,9 @@
   <!ENTITY regina "<application>Regina</application>">
   <!ENTITY kappname "&regina;">
 
-  <!ENTITY regversion "7.4">
-  <!ENTITY regdate "2023-03-18">
-  <!ENTITY copyrightyears "1999&ndash;2023">
+  <!ENTITY regversion "7.4.1">
+  <!ENTITY regdate "2025-11-30">
+  <!ENTITY copyrightyears "1999&ndash;2025">
   <!ENTITY copyrightholder "The Regina development team">
   <!ENTITY copyrightnotice
    "Copyright &copy; &copyrightyears;, &copyrightholder;">
@@ -92,17 +92,17 @@
   <!ENTITY cpp "<application>C++</application>">
   <!ENTITY cpp11 "<application>C++11</application>">
   <!ENTITY cpp17 "<application>C++17</application>">
+  <!ENTITY cpp20 "<application>C++20</application>">
+  <!ENTITY cpppython "&cpp;/&python;">
   <!ENTITY csv "<acronym>CSV</acronym>">
   <!ENTITY cython "<application>Cython</application>">
   <!ENTITY debian "<application>Debian</application>">
-  <!ENTITY dgt "<application><acronym>DGT</acronym></application>">
   <!ENTITY dmanifold "<replaceable>d</replaceable>-manifold">
   <!ENTITY doxygen "<application>Doxygen</application>">
   <!ENTITY dsimplex "<replaceable>d</replaceable>-simplex">
   <!ENTITY dsimplices "<replaceable>d</replaceable>-simplices">
   <!ENTITY evince "<application>Evince</application>">
   <!ENTITY fedora "<application>Fedora</application>">
-  <!ENTITY fink "<application>Fink</application>">
   <!ENTITY gap "<application><acronym>GAP</acronym></application>">
   <!ENTITY gaplong "<application><acronym>GAP</acronym>
    (Groups, Algorithms and Programming)</application>">
@@ -111,6 +111,7 @@
   <!ENTITY github "<application>GitHub</application>">
   <!ENTITY gnome "<application><acronym>GNOME</acronym></application>">
   <!ENTITY gnu "<acronym>GNU</acronym>">
+  <!ENTITY greentables "<ulink url='https://www.math.toronto.edu/drorbn/Students/GreenJ/'>Jeremy Green's virtual knot tables</ulink>">
   <!ENTITY graphviz "<application>Graphviz</application>">
   <!ENTITY graphvizurl "<ulink url='http://www.graphviz.org/'>&graphviz;</ulink>">
   <!ENTITY gtest "<application>GoogleTest</application>">
@@ -122,6 +123,7 @@
   <!ENTITY java "<application>Java</application>">
   <!ENTITY json "<acronym>JSON</acronym>">
   <!ENTITY jython "<application>Jython</application>">
+  <!ENTITY katie "<application>Katie</application>">
   <!ENTITY kde3 "&kde;&nbsp;3">
   <!ENTITY kde4 "&kde;&nbsp;4">
   <!ENTITY latex "<application>LaTeX</application>">
@@ -153,6 +155,7 @@
    <application>Fedora</application>">
   <!ENTITY rpm "<acronym>RPM</acronym>">
   <!ENTITY s1 "S<superscript>1</superscript>">
+  <!ENTITY s2 "S<superscript>2</superscript>">
   <!ENTITY s3 "S<superscript>3</superscript>">
   <!ENTITY SFSLong "Seifert Fibred Space">
   <!ENTITY sfslong "Seifert fibred space">
@@ -164,7 +167,6 @@
    "<ulink url='http://www.math.uic.edu/t3m/SnapPy/'>&snappy;</ulink>">
   <!ENTITY snappywebsite
    "<ulink url='http://www.math.uic.edu/t3m/SnapPy/'>&snappy; website</ulink>">
-  <!ENTITY sss "S<superscript>3</superscript>">
   <!ENTITY suse "<application>SUSE</application>">
   <!ENTITY sysreq
    "<ulink url='http://regina-normal.github.io/source.html'>system

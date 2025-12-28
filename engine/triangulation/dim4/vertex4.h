@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -74,14 +72,21 @@ template <>
 class Face<4, 0> : public detail::FaceBase<4, 0> {
     private:
         Triangulation<3>* link_;
-            /**< The link of this vertex, given as a full-blown
-                 3-manifold triangulation.  It is guaranteed that 3-sphere
-                 recognition has already been run over this triangulation
-                 (and so future 3-sphere queries will be very fast).
+            /**< A triangulation of the vertex link.  This will only be
+                 constructed on demand; until then it will be null.
                  We keep this as a pointer to avoid instantiating the
                  lower-dimensional triangulation classes here in the header. */
-        bool ideal_;
-            /**< Is this vertex ideal? */
+
+        static constexpr int FLAG_IDEAL = 1;
+            /**< A bit of \a flags_ that is set if and only if this vertex
+                 is ideal. */
+        static constexpr int FLAG_REAL_BOUNDARY = 2;
+            /**< A bit of \a flags_ that is set if and only if this vertex
+                 is contained in one or more boundary tetrahedra. */
+
+        int flags_;
+            /**< A bitwise combination of `FLAG_...` constants that together
+                 hold various properties of this vertex. */
 
     public:
         /**
@@ -207,15 +212,11 @@ class Face<4, 0> : public detail::FaceBase<4, 0> {
 // Inline functions for Vertex<4>
 
 inline Face<4, 0>::Face(Component<4>* component) :
-        detail::FaceBase<4, 0>(component), link_(nullptr), ideal_(false) {
-}
-
-inline const Triangulation<3>& Face<4, 0>::buildLink() const {
-    return *link_;
+        detail::FaceBase<4, 0>(component), link_(nullptr), flags_(0) {
 }
 
 inline bool Face<4, 0>::isIdeal() const {
-    return ideal_;
+    return (flags_ & FLAG_IDEAL);
 }
 
 inline NormalHypersurface Face<4, 0>::linkingSurface() const {

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,14 +23,16 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
-#include <pybind11/pybind11.h>
+#include "regina-config.h" // for REGINA_PYBIND11_VERSION
+#include "pybind11/pybind11.h"
+#if REGINA_PYBIND11_VERSION == 3
+#include <pybind11/native_enum.h>
+#endif
 #include <pybind11/stl.h>
 #include "triangulation/dim2.h"
 #include "triangulation/dim3.h"
@@ -47,7 +49,7 @@ using regina::FaceEmbedding;
 using regina::Vertex;
 using regina::VertexEmbedding;
 
-void addVertex3(pybind11::module_& m) {
+void addVertex3(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
     RDOC_SCOPE_BASE_3(detail::FaceEmbeddingBase, alias::FaceNumber,
         alias::SimplexVoid)
@@ -138,11 +140,19 @@ being reserved for a different purpose in a future release.)doc")
     regina::python::add_eq_operators(c);
 
     regina::python::addListView<
-        decltype(std::declval<Vertex<3>>().embeddings())>(m);
+        decltype(std::declval<Vertex<3>>().embeddings())>(internal,
+        "Face3_0_embeddings");
 
     RDOC_SCOPE_INNER_BEGIN(Link)
 
+#if REGINA_PYBIND11_VERSION == 3
+    pybind11::native_enum<regina::Vertex<3>::Link>(c, "Link", "enum.Enum",
+            rdoc_inner_scope)
+#elif REGINA_PYBIND11_VERSION == 2
     pybind11::enum_<regina::Vertex<3>::Link>(c, "Link", rdoc_inner_scope)
+#else
+    #error "Unsupported pybind11 version"
+#endif
         .value("Sphere", regina::Vertex<3>::Link::Sphere, rdoc_inner::Sphere)
         .value("Disc", regina::Vertex<3>::Link::Disc, rdoc_inner::Disc)
         .value("Torus", regina::Vertex<3>::Link::Torus, rdoc_inner::Torus)
@@ -152,6 +162,9 @@ being reserved for a different purpose in a future release.)doc")
             rdoc_inner::NonStandardCusp)
         .value("Invalid", regina::Vertex<3>::Link::Invalid,
             rdoc_inner::Invalid)
+#if REGINA_PYBIND11_VERSION == 3
+        .finalize()
+#endif
         ;
 
     // Deprecated type alias and constants:

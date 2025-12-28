@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -65,7 +63,7 @@ namespace regina::alias {
  *
  * \ingroup alias
  */
-template <class Derived, int dim>
+template <typename Derived, int dim>
 class IsomorphismImage {
 };
 
@@ -82,7 +80,7 @@ class IsomorphismImage {
  *
  * \ingroup alias
  */
-template <class Derived>
+template <typename Derived>
 class IsomorphismImage<Derived, 2> {
     public:
         /**
@@ -162,7 +160,7 @@ class IsomorphismImage<Derived, 2> {
  *
  * \ingroup alias
  */
-template <class Derived>
+template <typename Derived>
 class IsomorphismImage<Derived, 3> {
     public:
         /**
@@ -240,7 +238,7 @@ class IsomorphismImage<Derived, 3> {
  *
  * \ingroup alias
  */
-template <class Derived>
+template <typename Derived>
 class IsomorphismImage<Derived, 4> {
     public:
         /**

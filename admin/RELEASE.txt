@@ -6,8 +6,7 @@ Program version:
     CHANGES.txt, HIGHLIGHTS.txt (version, date)
     CMakeLists.txt (PACKAGE_VERSION)
     docs/man/*.1 (windows executable path)
-    engine/regina-engine-config.1 (date)
-    qtui/src/regina.metainfo.xml (version, date in <release>)
+    qtui/src/org.computop.regina.metainfo.xml (new entry in <release>)
     qtui/doc/regina/about.docbook (plain citation, bibTeX citation)
     qtui/doc/regina/index.docbook (&regversion;, &regdate;, copyrightyears)
     qtui/doc/regina/manonly.docbook (&regversion;)
@@ -67,8 +66,8 @@ Don't forget:
     build binary packages, with appropriate BUILD_INFO settings
     update tips for building on different platforms
     update census download file sizes if there have been changes
+    rotate current/ and release/ symlinks in www/aux repositories
     tag the git repository
     install the new handbook, file format and API docs on the website
     update other data on the website (see regina-www/mkwww)
     update the citation years if necessary in private BibTeX databases
-    mail regina-announce

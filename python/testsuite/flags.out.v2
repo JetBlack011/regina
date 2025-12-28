@@ -1,0 +1,38 @@
+CensusPurge.Nil -> False
+0x00 -> False
+CensusPurge.NonMinimal -> True
+0x01 -> True
+AngleAlg.Default -> False
+0x0000 -> False
+AngleAlg.Tree -> True
+0x0010 -> True
+HyperList.Default -> False
+0x0000 -> False
+HyperList.Vertex -> True
+0x0004 -> True
+HyperAlg.Default -> False
+0x0000 -> False
+HyperAlg.VertexDD -> True
+0x0020 -> True
+NormalList.Default -> False
+0x0000 -> False
+NormalList.Fundamental -> True
+0x0008 -> True
+NormalAlg.Default -> False
+0x0000 -> False
+NormalAlg.VertexTree -> True
+0x0010 -> True
+SurfaceExport.Nil -> False
+0x0000 -> False
+SurfaceExport.Name -> True
+0x0001 -> True
+NormalCoords.Standard -> True
+NormalCoords.Quad -> True
+TriangleType.Unknown -> True
+TriangleType.Parachute -> True
+9 embedded, vertex surfaces (Standard normal (tri-quad))
+9 embedded, vertex surfaces (Standard normal (tri-quad))
+9 embedded, vertex surfaces (Standard normal (tri-quad))
+9 embedded, fundamental surfaces (Standard normal (tri-quad))
+39 embedded / immersed / singular, vertex surfaces (Standard normal (tri-quad))
+59 embedded / immersed / singular, fundamental surfaces (Standard normal (tri-quad))

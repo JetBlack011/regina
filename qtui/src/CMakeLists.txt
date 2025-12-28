@@ -2,8 +2,6 @@ INCLUDE_DIRECTORIES(${ENGINE_INCLUDES} "${PROJECT_BINARY_DIR}/engine")
 
 if (REGINA_QT STREQUAL 6)
   SET(LINK_LIBS "${ENGINE_LIBRARY}" Qt6::Widgets Qt6::SvgWidgets)
-elseif (REGINA_QT STREQUAL 5)
-  SET(LINK_LIBS "${ENGINE_LIBRARY}" Qt5::Widgets Qt5::Svg)
 endif ()
 
 ADD_SUBDIRECTORY(icons)
@@ -16,7 +14,9 @@ IF(BUILD_PYTHON_BINDINGS)
   ADD_SUBDIRECTORY(python)
   SET(LINK_LIBS ${LINK_LIBS} ${Python_LIBRARIES})
   ADD_LINK_OPTIONS(${Python_LINK_OPTIONS})
-  INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/python" ${Python_INCLUDE_DIRS})
+  INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/python"
+                      "${CMAKE_SOURCE_DIR}/python/pybind11_v${REGINA_PYBIND11_VERSION}"
+                       ${Python_INCLUDE_DIRS})
 ENDIF(BUILD_PYTHON_BINDINGS)
 
 IF(LIBGVC_FOUND)
@@ -35,7 +35,7 @@ IF(LIBGVC_FOUND)
     INCLUDE_DIRECTORIES("${GRAPHVIZ_PATH}/Headers")
     SET(LINK_LIBS ${LINK_LIBS} ${ZLIB_LIBRARIES} "${GRAPHVIZ_PATH}/libgraphviz.a")
   ELSE (${GRAPHVIZ_TYPE} STREQUAL Framework)
-    INCLUDE_DIRECTORIES("${LIBGVC_INCLUDEDIR}")
+    INCLUDE_DIRECTORIES(${LIBGVC_INCLUDE_DIRS})
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LIBGVC_CFLAGS_OTHER}")
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LIBGVC_LDFLAGS_OTHER}")
 
@@ -43,8 +43,12 @@ IF(LIBGVC_FOUND)
     # Note, however, that the graphviz plugins often live in a
     # subdirectory graphviz/ beneath the main library path.
     SET(LINK_LIBS ${LINK_LIBS} ${LIBGVC_LIBRARIES})
-    SET(LINK_LIBS ${LINK_LIBS} gvplugin_core gvplugin_dot_layout gvplugin_neato_layout)
-    LINK_DIRECTORIES("${LIBGVC_LIBDIR}" "${LIBGVC_LIBDIR}/graphviz")
+    IF(LIBGVC_DYNAMIC_PLUGINS)
+      LINK_DIRECTORIES("${LIBGVC_LIBDIR}")
+    ELSE(LIBGVC_DYNAMIC_PLUGINS)
+      SET(LINK_LIBS ${LINK_LIBS} gvplugin_core gvplugin_dot_layout gvplugin_neato_layout)
+      LINK_DIRECTORIES("${LIBGVC_LIBDIR}" "${LIBGVC_LIBDIR}/graphviz")
+    ENDIF(LIBGVC_DYNAMIC_PLUGINS)
 
     # Ubuntu focal (20.04 LTS) has an error where the graphviz plugins
     # fail to link due to missing __XXX_finite symbols from the math
@@ -63,6 +67,7 @@ SET(SOURCES ${SOURCES}
   columnlayout.cpp
   elidedlabel.cpp
   examplesaction.cpp
+  graphviz.cpp
   iconcache.cpp
   introdialog.cpp
   main.cpp

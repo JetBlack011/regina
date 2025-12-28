@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -43,6 +41,7 @@
 #include "../docstrings/triangulation/generic/triangulation.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
 #include "../docstrings/utilities/snapshot.h"
+#include "../generic/isosig-bindings.h" // must come after docstrings
 
 using pybind11::overload_cast;
 using regina::AbelianGroup;
@@ -53,7 +52,8 @@ using regina::MatrixInt;
 using regina::Triangulation;
 
 template <int dim>
-void addTriangulation(pybind11::module_& m, const char* name) {
+void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
+        const char* name) {
     RDOC_SCOPE_BEGIN(Triangulation)
     RDOC_SCOPE_BASE_2(detail::TriangulationBase, Snapshottable)
 
@@ -227,6 +227,7 @@ void addTriangulation(pybind11::module_& m, const char* name) {
         .def("dualToPrimal",
             static_cast<MatrixInt (Triangulation<dim>::*)(int) const>(
             &Triangulation<dim>::dualToPrimal), rbase::dualToPrimal)
+        .def("makeIdeal", &Triangulation<dim>::makeIdeal, rbase::makeIdeal)
         .def("finiteToIdeal", &Triangulation<dim>::finiteToIdeal,
             rbase::finiteToIdeal)
         .def("move20", &Triangulation<dim>::template move20<0>, rbase::move20)
@@ -243,6 +244,8 @@ void addTriangulation(pybind11::module_& m, const char* name) {
         .def("makeDoubleCover", [](Triangulation<dim>& tri) { // deprecated
             tri = tri.doubleCover();
         }, rbase::makeDoubleCover)
+        .def("doubleOverBoundary", &Triangulation<dim>::doubleOverBoundary,
+            rbase::doubleOverBoundary)
         .def("isIsomorphicTo", &Triangulation<dim>::isIsomorphicTo,
             rbase::isIsomorphicTo)
         .def("isContainedIn", &Triangulation<dim>::isContainedIn,
@@ -282,19 +285,7 @@ void addTriangulation(pybind11::module_& m, const char* name) {
                 &Triangulation<dim>::insertTriangulation),
             rbase::insertTriangulation)
         .def("sig", &Triangulation<dim>::template sig<>, rbase::sig)
-        .def("isoSig", &Triangulation<dim>::template isoSig<>, rbase::isoSig)
-        .def("isoSig_EdgeDegrees", &Triangulation<dim>::
-            template isoSig<regina::IsoSigEdgeDegrees<dim>>, rbase::isoSig)
-        .def("isoSig_RidgeDegrees", &Triangulation<dim>::
-            template isoSig<regina::IsoSigRidgeDegrees<dim>>, rbase::isoSig)
-        .def("isoSigDetail", &Triangulation<dim>::template isoSigDetail<>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_EdgeDegrees", &Triangulation<dim>::
-            template isoSigDetail<regina::IsoSigEdgeDegrees<dim>>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_RidgeDegrees", &Triangulation<dim>::
-            template isoSigDetail<regina::IsoSigRidgeDegrees<dim>>,
-            rbase::isoSigDetail)
+        // Variants of isoSig() are handled through isosig_options() below.
         .def_static("fromIsoSig", &Triangulation<dim>::fromIsoSig,
             rbase::fromIsoSig)
         .def_static("fromSig", &Triangulation<dim>::fromSig, rbase::fromSig)
@@ -331,19 +322,22 @@ void addTriangulation(pybind11::module_& m, const char* name) {
     #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     #endif
     #endif
+    // For twoZeroMove(), the new function has a different name (move20).
+    // We therefore give a default value for "ignored" in order to preserve
+    // backward compatibility in cases where both boolean arguments are omitted.
     c.def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<0>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<1>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("twoZeroMove", &Triangulation<dim>::template twoZeroMove<2>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
     ;
@@ -385,23 +379,28 @@ void addTriangulation(pybind11::module_& m, const char* name) {
             overload_cast<Face<dim, k>*, bool, bool>(
                 &Triangulation<dim>::template pachner<k>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2); // deprecated
         #if defined(__GNUC__)
         #pragma GCC diagnostic pop
         #endif
     });
+    regina::python::isosig_options<dim>(c);
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    // The ListView classes for faces() are wrapped in face-bindings.h,
-    // since this needs to be done for each subdimension.
-    regina::python::addListView<decltype(Triangulation<dim>().components())>(m);
+    // The ListView classes for faces<subdim>() where subdim < dim are wrapped
+    // in face-bindings.h, since this needs to be done for each subdimension.
+    regina::python::addListView<decltype(Triangulation<dim>().simplices())>(
+        internal, (std::string(name) + "_simplices").c_str());
+    regina::python::addListView<decltype(Triangulation<dim>().components())>(
+        internal, (std::string(name) + "_components").c_str());
     regina::python::addListView<
-        decltype(Triangulation<dim>().boundaryComponents())>(m);
+        decltype(Triangulation<dim>().boundaryComponents())>(internal,
+        (std::string(name) + "_boundaryComponents").c_str());
 
     auto wrap = regina::python::add_packet_wrapper<Triangulation<dim>>(
         m, (std::string("PacketOf") + name).c_str());

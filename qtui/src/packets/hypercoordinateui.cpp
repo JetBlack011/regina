@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -455,15 +453,15 @@ HyperCoordinateUI::HyperCoordinateUI(
 
     actTriangulate = new QAction(this);
     actTriangulate->setText(tr("&Triangulate Hypersurface"));
-    actTriangulate->setToolTip(tr("Builds a 3-manifold triangulation "
-        "of the selected hypersurface"));
+    actTriangulate->setIcon(ReginaSupport::regIcon("packet_triangulation3"));
+    actTriangulate->setToolTip(tr("Triangulate the selected hypersurface"));
     actTriangulate->setEnabled(false);
-    actTriangulate->setWhatsThis(tr("<qt>Builds a 3-manifold triangulation "
+    actTriangulate->setWhatsThis(tr("Builds a 3-manifold triangulation "
         "of the selected hypersurface.<p>"
         "The new triangulation will have the same <i>topology</i> as the "
         "selected hypersurface.  However, it will be simplified, "
         "which means that information about the <i>combinatorics</i> "
-        "of the hypersurface will be lost.</qt>"));
+        "of the hypersurface will be lost."));
     connect(actTriangulate, SIGNAL(triggered()), this, SLOT(triangulate()));
     surfaceActionList.push_back(actTriangulate);
 

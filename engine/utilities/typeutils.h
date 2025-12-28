@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -43,6 +41,7 @@
 
 #include <functional>
 #include <typeinfo>
+#include <stdexcept>
 #include <variant>
 #include "regina-core.h"
 
@@ -98,7 +97,7 @@ struct EnableIf<false, T, defaultValue> {
  *
  * \ingroup utilities
  */
-template <int from, int to, class Action>
+template <int from, int to, typename Action>
 constexpr void for_constexpr(Action&& action) {
     if constexpr (from < to) {
         action(std::integral_constant<int, from>());
@@ -129,7 +128,7 @@ constexpr void for_constexpr(Action&& action) {
  *
  * \ingroup utilities
  */
-template <int... values, class Action>
+template <int... values, typename Action>
 constexpr void foreach_constexpr(Action&& action) {
     (action(std::integral_constant<int, values>()), ...);
 }
@@ -157,7 +156,7 @@ constexpr void foreach_constexpr(Action&& action) {
  *
  * \ingroup utilities
  */
-template <int... values, class Action>
+template <int... values, typename Action>
 constexpr void foreach_constexpr(std::integer_sequence<int, values...>,
         Action&& action) {
     (action(std::integral_constant<int, values>()), ...);
@@ -193,7 +192,7 @@ constexpr void foreach_constexpr(std::integer_sequence<int, values...>,
  *
  * \ingroup utilities
  */
-template <int from, int to, typename Return, class Action>
+template <int from, int to, typename Return, typename Action>
 constexpr Return select_constexpr(int value, Action&& action) {
     if constexpr (from < to) {
         if (value == from)
@@ -214,12 +213,12 @@ namespace detail {
  * These declarations are used to pack together the correct std::variant
  * return type.
  */
-template <int from, class Action, int... arg /* 0,...,(to-from-1) */>
+template <int from, typename Action, int... arg /* 0,...,(to-from-1) */>
 auto seqToVariantHelper(std::integer_sequence<int, arg...>) ->
     std::variant<decltype(std::declval<Action>()(
         std::integral_constant<int, arg + from>()))...>;
 
-template <int from, int to, class Action>
+template <int from, int to, typename Action>
 using SeqToVariant = decltype(seqToVariantHelper<from, Action>(
     std::make_integer_sequence<int, to - from>()));
 
@@ -265,7 +264,7 @@ using SeqToVariant = decltype(seqToVariantHelper<from, Action>(
  *
  * \ingroup utilities
  */
-template <int from, int to, class Action>
+template <int from, int to, typename Action>
 constexpr auto select_constexpr_as_variant(int value, Action&& action) {
     return select_constexpr<from, to,
         regina::detail::SeqToVariant<from, to, Action>, Action>(
@@ -409,14 +408,14 @@ struct CallableArg<const std::function<ReturnType(Args...)>&, pos> {
  * The purpose of this function is to override this default typename
  * conversion mechanism.  If the C++ type referred to by \a t has a
  * known Python name that should always be used, this function will
- * return it.  Otherwise this function returns \c nullptr, indicating
+ * return it.  Otherwise this function returns \c null, indicating
  * that the default conversion mechanism should be used.
  *
  * \nopython
  *
  * \param t an object that references the C++ type whose display name we
  * wish to obtain.
- * \return the preferred display name for this type in Python, or \c nullptr
+ * \return the preferred display name for this type in Python, or \c null
  * if the default C++-to-Python name conversion mechanism should be used.
  */
 const char* pythonTypename(const std::type_info* t);

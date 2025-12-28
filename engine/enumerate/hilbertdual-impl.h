@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,16 +51,10 @@
 
 namespace regina {
 
-template <class RayClass, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, typename Action>
 void HilbertDual::enumerate(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints,
         ProgressTracker* tracker, unsigned initialRows) {
-    static_assert(
-        IsReginaArbitraryPrecisionInteger<typename RayClass::value_type>::value,
-        "HilbertDual::enumerate() requires the RayClass "
-        "template parameter to be equal to or derived from Vector<T>, "
-        "where T is one of Regina's arbitrary precision integer types.");
-
     // Get the dimension of the entire space in which we are working.
     size_t dim = subspace.columns();
 
@@ -75,43 +67,44 @@ void HilbertDual::enumerate(Action&& action,
     // Then farm the work out to the real enumeration routine that is
     // templated on the bitmask type.
     if (dim <= 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (dim <= 8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (dim <= 8 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long long> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long long> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (dim <= 8 * sizeof(unsigned long long) + 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass,
+        enumerateUsingBitmask<Ray,
             Bitmask2<unsigned long long, unsigned> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (dim <= 8 * sizeof(unsigned long long) +
             8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass,
+        enumerateUsingBitmask<Ray,
             Bitmask2<unsigned long long, unsigned long> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (dim <= 16 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask2<unsigned long long> >(
+        enumerateUsingBitmask<Ray, Bitmask2<unsigned long long> >(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else
-        enumerateUsingBitmask<RayClass, Bitmask>(
+        enumerateUsingBitmask<Ray, Bitmask>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
 }
 
-template <class RayClass, class BitmaskType, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, ReginaBitmask BitmaskType,
+    typename Action>
 void HilbertDual::enumerateUsingBitmask(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints,
         ProgressTracker* tracker, unsigned initialRows) {
-    using IntegerType = typename RayClass::value_type;
+    using IntegerType = typename Ray::value_type;
 
     // Get the dimension of the entire space in which we are working.
     // At this point we are guaranteed that the dimension is non-zero.
@@ -122,7 +115,7 @@ void HilbertDual::enumerateUsingBitmask(Action&& action,
     if (nEqns == 0) {
         // No!  Just send back the unit vectors.
         for (unsigned i = 0; i < dim; ++i) {
-            RayClass ans(dim);
+            Ray ans(dim);
             ans[i] = IntegerType::one;
             action(std::move(ans));
         }
@@ -173,17 +166,15 @@ void HilbertDual::enumerateUsingBitmask(Action&& action,
     // We're done!
     delete[] hyperplanes;
 
-    typename std::vector<VecSpec<IntegerType, BitmaskType>*>::iterator it;
-
     if (tracker && tracker->isCancelled()) {
         // The operation was cancelled.  Clean up before returning.
-        for (it = list.begin(); it != list.end(); ++it)
+        for (auto it = list.begin(); it != list.end(); ++it)
             delete *it;
         return;
     }
 
-    for (it = list.begin(); it != list.end(); ++it) {
-        RayClass ans(dim);
+    for (auto it = list.begin(); it != list.end(); ++it) {
+        Ray ans(dim);
         for (i = 0; i < dim; ++i)
             ans[i] = (**it)[i];
         action(std::move(ans));
@@ -196,12 +187,11 @@ void HilbertDual::enumerateUsingBitmask(Action&& action,
         tracker->setPercent(100);
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 bool HilbertDual::reduces(const VecSpec<IntegerType, BitmaskType>& vec,
         const std::list<VecSpec<IntegerType, BitmaskType>*>& against,
         int listSign) {
-    typename std::list<VecSpec<IntegerType, BitmaskType>*>::const_iterator it;
-    for (it = against.begin(); it != against.end(); ++it) {
+    for (auto it = against.begin(); it != against.end(); ++it) {
         if (! (*it)->dominatedBy(vec))
             continue;
 
@@ -220,7 +210,7 @@ bool HilbertDual::reduces(const VecSpec<IntegerType, BitmaskType>& vec,
     return false;
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 void HilbertDual::reduceBasis(
         std::list<VecSpec<IntegerType, BitmaskType>*>& reduce,
         std::list<VecSpec<IntegerType, BitmaskType>*>& against,
@@ -228,17 +218,16 @@ void HilbertDual::reduceBasis(
     if (reduce.empty())
         return;
 
-    typename std::list<VecSpec<IntegerType, BitmaskType>*>::iterator
-        i, next, red;
     bool processed;
 
-    i = reduce.begin();
-    next = i;
+    auto i = reduce.begin();
+    auto next = i;
     ++next;
 
     while (i != reduce.end()) {
         processed = true;
-        for (red = against.begin(); red != against.end(); ++red) {
+        auto red = against.begin();
+        for ( ; red != against.end(); ++red) {
             if (red == i) {
                 processed = false;
                 continue;
@@ -258,7 +247,6 @@ void HilbertDual::reduceBasis(
                     break;
             }
         }
-
         if (red == against.end()) {
             i = next;
             if (next != reduce.end())
@@ -295,7 +283,7 @@ void HilbertDual::reduceBasis(
     }
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 void HilbertDual::intersectHyperplane(
         std::vector<VecSpec<IntegerType, BitmaskType>*>& list,
         const MatrixInt& subspace, unsigned row,
@@ -304,30 +292,25 @@ void HilbertDual::intersectHyperplane(
     // deletion at arbitrary locations.
     std::list<VecSpec<IntegerType, BitmaskType>*>
         zero, pos, neg, newZero, newPos, newNeg;
-    typename std::list<VecSpec<IntegerType, BitmaskType>*>::iterator
-        it, posit, negit;
-    typename std::list<VecSpec<IntegerType, BitmaskType>*>::iterator
-        posPrevGen, negPrevGen;
 
     // Decant the existing basis elements into 0/+/- sets according to the
     // new hyperplane.
     int s;
-    typename std::vector<VecSpec<IntegerType, BitmaskType>*>::iterator srcit;
-    for (srcit = list.begin(); srcit != list.end(); srcit++) {
-        (*srcit)->initNextHyp(subspace, row);
+    for (auto ptr : list) {
+        ptr->initNextHyp(subspace, row);
 
-        s = (*srcit)->sign();
+        s = ptr->sign();
         if (s == 0)
-            zero.push_back(*srcit);
+            zero.push_back(ptr);
         else if (s < 0)
-            neg.push_back(*srcit);
+            neg.push_back(ptr);
         else
-            pos.push_back(*srcit);
+            pos.push_back(ptr);
     }
     list.clear();
 
-    posPrevGen = pos.begin();
-    negPrevGen = neg.begin();
+    auto posPrevGen = pos.begin();
+    auto negPrevGen = neg.begin();
 
     // TODO: Optimise from here down: (d), Sec.3
 
@@ -348,11 +331,11 @@ void HilbertDual::intersectHyperplane(
         // Generate all valid (pos + neg) pairs that cannot be reduced using
         // the present lists.
         reachedPosPrevGen = false;
-        for (posit = pos.begin(); posit != pos.end(); ++posit) {
+        for (auto posit = pos.begin(); posit != pos.end(); ++posit) {
             if (posit == posPrevGen)
                 reachedPosPrevGen = true;
 
-            for (negit = (reachedPosPrevGen ? neg.begin() : negPrevGen);
+            for (auto negit = (reachedPosPrevGen ? neg.begin() : negPrevGen);
                     negit != neg.end(); ++negit) {
 #ifdef __REGINA_HILBERT_DUAL_OPT_BI16D
                 // Check for guaranteed redundany.
@@ -450,13 +433,14 @@ void HilbertDual::intersectHyperplane(
     }
 
     // We have a final Hilbert basis!
+    // At this point in time, list is empty and zero holds our solutions.
     // Clean up and return.
-    for (it = pos.begin(); it != pos.end(); ++it)
-        delete *it;
-    for (it = neg.begin(); it != neg.end(); ++it)
-        delete *it;
-    for (it = zero.begin(); it != zero.end(); ++it)
-        list.push_back(*it);
+    for (auto ptr : pos)
+        delete ptr;
+    for (auto ptr : neg)
+        delete ptr;
+    for (auto ptr : zero)
+        list.push_back(ptr);
 }
 
 } // namespace regina

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,6 +38,7 @@
 #include "surface/normalsurfaces.h"
 #include "triangulation/dim2.h"
 #include "triangulation/dim3.h"
+#include "triangulation/example2.h"
 #include "triangulation/example3.h"
 
 #include "generic/triangulationtest.h"
@@ -63,6 +62,7 @@ class Dim3Test : public TriangulationTest<3> {
             }), "L(3, 1) (2 vtx)" };
         TestCase lens8_3 { Example<3>::lens(8, 3), "L(8,3)" };
         TestCase lens7_1_loop { Example<3>::layeredLoop(7, false), "L(7,1)" };
+        TestCase t3 { Example<3>::threeTorus(), "3-torus" };
         TestCase rp3rp3 { Signature("aabccd.b.d").triangulate(),
             "RP^3 # RP^3" };
         TestCase q32xz3 { Signature("aabcdb.cedfef").triangulate(),
@@ -108,9 +108,14 @@ class Dim3Test : public TriangulationTest<3> {
         TestCase figure8 { Example<3>::figureEight(),
             "Figure eight knot complement" };
         TestCase trefoil { Example<3>::trefoil(), "Trefoil complement" };
-        TestCase knot18 { regina::Link::fromSig(
-                "sabcdeafghidejklmnopqgcbfqhinmjrpolkrlLvnvvNdM9aE").
-                complement(),
+        TestCase knot18 { Triangulation<3>::fromSig(
+                "FLLvvvLMvvwAPPQMQQLQQkcekjkryppwvrsABAstuCzxzCxADEECDEiigcsaiccfvfkaambvvxeodxcxjjcsvf"),
+                // This is the complement of the 18-crossing link with sig:
+                // sabcdeafghidejklmnopqgcbfqhinmjrpolkrlLvnvvNdM9aE
+                // We hard-code the triangulation instead of using complement()
+                // to keep things deterministic in the test suite.  (In the
+                // past there have been cases where complement() landed on an
+                // alternate triangulation with no strict angle structure.)
             "18-crossing knot complement" };
         TestCase idealGenusTwoHandlebody {
             Example<3>::idealGenusTwoHandlebody(),
@@ -175,6 +180,7 @@ class Dim3Test : public TriangulationTest<3> {
             f(lens3_1.tri, lens3_1.name);
             f(lens8_3.tri, lens8_3.name);
             f(lens7_1_loop.tri, lens7_1_loop.name);
+            f(t3.tri, t3.name);
             f(rp3rp3.tri, rp3rp3.name);
             f(q32xz3.tri, q32xz3.name);
             f(q28.tri, q28.name);
@@ -278,6 +284,7 @@ TEST_F(Dim3Test, validity) {
     verifyValid(lens3_1);
     verifyValid(lens8_3);
     verifyValid(lens7_1_loop);
+    verifyValid(t3);
     verifyValid(rp3rp3);
     verifyValid(q32xz3);
     verifyValid(q28);
@@ -322,6 +329,7 @@ TEST_F(Dim3Test, connectivity) {
     EXPECT_TRUE(lens3_1.tri.isConnected());
     EXPECT_TRUE(lens8_3.tri.isConnected());
     EXPECT_TRUE(lens7_1_loop.tri.isConnected());
+    EXPECT_TRUE(t3.tri.isConnected());
     EXPECT_TRUE(rp3rp3.tri.isConnected());
     EXPECT_TRUE(q32xz3.tri.isConnected());
     EXPECT_TRUE(q28.tri.isConnected());
@@ -366,6 +374,7 @@ TEST_F(Dim3Test, orientability) {
     EXPECT_TRUE(lens3_1.tri.isOrientable());
     EXPECT_TRUE(lens8_3.tri.isOrientable());
     EXPECT_TRUE(lens7_1_loop.tri.isOrientable());
+    EXPECT_TRUE(t3.tri.isOrientable());
     EXPECT_TRUE(rp3rp3.tri.isOrientable());
     EXPECT_TRUE(q32xz3.tri.isOrientable());
     EXPECT_TRUE(q28.tri.isOrientable());
@@ -401,6 +410,45 @@ TEST_F(Dim3Test, orientability) {
     EXPECT_TRUE(disjoint3.tri.isOrientable());
 }
 
+TEST_F(Dim3Test, orientedExamples) {
+    // Ensure that the orientable Example<3> constructions are oriented.
+    //
+    // TODO: Several of these tests are commented out because the constructions
+    // are _not_ actually oriented at present; it would be nice to make these
+    // oriented in the future.
+
+    // EXPECT_TRUE(Example<3>::simplicialSphere().isOriented());
+    // EXPECT_TRUE(Example<3>::sphereBundle().isOriented());
+    EXPECT_TRUE(Example<3>::ball().isOriented());
+    EXPECT_TRUE(Example<3>::ballBundle().isOriented());
+
+    EXPECT_TRUE(Example<3>::threeSphere().isOriented()); // 1 tetrahedron
+    EXPECT_TRUE(Example<3>::bingsHouse().isOriented());
+    EXPECT_TRUE(Example<3>::threeTorus().isOriented());
+    EXPECT_TRUE(Example<3>::rp3rp3().isOriented());
+    EXPECT_TRUE(Example<3>::lens(8, 1).isOriented());
+    EXPECT_TRUE(Example<3>::layeredLoop(5, true).isOriented());
+    EXPECT_TRUE(Example<3>::layeredLoop(5, false).isOriented());
+    EXPECT_TRUE(Example<3>::poincare().isOriented());
+    // EXPECT_TRUE(Example<3>::augTriSolidTorus(3, 4, 5, 6, 7, 8).isOriented());
+    // EXPECT_TRUE(Example<3>::sfsOverSphere(3, 4, 5, 6, 7, 8).isOriented());
+    EXPECT_TRUE(Example<3>::weeks().isOriented());
+    EXPECT_TRUE(Example<3>::weberSeifert().isOriented());
+    EXPECT_TRUE(Example<3>::smallClosedOrblHyperbolic().isOriented());
+    EXPECT_TRUE(Example<3>::sphere600().isOriented());
+    // EXPECT_TRUE(Example<3>::lst(7, 4).isOriented());
+    // EXPECT_TRUE(Example<3>::handlebody(3).isOriented());
+    EXPECT_TRUE(Example<3>::b5().isOriented());
+    EXPECT_TRUE(Example<3>::figureEight().isOriented());
+    EXPECT_TRUE(Example<3>::trefoil().isOriented());
+    EXPECT_TRUE(Example<3>::whitehead().isOriented());
+    // EXPECT_TRUE(Example<3>::idealGenusTwoHandlebody().isOriented());
+
+    Triangulation<2> torus = Example<2>::orientable(1, 0);
+    EXPECT_TRUE(Example<3>::singleCone(torus).isOriented());
+    EXPECT_TRUE(Example<3>::doubleCone(torus).isOriented());
+}
+
 TEST_F(Dim3Test, standardness) {
     EXPECT_TRUE(empty.tri.isStandard());
     EXPECT_TRUE(sphere.tri.isStandard());
@@ -417,6 +465,7 @@ TEST_F(Dim3Test, standardness) {
     EXPECT_TRUE(lens3_1.tri.isStandard());
     EXPECT_TRUE(lens8_3.tri.isStandard());
     EXPECT_TRUE(lens7_1_loop.tri.isStandard());
+    EXPECT_TRUE(t3.tri.isStandard());
     EXPECT_TRUE(rp3rp3.tri.isStandard());
     EXPECT_TRUE(q32xz3.tri.isStandard());
     EXPECT_TRUE(q28.tri.isStandard());
@@ -468,6 +517,8 @@ TEST_F(Dim3Test, eulerChar) {
     EXPECT_EQ(lens8_3.tri.eulerCharManifold(), 0);
     EXPECT_EQ(lens7_1_loop.tri.eulerCharTri(), 0);
     EXPECT_EQ(lens7_1_loop.tri.eulerCharManifold(), 0);
+    EXPECT_EQ(t3.tri.eulerCharTri(), 0);
+    EXPECT_EQ(t3.tri.eulerCharManifold(), 0);
     EXPECT_EQ(rp3rp3.tri.eulerCharTri(), 0);
     EXPECT_EQ(rp3rp3.tri.eulerCharManifold(), 0);
     EXPECT_EQ(q32xz3.tri.eulerCharTri(), 0);
@@ -531,25 +582,25 @@ TEST_F(Dim3Test, eulerChar) {
 
     {
         Triangulation<3> t(idealRP2xI.tri);
-        t.idealToFinite();
+        t.truncateIdeal();
         EXPECT_EQ(t.eulerCharTri(), 1);
         EXPECT_EQ(t.eulerCharManifold(), 1);
     }
     {
         Triangulation<3> t(idealGenusTwoHandlebody.tri);
-        t.idealToFinite();
+        t.truncateIdeal();
         EXPECT_EQ(t.eulerCharTri(), -1);
         EXPECT_EQ(t.eulerCharManifold(), -1);
     }
     {
         Triangulation<3> t(pinchedSolidTorus.tri);
-        t.idealToFinite();
+        t.truncateIdeal();
         EXPECT_EQ(t.eulerCharTri(), 0);
         EXPECT_EQ(t.eulerCharManifold(), 0);
     }
     {
         Triangulation<3> t(pinchedSolidKB.tri);
-        t.idealToFinite();
+        t.truncateIdeal();
         EXPECT_EQ(t.eulerCharTri(), 0);
         EXPECT_EQ(t.eulerCharManifold(), 0);
     }
@@ -564,6 +615,7 @@ TEST_F(Dim3Test, boundaryBasic) {
     verifyBoundaryBasic(lens3_1, {}, {}, {});
     verifyBoundaryBasic(lens8_3, {}, {}, {});
     verifyBoundaryBasic(lens7_1_loop, {}, {}, {});
+    verifyBoundaryBasic(t3, {}, {}, {});
     verifyBoundaryBasic(rp3rp3, {}, {}, {});
     verifyBoundaryBasic(q32xz3, {}, {}, {});
     verifyBoundaryBasic(q28, {}, {}, {});
@@ -613,6 +665,7 @@ TEST_F(Dim3Test, vertexLinksBasic) {
     verifyVertexLinksBasic(lens3_1, 2, 0);
     verifyVertexLinksBasic(lens8_3, 1, 0);
     verifyVertexLinksBasic(lens7_1_loop, 2, 0);
+    verifyVertexLinksBasic(t3, 1, 0);
     verifyVertexLinksBasic(rp3rp3, 1, 0);
     verifyVertexLinksBasic(q32xz3, 1, 0);
     verifyVertexLinksBasic(q28, 1, 0);
@@ -786,12 +839,27 @@ TEST_F(Dim3Test, doubleCover) {
     testManualCases(TriangulationTest<3>::verifyDoubleCover);
 }
 
+TEST_F(Dim3Test, doubleOverBoundary) {
+    testManualCases(TriangulationTest<3>::verifyDoubleOverBoundary);
+}
+
 TEST_F(Dim3Test, makeCanonical) {
     testManualCases(TriangulationTest<3>::verifyMakeCanonical);
 }
 
 TEST_F(Dim3Test, isomorphismSignature) {
     testManualCases(TriangulationTest<3>::verifyIsomorphismSignature);
+    verifyIsomorphismSignatureWithLocks(t3.tri, t3.name);
+    verifyIsomorphismSignatureWithLocks(rp2xs1.tri, rp2xs1.name);
+    verifyIsomorphismSignatureWithLocks(lst3_4_7.tri, lst3_4_7.name);
+}
+
+TEST_F(Dim3Test, lockPropagation) {
+    testManualCases(TriangulationTest<3>::verifyLockPropagation);
+}
+
+TEST_F(Dim3Test, lockEnforcement) {
+    testManualCases(TriangulationTest<3>::verifyLockEnforcement);
 }
 
 static void verifyDehydration(const Triangulation<3>& tri, const char* name) {
@@ -1045,41 +1113,39 @@ TEST_F(Dim3Test, move20Edge) {
             { 3, 3, 0, {1,2,0,3} }, { 4, 2, 0, {0,3,2,1} }}),
         "boundary-diag");
 }
-static void verifyZeroTwoMove(const Triangulation<3>& tri, const char* name ) {
+static void verifyMove02(const Triangulation<3>& tri, const char* name ) {
     SCOPED_TRACE_CSTRING(name);
 
     Triangulation<3> oriented(tri);
     if (oriented.isOrientable())
         oriented.orient();
 
-    for (size_t i = 0; i < tri.countEdges(); ++i) {
-        SCOPED_TRACE_NUMERIC(i);
+    for (auto from : oriented.edges()) {
+        SCOPED_TRACE_NUMERIC(from->index());
 
-        size_t deg = oriented.edge(i)->degree();
+        size_t deg = from->degree();
         for (size_t j = 0; j <= deg; ++j) {
             SCOPED_TRACE_NUMERIC(j);
 
             for (size_t jj = j; jj <= deg; ++jj) {
                 SCOPED_TRACE_NUMERIC(jj);
 
-                Triangulation<3> alt(oriented);
-                bool legal = alt.zeroTwoMove(alt.edge(i), j, jj);
+                auto alt = oriented.with02(from, j, jj);
 
-                // Check that different versions of zeroTwoMove give
+                // Check that different versions of move02 give
                 // isomorphic results.
                 {
-                    Triangulation<3> alt2(oriented);
                     size_t num[2] = {j, jj};
                     regina::Triangle<3>* t[2];
                     int e[2];
                     for ( int k : {0, 1} ) {
                         if ( num[k] == deg ) {
-                            auto emb = alt2.edge(i)->back();
+                            auto emb = from->back();
                             t[k] = emb.simplex()->triangle(emb.vertices()[2]);
                             e[k] = emb.simplex()->faceMapping<2>(
                                 emb.vertices()[2]).pre(emb.vertices()[3]);
                         } else {
-                            auto emb = alt2.edge(i)->embedding(num[k]);
+                            auto emb = from->embedding(num[k]);
                             t[k] = emb.simplex()->triangle(emb.vertices()[3]);
                             e[k] = emb.simplex()->faceMapping<2>(
                                 emb.vertices()[3]).pre(emb.vertices()[2]);
@@ -1091,54 +1157,50 @@ static void verifyZeroTwoMove(const Triangulation<3>& tri, const char* name ) {
                     // false).  The discrepancy arises when the edge is
                     // internal: in this case the first form of the move
                     // (edge, int, int) cannot have j == deg or jj == deg.
-                    bool legal2 = alt2.zeroTwoMove(t[0], e[0], t[1], e[1]);
+                    auto alt2 = oriented.with02(t[0], e[0], t[1], e[1]);
 
-                    regina::Edge<3>* edge = oriented.edge(i);
-                    if (edge->isBoundary() || (j < deg && jj < deg)) {
-                        EXPECT_EQ(legal2, legal);
+                    if (from->isBoundary() || (j < deg && jj < deg)) {
+                        EXPECT_EQ(alt2.has_value(), alt.has_value());
                     } else {
-                        EXPECT_FALSE(legal);
-                        EXPECT_EQ(legal2, edge->isValid());
+                        EXPECT_FALSE(alt.has_value());
+                        EXPECT_EQ(alt2.has_value(), from->isValid());
                     }
 
-                    if (legal)
-                        EXPECT_TRUE(alt.isIsomorphicTo(alt2));
+                    if (alt)
+                        EXPECT_TRUE(alt->isIsomorphicTo(*alt2));
                 }
 
-                if (! legal) {
-                    // Check that the move was _not_ performed.
-                    EXPECT_EQ(alt, oriented);
+                if (! alt)
                     continue;
-                }
 
                 // The move was performed (hopefully correctly).
 
                 // Ensure that properties we are about to verify are
                 // explicitly recomputed.
-                clearProperties(alt);
+                clearProperties(*alt);
 
-                EXPECT_EQ(alt.size(), tri.size() + 2);
-                EXPECT_EQ(alt.countVertices(), tri.countVertices());
-                EXPECT_EQ(alt.isValid(), tri.isValid());
-                EXPECT_EQ(alt.isOrientable(), tri.isOrientable());
+                EXPECT_EQ(alt->size(), tri.size() + 2);
+                EXPECT_EQ(alt->countVertices(), tri.countVertices());
+                EXPECT_EQ(alt->isValid(), tri.isValid());
+                EXPECT_EQ(alt->isOrientable(), tri.isOrientable());
                 if (tri.isOrientable())
-                    EXPECT_TRUE(alt.isOriented());
-                EXPECT_EQ(alt.isClosed(), tri.isClosed());
-                EXPECT_EQ(alt.countBoundaryComponents(),
+                    EXPECT_TRUE(alt->isOriented());
+                EXPECT_EQ(alt->isClosed(), tri.isClosed());
+                EXPECT_EQ(alt->countBoundaryComponents(),
                     tri.countBoundaryComponents());
-                EXPECT_EQ(alt.eulerCharTri(), tri.eulerCharTri());
-                EXPECT_EQ(alt.eulerCharManifold(), tri.eulerCharManifold());
+                EXPECT_EQ(alt->eulerCharTri(), tri.eulerCharTri());
+                EXPECT_EQ(alt->eulerCharManifold(), tri.eulerCharManifold());
 
                 if (tri.isValid()) {
-                    EXPECT_EQ(alt.homology<1>(), tri.homology<1>());
-                    EXPECT_EQ(alt.homology<2>(), tri.homology<2>());
+                    EXPECT_EQ(alt->homology<1>(), tri.homology<1>());
+                    EXPECT_EQ(alt->homology<2>(), tri.homology<2>());
                 }
 
                 // Randomly relabel the tetrahedra, but preserve orientation.
-                Isomorphism<3> iso = alt.randomiseLabelling(true);
+                Isomorphism<3> iso = alt->randomiseLabelling(true);
 
                 // Test the inverse 2-0 move.
-                regina::Triangulation<3> inv(alt);
+                regina::Triangulation<3> inv(*alt);
                 EXPECT_TRUE(inv.move20(
                     inv.tetrahedron(iso.simpImage(inv.size() - 1))->edge(
                         iso.facetPerm(inv.size() - 1)[2],
@@ -1152,11 +1214,11 @@ static void verifyZeroTwoMove(const Triangulation<3>& tri, const char* name ) {
     }
 }
 
-TEST_F(Dim3Test, zeroTwoMove) {
-    testManualCases(verifyZeroTwoMove, false);
-    runCensusAllClosed(verifyZeroTwoMove, true);
-    runCensusAllBounded(verifyZeroTwoMove, true);
-    runCensusAllIdeal(verifyZeroTwoMove, true);
+TEST_F(Dim3Test, move02) {
+    testManualCases(verifyMove02, false);
+    runCensusAllClosed(verifyMove02, true);
+    runCensusAllBounded(verifyMove02, true);
+    runCensusAllIdeal(verifyMove02, true);
 }
 
 TEST_F(Dim3Test, pinchEdge) {
@@ -1223,7 +1285,7 @@ TEST_F(Dim3Test, pinchEdge) {
         Triangulation<3> tmp(ball);
         tmp.pinchEdge(tmp.tetrahedron(0)->edge(5));
         EXPECT_TRUE(tmp.isOriented());
-        tmp.idealToFinite(); // truncate invalid vertex
+        tmp.truncateIdeal(); // truncate invalid vertex
         EXPECT_TRUE(tmp.isSolidTorus());
     }
 }
@@ -1254,6 +1316,7 @@ TEST_F(Dim3Test, homologyH1) {
     EXPECT_EQ(lens3_1.tri.homology<1>(), AbelianGroup(0, {3}));
     EXPECT_EQ(lens8_3.tri.homology<1>(), AbelianGroup(0, {8}));
     EXPECT_EQ(lens7_1_loop.tri.homology<1>(), AbelianGroup(0, {7}));
+    EXPECT_EQ(t3.tri.homology<1>(), AbelianGroup(3));
     EXPECT_EQ(rp3rp3.tri.homology<1>(), AbelianGroup(0, {2,2}));
     EXPECT_EQ(q32xz3.tri.homology<1>(), AbelianGroup(0, {2,6}));
     EXPECT_EQ(q28.tri.homology<1>(), AbelianGroup(0, {4}));
@@ -1298,6 +1361,7 @@ TEST_F(Dim3Test, homologyH2) {
     EXPECT_EQ(lens3_1.tri.homology<2>(), AbelianGroup());
     EXPECT_EQ(lens8_3.tri.homology<2>(), AbelianGroup());
     EXPECT_EQ(lens7_1_loop.tri.homology<2>(), AbelianGroup());
+    EXPECT_EQ(t3.tri.homology<2>(), AbelianGroup(3));
     EXPECT_EQ(rp3rp3.tri.homology<2>(), AbelianGroup());
     EXPECT_EQ(q32xz3.tri.homology<2>(), AbelianGroup());
     EXPECT_EQ(q28.tri.homology<2>(), AbelianGroup());
@@ -1394,6 +1458,7 @@ TEST_F(Dim3Test, fundGroup) {
     EXPECT_EQ(lens3_1.tri.group().recogniseGroup(), "Z_3");
     EXPECT_EQ(lens8_3.tri.group().recogniseGroup(), "Z_8");
     EXPECT_EQ(lens7_1_loop.tri.group().recogniseGroup(), "Z_7");
+    EXPECT_EQ(t3.tri.group().recogniseGroup(), "3 Z");
     EXPECT_EQ(rp3rp3.tri.group().recogniseGroup(), "FreeProduct( Z_2, Z_2 )");
     EXPECT_EQ(q32xz3.tri.group().recogniseGroup(), "");
     EXPECT_EQ(q28.tri.group().recogniseGroup(), "");
@@ -1542,6 +1607,7 @@ TEST_F(Dim3Test, simplification) {
     verifySimplificationName(lens3_1, 2, "L(3,1) (1)");
     verifyNoSimplification(lens8_3);
     verifySimplificationName(lens7_1_loop, 4, "L(7,1)");
+    verifyNoSimplification(t3);
     verifyNoSimplification(rp3rp3);
     verifyNoSimplification(q32xz3);
     verifyNoSimplification(q28);
@@ -1626,6 +1692,49 @@ static void verifySimplifyExhaustive(const char* isoSig,
 TEST_F(Dim3Test, simplifyExhaustive) {
     verifySimplifyExhaustive("hLALPkbcbefgfghxwnxark", 3, 1);
     verifySimplifyExhaustive("hLALPkbcbefgfghxwnxark", 3, 2);
+}
+
+static void verifyImproveTreewidth(const Triangulation<3>& tri,
+        const char* name, int height, int bestPossible) {
+    SCOPED_TRACE_CSTRING(name);
+
+    // Try not to cache the original homology group.
+    AbelianGroup initHomology = Triangulation<3>(tri).homology();
+    size_t initWidth = regina::TreeDecomposition(tri).width();
+
+    for (int threads = 1; threads <= 2; ++threads) {
+        SCOPED_TRACE_NUMERIC(threads);
+
+        Triangulation<3> working(tri, false);
+        // We only allow 1000 attempts - this is smaller than the default
+        // but we want to keep the test suite fast.
+        bool result = working.improveTreewidth(1000, height);
+        size_t newWidth = regina::TreeDecomposition(working).width();
+
+        EXPECT_EQ(newWidth, bestPossible);
+        EXPECT_EQ(result, newWidth < initWidth);
+        if (newWidth == initWidth)
+            EXPECT_EQ(working, tri);
+
+        EXPECT_EQ(working.isValid(), tri.isValid());
+        EXPECT_EQ(working.isOrientable(), tri.isOrientable());
+        EXPECT_EQ(working.countBoundaryComponents(),
+            tri.countBoundaryComponents());
+        EXPECT_EQ(working.homology(), initHomology);
+    }
+}
+
+TEST_F(Dim3Test, improveTreewidth) {
+    // All of the target widths here were found with Regina 7.4.
+
+    // Poincare homology sphere: initial width = 4
+    verifyImproveTreewidth(Example<3>::poincare(), "Poincare", 1, 4);
+    verifyImproveTreewidth(Example<3>::poincare(), "Poincare", 2, 3);
+
+    // Weber-Seifert dodecahedral space: initial width = 8
+    verifyImproveTreewidth(Example<3>::weberSeifert(), "Weber-Seifert", 1, 7);
+
+    // TODO: It would be nice to have more tests here.
 }
 
 static void verifyMinimiseBoundaryDoesNothing(const Triangulation<3>& tri,
@@ -1876,8 +1985,7 @@ TEST_F(Dim3Test, connectedSumWithSelf) {
     testManualCases(verifyConnectedSumWithSelf, false);
 }
 
-static void verifyIdealToFinite(const Triangulation<3>& tri,
-        const char* name) {
+static void verifyTruncateIdeal(const Triangulation<3>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     bool shouldTruncate = false;
@@ -1892,15 +2000,15 @@ static void verifyIdealToFinite(const Triangulation<3>& tri,
     }
 
     if (! shouldTruncate) {
-        // The idealToFinite routine should leave tri unchanged.
+        // The truncateIdeal routine should leave tri unchanged.
         Triangulation<3> finite(tri);
-        finite.idealToFinite();
+        finite.truncateIdeal();
         EXPECT_EQ(finite, tri);
         return;
     }
 
     Triangulation<3> finite(tri);
-    finite.idealToFinite();
+    finite.truncateIdeal();
 
     // Ensure that properties we are about to verify are explicitly recomputed.
     clearProperties(finite);
@@ -1959,23 +2067,23 @@ static void verifyIdealToFinite(const Triangulation<3>& tri,
     }
 }
 
-TEST_F(Dim3Test, idealToFinite) {
-    testManualCases(verifyIdealToFinite);
+TEST_F(Dim3Test, truncateIdeal) {
+    testManualCases(verifyTruncateIdeal);
 }
 
-static void verifyFiniteToIdeal(const Triangulation<3>& tri, const char* name) {
+static void verifyMakeIdeal(const Triangulation<3>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     if (! tri.hasBoundaryFacets()) {
         // The triangulation should remain unchanged.
         Triangulation<3> other(tri);
-        other.finiteToIdeal();
+        other.makeIdeal();
         EXPECT_EQ(other, tri);
         return;
     }
 
     Triangulation<3> ideal(tri);
-    ideal.finiteToIdeal();
+    ideal.makeIdeal();
 
     // Ensure that properties we are about to verify are explicitly recomputed.
     clearProperties(ideal);
@@ -2035,8 +2143,8 @@ static void verifyFiniteToIdeal(const Triangulation<3>& tri, const char* name) {
     }
 }
 
-TEST_F(Dim3Test, finiteToIdeal) {
-    testManualCases(verifyFiniteToIdeal);
+TEST_F(Dim3Test, makeIdeal) {
+    testManualCases(verifyMakeIdeal);
 }
 
 static void verifyRetriangulate(const Triangulation<3>& tri,
@@ -2272,6 +2380,7 @@ TEST_F(Dim3Test, zeroEfficiency) {
     EXPECT_FALSE(lens3_1.tri.isZeroEfficient());
     EXPECT_TRUE(lens8_3.tri.isZeroEfficient());
     EXPECT_FALSE(lens7_1_loop.tri.isZeroEfficient());
+    EXPECT_TRUE(t3.tri.isZeroEfficient());
     EXPECT_FALSE(rp3rp3.tri.isZeroEfficient());
     EXPECT_TRUE(q32xz3.tri.isZeroEfficient());
     EXPECT_TRUE(q28.tri.isZeroEfficient());
@@ -2328,6 +2437,7 @@ TEST_F(Dim3Test, irreducibility) {
     EXPECT_TRUE(lens3_1.tri.isIrreducible());
     EXPECT_TRUE(lens8_3.tri.isIrreducible());
     EXPECT_TRUE(lens7_1_loop.tri.isIrreducible());
+    EXPECT_TRUE(t3.tri.isIrreducible());
     EXPECT_FALSE(rp3rp3.tri.isIrreducible());
     EXPECT_TRUE(q32xz3.tri.isIrreducible());
     EXPECT_TRUE(q28.tri.isIrreducible());
@@ -2411,6 +2521,7 @@ TEST_F(Dim3Test, sphereRecognition) {
     verifySphere(rp3_2, false);
     verifySphere(lens3_1, false);
     verifySphere(lens8_3, false);
+    verifySphere(t3, false);
     verifySphere(rp3rp3, false);
     verifySphere(q32xz3, false);
     verifySphere(q28, false);
@@ -2705,12 +2816,12 @@ static void verifySolidTorus(const Triangulation<3>& tri, bool expected) {
 
     Triangulation<3> bounded(tri);
     if (bounded.isIdeal())
-        bounded.idealToFinite();
+        bounded.truncateIdeal();
     clearProperties(bounded);
 
     Triangulation<3> ideal(tri);
     if (ideal.hasBoundaryTriangles())
-        ideal.finiteToIdeal();
+        ideal.makeIdeal();
     clearProperties(ideal);
 
     EXPECT_EQ(bounded.isSolidTorus(), expected);
@@ -2816,12 +2927,12 @@ static void verifyHandlebody(const Triangulation<3>& tri, ssize_t genus) {
 
     Triangulation<3> bounded(tri);
     if (bounded.isIdeal())
-        bounded.idealToFinite();
+        bounded.truncateIdeal();
     clearProperties(bounded);
 
     Triangulation<3> ideal(tri);
     if (ideal.hasBoundaryTriangles())
-        ideal.finiteToIdeal();
+        ideal.makeIdeal();
     clearProperties(ideal);
 
     EXPECT_EQ(bounded.recogniseHandlebody(), genus);
@@ -2917,12 +3028,12 @@ static void verifyTxI(const Triangulation<3>& tri, bool expected) {
 
     Triangulation<3> bounded(tri);
     if (bounded.isIdeal())
-        bounded.idealToFinite();
+        bounded.truncateIdeal();
     clearProperties(bounded);
 
     Triangulation<3> ideal(tri);
     if (ideal.hasBoundaryTriangles())
-        ideal.finiteToIdeal();
+        ideal.makeIdeal();
     clearProperties(ideal);
 
     EXPECT_EQ(bounded.isTxI(), expected);
@@ -3012,6 +3123,7 @@ TEST_F(Dim3Test, turaevViro) {
     verifyTV3(lens3_1);
     verifyTV3(lens8_3);
     verifyTV3(lens7_1_loop);
+    verifyTV3(t3);
     verifyTV3(rp3rp3);
     verifyTV3(q32xz3);
     verifyTV3(q28);
@@ -3260,7 +3372,7 @@ static void verifyMeridian(const Triangulation<3>& tri, const char* name) {
 
     Triangulation<3> use(tri); // something we can modify
     if (use.isIdeal()) {
-        use.idealToFinite();
+        use.truncateIdeal();
         use.simplify();
     }
     ASSERT_EQ(use.countVertices(), 1);
@@ -3330,7 +3442,7 @@ static void verifyMeridianLongitude(const Triangulation<3>& tri,
 
     Triangulation<3> use(tri); // something we can modify
     if (use.isIdeal()) {
-        use.idealToFinite();
+        use.truncateIdeal();
         use.simplify();
     }
     ASSERT_EQ(use.countVertices(), 1);

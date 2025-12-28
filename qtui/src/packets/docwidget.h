@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -68,7 +66,7 @@ class QTextDocument;
  * function void sanitise(QString&).  This will be applied to the text
  * contents of the widget before each push.
  */
-template <class PacketType, class Sanitise = DocWidgetNoSanitise>
+template <typename PacketType, typename Sanitise = DocWidgetNoSanitise>
 class DocWidget : public QPlainTextEdit {
     private:
         struct Details {
@@ -118,11 +116,11 @@ struct DocWidgetFinalNewline {
     static void sanitise(QString& str);
 };
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 typename DocWidget<PacketType, Sanitise>::Registry
     DocWidget<PacketType, Sanitise>::registry_;
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 DocWidget<PacketType, Sanitise>::DocWidget(
         PacketType* packet, QWidget* parent) :
         QPlainTextEdit(parent),
@@ -144,7 +142,7 @@ DocWidget<PacketType, Sanitise>::DocWidget(
     }
 }
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 DocWidget<PacketType, Sanitise>::~DocWidget() {
     // We could be in the destructor because the user closed the packet pane,
     // or because the packet was destroyed elsewhere.
@@ -174,7 +172,7 @@ DocWidget<PacketType, Sanitise>::~DocWidget() {
     }
 }
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 inline void DocWidget<PacketType, Sanitise>::refresh() {
     if (auto p = packet_.lock()) {
         // We have to jump through several hoops to preserve the cursor
@@ -187,7 +185,7 @@ inline void DocWidget<PacketType, Sanitise>::refresh() {
     }
 }
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 inline void DocWidget<PacketType, Sanitise>::commit() {
     if (auto p = packet_.lock()) {
         QString text = toPlainText();
@@ -196,7 +194,7 @@ inline void DocWidget<PacketType, Sanitise>::commit() {
     }
 }
 
-template <class PacketType, class Sanitise>
+template <typename PacketType, typename Sanitise>
 inline void DocWidget<PacketType, Sanitise>::focusOutEvent(QFocusEvent* evt) {
     commit();
     QPlainTextEdit::focusOutEvent(evt);

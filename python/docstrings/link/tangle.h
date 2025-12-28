@@ -18,11 +18,11 @@ components in a tangle; in other words, a tangle in Regina is a proper
 embedding of exactly two arcs in the 3-ball with the corresponding
 four endpoints attached to four marked points on the 3-ball boundary.
 
-Regina stores tangles as projections, with the four endpoints fixed at
-the top-left, top-right, bottom-left and bottom-right corners of the
-diagram.
+Regina stores tangles as projections onto a disc. The four endpoints
+of the tangle are fixed at four special points on the disc boundary,
+located at the top-left, top-right, bottom-left, and bottom-right.
 
-Each tangles has a _type_, indicating how the four endpoints are
+Each tangle has a _type_, indicating how the four endpoints are
 connected. The three possible types are:
 
 * _horizontal_, indicating that the two top endpoints are connected,
@@ -45,6 +45,11 @@ When traversing a tangle, if you reach one of the endpoints of a
 string then the corresponding return value of Crossing::next() or
 Crossing::prev() (whichever is relevant) will be a null strand
 reference.
+
+Note that, although Regina can work with both classical and virtual
+knots and links, it only considers tangles in the classical sense.
+That is, Regina's tangles always live within the 3-ball, and their
+diagrams are always projections onto a disc.
 
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
@@ -130,10 +135,10 @@ Parameter ``den``:
 
 // Docstring regina::python::doc::Tangle_::__init_3
 static const char *__init_3 =
-R"doc(Creates a tangle from two parallel copies of the given knot.
+R"doc(Creates a tangle from two parallel copies of a classical knot.
 
-Specifically, the tangle will consist of two parallel copies of the
-given knot diagram, which will be broken just before the starting
+Specifically, the new tangle will consist of two parallel copies of
+the given knot diagram, which will be broken just before the starting
 strand as returned by ``knot.component(0)``.
 
 The two resulting endpoints that appear just before the starting
@@ -146,8 +151,9 @@ endpoints of this tangle.
 The tangle will contain ``4 * knot.size()`` crossings in total.
 
 Precondition:
-    The argument contains exactly one component (i.e., it is actually
-    a knot, and not empty or a multiple-component link).
+    The given link is classical, and it contains exactly one component
+    (i.e., it is actually a knot, and not empty or a multiple-
+    component link).
 
 Parameter ``knot``:
     the knot to break and duplicate to form this tangle.)doc";
@@ -470,14 +476,6 @@ combined together and separated by whitespace. This variant takes a
 sequence of tokens, defined by a pair of iterators.
 
 Precondition:
-    *Iterator* is a random access iterator type.
-
-Precondition:
-    Dereferencing such an iterator produces either a C-style string
-    (which can be cast to ``const char*``) or a C++-style string
-    (which can be cast to ``const std::string&``).
-
-Precondition:
     The tokens in the input sequence do not contain any whitespace.
 
 .. warning::
@@ -674,7 +672,7 @@ allowed. If it is, and if the argument *perform* is ``True``, this
 routine will also _perform_ the move.
 
 .. deprecated::
-    If you just wish to test whether a such move is possible, call
+    If you just wish to test whether such a move is possible, call
     hasR1(). If you wish to both check and perform the move, call r1()
     without the two additional boolean arguments.
 
@@ -767,7 +765,7 @@ allowed. If it is, and if the argument *perform* is ``True``, this
 routine will also _perform_ the move.
 
 .. deprecated::
-    If you just wish to test whether a such move is possible, call
+    If you just wish to test whether such a move is possible, call
     hasR2(). If you wish to both check and perform the move, call r2()
     without the two additional boolean arguments.
 
@@ -805,7 +803,7 @@ allowed. If it is, and if the argument *perform* is ``True``, this
 routine will also _perform_ the move.
 
 .. deprecated::
-    If you just wish to test whether a such move is possible, call
+    If you just wish to test whether such a move is possible, call
     hasR2(). If you wish to both check and perform the move, call r2()
     without the two additional boolean arguments.
 

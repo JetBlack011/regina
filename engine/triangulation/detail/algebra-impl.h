@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -69,22 +67,22 @@ AbelianGroup TriangulationBase<dim>::homology() const {
         // Build a presentation matrix.
         // Each non-boundary not-in-forest (dim-1)-face is a generator.
         // Each non-boundary (dim-2)-face is a relation.
-        long nBdryRidges = 0;
+        size_t nBdryRidges = 0;
         for (auto bc : boundaryComponents())
             nBdryRidges += bc->countRidges();
 
-        // Cast away all unsignedness in case we run into problems subtracting.
-        long nGens = static_cast<long>(countFaces<dim-1>())
-            - static_cast<long>(countBoundaryFacets())
-            + static_cast<long>(countComponents())
-            - static_cast<long>(size());
-        long nRels = static_cast<long>(countFaces<dim-2>()) - nBdryRidges;
+        // Note: As we walk from left to right through the following
+        // expressions, the intermediate calculations should never
+        // become negative.
+        size_t nGens = countFaces<dim-1>() - countBoundaryFacets()
+            + countComponents() - size();
+        size_t nRels = countFaces<dim-2>() - nBdryRidges;
 
         MatrixInt pres(nRels, nGens);
 
         // Find out which (dim-1)-face corresponds to which generator.
-        long* genIndex = new long[countFaces<dim-1>()];
-        long i = 0;
+        size_t* genIndex = new size_t[countFaces<dim-1>()];
+        size_t i = 0;
         for (Face<dim, dim-1>* f : faces<dim-1>())
             if (! (f->isBoundary() || f->inMaximalForest()))
                 genIndex[f->index()] = i++;
@@ -189,18 +187,17 @@ const GroupPresentation& TriangulationBase<dim>::group() const {
     // Each non-boundary not-in-forest (dim-1)-face is a generator.
     // Each non-boundary (dim-2)-face is a relation.
 
-    // Cast away all unsignedness in case we run into problems subtracting.
-    long nGens = static_cast<long>(countFaces<dim-1>())
-        - static_cast<long>(countBoundaryFacets())
-        + static_cast<long>(countComponents())
-        - static_cast<long>(size());
+    // Note: As we walk from left to right through the following expression,
+    // the intermediate calculations should never become negative.
+    size_t nGens = countFaces<dim-1>() - countBoundaryFacets()
+        + countComponents() - size();
 
     // Insert the generators.
     ans.addGenerator(nGens);
 
     // Find out which (dim-1)-face corresponds to which generator.
-    long* genIndex = new long[countFaces<dim-1>()];
-    long i = 0;
+    size_t* genIndex = new size_t[countFaces<dim-1>()];
+    size_t i = 0;
     for (Face<dim, dim-1>* f : faces<dim-1>())
         if (! (f->isBoundary() || f->inMaximalForest()))
             genIndex[f->index()] = i++;

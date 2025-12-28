@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,6 +43,7 @@
 #include <optional>
 #include <vector>
 #include "regina-core.h"
+#include "concepts/core.h"
 #include "enumerate/validityconstraints.h"
 #include "maths/matrix.h"
 #include "packet/packet.h"
@@ -81,7 +80,7 @@ class SurfaceFilter;
  *
  * The list of available fields may grow with future releases of Regina.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 enum class SurfaceExport {
     /**
@@ -170,7 +169,7 @@ enum class SurfaceExport {
  * will have the type `Flags<SurfaceExport>`, though there is usually no need
  * for end users to explicitly refer to the flags type by name.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 using SurfaceExportFields [[deprecated]] = SurfaceExport;
 
@@ -281,7 +280,7 @@ using SurfaceExportFields [[deprecated]] = SurfaceExport;
  * \param rhs the second flag to combine.
  * \return the combination of both flags.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline Flags<SurfaceExport> operator | (SurfaceExport lhs, SurfaceExport rhs) {
     return Flags<SurfaceExport>(lhs) | rhs;
@@ -342,7 +341,7 @@ inline Flags<SurfaceExport> operator | (SurfaceExport lhs, SurfaceExport rhs) {
  * \todo \feature Generate facets of the solution space representing
  * embedded surfaces.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class NormalSurfaces :
         public PacketData<NormalSurfaces>, public Output<NormalSurfaces> {
@@ -452,7 +451,8 @@ class NormalSurfaces :
          * \param coords the coordinate system to be used.  This must be
          * one of the system that Regina is able to use for enumeration;
          * this is documented alongside each NormalCoords enum value.
-         * \param which indicates which normal surfaces should be enumerated.
+         * \param whichList indicates which normal surfaces should be
+         * enumerated.
          * \param algHints passes requests to Regina for which specific
          * enumeration algorithm should be used.
          * \param tracker a progress tracker through which progress will
@@ -984,7 +984,7 @@ class NormalSurfaces :
          * A bidirectional iterator that runs through the raw vectors for
          * surfaces in this list.
          *
-         * As of Regina 7.4, this class no longer provides the iterator type
+         * As of Regina 7.3.1, this class no longer provides the iterator type
          * aliases \a value_type, \a iterator_category, \a difference_type,
          * \a pointer and \a reference. Instead you can access these through
          * `std::iterator_traits`.
@@ -1131,15 +1131,12 @@ class NormalSurfaces :
             ProgressTracker* tracker = nullptr);
 
         /**
-         * Implements the one-template-argument version of
-         * buildStandardFromReduced() using the specified bitmask type
-         * to store zero sets.  See the one-template-argument
-         * buildStandardFromReduced() for further information on this routine,
-         * including important preconditions.
+         * Implements buildStandardFromReduced() using the specified bitmask
+         * type to store zero sets.  See buildStandardFromReduced() for further
+         * information on this routine, including important preconditions.
          *
-         * The one-template-argument buildStandardFromReduced() simply
-         * chooses an appropriate bitmask type and then calls this
-         * routine, which does the real work.
+         * The routine buildStandardFromReduced() simply chooses an appropriate
+         * bitmask type and then calls this routine, which does the real work.
          *
          * \pre The template argument \a BitmaskType can support
          * bitmasks of size 7 \a n (if we are using normal surfaces) or size
@@ -1148,7 +1145,7 @@ class NormalSurfaces :
          * \pre The underlying triangulation (in addition to the other
          * preconditions) is non-empty.
          */
-        template <class BitmaskType>
+        template <ReginaBitmask BitmaskType>
         void buildStandardFromReducedUsing(
             const std::vector<NormalSurface>& reducedList,
             ProgressTracker* tracker);
@@ -1405,7 +1402,7 @@ class NormalSurfaces :
  * \param lhs the list whose contents should be swapped with \a rhs.
  * \param rhs the list whose contents should be swapped with \a lhs.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 void swap(NormalSurfaces& lhs, NormalSurfaces& rhs);
 
@@ -1450,7 +1447,7 @@ void swap(NormalSurfaces& lhs, NormalSurfaces& rhs);
  * \param coords the coordinate system to be used.
  * \return the resulting set of matching equations.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 MatrixInt makeMatchingEquations(const Triangulation<3>& triangulation,
     NormalCoords coords);
@@ -1476,7 +1473,7 @@ MatrixInt makeMatchingEquations(const Triangulation<3>& triangulation,
  * \param coords the coordinate system to be used.
  * \return the set of validity constraints.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 ValidityConstraints makeEmbeddedConstraints(
     const Triangulation<3>& triangulation, NormalCoords coords);

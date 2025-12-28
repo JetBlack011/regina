@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,15 +37,26 @@
 namespace regina {
 
 namespace detail {
+    /**
+     * Provides domain-specific details for the 4-D retriangulation process.
+     *
+     * For propagation of 4-D triangulations, we do not make use of the
+     * options type `Retriangulator::PropagationOptions`.
+     */
     template <>
     struct RetriangulateParams<Triangulation<4>> {
         static std::string sig(const Triangulation<4>& tri) {
             return tri.isoSig<IsoSigDegrees<4, 2>>();
         }
 
+        static std::string rigidSig(const Triangulation<4>& tri) {
+            // Currently rigidity is not supported for triangulations.
+            return tri.isoSig<IsoSigDegrees<4, 2>>();
+        }
+
         static constexpr const char* progressStage = "Exploring triangulations";
 
-        template <class Retriangulator>
+        template <typename Retriangulator>
         static void propagateFrom(const std::string& sig, size_t maxSize,
                 Retriangulator* retriang) {
             Triangulation<4> t = Triangulation<4>::fromIsoSig(sig);
@@ -90,11 +99,11 @@ namespace detail {
 // so the full implementation can stay out of the headers.
 
 template bool regina::detail::retriangulateInternal<Triangulation<4>, true>(
-    const Triangulation<4>&, int, unsigned, ProgressTrackerOpen*,
+    const Triangulation<4>&, bool, int, int, ProgressTrackerOpen*,
     regina::detail::RetriangulateActionFunc<Triangulation<4>, true>&&);
 
 template bool regina::detail::retriangulateInternal<Triangulation<4>, false>(
-    const Triangulation<4>&, int, unsigned, ProgressTrackerOpen*,
+    const Triangulation<4>&, bool, int, int, ProgressTrackerOpen*,
     regina::detail::RetriangulateActionFunc<Triangulation<4>, false>&&);
 
 } // namespace regina

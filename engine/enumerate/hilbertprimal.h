@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,6 +38,7 @@
 #endif
 
 #include "regina-core.h"
+#include "concepts/maths.h"
 #include "maths/matrix.h"
 #include <gmpxx.h>
 #include <iterator>
@@ -76,7 +75,7 @@ class HilbertPrimal {
          * Determines the Hilbert basis that generates all integer
          * points in the intersection of the <i>n</i>-dimensional
          * non-negative orthant with some linear subspace.
-         * The resulting basis elements will be of the class \a RayClass,
+         * The resulting basis elements will be of the class \a Ray,
          * and will be passed into the given action function one at a time.
          *
          * The intersection of the non-negative orthant with this linear
@@ -109,17 +108,14 @@ class HilbertPrimal {
          * For each of the resulting basis elements, this routine will call
          * \a action (which must be a function or some other callable object).
          * This action should return \c void, and must take exactly one
-         * argument, which will be the basis element stored using \a RayClass.
+         * argument, which will be the basis element stored using type \a Ray.
          * The argument will be passed as an rvalue; a typical \a action
-         * would take it as an rvalue reference (RayClass&&) and move its
+         * would take it as an rvalue reference (`Ray&&`) and move its
          * contents into some other more permanent storage.
          *
          * \pre If \a constraints is passed, then the given list of
          * extremal rays contains _only_ those extremal rays that satisfy
          * all of the given constraints.
-         * \pre The template argument RayClass is derived from (or equal to)
-         * Vector<T>, where \a T is one of Regina's arbitrary-precision
-         * integer classes (Integer or LargeInteger).
          * \pre The template argument RayIterator is a forward iterator type,
          * and when dereferenced has the interface of a constant vector of
          * Regina's arbitrary-precision integers (i.e., the elements of the
@@ -147,9 +143,9 @@ class HilbertPrimal {
          * \par
          * In both versions, the extremal rays must be passed as either:
          * - a Python list of VectorInt objects, which means the output type
-         *   \a RayClass will be VectorInt; or
+         *   \a Ray will be VectorInt; or
          * - a NormalSurfaces or NormalHypersurfaces object, which meams the
-         *   output type \a RayClass will be VectorLarge, and the input list
+         *   output type \a Ray will be VectorLarge, and the input list
          *   of extremal rays will be the range from `rays.beginVectors()` to
          *   `rays.endVectors()`.
          * \par
@@ -158,7 +154,7 @@ class HilbertPrimal {
          *
          * \param action a function (or other callable object) that will be
          * called for each basis element.  This function must take a single
-         * argument, which will be passed as an rvalue of type RayClass.
+         * argument, which will be passed as an rvalue of type Ray.
          * \param raysBegin an iterator pointing to the beginning of the
          * list of extremal rays.
          * \param raysEnd an iterator pointing past the end of the
@@ -168,7 +164,8 @@ class HilbertPrimal {
          * \param tracker a progress tracker through which progress
          * will be reported, or \c null if no progress reporting is required.
          */
-        template <class RayClass, class RayIterator, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray, typename RayIterator,
+            typename Action>
         static void enumerate(Action&& action,
             const RayIterator& raysBegin, const RayIterator& raysEnd,
             const ValidityConstraints& constraints,
@@ -187,8 +184,6 @@ class HilbertPrimal {
          * All arguments to this function are identical to those for the
          * public routine enumerate().
          *
-         * \pre The bitmask type is one of Regina's bitmask types, such
-         * as Bitmask, Bitmask1 or Bitmask2.
          * \pre The type \a BitmaskType can handle at least \a n bits,
          * where \a n is the dimension of the Euclidean space (i.e., the
          * number of columns in \a subspace).
@@ -196,8 +191,8 @@ class HilbertPrimal {
          * \exception UnsolvedCase Normaliz was unable to compute the
          * Hilbert basis for one or more maximal admissible faces.
          */
-        template <class RayClass, class BitmaskType,
-            class RayIterator, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray,
+            ReginaBitmask BitmaskType, typename RayIterator, typename Action>
         static void enumerateUsingBitmask(Action&& action,
             const RayIterator& raysBegin, const RayIterator& raysEnd,
             const ValidityConstraints& constraints, ProgressTracker* tracker);
@@ -241,7 +236,7 @@ class HilbertPrimal {
          * \return \c true if the given ray lies within the given face,
          * or \c false otherwise.
          */
-        template <class VectorClass, class BitmaskType>
+        template <typename VectorClass, ReginaBitmask BitmaskType>
         static bool inFace(const VectorClass& ray, const BitmaskType& face);
 };
 

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -292,11 +290,11 @@ class XMLParser {
  * resulting C++ string will be the empty string.
  *
  * \param str the string to convert.
- * \param free \c true if the original libxml string \a str should be
+ * \param shouldFree \c true if the original libxml string \a str should be
  * deallocated, or \c false if it should be preserved.
  * \return the given string as a C++ string.
  */
-std::string xmlString(xmlChar* str, bool free = true);
+std::string xmlString(xmlChar* str, bool shouldFree = true);
 
 // Inline functions for XMLPropertyDict
 
@@ -345,12 +343,12 @@ inline void XMLParser::finish() {
 
 // Inline global functions
 
-inline std::string xmlString(xmlChar* str, bool free) {
+inline std::string xmlString(xmlChar* str, bool shouldFree) {
     if (! str)
         return std::string();
 
     std::string ans((const char*)str);
-    if (free)
+    if (shouldFree)
         xmlFree(str);
     return ans;
 }

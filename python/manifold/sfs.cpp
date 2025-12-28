@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,14 +23,16 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
-#include <pybind11/pybind11.h>
+#include "regina-config.h" // for REGINA_PYBIND11_VERSION
+#include "pybind11/pybind11.h"
+#if REGINA_PYBIND11_VERSION == 3
+#include <pybind11/native_enum.h>
+#endif
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 #include "algebra/abeliangroup.h"
@@ -125,7 +127,14 @@ void addSFSpace(pybind11::module_& m) {
 
     RDOC_SCOPE_INNER_BEGIN(Class)
 
+#if REGINA_PYBIND11_VERSION == 3
+    pybind11::native_enum<SFSpace::Class>(s, "Class", "enum.Enum",
+            rdoc_inner_scope)
+#elif REGINA_PYBIND11_VERSION == 2
     pybind11::enum_<SFSpace::Class>(s, "Class", rdoc_inner_scope)
+#else
+    #error "Unsupported pybind11 version"
+#endif
         .value("o1", SFSpace::Class::o1, rdoc_inner::o1)
         .value("o2", SFSpace::Class::o2, rdoc_inner::o2)
         .value("n1", SFSpace::Class::n1, rdoc_inner::n1)
@@ -137,6 +146,9 @@ void addSFSpace(pybind11::module_& m) {
         .value("bn1", SFSpace::Class::bn1, rdoc_inner::bn1)
         .value("bn2", SFSpace::Class::bn2, rdoc_inner::bn2)
         .value("bn3", SFSpace::Class::bn3, rdoc_inner::bn3)
+#if REGINA_PYBIND11_VERSION == 3
+        .finalize()
+#endif
         ;
 
     // Deprecated type alias and constants:

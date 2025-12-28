@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -2440,7 +2438,7 @@ class TriangulationBase :
          * details on locks).  If the move _is_ allowed, and if the argument
          * \a perform is \c true, this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is
+         * \deprecated If you just wish to test whether such a move is
          * possible, call hasPachner().  If you wish to both check and perform
          * the move, call pachner() without the two extra boolean arguments.
          *
@@ -2475,7 +2473,7 @@ class TriangulationBase :
          * details on locks).  If the move _is_ allowed, and if the argument
          * \a perform is \c true, this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call has20().  If you wish to both check and perform the move, call
          * move20(), which does not take the two extra boolean arguments.
          *
@@ -2516,7 +2514,7 @@ class TriangulationBase :
          * need to solve undecidable problems).  See Face::isValid() for
          * further discussion.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasShellBoundary().  If you wish to both check and perform the
          * move, call shellBoundary() without the two extra boolean arguments.
          *
@@ -2548,12 +2546,51 @@ class TriangulationBase :
          * non-orientable component will be converted into its orientable
          * double cover.
          *
+         * In general, the resulting double cover will _not_ be oriented
+         * (though of course it will always be orientable).
+         *
          * If this triangulation has locks on any top-dimensional simplices
          * and/or their facets, then these locks will be duplicated alongside
          * their corresponding simplices and/or facets (i.e., they will appear
          * in both sheets of the double cover).
+         *
+         * \return the orientable double cover.
          */
         Triangulation<dim> doubleCover() const;
+
+        /**
+         * Returns two copies of this triangulation joined together along
+         * their boundary facets.
+         *
+         * Specifically: the resulting triangulation is obtained by taking two
+         * copies \a S and \a T of this triangulation, and then gluing each
+         * boundary facet of \a S to the corresponding boundary facet of \a T
+         * using the identity permutation.
+         *
+         * Any ideal vertices will be left alone (i.e., the ideal boundary
+         * components of \a S and \a T will _not_ be joined together).
+         *
+         * The resulting triangulation will not have any boundary facets.
+         * It will also not be oriented, even if this original triangulation
+         * _is_ oriented, since \a S and \a T will be reflections of each
+         * other through the original triangulation boundary.
+         *
+         * If this triangulation has no boundary facets (even if it _does_
+         * have ideal boundary components, then the result will simply be
+         * two disjoint copies of this original triangulation.
+         *
+         * If this triangulation has locks on any top-dimensional simplices
+         * and/or their facets, then these locks will be duplicated alongside
+         * their corresponding simplices and/or facets (i.e., they will appear
+         * in both copies of the original triangulation).  Any locks on
+         * boundary facets will _not_ prevent this operation from completing
+         * successfully (i.e., they will not prevent the two copies \a S and
+         * \a T from being glued together).
+         *
+         * \return two copies of this triangulation joined along their
+         * boundary facets.
+         */
+        Triangulation<dim> doubleOverBoundary() const;
 
         /**
          * Deprecated routine that converts this triangulation into its
@@ -2667,15 +2704,40 @@ class TriangulationBase :
          * into a cusp formed using vertices of these new simplices.
          *
          * In Regina's \ref stddim "standard dimensions", where triangulations
-         * also support an idealToFinite() operation, this routine is a loose
+         * also support a truncateIdeal() operation, this routine is a loose
          * converse of that operation.
          *
          * In dimension 2, every boundary component is spherical and so
          * this routine simply fills all the punctures in the underlying
          * surface.  (In dimension 2, triangulations cannot have cusps).
          *
+         * A note: this operation does _not_ preserve orientedness.  That is,
+         * even if this triangulation was oriented before calling this
+         * function, it might not be oriented after.  This behaviour may
+         * change in a future version of Regina.
+         *
          * \warning If a real boundary component contains vertices whose
          * links are not discs, this operation may have unexpected results.
+         *
+         * \exception LockViolation This triangulation contains at least one
+         * locked boundary facet.  This exception will be thrown before any
+         * changes are made.  See Simplex<dim>::lockFacet() for further
+         * details on how such locks work and what their implications are.
+         *
+         * \return \c true if changes were made, or \c false if the
+         * original triangulation contained no real boundary components.
+         */
+        bool makeIdeal();
+
+        /**
+         * Alias for makeIdeal(), which converts each real boundary component
+         * into an ideal vertex.
+         *
+         * This alias finiteToIdeal() is provided for compatibility with older
+         * versions of Regina.  (It is _not_ deprecated, and so this alias
+         * should remain part of Regina for a long time.)
+         *
+         * See makeIdeal() for further details.
          *
          * \exception LockViolation This triangulation contains at least one
          * locked boundary facet.  This exception will be thrown before any
@@ -2764,16 +2826,15 @@ class TriangulationBase :
          * possible to relabel their top-dimensional simplices and the
          * (<i>dim</i>+1) vertices of each simplex in a way that makes
          * the two triangulations combinatorially identical, as returned
-         * by isIdenticalTo().
+         * by the equality test `t1 == t2`.
          *
          * Equivalently, two triangulations are isomorphic if and only if
          * there is a one-to-one and onto boundary complete combinatorial
          * isomorphism from this triangulation to \a other, as described
          * in the Isomorphism class notes.
          *
-         * In particular, note that this triangulation and \a other must
-         * contain the same number of top-dimensional simplices for such an
-         * isomorphism to exist.
+         * In particular, like the equality test, this routine does _not_
+         * examine or compare simplex/facet locks.
          *
          * If the triangulations are isomorphic, then this routine returns
          * one such boundary complete isomorphism (i.e., one such relabelling).
@@ -2786,8 +2847,8 @@ class TriangulationBase :
          *
          * If you need to ensure that top-dimensional simplices are labelled
          * the same in both triangulations (i.e., that the triangulations are
-         * related by the _identity_ isomorphism), you should call the
-         * stricter test isIdenticalTo() instead.
+         * related by the _identity_ isomorphism), you should use the
+         * stricter equality test `t1 == t2` instead.
          *
          * \warning For large dimensions, this routine can become
          * extremely slow: its running time includes a factor of
@@ -2818,6 +2879,9 @@ class TriangulationBase :
          * lie on the boundary of this triangulation need not correspond to
          * boundary facets of \a other, and that \a other may contain more
          * top-dimensional simplices than this triangulation.
+         *
+         * Like isIsomorphicTo() and the equality test, this routine does _not_
+         * examine or compare simplex/facet locks.
          *
          * If a boundary incomplete isomorphism is found, the details of
          * this isomorphism are returned.  Thus, to test whether an isomorphism
@@ -2967,6 +3031,12 @@ class TriangulationBase :
          * followed by the gluing permutation (which in turn is written
          * as the images of 0,1,...,<i>dim</i> in order).
          *
+         * If this triangulation has any locks on its top-dimensional simplices
+         * and/or their facets, this routine will carry the locks through the
+         * relabelling correctly.  Locks do not play any role in determining
+         * which labelling is canonical (i.e., the canonical labelling will be
+         * the same regardles of whether or not there are locks present).
+         *
          * \pre This routine currently works only when the triangulation
          * is connected.  It may be extended to work with disconnected
          * triangulations in later versions of Regina.
@@ -2995,6 +3065,9 @@ class TriangulationBase :
          * as the original simplices from \a source, and any gluings
          * between the simplices of \a source will likewise be copied
          * across as gluings between their copies in this triangulation.
+         *
+         * As a trivial consequence, if this and the given triangulation are
+         * both oriented, then the result will preserve these orientations.
          *
          * If \a source has locks on any top-dimensional simplices and/or their
          * facets, these locks will also be copied over to this triangulation.
@@ -3082,6 +3155,16 @@ class TriangulationBase :
          * isomorphic if and only if their isomorphism signatures of
          * type \a T are the same.
          *
+         * By default, isomorphism signatures support simplex and facet locks:
+         * this means that locks are encoded in the isomorphism signature, and
+         * the "combinatorial isomorphisms" mentioned above must respect not
+         * just the gluings between simplices but also any simplex and/or facet
+         * locks.  You can change this behaviour by requesting a different
+         * encoding (such as IsoSigPrintableLockFree).  Under the default
+         * encoding, if this triangulation does not have any simplex and/or
+         * facet locks then the isomorphism signature will look the same as it
+         * did in Regina 7.3.x and earlier, before locks were supported.
+         *
          * The length of an isomorphism signature is proportional to
          * `n log n`, where \a n is the number of top-dimenisonal
          * simplices.  The time required to construct it is worst-case
@@ -3123,7 +3206,8 @@ class TriangulationBase :
          *   IsoSigPrintable returns a std::string consisting entirely of
          *   printable characters in the 7-bit ASCII range.  Importantly, this
          *   default encoding is currently the only encoding from which Regina
-         *   can _reconstruct_ a triangulation from its isomorphism signature.
+         *   can _reconstruct_ a triangulation (including any simplex and/or
+         *   facet locks) from its isomorphism signature.
          *
          * You may instead pass your own type and/or encoding parameters as
          * template arguments.  Currently this facility is for internal use
@@ -3132,12 +3216,17 @@ class TriangulationBase :
          *
          * - The \a Type parameter should be a class that is constructible
          *   from a componenent reference, and that offers the member functions
-         *   simplex(), perm() and next(); see the implementation of
+         *   `simplex()`, `perm()` and `next()`; see the implementation of
          *   IsoSigClassic for details.
          *
          * - The \a Encoding parameter should be a class that offers a
-         *   \a Signature type alias, and static functions emptySig() and
-         *   encode().  See the implementation of IsoSigPrintable for details.
+         *   \a Signature type alias, and static functions `emptySig()` and
+         *   `encode()`.  See the implementation of IsoSigPrintable for details.
+         *
+         * - If you wish to produce an isomorphism signature that ignores
+         *   simplex and/or facet locks then you can use an encoding whose
+         *   `encode()` function ignores the final \a locks argument, such as
+         *   IsoSigPrintableLockFree.
          *
          * For a full and precise description of the classic isomorphism
          * signature format for 3-manifold triangulations, see
@@ -3146,15 +3235,15 @@ class TriangulationBase :
          * `arXiv:1110.6080`.  The format for other dimensions is
          * essentially the same, but with minor dimension-specific adjustments.
          *
-         * \python Although this is a templated function, all of the
-         * variants supplied with Regina are available to Python users.
-         * For the default type and encoding, you can simply call isoSig().
-         * For other signature types, you should call the function as
-         * isoSig_<i>Type</i>, where the suffix \a Type is an abbreviated
-         * version of the \a Type template parameter; one such example is
-         * \c isoSig_EdgeDegrees (for the case where \a Type is
-         * the class IsoSigEdgeDegrees).  Currently Regina only offers one
-         * encoding (the default), and so there are no suffixes for encodings.
+         * \python Although this is a templated function, all of the variants
+         * supplied with Regina are available to Python users.  To use the
+         * default signature type and encoding, just call `isoSig()`.  To use
+         * a non-default signature type, add a suffix `_Type` where \a Type is
+         * an abbreviated version of the signature type (e.g.,
+         * `isoSig_EdgeDegrees()` for the signature type IsoSigEdgeDegrees).
+         * To use the encoding IsoSigPrintableLockFree (the only non-default
+         * encoding available at present), add another suffix `_LockFree`
+         * (e.g., `isoSig_LockFree()`, or `isoSig_EdgeDegrees_LockFree()`).
          *
          * \warning Do not mix isomorphism signatures between dimensions!
          * It is possible that the same string could corresponding to both a
@@ -3163,8 +3252,8 @@ class TriangulationBase :
          *
          * \return the isomorphism signature of this triangulation.
          */
-        template <class Type = IsoSigClassic<dim>,
-            class Encoding = IsoSigPrintable<dim>>
+        template <typename Type = IsoSigClassic<dim>,
+            typename Encoding = IsoSigPrintable<dim>>
         typename Encoding::Signature isoSig() const;
 
         /**
@@ -3185,8 +3274,8 @@ class TriangulationBase :
          *
          * \return the isomorphism signature of this triangulation.
          */
-        template <class Type = IsoSigClassic<dim>,
-            class Encoding = IsoSigPrintable<dim>>
+        template <typename Type = IsoSigClassic<dim>,
+            typename Encoding = IsoSigPrintable<dim>>
         typename Encoding::Signature sig() const;
 
         /**
@@ -3214,15 +3303,16 @@ class TriangulationBase :
          * reconstructed from `fromIsoSig(sig)` will be identical to
          * `relabelling(this)`.
          *
-         * \python Although this is a templated function, all of the
-         * variants supplied with Regina are available to Python users.  For
-         * the default type and encoding, you can simply call isoSigDetail().
-         * For other signature types, you should call the function as
-         * isoSigDetail_<i>Type</i>, where the suffix \a Type is an abbreviated
-         * version of the \a Type template parameter; one such example is
-         * \c isoSigDetail_EdgeDegrees (for the case where \a Type is
-         * the class IsoSigEdgeDegrees).  Currently Regina only offers one
-         * encoding (the default), and so there are no suffixes for encodings.
+         * \python Although this is a templated function, all of the variants
+         * supplied with Regina are available to Python users.  To use the
+         * default signature type and encoding, just call `isoSigDetail()`.
+         * To use a non-default signature type, add a suffix `_Type` where
+         * \a Type is an abbreviated version of the signature type (e.g.,
+         * `isoSigDetail_EdgeDegrees()` for the signature type
+         * IsoSigEdgeDegrees).  To use the encoding IsoSigPrintableLockFree
+         * (the only non-default encoding available at present), add another
+         * suffix `_LockFree` (e.g., `isoSigDetail_LockFree()`, or
+         * `isoSigDetail_EdgeDegrees_LockFree()`).
          *
          * \pre This triangulation must be non-empty and connected.  The
          * facility to return a relabelling for disconnected triangulations
@@ -3235,8 +3325,8 @@ class TriangulationBase :
          * triangulation, and (ii) the isomorphism between this triangulation
          * and the triangulation that would be reconstructed from fromIsoSig().
          */
-        template <class Type = IsoSigClassic<dim>,
-            class Encoding = IsoSigPrintable<dim>>
+        template <typename Type = IsoSigClassic<dim>,
+            typename Encoding = IsoSigPrintable<dim>>
         std::pair<typename Encoding::Signature, Isomorphism<dim>> isoSigDetail()
             const;
 
@@ -3415,8 +3505,8 @@ class TriangulationBase :
          * amongst other things).
          *
          * The iterator range (\a beginGluings, \a endGluings) should encode
-         * the list of gluings for the triangulation.  Each iterator in
-         * this range must dereference to a tuple of the form
+         * the list of gluings for the triangulation.  Each iterator in this
+         * range must dereference to a tuple (or tuple-like object) of the form
          * (\a simp, \a facet, \a adj, \a gluing); here \a simp, \a facet
          * and \a adj are all integers, and \a gluing is of type Perm<dim+1>.
          * Each such tuple indicates that facet \a facet of top-dimensional
@@ -3450,12 +3540,6 @@ class TriangulationBase :
          *     ( 0, 2, 1, Perm4(0,3,2,1) ), ( 0, 3, 1, Perm4(2,1,0,3) )])
          * \endcode
          *
-         * \note The assumption is that the iterators dereference to a
-         * std::tuple<size_t, int, size_t, Perm<dim+1>>.  However, this is
-         * not strictly necessary - the dereferenced type may be any type that
-         * supports std::get (and for which std::get<0..3>() yields suitable
-         * integer/permutation types).
-         *
          * \exception InvalidArgument The given list of gluings does not
          * correctly describe a triangulation with \a size top-dimensional
          * simplices.
@@ -3471,9 +3555,15 @@ class TriangulationBase :
          * of the list of gluings.
          * \return the reconstructed triangulation.
          */
-        template <typename Iterator>
+        template <std::input_iterator iterator>
+        requires requires(iterator it) {
+            { std::get<0>(*it) } -> std::convertible_to<size_t>;
+            { std::get<1>(*it) } -> std::convertible_to<int>;
+            { std::get<2>(*it) } -> std::convertible_to<size_t>;
+            { std::get<3>(*it) } -> std::convertible_to<Perm<dim + 1>>;
+        }
         static Triangulation<dim> fromGluings(size_t size,
-            Iterator beginGluings, Iterator endGluings);
+            iterator beginGluings, iterator endGluings);
 
         /**
          * Recovers a full triangulation from an isomorphism signature.
@@ -3690,8 +3780,7 @@ class TriangulationBase :
          * scenarios:
          *
          * - triangulation constructors, but only in settings where no
-         *   properties (including the skeleton) have been computed yet
-         *   (as an example, see the constructor that builds a link complement);
+         *   properties (including the skeleton) have been computed yet;
          *
          * - routines that create a "staging" triangulation, without computing
          *   its skeleton or any other properties, and then swap or move this
@@ -4048,7 +4137,7 @@ class TriangulationBase :
          * constructed for the correct number of simplices.
          * \return the candidate isomorphism signature.
          */
-        template <class Encoding>
+        template <typename Encoding>
         typename Encoding::Signature isoSigFrom(size_t simp,
             const Perm<dim+1>& vertices, Isomorphism<dim>* relabelling) const;
 
@@ -4132,23 +4221,8 @@ class TriangulationBase :
          *
          * \pre The skeleton of this triangulation has been computed.
          */
-        template <int subdim, typename Iterator>
-        void reorderFaces(Iterator begin, Iterator end);
-
-        /**
-         * Relabels the vertices of the given face.
-         *
-         * For each top-dimensional simplex \a s of the triangulation that
-         * contains \a f, if the old mapping from vertices of \a f to vertices
-         * of \a s (as returned by Simplex<dim>::faceMapping()) is given by the
-         * permutation \a p, then the new mapping will become
-         * `p * adjust`.
-         *
-         * \pre For each \a i = <i>subdim</i>+1,...,\a dim, the given
-         * permutation maps \a i to itself.
-         */
-        template <int subdim>
-        void relabelFace(Face<dim, subdim>* f, const Perm<dim + 1>& adjust);
+        template <int subdim, InputIteratorFor<Face<dim, subdim>*> iterator>
+        void reorderFaces(iterator begin, iterator end);
 
         /**
          * Tests whether this and the given triangulation have the same
@@ -4906,18 +4980,9 @@ inline auto TriangulationBase<dim>::pentachora() const {
 }
 
 template <int dim>
-template <int subdim, typename Iterator>
-inline void TriangulationBase<dim>::reorderFaces(Iterator begin, Iterator end) {
+template <int subdim, InputIteratorFor<Face<dim, subdim>*> iterator>
+inline void TriangulationBase<dim>::reorderFaces(iterator begin, iterator end) {
     std::get<subdim>(faces_).refill(begin, end);
-}
-
-template <int dim>
-template <int subdim>
-inline void TriangulationBase<dim>::relabelFace(Face<dim, subdim>* f,
-        const Perm<dim + 1>& adjust) {
-    for (const auto& emb : *f)
-        std::get<subdim>(emb.simplex()->mappings_)[emb.face()] =
-            emb.vertices() * adjust;
 }
 
 template <int dim>
@@ -5328,9 +5393,15 @@ Triangulation<dim> TriangulationBase<dim>::tightDecode(std::istream& input) {
 }
 
 template <int dim>
-template <typename Iterator>
+template <std::input_iterator iterator>
+requires requires(iterator it) {
+    { std::get<0>(*it) } -> std::convertible_to<size_t>;
+    { std::get<1>(*it) } -> std::convertible_to<int>;
+    { std::get<2>(*it) } -> std::convertible_to<size_t>;
+    { std::get<3>(*it) } -> std::convertible_to<Perm<dim + 1>>;
+}
 Triangulation<dim> TriangulationBase<dim>::fromGluings(size_t size,
-        Iterator beginGluings, Iterator endGluings) {
+        iterator beginGluings, iterator endGluings) {
     Triangulation<dim> ans;
 
     // Note: new simplices are initialised with all adj_[i] null.
@@ -5338,35 +5409,40 @@ Triangulation<dim> TriangulationBase<dim>::fromGluings(size_t size,
         ans.simplices_.push_back(new Simplex<dim>(&ans));
 
     for (auto it = beginGluings; it != endGluings; ++it) {
-        if (std::get<0>(*it) >= size)
+        size_t srcIndex = std::get<0>(*it);
+        if (srcIndex >= size)
             throw InvalidArgument(
                 "fromGluings(): source simplex out of range");
-        if (std::get<2>(*it) >= size)
+
+        size_t destIndex = std::get<2>(*it);
+        if (destIndex >= size)
             throw InvalidArgument(
                 "fromGluings(): adjacent simplex out of range");
-        if (std::get<1>(*it) < 0 || std::get<1>(*it) > dim)
+
+        int srcFacet = std::get<1>(*it);
+        if (srcFacet < 0 || srcFacet > dim)
             throw InvalidArgument(
                 "fromGluings(): facet number out of range");
 
-        Simplex<dim>* s = ans.simplices_[std::get<0>(*it)];
-        Simplex<dim>* adj = ans.simplices_[std::get<2>(*it)];
-        int facet = std::get<1>(*it);
+        Simplex<dim>* src = ans.simplices_[srcIndex];
+        Simplex<dim>* dest = ans.simplices_[destIndex];
 
-        if (s->adj_[facet])
+        Perm<dim + 1> gluing = std::get<3>(*it);
+        if (src->adj_[srcFacet])
             throw InvalidArgument(
                 "fromGluings(): source facet already glued to something");
-        if (adj->adj_[std::get<3>(*it)[facet]])
+        if (dest->adj_[gluing[srcFacet]])
             throw InvalidArgument(
                 "fromGluings(): destination facet already glued to something");
-        if (s == adj && std::get<3>(*it)[facet] == facet)
+        if (src == dest && gluing[srcFacet] == srcFacet)
             throw InvalidArgument(
                 "fromGluings(): a facet cannot be glued to itself");
 
-        s->adj_[facet] = adj;
-        s->gluing_[facet] = std::get<3>(*it);
+        src->adj_[srcFacet] = dest;
+        src->gluing_[srcFacet] = gluing;
 
-        adj->adj_[std::get<3>(*it)[facet]] = s;
-        adj->gluing_[std::get<3>(*it)[facet]] = std::get<3>(*it).inverse();
+        dest->adj_[gluing[srcFacet]] = src;
+        dest->gluing_[gluing[srcFacet]] = gluing.inverse();
     }
 
     return ans;
@@ -5633,6 +5709,11 @@ inline void TriangulationBase<dim>::barycentricSubdivision() {
 }
 
 template <int dim>
+inline bool TriangulationBase<dim>::finiteToIdeal() {
+    return makeIdeal();
+}
+
+template <int dim>
 std::vector<Triangulation<dim>>
         TriangulationBase<dim>::triangulateComponents() const {
     // Knock off the empty triangulation first.
@@ -5796,7 +5877,7 @@ inline void TriangulationBase<dim>::cloneBoundaryFaces(
 }
 
 template <int dim>
-template <class Type, class Encoding>
+template <typename Type, typename Encoding>
 inline typename Encoding::Signature TriangulationBase<dim>::sig() const {
     return isoSig<Type, Encoding>();
 }

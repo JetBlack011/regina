@@ -18,7 +18,7 @@
      <para>
       <inlinemediaobject>
        <imageobject>
-        <imagedata fileref="run-fedora-menu.png"/>
+        <imagedata multires="run-opensuse"/>
        </imageobject>
       </inlinemediaobject>
      </para>
@@ -31,7 +31,7 @@
      <para>
       <inlinemediaobject>
        <imageobject>
-        <imagedata fileref="run-mac-white.png"/>
+        <imagedata multires="run-mac"/>
        </imageobject>
       </inlinemediaobject>
      </para>
@@ -47,7 +47,7 @@
      <para>
       <inlinemediaobject>
        <imageobject>
-        <imagedata fileref="run-windows.png"/>
+        <imagedata multires="run-windows"/>
        </imageobject>
       </inlinemediaobject>
      </para>
@@ -68,9 +68,9 @@
 
 <screen>
     <prompt>example$</prompt> <userinput>regina-python</userinput>
-    Regina 4.95
-    Software for 3-manifold topology and normal surface theory
-    Copyright (c) 1999-2013, The Regina development team
+    Regina 7.4
+    Software for low-dimensional topology
+    Copyright (c) 1999-2025, The Regina development team
     &gt;&gt;&gt;
 </screen>
 
@@ -84,9 +84,9 @@
 
 <screen>
     <prompt>example$</prompt> <userinput>/Applications/Regina.app/Contents/MacOS/regina-python</userinput>
-    Regina 4.95
-    Software for 3-manifold topology and normal surface theory
-    Copyright (c) 1999-2013, The Regina development team
+    Regina 7.4
+    Software for low-dimensional topology
+    Copyright (c) 1999-2025, The Regina development team
     &gt;&gt;&gt;
 </screen>
 
@@ -114,21 +114,6 @@
     0:1 0:0 1:0 1:1 | 0:2 0:3 bdry bdry
     ...
 </screen>
-     </para>
-    </answer>
-   </qandaentry>
-
-   <qandaentry>
-    <question><para>
-     On &macosx;, do I need &fink; any more?
-    </para></question>
-    <answer>
-     <para>
-      No!  As of version&nbsp;4.92, &regina; ships as a standalone app
-      bundle that you can drag and drop straight into your Applications
-      folder.  If you installed &fink; for an earlier version of
-      &regina; and you do not use it for anything else, you can remove
-      it: simply delete <filename>/sw</filename> and everything beneath it.
      </para>
     </answer>
    </qandaentry>
@@ -188,7 +173,7 @@
 
    <qandaentry id="trouble-python-snappy">
     <question><para>
-     &snappy; has stopped working in the graphical user interface.
+     &snappy; has stopped working in &regina;'s graphical &python; consoles.
      When I import &snappy; and try to create a manifold, I receive a
      <exceptionname>TypeError</exceptionname> with the message
      &ldquo;isinstance() arg 2 must be a class, type, or tuple

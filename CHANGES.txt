@@ -1,5 +1,5 @@
 
-Regina - A Normal Surface Theory Calculator
+Regina - Software for low-dimensional topology
 
     This file gives a detailed list of changes between releases,
     including all changes to the C++/Python API.
@@ -7,10 +7,138 @@ Regina - A Normal Surface Theory Calculator
     For just the key highlights, see the (far more readable) file
     HIGHLIGHTS.txt.
 
-Version 7.4  [ (to be announced) ]
+Version 7.5  [ TODO ]
 
     GENERAL:
-        - Now requires C++20 (not C++17), and Python 3.7 or newer.
+        - Begun a move to use C++20 concepts and constraints instead of plain
+          English requirements for template arguments.  This is an ongoing
+          project.  As a result, many constraints on template arguments are
+          now enforced by the compiler.
+        - More use of constexpr throughout the calculation engine.
+    ENGINE:
+        Class Cut:
+            - For the iterator-based constructor, the old recommendation that
+              the iterator type be random access is now a hard requirement.
+        Class FixedArray:
+            - Now has a default constructor that creates an empty array.
+        Class GroupExpressionTerm, GroupExpression, GroupPresentation,
+                HomGroupPresentation:
+            - Now uses size_t instead of unsigned long throughout for
+              generator counts and generator indices.
+            - The depth argument to GroupPresentation::proliferateRelators()
+              is now of type int.
+        Class Laurent<T>:
+            - For the iterator-based constructor and init() routine, the
+              iterator type is now required to be random access.
+        Class LPCol<...>:
+            - This is now an internal class in the namespace regina::detail,
+              and its template parameters have changed.  End users should have
+              no need to refer to LPCol<...> at all.
+        Class LPConstraint...:
+            - All linear programming constraint classes must now adhere to the
+              new concept LPConstraint.
+            - The constant nConstraints and the routine constrain() are both
+              removed, and replaced with the class constant array constraints[].
+            - The arguments to addRows() have changed: it no longer takes an
+              initial tableaux, but instead takes the relevant triangulation
+              and column permutation.
+        Class LPConstraintAPI, LPConstraintBase, LPConstraintSubspace:
+            - The old base classes LPConstraintBase and LPConstraintSubspace
+              are now deprecated, and should no longer be used.  Instead they
+              have been replaced with the new concepts LPConstraint and
+              LPSubspace that the relevant constraint types should adhere to.
+              See also the new documentation-only class LPConstraintAPI for
+              details on how a linear programming constraint type should behave.
+        Enum LPConstraintType:
+            - New enumeration for use with the various LPConstraint classes.
+        Class LPInitialTableaux<Constraint>:
+            - Removed the copy assignment operator (since this class now uses
+              FixedArray internally, which is not copy-assignable).  If you
+              need to copy a tableaux, the copy constructor remains available
+              (and move assignment is still available also).
+        Class PermClass<n>:
+            - Everything in this class is now constexpr.
+        Class Polynomial<T>:
+            - For the iterator-based constructor and init() routine, the
+              iterator type is now required to be random access.
+        Class RingTraits:
+            - Provides new compile-time constants zeroInitialised and
+              zeroDivisors.
+        Class Vector<T>:
+            - For the iterator-based constructor, the old recommendation that
+              the iterator type be random access is now a hard requirement.
+        Function subscript(), superscript():
+            - When passing one of Regina's integer types, there is now a
+              precondition that the given value is not infinity.
+        Function valueOf():
+            - The native C++ integer versions of valueOf() are now templated.
+            - The unsigned integer versions now reject negative numbers
+              instead of performing wrap-around arithmetic.
+            - All numeric versions of valueOf() (native integers and double)
+              have been tightened with respect to unexpected characters,
+              including leading and trailing whitespace:
+              + they always return false, as the documentation has always
+                promised (in the past, they succeeded in the presence of
+                leading whitespace);
+              + instead of performing the conversion "as best it can", the
+                documentation now states that the value stored in dest is
+                undefined.
+        Constant is_cpp_integer_v<T>, is_signed_cpp_integer_v<T>,
+                is_unsigned_cpp_integer_v<T>:
+            - New compile-time constant is_signed_cpp_integer_v<T>.
+            - All three constants are now false when T == bool (previously,
+              is_cpp_integer_v<bool> and is_unsigned_cpp_integer_v<bool> were
+              both true).
+        Concepts:
+            - Many new concepts, accessible via #include <concepts/*.h>:
+              + ArbitraryPrecisionInteger, ArbitraryPrecisionIntegerVector,
+                ArrayOf, AssignableTo, BidirectionalIteratorFor, CanConstruct,
+                CharIterator, CoefficientDomain, ConstRefArrayOf, CppInteger,
+                Domain, ForwardIteratorFor, InherentlyTightEncodable,
+                InputIteratorFor, IntegerComparable, IntegerCompatible,
+                IntegerVector, IntegralDomain, Iterable, PacketClass,
+                PacketIterator, RandomAccessIteratorFor, ReginaBitmask,
+                ReginaInteger, Ring, RingLike, SelfSentinelInputIterator,
+                SignedCppInteger, StandardCppInteger, Stringifiable,
+                UnsignedCppInteger, Writeable.
+            - Other new concepts for targeted use defined in other headers:
+              + BanConstraint, LPConstraint, LPSubspace (defined in
+                enumerate/treelp.h)
+    PYTHON:
+        - Removed the bindings TreeEnumeration_EulerPositive..., since the
+          linear constraint LPConstraintEulerPositive was never meant to be
+          used with TreeEnumeration (since the constraint does not map out a
+          linear subspace).
+
+Version 7.4.1  [ 30 November, 2025 ]
+
+    GENERAL:
+        - Now builds under clang 16 and on macOS 26.
+        - For systems that go out of their way to explicitly disable linking
+          against graphviz plugins (e.g., openSUSE Leap 16), you can now work
+          around this by passing the cmake flag -DGRAPHVIZ_DYNAMIC_PLUGINS=1 .
+    ENGINE:
+        Class BoundaryComponent<dim>:
+            - Fixed an important bug in build() for real boundary components,
+              which gave inconsistencies in the labelling of lower-dimensional
+              faces.  See: https://regina-normal.github.io/bugs.html#bcbuild
+        Class Face<dim, subdim>
+            - Now isLinkOrientable() will compute the orientability of the link
+              correctly even for invalid faces with bad self-identifications.
+    PYTHON:
+        - Added missing Python bindings for Triangulation<dim>::simplices()
+          for dimension dim ≥ 5.
+    UTILITIES:
+        - Fixed a bug in Katie's quadricolour search routine, which would cause
+          a segfault when attempting to build a triangulation of a 0-framed
+          unknot from certain single-crossing diagrams.
+
+Version 7.4  [ 29 August, 2025 ] - Happy Wear it Purple day!
+
+    GENERAL:
+        - Regina now requires C++20 (not C++17).
+        - The GUI now requires Qt6 (i.e., dropped support for Qt5).
+        - The API docs now require Doxygen ≥ 1.9.2 (not ≥ 1.8.17).
         - Added support for simplex and facet locks throughout the API.  See
           Simplex<dim>::lock() and Simplex<dim>::lockFacet() for an overview
           of how locks work.  Many routines throughout the API could now
@@ -25,11 +153,6 @@ Version 7.4  [ (to be announced) ]
           automatically generated from equality tests (==) instead.
         - Explicit comparisons (<, <=, >, >=) have been removed, and are now
           automatically generated from the new spaceship operator (<=>).
-        - For several iterator classes, the associated type aliases
-          (value_type, etc.) are no longer provided as class members, since
-          these were confusing pybind11.  Instead you can (and should) access
-          these through the C++ standard iterator library (e.g.,
-          std::iterator_traits<T>::value_type, or std::iter_value_t<T>).
         - Several build dependencies are gone: Jansson, Popt, CppUnit.
           See the individual sections below for details.
         - Updated the SnapPea kernel to the one shipped with SnapPy 3.0.3.
@@ -63,6 +186,8 @@ Version 7.4  [ (to be announced) ]
               less-than (<) as before.
         Class AngleStructures:
             - New routine sort().
+        Class Arrow:
+            - New polynomial class for working with arrow polynomials of links.
         Enum Attachment::OwnershipPolicy:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., OWN_MALLOC) have been
@@ -107,24 +232,31 @@ Version 7.4  [ (to be announced) ]
               just a deprecated alias for CensusPurge.
         Enum ChangeType:
             - New enum for internal use with triangulation/link change spans.
-        Class DiscSpecIterator:
-            - This class no longer provides its iterator-related type aliases
-              (value_type, etc.) as members, since these confused pybind11.
-              Instead you should access them through the C++ standard
-              iterator library (e.g., via std::iterator_traits).  The old
-              member type aliases have been removed completely.
+        Class Cut:
+            - Routine weight() can now work with links and model link graphs,
+              as well as triangulations and facet pairings.
         Struct DiscType:
             - Added a spaceship operator (<=>) for comparisons.  This has the
               effect of implementing all comparison operators, not just
               less-than (<) as before.
+        Class Example<dim>:
+            - Routine doubleCone() now preserves orientedness.
+        Class Example<2>:
+            - Routine sphereOctahedron() now returns an oriented triangulation.
         Class Example<3>:
             - New routine b5().
+            - New routine threeTorus(), thanks to Rhuaidi Burke.
             - Routines lst(), lens(), augTriSolidTorus() and sfsOverSphere()
               now check their preconditions and throw an exception if they fail.
             - Renamed cuspedGenusTwoTorus() to idealGenusTwoHandlebody().
               The old name has been kept as a deprecated alias.
+        Class Example<4>:
+            - New routine fourTorus(), thanks to Rhuaidi Burke.
+            - New routine boundarySpin(), which takes a 3-manifold.
+            - New routine spun(), which takes a 1-knot.
         Class ExampleLink:
             - New routine chen().
+            - New routines virtualTrefoil(), kishino(), and gpv().
             - Added several new routines that return 3-dimensional embeddings
               of links (i.e., SpatialLink objects).
         Class Face<dim, 1>, FaceNumbering<dim, 1>:
@@ -138,11 +270,13 @@ Version 7.4  [ (to be announced) ]
               enumeration for better type safety.  The old enum constants
               (e.g., Triangle<3>::CONE) are likewise now deprecated aliases for
               the new scoped enum values (e.g., TriangleType::Cone).
-            - The 3-D routines Triangle<3>::type() and Triangle<3>::subtype()
-              have been renamed to triangleType() and triangleSubtype(), and
+            - The 3-D routines Triangle<3>::type(), Triangle<3>::subtype(),
+              isMobiusBand() and isCone() have been renamed to triangleType(),
+              triangleSubtype(), formsMobiusBand() and formsCone(), and
               are now available for triangles within triangulations of any
               dimension ≥ 3.  The old 3-D routines are now deprecated.
         Class Face<dim, dim-1>:
+            - New routine join().
             - New routines lock(), unlock(), and isLocked().
         Class FacePair:
             - Added a spaceship operator (<=>) for comparisons.
@@ -175,12 +309,15 @@ Version 7.4  [ (to be announced) ]
               an explicit Hilbert basis algorithm, the algorithm flag could
               have been ignored (thereby using the default vertex enumeration
               algorithm as the first phase of the primal Hilbert basis method).
+            - Everything in this class is now constexpr.
         Enum Framing:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., FRAMING_SEIFERT) have been
               renamed as scoped enum values (e.g., Framing::Seifert).
               The old names have been kept as deprecated compile-time constants
               in the regina:: namespace.
+        Enum GraphConstraint:
+            - New flag type for use with the enumeration of model link graphs.
         Class GraphLoop, GraphPair, GraphTriple:
             - Added a spaceship operator (<=>) for aesthetic comparisons.
               This has the effect of implementing all comparison operators,
@@ -225,6 +362,9 @@ Version 7.4  [ (to be announced) ]
               just Flags<HyperList>, and this should all be happening
               automatically behind the scenes.  HyperListFlags is now
               just a deprecated alias for HyperList.
+        Class ImpossibleScenario:
+            - New exception class for scenarios that should never occur, and
+              which should be reported to the Regina developers.
         Class Integer:
             - New routine hash(), which hashes the integer down to a size_t.
             - New routine str(), which is an alias for stringValue().
@@ -234,9 +374,19 @@ Version 7.4  [ (to be announced) ]
             - New type alias to simplify arithmetic when using IntOfSize<...>.
         Class Isomorphism<dim>:
             - New routine hash(), which uses the tight encoding.
-        Class IsoSigPrintable<dim>:
-            - No longer derives from Base64SigEncoding (which is now
-              deprecated).
+        Class IsoSigPrintable<...>, IsoSigPrintableLockFree<...>:
+            - IsoSigPrintable no longer derives from Base64SigEncoding (which
+              is now deprecated).
+            - IsoSigPrintable now takes a second template argument to indicate
+              whether simplex/facet locks should be encoded.  The default is
+              to encode locks, which in practice means that triangulations
+              with locks will have an additional suffix on their isomorphism
+              signatures.
+            - New type alias IsoSigPrintableLockFree<dim>, which is the
+              variant of IsoSigPrintable that ignores locks (thus reproducing
+              the behaviour of Regina 7.3.x and earlier).
+            - The encode() function now takes an extra argument describing
+              simplex and/or facet locks.
         Enum Language:
             - New enumeration that describes supported programming languages.
         Class LargeInteger:
@@ -246,17 +396,38 @@ Version 7.4  [ (to be announced) ]
         Class Laurent<T>, Laurent2<T>:
             - New routine hash(), which uses the tight encoding.
             - Added a spaceship operator (<=>) for comparisons.
+            - Deprecated the exponent-based constructors Laurent(exp) and
+              Laurent2(xExp, yExp).
+            - Renamed the exponent-based initialisers init(exp) and
+              init(xExp, yExp) to initExp(exp) and initExp(xExp, yExp).
+              The old names are kept but deprecated.
+            - Laurent::scaleDown() now throws an exception if the preconditions
+              are violated.
+            - The std::initializer_list constructor for Laurent2 now throws an
+              exception if the preconditions are violated.
         Class LensSpace:
             - Added a spaceship operator (<=>) for aesthetic comparisons, which
               also adds comparison operators (<, <=, >, >=) to this class.
         Class LightweightSequence<T>:
+            - New constructor that takes a std::initializer_list.
+            - New routines empty(), front(), and back().
             - Added a spaceship operator (<=>) for comparisons.  This has the
               effect of implementing all comparison operators, not just
               less-than (<) as before.
         Class Link:
+            - Added initial support for virtual knots and links, with new
+              routines isClassical(), virtualGenus(), makeVirtual(), graft(),
+              oddWrithe(), arrow(), groups(), extendedGroup(), and
+              extendedGroups().
+            - New routine alexander() and class constant alexanderVar.
+            - New routine affineIndex() and class constant affineIndexVar.
+            - New class constant bracketVar, for use with bracket().
             - New routine makeAlternating().
             - New routine seifertCircles().
-            - New routines isConnected() and diagramComponents().
+            - New routine whiteheadDouble().
+            - New routine longComplement().
+            - New routines isConnected(), diagramComponents(),
+              countDiagramComponents(), and diagramComponentIndices().
             - New routines insertLink() and moveContentsTo().
             - New routines countTrivialComponents() and pdAmbiguous(), to help
               understand the limitations of planar diagram codes.
@@ -264,29 +435,47 @@ Version 7.4  [ (to be announced) ]
             - New routines overForComponent() and underForComponent().
             - New variant of reverse() to reverse just one component of a
               multiple-component link.
-            - New routine componentsByStrand().
+            - New routines component(const StrandRef&) and componentsByStrand().
+            - New routine linking2(), which returns twice the linking number;
+              linking() will now throw an exception when called on a virtual
+              link whose linking number is not an integer.
+            - New routines signedGauss() and fromSignedGauss().
             - Regarding Reidemeister moves:
               + The (check, perform) variants of r1(), r2() and r3() are
                 deprecated.  You should now use these routines _without_ extra
                 check/perform arguments: they will always check for and (if
                 possible) perform the relevant moves.
+              + New routines r2Virtual(), hasR2Virtual() and withR2Virtual(),
+                which support type II moves that change the virtual genus.
               + New routines hasR1(), hasR2() and hasR3() for checking only.
               + New read-only routines withR1(), withR2() and withR3() that (if
                 possible) return a new link with the relevant moves performed.
-            - Extended knotSig(), rewrite() and simplifyExhaustive() to work
-              with all link diagrams with fewer than 64 link components.
-              It is now recommended to use sig() and fromSig() instead of
-              knotSig() and fromKnotSig() since these names better reflect the
-              scope of these routines.  The original names knotSig() and
-              fromKnotSig() have been kept (and are _not_ deprecated).
+            - Regarding knot signatures:
+              + Signatures now support not just knots but any link diagrams
+                with fewer than 64 link components.
+              + Added an alias sig() for knotSig().  It is now recommended to
+                use sig() and fromSig() instead of knotSig() and fromKnotSig(),
+                since these names better reflect the scope of these routines.
+                The original names knotSig() and fromKnotSig() have been kept
+                (and are _not_ deprecated).
+              + Routines sig() and knotSig() now take an additional argument to
+                specify whether rotations should be considered equivalent.
+            - Extended rewrite() and simplifyExhaustive() to work with all
+              link diagrams with fewer than 64 link components, and added a
+              new routine rewriteVirtual() for working with virtual link
+              diagrams.
+            - Routine simplifyExhaustive() now promises to never reflect,
+              rotate and/or reverse the link diagram.
+            - New routine improveTreewidth().
             - Routine hasReducingPass() can now handle multiple-component links.
+            - Routines bracket() and jones() now support multithreading when
+              using the naive algorithm.  These functions now take a new
+              number-of-threads argument; all variants of the old syntax that
+              do not match the new syntax have been kept but deprecated.
             - Added a variant of translate() that takes crossings instead of
               strand references.
-            - Added an alias sig() for knotSig().
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
-            - Fixed a bug where calling resolve() would not clear out any
-              cached link polynomials that had already been computed.
             - Overhaul of the internal change span classes, including a new
               inner class ChangeAndClearSpan.
             - Optimised so that computed topological properties (e.g., Jones
@@ -295,12 +484,13 @@ Version 7.4  [ (to be announced) ]
             - Renamed dumpConstruction() to source(), and extended it to produce
               either C++ and Python code via an optional language argument.
               The old C++-only dumpConstruction() is kept but deprecated.
-              Also fixed a problem where the C++ initialiser lists were empty
-              (instead of containing a single 0) for zero-crossing components.
             - Routine selfFrame() now returns a boolean indicating whether
               anything changed.
             - Routine simplifyExhaustive() now ensures that any change to the
               link diagram happens on the calling thread.
+            - The iterator-based variant of fromOrientedGaussData() now
+              insists that the iterators point to C++-style strings (not
+              C-style character pointers).
         Class LockViolation:
             - New exception class used when the user attempts to change a
               locked simplex or facet.
@@ -308,6 +498,8 @@ Version 7.4  [ (to be announced) ]
             - Added a spaceship operator (<=>) for aesthetic comparisons.
               This has the effect of implementing all comparison operators,
               not just less-than (<) as before.
+        Class MarkedVector<T>:
+            - New routine shuffle().
         Class Matrix<T>:
             - Added a copy constructor that takes a matrix whose elements are
               of a different type.
@@ -317,16 +509,52 @@ Version 7.4  [ (to be announced) ]
             - Renamed initialise() to fill(), to make it clear that this has
               nothing to do with initialised vs uninitialised matrices.
               The old name is kept but deprecated.
-            - The ring template argument now defaults to true for matrices over
-              native C++ floating-point types, and Python now has a new binding
-              MatrixReal to represent the C++ type Matrix<double>.
+            - The extra ring template argument is gone; instead those matrix
+              functions that work with rings now require the specialisation
+              RingTraits<T> to be available.  This expands the scope of those
+              member functions to now include native C++ floating-point types
+              and Regina's various polynomial types.
+            - Python now has a new binding MatrixReal to represent the
+              C++ type Matrix<double>.
         Class ModelLinkGraph:
-            - New routines isSimple() and isConnected().
-            - New routine generateAnyLink().
+            - Now supports non-planar graphs (as used with virtual links), as
+              well as disconnected and/or empty graphs.
+            - New routines countComponents(), countTraversals(), isEmpty(),
+              isSimple(), isConnected(), genus(), insertGraph(), and
+              moveContentsTo().
             - Routine generateMinimalLinks() now supports multiple-component
-              links.
+              links.  Moreover, it has a new precondition requiring no 1-gons
+              in the induced cell decomposition, and throws an exception if
+              this precondition fails.
+            - New routines generateAnyLink(), generateAllLinks(), and
+              generateAllEmbeddings().
+            - New routine canonical().
+            - New routine randomise().
+            - Now supports tight encodings.
+            - All plantri import/export routines now support disconnected
+              and/or non-planar graphs, though they still require graphs to
+              be dual to simple quadrangulations.  The exception is
+              canonicalPlantri(), which still requires connectedness.
+            - Routines plantri() and canonicalPlantri() now throw an exception
+              if the graph is empty.
+            - New routines extendedPlantri() and fromExtendedPlantri(), which
+              are better-suited than the plantri format for non-planar graphs.
+            - New string-based "magic" constructor.
+            - The flype-related routines no longer require the graph to be
+              connected.
+        Class ModelLinkGraphCells:
+            - Now supports non-planar graphs (as used with virtual links), as
+              well as disconnected and/or empty graphs.  In particular:
+                + The routine countCells() will now return the number of cells
+                  even when the graph is non-planar (as opposed to the previous
+                  behaviour of returning zero).
+                + Added new routines countComponents() and genus().
+                + Removed isValid() completely, since those cases where
+                  isValid() returned false in older versions of Regina are now
+                  fully supported.
+            - New routines countEdges(), countArcs() and countNodes().
         Class ModelLinkGraphNode:
-            - New routines loops(), bigons() and triangles().
+            - New routines loops(), monogons(), bigons(), and triangles().
         Enum NamedPermGroup:
             - This is now a scoped enumeration, for better type safety.
               The old enum constants (e.g., PERM_GROUP_TRIVIAL) have been
@@ -370,28 +598,11 @@ Version 7.4  [ (to be announced) ]
               automatically behind the scenes.  NormalListFlags is now
               just a deprecated alias for NormalList.
         Class NormalSurface, NormalHypersurface:
-            - Fixed a bug where, if a surface was a normalised triangle link
-              but not a thin triangle link, then calling isThinTriangleLink()
-              _before_ isNormalTriangleLink() would make the latter return
-              an empty list of results.  Likewise with tetrahedron links in
-              4-dimensional triangulations.
-            - Fix a bug in components() when used on disconnected surfaces,
-              where if it were called _after_ connectedness has already been
-              established (i.e., after isOrientable(), isTwoSided(),
-              isConnected(), or an earlier call to components()), then it would
-              return the entire surface as a single component.
             - The vector constructors are now templated, so that you can pass a
               vector of some type other than regina::LargeInteger.
             - Added a spaceship operator (<=>) for comparisons.  This has the
               effect of implementing all comparison operators, not just
               less-than (<) as before.
-        Class NormalSurfaces, NormalHypersurfaces:
-            - The inner class VectorIterator no longer provides its
-              iterator-related type aliases (value_type, etc.) as members,
-              since these confused pybind11.  Instead you should access them
-              through the C++ standard iterator library (e.g., via
-              std::iterator_traits).  The old member type aliases have been
-              removed completely.
         Enum NormalTransform:
             - This is now a scoped enumeration, for better type safety.  The
               old enum constants (e.g., NS_FILTER_DISJOINT) are now scoped
@@ -405,12 +616,6 @@ Version 7.4  [ (to be announced) ]
             - New inner type alias PacketChangeGroup, to assist with readability
               when using a ChangeEventSpan for optimisation purposes only.
             - For Python users, added an alias makePacket() for make_packet().
-            - The inner classes ChildIterator and SubtreeIterator no longer
-              provides their iterator-related type aliases (value_type, etc.)
-              as members, since these confused pybind11.  Instead you should
-              access them through the C++ standard iterator library (e.g., via
-              std::iterator_traits).  The old member type aliases have been
-              removed completely.
         Class PacketData<Held>:
             - Renamed ChangeEventSpan to PacketChangeSpan, to make it clear
               that this only matters for objects held by packets.  The old
@@ -461,12 +666,24 @@ Version 7.4  [ (to be announced) ]
         Class PermSubSn<n, m>:
             - New internal type to support Perm<n>::Sm where n > m.  This
               supports array-like access only, not iteration.
-        Struct Unprotected:
-            - New C++-only type that allows in-built safety checks to be
-              disabled in some specific circumstances.
+        Class Polynomial<T>:
+            - New routine shift().
+            - Python now has new bindings PolynomialInt and PolynomialRational
+              to represent the C++ types Polynomial<Integer> and
+              Polynomial<Rational> respectively.  The old Python class name
+              Polynomial has been kept as an alias for PolynomialRational.
+            - Deprecated the exponent-based constructor Polynomial(exp).
+            - Renamed the exponent-based initialiser init(exp) to initExp(exp).
+              The old name is kept but deprecated.
+        Class ProgressTrackerObjective:
+            - New progress tracking class, for use when watching an objective
+              value that might go up or down as the operation proceeds.
         Class Rational:
             - New function str().
             - Added a spaceship operator (<=>) for comparisons.
+        Class RingTraits:
+            - New traits class to support generic mathematical code that works
+              with any ring type (integers, rationals, polynomials, etc.).
         Class Rotation3D:
             - New class to support floating-point 3-D geometry.
         Class SatAnnulus:
@@ -565,6 +782,13 @@ Version 7.4  [ (to be announced) ]
         Class Triangulation<dim>:
             - New routines hasLocks(), lockBoundary(), and unlockAll(), to
               work with locked top-dimensional simplices and their facets.
+            - Isomorphism signatures now encode simplex and facet locks, which
+              means that signatures will change in Regina 7.4 (but only if your
+              triangulation actually has locks present).  To compute a signature
+              that ignores locks (and can therefore be used with Regina 7.3.x or
+              earlier), you can use isoSig() with the encoding
+              IsoSigPrintableLockFree<dim>.
+            - New routine doubleOverBoundary().
             - New routine reorderBFS(), which essentially makes the old
               Triangulation<3>::reorderTetrahedraBFS() available in all
               dimensions.
@@ -603,6 +827,9 @@ Version 7.4  [ (to be announced) ]
             - Extended translate() to support top-dimensional simplices (not
               just lower-dimensional faces), and added a variant of translate()
               that takes face embeddings instead of faces.
+            - Renamed finiteToIdeal() to makeIdeal(), to better align with how
+              this is presented in the GUI.  The old name finiteToIdeal() is
+              kept as an alias (and is _not_ deprecatd).
             - Renamed dumpConstruction() to source(), and extended it to produce
               either C++ and Python code via an optional language argument.
               The old C++-only dumpConstruction() is kept but deprecated.
@@ -618,13 +845,35 @@ Version 7.4  [ (to be announced) ]
               The old name is deprecated but kept for backwards compatibility.
             - Overhaul of the internal change span classes, including a new
               inner class ChangeAndClearSpan.
+            - The requirements for the encoding template parameter for isoSig()
+              have changed.  In particular, its encode() function must now
+              take an extra argument describing simplex and/or facet locks.
         Class Triangulation<3>:
-            - New routines has44(), has21(), has02(), hasOpenBook(),
-              hasCloseBook(), hasCollapseEdge().
-            - New routines with44(), with21(), with02(), withOpenBook(),
-              withCloseBook(), withCollapseEdge().
+            - Regarding elementary moves:
+              + The (check, perform) variants of fourFourMove(), twoOneMove(),
+                zeroTwoMove(), openBook(), closeBook(), collapseEdge() are all
+                deprecated.  You should now call these routines _without_ extra
+                check/perform arguments: they will always check for and (if
+                possible) perform the relevant moves.  Some of these routines
+                have also been renamed as part of this change (see below).
+              + The new versions of fourFourMove(), twoOneMove() and
+                zeroTwoMove() have new names: they are now move44(), move21()
+                and move02().  The old deprecated versions (with the extra
+                check/perform arguments) retain the old names.
+              + New routines has44(), has21(), has02(), hasOpenBook(),
+                hasCloseBook(), hasCollapseEdge() for checking only.
+              + New read-only routines with44(), with21(), with02(),
+                withOpenBook(), withCloseBook(), withCollapseEdge() that
+                (if possible) return a new triangulation with the relevant
+                move performed.
+            - New routine improveTreewidth().
             - New routines isOneEfficient() and knowsOneEfficient().  For now,
               1-efficiency testing is only available for ideal triangulations.
+            - New routine truncate(), which allows you to truncate a single
+              given vertex.
+            - Renamed idealToFinite() to truncateIdeal(), to better align with
+              how this is presented in the GUI.  The old name idealToFinite()
+              is kept as an alias (and is _not_ deprecatd).
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
             - Routine puncture() now takes an optional triangle, not an
@@ -634,23 +883,18 @@ Version 7.4  [ (to be announced) ]
             - Routines layerOn(), pinchEdge(), puncture(), turaevViro() and
               turaevViroApprox() now throw an exception if their preconditions
               fail.
+            - The constructor that takes a link is now deprecated; just call
+              Link::complement() instead.
             - Routine reorderTetrahedraBFS() is now a deprecated alias for
               reorderBFS() (which is available in all dimensions).
-            - Routine idealToFinite() no longer subdivides the triangulation
-              if there are invalid edges but no vertices to truncate.
+            - Routine truncateIdeal() (previously idealToFinite()) no longer
+              subdivides the triangulation if there are invalid edges but no
+              vertices to truncate.
             - Routines hasStrictAngleStructure(), hasGeneralAngleStructure(),
               strictAngleStructure() and generalAngleStructure() have changed
               their behaviour for the empty triangulation: they now return the
               empty angle structure as a solution (since, strictly speaking,
               the empty structure is both strict and taut).
-            - Fixed an issue with zeroTwoMove(edge, t0, t1) where: if the given
-              edge was valid and boundary, and if t0 and/or t1 was exactly the
-              edge degree, and if the routine was asked to check legality, then
-              the move would be incorrectly reported as illegal.  (This was
-              essentially harmless, since it effectively made the routine
-              over-cautious by not performing moves that it could have, and
-              since if the routine was _not_ asked to check legality then the
-              move was still being performed correctly.)
             - Routine from SnapPea() can now take either a filename or file
               contents.  It can also now handle empty lines before the manifold
               name (SnapPy does not write these, but some other tools do).
@@ -658,18 +902,47 @@ Version 7.4  [ (to be announced) ]
               throw an exception when called on an empty triangulation.
             - Routine simplifyExhaustive() now ensures that any change to the
               triangulation happens on the calling thread.
+            - Routine order() now requires a valid triangulation, and throws
+              an exception if this is not the case.  (Previously it just
+              crashed if there were invalid edges.)
         Class Triangulation<4>:
-            - New routine simplifyUpDown(); thanks to Rhuaidi Burke.
-            - New routines has44(), hasOpenBook(), hasCollapseEdge(),
-              hasSnapEdge().
-            - New routines with44(), withOpenBook(), withCollapseEdge(),
-              withSnapEdge().
+            - New routine simplifyUpDown(); thanks to Rhuaidi Burke.  The main
+              simplify() routine (previously called intelligentSimplify()) now
+              incorporates these techniques also.
+            - Regarding elementary moves:
+              + The (check, perform) variants of fourFourMove(), openBook(),
+                collapseEdge(), snapEdge() are all deprecated.  You should now
+                call these routines _without_ extra check/perform arguments:
+                they will always check for and (if possible) perform the
+                relevant moves.  Some of these routines have also been renamed
+                as part of this change (see below).
+              + The new version of fourFourMove() has a new name: it is
+                now move44().  The old deprecated version (with the extra
+                check/perform arguments) retains the old name fourFourMove().
+              + New routines has44(), hasOpenBook(), hasCollapseEdge(),
+                hasSnapEdge() for checking only.
+              + New read-only routines with44(), withOpenBook(),
+                withCollapseEdge(), withSnapEdge() that (if possible) return
+                a new triangulation with the relevant move performed.
+            - New routine improveTreewidth().
             - Renamed intelligentSimplify() to simplify().  The old name is
               kept as a deprecated alias.
+            - Routine simplify() now takes a progress tracker and supports
+              cancellation.
             - Routines retriangulate() and simplifyExhaustive() no longer
               throw an exception when called on an empty triangulation.
             - Routine simplifyExhaustive() now ensures that any change to the
               triangulation happens on the calling thread.
+            - Simplifying closed 4-manifolds and 4-manifolds with real boundary
+              is now much faster.
+            - Renamed idealToFinite() to truncateIdeal(), to better align with
+              how this is presented in the GUI.  The old name idealToFinite()
+              is kept as an alias (and is _not_ deprecatd).
+            - Routine eulerCharManifold() now throws an exception when called
+              on an invalid triangulation.
+        Struct Unprotected:
+            - New C++-only type that allows in-built safety checks to be
+              disabled in some specific circumstances.
         Class Vector<T>:
             - Added a copy constructor that takes a vector whose elements are
               of a different type.
@@ -732,40 +1005,58 @@ Version 7.4  [ (to be announced) ]
             - New alternatives to using std::is_integeral_v<T> and
               std::is_unsigned_v<T> that allow for 128-bit integers also.
         Global array quadString:
-            - These are now C++-style strings (std::string), not C-style
-              strings (array of char).  For newer compilers, they are still
-              inline constexpr, but for older compilers that do not support
-              constexpr strings they are instead declared as inline const.
+            - This array is once again inline constexpr for those compilers
+              that support C++20 sufficiently well.  For older compilers that
+              do not support constexpr strings, this remains inline const.
     PYTHON:
-        - Updated the included pybind11 library from 2.10.0 to 2.13.6.
-          This drops support for Python 3.6.
-        - Improved the speed of iteration (specifically, throwing/catching
-          StopIteration exceptions).
-        - Rich flag types based on regina::Flags<...> (such as NormalAlg,
-          CensusPurge, etc.) now support a bool() operator that tests for
-          a non-empty flag set.
-        - The underlying enum types for rich flags (e.g., NormalAlgFlags,
-          CensusPurgeFlags, etc.) likewise now have a bool() operator that
-          tests for a zero flag.  This is because zero flags play a special
-          role here (they have no effect when ORed or XORed into a flag set).
-        - All other enum types (i.e., those that are _not_ intended to be
-          combined bitwise into flag sets) do not have a bool() operator,
-          since their underying integer values are irrelevant.  All of their
-          enum values will be treated as True by python.
+        - For Python 3.12 and later, upgraded pybind11 from 3.0.0rc4 to 3.0.0.
+        - Regardinging enums and flags:
+          + Rich flag types based on regina::Flags<...> (such as NormalAlg,
+            CensusPurge, etc.) now support a bool() operator that tests for
+            a non-empty flag set.
+          + The underlying enum types for rich flags (e.g., NormalAlgFlags,
+            CensusPurgeFlags, etc.) likewise now have a bool() operator that
+            tests for a zero flag.  This is because zero flags play a special
+            role here (they have no effect when ORed or XORed into a flag set).
+          + All other enum types (i.e., those that are _not_ intended to be
+            combined bitwise into flag sets) do not have a bool() operator,
+            since their underying integer values are irrelevant.  All of their
+            enum values will be treated as True by python.
+          + When using Python 3.12 or newer (and hence pybind11 v3), all enum
+            types are now native Python enum types, based on either enum.Enum
+            (for non-flag enum types) or enum.Flag (for flag enum types).
     USER INTERFACE:
+        - The GUI has had a bit of a glow-up.  One important change: toolbars
+          in the triangulation and link viewers are much richer now, but you
+          can configure the GUI to use the old-style toolbars if you prefer.
         - Now uses multithreading for those long computations that support it.
+        - Group simplification no longer offers "relator explosion" as an
+          option; however, this remains available via Python if you need it.
         - No longer reads the syntax highlighting theme from file; instead
           the theme is hard-coded into the executable.  This removes the
           build dependency on the Jansson JSON library.
+        - For links, the "parallel cables" action now builds a new link
+          (instead of modifying the original link).
         - The summary tabs for normal surfaces and hypersurfaces now split out
           separate counts for non-embedded (immersed and/or singular)
           surfaces and hypersurfaces.
+        - Fixed the crash that sometimes occurred when using the "try harder"
+          option for simplifying triangulations in the GUI.
+        - Elementary moves are now available in the GUI for 2-D triangulations.
     UTILITIES:
+        dgt, katie:
+            - The DGT utility has been renamed to Katie.
+            - Some of the command-line options have changed.  In particular,
+              the --real option is no longer available (but might reappear in
+              a future release).
+            - Katie can now work with 1-handles.
         regina-engine-config:
             - Made more robust, and removed obsolete options (--exec-prefix,
               and the option to set --prefix to a custom directory).
         regina-helper:
             - New command-line tool for performing miscellaneous tasks.
+        retriangulate:
+            - New command-line options --all, --classical and --virtual.
         tricensus:
             - Renamed option --tetrahedra to --top, with aliases --triangles,
               --tetrahedra and --pentachora.
@@ -781,6 +1072,97 @@ Version 7.4  [ (to be announced) ]
         - Ported the C++ test suite to use the GoogleTest framework (which is
           included with Regina's sources).  This removes the build dependency
           on CppUnit.
+
+Version 7.3.1  [ 11 July, 2025 ]
+
+    GENERAL:
+        - Service release to fix some important bugs, and to support
+          Python 3.12 and later.
+        - This release requires Python 3.7 or newer (i.e., Python 3.6 is
+          no longer supported).
+        - For several iterator classes, the associated type aliases
+          (value_type, etc.) are no longer provided as class members, since
+          these were confusing pybind11.  Instead you can (and should) access
+          these through the C++ standard iterator library (e.g.,
+          std::iterator_traits<T>::value_type, or std::iter_value_t<T>).
+    ENGINE:
+        Class DiscSpecIterator:
+            - This class no longer provides its iterator-related type aliases
+              (value_type, etc.) as members, since these confused pybind11.
+              Instead you should access them through the C++ standard
+              iterator library (e.g., via std::iterator_traits).  The old
+              member type aliases have been removed completely.
+        Class Laurent<T>:
+            - Fixed a bug where, in special circumstances, set() could have no
+              effect.  This did not affect any past Jones polynomial code.
+              See: https://regina-normal.github.io/bugs.html#laurentset
+        Class Link:
+            - Fixed a bug where calling resolve() would not clear out any
+              cached link polynomials that had already been computed.
+            - Fixed a problem with dumpConstruction() where the C++ initialiser
+              lists were empty (instead of containing a single 0) for
+              zero-crossing components.
+            - Fixed a bug in fromDT() that was producing non-planar diagrams
+              for some non-minimal encodings with spurious R1 twists.  The
+              solution was to drop the old code completely (which was imported
+              from elsewhere) and instead to piggy-back on Regina's own Gauss
+              code reconstruction routine.  As a result, fromDT() might now
+              make different choices when resolving the inherent ambiguities
+              in Dowker-Thistlethwaite notation.
+        Class NormalSurface, NormalHypersurface:
+            - Fixed a bug where, if a surface was a normalised triangle link
+              but not a thin triangle link, then calling isThinTriangleLink()
+              _before_ isNormalTriangleLink() would make the latter return
+              an empty list of results.  Likewise with tetrahedron links in
+              4-dimensional triangulations.
+              See: https://regina-normal.github.io/bugs.html#tritetlinks
+            - Fix a bug in components() when used on disconnected surfaces,
+              where if it were called _after_ connectedness has already been
+              established (i.e., after isOrientable(), isTwoSided(),
+              isConnected(), or an earlier call to components()), then it would
+              return the entire surface as a single component.
+              See: https://regina-normal.github.io/bugs.html#surfacecomp
+        Class NormalSurfaces, NormalHypersurfaces:
+            - The inner class VectorIterator no longer provides its
+              iterator-related type aliases (value_type, etc.) as members,
+              since these confused pybind11.  Instead you should access them
+              through the C++ standard iterator library (e.g., via
+              std::iterator_traits).  The old member type aliases have been
+              removed completely.
+        Class Packet:
+            - The inner classes ChildIterator and SubtreeIterator no longer
+              provides their iterator-related type aliases (value_type, etc.)
+              as members, since these confused pybind11.  Instead you should
+              access them through the C++ standard iterator library (e.g., via
+              std::iterator_traits).  The old member type aliases have been
+              removed completely.
+        Class Triangulation<dim>:
+            - Fixed a memory leak in the move constructor.
+        Class Triangulation<3>:
+            - Fixed an issue with zeroTwoMove(edge, t0, t1) where: if the given
+              edge was valid and boundary, and if t0 and/or t1 was exactly the
+              edge degree, and if the routine was asked to check legality, then
+              the move would be incorrectly reported as illegal.  (This was
+              essentially harmless, since it effectively made the routine
+              over-cautious by not performing moves that it could have, and
+              since if the routine was _not_ asked to check legality then the
+              move was still being performed correctly.)
+        Global array quadString:
+            - These are now C++-style strings (std::string), not C-style
+              strings (array of char).  For Regina 7.3.1 only these are just
+              inline const, not constexpr, but in Regina 7.4 (which uses C++20)
+              they will become inline constexpr again.
+    PYTHON:
+        - For Python 3.11 and earlier, updated the included pybind11 library
+          from 2.10.0 to 2.13.6.  This drops support for Python 3.6.
+        - For Python 3.12 and later, use the pre-release pybind11 3.0.0rc4.
+          This fixes problems with subinterpreters in newer Python versions,
+          and thereby means that Regina now supports Python 3.12 and later
+          properly for the first time.
+        - Added a new python-only function regina.versionPybind11Major() that
+          indicates which of the two above scenarios is in use.
+        - Improved the speed of iteration (specifically, throwing/catching
+          StopIteration exceptions).
 
 Version 7.3  [ 18 March, 2023 ]
 

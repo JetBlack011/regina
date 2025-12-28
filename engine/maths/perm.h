@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -51,6 +49,7 @@
 #include <iterator>
 #include <string>
 #include "regina-core.h"
+#include "concepts/iterator.h"
 #include "utilities/bitmanip.h"
 #include "utilities/exception.h"
 #include "utilities/intutils.h"
@@ -638,7 +637,7 @@ class Perm {
          * \param code the internal code that will determine the
          * new value of this permutation.
          */
-        void setPermCode(Code code);
+        constexpr void setPermCode(Code code);
 
         /**
          * Creates a permutation from the given internal code.
@@ -712,7 +711,7 @@ class Perm {
          * to this permutation.
          * \return a reference to this permutation.
          */
-        Perm& operator = (const Perm& cloneMe) = default;
+        constexpr Perm& operator = (const Perm& cloneMe) = default;
 
         /**
          * Returns the composition of this permutation with the given
@@ -1137,7 +1136,7 @@ class Perm {
          * returned with equal probability).
          * \return a random permutation.
          */
-        template <class URBG>
+        template <typename URBG>
         static Perm rand(URBG&& gen, bool even = false);
 
         /**
@@ -1279,7 +1278,7 @@ class Perm {
          * \param from the first integer whose image should be reset.
          * This must be between 0 and \a n inclusive.
          */
-        void clear(unsigned from);
+        constexpr void clear(unsigned from);
 
         /**
          * Extends a <i>k</i>-element permutation to an <i>n</i>-element
@@ -1418,8 +1417,6 @@ class Perm {
          * \exception InvalidInput The given iterator does not point to
          * a tight encoding of an <i>n</i>-element permutation.
          *
-         * \tparam iterator an input iterator type.
-         *
          * \param start an iterator that points to the beginning of a
          * tight encoding.
          * \param limit an iterator that, if reached, indicates that no more
@@ -1429,7 +1426,7 @@ class Perm {
          * allowed to be additional unread data.
          * \return the permutation represented by the given tight encoding.
          */
-        template <typename iterator>
+        template <CharIterator iterator>
         static Perm tightDecode(iterator start, iterator limit,
             bool noTrailingData);
 
@@ -1518,13 +1515,13 @@ class PermClass {
          * The corresponding cycle structure (i.e., partition of \a n)
          * is \a n cycles, each of length 1.
          */
-        PermClass();
+        constexpr PermClass();
         /**
          * Creates a copy of the given conjugacy class.
          *
          * \param src the conjugacy class to clone.
          */
-        PermClass(const PermClass& src);
+        constexpr PermClass(const PermClass& src);
 
         /**
          * Sets this to be a copy of the given conjugacy class.
@@ -1532,7 +1529,7 @@ class PermClass {
          * \param src the conjugacy class to clone.
          * \return a reference to this conjugacy class.
          */
-        PermClass& operator = (const PermClass& src);
+        constexpr PermClass& operator = (const PermClass& src);
 
         /**
          * Determines whether this and the given object describe the
@@ -1544,7 +1541,7 @@ class PermClass {
          * \return \c true if and only if this and the given conjugacy class
          * are identical.
          */
-        bool operator == (const PermClass& other) const;
+        constexpr bool operator == (const PermClass& other) const;
 
         /**
          * Determines whether this is the conjugacy class for the identity
@@ -1553,7 +1550,7 @@ class PermClass {
          * \return \c true if and only if this conjugacy class represents
          * the identity permutation.
          */
-        bool isIdentity() const;
+        constexpr bool isIdentity() const;
 
         /**
          * Returns the length of the given cycle in this conjugacy class.
@@ -1573,7 +1570,7 @@ class PermClass {
          * must be between 0 and countCycles()-1 inclusive.
          * \return the requested cycle length.
          */
-        int cycle(int which) const;
+        constexpr int cycle(int which) const;
 
         /**
          * Returns the number of cycles in this conjugacy class.
@@ -1585,7 +1582,7 @@ class PermClass {
          *
          * \return the number of cycles.
          */
-        int countCycles() const;
+        constexpr int countCycles() const;
 
         /**
          * Returns the minimal representative of this conjugacy class.
@@ -1601,7 +1598,7 @@ class PermClass {
          *
          * \return the minimal representative of this conjugacy class.
          */
-        Perm<n> rep() const;
+        constexpr Perm<n> rep() const;
 
         /**
          * Returns a string representation of this conjugacy class.
@@ -1615,7 +1612,7 @@ class PermClass {
          *
          * \return a string representation of this conjugacy class.
          */
-        std::string str() const;
+        constexpr std::string str() const;
 
         /**
          * A preincrement operator that changes this to become the next
@@ -1638,7 +1635,7 @@ class PermClass {
          *
          * \return a reference to this conjugacy class after the increment.
          */
-        PermClass& operator ++();
+        constexpr PermClass& operator ++();
         /**
          * A postincrement operator that changes this to become the next
          * conjugacy class in a lexicographical enumeration.
@@ -1661,7 +1658,7 @@ class PermClass {
          * \return a copy of this conjugacy class before the increment took
          * place.
          */
-        PermClass operator ++(int);
+        constexpr PermClass operator ++(int);
 
         /**
          * Determines whether this represents a genuine conjugacy class,
@@ -1673,7 +1670,7 @@ class PermClass {
          * \return \c false if this is the past-the-end conjugacy class,
          * or \c true otherwise.
          */
-        operator bool() const;
+        constexpr operator bool() const;
 };
 
 /**
@@ -1739,7 +1736,7 @@ inline constexpr typename Perm<n>::Code Perm<n>::permCode() const {
 }
 
 template <int n>
-inline void Perm<n>::setPermCode(Code code) {
+inline constexpr void Perm<n>::setPermCode(Code code) {
     code_ = code;
 }
 
@@ -2124,7 +2121,7 @@ Perm<n> Perm<n>::rand(bool even) {
 // Doxygen does not match this to the documented declaration.  I think the
 // issue is that the return type "looks" different due to the explicit <T>.
 template <int n>
-template <class URBG>
+template <typename URBG>
 Perm<n> Perm<n>::rand(URBG&& gen, bool even) {
     // Note: This generic implementation of Perm covers 8 <= n <= 16.
     // The corresponding index types require 16, 32 or 64 bits.
@@ -2218,7 +2215,7 @@ constexpr Perm<n> Perm<n>::contract(Perm<k> p) {
 #endif // __DOXYGEN
 
 template <int n>
-inline void Perm<n>::clear(unsigned from) {
+inline constexpr void Perm<n>::clear(unsigned from) {
     static_assert(n > 7, "The generic implementation of Perm<n>::clear() "
         "should not be used for n <= 7.");
 
@@ -2256,7 +2253,7 @@ std::string Perm<n>::tightEncoding() const {
 // thinks this is a new non-static function instead.
 #ifndef __DOXYGEN
 template <int n>
-template <typename iterator>
+template <CharIterator iterator>
 Perm<n> Perm<n>::tightDecode(iterator start, iterator limit,
         bool noTrailingData) {
     // Ensure that our calculations will not overflow, even when reading
@@ -2396,50 +2393,51 @@ inline typename Perm<n>::ImagePack Perm<n>::Slice<len>::pack() const {
 // Inline functions for PermClass
 
 template <int n>
-inline PermClass<n>::PermClass() : nCycles_(n) {
+inline constexpr PermClass<n>::PermClass() : nCycles_(n) {
     std::fill(cycle_, cycle_ + n, 1);
 }
 
 template <int n>
-inline PermClass<n>::PermClass(const PermClass& src) : nCycles_(src.nCycles_) {
+inline constexpr PermClass<n>::PermClass(const PermClass& src) :
+        nCycles_(src.nCycles_) {
     std::copy(src.cycle_, src.cycle_ + n, cycle_);
 }
 
 template <int n>
-inline PermClass<n>& PermClass<n>::operator = (const PermClass& src) {
+inline constexpr PermClass<n>& PermClass<n>::operator = (const PermClass& src) {
     nCycles_ = src.nCycles_;
     std::copy(src.cycle_, src.cycle_ + n, cycle_);
     return *this;
 }
 
 template <int n>
-inline bool PermClass<n>::operator == (const PermClass& other) const {
+inline constexpr bool PermClass<n>::operator == (const PermClass& other) const {
     return nCycles_ == other.nCycles_ &&
         std::equal(cycle_, cycle_ + n, other.cycle_);
 }
 
 template <int n>
-inline bool PermClass<n>::isIdentity() const {
+inline constexpr bool PermClass<n>::isIdentity() const {
     return nCycles_ == n;
 }
 
 template <int n>
-inline int PermClass<n>::cycle(int which) const {
+inline constexpr int PermClass<n>::cycle(int which) const {
     return cycle_[which];
 }
 
 template <int n>
-inline int PermClass<n>::countCycles() const {
+inline constexpr int PermClass<n>::countCycles() const {
     return nCycles_;
 }
 
 template <int n>
-inline PermClass<n>::operator bool() const {
+inline constexpr PermClass<n>::operator bool() const {
     return nCycles_;
 }
 
 template <int n>
-inline Perm<n> PermClass<n>::rep() const {
+inline constexpr Perm<n> PermClass<n>::rep() const {
     std::array<int, n> img;
     int pos = 0;
     for (int c = 0; c < nCycles_; ++c) {
@@ -2452,7 +2450,7 @@ inline Perm<n> PermClass<n>::rep() const {
 }
 
 template <int n>
-inline std::string PermClass<n>::str() const {
+inline constexpr std::string PermClass<n>::str() const {
     if (nCycles_) {
         char ans[n + 1];
         // Note: we should always have nCycles_ < n, but as an extra
@@ -2468,7 +2466,7 @@ inline std::string PermClass<n>::str() const {
 }
 
 template <int n>
-inline PermClass<n>& PermClass<n>::operator ++() {
+inline constexpr PermClass<n>& PermClass<n>::operator ++() {
     if (nCycles_ <= 1) {
         // End of the line.
         nCycles_ = 0;
@@ -2494,7 +2492,7 @@ inline PermClass<n>& PermClass<n>::operator ++() {
 }
 
 template <int n>
-inline PermClass<n> PermClass<n>::operator ++(int) {
+inline constexpr PermClass<n> PermClass<n>::operator ++(int) {
     PermClass<n> ans = *this;
     ++(*this);
     return ans;
@@ -2566,7 +2564,7 @@ inline constexpr Perm<2> Perm<2>::contract(Perm<7> p) {
     return Perm<2>(static_cast<Code>(p.permCode2() < 720 ? 0 : 1));
 }
 
-inline void Perm<2>::clear(unsigned from) {
+inline constexpr void Perm<2>::clear(unsigned from) {
     if (from == 0)
         code_ = 0;
 }
@@ -2592,7 +2590,7 @@ inline constexpr Perm<3> Perm<3>::contract(Perm<4> p) {
     return Perm<3>::fromPermCode(c == 8 ? 2 : c == 7 ? 3 : c / 3);
 }
 
-inline void Perm<3>::clear(unsigned from) {
+inline constexpr void Perm<3>::clear(unsigned from) {
     if (from <= 1)
         code_ = code012;
 }
@@ -2615,7 +2613,7 @@ inline constexpr Perm<4> Perm<4>::contract(Perm<k> p) {
     return Perm<4>(p[0], p[1], p[2], p[3]);
 }
 
-inline void Perm<4>::clear(unsigned from) {
+inline constexpr void Perm<4>::clear(unsigned from) {
     if (from <= 1)
         code_ = 0;
     else if (from == 2)
@@ -2644,7 +2642,7 @@ constexpr Perm<5> Perm<5>::contract(Perm<k> p) {
     return Perm<5>(p[0], p[1], p[2], p[3], p[4]);
 }
 
-inline void Perm<5>::clear(unsigned from) {
+inline constexpr void Perm<5>::clear(unsigned from) {
     if (from <= 1)
         code2_ = 0;
     else if (from == 2)
@@ -2694,7 +2692,7 @@ constexpr Perm<6> Perm<6>::contract(Perm<k> p) {
     return Perm<6>(p[0], p[1], p[2], p[3], p[4], p[5]);
 }
 
-inline void Perm<6>::clear(unsigned from) {
+inline constexpr void Perm<6>::clear(unsigned from) {
     switch (from) {
         case 0:
         case 1:
@@ -2747,7 +2745,7 @@ constexpr Perm<7> Perm<7>::contract(Perm<k> p) {
     return Perm<7>(p[0], p[1], p[2], p[3], p[4], p[5], p[6]);
 }
 
-inline void Perm<7>::clear(unsigned from) {
+inline constexpr void Perm<7>::clear(unsigned from) {
     switch (from) {
         case 0:
         case 1:

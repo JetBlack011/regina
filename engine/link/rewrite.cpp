@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -37,17 +35,37 @@
 namespace regina {
 
 namespace detail {
+    /**
+     * Provides domain-specific details for the link rewriting process.
+     *
+     * For link propagation, we do make use of the options type
+     * `Retriangulator::PropagationOptions`.  This type should be one of:
+     *
+     * - `std::true_type`, to indicate that only classical Reidemeister moves
+     *   should be allowed;
+     *
+     * - `std::false_type`, to indicate that both classical and virtual
+     *   Reidemeister moves should be allowed.
+     */
     template <>
     struct RetriangulateParams<Link> {
         static std::string sig(const Link& link) {
             return link.sig();
         }
 
+        static std::string rigidSig(const Link& link) {
+            // Do not allow reflection, reversal and/or rotation.
+            return link.sig(false, false, false);
+        }
+
         static constexpr const char* progressStage = "Exploring diagrams";
 
-        template <class Retriangulator>
+        template <typename Retriangulator>
         static void propagateFrom(const std::string& sig, size_t maxSize,
-                Retriangulator* retriang) {
+                Retriangulator* retri) {
+            constexpr bool classicalOnly =
+                Retriangulator::PropagationOptions::value;
+
             Link t = Link::fromSig(sig);
 
             if (t.size() == 0) {
@@ -65,211 +83,238 @@ namespace detail {
                     // pre-existing crossings, and so the two options are
                     // equivalent under reflection of the entire diagram.
                     Link alt(t, false);
-                    alt.r1(regina::StrandRef(), 0 /* side */, 1 /* sign */);
-                    if (retriang->candidate(std::move(alt), sig))
+                    alt.r1(StrandRef(), 0 /* side */, 1 /* sign */);
+                    if (retri->candidate(std::move(alt), sig))
                         return;
                 }
-                if (t.countComponents() >= 2 && maxSize >= 2) {
-                    // Pass one unknot component over another.
-                    // The sides do not matter, since the different options
-                    // are equivalent under reversal of individual link
-                    // components.
-                    Link alt(t, false);
-                    alt.r2(regina::StrandRef(), 0 /* left side */,
-                        regina::StrandRef(), 0 /* left side */);
-                    if (retriang->candidate(std::move(alt), sig))
-                        return;
+                if constexpr (! classicalOnly) {
+                    if (maxSize > 1) {
+                        // There are only two essentially different diagrams
+                        // that we can obtain from a zero-crossing unknot
+                        // using a virtual R2.  These are obtained via
+                        // (firstSide == firstStrand) and
+                        // (firstSide != firstStrand).
+                        for (int firstSide = 0; firstSide < 2; ++firstSide) {
+                            Link alt(t, false);
+                            alt.r2Virtual({}, firstSide, 1 /* firstStrand */);
+                            if (retri->candidate(std::move(alt), sig))
+                                return;
+                        }
+                    }
                 }
+                // We promise not to merge diagram components, so we do not
+                // consider moves that pass one unknot component over another.
                 return;
             }
 
             // From here we assume >= 1 crossing.
-            size_t i;
-            int strand, side, sign;
 
             // Moves that reduce the number of crossings:
 
-            for (i = 0; i < t.size(); ++i)
+            for (size_t i = 0; i < t.size(); ++i)
                 if (auto alt = t.withR1(t.crossing(i)))
-                    if (retriang->candidate(std::move(*alt), sig))
+                    if (retri->candidate(std::move(*alt), sig))
                         return;
 
-            for (i = 0; i < t.size(); ++i)
+            for (size_t i = 0; i < t.size(); ++i)
                 if (auto alt = t.withR2(t.crossing(i)))
-                    if (retriang->candidate(std::move(*alt), sig))
+                    if (retri->candidate(std::move(*alt), sig))
                         return;
 
             // Moves that preserve the number of crossings:
 
-            for (i = 0; i < t.size(); ++i)
-                for (side = 0; side < 2; ++side)
+            for (size_t i = 0; i < t.size(); ++i)
+                for (int side = 0; side < 2; ++side)
                     if (auto alt = t.withR3(t.crossing(i), side))
-                        if (retriang->candidate(std::move(*alt), sig))
+                        if (retri->candidate(std::move(*alt), sig))
                             return;
 
             // All that remains is moves that increase the number of crossings.
             if (t.size() >= maxSize)
                 return;
 
-            // We need to know the number of 0-crossing link components
-            // (though not precisely - we just need to know 0 vs 1 vs ≥2.
-            size_t nTrivial = 0;
+            // We need to know whether there are any 0-crossing link components.
+            bool hasTrivial = false;
             for (auto c : t.components())
-                if (! c)
-                    if (++nTrivial == 2)
-                        break;
+                if (! c) {
+                    hasTrivial = true;
+                    break;
+                }
 
             // R1 twist moves on arcs are always valid.
-            for (i = 0; i < t.size(); ++i)
-                for (strand = 0; strand < 2; ++strand)
-                    for (side = 0; side < 2; ++side)
-                        for (sign = -1; sign <= 1; sign += 2) {
+            for (size_t i = 0; i < t.size(); ++i)
+                for (int strand = 0; strand < 2; ++strand)
+                    for (int side = 0; side < 2; ++side)
+                        for (int sign = -1; sign <= 1; sign += 2) {
                             Link alt(t, false);
                             alt.r1(alt.crossing(i)->strand(strand), side, sign);
-                            if (retriang->candidate(std::move(alt), sig))
+                            if (retri->candidate(std::move(alt), sig))
                                 return;
                         }
-            if (nTrivial > 0) {
-                for (sign = -1; sign <= 1; sign += 2) {
+            if (hasTrivial) {
+                for (int sign = -1; sign <= 1; sign += 2) {
                     // The side does not matter, since both options are
                     // equivalent under reversal of individual link components.
                     Link alt(t, false);
-                    alt.r1(regina::StrandRef(), 0, sign);
-                    if (retriang->candidate(std::move(alt), sig))
+                    alt.r1(StrandRef(), 0, sign);
+                    if (retri->candidate(std::move(alt), sig))
                         return;
                 }
             }
 
             if (t.size() + 1 < maxSize) {
-                StrandRef upperArc, lowerArc;
-                int upperSide, lowerSide;
-                for (i = 0; i < t.size(); ++i)
-                    for (strand = 0; strand < 2; ++strand) {
-                        upperArc = t.crossing(i)->strand(strand);
-                        for (upperSide = 0; upperSide < 2; ++upperSide) {
-                            // Walk around the 2-cell containing upperArc.
-                            // This code follows the (better documented)
-                            // code in reidemeister.cpp for testing r2 validity.
-                            //
-                            // We walk around the 2-cell from upper, ensuring
-                            // that we always turn left.
-                            //
-                            // At each stage we consider an edge of this 2-cell:
-                            //
-                            // - ref points to the strand of the crossing at the
-                            //   beginning of the edge, with respect to the
-                            //   direction in which we are walking around the
-                            //   cell;
-                            // - lowerArc points to the strand of the crossing
-                            //   at the beginning of the edge, with respect to
-                            //   the orientation of the link.
-                            // - forward indicates whether these two directions
-                            //   are the same.
-                            //
-                            // Note that we don't actually set lowerArc until we
-                            // get near the end of the while loop.
-                            //
-                            StrandRef ref = upperArc;
-                            bool forward;
-                            if (upperSide == 0) {
-                                forward = true;
-                            } else {
-                                // Since we are traversing the arc backwards,
-                                // we need to jump to the other endpoint.
-                                ref = ref.next();
-                                forward = false;
+                if constexpr (! classicalOnly) {
+                    // Testing for virtual R2 moves is very fast, and these
+                    // moves (as enumerated below) are always valid.
+                    // However, we do have to be sure not to mix different
+                    // diagram components.
+
+                    // Moves that work on different strands:
+                    auto [ comp, nComp ] = t.diagramComponentIndices();
+                    for (size_t cr1 = 0; cr1 < t.size(); ++cr1) {
+                        for (size_t cr2 = 0; cr2 < t.size(); ++cr2) {
+                            if (comp[cr1] != comp[cr2])
+                                continue;
+
+                            for (int str1 = 0; str1 < 2; ++str1) {
+                                for (int str2 = 0; str2 < 2; ++str2) {
+                                    // Do not operate on the same strand.
+                                    if (cr1 == cr2 && str1 == str2)
+                                        continue;
+
+                                    for (int side1 = 0; side1 < 2; ++side1) {
+                                        for (int side2 = 0; side2 < 2; ++side2) {
+                                            Link alt(t, false);
+                                            alt.r2Virtual(
+                                                alt.crossing(cr1)->strand(str1),
+                                                side1,
+                                                alt.crossing(cr2)->strand(str2),
+                                                side2);
+                                            if (retri->candidate(
+                                                    std::move(alt), sig))
+                                                return;
+                                        }
+                                    }
+                                }
                             }
+                        }
+                    }
 
-                            while (true) {
-                                // Move to the next edge around this 2-cell.
-                                if (forward) {
-                                    ref = ref.next();
-                                    ref.jump();
-
-                                    // forward remains true for (sign, strand):
-                                    // +, 0
-                                    // -, 1
-                                    if (ref.crossing()->sign() > 0)
-                                        forward = (0 == ref.strand());
-                                    else
-                                        forward = (0 != ref.strand());
+                    // Moves that work on the same strand:
+                    for (size_t cr = 0; cr < t.size(); ++cr)
+                        for (int strand = 0; strand < 2; ++strand)
+                            for (int fSide = 0; fSide < 2; ++fSide)
+                                for (int fStrand = 0; fStrand < 2; ++fStrand) {
+                                    Link alt(t, false);
+                                    alt.r2Virtual(
+                                        alt.crossing(cr)->strand(strand),
+                                        fSide, fStrand);
+                                    if (retri->candidate(std::move(alt), sig))
+                                        return;
+                                }
+                    if (hasTrivial) {
+                        // There are only two possible diagrams that can come
+                        // from a virtual R2 on a zero-crossing unknot:
+                        // one with firstSide == firstStrand, and
+                        // one with firstSide != firstStrand.
+                        for (int firstSide = 0; firstSide < 2; ++firstSide) {
+                            Link alt(t, false);
+                            alt.r2Virtual({}, firstSide, 1 /* firstStrand */);
+                            if (retri->candidate(std::move(alt), sig))
+                                return;
+                        }
+                    }
+                } else {
+                    // We are restricting ourselves to classical moves.
+                    for (size_t i = 0; i < t.size(); ++i)
+                        for (int strand = 0; strand < 2; ++strand) {
+                            StrandRef uArc = t.crossing(i)->strand(strand);
+                            for (int uSide = 0; uSide < 2; ++uSide) {
+                                // Walk around the 2-cell containing uArc.
+                                // This code follows the (better documented)
+                                // code in reidemeister.cpp for testing r2
+                                // validity.
+                                //
+                                // We walk around the 2-cell from upper,
+                                // ensuring that we always turn left.
+                                //
+                                // At each stage we consider an edge of this
+                                // 2-cell:
+                                //
+                                // - ref points to the strand of the crossing at
+                                //   the beginning of the edge, with respect to
+                                //   the direction in which we are walking
+                                //   around the cell;
+                                // - lArc points to the strand of the crossing
+                                //   at the beginning of the edge, with respect
+                                //   to the orientation of the link;
+                                // - fwd indicates whether these two
+                                //   directions are the same.
+                                //
+                                // Note that we don't actually set lArc
+                                // until we get near the end of the while loop.
+                                //
+                                StrandRef ref = uArc;
+                                bool fwd;
+                                if (uSide == 0) {
+                                    fwd = true;
                                 } else {
-                                    ref = ref.prev();
-                                    ref.jump();
-
-                                    // forward becomes true for (sign, strand):
-                                    // -, 0
-                                    // +, 1
-                                    if (ref.crossing()->sign() > 0)
-                                        forward = (0 != ref.strand());
-                                    else
-                                        forward = (0 == ref.strand());
+                                    // We are traversing the arc backwards, so
+                                    // we need to jump to the other endpoint.
+                                    ref = ref.next();
+                                    fwd = false;
                                 }
 
-                                lowerArc = (forward ? ref : ref.prev());
+                                while (true) {
+                                    // Move to the next edge around this 2-cell.
+                                    if (fwd) {
+                                        ref = ref.next();
+                                        ref.jump();
 
-                                // By planarity, the 2-cell can meet one side of
-                                // an arc, but never both.
-                                if (lowerArc == upperArc) {
-                                    // We completed the cycle.
-                                    break;
+                                        // fwd remains true iff
+                                        // (sign, strand) == (+, 0) or (-, 1).
+                                        if (ref.crossing()->sign() > 0)
+                                            fwd = (0 == ref.strand());
+                                        else
+                                            fwd = (0 != ref.strand());
+                                    } else {
+                                        ref = ref.prev();
+                                        ref.jump();
+
+                                        // fwd becomes true iff
+                                        // (sign, strand) == (-, 0) or (+, 1).
+                                        if (ref.crossing()->sign() > 0)
+                                            fwd = (0 != ref.strand());
+                                        else
+                                            fwd = (0 == ref.strand());
+                                    }
+
+                                    StrandRef lArc = (fwd ? ref : ref.prev());
+                                    int lSide = (fwd ? 0 : 1);
+
+                                    if (lArc == uArc && lSide == uSide) {
+                                        // We completed the cycle.
+                                        break;
+                                    }
+
+                                    // The r2() check is expensive when adding
+                                    // two crossings.  We already know this move
+                                    // is legal (in the classical sense), so use
+                                    // r2Virtual() instead which avoids the
+                                    // expensive planarity test.
+                                    Link alt(t, false);
+                                    alt.r2Virtual(
+                                        alt.translate(uArc), uSide,
+                                        alt.translate(lArc), lSide);
+                                    if (retri->candidate(std::move(alt), sig))
+                                        return;
                                 }
-
-                                // Try arc as the lower strand.
-                                // Make sure we're on the correct side.
-                                lowerSide = (forward ? 0 : 1);
-
-                                // The r2() check is expensive when adding
-                                // two crossings - use the variant where we
-                                // promise that it's going to be legal.
-                                Link alt(t, false);
-                                alt.r2(
-                                    alt.translate(upperArc), upperSide,
-                                    alt.translate(lowerArc), lowerSide,
-                                    regina::unprotected);
-                                if (retriang->candidate(std::move(alt), sig))
-                                    return;
-                            }
-                        }
-                    }
-
-                if (nTrivial > 0) {
-                    // We can also use a 0-crossing unknot as one of the
-                    // actors in our R2 move.
-                    //
-                    // The choice of sides does not matter here, since all
-                    // options give the same diagram modulo reversal of the
-                    // 0-crossing unknot component.  It does, however, matter
-                    // which strand gets pushed over vs under.
-                    for (i = 0; i < t.size(); ++i)
-                        for (strand = 0; strand < 2; ++strand) {
-                            StrandRef arc = t.crossing(i)->strand(strand);
-                            {
-                                Link alt(t, false);
-                                alt.r2(alt.translate(arc), 0 /* left side */,
-                                    StrandRef(), 0 /* left side */);
-                                if (retriang->candidate(std::move(alt), sig))
-                                    return;
-                            }
-                            {
-                                Link alt(t, false);
-                                alt.r2(StrandRef(), 0 /* left side */,
-                                    alt.translate(arc), 0 /* left side */);
-                                if (retriang->candidate(std::move(alt), sig))
-                                    return;
                             }
                         }
 
-                    if (nTrivial > 1) {
-                        // Finally, try performing the R2 move on two distinct
-                        // 0-crossing unknot components.  Again, all choices
-                        // of side are equivalent under component reversal.
-                        Link alt(t, false);
-                        alt.r2(regina::StrandRef(), 0 /* left side */,
-                            regina::StrandRef(), 0 /* left side */);
-                        if (retriang->candidate(std::move(alt), sig))
-                            return;
-                    }
+                    // We promise not to merge diagram components, so we do not
+                    // consider moves that pass an unknot component over some
+                    // other component.
                 }
             }
         }
@@ -279,12 +324,34 @@ namespace detail {
 // Instantiate all necessary rewriting/retriangulation template functions
 // so the full implementation can stay out of the headers.
 
-template bool regina::detail::retriangulateInternal<Link, true>(
-    const Link&, int, unsigned, ProgressTrackerOpen*,
+template bool detail::retriangulateInternal<Link, true,
+    detail::RetriangulateDefault, std::true_type>(
+    const Link&, bool, int, int, ProgressTrackerOpen*,
     regina::detail::RetriangulateActionFunc<Link, true>&&);
 
-template bool regina::detail::retriangulateInternal<Link, false>(
-    const Link&, int, unsigned, ProgressTrackerOpen*,
+template bool detail::retriangulateInternal<Link, false,
+    detail::RetriangulateDefault, std::true_type>(
+    const Link&, bool, int, int, ProgressTrackerOpen*,
+    regina::detail::RetriangulateActionFunc<Link, false>&&);
+
+template bool detail::retriangulateInternal<Link, true,
+    detail::RetriangulateDefault, std::false_type>(
+    const Link&, bool, int, int, ProgressTrackerOpen*,
+    regina::detail::RetriangulateActionFunc<Link, true>&&);
+
+template bool detail::retriangulateInternal<Link, false,
+    detail::RetriangulateDefault, std::false_type>(
+    const Link&, bool, int, int, ProgressTrackerOpen*,
+    regina::detail::RetriangulateActionFunc<Link, false>&&);
+
+template bool detail::retriangulateInternal<Link, false,
+    detail::RetriangulateNoLocks | detail::RetriangulateNotFinished,
+    std::true_type>(const Link&, bool, int, int, ProgressTrackerOpen*,
+    regina::detail::RetriangulateActionFunc<Link, false>&&);
+
+template bool detail::retriangulateInternal<Link, false,
+    detail::RetriangulateNoLocks | detail::RetriangulateNotFinished,
+    std::false_type>(const Link&, bool, int, int, ProgressTrackerOpen*,
     regina::detail::RetriangulateActionFunc<Link, false>&&);
 
 } // namespace regina

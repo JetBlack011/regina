@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,6 +43,8 @@
 
 using regina::AbelianGroup;
 using regina::Example;
+using regina::FailedPrecondition;
+using regina::GroupPresentation;
 using regina::Triangulation;
 
 // Large examples of some specific manifolds, created from framed links.
@@ -87,6 +87,7 @@ class Dim4Test : public TriangulationTest<4> {
         TestCase cp2 { Example<4>::cp2(), "CP^2" };
         TestCase s2xs2 { Example<4>::s2xs2(), "S^2 x S^2" };
         TestCase s2xs2Twisted { Example<4>::s2xs2Twisted(), "S^2 x~ S^2" };
+        TestCase t4 { Example<4>::fourTorus(), "4-torus" };
         TestCase k3 { Example<4>::k3(), "K3" };
 
         // Closed non-orientable triangulations:
@@ -184,6 +185,7 @@ class Dim4Test : public TriangulationTest<4> {
             f(cp2.tri, cp2.name);
             f(s2xs2.tri, s2xs2.name);
             f(s2xs2Twisted.tri, s2xs2Twisted.name);
+            f(t4.tri, t4.name);
             if (includeLarge)
                 f(k3.tri, k3.name);
 
@@ -280,6 +282,7 @@ TEST_F(Dim4Test, validity) {
     verifyValid(cp2);
     verifyValid(s2xs2);
     verifyValid(s2xs2Twisted);
+    verifyValid(t4);
     verifyValid(k3);
 
     verifyValid(rp4);
@@ -310,6 +313,7 @@ TEST_F(Dim4Test, connectivity) {
     EXPECT_TRUE(cp2.tri.isConnected());
     EXPECT_TRUE(s2xs2.tri.isConnected());
     EXPECT_TRUE(s2xs2Twisted.tri.isConnected());
+    EXPECT_TRUE(t4.tri.isConnected());
     EXPECT_TRUE(k3.tri.isConnected());
 
     EXPECT_TRUE(rp4.tri.isConnected());
@@ -340,6 +344,7 @@ TEST_F(Dim4Test, orientability) {
     EXPECT_TRUE(cp2.tri.isOrientable());
     EXPECT_TRUE(s2xs2.tri.isOrientable());
     EXPECT_TRUE(s2xs2Twisted.tri.isOrientable());
+    EXPECT_TRUE(t4.tri.isOrientable());
     EXPECT_TRUE(k3.tri.isOrientable());
 
     EXPECT_FALSE(rp4.tri.isOrientable());
@@ -363,6 +368,31 @@ TEST_F(Dim4Test, orientability) {
     EXPECT_FALSE(disjoint3.tri.isOrientable());
 }
 
+TEST_F(Dim4Test, orientedExamples) {
+    // Ensure that the orientable Example<4> constructions are oriented.
+    //
+    // TODO: Several of these tests are commented out because the constructions
+    // are _not_ actually oriented at present; it would be nice to make these
+    // oriented in the future.
+
+    // EXPECT_TRUE(Example<4>::simplicialSphere().isOriented());
+    // EXPECT_TRUE(Example<4>::sphereBundle().isOriented());
+    EXPECT_TRUE(Example<4>::ball().isOriented());
+
+    EXPECT_TRUE(Example<4>::cp2().isOriented());
+    EXPECT_TRUE(Example<4>::s2xs2().isOriented());
+    EXPECT_TRUE(Example<4>::s2xs2Twisted().isOriented());
+    EXPECT_TRUE(Example<4>::fourTorus().isOriented());
+    EXPECT_TRUE(Example<4>::k3().isOriented());
+    EXPECT_TRUE(Example<4>::cappellShaneson().isOriented());
+
+    Triangulation<3> poincare = Example<3>::poincare();
+    // EXPECT_TRUE(Example<4>::iBundle(poincare).isOriented());
+    // EXPECT_TRUE(Example<4>::s1Bundle(poincare).isOriented());
+    EXPECT_TRUE(Example<4>::singleCone(poincare).isOriented());
+    EXPECT_TRUE(Example<4>::doubleCone(poincare).isOriented());
+}
+
 TEST_F(Dim4Test, eulerChar) {
     TriangulationTest<4>::eulerCharGenericCases();
 
@@ -374,6 +404,8 @@ TEST_F(Dim4Test, eulerChar) {
     EXPECT_EQ(s2xs2.tri.eulerCharManifold(), 4);
     EXPECT_EQ(s2xs2Twisted.tri.eulerCharTri(), 4);
     EXPECT_EQ(s2xs2Twisted.tri.eulerCharManifold(), 4);
+    EXPECT_EQ(t4.tri.eulerCharTri(), 0);
+    EXPECT_EQ(t4.tri.eulerCharManifold(), 0);
     EXPECT_EQ(k3.tri.eulerCharTri(), 24);
     EXPECT_EQ(k3.tri.eulerCharManifold(), 24);
 
@@ -396,10 +428,17 @@ TEST_F(Dim4Test, eulerChar) {
     EXPECT_EQ(mixedPoincareProduct.tri.eulerCharManifold(), 0);
 
     EXPECT_EQ(idealFigEightProduct.tri.eulerCharTri(), 1);
+    EXPECT_THROW(idealFigEightProduct.tri.eulerCharManifold(),
+        FailedPrecondition);
     EXPECT_EQ(mixedFigEightProduct.tri.eulerCharTri(), 1);
+    EXPECT_THROW(mixedFigEightProduct.tri.eulerCharManifold(),
+        FailedPrecondition);
     EXPECT_EQ(pillow_twoCycle.tri.eulerCharTri(), 2);
+    EXPECT_THROW(pillow_twoCycle.tri.eulerCharManifold(), FailedPrecondition);
     EXPECT_EQ(pillow_threeCycle.tri.eulerCharTri(), 2);
+    EXPECT_THROW(pillow_threeCycle.tri.eulerCharManifold(), FailedPrecondition);
     EXPECT_EQ(pillow_fourCycle.tri.eulerCharTri(), 0);
+    EXPECT_THROW(pillow_fourCycle.tri.eulerCharManifold(), FailedPrecondition);
 
     EXPECT_EQ(disjoint2.tri.eulerCharTri(), 1);
     EXPECT_EQ(disjoint2.tri.eulerCharManifold(), 1);
@@ -414,6 +453,7 @@ TEST_F(Dim4Test, boundaryBasic) {
     verifyBoundaryBasic(cp2, {}, {}, {});
     verifyBoundaryBasic(s2xs2, {}, {}, {});
     verifyBoundaryBasic(s2xs2Twisted, {}, {}, {});
+    verifyBoundaryBasic(t4, {}, {}, {});
     verifyBoundaryBasic(k3, {}, {}, {});
 
     verifyBoundaryBasic(rp4, {}, {}, {});
@@ -499,6 +539,7 @@ TEST_F(Dim4Test, vertexLinksBasic) {
     verifyVertexLinksBasic(cp2, 4, 0);
     verifyVertexLinksBasic(s2xs2, 5, 0);
     verifyVertexLinksBasic(s2xs2Twisted, 5, 0);
+    verifyVertexLinksBasic(t4, 1, 0);
     verifyVertexLinksBasic(k3, 24, 0);
 
     verifyVertexLinksBasic(rp4, 3, 0);
@@ -690,6 +731,12 @@ TEST_F(Dim4Test, skeleton) {
 
 TEST_F(Dim4Test, boundaryLabelling) {
     testManualCases(TriangulationTest<4>::verifyBoundaryLabelling);
+
+    // One more case, which was problematic in earlier versions of regina:
+    TriangulationTest<4>::verifyBoundaryLabelling(
+        Triangulation<4>::fromSig(
+            "mHHvwMMIuQQkbcfhhggghkllllkkkaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        "Invalid 12-pentachoron 4-manifold triangulation");
 }
 
 TEST_F(Dim4Test, edgeAccess) {
@@ -704,12 +751,27 @@ TEST_F(Dim4Test, doubleCover) {
     testManualCases(TriangulationTest<4>::verifyDoubleCover);
 }
 
+TEST_F(Dim4Test, doubleOverBoundary) {
+    testManualCases(TriangulationTest<4>::verifyDoubleOverBoundary);
+}
+
 TEST_F(Dim4Test, makeCanonical) {
     testManualCases(TriangulationTest<4>::verifyMakeCanonical);
 }
 
 TEST_F(Dim4Test, isomorphismSignature) {
     testManualCases(TriangulationTest<4>::verifyIsomorphismSignature);
+    verifyIsomorphismSignatureWithLocks(rp4.tri, rp4.name);
+    verifyIsomorphismSignatureWithLocks(ball_layerAndFold.tri,
+        ball_layerAndFold.name);
+}
+
+TEST_F(Dim4Test, lockPropagation) {
+    testManualCases(TriangulationTest<4>::verifyLockPropagation);
+}
+
+TEST_F(Dim4Test, lockEnforcement) {
+    testManualCases(TriangulationTest<4>::verifyLockEnforcement);
 }
 
 TEST_F(Dim4Test, pachner) {
@@ -844,6 +906,7 @@ TEST_F(Dim4Test, homologyH1) {
     EXPECT_EQ(cp2.tri.homology<1>(), AbelianGroup());
     EXPECT_EQ(s2xs2.tri.homology<1>(), AbelianGroup());
     EXPECT_EQ(s2xs2Twisted.tri.homology<1>(), AbelianGroup());
+    EXPECT_EQ(t4.tri.homology<1>(), AbelianGroup(4));
     EXPECT_EQ(k3.tri.homology<1>(), AbelianGroup());
 
     EXPECT_EQ(rp4.tri.homology<1>(), AbelianGroup(0, {2}));
@@ -874,6 +937,7 @@ TEST_F(Dim4Test, homologyH2) {
     EXPECT_EQ(cp2.tri.homology<2>(), AbelianGroup(1));
     EXPECT_EQ(s2xs2.tri.homology<2>(), AbelianGroup(2));
     EXPECT_EQ(s2xs2Twisted.tri.homology<2>(), AbelianGroup(2));
+    EXPECT_EQ(t4.tri.homology<2>(), AbelianGroup(6 /* 4 choose 2 */));
     EXPECT_EQ(k3.tri.homology<2>(), AbelianGroup(22));
 
     EXPECT_EQ(rp4.tri.homology<2>(), AbelianGroup());
@@ -901,6 +965,7 @@ TEST_F(Dim4Test, homologyH3) {
     EXPECT_EQ(cp2.tri.homology<3>(), AbelianGroup());
     EXPECT_EQ(s2xs2.tri.homology<3>(), AbelianGroup());
     EXPECT_EQ(s2xs2Twisted.tri.homology<3>(), AbelianGroup());
+    EXPECT_EQ(t4.tri.homology<3>(), AbelianGroup(4));
     EXPECT_EQ(k3.tri.homology<3>(), AbelianGroup());
 
     EXPECT_EQ(rp4.tri.homology<3>(), AbelianGroup(0, {2}));
@@ -957,6 +1022,7 @@ TEST_F(Dim4Test, fundGroup) {
     EXPECT_EQ(cp2.tri.group().recogniseGroup(), "0");
     EXPECT_EQ(s2xs2.tri.group().recogniseGroup(), "0");
     EXPECT_EQ(s2xs2Twisted.tri.group().recogniseGroup(), "0");
+    EXPECT_EQ(t4.tri.group().recogniseGroup(), "4 Z");
     EXPECT_EQ(k3.tri.group().recogniseGroup(), "0");
 
     EXPECT_EQ(rp4.tri.group().recogniseGroup(), "Z_2");
@@ -973,7 +1039,7 @@ TEST_F(Dim4Test, fundGroup) {
     EXPECT_EQ(mixedPoincareProduct.tri.group().recogniseGroup(), "");
 
     EXPECT_EQ(idealFigEightProduct.tri.group().recogniseGroup(),
-        "Z~Free(2) w/monodromy a \u21A6 b, b \u21A6 b^2 a^-1 b");
+        "Z~Free(2) w/monodromy a \u21A6 b, b \u21A6 b a^-1 b^2");
     EXPECT_EQ(mixedFigEightProduct.tri.group().recogniseGroup(),
         "Z~Free(2) w/monodromy a \u21A6 b, b \u21A6 b^2 a^-1 b");
     EXPECT_EQ(pillow_twoCycle.tri.group().recogniseGroup(), "0");
@@ -999,7 +1065,7 @@ TEST_F(Dim4Test, copyMove) {
     testManualCases(TriangulationTest<4>::verifyCopyMove);
 }
 
-static void verifyFourFourMove(const Triangulation<4>& tri, const char* name) {
+static void verifyMove44(const Triangulation<4>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     Triangulation<4> oriented(tri);
@@ -1009,7 +1075,7 @@ static void verifyFourFourMove(const Triangulation<4>& tri, const char* name) {
     for (auto e : tri.edges()) {
         Triangulation<4> alt(oriented);
 
-        if (! alt.fourFourMove(alt.edge(e->index()))) {
+        if (! alt.move44(alt.edge(e->index()))) {
             // Check that the move was _not_ performed.
             EXPECT_EQ(alt, oriented);
             continue;
@@ -1030,9 +1096,9 @@ static void verifyFourFourMove(const Triangulation<4>& tri, const char* name) {
         EXPECT_EQ(alt.isClosed(), tri.isClosed());
         EXPECT_EQ(alt.countBoundaryComponents(), tri.countBoundaryComponents());
         EXPECT_EQ(alt.eulerCharTri(), tri.eulerCharTri());
-        EXPECT_EQ(alt.eulerCharManifold(), tri.eulerCharManifold());
 
         if (tri.isValid()) {
+            EXPECT_EQ(alt.eulerCharManifold(), tri.eulerCharManifold());
             EXPECT_EQ(alt.homology<1>(), tri.homology<1>());
             EXPECT_EQ(alt.homology<2>(), tri.homology<2>());
         }
@@ -1042,17 +1108,13 @@ static void verifyFourFourMove(const Triangulation<4>& tri, const char* name) {
 
         // Ensure that there exists an inverse 4-4 move.
         bool found = false;
-        for (auto e : alt.edges())
-            if (alt.fourFourMove(e, true, false)) {
-                Triangulation<4> inv(alt);
-                EXPECT_TRUE(inv.fourFourMove(inv.edge(e->index()),
-                    false, true));
-
+        for (auto f : alt.edges())
+            if (auto inv = alt.with44(f)) {
                 // Don't clear properties from inv, since what we're about to
                 // test does not rely on computed topological properties.
                 if (tri.isOrientable())
-                    EXPECT_TRUE(inv.isOriented());
-                if (inv.isIsomorphicTo(tri)) {
+                    EXPECT_TRUE(inv->isOriented());
+                if (inv->isIsomorphicTo(tri)) {
                     found = true;
                     break;
                 }
@@ -1061,10 +1123,10 @@ static void verifyFourFourMove(const Triangulation<4>& tri, const char* name) {
     }
 }
 
-TEST_F(Dim4Test, fourFourMove) {
-    testManualCases(verifyFourFourMove);
-    runCensusAllBounded(verifyFourFourMove);
-    runCensusAllNoBdry(verifyFourFourMove);
+TEST_F(Dim4Test, move44) {
+    testManualCases(verifyMove44);
+    runCensusAllBounded(verifyMove44);
+    runCensusAllNoBdry(verifyMove44);
 }
 
 static void verifySnapEdge(const Triangulation<4>& tri, const char* name) {
@@ -1101,11 +1163,14 @@ static void verifySnapEdge(const Triangulation<4>& tri, const char* name) {
         EXPECT_EQ(alt.isClosed(), tri.isClosed());
         EXPECT_EQ(alt.countBoundaryComponents(), tri.countBoundaryComponents());
         EXPECT_EQ(alt.eulerCharTri(), tri.eulerCharTri());
-        EXPECT_EQ(alt.eulerCharManifold(), tri.eulerCharManifold());
 
-        if (tri.size() <= HOMOLOGY_THRESHOLD && tri.isValid()) {
-            EXPECT_EQ(alt.homology<1>(), tri.homology<1>());
-            EXPECT_EQ(alt.homology<2>(), tri.homology<2>());
+        if (tri.isValid()) {
+            EXPECT_EQ(alt.eulerCharManifold(), tri.eulerCharManifold());
+
+            if (tri.size() <= HOMOLOGY_THRESHOLD) {
+                EXPECT_EQ(alt.homology<1>(), tri.homology<1>());
+                EXPECT_EQ(alt.homology<2>(), tri.homology<2>());
+            }
         }
     }
 }
@@ -1116,7 +1181,7 @@ TEST_F(Dim4Test, snapEdge) {
     runCensusAllNoBdry(verifySnapEdge);
 }
 
-static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
+static void verifyTruncateIdeal(const Triangulation<4>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
     bool shouldTruncate = false;
@@ -1131,15 +1196,15 @@ static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
     }
 
     if (! shouldTruncate) {
-        // The idealToFinite routine should leave tri unchanged.
+        // The truncateIdeal routine should leave tri unchanged.
         Triangulation<4> other(tri);
-        other.idealToFinite();
+        other.truncateIdeal();
         EXPECT_EQ(other, tri);
         return;
     }
 
     // Test the same triangulation under some random isomorphisms,
-    // since the idealToFinite() code implements cases separately for
+    // since the truncateIdeal() code implements cases separately for
     // truncating differently-labelled vertices.
     //
     // We use just a couple of different isomorphisms here, since this
@@ -1149,7 +1214,7 @@ static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
         if (i > 0)
             other.randomiseLabelling(false);
 
-        other.idealToFinite();
+        other.truncateIdeal();
 
         // Ensure that properties we are about to verify are explicitly
         // recomputed.
@@ -1168,11 +1233,13 @@ static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
 
             // Subdivisions can change these properties for
             // invalid triangulations.
-            EXPECT_EQ(other.eulerCharManifold(), tri.eulerCharManifold());
             EXPECT_EQ(other.countBoundaryComponents(),
                     tri.countBoundaryComponents());
 
-            // Homology can only be computed for valid triangulations.
+            // The following properties (Euler characteristic of the manifold
+            // and homology groups) can only be computed for valid triangulations.
+            EXPECT_EQ(other.eulerCharManifold(), tri.eulerCharManifold());
+
             other.simplify();
 
             EXPECT_EQ(other.homology<1>(), tri.homology<1>());
@@ -1181,10 +1248,10 @@ static void verifyIdealToFinite(const Triangulation<4>& tri, const char* name) {
     }
 }
 
-TEST_F(Dim4Test, idealToFinite) {
-    testManualCases(verifyIdealToFinite);
-    runCensusAllBounded(verifyIdealToFinite); // Never change
-    runCensusAllNoBdry(verifyIdealToFinite); // Sometimes change
+TEST_F(Dim4Test, truncateIdeal) {
+    testManualCases(verifyTruncateIdeal);
+    runCensusAllBounded(verifyTruncateIdeal); // Never change
+    runCensusAllNoBdry(verifyTruncateIdeal); // Sometimes change
 }
 
 static void verifyIntersectionForm(const TriangulationTest<4>::TestCase& test,
@@ -1344,6 +1411,108 @@ static void verifyS1Bundle(const Triangulation<3>& tri, const char* name) {
 TEST_F(Dim4Test, s1Bundle) {
     runCensusAllClosed(verifyS1Bundle);
     runCensusAllBounded(verifyS1Bundle);
+}
+
+static void verifyBoundarySpin(const Triangulation<3>& tri, const char* name) {
+    SCOPED_TRACE_CSTRING(name);
+
+    Triangulation<4> spin = Example<4>::boundarySpin(tri);
+
+    if (! tri.isValid()) {
+        // Not much we can say here.
+        EXPECT_FALSE(spin.isValid());
+        return;
+    }
+
+    if (tri.isClosed()) {
+        // This should just be an S1-bundle.
+        verifyS1Bundle(tri, name);
+        return;
+    }
+
+    if (tri.isIdeal()) {
+        EXPECT_FALSE(spin.isValid());
+        EXPECT_FALSE(spin.isClosed());
+
+        // Each tetrahedron becomes a prism whose vertical edges are
+        // subdivided into two pieces.  This means that each original ideal
+        // vertex spins around to become two bad edges.
+        size_t badEdgeLinks = 0;
+        for (auto e : spin.edges()) {
+            if (e->hasBadLink())
+                ++badEdgeLinks;
+            EXPECT_FALSE(e->hasBadIdentification());
+        }
+        EXPECT_EQ(badEdgeLinks, 2 * tri.countBoundaryComponents());
+    } else {
+        EXPECT_TRUE(spin.isValid());
+        EXPECT_TRUE(spin.isClosed());
+    }
+    EXPECT_EQ(spin.isOrientable(), tri.isOrientable());
+    EXPECT_EQ(spin.countComponents(), tri.countComponents());
+    EXPECT_FALSE(spin.hasBoundaryFacets());
+
+    // Verify Euler characteristics.
+    //
+    // Things are simple where tri is compact.
+    //
+    // In the case where tri is ideal, it is still easy to work out what
+    // eulerCharTri() should be; however, I'm honestly not sure what should
+    // happen to eulerCharManifold(), since each ideal vertex of tri creates
+    // invalid edges and invalid vertices in the result.  For now we just skip
+    // the eulerCharManifold() test in the case where tri is ideal.
+    long bdryEuler = 0;
+    for (auto b : tri.boundaryComponents())
+        if (b->isReal())
+            bdryEuler += b->eulerChar();
+    EXPECT_EQ(spin.eulerCharTri(), bdryEuler);
+    if (! tri.isIdeal())
+        EXPECT_EQ(spin.eulerCharManifold(), bdryEuler);
+}
+
+TEST_F(Dim4Test, boundarySpin) {
+    // Bounded triangulations are the interesting case for this routine.
+    runCensusAllBounded(verifyBoundarySpin);
+
+    // A few closed and ideal examples:
+    verifyBoundarySpin(Example<3>::lens(2, 1), "RP^3");
+    verifyBoundarySpin(Example<3>::poincare(), "Poincare homology sphere");
+    verifyBoundarySpin(Example<3>::smallClosedNonOrblHyperbolic(),
+        "Closed non-orientable hyperbolic");
+    verifyBoundarySpin(Example<3>::figureEight(), "Figure eight complement");
+    verifyBoundarySpin(Example<3>::gieseking(), "Gieseking manifold");
+    verifyBoundarySpin(Example<3>::whitehead(), "Whitehead link complement");
+    verifyBoundarySpin(Example<3>::idealGenusTwoHandlebody(),
+        "Ideal genus two handlebody");
+
+    // Some specific cases where we know exactly what the manifold should be:
+    {
+        // The 3-ball becomes the 4-sphere.
+        auto spin = Example<4>::boundarySpin(Example<3>::ball());
+        spin.simplify();
+        EXPECT_EQ(spin.group(), GroupPresentation());
+        EXPECT_EQ(spin.homology<1>(), AbelianGroup());
+        EXPECT_EQ(spin.homology<2>(), AbelianGroup());
+        EXPECT_TRUE(spin.isOrientable());
+    }
+    {
+        // The solid torus becomes S3 x S1.
+        auto spin = Example<4>::boundarySpin(Example<3>::ballBundle());
+        spin.simplify();
+        EXPECT_EQ(spin.group(), GroupPresentation(1));
+        EXPECT_EQ(spin.homology<1>(), AbelianGroup(1));
+        EXPECT_EQ(spin.homology<2>(), AbelianGroup());
+        EXPECT_TRUE(spin.isOrientable());
+    }
+    {
+        // The solid Klein bottle becomes S3 x~ S1.
+        auto spin = Example<4>::boundarySpin(Example<3>::twistedBallBundle());
+        spin.simplify();
+        EXPECT_EQ(spin.group(), GroupPresentation(1));
+        EXPECT_EQ(spin.homology<1>(), AbelianGroup(1));
+        EXPECT_EQ(spin.homology<2>(), AbelianGroup());
+        EXPECT_FALSE(spin.isOrientable());
+    }
 }
 
 static void verifyBundleWithMonodromy(const Triangulation<3>& tri,

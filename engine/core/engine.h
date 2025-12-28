@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -160,6 +158,17 @@ const char* versionSnapPy();
  * \ingroup engine
  */
 const char* versionSnapPea();
+
+/**
+ * Returns the major version of pybind11 that is used with Regina's python
+ * bindings.  Currently this will return either 2 or 3 (according to whether
+ * you are building against Python ≤ 3.11 or Python ≥ 3.12 respectively).
+ *
+ * \nocpp
+ *
+ * \return the major pybind11 version.
+ */
+int versionPybind11Major();
 
 /**
  * Does this particular build of Regina support native 128-bit arithmetic?

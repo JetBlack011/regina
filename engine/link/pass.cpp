@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,6 +37,13 @@ bool Link::hasReducingPass() const {
     // Get rid of 0-crossing links.
     if (crossings_.empty())
         return false;
+
+    // The planarity test is expensive (linear time), but finding a reducing
+    // pass is more expensive (cubic time), and it's best to tell users if
+    // they're doing things that will give mysteriously wrong answers.
+    if (! isClassical())
+        throw FailedPrecondition("Regina can only work with pass moves "
+            "in classical link diagrams, not virtual link diagrams");
 
     // We consider sides of arcs: for crossing i, we denote:
     // 4i   = left side of upper outgoing arc

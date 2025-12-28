@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -36,15 +34,6 @@
 #include <pybind11/pybind11.h>
 #include "triangulation/generic.h"
 #include "../helpers.h"
-
-// On some systems we get warnings about regina's helper classes having
-// greater visibility than the pybind11 code that it uses.  We can fix
-// this by setting the same visibility attributes that pybind11 uses.
-#ifdef __GNUG__
-    #define MATCH_PYBIND11_VISIBILITY __attribute__((visibility("hidden")))
-#else
-    #define MATCH_PYBIND11_VISIBILITY
-#endif
 
 namespace regina::python {
 
@@ -93,7 +82,7 @@ using facesFunc = decltype(T().faces(0)) (T::*)(int) const;
  * Note: when given a pointer, pybind11::cast() and pybind11::list::append()
  * both default to a return value policy of reference, not take_ownership.
  */
-template <class T, int dim, int subdim>
+template <typename T, int dim, int subdim>
 struct FaceHelper {
     using Face = regina::Face<dim, subdim>;
 
@@ -136,7 +125,7 @@ struct FaceHelper {
  *
  * See the notes above.
  */
-template <class T, int dim>
+template <typename T, int dim>
 struct FaceHelper<T, dim, 0> {
     using Face = regina::Face<dim, 0>;
 
@@ -170,7 +159,7 @@ struct FaceHelper<T, dim, 0> {
  * The compiler needs to instantiate this class, but none of its methods
  * should ever be called.
  */
-template <class T, int dim>
+template <typename T, int dim>
 struct FaceHelper<T, dim, -1> {
     static size_t countFacesFrom(const T&, int) {
         throw -1;
@@ -204,7 +193,7 @@ void invalidFaceDimension(const char* functionName, int minDim, int maxDim);
  * T::countFaces<subdimArg>(), where the valid range for the C++ template
  * parameter \a subdimArg is 0, ..., \a maxSubdim.
  */
-template <class T, int dim, int maxSubdim>
+template <typename T, int dim, int maxSubdim>
 size_t countFaces(const T& t, int subdimArg) {
     if (subdimArg < 0 || subdimArg > maxSubdim)
         invalidFaceDimension("countFaces", 0, maxSubdim);
@@ -219,7 +208,7 @@ size_t countFaces(const T& t, int subdimArg) {
  * The return value policy will be treated as
  * pybind11::return_value_policy::reference.
  */
-template <class T, int dim, typename Index>
+template <typename T, int dim, typename Index>
 pybind11::object face(const T& t, int subdimArg, Index f) {
     if (subdimArg < 0 || subdimArg >= dim)
         invalidFaceDimension("face", 0, dim - 1);
@@ -235,7 +224,7 @@ pybind11::object face(const T& t, int subdimArg, Index f) {
  * The return value policy will be treated as
  * pybind11::return_value_policy::reference.
  */
-template <class T, int dim>
+template <typename T, int dim>
 pybind11::object faces(const T& t, int subdimArg) {
     if (subdimArg < 0 || subdimArg >= dim)
         invalidFaceDimension("faces", 0, dim - 1);
@@ -248,7 +237,7 @@ pybind11::object faces(const T& t, int subdimArg) {
  * parameter \a subdimArg is 0, ..., <i>dim</i>-1, and where the function
  * returns a permutation on permSize elements.
  */
-template <class T, int dim, int permSize = dim + 1>
+template <typename T, int dim, int permSize = dim + 1>
 Perm<permSize> faceMapping(const T& t, int subdimArg, int f) {
     if (subdimArg < 0 || subdimArg >= dim)
         invalidFaceDimension("faceMapping", 0, dim - 1);

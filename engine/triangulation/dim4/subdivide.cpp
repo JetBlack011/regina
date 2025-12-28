@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -37,7 +35,7 @@
 namespace regina {
 
 namespace {
-    // Supporting material for idealToFinite().
+    // Supporting material for truncateIdeal().
 
     // We list the types of pentachora:
     // (1) Original pentachoron, i.e. no ideal vertices.
@@ -100,7 +98,7 @@ namespace {
     }
 } // anonymous namespace
 
-bool Triangulation<4>::idealToFinite() {
+bool Triangulation<4>::truncateIdeal() {
     bool idVrts = false;
     for (auto* v : vertices())
         if (shouldTruncate(v)) {
@@ -406,7 +404,7 @@ bool Triangulation<4>::idealToFinite() {
                             incPerm0 = Perm<5>(triInc2[1],triInc2[2],triInc2[0],
                                 triInc2[3], triInc2[4] );
                         } else {
-                            std::cout<<"Triangulation<4>::idealToFinite()"<<
+                            std::cout<<"Triangulation<4>::truncateIdeal()"<<
                                         " Error 1."<<std::endl;
                             exit(1);
                         }
@@ -439,7 +437,7 @@ bool Triangulation<4>::idealToFinite() {
                             incPerm1 = Perm<5>(triInc3[1],triInc3[2],triInc3[0],
                                               triInc3[3], triInc3[4] );
                         } else {
-                            std::cout<<"Triangulation<4>::idealToFinite()"<<
+                            std::cout<<"Triangulation<4>::truncateIdeal()"<<
                                         " Error 2."<<std::endl;
                             exit(1);
                         }

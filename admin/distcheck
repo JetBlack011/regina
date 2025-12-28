@@ -3,7 +3,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Source Distribution Verification
 #
-# Copyright (c) 2003-2023, Ben Burton
+# Copyright (c) 2003-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Usage: distcheck <dist-tarball>
@@ -37,10 +37,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 set -e
 
@@ -132,6 +130,8 @@ if ! find "$gittree" | sed -e 's%^[^/]*/%%' | \
     grep -v "$grep_builddirs" | \
     grep -v '^\.' | \
     grep -v '/\.' | \
+    grep -v '^admin/distcheck$' | \
+    grep -v '^admin/RELEASE.txt$' | \
     grep -v '^engine/snappea/kernel/unused\(/\|$\)' | \
     grep -v '^python/docstrings/clang-support\(/\|$\)' | \
     grep -v '^regina-[0-9.]\+\.tar\.gz$' | \

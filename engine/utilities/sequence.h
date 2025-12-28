@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -49,15 +47,20 @@ namespace regina {
  *
  * This class is intended as a lightweight substitute for std::vector,
  * especially when working with temporary sequences that are frequently
- * created and destroyed.  The underlying storage just uses a native
- * C-style array, and the C++ class wrapper provides the usual mechanisms
- * for safe and simple memory management.
+ * created and destroyed, such as sequence-valued keys or values in maps.
+ * The underlying storage just uses a native C-style array, and the
+ * C++ class wrapper provides the usual mechanisms for safe and simple
+ * memory management.
  *
  * The size (number of elements) of a sequence can be changed, but this
  * should not be done lightly.  Unlike std::vector, resizing a sequence
  * is an expensive operation that deletes all existing contents of the
  * sequence and forces a reallocation of the underlying storage.
  * See init() for details.
+ *
+ * This class is very similar in nature to FixedArray, but was born from
+ * different needs.  It is possible that these two classes will be unified in
+ * some future version of Regina.
  *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
@@ -104,6 +107,12 @@ class LightweightSequence {
          * \param size the number of elements in the new sequence.
          */
         explicit LightweightSequence(size_t size);
+        /**
+         * Create a new sequence containing the given elements.
+         *
+         * \param elements the elements to place in the new sequence.
+         */
+        LightweightSequence(std::initializer_list<T> elements);
         /**
          * Create a new sequence containing the given elements, which
          * may be given through a combination of individual elements and
@@ -190,6 +199,15 @@ class LightweightSequence {
         size_t size() const;
 
         /**
+         * Determines whether this sequence is empty.
+         *
+         * This is true if and only if `size() == 0`.
+         *
+         * \return \c true if and only if this sequence is empty.
+         */
+        bool empty() const;
+
+        /**
          * Returns a copy of the element at the given index in the sequence.
          *
          * \param pos the index of the requested element; this must be
@@ -249,6 +267,38 @@ class LightweightSequence {
          * \return a read-only past-the-end iterator.
          */
         const_iterator end() const;
+        /**
+         * Returns a copy of the first element in this sequence.
+         *
+         * \pre This sequence is non-empty.
+         *
+         * \return a copy of the first element.
+         */
+        T front() const;
+        /**
+         * Returns a reference to the first element in this sequence.
+         *
+         * \pre This sequence is non-empty.
+         *
+         * \return a reference to the first element.
+         */
+        T& front();
+        /**
+         * Returns a copy of the last element in this sequence.
+         *
+         * \pre This sequence is non-empty.
+         *
+         * \return a copy of the last element.
+         */
+        T back() const;
+        /**
+         * Returns a reference to the last element in this sequence.
+         *
+         * \pre This sequence is non-empty.
+         *
+         * \return a reference to the last element.
+         */
+        T& back();
 
         /**
          * Converts this into a copy of the given sequence.
@@ -454,8 +504,8 @@ class LightweightSequence {
                 bool operator () (SeqIterator a, SeqIterator b) const;
         };
 
-#if 0 // gcc bug #79501 incorrectly marks this as an error.
-        template <class IndexIterator>
+#if 0 // gcc bug #79501 (fixed in gcc-12) incorrectly marks this as an error.
+        template <typename IndexIterator>
         SubsequenceCompareFirst(IndexIterator, IndexIterator) ->
             SubsequenceCompareFirst<IndexIterator>;
 #endif
@@ -530,6 +580,13 @@ inline LightweightSequence<T>::LightweightSequence(size_t size) :
 }
 
 template <typename T>
+inline LightweightSequence<T>::LightweightSequence(
+        std::initializer_list<T> elements) :
+        data_(new T[elements.size()]), size_(elements.size()) {
+    std::copy(elements.begin(), elements.end(), data_);
+}
+
+template <typename T>
 template <typename... Args>
 inline LightweightSequence<T>::LightweightSequence(size_t size,
         Args&&... args) : data_(new T[size]), size_(size) {
@@ -568,6 +625,11 @@ inline size_t LightweightSequence<T>::size() const {
 }
 
 template <typename T>
+inline bool LightweightSequence<T>::empty() const {
+    return size_ == 0;
+}
+
+template <typename T>
 inline T LightweightSequence<T>::operator [] (size_t pos) const {
     return data_[pos];
 }
@@ -575,6 +637,26 @@ inline T LightweightSequence<T>::operator [] (size_t pos) const {
 template <typename T>
 inline T& LightweightSequence<T>::operator [] (size_t pos) {
     return data_[pos];
+}
+
+template <typename T>
+inline T LightweightSequence<T>::front() const {
+    return *data_;
+}
+
+template <typename T>
+inline T& LightweightSequence<T>::front() {
+    return *data_;
+}
+
+template <typename T>
+inline T LightweightSequence<T>::back() const {
+    return data_[size_ - 1];
+}
+
+template <typename T>
+inline T& LightweightSequence<T>::back() {
+    return data_[size_ - 1];
 }
 
 template <typename T>
@@ -628,7 +710,7 @@ inline LightweightSequence<T>& LightweightSequence<T>::operator = (
 template <typename T>
 inline void LightweightSequence<T>::swap(LightweightSequence<T>& other)
         noexcept {
-    std::swap(size_, other.size);
+    std::swap(size_, other.size_);
     std::swap(data_, other.data_);
 }
 

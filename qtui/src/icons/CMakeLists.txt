@@ -4,7 +4,10 @@ set (IMGS
   alternating
   barycentric
   boundaries
+  boundary-double
   canonical
+  clone-packet
+  clone-subtree
   components
   cone
   connectedsum
@@ -13,19 +16,24 @@ set (IMGS
   crossing-u
   crossing+l
   crossing+u
+  crush
   csvexport
+  cutalong
   dehydrated
   delete
+  delete-mono
   disjointunion
   doublecover
   drilledge
+  eltmoves
   examples
   fill
   filter_comb
   filter_prop
-  finite
   insert
+  insert-mono
   lock
+  move
   orb
   orient
   packet_angles
@@ -70,13 +78,20 @@ set (IMGS
   signature-4d
   signature-knot
   simplify
+  simplify-0eff
+  simplify-clean
   simplify-link
   snappea
   thicker
   thinner
+  treewidth
   troubleshoot
+  truncate
+  truncate-single
+  unlock
   vtxlinks
   welcome
+  whitehead-double
   )
 set (SIZES 16 16@2x 22 22@2x 32 32@2x 48 48@2x 64 64@2x)
 

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,26 +23,24 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #include "face-bindings.h"
 
-void addFace10(pybind11::module_& m) {
-    addFace<10, 0>(m, "Face10_0", "FaceEmbedding10_0");
-    addFace<10, 1>(m, "Face10_1", "FaceEmbedding10_1");
-    addFace<10, 2>(m, "Face10_2", "FaceEmbedding10_2");
-    addFace<10, 3>(m, "Face10_3", "FaceEmbedding10_3");
-    addFace<10, 4>(m, "Face10_4", "FaceEmbedding10_4");
-    addFace<10, 5>(m, "Face10_5", "FaceEmbedding10_5");
-    addFace<10, 6>(m, "Face10_6", "FaceEmbedding10_6");
-    addFace<10, 7>(m, "Face10_7", "FaceEmbedding10_7");
-    addFace<10, 8>(m, "Face10_8", "FaceEmbedding10_8");
-    addFace<10, 9>(m, "Face10_9", "FaceEmbedding10_9");
+void addFace10(pybind11::module_& m, pybind11::module_& internal) {
+    addFace<10, 0>(m, internal, "Face10_0", "FaceEmbedding10_0");
+    addFace<10, 1>(m, internal, "Face10_1", "FaceEmbedding10_1");
+    addFace<10, 2>(m, internal, "Face10_2", "FaceEmbedding10_2");
+    addFace<10, 3>(m, internal, "Face10_3", "FaceEmbedding10_3");
+    addFace<10, 4>(m, internal, "Face10_4", "FaceEmbedding10_4");
+    addFace<10, 5>(m, internal, "Face10_5", "FaceEmbedding10_5");
+    addFace<10, 6>(m, internal, "Face10_6", "FaceEmbedding10_6");
+    addFace<10, 7>(m, internal, "Face10_7", "FaceEmbedding10_7");
+    addFace<10, 8>(m, internal, "Face10_8", "FaceEmbedding10_8");
+    addFace<10, 9>(m, internal, "Face10_9", "FaceEmbedding10_9");
 
     m.attr("VertexEmbedding10") = m.attr("FaceEmbedding10_0");
     m.attr("EdgeEmbedding10") = m.attr("FaceEmbedding10_1");

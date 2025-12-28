@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,16 +23,15 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #include <algorithm>
 #include <cstdlib>
 #include <sstream>
+#include "concepts/core.h"
 #include "maths/binom.h"
 #include "utilities/bitmask.h"
 #include "utilities/bitmanip.h"
@@ -105,7 +104,7 @@ TEST(BitmaskTest, sizes) {
 #endif
 }
 
-template <typename BitmaskType>
+template <regina::ReginaBitmask BitmaskType>
 static void testFirstLastBit(int length) {
     SCOPED_TRACE_TYPE(BitmaskType);
     SCOPED_TRACE_NUMERIC(length);
@@ -144,7 +143,7 @@ TEST(BitmaskTest, firstLastBit) {
     testFirstLastBit<regina::Bitmask>(128);
 }
 
-template <typename BitmaskType>
+template <regina::ReginaBitmask BitmaskType>
 static void testBits(int length) {
     SCOPED_TRACE_TYPE(BitmaskType);
     SCOPED_TRACE_NUMERIC(length);
@@ -182,7 +181,7 @@ TEST(BitmaskTest, bits) {
     testBits<regina::Bitmask>(128);
 }
 
-template <typename BitmaskType>
+template <regina::ReginaBitmask BitmaskType>
 static void testTruncate(int length) {
     SCOPED_TRACE_TYPE(BitmaskType);
     SCOPED_TRACE_NUMERIC(length);
@@ -222,7 +221,7 @@ TEST(BitmaskTest, truncate) {
     testTruncate<regina::Bitmask>(128);
 }
 
-template <typename BitmaskType>
+template <regina::ReginaBitmask BitmaskType>
 static void testLexOrder(int length) {
     SCOPED_TRACE_TYPE(BitmaskType);
     SCOPED_TRACE_NUMERIC(length);
@@ -312,7 +311,10 @@ TEST(BitmaskTest, nextPermutation) {
     verifyNextPermutation<unsigned char>();
     verifyNextPermutation<unsigned int>();
     verifyNextPermutation<unsigned long>();
+    verifyNextPermutation<unsigned long long>();
     verifyNextPermutation<regina::IntOfSize<1>::utype>();
+    verifyNextPermutation<regina::IntOfSize<2>::utype>();
+    verifyNextPermutation<regina::IntOfSize<4>::utype>();
     verifyNextPermutation<regina::IntOfSize<8>::utype>();
 #ifdef INT128_AVAILABLE
     verifyNextPermutation<regina::IntOfSize<16>::utype>();

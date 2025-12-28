@@ -116,14 +116,26 @@ Parameter ``description``:
 
 // Docstring regina::python::doc::Triangulation_::collapseEdge
 static const char *collapseEdge =
-R"doc(Checks the eligibility of and/or performs a collapse of an edge in
-such a way that the topology of the manifold does not change and the
-number of vertices of the triangulation decreases by one.
+R"doc(If possible, performs an edge collapse move upon the given edge. This
+involves collapsing the edge to a point, merging its two endpoints
+together, and flattening all of the pentachora that contain it. The
+resulting effect is to reduce the number of vertices in this
+triangulation by one.
 
-If the routine is asked to both check and perform, the move will only
-be performed if the check shows it is legal and will not violate any
-simplex and/or facet locks (see Simplex<4>::lock() and
-Simplex<4>::lockFacet() for further details on locks).
+This triangulation will be changed directly.
+
+This move will only be performed if it will not change the topology of
+the manifold (as discussed below), _and_ it will not violate any
+simplex and/or facet locks. See Simplex<4>::lock() and
+Simplex<4>::lockFacet() for further details on locks.
+
+The requirements for this move to not change the topology are complex,
+and are discussed in detail in the collapseEdge() source code for
+those who are interested. The most important requirement is that the
+given edge should join two distinct vertices. It is also important to
+note that checking the full requirements is expensive (amongst other
+things, we need to build two union-find structures to implement the
+test).
 
 If you are trying to reduce the number of vertices without changing
 the topology, and if *e* is an edge connecting an internal vertex with
@@ -142,44 +154,58 @@ more appropriate for your situation.
 If this triangulation is currently oriented, then this operation will
 preserve the orientation.
 
-Note that after performing this move, all skeletal objects (facets,
+Note that after performing this move, all skeletal objects (faces,
 components, etc.) will be reconstructed, which means any pointers to
 old skeletal objects (such as the argument *e*) can no longer be used.
-
-The eligibility requirements for this move are somewhat involved, and
-are discussed in detail in the collapseEdge() source code for those
-who are interested.
-
-Precondition:
-    If the move is being performed and no check is being run, it must
-    be known in advance that the move is legal and will not violate
-    any simplex and/or facet locks.
 
 Precondition:
     The given edge is an edge of this triangulation.
 
-Exception ``LockViolation``:
-    This move would violate a simplex or facet lock, and *check* was
-    passed as ``False``. This exception will be thrown before any
-    changes are made. See Simplex<4>::lock() and
-    Simplex<4>::lockFacet() for further details on how locks work and
-    what their implications are.
-
 Parameter ``e``:
     the edge to collapse.
 
-Parameter ``check``:
-    ``True`` if we are to check whether the move is allowed (defaults
-    to ``True``).
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.)doc";
+
+// Docstring regina::python::doc::Triangulation_::collapseEdge_2
+static const char *collapseEdge_2 =
+R"doc(Deprecated routine that tests for and optionally performs an edge
+collapse move upon the given edge of this triangulation.
+
+For more details on edge collapse moves and when they can be
+performed, as well as the difference between edge collapse and edge
+snap moves, see the variant of collapseEdge() without the extra
+boolean arguments.
+
+This routine will always _check_ whether the requested move is legal
+and will not violate any simplex and/or facet locks (see
+Simplex<4>::lock() and Simplex<4>::lockFacet() for further details on
+locks). If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
+
+.. deprecated::
+    If you just wish to test whether such a move is possible, call
+    hasCollapseEdge(). If you wish to both check and perform the move,
+    call collapseEdge() without the two extra boolean arguments.
+
+Precondition:
+    The given edge is an edge of this triangulation.
+
+Parameter ``e``:
+    the edge to collapse. :
+
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
 
 Parameter ``perform``:
-    ``True`` if we are to perform the move (defaults to ``True``).
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
 
 Returns:
-    If *check* is ``True``, the function returns ``True`` if and only
-    if the given edge may be collapsed without changing the topology
-    of the manifold or violating any locks. If *check* is ``False``,
-    the function simply returns ``True``.)doc";
+    ``True`` if and only if the requested move could be performed.)doc";
 
 // Docstring regina::python::doc::Triangulation_::countBoundaryTetrahedra
 static const char *countBoundaryTetrahedra =
@@ -210,69 +236,48 @@ triangulation as a precondition.
 Precondition:
     This triangulation is valid.
 
+Exception ``FailedPrecondition``:
+    This triangulation is not valid.
+
 Returns:
     the Euler characteristic of the corresponding compact manifold.)doc";
 
 // Docstring regina::python::doc::Triangulation_::fourFourMove
 static const char *fourFourMove =
-R"doc(Checks the eligibility of and/or performs a 4-4 move about the given
-edge.
+R"doc(Deprecated routine that tests for and optionally performes a 4-4 move
+about the given edge of this triangulation.
 
-This involves replacing the four pentachora joined at that edge with
-four new pentachora joined along a new edge *a*. In more detail, the
-original configuration of four pentachora should be equivalent to the
-join of a double edge and a square with diagonal given by the edge
-*e*. The 4-4 move essentially performs a 2-2 move on this square, with
-the new diagonal corresponding precisely to the new edge *a*. This
-move can be done if:
+For more details on 4-4 moves and when they can be performed, see
+move44().
 
-* the link of edge *e* is a 2-2 move away from being combinatorially
-  isomorphic to the boundary of a tetrahedron, and
+This routine will always _check_ whether the requested move is legal
+and will not violate any simplex and/or facet locks (see
+Simplex<4>::lock() and Simplex<4>::lockFacet() for further details on
+locks). If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
 
-* the four pentachora joined at *e* are distinct.
-
-If the routine is asked to both check and perform, the move will only
-be performed if the check shows it is legal and will not violate any
-simplex and/or facet locks (see Simplex<4>::lock() and
-Simplex<4>::lockFacet() for further details on locks).
-
-If this triangulation is currently oriented, then this 4-4 move will
-label the new pentachora in a way that preserves the orientation.
-
-Note that after performing this move, all skeletal objects (triangles,
-components, etc.) will be reconstructed, which means any pointers to
-old skeletal objects (such as the argument *e*) can no longer be used.
-
-Precondition:
-    If the move is being performed and no check is being run, it must
-    be known in advance that the move is legal and will not violate
-    any simplex and/or facet locks.
+.. deprecated::
+    If you just wish to test whether such a move is possible, call
+    has44(). If you wish to both check and perform the move, call
+    move44().
 
 Precondition:
     The given edge is an edge of this triangulation.
 
-Exception ``LockViolation``:
-    This move would violate a simplex or facet lock, and *check* was
-    passed as ``False``. This exception will be thrown before any
-    changes are made. See Simplex<4>::lock() and
-    Simplex<4>::lockFacet() for further details on how locks work and
-    what their implications are.
-
 Parameter ``e``:
     the edge about which to perform the move.
 
-Parameter ``check``:
-    ``True`` if we are to check whether the move is allowed (defaults
-    to ``True``).
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
 
 Parameter ``perform``:
-    ``True`` if we are to perform the move (defaults to ``True``).
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
 
 Returns:
-    If *check* is ``True``, the function returns ``True`` if and only
-    if the requested move may be performed without changing the
-    topology of the manifold or violating any locks. If *check* is
-    ``False``, the function simply returns ``True``.
+    ``True`` if and only if the requested move could be performed.
 
 Author:
     Alex He)doc";
@@ -284,7 +289,7 @@ given edge of this triangulation, without violating any simplex and/or
 facet locks.
 
 For more detail on 4-4 moves and when they can be performed, see
-fourFourMove().
+move44().
 
 Precondition:
     The given edge is an edge of this triangulation.
@@ -355,18 +360,21 @@ Returns:
 
 // Docstring regina::python::doc::Triangulation_::idealToFinite
 static const char *idealToFinite =
-R"doc(Converts an ideal triangulation into a finite triangulation. All ideal
-or invalid vertices are truncated and thus converted into real
-boundary components made from unglued facets of pentachora.
+R"doc(Alias for truncateIdeal(), which truncates all ideal or invalid
+vertices to convert these into real boundary components.
+
+This alias idealToFinite() is provided for compatibility with older
+versions of Regina. (It is _not_ deprecated, and so this alias should
+remain part of Regina for a long time.)
+
+See truncateIdeal() for further details.
 
 Exception ``LockViolation``:
     This triangulation contains at least one locked top-dimensional
-    simplex and/or facet. (This 4-dimensional algorithm does not
-    necessarily subdivide _every_ pentachoron, and so this test is
-    stronger than necessary; however, it will be enforced.) This
-    exception will be thrown before any changes are made. See
-    Simplex<4>::lock() and Simplex<4>::lockFacet() for further details
-    on how such locks work and what their implications are.
+    simplex and/or facet. This exception will be thrown before any
+    changes are made. See Simplex<4>::lock() and
+    Simplex<4>::lockFacet() for further details on how such locks work
+    and what their implications are.
 
 Returns:
     ``True`` if and only if the triangulation was changed.)doc";
@@ -374,8 +382,14 @@ Returns:
 // Docstring regina::python::doc::Triangulation_::intelligentSimplify
 static const char *intelligentSimplify =
 R"doc(Deprecated alias for simplify(), which attempts to simplify this
-triangulation as intelligently as possible using fast and greedy
+triangulation as intelligently as possible using relatively fast
 heuristics.
+
+Since this routine exists to support code written against older
+versions of Regina, it just calls simplify() with no additional
+arguments. In particular, unlike simplify(), this deprecated routine
+does not support progress tracking, and for Python users it does not
+release the global interpreter lock.
 
 .. deprecated::
     This routine has been renamed to simplify(). See simplify() for
@@ -475,6 +489,55 @@ Returns:
     hypersurface, and *thin* is ``True`` if and only if this link is
     thin (i.e., no additional normalisation steps were required).)doc";
 
+// Docstring regina::python::doc::Triangulation_::move44
+static const char *move44 =
+R"doc(If possible, performs a 4-4 move about the given edge of this
+triangulation. This involves replacing the four pentachora joined
+along that edge with four new pentachora joined along a different (and
+new) edge instead.
+
+This triangulation will be changed directly.
+
+This move will only be performed if it will not change the topology of
+the manifold (as discussed below), _and_ it will not violate any
+simplex and/or facet locks. See Simplex<4>::lock() and
+Simplex<4>::lockFacet() for further details on locks.
+
+For this move to make sense, the initial configuration of four
+pentachora around the given edge *e* should be equivalent to the join
+of a double edge and a square with diagonal given by the edge *e*. The
+4-4 move then essentially performs a 2-2 move on this square, with the
+new diagonal of the square corresponding precisely to the new edge of
+this triangulation that will join the four new pentachora.
+
+Therefore, to be able to perform this move (and to do so without
+changing the topology), we require that:
+
+* the link of the given edge is a 2-2 move away from being
+  combinatorially isomorphic to the boundary of a tetrahedron; and
+
+* the four pentachora joined along the given edge are distinct.
+
+If this triangulation is currently oriented, then this 4-4 move will
+label the new pentachora in a way that preserves the orientation.
+
+Note that after performing this move, all skeletal objects (faces,
+components, etc.) will be reconstructed, which means any pointers to
+old skeletal objects (such as the argument *e*) can no longer be used.
+
+Precondition:
+    The given edge is an edge of this triangulation.
+
+Parameter ``e``:
+    the edge about which to perform the move.
+
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.
+
+Author:
+    Alex He)doc";
+
 // Docstring regina::python::doc::Triangulation_::newPentachora
 static const char *newPentachora =
 R"doc(A dimension-specific alias for newSimplices().
@@ -501,74 +564,96 @@ See newSimplex() for further information.)doc";
 
 // Docstring regina::python::doc::Triangulation_::openBook
 static const char *openBook =
-R"doc(Checks the eligibility of and/or performs a book opening move about
-the given tetrahedron. This involves taking a tetrahedron meeting the
-boundary along precisely one, two or three triangles, and ungluing it
-to create two new boundary facets (thus exposing the pentachora it
-initially joined). This move is intended to open the way for new
-shellBoundary() moves.
+R"doc(If possible, performs a book opening move about the given tetrahedron.
+This involves taking a tetrahedron that meets the boundary along
+precisely one, two or three triangles, and ungluing it to create two
+new boundary facets. The resulting effect is to expose the pentachora
+it initially joined, and hopefully open the way for subsequent
+boundary shelling moves.
 
-This move can be done if:
+This triangulation will be changed directly.
 
-* all vertices, edges and triangles of the tetrahedron are valid;
+This move will only be performed if it will not change the topology of
+the manifold (as discussed below), _and_ it will not violate any facet
+locks. See Simplex<4>::lockFacet() for further details on facet locks.
+Note that simplex locks are never a concern for this type of move.
 
-* the tetrahedron meets the boundary in precisely one, two or three
-  triangles (and therefore also joins two pentachora);
+In order not to change the topology, we impose the following
+requirements:
 
-* if the tetrahedron meets the boundary in precisely one triangle,
-  then the remaining vertex of the tetrahedron is non-boundary, and no
-  two of the remaining three edges of the tetrahedron are identified;
+* all vertices, edges and triangles of the given tetrahedron are
+  valid;
 
-* if the tetrahedron meets the boundary in precisely two triangles,
-  then the remaining edge of the tetrahedron is non-boundary, and the
-  remaining two triangles of the tetrahedron are not identified.
+* the given tetrahedron meets the boundary in precisely one, two or
+  three triangles (and therefore also joins two pentachora);
 
-The validity condition in particular is stronger than it needs to be,
-but the resulting "lost opportunities" only affect invalid
-triangulations.
+* if the given tetrahedron meets the boundary in precisely one
+  triangle, then the remaining vertex of the tetrahedron is non-
+  boundary, and no two of the remaining three edges of the tetrahedron
+  are identified;
 
-If the routine is asked to both check and perform, the move will only
-be performed if the check shows it is legal and will not violate any
-facet locks (see Simplex<4>::lockFacet() for further details on
-locks).
+* if the given tetrahedron meets the boundary in precisely two
+  triangles, then the remaining edge of the tetrahedron is non-
+  boundary, and the remaining two triangles of the tetrahedron are not
+  identified.
+
+These requirements are stronger than they need to be, but the
+resulting "lost opportunities" only affect invalid triangulations.
 
 If this triangulation is currently oriented, then this operation will
 (trivially) preserve the orientation.
 
-Note that after performing this move, all skeletal objects (edges,
-components, etc.) will be reconstructed, which means that any pointers
-to old skeletal objects (such as the argument *t*) can no longer be
-used.
-
-Precondition:
-    If the move is being performed and no check is being run, it must
-    be known in advance that the move is legal and will not violate
-    any facet locks.
+Note that after performing this move, all skeletal objects (faces,
+components, etc.) will be reconstructed, which means any pointers to
+old skeletal objects (such as the argument *t*) can no longer be used.
 
 Precondition:
     The given tetrahedron is a tetrahedron of this triangulation.
 
-Exception ``LockViolation``:
-    This move would violate a facet lock, and *check* was passed as
-    ``False``. This exception will be thrown before any changes are
-    made. See Simplex<4>::lockFacet() for details on how facet locks
-    work and what their implications are.
+Parameter ``t``:
+    the tetrahedron about which to perform the move.
+
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.)doc";
+
+// Docstring regina::python::doc::Triangulation_::openBook_2
+static const char *openBook_2 =
+R"doc(Deprecated routine that tests for and optionally performs a book
+opening move about the given tetrahedron of this triangulation.
+
+For more details on book opening moves and when they can be performed,
+see the variant of openBook() without the extra boolean arguments.
+
+This routine will always _check_ whether the requested move is legal
+and will not violate any facet locks (see Simplex<4>::lockFacet() for
+further details on facet locks). Note that this type of move can never
+violate a simplex lock, and so there is no need to check for those at
+all. If the move _is_ allowed, and if the argument *perform* is
+``True``, this routine will also _perform_ the move.
+
+.. deprecated::
+    If you just wish to test whether such a move is possible, call
+    hasOpenBook(). If you wish to both check and perform the move,
+    call openBook() without the two extra boolean arguments.
+
+Precondition:
+    The given tetrahedron is a tetrahedron of this triangulation.
 
 Parameter ``t``:
     the tetrahedron about which to perform the move.
 
-Parameter ``check``:
-    ``True`` if we are to check whether the move is allowed (defaults
-    to ``True``).
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
 
 Parameter ``perform``:
-    ``True`` if we are to perform the move (defaults to ``True``).
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
 
 Returns:
-    If *check* is ``True``, the function returns ``True`` if and only
-    if the requested move may be performed without changing the
-    topology of the manifold or violating any locks. If *check* is
-    ``False``, the function simply returns ``True``.)doc";
+    ``True`` if and only if the requested move could be performed.)doc";
 
 // Docstring regina::python::doc::Triangulation_::removeAllPentachora
 static const char *removeAllPentachora =
@@ -621,8 +706,9 @@ moves, without exceeding a given number of additional pentachora.
 Specifically, this routine will iterate through all triangulations
 that can be reached from this triangulation via 1-5, 2-4, 3-3 and 4-2
 Pachner moves, without ever exceeding *height* additional pentachora
-beyond the original number. Note that 5-1 moves are currently not
-supported, though this may be added in a future verson of Regina.
+beyond the original number, and without violating any simplex and/or
+facet locks. Note that 5-1 moves are currently not supported, though
+this may be added in a future verson of Regina.
 
 For every such triangulation (including this starting triangulation),
 this routine will call *action* (which must be a function or some
@@ -755,16 +841,22 @@ Returns:
 // Docstring regina::python::doc::Triangulation_::simplify
 static const char *simplify =
 R"doc(Attempts to simplify this triangulation as intelligently as possible
-using fast and greedy heuristics. Specifically, this routine will
+using relatively fast heuristics. Specifically, this routine will
 attempt to reduce the number of pentachora in the triangulation.
 
-Currently this routine uses simplifyToLocalMinimum() in combination
-with random 3-3 moves and book opening moves.
+As of Regina 7.4, this routine works harder than it did previous
+releases. Specifically, this routine now uses:
 
-If simplify() fails to improve the triangulation (which in four
-dimensions is likely), you may instead wish to try the well-climbing
-routine simplifyUpDown(), or the powerful but *much* slower
-simplifyExhaustive().
+* the greedy heuristics of simplifyToLocalMinimum(), in combination
+  with random 3-3 moves and book opening moves;
+
+* the well-climbing heuristics of simplifyUpDown(), which are slower
+  but often more effective.
+
+If simplify() still fails to improve the triangulation (which in four
+dimensions is likely), you may instead wish to try the powerful but
+_much_ slower simplifyExhaustive(), which exhaustively explores
+sequences of local moves in the hope of finding a simplification.
 
 If this triangulation is currently oriented, then this operation will
 preserve the orientation.
@@ -776,20 +868,37 @@ exceptions should be thrown). Of course, however, having locks may
 make the simplification less effective in reducing the number of
 pentachora.
 
+This routine might take a little time for larger triangulations, and
+so you can pass a progress tracker to this routine. The objective that
+it tracks is the best number of pentachora found so far. Be aware
+that, even if you cancel the operation via the progress tracker, this
+triangulation might still change as a result (e.g., perhaps the
+initial greedy heuristics made an improvement, but then the user
+cancelled the operation while the well-climbing methods were looking
+for an even better outcome).
+
 .. warning::
     The specific behaviour of this routine will almost certainly
-    change between releases. At present, simplification for 4-manifold
-    triangulations is extremely weak (as opposed to 3-manifolds, where
-    a rich library of simplification techinques is available to call
-    upon).
+    change between releases.
 
 .. note::
     For long-term users of Regina: this is the routine that was for a
     long time called intelligentSimplify(). It was renamed to
     simplify() in Regina 7.4.
 
+Python:
+    The global interpreter lock will be released while this function
+    runs, so you can use it with Python-based multithreading.
+
+Parameter ``tracker``:
+    a progress tracker through which progress will be reported, or
+    ``None`` if no progress reporting is required.
+
 Returns:
-    ``True`` if and only if the triangulation was changed.)doc";
+    ``True`` if and only if the triangulation was changed. If you do
+    not have access to the return value (e.g., you are using
+    multithreading and progress trackers): the triangulation will have
+    changed if and only if the number of pentachora was reduced.)doc";
 
 // Docstring regina::python::doc::Triangulation_::simplifyExhaustive
 static const char *simplifyExhaustive =
@@ -800,8 +909,9 @@ much slower than simplify().
 Specifically, this routine will iterate through all triangulations
 that can be reached from this triangulation via 1-5, 2-4, 3-3 and 4-2
 Pachner moves, without ever exceeding *height* additional pentachora
-beyond the original number. Note that 5-1 moves are currently not
-supported, though this may be added in a future verson of Regina.
+beyond the original number, and without violating any simplex and/or
+facet locks. Note that 5-1 moves are currently not supported, though
+this may be added in a future verson of Regina.
 
 If at any stage it finds a triangulation with _fewer_ pentachora than
 the original, then this routine will call simplify() to shrink the
@@ -825,6 +935,13 @@ This means that, if no simpler triangulation exists, the only way to
 terminate this function is to cancel the operation via a progress
 tracker (read on for details).
 
+If this triangulation is currently oriented, then this operation will
+_not_ preserve the orientation: indeed, the resulting triangulation
+might not be oriented at all. This is a consequence of the way in
+which this operation uses isomorphism signatures to represent nodes in
+the Pachner graph. If you need a simplification routine that
+_preserves_ orientation, you should use simplify() instead.
+
 If any pentachora and/or tetrahedra are locked, these locks will be
 respected: that is, the retriangulation will avoid any moves that
 would violate these locks (and in particular, no LockViolation
@@ -834,7 +951,7 @@ reduce the number of distinct triangulations that can be reached.
 If you want a _fast_ simplification routine, you should call
 simplify() instead. The benefit of simplifyExhaustive() is that, for
 very stubborn triangulations where simplify() finds itself stuck at a
-local minimum, simplifyExhaustive() is able to "climb out" of such
+local minimum, simplifyExhaustive() may be able to "climb out" of such
 wells.
 
 Since Regina 7.0, this routine will not return until either the
@@ -888,8 +1005,9 @@ static const char *simplifyToLocalMinimum =
 R"doc(Uses all known simplification moves to reduce the triangulation
 monotonically to some local minimum number of pentachora.
 
-End users will probably not want to call this routine. You should call
-simplify() if you want a fast method of simplifying a triangulation.
+End users will typically not need to call this routine, since its
+techniques are already incorporated into the main simplify() routine.
+Just call simplify() instead.
 
 The moves used by this routine include collapsing edges, 4-2 moves,
 and boundary shelling moves.
@@ -930,14 +1048,17 @@ Returns:
 // Docstring regina::python::doc::Triangulation_::simplifyUpDown
 static const char *simplifyUpDown =
 R"doc(Attempts to simplify this triangulation by making increasingly long
-sequences of 2-4 moves and then attempting to simplify back down.
+sequences of 2-4 moves and then attempting to simplify back down. This
+is a relatively fast and powerful well-climbing heuristic that can be
+used when the more simplistic simplifyToLocalMinimum() fails.
+
+End users will typically not need to call this routine, since its
+techniques are already incorporated into the main simplify() routine.
+However, you might still want to call simplifyUpDown() directly if you
+wish to use non-default well-climbing parameters.
 
 This routine will _only_ perform 2-4 moves, 2-0 edge moves, 2-0
 triangle moves, and 3-3 moves.
-
-The main purpose of this routine is to offer a "well-climbing"
-technique that explores more widely than simplify(), but that is not
-nearly as slow as simplifyExhaustive().
 
 If this triangulation is currently oriented, then this operation will
 preserve the orientation.
@@ -980,19 +1101,23 @@ Author:
 
 // Docstring regina::python::doc::Triangulation_::snapEdge
 static const char *snapEdge =
-R"doc(Snaps together the endpoints of an edge connecting an internal vertex
-with some different (possibly boundary) vertex, which reduces the
-number of vertices in this triangulation by one without changing the
-topology.
+R"doc(If possible, performs an edge snap move about the given edge. This
+involves snapping together the endpoints of the edge, and thereby
+reducing the number of vertices in this triangulation by one (but at
+the cost of adding a few extra pentachora). See below for more details
+on the mechanics of how this move actually operates.
 
-This operation essentially works by taking a triangle *t* that meets
-the given edge *e*, and folding the other two edges of *t* together
-about their common vertex. This can be done if and only if *e* is an
-edge whose endpoints are distinct and not both boundary (i.e., an edge
-of the type described above).
+This triangulation will be changed directly.
 
-If the routine is asked to both check and perform, the move will only
-be performed if the check shows it is legal.
+This move will only be performed if it will not change the topology of
+the manifold (as outlined below). Simplex and/or facet locks are never
+a concern for this type of move; again see below for details.
+
+In order to not change the toplogy, we require that:
+
+* the given edge joins two distinct vertices of the triangulation;
+
+* at least one of these two vertices is internal.
 
 Depending on your situation, collapseEdge() may be a more appropriate
 method for reducing the number of vertices without changing the
@@ -1007,42 +1132,73 @@ topology.
   other hand can always be used for edges *e* of the type described
   above.
 
-This operation works by prying open a tetrahedron *t* and inserting a
-four-pentachoron gadget *g* within the resulting tetrahedral pillow.
-In particular, this means that simplex and/or facet locks will never
-prevent this operation from taking place: if the tetrahedron *t*
-happens to be locked, then this lock will simply move across to one of
-the two tetrahedra bounding the gadget *g*.
+This operation essentially works by taking a triangle *f* that meets
+the given edge *e*, and folding the other two edges of *f* together
+about their common vertex. To _implement_ this, we pry open a
+tetrahedron *t* and insert a four-pentachoron gadget *g* within the
+resulting tetrahedral pillow. In particular, this means that simplex
+and/or facet locks will never prevent this operation from taking
+place: if the tetrahedron *t* happens to be locked, then this lock
+will simply move across to one of the two tetrahedra bounding the
+gadget *g*.
 
 If this triangulation is currently oriented, then this operation will
 preserve the orientation.
 
-Note that after performing this move, all skeletal objects (triangles,
+Note that after performing this move, all skeletal objects (faces,
 components, etc.) will be reconstructed, which means any pointers to
 old skeletal objects (such as the argument *e*) can no longer be used.
 
 Precondition:
-    If the move is being performed and no check is being run, it must
-    be known in advance that the move is legal.
-
-Precondition:
-    The given edge *e* is an edge of this triangulation.
+    The given edge is an edge of this triangulation.
 
 Parameter ``e``:
     the edge whose endpoints are to be snapped together.
 
-Parameter ``check``:
-    ``True`` if we are to check whether the move is allowed (defaults
-    to ``True``).
+Returns:
+    ``True`` if and only if the requested move was able to be
+    performed.
+
+Author:
+    Alex He)doc";
+
+// Docstring regina::python::doc::Triangulation_::snapEdge_2
+static const char *snapEdge_2 =
+R"doc(Deprecated routine that tests for and optionally performs an edge snap
+move upon the given edge of this triangulation.
+
+For more details on edge snap moves and when they can be performed, as
+well as the difference between edge snap and edge collapse moves, see
+the variant of snapEdge() without the extra boolean arguments.
+
+This routine will always _check_ whether the requested move is legal.
+Note that this type of move can never violate a simplex or facet lock,
+and so there is no need to check for those at all. If the move _is_
+allowed, and if the argument *perform* is ``True``, this routine will
+also _perform_ the move.
+
+.. deprecated::
+    If you just wish to test whether such a move is possible, call
+    hasSnapEdge(). If you wish to both check and perform the move,
+    call snapEdge() without the two extra boolean arguments.
+
+Precondition:
+    The given edge is an edge of this triangulation.
+
+Parameter ``e``:
+    the edge about which to perform the move.
+
+Parameter ``ignored``:
+    an argument that is ignored. In earlier versions of Regina this
+    argument controlled whether we check if the move can be performed;
+    however, now this check is done always.
 
 Parameter ``perform``:
-    ``True`` if we are to perform the move (defaults to ``True``).
+    ``True`` if we should actually perform the move, assuming the move
+    is allowed.
 
 Returns:
-    If *check* is ``True``, the function returns ``True`` if and only
-    if the requested move may be performed without changing the
-    topology of the manifold. If *check* is ``False``, the function
-    simply returns ``True``.
+    ``True`` if and only if the requested move could be performed.
 
 Author:
     Alex He)doc";
@@ -1071,6 +1227,33 @@ triangulation.
 Parameter ``other``:
     the triangulation whose contents should be swapped with this.)doc";
 
+// Docstring regina::python::doc::Triangulation_::truncateIdeal
+static const char *truncateIdeal =
+R"doc(Truncates all ideal or invalid vertices, converting these into real
+boundary components make from unglued facets of pentachora.
+
+A note: this operation does _not_ preserve orientedness. That is,
+regardless of whether this triangulation was oriented before calling
+this function, it will not be oriented after. This is due to the
+specific choice of pentachoron vertex labelling in the subdivision,
+and this behaviour may change in a future version of Regina.
+
+This routine was called ``idealToFinite()`` in older versions of
+Regina, since its main job is to convert an ideal triangulation into a
+finite triangulation.
+
+Exception ``LockViolation``:
+    This triangulation contains at least one locked top-dimensional
+    simplex and/or facet. (This 4-dimensional algorithm does not
+    necessarily subdivide _every_ pentachoron, and so this test is
+    stronger than necessary; however, it will be enforced.) This
+    exception will be thrown before any changes are made. See
+    Simplex<4>::lock() and Simplex<4>::lockFacet() for further details
+    on how such locks work and what their implications are.
+
+Returns:
+    ``True`` if and only if the triangulation was changed.)doc";
+
 // Docstring regina::python::doc::Triangulation_::with44
 static const char *with44 =
 R"doc(If possible, returns the triangulation obtained by performing a 4-4
@@ -1081,7 +1264,7 @@ locks, then this routine returns no value.
 This triangulation will not be changed.
 
 For more detail on 4-4 moves and when they can be performed, see
-fourFourMove().
+move44().
 
 Precondition:
     The given edge is an edge of this triangulation.

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -84,7 +82,7 @@ startAgain:
         // First try to use a close book move, which does not
         // increase the number of tetrahedra.
         for (auto e : bc->edges()) {
-            if (closeBook(e, true, true)) {
+            if (closeBook(e)) {
                 // We have changed the triangulation, which means
                 // all edges and boundary components have been destroyed.
                 // Start over.
@@ -141,9 +139,7 @@ startAgain:
             }
 
         // We should never reach this point.
-        std::cerr << "ERROR: minimiseBoundary() could not continue."
-            << std::endl;
-        break;
+        throw ImpossibleScenario("minimiseBoundary() could not continue");
     }
 
     // If we fell out of the boundary component loop then all boundary
@@ -173,7 +169,7 @@ startLoop:
             Vertex<3>* v = e->vertex(1);
             if (u != v && ! (u->isBoundary() && v->isBoundary())) {
                 // This edge needs to be pinched or collapsed.
-                if (! collapseEdge(e, true, true))
+                if (! collapseEdge(e))
                     pinchEdge(e);
                 result = true;
                 goto startLoop;
@@ -249,7 +245,7 @@ bool Triangulation<3>::simplify() {
                 // Use edges() to ensure the skeleton has been calculated.
                 for (Edge<3>* edge : use->edges())
                     for (axis = 0; axis < 2; axis++)
-                        if (use->fourFourMove(edge, axis, true, false))
+                        if (use->has44(edge, axis))
                             fourFourAvailable.emplace_back(edge, axis);
 
                 // Increment fourFourCap if needed.
@@ -263,8 +259,7 @@ bool Triangulation<3>::simplify() {
                 // Perform a random 4-4 move on the clone.
                 fourFourChoice = fourFourAvailable[
                     RandomEngine::rand(fourFourAvailable.size())];
-                use->fourFourMove(fourFourChoice.first, fourFourChoice.second,
-                    false, true);
+                use->move44(fourFourChoice.first, fourFourChoice.second);
 
                 // See if we can simplify now.
                 if (use->simplifyToLocalMinimum(true)) {
@@ -305,7 +300,7 @@ bool Triangulation<3>::simplify() {
                     openedNow = false;
 
                     for (Triangle<3>* t : use->triangles())
-                        if (use->openBook(t, true, true)) {
+                        if (use->openBook(t)) {
                             opened = openedNow = true;
                             break;
                         }
@@ -342,7 +337,7 @@ bool Triangulation<3>::simplify() {
                 bool closed = false;
 
                 for (Edge<3>* edge : edges())
-                    if (closeBook(edge, true, true)) {
+                    if (closeBook(edge)) {
                         closed = true;
                         changed = true;
 
@@ -471,11 +466,11 @@ bool Triangulation<3>::simplifyToLocalMinimum(bool perform) {
                     changedNow = changed = true;
                     break;
                 }
-                if (twoOneMove(edge, 0)) {
+                if (move21(edge, 0)) {
                     changedNow = changed = true;
                     break;
                 }
-                if (twoOneMove(edge, 1)) {
+                if (move21(edge, 1)) {
                     changedNow = changed = true;
                     break;
                 }

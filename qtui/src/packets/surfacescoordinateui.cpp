@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -563,10 +561,10 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
 
     actCutAlong = new QAction(this);
     actCutAlong->setText(tr("Cu&t Along Surface"));
+    actCutAlong->setIcon(ReginaSupport::regIcon("cutalong"));
     actCutAlong->setToolTip(tr("Cut the triangulation along the "
         "selected surface"));
-    actCutAlong->setEnabled(false);
-    actCutAlong->setWhatsThis(tr("<qt>Cuts open the surround triangulation "
+    actCutAlong->setWhatsThis(tr("Cuts open the surround triangulation "
         "along the selected surface.  This triangulation will not "
         "be changed; instead a new cut-open triangulation will be created.<p>"
         "This operation will never change the topology of the underlying "
@@ -574,15 +572,15 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
         "the related <i>crushing</i> operation, which might).  However, "
         "because the new surface boundaries are created from real "
         "boundary triangles, the resulting number of tetrahedra might be very "
-        "large.</qt>"));
+        "large."));
     connect(actCutAlong, SIGNAL(triggered()), this, SLOT(cutAlong()));
     surfaceActionList.push_back(actCutAlong);
 
     actCrush = new QAction(this);
     actCrush->setText("Crus&h Surface");
+    actCrush->setIcon(ReginaSupport::regIcon("crush"));
     actCrush->setToolTip(tr("Crush the selected surface to a point"));
-    actCrush->setEnabled(false);
-    actCrush->setWhatsThis(tr("<qt>Crushes the selected surface to a point "
+    actCrush->setWhatsThis(tr("Crushes the selected surface to a point "
         "within the surrounding triangulation.  This triangulation will not "
         "be changed; instead a new crushed triangulation will be created.<p>"
         "<b>Warning:</b> This routine simply removes all tetrahedra "
@@ -590,13 +588,9 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
         "appropriately.  In some circumstances this might change the "
         "topology of the underlying 3-manifold beyond just slicing along "
         "the surface and shrinking the resulting boundary/boundaries "
-        "to points.</qt>"));
+        "to points."));
     surfaceActionList.push_back(actCrush);
     connect(actCrush, SIGNAL(triggered()), this, SLOT(crush()));
-
-    connect(table->selectionModel(),
-        SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
-        this, SLOT(updateActionStates()));
 
     connect(&ReginaPrefSet::global(), SIGNAL(preferencesChanged()),
         this, SLOT(updatePreferences()));
@@ -642,7 +636,6 @@ void SurfacesCoordinateUI::refresh() {
         model->rebuild(selectedSystem); // Faster if the filter is the same.
 
     // Tidy up.
-    updateActionStates();
     if (coordsChanged) {
         currentlyResizing = true;
         table->header()->resizeSections(QHeaderView::ResizeToContents);
@@ -673,6 +666,13 @@ void SurfacesCoordinateUI::cutAlong() {
                 "(i.e., has infinitely many normal discs)."));
         return;
     }
+    if (! toCutAlong.embedded()) {
+        ReginaSupport::info(ui,
+            tr("I can only cut along properly embedded surfaces."),
+            tr("The surface you have selected is either immersed or "
+                "singular."));
+        return;
+    }
 
     // Go ahead and cut along the surface.
     // Be nice and simplify the triangulation, which could be very large.
@@ -700,21 +700,26 @@ void SurfacesCoordinateUI::crush() {
                 "(i.e., has infinitely many normal discs)."));
         return;
     }
+    if (! toCrush.embedded()) {
+        ReginaSupport::info(ui,
+            tr("I can only crush properly embedded surfaces."),
+            tr("The surface you have selected is either immersed or "
+                "singular."));
+        return;
+    }
+    if (! toCrush.normal()) {
+        ReginaSupport::info(ui,
+            tr("I cannot crush almost normal surfaces."),
+            tr("The surface you have selected contains one or more "
+                "octagonal discs."));
+        return;
+    }
 
     // Go ahead and crush it.
     auto ans = regina::make_packet(toCrush.crush(),
         "Crushed #" + std::to_string(whichSurface));
     surfaces->append(ans);
     enclosingPane->getMainWindow()->packetView(*ans, true, true);
-}
-
-void SurfacesCoordinateUI::updateActionStates() {
-    bool canCut = table->selectionModel()->hasSelection() &&
-        surfaces->isEmbeddedOnly();
-    bool canCrush = canCut && (! surfaces->allowsAlmostNormal());
-
-    actCutAlong->setEnabled(canCut);
-    actCrush->setEnabled(canCrush);
 }
 
 void SurfacesCoordinateUI::columnResized(int section, int, int newSize) {

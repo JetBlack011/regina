@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,7 +51,7 @@ namespace python {
  * <t>regina::python::add_tight_encoding(c, ...)</t>, where \a c is the
  * pybind11::class_ object that wraps \a T.
  */
-template <class C, typename... options>
+template <typename C, typename... options>
 void add_tight_encoding(pybind11::class_<C, options...>& c,
         const char* docEnc, const char* docDec, const char* docHash) {
     static_assert(! std::is_base_of_v<TightEncodable<C>, C>,
@@ -78,7 +76,7 @@ void add_tight_encoding(pybind11::class_<C, options...>& c,
  * <t>regina::python::add_tight_encoding(c)</t>, where \a c is the
  * pybind11::class_ object that wraps \a T.
  */
-template <class C, typename... options>
+template <typename C, typename... options>
 void add_tight_encoding(pybind11::class_<C, options...>& c) {
     static_assert(std::is_base_of_v<TightEncodable<C>, C>,
         "The no-docstring version of add_tight_encoding() should "

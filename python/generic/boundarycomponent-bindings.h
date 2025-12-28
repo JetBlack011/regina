@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,7 +40,8 @@ using regina::BoundaryComponent;
 using regina::python::invalidFaceDimension;
 
 template <int dim>
-void addBoundaryComponent(pybind11::module_& m, const char* name) {
+void addBoundaryComponent(pybind11::module_& m, pybind11::module_& internal,
+        const char* name) {
     // In higher dimensions:
     // - we do not store lower-dimensional faces;
     // - we do not recognise ideal or invalid vertices;
@@ -126,6 +125,7 @@ void addBoundaryComponent(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_END
 
     regina::python::addListView<
-        decltype(std::declval<BoundaryComponent<dim>>().facets())>(m);
+        decltype(std::declval<BoundaryComponent<dim>>().facets())>(internal,
+        (std::string(name) + "_facets").c_str());
 }
 

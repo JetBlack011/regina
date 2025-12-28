@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,6 +40,14 @@ using regina::Signature;
 using regina::Triangulation;
 
 // TODO: Move these tests into Dim3Test.
+
+/**
+ * Note: the following two triangulations (given by isosigs) are cases where
+ * summands() has fallen over in the past due to 2-sided projective planes:
+ *
+ * gLALQbccffefrkjltcq
+ * gLALQbccffefrkpltcn
+ */
 
 /**
  * Determines whether the given triangulation is a minimal triangulation of
@@ -68,7 +74,19 @@ static void verifyDecomp(const Triangulation<3>& tri, const char* name,
 
     SCOPED_TRACE_CSTRING(name);
 
-    auto ans = tri.summands();
+    // Use a clone of tri that locks _everything_, since summands() should
+    // happily ignore locks.
+    Triangulation<3> clone(tri);
+    for (auto s : clone.simplices())
+        s->lock();
+    for (auto f : clone.triangles())
+        f->lock();
+
+    auto ans = clone.summands();
+
+    EXPECT_TRUE(clone.hasLocks());
+    for (const auto& term : ans)
+        EXPECT_FALSE(term.hasLocks());
 
     if (expectManifolds.size() == 0) {
         EXPECT_TRUE(ans.empty());
@@ -227,14 +245,30 @@ static void verifyDecompGeneral(const Triangulation<3>& tri, const char* name) {
     ASSERT_TRUE(tri.isClosed());
     ASSERT_TRUE(tri.isConnected());
 
+    // Use a clone of tri that locks _everything_, since summands() should
+    // happily ignore locks.
+    Triangulation<3> clone(tri);
+    for (auto s : clone.simplices())
+        s->lock();
+    for (auto f : clone.triangles())
+        f->lock();
+
     std::vector<Triangulation<3>> ans;
+    bool inconclusive = false;
     try {
-        ans = tri.summands();
+        ans = clone.summands();
     } catch (const regina::UnsolvedCase&) {
         // The routine reported an embedded two-sided projective plane.
         EXPECT_FALSE(tri.isOrientable());
-        return;
+        inconclusive = true;
     }
+
+    EXPECT_TRUE(clone.hasLocks());
+    for (const auto& term : ans)
+        EXPECT_FALSE(term.hasLocks());
+
+    if (inconclusive)
+        return;
 
     regina::AbelianGroup h1;
     bool foundNor = false;

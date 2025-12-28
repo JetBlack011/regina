@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,6 +38,7 @@
 // UI includes:
 #include "eltmovedialog4.h"
 #include "tri4gluings.h"
+#include "auxtoolbar.h"
 #include "edittableview.h"
 #include "packetchooser.h"
 #include "packetfilter.h"
@@ -52,6 +51,7 @@
 #include <memory>
 #include <thread>
 #include <QAction>
+#include <QBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
@@ -192,13 +192,15 @@ bool GluingsModel4::setData(const QModelIndex& index, const QVariant& value,
 
     int newAdjPent;
     regina::Perm<5> newAdjPerm;
+    int newAdjFacet;
 
     // Find the proposed new gluing.
     QString text = value.toString().trimmed();
+    QString pentFacet;
 
     if (text.isEmpty()) {
         // Boundary facet.
-        newAdjPent = -1;
+        newAdjPent = newAdjFacet = -1;
     } else {
         auto match = reFacetGluing.match(text);
         if (! match.hasMatch()) {
@@ -210,7 +212,7 @@ bool GluingsModel4::setData(const QModelIndex& index, const QVariant& value,
         } else {
             // Real facet.
             newAdjPent = match.captured(1).toInt();
-            QString pentFacet = match.captured(2);
+            pentFacet = match.captured(2);
 
             // Check explicitly for a negative pentachoron number
             // since isFacetStringValid() takes an unsigned integer.
@@ -227,6 +229,7 @@ bool GluingsModel4::setData(const QModelIndex& index, const QVariant& value,
                 showError(err);
                 return false;
             }
+            newAdjFacet = newAdjPerm[facet];
         }
     }
 
@@ -240,9 +243,22 @@ bool GluingsModel4::setData(const QModelIndex& index, const QVariant& value,
         return false;
 
     // There is a change.  Will it violate a lock?
+    auto newAdj = (newAdjPent < 0 ? nullptr : tri_->simplex(newAdjPent));
+
     if (p->isFacetLocked(facet)) {
-        showError(tr("This facet is currently locked. "
+        ReginaSupport::info(nullptr /* should be a view */,
+            tr("This facet is locked."),
+            tr("This facet is currently locked. "
             "You can unlock it by right-clicking within the table cell."));
+        return false;
+    }
+    if (newAdj && newAdj->isFacetLocked(newAdjFacet)) {
+        ReginaSupport::info(nullptr /* should be a view */,
+            tr("The destination facet is locked."),
+            tr("The destination facet %1 (%2) is currently locked. "
+            "You can unlock it by right-clicking within the corresponding "
+            "table cell.")
+            .arg(newAdjPent).arg(pentFacet));
         return false;
     }
 
@@ -254,20 +270,18 @@ bool GluingsModel4::setData(const QModelIndex& index, const QVariant& value,
         p->unjoin(facet);
 
     // Are we making the facet boundary?
-    if (newAdjPent < 0)
+    if (! newAdj)
         return true;
 
     // We are gluing the facet to a new partner.
-    int newAdjFacet = newAdjPerm[facet];
 
     // Does this new partner already have its own partner?
     // If so, better unglue it.
-    regina::Pentachoron<4>* adj = tri_->simplex(newAdjPent);
-    if (adj->adjacentSimplex(newAdjFacet))
-        adj->unjoin(newAdjFacet);
+    if (newAdj->adjacentSimplex(newAdjFacet))
+        newAdj->unjoin(newAdjFacet);
 
     // Glue the two facets together.
-    p->join(facet, adj, newAdjPerm);
+    p->join(facet, newAdj, newAdjPerm);
     return true;
 }
 
@@ -374,64 +388,78 @@ Tri4GluingsUI::Tri4GluingsUI(regina::PacketOf<regina::Triangulation<4>>* packet,
     connect(facetTable, SIGNAL(customContextMenuRequested(const QPoint&)),
         this, SLOT(lockMenu(const QPoint&)));
 
-    ui = facetTable;
-
-    // Set up the triangulation actions.
-    QAction* sep;
-
-
     actAddPent = new QAction(this);
-    actAddPent->setText(tr("&Add Pent"));
-    actAddPent->setIcon(ReginaSupport::regIcon("insert"));
+    actAddPent->setText(tr("&Add Pentachoron"));
+    actAddPent->setIconText(tr("Add Pent"));
+    actAddPent->setIcon(ReginaSupport::regIcon("insert-mono"));
     actAddPent->setToolTip(tr("Add a new pentachoron"));
-    actAddPent->setWhatsThis(tr("Add a new pentachoron to this "
+    actAddPent->setWhatsThis(tr("Adds a new pentachoron to this "
         "triangulation."));
-    triActionList.push_back(actAddPent);
     connect(actAddPent, SIGNAL(triggered()), this, SLOT(addPent()));
 
     actRemovePent = new QAction(this);
-    actRemovePent->setText(tr("&Remove Pent"));
-    actRemovePent->setIcon(ReginaSupport::regIcon("delete"));
+    actRemovePent->setText(tr("&Remove Pentachoron"));
+    actRemovePent->setIconText(tr("Remove Pent"));
+    actRemovePent->setIcon(ReginaSupport::regIcon("delete-mono"));
     actRemovePent->setToolTip(tr("Remove the currently selected pentachora"));
     actRemovePent->setEnabled(false);
-    actRemovePent->setWhatsThis(tr("Remove the currently selected "
+    actRemovePent->setWhatsThis(tr("Removes the currently selected "
         "pentachora from this triangulation."));
     connect(actRemovePent, SIGNAL(triggered()), this,
         SLOT(removeSelectedPents()));
     connect(facetTable->selectionModel(),
         SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
         this, SLOT(updateRemoveState()));
-    triActionList.push_back(actRemovePent);
 
-    sep = new QAction(this);
-    sep->setSeparator(true);
-    triActionList.push_back(sep);
+    actUnlock = new QAction(this);
+    actUnlock->setText(tr("&Unlock All"));
+    actUnlock->setIcon(ReginaSupport::regIcon("unlock"));
+    actUnlock->setToolTip(tr("Unlock all pentachora and/or tetrahedra"));
+    actUnlock->setWhatsThis(tr("Clears all pentachoron and/or tetrahedron "
+        "locks from this triangulation."));
+    connect(actUnlock, SIGNAL(triggered()), this, SLOT(unlockAll()));
+
+    ui = new QWidget();
+    QBoxLayout* box = new QVBoxLayout(ui);
+    box->setContentsMargins(0, 0, 0, 0);
+    box->setSpacing(0);
+    auto* sidebar = new AuxToolBar();
+    sidebar->addLabel(tr("Pentachora:"));
+    sidebar->addAction(actAddPent);
+    sidebar->addAction(actRemovePent);
+    sidebar->addAction(actUnlock);
+    box->addWidget(facetTable, 1);
+    box->addWidget(sidebar);
+
+    // Set up the triangulation actions.
+    QAction* sep;
 
     actSimplify = new QAction(this);
     actSimplify->setText(tr("&Simplify"));
-    actSimplify->setIcon(ReginaSupport::regIcon("simplify"));
-    actSimplify->setToolTip(tr(
-        "Simplify the triangulation as far as possible"));
-    actSimplify->setWhatsThis(tr("Simplify this triangulation to use fewer "
-        "pentachora without changing the underlying 4-manifold or its "
-        "PL structure.  This triangulation will be modified directly.<p>"
-        "Note that there is no guarantee that the smallest possible number of "
-        "pentachora will be achieved."));
+    actSimplify->setIcon(ReginaSupport::regIcon("simplify-clean"));
+    actSimplify->setToolTip(tr("Simplify the triangulation"));
+    actSimplify->setWhatsThis(tr("Attempts to simplify this triangulation "
+        "to use fewer pentachora without changing the underlying 4-manifold "
+        "or its PL structure.<p>"
+        "This procedure searches for useful combinations of Pachner moves "
+        "and/or other elementary moves.  There is no guarantee that the "
+        "smallest possible number of pentachora will be achieved."));
     connect(actSimplify, SIGNAL(triggered()), this, SLOT(simplify()));
     triActionList.push_back(actSimplify);
 
-    auto* actEltMove = new QAction(this);
-    actEltMove->setText(tr("&Elementary Moves..."));
-    actEltMove->setToolTip(tr(
-        "Modify the triangulation using elementary moves"));
-    actEltMove->setWhatsThis(tr("<qt>Perform elementary moves upon this "
-        "triangulation.  <i>Elementary moves</i> are modifications local to "
-        "a small number of pentachora that do not change the underlying "
-        "4-manifold.<p>"
+    actMoves = new QAction(this);
+    actMoves->setText(tr("&Elementary Moves..."));
+    actMoves->setIconText(tr("Moves"));
+    actMoves->setIcon(ReginaSupport::regIcon("eltmoves"));
+    actMoves->setToolTip(tr("Perform individual elementary moves"));
+    actMoves->setWhatsThis(tr("Allows you to perform elementary moves upon "
+        "this triangulation.  <i>Elementary moves</i> are modifications local "
+        "to a small number of pentachora that do not change the underlying "
+        "4-manifold or its PL structure.<p>"
         "A dialog will be presented for you to select which "
-        "elementary moves to apply.</qt>"));
-    triActionList.push_back(actEltMove);
-    connect(actEltMove, SIGNAL(triggered()), this, SLOT(elementaryMove()));
+        "elementary moves to apply."));
+    triActionList.push_back(actMoves);
+    connect(actMoves, SIGNAL(triggered()), this, SLOT(elementaryMove()));
 
     sep = new QAction(this);
     sep->setSeparator(true);
@@ -440,83 +468,79 @@ Tri4GluingsUI::Tri4GluingsUI(regina::PacketOf<regina::Triangulation<4>>* packet,
     actOrient = new QAction(this);
     actOrient->setText(tr("&Orient"));
     actOrient->setIcon(ReginaSupport::regIcon("orient"));
-    actOrient->setToolTip(tr(
-        "Relabel vertices of pentachora for consistent orientation"));
-    actOrient->setWhatsThis(tr("<qt>Relabel the vertices of each pentachoron "
+    actOrient->setToolTip(tr("Orient the triangulation"));
+    actOrient->setWhatsThis(tr("Relabels the vertices of each pentachoron "
         "so that all pentachora are oriented consistently, i.e., "
         "so that orientation is preserved across adjacent facets.<p>"
         "If this triangulation includes both orientable and non-orientable "
-        "components, only the orientable components will be relabelled.</qt>"));
+        "components, only the orientable components will be relabelled."));
     triActionList.push_back(actOrient);
     connect(actOrient, SIGNAL(triggered()), this, SLOT(orient()));
 
-    auto* actReflect = new QAction(this);
+    actReflect = new QAction(this);
     actReflect->setText(tr("Re&flect"));
     actReflect->setIcon(ReginaSupport::regIcon("reflect"));
-    actReflect->setToolTip(tr(
-        "Reverse the orientation of each pentachoron"));
-    actReflect->setWhatsThis(tr("<qt>Relabel the vertices of each pentachoron "
+    actReflect->setToolTip(tr("Reflect the triangulation"));
+    actReflect->setWhatsThis(tr("Relabels the vertices of each pentachoron "
         "so that the orientations of all pentachora are reversed.<p>"
         "If this triangulation is oriented, then the overall effect will be "
         "to convert this into an isomorphic triangulation with the "
-        "opposite orientation.</qt>"));
+        "opposite orientation."));
     triActionList.push_back(actReflect);
     connect(actReflect, SIGNAL(triggered()), this, SLOT(reflect()));
 
-    auto* actBarycentricSubdivide = new QAction(this);
-    actBarycentricSubdivide->setText(tr("&Barycentric Subdivision"));
-    actBarycentricSubdivide->setIcon(ReginaSupport::regIcon("barycentric"));
-    actBarycentricSubdivide->setToolTip(tr(
+    actSubdivide = new QAction(this);
+    actSubdivide->setText(tr("&Barycentric Subdivide"));
+    actSubdivide->setIconText(tr("Subdivide"));
+    actSubdivide->setIcon(ReginaSupport::regIcon("barycentric"));
+    actSubdivide->setToolTip(tr(
         "Perform a barycentric subdivision"));
-    actBarycentricSubdivide->setWhatsThis(tr("Perform a barycentric "
-        "subdivision on this triangulation.  The triangulation will be "
-        "changed directly.<p>"
-        "This operation involves subdividing each pentachoron into "
-        "120 smaller pentachora."));
-    triActionList.push_back(actBarycentricSubdivide);
-    connect(actBarycentricSubdivide, SIGNAL(triggered()), this,
+    actSubdivide->setWhatsThis(tr("Performs a barycentric "
+        "subdivision on this triangulation.  Each pentachoron "
+        "will be subdivided into 120 smaller pentachora."));
+    triActionList.push_back(actSubdivide);
+    connect(actSubdivide, SIGNAL(triggered()), this,
         SLOT(barycentricSubdivide()));
 
-    auto* actIdealToFinite = new QAction(this);
-    actIdealToFinite->setText(tr("&Truncate Ideal Vertices"));
-    actIdealToFinite->setIcon(ReginaSupport::regIcon("finite"));
+    actTruncate = new QAction(this);
+    actTruncate->setText(tr("&Truncate Ideal Vertices"));
+    actTruncate->setIconText(tr("Truncate"));
+    actTruncate->setIcon(ReginaSupport::regIcon("truncate"));
+    actTruncate->setToolTip(tr(
+        "Truncate all ideal vertices"));
+    actTruncate->setWhatsThis(tr("Truncates all ideal vertices "
+        "of this triangulation.<p>"
+        "Any vertices whose links are neither 3-spheres nor 3-balls will be "
+        "truncated.  In particular, any ideal vertices will be converted into "
+        "real boundary components formed from boundary tetrahedra.<p>"
+        "If there are no vertices of this type to truncate, then this "
+        "operation will have no effect."));
+    triActionList.push_back(actTruncate);
+    connect(actTruncate, SIGNAL(triggered()), this, SLOT(truncateIdeal()));
 
-    actIdealToFinite->setToolTip(tr(
-        "Truncate any ideal vertices"));
-    actIdealToFinite->setWhatsThis(tr("Convert this from an ideal "
-        "triangulation to a finite triangulation.  Any vertices whose "
-        "links are neither 3-spheres nor 3-balls "
-        "will be truncated and converted into boundary tetrahedra.<p>"
-        "This triangulation will be modified directly.  If there are no "
-        "vertices of this type to truncate, this operation will have no "
-        "effect."));
-    triActionList.push_back(actIdealToFinite);
-    connect(actIdealToFinite, SIGNAL(triggered()), this, SLOT(idealToFinite()));
-
-    auto* actFiniteToIdeal = new QAction(this);
-    actFiniteToIdeal->setText(tr("Make &Ideal"));
-    actFiniteToIdeal->setIcon(ReginaSupport::regIcon("cone"));
-    actFiniteToIdeal->setToolTip(tr(
-        "Convert real boundary components into ideal vertices"));
-    actFiniteToIdeal->setWhatsThis(tr("Convert this from a finite "
-        "triangulation to an ideal triangulation.  Each real boundary "
-        "component (formed from one or more boundary tetrahedra) will be "
-        "converted into a single ideal vertex.<p>"
-        "A side-effect of this operation is that any spherical boundary "
+    actMakeIdeal = new QAction(this);
+    actMakeIdeal->setText(tr("Make &Ideal"));
+    actMakeIdeal->setIcon(ReginaSupport::regIcon("cone"));
+    actMakeIdeal->setToolTip(tr("Convert real boundaries into ideal vertices"));
+    actMakeIdeal->setWhatsThis(tr("Converts each real boundary component "
+        "of this triangulation (formed from one or more boundary tetrahedra) "
+        "into an ideal vertex.<p>"
+        "A side-effect is that any spherical boundary "
         "components will be filled in with balls.<p>"
-        "This triangulation will be modified directly.  If there are no "
-        "real boundary components, this operation will have no effect."));
-    triActionList.push_back(actFiniteToIdeal);
-    connect(actFiniteToIdeal, SIGNAL(triggered()), this, SLOT(finiteToIdeal()));
+        "If there are no real boundary components, then this "
+        "operation will have no effect."));
+    triActionList.push_back(actMakeIdeal);
+    connect(actMakeIdeal, SIGNAL(triggered()), this, SLOT(makeIdeal()));
 
     auto* actInsertTri = new QAction(this);
     actInsertTri->setText(tr("Insert Triangulation..."));
+    actInsertTri->setIconText(tr("Insert"));
     actInsertTri->setIcon(ReginaSupport::regIcon("disjointunion"));
-    actInsertTri->setToolTip(tr(
-        "Insert another triangulation as additional connected component(s)"));
-    actInsertTri->setWhatsThis(tr("Forms the disjoint union "
-        "of this triangulation with some other triangulation.  "
-        "This triangulation will be modified directly."));
+    actInsertTri->setToolTip(tr("Insert a copy of some other triangulation"));
+    actInsertTri->setWhatsThis(tr("Inserts a copy of some chosen "
+        "triangulation into this triangulation.  The connected components of "
+        "the chosen triangulation will be become additional components of "
+        "this triangulation."));
     triActionList.push_back(actInsertTri);
     connect(actInsertTri, SIGNAL(triggered()), this,
         SLOT(insertTriangulation()));
@@ -525,61 +549,84 @@ Tri4GluingsUI::Tri4GluingsUI(regina::PacketOf<regina::Triangulation<4>>* packet,
     sep->setSeparator(true);
     triActionList.push_back(sep);
 
-    actBoundaryComponents = new QAction(this);
-    actBoundaryComponents->setText(tr("Boundar&y Components..."));
-    actBoundaryComponents->setIcon(ReginaSupport::regIcon("boundaries"));
-    actBoundaryComponents->setToolTip(tr(
-        "Build a 3-manifold triangulation from a boundary component"));
-    actBoundaryComponents->setWhatsThis(tr("<qt>Build a 3-manifold "
-        "triangulation from a boundary component of this triangulation.<p>"
-        "If you select a real boundary component, this will construct "
-        "a 3-manifold triangulation from its boundary tetrahedra.  "
-        "If you select an ideal boundary component, this will construct "
-        "a 3-manifold triangulation from the corresponding vertex link.</qt>"));
-    triActionList.push_back(actBoundaryComponents);
-    connect(actBoundaryComponents, SIGNAL(triggered()), this,
-        SLOT(boundaryComponents()));
-
-    auto* actVertexLinks = new QAction(this);
-    actVertexLinks->setText(tr("&Vertex Links..."));
-    actVertexLinks->setIcon(ReginaSupport::regIcon("vtxlinks"));
-    actVertexLinks->setToolTip(tr(
-        "Build a 3-manifold triangulation from a vertex link"));
-    actVertexLinks->setWhatsThis(tr("<qt>Build a 3-manifold triangulation "
-        "from the link of a vertex of this triangulation.<p>"
-        "If <i>V</i> is a vertex, then the <i>link</i> of <i>V</i> is the "
-        "frontier of a small regular neighbourhood of <i>V</i>.  "
-        "The tetrahedra that make up this link sit inside "
-        "the pentachoron corners that meet together at <i>V</i>.</qt>"));
-    triActionList.push_back(actVertexLinks);
-    connect(actVertexLinks, SIGNAL(triggered()), this, SLOT(vertexLinks()));
-
-    auto* actDoubleCover = new QAction(this);
-    actDoubleCover->setText(tr("&Double Cover"));
+    actDoubleCover = new QAction(this);
+    actDoubleCover->setText(tr("Build &Double Cover"));
+    actDoubleCover->setIconText(tr("Double"));
     actDoubleCover->setIcon(ReginaSupport::regIcon("doublecover"));
     actDoubleCover->setToolTip(tr(
-        "Construct the orientable double cover of this triangulation"));
-    actDoubleCover->setWhatsThis(tr("Construct the orientable double cover "
-        "of this triangulation.  The original triangulation will not be "
-        "changed &ndash; the result will be added as a new triangulation "
+        "Build the orientable double cover of this triangulation"));
+    actDoubleCover->setWhatsThis(tr("Builds the orientable double cover "
+        "of this triangulation.  This triangulation will not be "
+        "changed – the result will be added as a new triangulation "
         "beneath it in the packet tree.<p>"
         "If this triangulation is already orientable then the result will be "
         "disconnected, containing two copies of the original triangulation."));
     triActionList.push_back(actDoubleCover);
     connect(actDoubleCover, SIGNAL(triggered()), this, SLOT(doubleCover()));
 
-    auto* actSplitIntoComponents = new QAction(this);
+    actDoubleOverBoundary = new QAction(this);
+    actDoubleOverBoundary->setText(tr("Build Double Over Boundary"));
+    actDoubleOverBoundary->setIconText(tr("Double Over ∂"));
+    actDoubleOverBoundary->setIcon(ReginaSupport::regIcon("boundary-double"));
+    actDoubleOverBoundary->setToolTip(tr(
+        "Build two copies of this triangulation joined along their "
+        "boundary tetrahedra"));
+    actDoubleOverBoundary->setWhatsThis(tr("Builds a new triangulation by "
+        "gluing two copies of this triangulation along their boundary "
+        "tetrahedra.  The boundaries will be glued using the identity map.  "
+        "Any ideal vertices will be left alone.<p>"
+        "This triangulation will not be changed – the result "
+        "will be added as a new triangulation beneath it in the packet tree."));
+    triActionList.push_back(actDoubleOverBoundary);
+    connect(actDoubleOverBoundary, SIGNAL(triggered()), this,
+        SLOT(doubleOverBoundary()));
+
+    sep = new QAction(this);
+    sep->setSeparator(true);
+    triActionList.push_back(sep);
+
+    actBoundaryComponents = new QAction(this);
+    actBoundaryComponents->setText(tr("Boundar&y Components..."));
+    actBoundaryComponents->setIconText(tr("Boundary Components"));
+    actBoundaryComponents->setIcon(ReginaSupport::regIcon("boundaries"));
+    actBoundaryComponents->setToolTip(tr(
+        "Triangulate a chosen boundary component"));
+    actBoundaryComponents->setWhatsThis(tr("Builds a 3-manifold triangulation "
+        "from a chosen boundary component of this triangulation.<p>"
+        "If you select a real boundary component, this will build "
+        "a 3-manifold triangulation from its boundary tetrahedra.  "
+        "If you select an ideal boundary component, this will build "
+        "a 3-manifold triangulation from the corresponding vertex link."));
+    triActionList.push_back(actBoundaryComponents);
+    connect(actBoundaryComponents, SIGNAL(triggered()), this,
+        SLOT(boundaryComponents()));
+
+    actVertexLinks = new QAction(this);
+    actVertexLinks->setText(tr("&Vertex Links..."));
+    actVertexLinks->setIconText(tr("Vertex Links"));
+    actVertexLinks->setIcon(ReginaSupport::regIcon("vtxlinks"));
+    actVertexLinks->setToolTip(tr("Build a chosen vertex link"));
+    actVertexLinks->setWhatsThis(tr("Builds a 3-manifold triangulation "
+        "from the link of a chosen vertex of this triangulation.<p>"
+        "If <i>V</i> is a vertex, then the <i>link</i> of <i>V</i> is the "
+        "frontier of a small regular neighbourhood of <i>V</i>.  "
+        "The tetrahedra that make up this link sit inside "
+        "the pentachoron corners that meet together at <i>V</i>."));
+    triActionList.push_back(actVertexLinks);
+    connect(actVertexLinks, SIGNAL(triggered()), this, SLOT(vertexLinks()));
+
+    actSplitIntoComponents = new QAction(this);
     actSplitIntoComponents->setText(tr("E&xtract Components"));
+    actSplitIntoComponents->setIconText(tr("Components"));
     actSplitIntoComponents->setIcon(ReginaSupport::regIcon("components"));
-    actSplitIntoComponents->setToolTip(tr(
-        "Form a new triangulation for each disconnected component"));
-    actSplitIntoComponents->setWhatsThis(tr("<qt>Split a disconnected "
+    actSplitIntoComponents->setToolTip(tr("Extract connected components"));
+    actSplitIntoComponents->setWhatsThis(tr("Splits a disconnected "
         "triangulation into its individual connected components.  This "
-        "triangulation will not be changed &ndash; each "
+        "triangulation will not be changed – each "
         "connected component will be added as a new triangulation beneath "
         "it in the packet tree.<p>"
         "If this triangulation is already connected, this operation will "
-        "do nothing.</qt>"));
+        "do nothing."));
     triActionList.push_back(actSplitIntoComponents);
     connect(actSplitIntoComponents, SIGNAL(triggered()), this,
         SLOT(splitIntoComponents()));
@@ -600,11 +647,26 @@ const std::vector<QAction*>& Tri4GluingsUI::getPacketTypeActions() {
 }
 
 void Tri4GluingsUI::fillToolBar(QToolBar* bar) {
-    bar->addAction(actAddPent);
-    bar->addAction(actRemovePent);
-    bar->addSeparator();
-    bar->addAction(actSimplify);
-    bar->addAction(actOrient);
+    if (ReginaPrefSet::global().displaySimpleToolbars) {
+        bar->addAction(actSimplify);
+        bar->addAction(actMoves);
+        bar->addSeparator();
+        bar->addAction(actOrient);
+        bar->addAction(actTruncate);
+    } else {
+        bar->addAction(actSimplify);
+        bar->addAction(actMoves);
+        bar->addSeparator();
+        bar->addAction(actOrient);
+        bar->addAction(actReflect);
+        bar->addAction(actSubdivide);
+        bar->addAction(actTruncate);
+        bar->addAction(actMakeIdeal);
+        bar->addSeparator();
+        bar->addAction(actBoundaryComponents);
+        bar->addAction(actVertexLinks);
+        bar->addAction(actSplitIntoComponents);
+    }
 }
 
 regina::Packet* Tri4GluingsUI::getPacket() {
@@ -674,8 +736,7 @@ void Tri4GluingsUI::removeSelectedPents() {
         msgBox.setText(tr("Pentachoron number %1 will be removed.").arg(first));
         msgBox.setInformativeText(tr("Are you sure?"));
     } else {
-        msgBox.setText(
-            tr("<qt>%1 pentachora (numbers %2&ndash;%3) will be removed.</qt>")
+        msgBox.setText(tr("%1 pentachora (numbers %2–%3) will be removed.")
             .arg(last - first + 1).arg(first).arg(last));
         msgBox.setInformativeText(tr("Are you sure?"));
     }
@@ -760,6 +821,26 @@ void Tri4GluingsUI::changeLock() {
     lockSimplex = -1;
 }
 
+void Tri4GluingsUI::unlockAll() {
+    if (! tri->hasLocks()) {
+        ReginaSupport::info(ui, tr("No pentachora or tetrahedra are locked "
+            "in this triangulation."));
+        return;
+    }
+
+    QMessageBox msgBox(ui);
+    msgBox.setWindowTitle(tr("Question"));
+    msgBox.setIcon(QMessageBox::Question);
+    msgBox.setText(tr("This will clear all pentachoron and tetrahedron "
+        "locks."));
+    msgBox.setInformativeText(tr("Are you sure?"));
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Yes);
+
+    if (msgBox.exec() == QMessageBox::Yes)
+        tri->unlockAll();
+}
+
 void Tri4GluingsUI::simplify() {
     endEdit();
 
@@ -768,17 +849,41 @@ void Tri4GluingsUI::simplify() {
         return;
     }
 
-    if (! tri->simplify()) {
+    size_t initSize = tri->size();
+
+    regina::ProgressTrackerObjective tracker(initSize);
+    // Don't fuss about the plural - if we ever reach 1 pentachora then the
+    // progress dialog is going to close immediately afterwards.
+    ProgressDialogObjective dlg(&tracker, tr("Simplifying..."),
+        tr("Size: %1 pentachora"), ui);
+
+    bool result;
+    {
+        // We cannot have a packet change event fired from the computation
+        // thread, since this could lead to Qt crashing.  We therefore wrap
+        // the entire computation in a PacketChangeGroup, so that the change
+        // event is fired here in this thread, at the end of this braced block,
+        // after the computation thread is guaranteed to have finished.
+
+        regina::Packet::PacketChangeGroup span(*tri);
+        std::thread t(&Triangulation<4>::simplify, tri, &tracker);
+        result = dlg.run();
+        t.join();
+    }
+
+    if (result && tri->size() == initSize) {
+        dlg.hide();
+
         if (tri->countComponents() > 1) {
             ReginaSupport::info(ui,
                 tr("I could not simplify the triangulation."),
-                tr("<qt>I have only tried fast heuristics so far.<p>"
-                    "For connected triangulations I can try a more exaustive "
-                    "approach, but for multiple-component triangulations "
-                    "this is not yet available.<p>"
+                tr("I have only tried fast heuristics so far.<p>"
+                    "For connected triangulations I can try a more "
+                    "exhaustive approach, but for multiple-component "
+                    "triangulations this is not yet available.<p>"
                     "To use this more exhaustive approach, you could "
                     "split the triangulation into components and try to "
-                    "simplify each component independently.</qt>"));
+                    "simplify each component independently."));
             return;
         }
 
@@ -805,10 +910,22 @@ void Tri4GluingsUI::simplifyExhaustive(int height) {
     ProgressDialogOpen dlg(&tracker, tr("Searching Pachner graph..."),
         tr("Tried %1 triangulations"), ui);
 
-    std::thread(&Triangulation<4>::simplifyExhaustive, tri, height,
-        ReginaPrefSet::threads(), &tracker).detach();
+    bool result;
+    {
+        // We cannot have a packet change event fired from the computation
+        // thread, since this could lead to Qt crashing.  We therefore wrap
+        // the entire computation in a PacketChangeGroup, so that the change
+        // event is fired here in this thread, at the end of this braced block,
+        // after the computation thread is guaranteed to have finished.
 
-    if (dlg.run() && tri->size() == initSize) {
+        regina::Packet::PacketChangeGroup span(*tri);
+        std::thread t(&Triangulation<4>::simplifyExhaustive, tri, height,
+            ReginaPrefSet::threads(), &tracker);
+        result = dlg.run();
+        t.join();
+    }
+
+    if (result && tri->size() == initSize) {
         dlg.hide();
 
         QMessageBox msgBox(ui);
@@ -871,7 +988,7 @@ void Tri4GluingsUI::barycentricSubdivide() {
         tri->subdivide();
 }
 
-void Tri4GluingsUI::idealToFinite() {
+void Tri4GluingsUI::truncateIdeal() {
     endEdit();
 
     if (tri->isValid() && ! tri->isIdeal())
@@ -886,12 +1003,12 @@ void Tri4GluingsUI::idealToFinite() {
             "to truncate ideal vertices."));
     else {
         regina::Packet::PacketChangeGroup span(*tri);
-        tri->idealToFinite();
+        tri->truncateIdeal();
         tri->simplify();
     }
 }
 
-void Tri4GluingsUI::finiteToIdeal() {
+void Tri4GluingsUI::makeIdeal() {
     endEdit();
 
     if (! tri->hasBoundaryFacets())
@@ -900,11 +1017,11 @@ void Tri4GluingsUI::finiteToIdeal() {
             tr("Only real boundary components will be converted into "
             "ideal vertices."));
     else {
-        // We could check for locks explicitly here, but finiteToIdeal()
+        // We could check for locks explicitly here, but makeIdeal()
         // will do it again - so just catch the exception that it would throw.
         regina::Packet::PacketChangeGroup span(*tri);
         try {
-            tri->finiteToIdeal();
+            tri->makeIdeal();
         } catch (const regina::LockViolation&) {
             ReginaSupport::sorry(ui,
                 tr("This triangulation has boundary locks."),
@@ -944,6 +1061,15 @@ void Tri4GluingsUI::doubleCover() {
     endEdit();
 
     auto ans = regina::make_packet(tri->doubleCover(), "Double cover");
+    tri->append(ans);
+    enclosingPane->getMainWindow()->packetView(*ans, true, true);
+}
+
+void Tri4GluingsUI::doubleOverBoundary() {
+    endEdit();
+
+    auto ans = regina::make_packet(tri->doubleOverBoundary(),
+        "Doubled over boundary");
     tri->append(ans);
     enclosingPane->getMainWindow()->packetView(*ans, true, true);
 }
@@ -1054,6 +1180,13 @@ void Tri4GluingsUI::updateRemoveState() {
 
 void Tri4GluingsUI::updateActionStates() {
     actOrient->setEnabled(tri->isOrientable() && ! tri->isOriented());
+    actTruncate->setEnabled(tri->isIdeal() || ! tri->isValid());
     actBoundaryComponents->setEnabled(! tri->boundaryComponents().empty());
+    actDoubleCover->setEnabled(! tri->isOrientable());
+    actDoubleOverBoundary->setEnabled(tri->hasBoundaryFacets());
+    actSplitIntoComponents->setEnabled(tri->countComponents() > 1);
+    actUnlock->setVisible(tri->hasLocks());
+
+    updateRemoveState();
 }
 

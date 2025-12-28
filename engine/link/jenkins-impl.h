@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -64,7 +62,7 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
     auto nComp = static_cast<size_t>(val);
 
     if (nComp == 0)
-        return Link();
+        return {};
 
     Link ans;
     ans.components_.resize(nComp);
@@ -73,8 +71,8 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
     // Alas, these appear last in the input.
     // Skip through (and remember) the link components, which appear first.
     using CompStep = std::pair<size_t, int>; // (crossing, side)
-    auto* compLen = new size_t[nComp];
-    auto* compInput = new CompStep*[nComp];
+    FixedArray<size_t> compLen(nComp);
+    FixedArray<CompStep*> compInput(nComp, nullptr);
     size_t foundCrossings = 0;
 
     size_t c;
@@ -133,8 +131,6 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
     } catch (const InvalidArgument&) {
         for (size_t i = 0; i < c; ++i)
             delete[] compInput[i];
-        delete[] compInput;
-        delete[] compLen;
         throw;
     }
 
@@ -143,14 +139,11 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
         // Invalid input.
         for (size_t i = 0; i < nComp; ++i)
             delete[] compInput[i];
-        delete[] compInput;
-        delete[] compLen;
         throw InvalidArgument("fromJenkins(): odd number of total steps");
     }
-    size_t nCross = foundCrossings / 2;
 
-    auto* tmpCross = new Crossing*[nCross];
-    std::fill(tmpCross, tmpCross + nCross, nullptr);
+    size_t nCross = foundCrossings / 2;
+    FixedArray<Crossing*> tmpCross(nCross, nullptr);
 
     try {
         for (size_t i = 0; i < nCross; ++i) {
@@ -180,17 +173,13 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
     } catch (const InvalidArgument&) {
         for (size_t i = 0; i < nCross; ++i)
             delete tmpCross[i];
-        delete[] tmpCross;
         for (size_t i = 0; i < nComp; ++i)
             delete[] compInput[i];
-        delete[] compInput;
-        delete[] compLen;
         throw;
     }
 
     for (size_t i = 0; i < nCross; ++i)
         ans.crossings_.push_back(tmpCross[i]);
-    delete[] tmpCross;
 
     // Finally, we can connect the crossings together by following the
     // individual link components.
@@ -210,8 +199,6 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
             if (ans.crossings_[startCross]->next_[startStrand]) {
                 for (i = 0; i < nComp; ++i)
                     delete[] compInput[i];
-                delete[] compInput;
-                delete[] compLen;
                 throw InvalidArgument(
                     "fromJenkins(): multiple visits to the same strand");
             }
@@ -226,8 +213,6 @@ Link Link::fromJenkins(Iterator begin, Iterator end) {
     // Start cleaning up.
     for (size_t i = 0; i < nComp; ++i)
         delete[] compInput[i];
-    delete[] compInput;
-    delete[] compLen;
 
     // Set up prev links to match next links.
     StrandRef next;

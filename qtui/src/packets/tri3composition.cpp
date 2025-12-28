@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -330,20 +328,28 @@ void Tri3CompositionUI::updateIsoPanel() {
 
     // Run the isomorphism tests.
     if (compare_) {
+        QString result;
         auto& c = regina::static_triangulation3_cast(*compare_);
         if ((isomorphism = tri_->isIsomorphicTo(c))) {
-            isoResult->setText(tr("Result: Isomorphic (this = T)"));
+            result = tr("Result: Isomorphic (this = T)");
             isoType = IsomorphismType::IsIsomorphic;
         } else if ((isomorphism = tri_->isContainedIn(c))) {
-            isoResult->setText(tr("Result: Subcomplex (this < T)"));
+            result = tr("Result: Subcomplex (this < T)");
             isoType = IsomorphismType::IsSubcomplex;
         } else if ((isomorphism = c.isContainedIn(*tri_))) {
-            isoResult->setText(tr("Result: Subcomplex (T < this)"));
+            result = tr("Result: Subcomplex (T < this)");
             isoType = IsomorphismType::IsSupercomplex;
         } else {
-            isoResult->setText(tr("Result: No relationship"));
+            result = tr("Result: No relationship");
             isoType = IsomorphismType::NoRelationship;
         }
+
+        if (isoType == IsomorphismType::NoRelationship)
+            isoResult->setText(result);
+        else if (tri_->hasLocks() || c.hasLocks())
+            isoResult->setText(tr("%1; locks are ignored").arg(result));
+        else
+            isoResult->setText(result);
     } else {
         isomorphism.reset();
         isoResult->setText(tr("Result:"));
@@ -633,7 +639,7 @@ void Tri3CompositionUI::findBlockedTriangulations() {
             arg(matrixString(bundle->core().parallelReln())));
 
         (new QTreeWidgetItem(id))->setText(0,
-            tr("Core T x I triangulation: %1").
+            tr("Core T × I triangulation: %1").
             arg(bundle->core().name().c_str()));
     }
 
@@ -650,7 +656,7 @@ void Tri3CompositionUI::findBlockedTriangulations() {
             arg(matrixString(pBundle->matchingReln())));
 
         (new QTreeWidgetItem(id))->setText(0,
-            tr("Thin I-bundle (T x I): %1").
+            tr("Thin I-bundle (T × I): %1").
             arg(pBundle->bundle().name().c_str()));
     }
 }

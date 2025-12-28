@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,8 +43,8 @@
 #include <tuple>
 #include <gmp.h>
 #include "regina-core.h"
+#include "maths/ring.h"
 #include "utilities/exception.h"
-#include "utilities/intutils.h"
 #include "utilities/tightencoding.h"
 
 /**
@@ -1775,6 +1773,18 @@ void tightEncode(std::ostream& out, IntegerBase<withInfinity> value);
 template <bool withInfinity>
 std::string tightEncoding(IntegerBase<withInfinity> value);
 
+#ifndef __DOXYGEN
+// Don't confuse doxygen with specialisations.
+template <bool withInfinity>
+struct RingTraits<IntegerBase<withInfinity>> {
+    inline static const IntegerBase<withInfinity> zero;
+    inline static const IntegerBase<withInfinity> one { 1 };
+    static constexpr bool commutative = true;
+    static constexpr bool zeroInitialised = true;
+    static constexpr bool zeroDivisors = false;
+};
+#endif // __DOXYGEN
+
 /**
  * A wrapper class for a native, fixed-precision integer type of the
  * given size.
@@ -2390,6 +2400,18 @@ std::ostream& operator << (std::ostream& out, const NativeInteger<bytes>& i);
  * \ingroup maths
  */
 using NativeLong = NativeInteger<sizeof(long)>;
+
+#ifndef __DOXYGEN
+// Don't confuse doxygen with specialisations.
+template <int bytes>
+struct RingTraits<NativeInteger<bytes>> {
+    static constexpr NativeInteger<bytes> zero { };
+    static constexpr NativeInteger<bytes> one { 1 };
+    static constexpr bool commutative = true;
+    static constexpr bool zeroInitialised = true;
+    static constexpr bool zeroDivisors = true;
+};
+#endif // __DOXYGEN
 
 // Inline functions for IntegerBase
 

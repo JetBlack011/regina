@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,6 +37,7 @@
 #include "tri2skeleton.h"
 #include "packeteditiface.h"
 #include "reginamain.h"
+#include "reginaprefset.h"
 
 #include <QLabel>
 #include <QToolBar>
@@ -49,8 +48,9 @@ using regina::Triangulation;
 
 Tri2UI::Tri2UI(regina::PacketOf<regina::Triangulation<2>>* packet,
         PacketPane* newEnclosingPane) :
-        PacketTabbedUI(newEnclosingPane, ReginaPrefSet::global().tabDim2Tri) {
-    auto* header = new Tri2HeaderUI(packet, this);
+        PacketTabbedUI(newEnclosingPane, ReginaPrefSet::global().tabDim2Tri),
+        simpleToolbars(ReginaPrefSet::global().displaySimpleToolbars) {
+    header = new Tri2HeaderUI(packet, this);
     gluings = new Tri2GluingsUI(packet, this);
     skeleton = new Tri2SkeletonUI(packet, this);
 
@@ -59,6 +59,9 @@ Tri2UI::Tri2UI(regina::PacketOf<regina::Triangulation<2>>* packet,
     addHeader(header);
     addTab(gluings, QObject::tr("&Gluings"));
     addTab(skeleton, QObject::tr("&Skeleton"));
+
+    connect(&ReginaPrefSet::global(), SIGNAL(preferencesChanged()),
+        this, SLOT(updatePreferences()));
 }
 
 const std::vector<QAction*>& Tri2UI::getPacketTypeActions() {
@@ -69,6 +72,18 @@ QString Tri2UI::getPacketMenuText() const {
     return QObject::tr("2-D T&riangulation");
 }
 
+void Tri2UI::updatePreferences() {
+    bool newVal = ReginaPrefSet::global().displaySimpleToolbars;
+    if (newVal != simpleToolbars) {
+        simpleToolbars = newVal;
+
+        auto* toolbar = header->getToolBar();
+        toolbar->clear();
+        toolbar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
+        gluings->fillToolBar(toolbar);
+    }
+}
+
 Tri2HeaderUI::Tri2HeaderUI(regina::PacketOf<regina::Triangulation<2>>* packet,
         PacketTabbedUI* useParentUI) : PacketViewerTab(useParentUI),
         tri(packet) {
@@ -77,7 +92,7 @@ Tri2HeaderUI::Tri2HeaderUI(regina::PacketOf<regina::Triangulation<2>>* packet,
     uiLayout->setContentsMargins(0, 0, 0, 0);
 
     bar = new QToolBar(ui);
-    bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    bar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
     uiLayout->addWidget(bar);
 
     header = new QLabel();

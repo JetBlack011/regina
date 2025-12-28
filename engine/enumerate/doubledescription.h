@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -41,6 +39,7 @@
 #endif
 
 #include "regina-core.h"
+#include "concepts/maths.h"
 #include "enumerate/ordering.h"
 #include "maths/matrix.h"
 #include "maths/vector.h"
@@ -73,7 +72,7 @@ class DoubleDescription {
         /**
          * Determines the extremal rays of the intersection of the
          * <i>n</i>-dimensional non-negative orthant with the given linear
-         * subspace.  The resulting rays will be of the class \a RayClass,
+         * subspace.  The resulting rays will be of the class \a Ray,
          * and will be passed into the given action function one at a time.
          *
          * The non-negative orthant is an <i>n</i>-dimensional cone with
@@ -111,14 +110,10 @@ class DoubleDescription {
          * For each of the resulting extremal rays, this routine will call
          * \a action (which must be a function or some other callable object).
          * This action should return \c void, and must take exactly one
-         * argument, which will be the extremal ray stored using \a RayClass.
+         * argument, which will be the extremal ray stored using type \a Ray.
          * The argument will be passed as an rvalue; a typical \a action
-         * would take it as an rvalue reference (RayClass&&) and move its
+         * would take it as an rvalue reference (`Ray&&`) and move its
          * contents into some other more permanent storage.
-         *
-         * \pre The template argument RayClass is derived from (or equal to)
-         * Vector<T>, where \a T is one of Regina's arbitrary-precision
-         * integer classes (Integer or LargeInteger).
          *
          * \python There are two versions of this function available
          * in Python.  The first version is the same as the C++ function;
@@ -126,13 +121,13 @@ class DoubleDescription {
          * The second form does not have an \a action argument; instead you
          * call `enumerate(subspace, constraints, tracker, initialRows)`,
          * and it returns a Python list containing all extremal rays.
-         * In both versions, the argument \a RayClass is fixed as VectorInt.
+         * In both versions, the template argument \a Ray is fixed as VectorInt.
          * The global interpreter lock will be released while this function
          * runs, so you can use it with Python-based multithreading.
          *
          * \param action a function (or other callable object) that will be
          * called for each extremal ray.  This function must take a single
-         * argument, which will be passed as an rvalue of type RayClass.
+         * argument, which will be passed as an rvalue of type Ray.
          * \param subspace a matrix defining the linear subspace to intersect
          * with the given cone.  Each row of this matrix is the equation
          * for one of the hyperplanes whose intersection forms this linear
@@ -147,7 +142,7 @@ class DoubleDescription {
          * The remaining rows will be sorted using the PosOrder class
          * before they are processed.
          */
-        template <class RayClass, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray, typename Action>
         static void enumerate(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints,
             ProgressTracker* tracker = nullptr, size_t initialRows = 0);
@@ -169,33 +164,24 @@ class DoubleDescription {
          * - a bitmask indicating which facets of the original cone this
          *   ray belongs to.
          *
-         * The dot products are stored as coordinates of the Vector superclass.
-         * Dot products are only stored for hyperplanes that have not yet been
-         * intersected (thus the vector length becomes smaller as the
-         * main algorithm progresses).
+         * The dot products are stored as the integer coordinates of the
+         * Vector superclass.  Dot products are only stored for hyperplanes
+         * that have not yet been intersected (thus the vector length becomes
+         * smaller as the main algorithm progresses).
          * Dot products are stored in the order in which hyperplanes are
          * to be processed (thus the dot product with the next hyperplane
          * is the first element of this vector, and the dot product with
          * the final hyperplane is the last element).
          *
-         * The \a BitmaskType template argument describes how the set of
-         * facets will be stored.  Specifically, the set of facets is
-         * stored as a bitmask with one bit per facet; each bit is set if
-         * and only if this ray belongs to the corresponding original facet.
-         *
+         * The additional bitmask uses one bit per facet of the original cone:
+         * each bit is set if and only if this ray belongs to the corresponding
+         * original facet.
          * Since this class is used heavily, faster bitmask types such
          * as Bitmask1 and Bitmask2 are preferred; however, if the
          * number of facets is too large then the slower general-use Bitmask
          * class will need to be used instead.
-         *
-         * \tparam IntegerType the integer type used to store and manipulate
-         * rays; this must be one of Regina's own integer types.
-         *
-         * \tparam BitmaskType the bitmask type used to store a set of facets;
-         * this must be one of Regina's own bitmask types, such as
-         * Bitmask, Bitmask1 or Bitmask2.
          */
-        template <class IntegerType, class BitmaskType>
+        template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
         class RaySpec : private Vector<IntegerType> {
             private:
                 using Vector<IntegerType>::elts_;
@@ -317,8 +303,8 @@ class DoubleDescription {
                  * hyperplanes that were intersected with the original cone
                  * (one hyperplane for each row of the matrix).
                  */
-                template <typename RayClass>
-                void recover(RayClass& dest, const MatrixInt& subspace) const;
+                template <ArbitraryPrecisionIntegerVector Ray>
+                void recover(Ray& dest, const MatrixInt& subspace) const;
         };
 
         /**
@@ -330,13 +316,12 @@ class DoubleDescription {
          * All arguments to this function are identical to those for the
          * public routine enumerate().
          *
-         * \pre The bitmask type is one of Regina's bitmask types, such
-         * as Bitmask, Bitmask1 or Bitmask2.
          * \pre The type \a BitmaskType can handle at least \a f bits,
          * where \a f is the number of original facets in the given range.
          * \pre The given range of facets is not empty.
          */
-        template <class RayClass, class BitmaskType, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray,
+            ReginaBitmask BitmaskType, typename Action>
         static void enumerateUsingBitmask(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints,
             ProgressTracker* tracker, size_t initialRows);
@@ -390,7 +375,7 @@ class DoubleDescription {
          * the entire old solution set, or undefined if the operation
          * was cancelled via the progress tracker.
          */
-        template <class IntegerType, class BitmaskType>
+        template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
         static bool intersectHyperplane(
             std::vector<RaySpec<IntegerType, BitmaskType>*>& src,
             std::vector<RaySpec<IntegerType, BitmaskType>*>& dest,
@@ -401,14 +386,14 @@ class DoubleDescription {
 
 // Inline functions for DoubleDescription::RaySpec
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline DoubleDescription::RaySpec<IntegerType, BitmaskType>::RaySpec(
         const RaySpec<IntegerType, BitmaskType>& trunc) :
         Vector<IntegerType>(trunc.size() - 1), facets_(trunc.facets_) {
     std::copy(trunc.elts_ + 1, trunc.end_, elts_);
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline int DoubleDescription::RaySpec<IntegerType, BitmaskType>::sign() const {
     if (*elts_ < 0)
         return -1;
@@ -417,13 +402,13 @@ inline int DoubleDescription::RaySpec<IntegerType, BitmaskType>::sign() const {
     return 0;
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline const BitmaskType&
         DoubleDescription::RaySpec<IntegerType, BitmaskType>::facets() const {
     return facets_;
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline bool
         DoubleDescription::RaySpec<IntegerType, BitmaskType>::onAllCommonFacets(
         const RaySpec<IntegerType, BitmaskType>& x,

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -44,13 +42,13 @@
 
 // Some sanity checking.
 #if defined(REGINA_INSTALL_BUNDLE)
-    #if defined(Q_OS_MACX) && defined(REGINA_XCODE_BUNDLE)
+    #if defined(Q_OS_MACOS) && defined(REGINA_XCODE_BUNDLE)
     #else
         #error "Regina only supports macOS bundles through the Xcode build."
     #endif
 #endif
 #ifdef REGINA_INSTALL_WINDOWS
-    #ifdef Q_OS_WIN32
+    #ifdef Q_OS_WIN
     #else
         #error "Regina only supports Windows builds on Windows platforms."
     #endif
@@ -93,7 +91,13 @@ int main(int argc, char **argv) {
     // Load preferences from file.
     ReginaPrefSet::read();
 
-#ifndef Q_OS_MACX
+#ifdef Q_OS_MACOS
+    // Newer Qt does not show icons in the menu on macOS.
+    // For now, override this.  We might want to revisit this decision.
+    app->setAttribute(Qt::AA_DontShowIconsInMenus, false);
+#endif
+
+#ifndef Q_OS_MACOS
     // Set a window icon for platforms that support it.
     // Not on macOS though, since that sets icons via Info.plist.
     QApplication::setWindowIcon(IconCache::icon(IconCache::Icon::regina));

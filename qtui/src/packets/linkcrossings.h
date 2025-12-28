@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -144,7 +142,7 @@ class LinkCrossingsUI : public QObject, public PacketEditorTab {
         QComboBox* type;
         std::vector<QListView*> componentLists;
             /**< One list for each component.  For a 0-crossing unknot
-                 component, the corresponding list is \c nullptr. */
+                 component, the corresponding list is \c null. */
         ssize_t useStrand;
 
         /**
@@ -156,9 +154,15 @@ class LinkCrossingsUI : public QObject, public PacketEditorTab {
         /**
          * Link actions
          */
-        QAction* actReflect;
-        QAction* actAlternating;
         QAction* actSimplify;
+        QAction* actTreewidth;
+        QAction* actMoves;
+        QAction* actReflect;
+        QAction* actRotate;
+        QAction* actReverse;
+        QAction* actAlternating;
+        QAction* actSelfFrame;
+        QAction* actWhiteheadDouble;
         QAction* actComplement;
         QAction* actSnapPea;
         std::vector<QAction*> actionList;
@@ -194,11 +198,13 @@ class LinkCrossingsUI : public QObject, public PacketEditorTab {
          */
         void simplify();
         void simplifyExhaustive(int height);
+        void improveTreewidth(int attempt = 0);
         void reflect();
         void rotate();
         void reverse();
         void alternating();
         void moves();
+        void whiteheadDouble();
         void diagramComponents();
         void complement();
         void snapPea();
@@ -214,6 +220,7 @@ class LinkCrossingsUI : public QObject, public PacketEditorTab {
         void contextStrand(const QPoint&);
         void changeCrossing();
         void resolveCrossing();
+        void makeVirtual();
         void reverseComponent();
 
         /**
@@ -233,7 +240,8 @@ class ParallelDialog : public QDialog {
     Q_OBJECT
 
     private:
-        regina::Link& link_;
+        regina::PacketOf<regina::Link>* link_;
+        ReginaMain* mainWindow_;
 
         /**
          * Internal components
@@ -245,7 +253,8 @@ class ParallelDialog : public QDialog {
         /**
          * Constructor.
          */
-        ParallelDialog(QWidget* parent, regina::Link& link);
+        ParallelDialog(QWidget* parent, regina::PacketOf<regina::Link>* link,
+            ReginaMain* mainWindow);
 
     protected slots:
         /**

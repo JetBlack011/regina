@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -37,7 +35,7 @@
 
 /**
  * The functions in this header allow you to run a test over all
- * triangulations from a census.
+ * triangulations or link diagrams from a census.
  *
  * The \a small parameter indicates that a smaller census should be
  * used; this is appropriate when the corresponding test is extremely slow.
@@ -60,6 +58,7 @@ using Triangulation3TestFunction = void (*)(const regina::Triangulation<3>&,
     const char*);
 using Triangulation4TestFunction = void (*)(const regina::Triangulation<4>&,
     const char*);
+using LinkTestFunction = void (*)(const regina::Link&, const char*);
 
 void runCensusAllClosed(Triangulation2TestFunction f);
 void runCensusAllBounded(Triangulation2TestFunction f);
@@ -75,5 +74,7 @@ void runCensusAllBounded(Triangulation4TestFunction f, int size = 0);
 void runCensusAllNoBdry(Triangulation4TestFunction f, int size = 0);
 void runCensus(bool (*pairingFilter)(const regina::FacetPairing<4>&),
     Triangulation4TestFunction f, int size, bool orblOnly = false);
+
+void runCensusAllVirtual(LinkTestFunction f, bool small_ = false);
 
 #endif

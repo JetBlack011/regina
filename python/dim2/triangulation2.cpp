@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,10 +38,10 @@
 #include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
 #include "../generic/facehelper.h"
-#include "../generic/isosig-bindings.h"
 #include "../docstrings/triangulation/dim2/triangulation2.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
 #include "../docstrings/utilities/snapshot.h"
+#include "../generic/isosig-bindings.h" // must come after docstrings
 
 using pybind11::overload_cast;
 using regina::AbelianGroup;
@@ -54,7 +52,7 @@ using regina::MatrixInt;
 using regina::Simplex;
 using regina::Triangulation;
 
-void addTriangulation2(pybind11::module_& m) {
+void addTriangulation2(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(Triangulation)
     RDOC_SCOPE_BASE_2(detail::TriangulationBase, Snapshottable)
 
@@ -309,12 +307,15 @@ void addTriangulation2(pybind11::module_& m) {
         .def("with20", &Triangulation<2>::with20<0>, rbase::with20)
         .def("withShellBoundary", &Triangulation<2>::withShellBoundary,
             rbase::withShellBoundary)
+        .def("makeIdeal", &Triangulation<2>::makeIdeal, rbase::makeIdeal)
         .def("finiteToIdeal", &Triangulation<2>::finiteToIdeal,
             rbase::finiteToIdeal)
         .def("doubleCover", &Triangulation<2>::doubleCover, rbase::doubleCover)
         .def("makeDoubleCover", [](Triangulation<2>& tri) { // deprecated
             tri = tri.doubleCover();
         }, rbase::makeDoubleCover)
+        .def("doubleOverBoundary", &Triangulation<2>::doubleOverBoundary,
+            rbase::doubleOverBoundary)
         .def("subdivide", &Triangulation<2>::subdivide, rbase::subdivide)
         .def("barycentricSubdivision", // deprecated
             &Triangulation<2>::subdivide, rbase::barycentricSubdivision)
@@ -323,21 +324,7 @@ void addTriangulation2(pybind11::module_& m) {
                 &Triangulation<2>::insertTriangulation),
             rbase::insertTriangulation)
         .def("sig", &Triangulation<2>::sig<>, rbase::sig)
-        .def("isoSig", &Triangulation<2>::isoSig<>, rbase::isoSig)
-        .def("isoSig_EdgeDegrees",
-            &Triangulation<2>::isoSig<regina::IsoSigEdgeDegrees<2>>,
-            rbase::isoSig)
-        .def("isoSig_RidgeDegrees",
-            &Triangulation<2>::isoSig<regina::IsoSigRidgeDegrees<2>>,
-            rbase::isoSig)
-        .def("isoSigDetail", &Triangulation<2>::isoSigDetail<>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_EdgeDegrees",
-            &Triangulation<2>::isoSigDetail<regina::IsoSigEdgeDegrees<2>>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_RidgeDegrees",
-            &Triangulation<2>::isoSigDetail<regina::IsoSigRidgeDegrees<2>>,
-            rbase::isoSigDetail)
+        // Variants of isoSig() are handled through isosig_options() below.
         .def_static("fromIsoSig", &Triangulation<2>::fromIsoSig,
             rbase::fromIsoSig)
         .def_static("fromSig", &Triangulation<2>::fromSig, rbase::fromSig)
@@ -377,50 +364,60 @@ void addTriangulation2(pybind11::module_& m) {
             overload_cast<Face<2, 2>*, bool, bool>(
                 &Triangulation<2>::pachner<2>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<2, 1>*, bool, bool>(
                 &Triangulation<2>::pachner<1>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<2, 0>*, bool, bool>(
                 &Triangulation<2>::pachner<0>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
+        // For twoZeroMove(), the new function has a different name (move20).
+        // We therefore give a default value for "ignored" in order to preserve
+        // backward compatibility in cases where both boolean arguments are
+        // omitted.
         .def("twoZeroMove", &Triangulation<2>::twoZeroMove<0>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("shellBoundary",
             overload_cast<Simplex<2>*, bool, bool>(
                 &Triangulation<2>::shellBoundary),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::shellBoundary_2) // deprecated
     ;
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
+    regina::python::isosig_options<2>(c);
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    regina::python::addListView<decltype(Triangulation<2>().vertices())>(m);
-    regina::python::addListView<decltype(Triangulation<2>().edges())>(m);
-    regina::python::addListView<decltype(Triangulation<2>().triangles())>(m);
-    regina::python::addListView<decltype(Triangulation<2>().components())>(m);
+    regina::python::addListView<decltype(Triangulation<2>().vertices())>(
+        internal, "Triangulation2_vertices");
+    regina::python::addListView<decltype(Triangulation<2>().edges())>(
+        internal, "Triangulation2_edges");
+    regina::python::addListView<decltype(Triangulation<2>().triangles())>(
+        internal, "Triangulation2_triangles");
+    regina::python::addListView<decltype(Triangulation<2>().components())>(
+        internal, "Triangulation2_components");
     regina::python::addListView<
-        decltype(Triangulation<2>().boundaryComponents())>(m);
+        decltype(Triangulation<2>().boundaryComponents())>(
+        internal, "Triangulation2_boundaryComponents");
 
     auto wrap = regina::python::add_packet_wrapper<Triangulation<2>>(
         m, "PacketOfTriangulation2");
@@ -444,6 +441,7 @@ void addTriangulation2(pybind11::module_& m) {
     addIsoSigClassic<2>(m, "IsoSigClassic2");
     addIsoSigEdgeDegrees<2>(m, "IsoSigEdgeDegrees2");
     addIsoSigRidgeDegrees<2>(m, "IsoSigRidgeDegrees2");
-    addIsoSigPrintable<2>(m, "IsoSigPrintable2");
+    addIsoSigPrintable<2, true>(m, "IsoSigPrintable2");
+    addIsoSigPrintable<2, false>(m, "IsoSigPrintableLockFree2");
 }
 

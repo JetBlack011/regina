@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -47,11 +45,11 @@ namespace regina {
 /**
  * Represents a general lens space.
  *
- * The lens space L(\a p,\a q) is the 3-manifold you get by
- * \a p/q Dehn surgery on the unknot.  For instance, L(1,0) and L(1,1)
- * are the 3-sphere, L(0,1) is the product S¹ x S², and L(\a p,1) is the
- * circle bundle over S² with Euler class \a p.  In L(\a p,\a q) if you
- * take a generator \a g of H_1 and evaluate the torsion linking form on it,
+ * The lens space `L(p,q)` is the 3-manifold you get by
+ * `p/q` Dehn surgery on the unknot.  For instance, `L(1,0)` and `L(1,1)`
+ * are the 3-sphere, `L(0,1)` is the product `S¹ × S²`, and `L(p,1)` is the
+ * circle bundle over `S²` with Euler class \a p.  In `L(p,q)` if you
+ * take a generator \a g of `H_1` and evaluate the torsion linking form on it,
  * then `<g,g> = [± r² q/p]` in Q/Z where \a r is an integer.
  *
  * All optional Manifold routines are implemented for this class.

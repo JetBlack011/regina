@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -41,7 +39,7 @@
 
 using regina::BoundaryComponent;
 
-void addBoundaryComponent3(pybind11::module_& m) {
+void addBoundaryComponent3(pybind11::module_& m, pybind11::module_& internal) {
     // We use the global scope here because all of BoundaryComponent's members
     // are inherited, and so BoundaryComponent's own docstring namespace
     // does not exist.
@@ -106,10 +104,13 @@ void addBoundaryComponent3(pybind11::module_& m) {
     RDOC_SCOPE_END
 
     regina::python::addListView<
-        decltype(std::declval<BoundaryComponent<3>>().vertices())>(m);
+        decltype(std::declval<BoundaryComponent<3>>().vertices())>(internal,
+        "BoundaryComponent3_vertices");
     regina::python::addListView<
-        decltype(std::declval<BoundaryComponent<3>>().edges())>(m);
+        decltype(std::declval<BoundaryComponent<3>>().edges())>(internal,
+        "BoundaryComponent3_edges");
     regina::python::addListView<
-        decltype(std::declval<BoundaryComponent<3>>().triangles())>(m);
+        decltype(std::declval<BoundaryComponent<3>>().triangles())>(internal,
+        "BoundaryComponent3_triangles");
 }
 

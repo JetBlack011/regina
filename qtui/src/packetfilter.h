@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -37,7 +35,7 @@
 #ifndef __PACKETFILTER_H
 #define __PACKETFILTER_H
 
-#include "packet/packet.h"
+#include "concepts/packet.h"
 
 #include "reginaqt.h"
 
@@ -74,11 +72,10 @@ class AllPacketsFilter : public PacketFilter {
 /**
  * A packet filter that only accepts packets of a single fixed packet type.
  *
- * The template argument T must be one of the available packet types.
- * The acceptance test will be performed by calling
- * Packet::type() upon each packet being questioned.
+ * The acceptance test will be performed by calling Packet::type() upon each
+ * packet being questioned.
  */
-template <class T>
+template <regina::PacketClass T>
 class SingleTypeFilter : public PacketFilter {
     public:
         /**
@@ -92,11 +89,10 @@ class SingleTypeFilter : public PacketFilter {
 /**
  * A packet filter that only accepts packets of one of two fixed packet types.
  *
- * The template arguments S and T must each be one of the available packet
- * types.  The acceptance test will be performed by calling
- * Packet::type() upon each packet being questioned.
+ * The acceptance test will be performed by calling Packet::type() upon each
+ * packet being questioned.
  */
-template <class S, class T>
+template <regina::PacketClass S, regina::PacketClass T>
 class TwoTypeFilter : public PacketFilter {
     public:
         /**
@@ -114,8 +110,12 @@ class TwoTypeFilter : public PacketFilter {
  *
  * The acceptance test will be performed by calling dynamic_cast<T*>
  * upon each packet being questioned.
+ *
+ * \tparam T the base class that we are filtering for.  This does _not_ need
+ * to be one of Regina's packet types; for example, \a T could be something
+ * like `regina::Triangulation<3>`.
  */
-template <class T>
+template <typename T>
 class SubclassFilter : public PacketFilter {
     public:
         /**

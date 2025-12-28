@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -34,6 +32,8 @@
 #include "census/gluingpermsearcher2.h"
 #include "census/gluingpermsearcher3.h"
 #include "census/gluingpermsearcher4.h"
+#include "link/link.h"
+#include "link/modellinkgraph.h"
 #include "packet/container.h"
 #include "triangulation/dim2.h"
 #include "triangulation/dim3.h"
@@ -80,11 +80,16 @@
     #define DIM4_IDEAL_CENSUS_SIZE 2
 #endif
 
+#define LINK_CENSUS_SIZE 4
+#define LINK_SMALL_CENSUS_SIZE 3
+
 using regina::BoolSet;
 using regina::CensusPurge;
 using regina::FacetPairing;
 using regina::GluingPerms;
 using regina::GluingPermSearcher;
+using regina::Link;
+using regina::ModelLinkGraph;
 using regina::Triangulation;
 
 namespace {
@@ -198,7 +203,7 @@ void runCensusAllNoBdry(Triangulation4TestFunction testFunction, int size) {
         &foundFacetPairing4, testFunction, BoolSet(true, true) /* finite */);
 }
 
-void runCensus(bool (*pairingFilter)(const regina::FacetPairing<4>&),
+void runCensus(bool (*pairingFilter)(const FacetPairing<4>&),
         Triangulation4TestFunction f, int size, bool orblOnly) {
     FacetPairing<4>::findAllPairings(size,
         { true, true } /* bounded */, -1 /* bdry faces */,
@@ -213,5 +218,20 @@ void runCensus(bool (*pairingFilter)(const regina::FacetPairing<4>&),
                             f(tri, tri.isoSig().c_str());
                     });
         });
+}
+
+void runCensusAllVirtual(LinkTestFunction f, bool small_) {
+    for (int n = 1;
+            n <= (small_ ? LINK_SMALL_CENSUS_SIZE : LINK_CENSUS_SIZE); ++n) {
+        FacetPairing<3>::findAllPairings(n, false, -1,
+                [](const FacetPairing<3>& p, LinkTestFunction f) {
+            ModelLinkGraph::generateAllEmbeddings(p, false, {},
+                    [](const ModelLinkGraph& g, LinkTestFunction f) {
+                g.generateAllLinks([](const Link& link, LinkTestFunction f) {
+                    f(link, link.brief().c_str());
+                }, f);
+            }, f);
+        }, f);
+    }
 }
 

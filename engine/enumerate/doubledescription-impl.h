@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -57,7 +55,7 @@
 
 namespace regina {
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 DoubleDescription::RaySpec<IntegerType, BitmaskType>::RaySpec(
         size_t axis, const MatrixInt& subspace, const long* hypOrder) :
         Vector<IntegerType>(subspace.rows()), facets_(subspace.columns()) {
@@ -71,7 +69,7 @@ DoubleDescription::RaySpec<IntegerType, BitmaskType>::RaySpec(
         elts_[i] = subspace.entry(hypOrder[i], axis);
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 DoubleDescription::RaySpec<IntegerType, BitmaskType>::RaySpec(
         const RaySpec<IntegerType, BitmaskType>& first,
         const RaySpec<IntegerType, BitmaskType>& second) :
@@ -88,10 +86,10 @@ DoubleDescription::RaySpec<IntegerType, BitmaskType>::RaySpec(
     facets_ &= first.facets_;
 }
 
-template <class IntegerType, class BitmaskType>
-template <typename RayClass>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
+template <ArbitraryPrecisionIntegerVector Ray>
 void DoubleDescription::RaySpec<IntegerType, BitmaskType>::recover(
-        RayClass& dest, const MatrixInt& subspace) const {
+        Ray& dest, const MatrixInt& subspace) const {
     size_t i, j;
 
     size_t rows = subspace.rows();
@@ -203,16 +201,10 @@ void DoubleDescription::RaySpec<IntegerType, BitmaskType>::recover(
     delete[] use;
 }
 
-template <class RayClass, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, typename Action>
 void DoubleDescription::enumerate(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints,
         ProgressTracker* tracker, size_t initialRows) {
-    static_assert(
-        IsReginaArbitraryPrecisionInteger<typename RayClass::value_type>::value,
-        "DoubleDescription::enumerate() requires the RayClass "
-        "template parameter to be equal to or derived from Vector<T>, "
-        "where T is one of Regina's arbitrary precision integer types.");
-
     size_t nFacets = subspace.columns();
 
     // If the space has dimension zero, return no results.
@@ -225,42 +217,43 @@ void DoubleDescription::enumerate(Action&& action,
     // Then farm the work out to the real enumeration routine that is
     // templated on the bitmask type.
     if (nFacets <= 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned>>(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (nFacets <= 8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long>>(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (nFacets <= 8 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long long>>(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long long>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (nFacets <= 8 * sizeof(unsigned long long) + 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass, Bitmask2<unsigned long long, unsigned>>(
+        enumerateUsingBitmask<Ray, Bitmask2<unsigned long long, unsigned>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (nFacets <= 8 * sizeof(unsigned long long) +
             8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass,
+        enumerateUsingBitmask<Ray,
             Bitmask2<unsigned long long, unsigned long>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else if (nFacets <= 16 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask2<unsigned long long>>(
+        enumerateUsingBitmask<Ray, Bitmask2<unsigned long long>>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
     else
-        enumerateUsingBitmask<RayClass, Bitmask>(
+        enumerateUsingBitmask<Ray, Bitmask>(
             std::forward<Action>(action),
             subspace, constraints, tracker, initialRows);
 }
 
-template <class RayClass, class BitmaskType, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, ReginaBitmask BitmaskType,
+    typename Action>
 void DoubleDescription::enumerateUsingBitmask(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints,
         ProgressTracker* tracker, size_t initialRows) {
-    using IntegerType = typename RayClass::value_type;
+    using IntegerType = typename Ray::value_type;
 
     // Get the dimension of the entire space in which we are working.
     size_t dim = subspace.columns();
@@ -270,7 +263,7 @@ void DoubleDescription::enumerateUsingBitmask(Action&& action,
     if (nEqns == 0) {
         // No!  Just send back the vertices of the non-negative orthant.
         for (size_t i = 0; i < dim; ++i) {
-            RayClass ans(dim);
+            Ray ans(dim);
             ans[i] = IntegerType::one;
             action(std::move(ans));
         }
@@ -353,7 +346,7 @@ void DoubleDescription::enumerateUsingBitmask(Action&& action,
 
     // Convert the final solutions into the required ray class.
     for (auto* r : list[workingList]) {
-        RayClass ans(dim);
+        Ray ans(dim);
         r->recover(ans, subspace);
         action(std::move(ans));
 
@@ -365,7 +358,7 @@ void DoubleDescription::enumerateUsingBitmask(Action&& action,
         tracker->setPercent(100);
 }
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 bool DoubleDescription::intersectHyperplane(
         std::vector<RaySpec<IntegerType, BitmaskType>*>& src,
         std::vector<RaySpec<IntegerType, BitmaskType>*>& dest,

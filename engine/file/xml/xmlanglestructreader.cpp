@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -56,12 +54,12 @@ void XMLAngleStructureReader::initialChars(const std::string& chars) {
     // Create a new vector and read all non-zero entries.
     VectorInt vec(vecLen);
 
-    long pos;
+    size_t pos;
     Integer value;
     for (size_t i = 0; i < tokens.size(); i += 2) {
-        if (! valueOf(tokens[i], pos))
+        if (! valueOf(tokens[i], pos)) // note: this ensures pos >= 0
             return;
-        if (pos < 0 || pos >= vecLen)
+        if (pos >= vecLen)
             return;
         try {
             vec[pos] = tokens[i + 1];

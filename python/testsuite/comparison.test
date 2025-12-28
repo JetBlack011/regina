@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2015-2023, Ben Burton
+# Copyright (c) 2015-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Tests that the comparison operators behave as expected for Regina's
@@ -27,13 +27,21 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 r = [ Rational(0,0), Rational(1,3), Rational(1,2), Rational(1,0) ]
 
 for a in r:
 	for b in r:
 		print(a < b, a <= b, a == b, a != b, a > b, a >= b)
+
+# Note: Currently regina sorts invariant factors using the _reverse_ sequences.
+# The five groups below are presented in the order that regina should sort them.
+
+g = [ AbelianGroup(), AbelianGroup(2), AbelianGroup(2, [3]), AbelianGroup(2, [6]), AbelianGroup(2, [3, 6]) ]
+
+for a in g:
+	for b in g:
+		print(a < b, a <= b, a == b, a != b, a > b, a >= b)
+

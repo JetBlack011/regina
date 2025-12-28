@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2007-2023, Ben Burton
+# Copyright (c) 2007-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Provides detailed tests for UTF-8 representations of various objects.
@@ -26,10 +26,15 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+print(subscript(-12))
+print(superscript(-12))
+print(subscript(Integer(-12)))
+print(superscript(Integer(-12)))
+print(subscript(LargeInteger(-12)))
+print(superscript(LargeInteger(-12)))
 
 g = AbelianGroup(3)
 print(g)

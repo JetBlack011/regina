@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -61,13 +59,13 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
     n = n / 2;
 
     if (n == 0)
-        return Link(1);
+        return { 1 }; // Zero-crossing unknot
 
     // Run Adam's code to determine the handedness of each crossing.
 
     // Copy the sequence of crossing numbers, since we will need to modify it.
-    auto* S = new InputInt[2 * n];
-    std::copy(begin, end, S);
+    FixedArray<InputInt> S(2 * n);
+    std::copy(begin, end, S.begin());
 
     for (size_t i=1; i <= n; ++i) {
         // Find the two instances of crossing i,
@@ -82,11 +80,8 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
                     S[pos1] == -static_cast<InputInt>(i))
                 break;
         }
-        if (pos1 == 2*n) {
-            // Crossing i was not found at all.
-            delete[] S;
+        if (pos1 == 2*n)
             throw InvalidArgument("fromGauss(): crossing not found");
-        }
 
         size_t pos2;
         for (pos2 = pos1+1; pos2 < 2*n; ++pos2) {
@@ -94,32 +89,25 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
                     S[pos2] == -static_cast<InputInt>(i))
                 break;
         }
-        if (pos2 == 2*n) {
-            // Crossing i was not found a second time.
-            delete[] S;
+        if (pos2 == 2*n)
             throw InvalidArgument("fromGauss(): crossing seen only once");
-        }
 
         // Make both S[pos1] and S[pos2] positive.
-        if (S[pos1] == S[pos2]) {
-            // The two instances of crossing i both have the same sign.
-            delete[] S;
-            throw InvalidArgument("fromGauss(): crossing uses same sign twice");
-        }
+        if (S[pos1] == S[pos2])
+            throw InvalidArgument(
+                "fromGauss(): crossing uses same strand twice");
         if (S[pos1] < 0)
             S[pos1] = - S[pos1];
         else
             S[pos2] = - S[pos2];
 
-        std::reverse(S+pos1+1, S+pos2);
+        std::reverse(S.begin() + pos1 + 1, S.begin() + pos2);
     }
 
     // Find the first and second position of each crossing number in the
     // permuted array S[].
-    auto* indx0 = new ssize_t[n];
-    auto* indx1 = new ssize_t[n];
-    std::fill(indx0, indx0 + n, -1);
-    std::fill(indx1, indx1 + n, -1);
+    FixedArray<ssize_t> indx0(n, -1);
+    FixedArray<ssize_t> indx1(n, -1);
 
     for (size_t pos1 = 0; pos1 < 2*n; ++pos1) {
         InputInt i = S[pos1] - 1;
@@ -127,18 +115,13 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
             indx0[i] = pos1;
         else if (indx1[i] < 0)
             indx1[i] = pos1;
-        else {
-            delete[] indx1;
-            delete[] indx0;
-            delete[] S;
+        else
             throw InvalidArgument(
                 "fromGauss(): crossing occurs more than twice");
-        }
     }
 
     // Identify interleaved pairs of crossings.
-    bool* graph = new bool[n*n];
-    std::fill(graph, graph + n*n, false);
+    FixedArray<bool> graph(n*n, false);
 
     for (size_t i = 1; i < n + 1; i++){
         for (size_t j = 1; j < n + 1; j++){
@@ -149,17 +132,12 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
         }
     }
 
-    delete[] indx1;
-    delete[] indx0;
-
     // Pull apart the nodes of the graph into opposite sides of a
     // bipartite graph.
-    int* side = new int[n];
-    auto* stack = new size_t[n];
+    FixedArray<int> side(n, 0);
+    FixedArray<size_t> stack(n, 0);
     ssize_t top = 0;
     size_t pop = 0;
-    std::fill(side, side + n, 0);
-    std::fill(stack, stack + n, 0);
 
     for (size_t i = 0; i < n; i++){
         if (side[i] == 0){
@@ -180,10 +158,6 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
                             top++;
                             stack[top] = j;
                         } else if (side[j] != - side[pop]) {
-                            delete[] stack;
-                            delete[] side;
-                            delete[] graph;
-                            delete[] S;
                             throw InvalidArgument(
                                 "fromGauss(): non-bipartite graph");
                         }
@@ -193,9 +167,6 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
         }
     }
 
-    delete[] stack;
-    delete[] graph;
-
     // From the work above, we know that the input sequence contained each of
     // the integers ±1, ±2, ..., ±n exactly once each.
 
@@ -203,21 +174,15 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
     // occurrences of a crossing.
     //
     // If S[i] == S[j] and i < j, then we set J[i] = false and J[j] = true.
-    bool* J = new bool[2*n];
-
-    bool* seen = new bool[n];
-    std::fill(seen, seen + n, false);
-
+    FixedArray<bool> J(2*n);
+    FixedArray<bool> seen(n, false);
     for (size_t i=0; i < 2*n; ++i) {
         J[i] = seen[S[i]-1];
         seen[S[i]-1] = true;
     }
 
-    delete[] seen;
-
-    auto* Q0 = new InputInt[2*n];
-    bool* Q1 = new bool[2*n];
-
+    FixedArray<InputInt> Q0(2*n);
+    FixedArray<bool> Q1(2*n);
     Q0[0]=S[0];
     Q1[0]=false;
     for (size_t i=1; i < 2*n; ++i) {
@@ -235,18 +200,9 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
         }
 
         // Q0 should match the original input sequence.
-        if (Q0[i] != *(begin + i) && -Q0[i] != *(begin + i)) {
-            delete[] side;
-            delete[] J;
-            delete[] Q0;
-            delete[] Q1;
-            delete[] S;
+        if (Q0[i] != *(begin + i) && -Q0[i] != *(begin + i))
             throw InvalidArgument("fromGauss(): Q0 != abs(input sequence)");
-        }
     }
-
-    delete[] J;
-    delete[] S;
 
     // At this point we can work out the sign of each crossing.
     // The integer crossHand takes the value (-1 vs 1) if, when examining the
@@ -274,12 +230,9 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
                 }
             }
         }
-        if (index1 < 0 || index2 < 0) {
-            delete[] Q0;
-            delete[] Q1;
+        if (index1 < 0 || index2 < 0)
             throw InvalidArgument("fromGauss(): crossing does not "
                 "appear with alternate parities in Q0");
-        }
 
         crossHand = temp1 * temp2 * side[i-1];
 
@@ -293,9 +246,6 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
             ans.crossings_[i - 1]->sign_ = - crossHand;
         }
     }
-
-    delete[] Q0;
-    delete[] Q1;
 
     // Now that we have the crossing signs, just hook the crossings together
     // following the input sequence.
@@ -323,34 +273,49 @@ Link Link::fromGauss(Iterator begin, Iterator end) {
     prev.crossing()->next_[prev.strand()] = curr;
     curr.crossing()->prev_[curr.strand()] = prev;
 
+    // I am not sure if a non-planar Gauss code could ever reach this point.
+    // I suspect it cannot (and exhaustive testing has failed to find a
+    // counterexample).  However, until someone sits down to prove this,
+    // we should add a final planarity check since we do promise to throw an
+    // exception in such a case.
+    if (! ans.isClassical())
+        throw InvalidArgument("fromGauss(): diagram is non-planar");
+
     // All done!
     return ans;
 }
 
-template <typename Iterator>
-Link Link::fromOrientedGauss(Iterator begin, Iterator end) {
+template <Link::GaussEnhancement type_,
+    RandomAccessIteratorFor<std::string> iterator>
+Link Link::fromEnhancedGauss(iterator begin, iterator end) {
     // Extract the number of crossings.
     size_t n = end - begin;
     if (n % 2)
-        throw InvalidArgument("fromOrientedGauss(): odd number of terms");
+        throw InvalidArgument("Enhanced Gauss code has odd number of terms");
     n = n / 2;
 
     if (n == 0)
-        return Link(1);
+        return { 1 }; // Zero-crossing unknot
 
     Link ans;
 
-    size_t i;
-    for (i = 0; i < n; ++i)
+    for (size_t i = 0; i < n; ++i)
         ans.crossings_.push_back(new Crossing);
 
     StrandRef prev, curr;
-    Iterator it = begin;
+    auto it = begin;
 
     size_t tmpCross;
     int tmpStrand, tmpSign;
-    if (! parseOrientedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
-        throw InvalidArgument("fromOrientedGauss(): could not parse term");
+    if constexpr (type_ == GaussEnhancement::Oriented) {
+        if (! parseOrientedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
+            throw InvalidArgument(
+                "Could not parse term in oriented Gauss code");
+    } else {
+        if (! parseSignedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
+            throw InvalidArgument(
+                "Could not parse term in signed Gauss code");
+    }
 
     Crossing* cr = ans.crossings_[tmpCross - 1];
     cr->sign_ = tmpSign;
@@ -360,26 +325,33 @@ Link Link::fromOrientedGauss(Iterator begin, Iterator end) {
     for (++it; it != end; ++it) {
         prev = curr;
 
-        if (! parseOrientedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
-            throw InvalidArgument("fromOrientedGauss(): could not parse term");
+        if constexpr (type_ == GaussEnhancement::Oriented) {
+            if (! parseOrientedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
+                throw InvalidArgument(
+                    "Could not parse term in oriented Gauss code");
+        } else {
+            if (! parseSignedGaussTerm(*it, n, tmpCross, tmpStrand, tmpSign))
+                throw InvalidArgument(
+                    "Could not parse term in signed Gauss code");
+        }
 
         cr = ans.crossings_[tmpCross - 1];
         if (cr->sign_ == 0)
             cr->sign_ = tmpSign;
         else if (cr->sign_ != tmpSign)
             throw InvalidArgument(
-                "fromOrientedGauss(): crossing has inconsistent signs");
+                "Crossing has inconsistent signs in enhanced Gauss code");
 
         curr = cr->strand(tmpStrand);
 
         if (prev.crossing()->next_[prev.strand()])
             throw InvalidArgument(
-                "fromOrientedGauss(): multiple passes out of the same strand");
+                "Multiple passes out of the same strand in enhanced Gauss code");
         prev.crossing()->next_[prev.strand()] = curr;
 
         if (curr.crossing()->prev_[curr.strand()])
             throw InvalidArgument(
-                "fromOrientedGauss(): multiple passes into the same strand");
+                "Multiple passes into the same strand in enhanced Gauss code");
         curr.crossing()->prev_[curr.strand()] = prev;
     }
 
@@ -388,12 +360,12 @@ Link Link::fromOrientedGauss(Iterator begin, Iterator end) {
 
     if (prev.crossing()->next_[prev.strand()])
         throw InvalidArgument(
-            "fromOrientedGauss(): multiple passes out of the same strand");
+            "Multiple passes out of the same strand in enhanced Gauss code");
     prev.crossing()->next_[prev.strand()] = curr;
 
     if (curr.crossing()->prev_[curr.strand()])
         throw InvalidArgument(
-            "fromOrientedGauss(): multiple passes into the same strand");
+            "Multiple passes into the same strand in enhanced Gauss code");
     curr.crossing()->prev_[curr.strand()] = prev;
 
     // All done!

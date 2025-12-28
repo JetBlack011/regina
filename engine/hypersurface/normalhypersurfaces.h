@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -219,7 +217,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * \param coords the coordinate system to be used.  This must be
          * one of the system that Regina is able to use for enumeration;
          * this is documented alongside each HyperCoords enum value.
-         * \param which indicates which normal hypersurfaces should be
+         * \param whichList indicates which normal hypersurfaces should be
          * enumerated.
          * \param algHints passes requests to Regina for which specific
          * enumeration algorithm should be used.
@@ -616,7 +614,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * A bidirectional iterator that runs through the raw vectors for
          * hypersurfaces in this list.
          *
-         * As of Regina 7.4, this class no longer provides the iterator type
+         * As of Regina 7.3.1, this class no longer provides the iterator type
          * aliases \a value_type, \a iterator_category, \a difference_type,
          * \a pointer and \a reference. Instead you can access these through
          * `std::iterator_traits`.

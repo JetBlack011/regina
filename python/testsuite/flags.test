@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2023, Ben Burton
+# Copyright (c) 2023-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Tests flags and flag sets.
@@ -26,10 +26,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 def evalObj(x):
 	if x:
@@ -71,3 +69,13 @@ evalObj(regina.NormalCoords.Standard)            # value is zero
 evalObj(regina.NormalCoords.Quad)                # value is non-zero
 evalObj(regina.Triangle3.Type.Unknown)           # value is zero
 evalObj(regina.Triangle3.Type.Parachute)         # value is non-zero
+
+# Verify that boolean combinations of flags are behaving as expected:
+
+t = Example3.lst(3,4)
+print(NormalSurfaces(t, NormalCoords.Standard))
+print(NormalSurfaces(t, NormalCoords.Standard, NormalList.Default))
+print(NormalSurfaces(t, NormalCoords.Standard, NormalList.Vertex))
+print(NormalSurfaces(t, NormalCoords.Standard, NormalList.Fundamental))
+print(NormalSurfaces(t, NormalCoords.Standard, NormalList.Vertex | NormalList.ImmersedSingular))
+print(NormalSurfaces(t, NormalCoords.Standard, NormalList.Fundamental | NormalList.ImmersedSingular))

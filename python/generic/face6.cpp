@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,22 +23,20 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 #include "face-bindings.h"
 
-void addFace6(pybind11::module_& m) {
-    addFace<6, 0>(m, "Face6_0", "FaceEmbedding6_0");
-    addFace<6, 1>(m, "Face6_1", "FaceEmbedding6_1");
-    addFace<6, 2>(m, "Face6_2", "FaceEmbedding6_2");
-    addFace<6, 3>(m, "Face6_3", "FaceEmbedding6_3");
-    addFace<6, 4>(m, "Face6_4", "FaceEmbedding6_4");
-    addFace<6, 5>(m, "Face6_5", "FaceEmbedding6_5");
+void addFace6(pybind11::module_& m, pybind11::module_& internal) {
+    addFace<6, 0>(m, internal, "Face6_0", "FaceEmbedding6_0");
+    addFace<6, 1>(m, internal, "Face6_1", "FaceEmbedding6_1");
+    addFace<6, 2>(m, internal, "Face6_2", "FaceEmbedding6_2");
+    addFace<6, 3>(m, internal, "Face6_3", "FaceEmbedding6_3");
+    addFace<6, 4>(m, internal, "Face6_4", "FaceEmbedding6_4");
+    addFace<6, 5>(m, internal, "Face6_5", "FaceEmbedding6_5");
 
     m.attr("VertexEmbedding6") = m.attr("FaceEmbedding6_0");
     m.attr("EdgeEmbedding6") = m.attr("FaceEmbedding6_1");

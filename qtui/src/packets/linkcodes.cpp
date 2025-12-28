@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -69,7 +67,7 @@ LinkCodesUI::LinkCodesUI(regina::PacketOf<regina::Link>* packet,
         "The <i>planar diagram code</i> is used in the Knot Atlas, "
         "and supports multiple-component links.<p>"
         "The <i>Jenkins format</i> is the text representation used by "
-        "Bob Jenkins in his HOMFLY polynomial software.");
+        "Bob Jenkins in his HOMFLY-PT polynomial software.");
     label->setWhatsThis(msg);
     sublayout->addWidget(label);
     type = new QComboBox();
@@ -129,6 +127,12 @@ void LinkCodesUI::refresh() {
             "is only available for knots of 26 or fewer crossings.<p>"
             "You can copy this text to the clipboard if you need to send it "
             "to some other application.");
+        if (! link->isClassical()) {
+            code->setPlainText(tr("Dowker-Thistlethwaite notation is only "
+                "available for classical (not virtual) knot diagrams."));
+            code->setWordWrapMode(QTextOption::WordWrap);
+            return;
+        }
         if (link->countComponents() != 1) {
             code->setPlainText(tr("Dowker-Thistlethwaite notation is currently "
                 "only available for knots."));
@@ -178,7 +182,7 @@ void LinkCodesUI::refresh() {
                 code->setWordWrapMode(QTextOption::WordWrap);
                 return;
             }
-            
+
             bool allOver = true;
             regina::StrandRef s = c;
             do {
@@ -188,13 +192,13 @@ void LinkCodesUI::refresh() {
                 }
                 ++s;
             } while (allOver && s != c);
-            
+
             if (allOver) {
                 hasAllOver = true;
                 break;
             }
         }
-        
+
         if (hasAllOver) {
             ans = (link->pd() + "\n\nThis link has a component that "
                 "consists entirely of over-crossings. A planar diagram code "
@@ -207,7 +211,7 @@ void LinkCodesUI::refresh() {
     } else if (type->currentIndex() == 4) {
         code->setWhatsThis("A description of this link using the "
             "text format of Bob Jenkins.  This format is used "
-            "in Jenkins' HOMFLY polynomial software.<p>"
+            "in Jenkins' HOMFLY-PT polynomial software.<p>"
             "You can copy this text to the clipboard if you need to send it "
             "to some other application.");
         ans = link->jenkins().c_str();
@@ -215,12 +219,12 @@ void LinkCodesUI::refresh() {
         code->setWordWrapMode(QTextOption::WordWrap);
     } else {
         code->setWhatsThis(
-            "The classical and oriented Gauss codes of the link.  "
+            "The classical, oriented and signed Gauss codes of the link.  "
             "The classical Gauss code is widely used but ambiguous for "
-            "non-prime knots, whereas the oriented Gauss code (based on "
-            "a format of Andreeva et al.) describes a knot diagram exactly "
-            "using additional symbols that describe the orientation of the "
-            "other strand passing by at each crossing.<p>"
+            "non-prime knots, whereas the oriented and signed Gauss codes "
+            "(based on formats of Andreeva et al. and Kauffman) describe a "
+            "knot diagram precisely using additional symbols that specify "
+            "exactly what happens at each crossing.<p>"
             "You can copy this text to the clipboard if you need to send it "
             "to some other application.");
         if (link->countComponents() != 1) {
@@ -230,7 +234,8 @@ void LinkCodesUI::refresh() {
             return;
         }
         ans = (std::string("Classical:\n") + link->gauss() +
-            "\n\nOriented:\n" + link->orientedGauss() + "\n").c_str();
+            "\n\nOriented:\n" + link->orientedGauss() +
+            "\n\nSigned:\n" + link->signedGauss() + "\n").c_str();
 
         code->setWordWrapMode(QTextOption::WordWrap);
     }

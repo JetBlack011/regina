@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -162,35 +160,39 @@ std::vector<Triangulation<3>> Triangulation<3>::summands() const {
     while (finalZ++ < initZ) {
         auto [t0, t1] = primeComponents.emplace_back().newTetrahedra<2>();
         if (initOrientable) {
-            // Build S2 x S1.
-            t0->join(0, t1, Perm<4>(2, 3, 0, 1));
-            t0->join(1, t1, Perm<4>(2, 3, 0, 1));
-            t0->join(3, t0, Perm<4>(3, 0, 1, 2));
-            t1->join(0, t1, Perm<4>(1, 2, 3, 0));
+            // Build S2 x S1, using an oriented triangulation.
+            t0->join(0, t1, { 0, 2 });
+            t0->join(3, t1, { 0, 2 });
+            t0->join(1, t0, { 1, 2, 3, 0 });
+            t1->join(0, t1, { 1, 2, 3, 0 });
         } else {
             // Build S2 x~ S1.
-            t0->join(0, t1, Perm<4>(0, 1, 3, 2));
-            t0->join(1, t1, Perm<4>(0, 1, 3, 2));
-            t0->join(2, t1, Perm<4>(1, 3, 2, 0));
-            t0->join(3, t1, Perm<4>(2, 0, 1, 3));
+            t0->join(0, t1, { 0, 1, 3, 2 });
+            t0->join(1, t1, { 0, 1, 3, 2 });
+            t0->join(2, t1, { 1, 3, 2, 0 });
+            t0->join(3, t1, { 2, 0, 1, 3 });
         }
         prop_.irreducible_ = false; // Implied by the S2xS1 or S2x~S1 summand.
         prop_.zeroEfficient_ = false; // Implied by the S2xS1 or S2x~S1 summand.
     }
     while (finalZ2++ < initZ2) {
+        // Build RP3, using an oriented triangulation.
         auto [t0, t1] = primeComponents.emplace_back().newTetrahedra<2>();
-        t0->join(0, t1, Perm<4>(0, 3));
-        t0->join(1, t1, Perm<4>(1, 2));
-        t0->join(3, t0, Perm<4>(2, 3));
-        t1->join(0, t1, Perm<4>(1, 2, 3, 0));
+        t0->join(0, t1, { 0, 3 });
+        t0->join(1, t1, { 1, 2 });
+        t0->join(3, t0, { 2, 3 });
+        t1->join(0, t1, { 1, 2, 3, 0 });
         prop_.zeroEfficient_ = false; // Implied by the RP3 summand.
     }
     while (finalZ3++ < initZ3) {
+        // We cannot recover the orientations of our L(3,1) components.
+        // Deliberately use a non-oriented triangulation for L(3,1) so the
+        // user does not assume that orientation has been preserved.
         auto [t0, t1] = primeComponents.emplace_back().newTetrahedra<2>();
-        t0->join(0, t1, Perm<4>(2, 3, 0, 1));
-        t0->join(1, t1, Perm<4>(2, 3, 0, 1));
-        t0->join(3, t0, Perm<4>(1, 3, 0, 2));
-        t1->join(0, t1, Perm<4>(1, 2, 3, 0));
+        t0->join(0, t1, { 2, 3, 0, 1 });
+        t0->join(1, t1, { 2, 3, 0, 1 });
+        t0->join(3, t0, { 1, 3, 0, 2 });
+        t1->join(0, t1, { 1, 2, 3, 0 });
     }
 
     // All done!
@@ -363,7 +365,7 @@ bool Triangulation<3>::isBall() const {
 
     Triangulation<3> working(*this, false, false);
     working.simplify();
-    working.finiteToIdeal();
+    working.makeIdeal();
 
     // Simplify again in case our coning was inefficient.
     working.simplify();
@@ -425,7 +427,7 @@ bool Triangulation<3>::isSolidTorus() const {
     Triangulation<3> working(*this, false, false);
     working.simplify();
     if (working.isIdeal()) {
-        working.idealToFinite();
+        working.truncateIdeal();
         working.simplify();
     }
 
@@ -605,7 +607,7 @@ ssize_t Triangulation<3>::recogniseHandlebody() const {
     Triangulation<3>& start = toProcess.emplace(*this, false, false);
     start.simplify();
     if ( start.isIdeal() ) {
-        start.idealToFinite();
+        start.truncateIdeal();
         start.simplify();
     }
 
@@ -801,7 +803,7 @@ bool Triangulation<3>::isTxI() const {
 
     Triangulation<3> working(*this, false, false);
     working.simplify();
-    working.idealToFinite();
+    working.truncateIdeal();
     working.simplify();
 
     // If it's not a homology T2xI, we're done.
@@ -1162,7 +1164,7 @@ bool Triangulation<3>::hasSimpleCompressingDisc() const {
     while (opened) {
         opened = false;
         for (Triangle<3>* t : use.triangles())
-            if (use.openBook(t, true, true)) {
+            if (use.openBook(t)) {
                 opened = true;
                 break;
             }

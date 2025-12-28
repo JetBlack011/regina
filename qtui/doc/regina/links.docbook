@@ -15,21 +15,52 @@
   with some additional unknot components that have no crossings at all.
  </para>
  <para>
-  Link diagrams are embedded in the sphere. This means that &regina;
-  does keep track of left versus right, but it does not keep track of
-  which cell is the &ldquo;outer&rdquo; cell of the diagram.
+  &regina; supports both classical and virtual link diagrams:
  </para>
+ <itemizedlist>
+  <listitem>
+   <para>
+    <firstterm>Classical</firstterm> link diagrams are the typical planar
+    diagrams that one encounters when first studing knot theory.
+    These describe links in the 3-sphere, and such links are
+    considered to be equivalent under ambient isotopy.
+   </para>
+   <para>
+    Although classical link diagrams are planar, &regina; considers these
+    diagrams to be embedded in the &s2; (not the plane).
+    In particular, &regina; does not keep track of which cell is the
+    &ldquo;outer&rdquo; cell of the diagram.
+   </para>
+  </listitem>
+  <listitem>
+   <para>
+    <firstterm>Virtual</firstterm> link diagrams remove the requirement for
+    the diagram to be planar.  Instead a virtual link diagram may be embedded
+    in some arbitrary orientable surface <replaceable>S</replaceable>.
+    This describes a link in the thickened surface
+    <replaceable>S</replaceable>&nbsp;&times;&nbsp;I, and such links are
+    considered to be equivalent under ambient isotopy, orientation-preserving
+    homeomorphisms of <replaceable>S</replaceable>, and the addition and/or
+    removal of empty handles from <replaceable>S</replaceable>.
+   </para>
+  </listitem>
+ </itemizedlist>
  <para>
   Links in &regina; are <firstterm>oriented</firstterm>.
   This means that &regina; keeps track of a &ldquo;direction of
   travel&rdquo; around each component of the link.
+  &regina; also maintains an orientation of the surface containing the link
+  diagram (i.e., &s2; for a classical diagram, or the orientable surface
+  <replaceable>S</replaceable> for a virtual diagram), which means there is a
+  well-defined notion of left versus right, and positive versus negative
+  crossings.
  </para>
 
  <sect1 id="link-creation">
   <title>Creation</title>
 
   <para>
-   To create a new link, use the
+   The easiest way to create a new link is via the
    <menuchoice>
     <guimenu>Packet Tree</guimenu>
     <guimenuitem>New Knot or Link</guimenuitem>
@@ -56,15 +87,51 @@
    </inlinemediaobject>
   </para>
 
+  <sect2 id="link-new-example">
+   <title>Example Knots and Links</title>
+
+   <para>
+    Like triangulations,
+    &regina; offers a selection of ready-made sample knots and links
+    which you can use to experiment with &regina;.
+    Simply select an example from the list provided and &regina; will
+    build the corresponding link for you.
+   </para>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="newlink-example"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
+   <tip id="link-census-examples"><para>
+    You can see many more examples by looking through the prime knot census,
+    which is shipped as one of &regina;'s example data files.
+    Select
+    <menuchoice>
+     <guimenu>File</guimenu>
+     <guisubmenu>Open Example</guisubmenu>
+     <guimenuitem>Prime Knots</guimenuitem>
+    </menuchoice>
+    from the menu.
+   </para></tip>
+  </sect2>
+
   <sect2 id="link-new-code">
    <title>Text Codes</title>
 
    <para>
-    This will reconstruct a link from one of several common text codes.
-    At present, &regina; can only reconstruct single-component knots
-    from most types of codes;
-    the exception is <link linkend="link-new-pd">planar diagram codes</link>,
-    which support links with multiple components.
+    This will reconstruct a link diagram from one of several common text codes.
+   </para>
+   <para>
+    Be aware: some types of codes only support single-component knots
+    (not multiple-component links), and some types of codes only support
+    classical link diagrams (not virtual link diagrams) &ndash; see below
+    for details.
+    If you need all of these features (multiple components and/or virtual
+    diagrams), then good choices are
+    <link linkend="link-new-knotsig">knot/link signatures</link> or
+    <link linkend="link-new-pd">planar diagram codes</link>.
    </para>
    <para>
     <inlinemediaobject>
@@ -77,13 +144,13 @@
     The codes that &regina; understands include:
     <itemizedlist>
      <listitem id="link-new-knotsig">
-      <para>&regina;'s own <firstterm>knot/link signatures</firstterm>,
-       which are compact sequences of letters, digits and/or punctuation
+      <para>&regina;'s own <firstterm>knot/link signatures</firstterm>:
+       These are compact sequences of letters, digits and/or punctuation
        that uniquely identify a link diagram up to combinatorial isomorphism.
        Here <firstterm>combinatorial isomorphism</firstterm>
        includes relabelling the crossings and/or components,
-       reflecting the entire diagram, rotating connected components of the
-       diagram, and/or reversing individual link components.
+       reflecting the entire diagram, rotating the entire diagram,
+       and/or reversing individual link components.
       </para>
       <para>
        An example is <literal>dabcabcv-</literal>, which represents the trefoil.
@@ -91,13 +158,14 @@
       <para>
        Knot/link signatures played a significant role in the 19-crossing
        knot tabulation <xref linkend="bib-burton-knots"/>.
-       They are supported for all links with fewer than 64 components.
+       They support both classical and virtual link diagrams, and they support
+       all links with fewer than 64 components.
       </para>
      </listitem>
      <listitem id="link-new-classical-gauss">
       <para>
-       <firstterm>Classical Gauss codes</firstterm>,
-       which are sequences of integers that encode the crossings that you
+       <firstterm>Classical Gauss codes</firstterm>:
+       These are sequences of integers that encode the crossings that you
        pass through as you traverse the knot from an arbitrary starting point.
        Crossings are numbered consecutively from 1 to
        <replaceable>n</replaceable> (but in any order),
@@ -115,19 +183,27 @@
        (more importantly) for composite knots they may not even uniquely
        define the topology of the knot.
        If this is a problem, consider using either
-       <emphasis>oriented</emphasis> Gauss codes or knot/link signatures
-       instead.
+       <emphasis>oriented</emphasis> or <emphasis>signed</emphasis>
+       Gauss codes, or knot/link signatures instead.
+      </para>
+      <para>
+       In &regina;, classical Gauss codes only support knots (not
+       multiple-component links), and they only support classical (not virtual)
+       knot diagrams.
       </para>
      </listitem>
      <listitem id="link-new-oriented-gauss">
       <para>
-       <firstterm>Oriented Gauss codes</firstterm>,
-       which likewise encode the crossings that you pass through as you
-       traverse the knot, but this time with more precise information.
+       <firstterm>Oriented Gauss codes</firstterm>:
+       These likewise encode the crossings that you pass through as you
+       traverse the knot, but with more precise information than a
+       classical Gauss code.
        Again the crossings are numbered consecutively from 1 to
        <replaceable>n</replaceable> (but in any order);
-       each crossing is then written with a sign (plus or minus),
-       an arrow (either less-than or greater-than), and an integer.
+       each crossing is then written with a sign
+       (<literal>+</literal> or <literal>-</literal>),
+       an arrow (either less-than or greater-than), and a positive integer
+       (which identifies the crossing).
        The sign indicates whether you pass over (<literal>+</literal>)
        or under (<literal>-</literal>) the crossing, and
        the arrow indicates whether the other strand of the crossing
@@ -146,12 +222,51 @@
        Unlike classical Gauss codes, they preserve the orientation of the
        diagram, and they correctly identify the topology of composite knots.
       </para>
+      <para>
+       In &regina;, oriented Gauss codes support both classical and virtual
+       diagrams.  However, they only support knots (not multiple-component
+       links).
+      </para>
+     </listitem>
+     <listitem id="link-new-signed-gauss">
+      <para>
+       <firstterm>Signed Gauss codes</firstterm>:
+       Like oriented Gauss codes, these encode the crossings that you pass
+       through as you traverse the knot but with more precise information than
+       a classical Gauss code.
+       Once more the crossings are numbered consecutively from 1 to
+       <replaceable>n</replaceable> (but in any order);
+       each crossing is then written with a letter (<literal>O</literal> or
+       <literal>U</literal>), a positive integer (which identifies the
+       crossing), and a sign (<literal>+</literal> or <literal>-</literal>).
+       This time the letter indicates whether you pass over
+       (<literal>O</literal>) or under (<literal>U</literal>) the crossing,
+       and the sign indicates whether the crossing is positive or negative.
+       There are no spaces in the code at all.
+      </para>
+      <para>
+       An example is
+       <literal>U1+O2+U3-O4-U2+O1+U4-O3-</literal>,
+       which represents the figure eight knot.
+      </para>
+      <para>
+       Oriented Gauss codes were introduced by Kauffman
+       <xref linkend="bib-kauffman-virtual"/>.
+       Like oriented Gauss codes (and <emphasis>unlike</emphasis> classical
+       Gauss codes), they preserve the orientation of the diagram, and they
+       correctly identify the topology of composite knots.
+      </para>
+      <para>
+       In &regina;, signed Gauss codes support both classical and virtual
+       diagrams.  However, they only support knots (not multiple-component
+       links).
+      </para>
      </listitem>
      <listitem id="link-new-dt">
       <para>
-       <firstterm>Dowker-Thistlethwaite notation</firstterm>,
-       which is essentially a more streamlined variant of
-       classical Gauss codes.  They have played an important historical
+       <firstterm>Dowker-Thistlethwaite notation</firstterm>:
+       This is essentially a more streamlined variant of
+       classical Gauss codes.  It has played an important historical
        role in knot tabulation; see Adams <xref linkend="bib-adams-knotbook"/>
        for some history and also a precise description of the format.
       </para>
@@ -181,14 +296,19 @@
        does not specify the orientation of the diagram, and
        (more importantly) for composite knots may not uniquely
        define the topology of the knot.
-       If this is a problem, consider using either oriented Gauss codes
-       or knot/link signatures instead.
+       If this is a problem, consider using either oriented or signed
+       Gauss codes, or knot/link signatures instead.
+      </para>
+      <para>
+       In &regina;, Dowker-Thistlethwaite notation only supports knots (not
+       multiple-component links), and only supports classical (not virtual)
+       knot diagrams.
       </para>
      </listitem>
      <listitem id="link-new-pd">
       <para>
-       <firstterm>Planar diagram codes</firstterm>,
-       which are sequences of 4-tuples that encode the local connections
+       <firstterm>Planar diagram codes</firstterm>:
+       These are sequences of 4-tuples that encode the local connections
        around each crossing.  Unlike the other code types described
        here, planar diagram codes can encode multiple-component links.
       </para>
@@ -226,6 +346,10 @@
        the link has a component that consists entirely of over-crossings
        (i.e., an unknot placed &ldquo;on top&rdquo; of the diagram) then
        the orientation of that component is not uniquely determined.
+      </para>
+      <para>
+       In &regina;, planar diagram codes support both classical and virtual
+       link diagrams, and they support both knots and multiple-component links.
       </para>
      </listitem>
     </itemizedlist>
@@ -273,33 +397,138 @@
     any punctuation, or even just spaces, will suffice.
    </para></tip>
   </sect2>
-  <sect2 id="link-new-example">
-   <title>Example Knots and Links</title>
 
+  <sect2 id="link-new-whitehead-double">
+   <title>Whitehead Doubles</title>
    <para>
-    Like triangulations,
-    &regina; offers a selection of ready-made sample knots and links
-    which you can use to experiment with &regina;.
-    Simply select an example from the list provided and &regina; will
-    build the corresponding link for you.
+    &regina; can build the Whitehead double of some other knot
+    <replaceable>K</replaceable>.
+    This involves creating two parallel copies of <replaceable>K</replaceable>
+    using the <link linkend="seifert-framing">Seifert framing</link>,
+    and then cutting open these two copies and
+    re-connecting them using a clasp.  &regina; will use positive crossings
+    for the clasp.
    </para>
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="newlink-example"/>
+      <imagedata multires="newlink-whitehead-double"/>
      </imageobject>
     </inlinemediaobject>
    </para>
-   <tip id="link-census-examples"><para>
-    You can see many more examples by looking through the prime knot census,
-    which is shipped as one of &regina;'s example data files.
-    Select
+   <para>
+    To do this, select <replaceable>K</replaceable> in the
+    <guilabel>Source</guilabel> drop-down box.  This should be some knot that
+    you already have in your data file.
+    Note that &regina; can only build the Whitehead double of a knot, not a
+    multiple-component link.
+   </para>
+   <tip><para>
+    If you already have the source knot <replaceable>K</replaceable> open for
+    viewing, another way to create its Whitehead double is to select
     <menuchoice>
-     <guimenu>File</guimenu>
-     <guisubmenu>Open Example</guisubmenu>
-     <guimenuitem>Prime Knots</guimenuitem>
+     <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
+     <guimenuitem>Build Whitehead Double</guimenuitem>
     </menuchoice>
     from the menu.
+    The Whitehead double will be added as a new knot directly beneath
+    <replaceable>K</replaceable> in the packet tree.
+   </para></tip>
+  </sect2>
+
+  <sect2 id="link-new-cables">
+   <title>Parallel Cables</title>
+   <para>
+    &regina; can build a new link containing &vark; cables of some other
+    link <replaceable>L</replaceable>, all parallel to each
+    other via a chosen framing.  This will effectively:
+    <itemizedlist>
+     <listitem><para>
+      treat each component of the original link <replaceable>L</replaceable>
+      as a ribbon, using the chosen framing;
+     </para></listitem>
+     <listitem><para>
+      create &vark; parallel copies of <replaceable>L</replaceable>, following
+      each other side-by-side along these ribbons.
+     </para></listitem>
+    </itemizedlist>
+   </para>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="newlink-parallel-cables"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
+   <para>
+    To do this:
+   </para>
+   <itemizedlist>
+    <listitem><para>
+     Select <replaceable>L</replaceable> in the <guilabel>Source</guilabel>
+     drop-down box.  This should be some knot or link that you already have
+     in your data file.
+    </para></listitem>
+    <listitem><para>
+     Enter the number of cables &vark;, which should be an integer greater
+     than one (but not too large&mdash;see the warning below).
+    </para></listitem>
+    <listitem><para>
+     Choose the framing to use.  The options are:
+     <glosslist>
+      <glossentry>
+       <glossterm id="seifert-framing"><guilabel>Seifert
+        framing</guilabel></glossterm>
+       <glossdef>
+        <para>
+         This framing is a property of the underlying link
+         (i.e., it does not depend on your specific choice of link diagram).
+         One way to imagine it is to construct a Seifert surface (an
+         orientable surface embedded in the 3-sphere whose boundary is
+         the link), and then place the ribbons so that they sit flat upon
+         this surface.
+        </para>
+        <para>
+         Another way to imagine it is purely algebraic:
+         for each component &varC;
+         of the link, each edge of the corresponding ribbon follows a
+         curve with trivial homology in the complement of the knot &varC;.
+        </para>
+       </glossdef>
+      </glossentry>
+      <glossentry>
+       <glossterm><guilabel>Blackboard framing</guilabel></glossterm>
+       <glossdef>
+        <para>
+         Here each ribbon sits flat in the plane of the link diagram, with no
+         twists. This framing depends on the specific link diagram that
+         you are using.
+        </para>
+       </glossdef>
+      </glossentry>
+     </glosslist>
+    </para></listitem>
+   </itemizedlist>
+   <warning><para>
+    The parallel cables construction can generate an enormous number of
+    crossings.  If you create &vark; cables then you will
+    multiply the number of crossings in the source link by
+    &vark;<superscript>2</superscript>,
+    and if you chose the Seifert framing then there may be even more
+    crossings due to twists in the ribbons.
+    Use a large &vark; at your peril!
+   </para></warning>
+   <tip><para>
+    If you already have the source link <replaceable>L</replaceable> open for
+    viewing, another way to create parallel cables of
+    <replaceable>L</replaceable> is to select
+    <menuchoice>
+     <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
+     <guimenuitem>Build Parallel Cables&hellip;</guimenuitem>
+    </menuchoice>
+    from the menu.
+    The parallel cables will be added as a new link directly beneath
+    <replaceable>L</replaceable> in the packet tree.
    </para></tip>
   </sect2>
  </sect1>
@@ -318,16 +547,55 @@
   <sect2 id="link-crossings">
    <title>Crossings and Components</title>
    <para>
-    At the top of each link viewer is a header listing: whether the knot
-    is alternating; the number of link components (or the word
-    &ldquo;knot&rdquo; to indicate just one); and the number of crossings,
-    including how many are positive and negative.
+    At the top of each link viewer is a header, which includes:
+    whether the link is alternating;
+    the number of link components (or the word &ldquo;knot&rdquo; to indicate
+    just one); and
+    the number of crossings, including how many are positive and negative.
+   </para>
+   <para>
     This header is circled in red below.
    </para>
    <para>
     <inlinemediaobject>
      <imageobject>
       <imagedata multires="link-header"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
+   <para>
+    If the link diagram is virtual (not classical), then the header will
+    contain a second line indicating:
+   </para>
+   <itemizedlist>
+    <listitem id="link-virtual-genus">
+     <para>
+      The <firstterm>virtual genus</firstterm> of the diagram.  This is
+      the smallest genus of orientable surface in which the diagram embeds.
+      Note that this is a property of the link <emphasis>diagram</emphasis>,
+      not an invariant of the link itself.
+     </para>
+    </listitem>
+    <listitem id="link-odd-writhe">
+     <para>
+      The <firstterm>odd writhe</firstterm>, or <firstterm>self-linking
+      number</firstterm>.  This is an invariant of virtual knots
+      (but not links), which sums the signs of all odd crossings.
+      A crossing <replaceable>c</replaceable> is <firstterm>odd</firstterm> if,
+      when traversing the knot, we pass through an odd number of crossings
+      between the over-strand and the under-strand of
+      <replaceable>c</replaceable>.
+     </para>
+     <para>
+      The odd writhe is not shown for multiple-component links.
+      For classical knots, the odd writhe is always zero.
+     </para>
+    </listitem>
+   </itemizedlist>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-header-virtual"/>
      </imageobject>
     </inlinemediaobject>
    </para>
@@ -429,6 +697,8 @@
    <para>
     On the <guilabel>Polynomials</guilabel> tab, you can view
     several polynomial invariants of the link and of the link diagram.
+    Which polynomials you see will depend upon whether your link diagram is
+    classical or virtual.
    </para>
    <para>
     <inlinemediaobject>
@@ -436,18 +706,38 @@
       <imagedata multires="link-polynomials"/>
      </imageobject>
     </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-polynomials-virtual"/>
+     </imageobject>
+    </inlinemediaobject>
    </para>
    <para>
-    The invariants include:
+    The polynomials that you might see include:
     <glosslist>
      <glossentry>
-      <glossterm><guilabel>Jones</guilabel></glossterm>
+      <glossterm><guilabel>Alexander</guilabel> (classical only)</glossterm>
+      <glossdef>
+       <para>
+        The Alexander polynomial is a single-variable polynomial invariant.
+        It is relatively weak, but (unlike many of the other invariants listed
+        here) it can be computed in polynomial time.
+       </para>
+       <para>
+        &regina; will only compute Alexander polynomials for knots
+        (not multiple-component links).
+       </para>
+      </glossdef>
+     </glossentry>
+     <glossentry>
+      <glossterm><guilabel>Jones</guilabel> (classical and virtual)</glossterm>
       <glossdef>
        <para>
         The Jones polynomial is a single-variable polynomial in the variable
-        <replaceable>t</replaceable>, whose exponents are integers for knots,
-        but whose exponents may be half-integers for some links
-        (depending on the parity of the number of link components).
+        <replaceable>t</replaceable>, whose exponents are integers for
+        classical knots, but whose exponents may be half-integers in other cases
+        (depending on the number of link components and/or whether the link is
+        virtual).
         You may therefore see this presented either as a polynomial in
         <replaceable>t</replaceable> or as a polynomial in
         &radic;<replaceable>t</replaceable>.
@@ -458,10 +748,14 @@
         in either <replaceable>t</replaceable> or
         <replaceable>sqrt_t</replaceable>.
        </para>
+       <para>
+        &regina; can compute Jones polynomials for link diagrams
+        with any number of components.
+       </para>
       </glossdef>
      </glossentry>
      <glossentry>
-      <glossterm><guilabel>&homflypt;</guilabel></glossterm>
+      <glossterm><guilabel>&homflypt;</guilabel> (classical only)</glossterm>
       <glossdef>
        <para>
         The &homflypt; polynomial is a two-variable polynomial with two
@@ -474,10 +768,15 @@
         &regina; offers a pair of buttons beside the &homflypt;
         polynomial for you to choose which formulation is displayed.
        </para>
+       <para>
+        &regina; can compute &homflypt; polynomials for link diagrams
+        with any number of components.
+       </para>
       </glossdef>
      </glossentry>
      <glossentry>
-      <glossterm><guilabel>Kauffman bracket</guilabel></glossterm>
+      <glossterm><guilabel>Kauffman bracket</guilabel>
+       (classical and virtual)</glossterm>
       <glossdef>
        <para>
         The Kauffman bracket is a property of the link diagram, not an
@@ -487,17 +786,68 @@
         combinatorial introduction to the Kauffman bracket and the
         Jones polynomial.
        </para>
+       <para>
+        &regina; can compute Kauffman brackets for link diagrams
+        with any number of components.
+       </para>
+      </glossdef>
+     </glossentry>
+     <glossentry>
+      <glossterm><guilabel>Affine index</guilabel> (virtual only)</glossterm>
+      <glossdef>
+       <para>
+        The affine index polynomial is a single-variable polynomial invariant
+        that is relatively weak, but which nevertheless provides some useful
+        information for virtual knots.  Its main advantage is that it is
+        extremey fast to compute even for large knot diagrams (the computation
+        runs in very small polynomial time).
+       </para>
+       <para>
+        &regina; will only compute affine index polynomials for virtual knots
+        (not multiple-component virtual links).
+       </para>
+       <para>
+        The affine index polynomial is not shown at all for classical link
+        diagrams, since in the classical case the affine index polynomial is
+        always zero.
+       </para>
+      </glossdef>
+     </glossentry>
+     <glossentry>
+      <glossterm><guilabel>Arrow</guilabel> (virtual only)</glossterm>
+      <glossdef>
+       <para>
+        The arrow polynomial enhances the Kauffman bracket in a way that
+        makes it more powerful for virtual links, and that makes it a
+        true link invariant.  Whereas the Kauffman bracket is a polynomial
+        in the single variable <replaceable>A</replaceable>,
+        the arrow polynomial is a polynomial in many variables
+        (<replaceable>A</replaceable>,
+        <replaceable>K</replaceable><subscript>1</subscript>,
+        <replaceable>K</replaceable><subscript>2</subscript>,
+        <replaceable>K</replaceable><subscript>3</subscript>,
+        &hellip;).
+       </para>
+       <para>
+        &regina; can compute arrow polynomials for virtual link diagrams
+        with any number of components.
+       </para>
+       <para>
+        The arrow polynomial is not shown at all for classical link diagrams,
+        since in the classical case the arrow polynomial is just the
+        Kauffman bracket with some normalisation applied.
+       </para>
       </glossdef>
      </glossentry>
     </glosslist>
    </para>
    <para>
     For larger links, you may see a <guilabel>Calculate</guilabel> button
-    instead of a polynomial. This is because all of these polynomials
+    instead of a polynomial. This is because many of these polynomials
     require exponential time to compute.  In this case you will need to
     press the <guilabel>Calculate</guilabel> button and be prepared
-    to wait (you will see the progress displayed, and you will have the
-    opportunity to cancel the computation if you like).
+    to wait&mdash;for most polynomials you will see the progress displayed, and
+    you can cancel the computation if you like.
    </para>
    <para>
     For smaller links, all of the polynomials will be computed automatically.
@@ -536,10 +886,8 @@
   <sect2 id="link-algebra">
    <title>Algebraic Invariants</title>
    <para>
-    On the <guilabel>Algebra</guilabel> tab, you can view
-    other algebraic invariants of the link.
-    Currently this shows the link group (i.e., the fundamental
-    group of the link complement).
+    The <guilabel>Algebra</guilabel> tab holds several smaller tabs
+    that describe different groups associated with the link.
    </para>
    <para>
     <inlinemediaobject>
@@ -547,25 +895,92 @@
       <imagedata multires="link-algebra"/>
      </imageobject>
     </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-algebra-virtual"/>
+     </imageobject>
+    </inlinemediaobject>
    </para>
    <para>
-    The link group is presented in the same format as the fundamental group
-    of a triangulation, and you are given the same tools to simplify it.
+    Currently this shows the following groups:
+    <glosslist>
+     <glossentry>
+      <glossterm><guilabel>Knot/Link Group</guilabel></glossterm>
+      <glossdef>
+       <para>
+        This is the link group as constructed from the Wirtinger presentation
+        (though &regina; will typically simplify the presentation before
+        showing it here).
+        Each relation is some variant of the form <literal>xy=yz</literal>,
+        where <replaceable>y</replaceable> corresponds to the upper strand at
+        some crossing, and <replaceable>x</replaceable> and
+        <replaceable>z</replaceable> correspond to the two sides of the lower
+        strand at that same crossing.
+       </para>
+       <itemizedlist>
+        <listitem>
+         <para>
+          For classical links, this is isomorphic to the fundamental group of
+          the link complement.  However, it is constructed differently, and so
+          it may have a different presentation.
+          If you are having difficulty simplifying it, you could perhaps try
+          working with the triangulated
+          <link linkend="link-complement">link complement</link> instead.
+         </para>
+        </listitem>
+        <listitem>
+         <para>
+          For virtual links, the link group <emphasis>could</emphasis> change
+          depending upon whether you view the link from above or below the
+          diagram (i.e., <link linkend="link-flip">rotating</link> the link
+          may change the isomorphism class).  For this reason, if the link
+          diagram is virtual then you will see <emphasis>two</emphasis> groups:
+          one as seen from above (using the classical Wirtinger presentation),
+          and one as seen from below (obtained by switching the upper and
+          lower strands at every crossing).
+          The Goussarov-Polyak-Viro knot (which is one of &regina;'s
+          <link linkend="link-new-example">ready-made examples</link> is a
+          nice example of where these two groups differ.
+         </para>
+         <para>
+          Note however that, for virtual links, the link group is not a
+          particularly strong invariant.  You might wish to work with the
+          extended group instead (see below).
+         </para>
+        </listitem>
+       </itemizedlist>
+      </glossdef>
+     </glossentry>
+     <glossentry>
+      <glossterm><guilabel>Extended Group</guilabel></glossterm>
+      <glossdef>
+       <para>
+        This is the extended group of the link, as defined by
+        Silver and Williams <xref linkend="bib-silver-extgrp"/>.
+        This invariant is particularly useful for virtual links, where the
+        ordinary link group is a fairly weak invariant.  However, it also
+        yields more complex group presentations.
+       </para>
+       <para>
+        Like the ordinary link group, the extended group of a virtual link may
+        change depending upon whether you view the link from above or below
+        the diagram, and so for virtual link diagrams &regina; will display
+        both variants.
+       </para>
+      </glossdef>
+     </glossentry>
+    </glosslist>
+   </para>
+   <para>
+    All groups will be presented in the same format as the fundamental group
+    of a triangulation, and you are given the same tools to simplify them.
     See the section on
     <link linkend="tri-algebra-fund">fundamental groups</link>
     for further discussion of this.
    </para>
-   <para>
-    Note that, although the link group is isomorphic to the fundamental
-    group of the link complement, it is constructed differently and so
-    will often have a different presentation.
-    If you are having difficulty simplifying it, you could perhaps try
-    working with the triangulated
-    <link linkend="link-complement">link complement</link> instead.
-   </para>
    <tip>
     <para>
-     If you find the exponents in the group presentation hard to read
+     If you find the exponents in the group presentations hard to read
      (due to the superscripts being very small),
      you can visit &regina;'s settings and
      <link linkend="options-unicode">disable unicode symbols</link>.
@@ -597,21 +1012,24 @@
       <glossterm><guilabel>Gauss codes</guilabel></glossterm>
       <glossdef>
        <para>
-        This displays both the classical and oriented Gauss codes.
+        This displays the classical, oriented and signed Gauss codes.
         Classical Gauss codes are common in the literature, but they
         suffer from ambiguities related to orientation; for
         composite knots they may not even uniquely define the topology.
-        Oriented Gauss codes solve this problem by adding a little more
-        information.
+        Oriented and signed Gauss codes solve this problem by adding a little
+        more information.
        </para>
        <para>
-        For a more detailed description of both formats, see the
+        For a more detailed description of these formats, see the
         section on <link linkend="link-new-classical-gauss">creating
         knots from Gauss codes</link>.
        </para>
        <para>
-        Currently &regina; only displays Gauss codes for knots, not
-        multiple component links.
+        Currently &regina; only displays Gauss codes for knots (not
+        multiple component links).  If your knot diagram is virtual (not
+        classical), then &regina; will still display all three Gauss codes;
+        however, only the oriented and signed variants contain enough
+        informtion to reconstruct the diagram.
        </para>
       </glossdef>
      </glossentry>
@@ -633,7 +1051,8 @@
        </para>
        <para>
         Currently &regina; only displays Dowker-Thistlethwaite notation
-        for knots, not multiple component links.
+        for knots (not multiple component links), and only for classical
+        (not virtual) knot diagrams.
         Be aware that alphabetical Dowker-Thistlethwaite notation is
         case-sensitive (i.e., upper-case and lower-case matters).
        </para>
@@ -648,8 +1067,8 @@
         two link diagrams have the same signature
         if and only if they are combinatorially isomorphic
         (which includes relabelling crossings and/or components,
-        reflecting the entire diagram, rotating connected components of the
-        diagram, and/or reversing individual link components).
+        reflecting the entire diagram, rotating the entire diagram,
+        and/or reversing individual link components).
        </para>
        <para>
         For a more detailed discussion of knot/link signatures,
@@ -658,7 +1077,8 @@
        </para>
        <para>
         These signatures are supported for all links with fewer than
-        64 components.  Be aware that they are case-sensitive
+        64 components, and they support both classical and virtual link
+        diagrams.  Be aware that knot/link signatures are case-sensitive
         (i.e., upper-case and lower-case matters).
        </para>
       </glossdef>
@@ -667,9 +1087,9 @@
       <glossterm><guilabel>Planar diagram codes</guilabel></glossterm>
       <glossdef>
        <para>
-        This displays the planar diagram code for the link.  Unlike most
-        of the codes here, planar diagram codes support
-        multiple-component links.
+        This displays the planar diagram code for the link.
+        Planar diagram codes support multiple-component links,
+        as well as both classical and virtual link diagrams.
         Their main limitations are that they cannot represent zero-crossing
         unknot components, and they cannot fix the orientation of a link
         component that consists entirely of over-crossings.
@@ -690,7 +1110,8 @@
         <ulink url="http://burtleburtle.net/bob/knot/homfly.html">&homflypt;
         polynomial software</ulink>.
         &regina; can happily display the
-        Jenkins format for multiple-component links.
+        Jenkins format for multiple-component links, and for both classical
+        and virtual link diagrams.
        </para>
        <para>
         In this format, a link is described by a sequence of integers
@@ -806,7 +1227,7 @@
         the smallest possible width (i.e., it does not compute the precise
         <firstterm>treewidth</firstterm> of the diagram graph).
         Instead it uses fast heuristics that are found to
-        produce low-width graphs in practice.
+        produce low-width tree decompositions in practice.
        </para>
       </glossdef>
      </glossentry>
@@ -844,61 +1265,137 @@
   <sect2 id="link-complement">
    <title>Link Complements</title>
    <para>
-    &regina; can do a lot more with 3-manifold triangulations
-    than with knots and links directly. If you want access to these more
-    powerful 3-manifold tools, you can build a triangulation of the
-    link complement.
+    &regina; includes many tools for working with 3-manifold triangulations,
+    as well as working directly with knots and links. If you want access to
+    these 3-manifold tools, you can build a triangulation of the link
+    complement.
    </para>
    <para>
-    The result will be an ideal 3-manifold triangulation,
-    describing the complement of your link in the 3-sphere.
+    The meaning of &ldquo;complement&rdquo; in this setting depends upon
+    whether you are working with a classical or virtual link diagram.
+    <itemizedlist>
+     <listitem>
+      <para>
+       If you have a <emphasis>classical</emphasis> link diagram, then &regina;
+       will build an ideal 3-manifold triangulation representing the complement
+       of your link in the 3-sphere.
+      </para>
+      <para>
+       The resulting triangulation will have exactly one ideal vertex
+       for each link component.
+      </para>
+      <para>
+       If your link diagram is
+       <link linkend="link-decomposition-components">disconnected (in the
+       graph-theoretical sense)</link>,
+       then the resulting 3-manifold will be the connected sum of the
+       complements of each connected diagram component.
+       In particular, the resulting triangulation will always be connected.
+      </para>
+      <para>
+       For classical links, the complement is a topological invariant of the
+       link.
+      </para>
+     </listitem>
+     <listitem>
+      <para>
+       If you have a <emphasis>virtual</emphasis> (non-classical) link diagram,
+       let <replaceable>S</replaceable> be the smallest genus closed
+       orientable surface in which the diagram embeds (this corresponds to the
+       <link linkend="link-virtual-genus">virtual genus</link> of the diagram).
+       Then &regina; will build the complement of your link diagram in
+       the thickened surface
+       <replaceable>S</replaceable>&nbsp;&times;&nbsp;I.
+      </para>
+      <para>
+       The resulting triangulation will have one ideal vertex for each link
+       component, plus an additional two ideal vertices for the two copies of
+       <replaceable>S</replaceable> on the boundary of
+       <replaceable>S</replaceable>&nbsp;&times;&nbsp;I.
+      </para>
+      <para>
+       If your link diagram is
+       <link linkend="link-decomposition-components">disconnected (in the
+       graph-theoretical sense)</link>, then the surface
+       <replaceable>S</replaceable> that is used will be the connected sum of
+       the individual closed orientable surfaces that host each connected
+       diagram component.  In particular, as in the classical case,
+       the resulting triangulation will always be connected.
+      </para>
+      <para>
+       For virtual links, the complement (and indeed the genus of the
+       surface <replaceable>S</replaceable>) is not a topological invariant,
+       but instead depends upon the specific link diagram.
+      </para>
+     </listitem>
+    </itemizedlist>
    </para>
    <para>
     There are two ways you can build a link complement:
+   </para>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-complement-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-complement-bar" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
+   <para>
     <itemizedlist>
-     <listitem><para>
-      If you select
-      <menuchoice>
-       <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
-       <guimenuitem>Complement</guimenuitem>
-      </menuchoice>
-      from the menu, or press the <guilabel>Complement</guilabel>
-      toolbar button (circled below),
-      &regina; will use its own implementation to create a native
-      &regina; triangulation of the complement.
-      The triangulation will have access to the full suite of
-      <link linkend="triangulations">&regina;'s tools for triangulations</link>,
-      but the meridian and longitude curves from the diagram will be forgotten.
-     </para></listitem>
-     <listitem><para>
-      If you select
-      <menuchoice>
-       <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
-       <guimenuitem>&snappea;</guimenuitem>
-      </menuchoice>
-      from the menu, or press the <guilabel>&snappea;</guilabel>
-      toolbar button (also circled below),
-      &regina; will pass the link to the &snappea; kernel to triangulate
-      instead; the result will be a hybrid <link linkend="snappea">&snappea;
-      triangulation</link>.
-      The peripheral curves from the diagram will be preserved in
-      &snappea;'s data structures; however, the available tools for
-      working with the triangulation combinatorially will be more limited.
-      See the introduction to the chapter on <link linkend="snappea">&snappea;
-      triangulations</link> for more information on these limitations.
-     </para></listitem>
+     <listitem>
+      <para>
+       If you select
+       <menuchoice>
+        <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
+        <guimenuitem>Complement</guimenuitem>
+       </menuchoice>
+       from the menu or press the corresponding toolbar button
+       (the first button circled above),
+       then &regina; will use its own implementation to create a native
+       &regina; triangulation of the complement.
+       The triangulation will have access to the full suite of
+       <link linkend="triangulations">&regina;'s tools for
+       triangulations</link>, but the meridian and longitude curves from the
+       diagram will be forgotten.
+      </para>
+      <para>
+       The <guilabel>Complement</guilabel> option is available for all link
+       diagrams, both classical and virtual.
+      </para>
+     </listitem>
+     <listitem>
+      <para>
+       If you select
+       <menuchoice>
+        <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
+        <guimenuitem>Complement Via &snappea;</guimenuitem>
+       </menuchoice>
+       from the menu or press the corresponding toolbar button
+       (the second button circled above),
+       then &regina; will pass the link to the &snappea; kernel to triangulate
+       instead; the result will be a hybrid <link linkend="snappea">&snappea;
+       triangulation</link>.
+       The peripheral curves from the diagram will be preserved in
+       &snappea;'s data structures; however, the available tools for
+       working with the triangulation combinatorially will be more limited.
+       See the introduction to the chapter on <link linkend="snappea">&snappea;
+       triangulations</link> for more information on these limitations.
+      </para>
+      <para>
+       The <guilabel>Complement Via &snappea;</guilabel> option is only available for
+       classical link diagrams, not virtual diagrams.
+      </para>
+     </listitem>
     </itemizedlist>
    </para>
    <para>
     Regardless of which method you use, the new triangulation will be
     inserted immediately beneath your link in the packet tree.
-   </para>
-   <para>
-    <inlinemediaobject>
-     <imageobject>
-      <imagedata multires="link-complement"/>
-     </imageobject>
-    </inlinemediaobject>
    </para>
   </sect2>
 
@@ -951,7 +1448,7 @@
     <para>
      <inlinemediaobject>
       <imageobject>
-       <imagedata multires="menulinkcomponents"/>
+       <imagedata multires="link-components-menu"/>
       </imageobject>
      </inlinemediaobject>
     </para>
@@ -998,7 +1495,7 @@
    <title>Editing Crossings</title>
    <para>
     You can edit a link directly by altering its individual crossings.
-    &regina; gives you two ways do this, both of which will typically
+    &regina; gives you several ways do this, all of which will typically
     change the topology of the link:
     <glosslist>
      <glossentry>
@@ -1031,12 +1528,35 @@
        <firstterm>splicing</firstterm> a crossing.
       </para></glossdef>
      </glossentry>
+     <glossentry>
+      <glossterm><guilabel>Making a crossing virtual</guilabel></glossterm>
+      <glossdef><para>
+       If you are familiar with virtual link diagrams, this converts a
+       classical crossing into a virtual crossing (one that is often marked
+       with a small circle in diagrams on the plane).
+      </para><para>
+       From &regina;'s point
+       of view, this operation simply removes the crossing entirely, but
+       without changing the connections between the strands.  In other words,
+       the two strands that used to pass over/under each other will now avoid
+       each other entirely: instead the incoming and outgoing upper strands
+       will simply merge into one, and the incoming and outgoing lower strands
+       will likewise merge into one.
+      </para><para>
+       If applied to a classical link diagram, this operation will typically
+       make the diagram virtual (since it requires adding a new handle to the
+       surface in which the diagram embeds, which the original upper and lower
+       strands can use to pass by one another).  If applied to a virtual link
+       diagram, it could potentially change the virtual genus, or even make
+       the diagram classical again.
+      </para></glossdef>
+     </glossentry>
     </glosslist>
    </para>
    <para>
-    To change or resolve a crossing, switch to the
+    To change, resolve, or make a crossing virtual, switch to the
     <guilabel>Crossings</guilabel> tab, right-click on the crossing you
-    want to change, and choose which operation you wish to perform.
+    want to modify, and choose which operation you wish to perform.
     (You will also see an extra option to
     <link linkend="link-flip">reverse a single component</link>.)
    </para>
@@ -1060,11 +1580,11 @@
     &regina; offers a number of <link linkend="link-reidemeister">local
     moves</link> (including the well-known Reidemeister moves) for
     modifying a link diagram without changing the underlying link.
-    If you press the <guibutton>Simplify</guibutton> button (or select
+    If you select
     <menuchoice>
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
      <guimenuitem>Simplify</guimenuitem>
-    </menuchoice>),
+    </menuchoice> from the menu or press the corresponding toolbar button,
     then &regina; will use a combination of these moves to reduce the
     link to as few crossings as it can.
     This procedure is always fast and works well in many scenarios,
@@ -1076,18 +1596,19 @@
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-simplify"/>
+      <imagedata multires="link-simplify-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-simplify-bar" align="center"/>
      </imageobject>
     </inlinemediaobject>
    </para>
-   <note>
-    <para>
-     This fast simplification process will never
-     <link linkend="link-flip">reflect or reverse</link> your link.
-     This is <emphasis>not</emphasis> true of the exhaustive process
-     described below.
-    </para>
-   </note>
+   <para>
+    This fast simplification process will never
+    <link linkend="link-flip">reflect, rotate or reverse</link> your link.
+   </para>
    <sect3 id="link-simplify-exhaustive">
     <title>Exhaustive Simplification</title>
     <para>
@@ -1138,24 +1659,20 @@
       </imageobject>
      </inlinemediaobject>
     </para>
+    <para>
+     As of &regina;&nbsp;7.4, this exhaustive simplification (like the fast
+     simplification before it) will never
+     <link linkend="link-flip">reflect, rotate or reverse</link> your link.
+    </para>
     <warning><para>
      When searching the Reidemeister graph, both the time and memory
      consumption grow at a super-exponential rate relative to the number
      of crossings.  If you continue to press <guilabel>Keep trying</guilabel>
      over and over, you may well run out of time or memory (or both).
     </para></warning>
-    <warning>
-     <para>
-      Unlike the fast simplification process when you first press the
-      <guilabel>Simplify</guilabel> button, this exhaustive
-      simplification process could well
-      <link linkend="link-flip">reflect your link</link>
-      and/or <link linkend="link-flip">reverse individual components</link>.
-     </para>
-    </warning>
     <tip id="link-gordian">
      <para>
-      If your aim is to recognise a knot, an alternative is to
+      If your aim is to recognise a classical knot, an alternative is to
       <link linkid="link-complement">build the knot complement</link>
       and then try to recognise the resulting 3-manifold instead.
       The 3-manifold tools in &regina; are much richer, and in
@@ -1167,6 +1684,62 @@
      </para>
     </tip>
    </sect3>
+  </sect2>
+
+  <sect2 id="link-treewidth">
+   <title>Improving Treewidth</title>
+   <para>
+    Instead of trying to reduce the number of crossings, you can also ask
+    &regina; to try to reduce the treewidth of the link diagram.
+    <firstterm>Treewidth</firstterm> is a measure of how tree-like the
+    underlying 4-valent model graph is, and reducing the treewidth is
+    important because it can significantly speed up difficult computations
+    such as <link linkend="link-polynomials">Jones and &homflypt;
+    polynomials</link>.
+   </para>
+   <para>
+    To reduce the treewidth, select
+    <menuchoice>
+     <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
+     <guimenuitem>Improve Treewidth</guimenuitem>
+    </menuchoice> from the menu or press the corresponding toolbar button.
+   </para>
+   <para>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-treewidth-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-treewidth-bar" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+   </para>
+   <para>
+    &regina; will begin to explore the Reidemeister graph in search of a
+    smaller treewidth diagram, in a similar manner to the
+    <link linkend="link-simplify-exhaustive">exhaustive simplification</link>
+    process described above.  Like exhaustive simplification, &regina; will
+    occasionally stop and offer to expand its search; also, like exhaustive
+    simplification, you can cancel the search at any time.
+   </para>
+   <para>
+    It is important to understand that &regina; does not compute the
+    <emphasis>precise</emphasis>
+    treewidth of a link diagram (i.e., the minimum width of a
+    <link linkend="link-graphs-tree">tree decomposition</link>), since this is
+    an NP-hard problem.  Instead it uses fast heuristics to find a low-width
+    tree decomposition for a given diagram, and it is
+    this &ldquo;heuristic width&rdquo; that will be reduced.
+   </para>
+   <warning><para>
+    As with exhaustive simplification, both time and memory consumption
+    grow at a super-exponential rate as the search expands.
+    Also, as with exhaustive simplification, this operation could well
+    <link linkend="link-flip">reflect or rotate your link</link>
+    and/or <link linkend="link-flip">reverse individual components</link>.
+   </para></warning>
   </sect2>
 
   <sect2 id="link-reidemeister">
@@ -1182,12 +1755,17 @@
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
      <guimenuitem>Reidemeister Moves&hellip;</guimenuitem>
     </menuchoice>
-   from the menu.
+    from the menu or press the corresponding toolbar button.
    </para>
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-reidemeister"/>
+      <imagedata multires="link-reidemeister-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-reidemeister-bar" align="center"/>
      </imageobject>
     </inlinemediaobject>
    </para>
@@ -1256,6 +1834,13 @@
        This will cause the <guilabel>Under</guilabel> list to be re-filled
        with compatible strands that can be pushed under the first,
        and now you can select one of these options also.
+      </para><para>
+       These drop-down lists do not offer <firstterm>virtual</firstterm>
+       R2&nbsp;overlap moves (which do not require the two strands to border
+       the same cell, and which could therefore increase the virtual genus of
+       the diagram).  If you need to perform a virtual R2&nbsp;overlap move,
+       you can always use the function
+       <function>Link::r2Virtual()</function> in &cpppython;.
       </para></glossdef>
      </glossentry>
      <glossentry>
@@ -1292,7 +1877,12 @@
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-refrotrev"/>
+      <imagedata multires="link-refrotrev-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-refrotrev-bar" align="center"/>
      </imageobject>
     </inlinemediaobject>
    </para>
@@ -1303,11 +1893,17 @@
       <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
       <guimenuitem>Reflect</guimenuitem>
      </menuchoice>
-     from the menu (or press the <guilabel>Reflect</guilabel> button on
-     the toolbar), &regina; will reflect your link about an axis in the
+     from the menu or press the corresponding toolbar button,
+     &regina; will reflect your link about an axis in the
      plane.  Each crossing will change sign (positive becomes negative
      and vice versa), but over-crossings will remain over-crossings, and
      under-crossings will remain under-crossings.
+    </para><para>
+     For virtual link diagrams (which do not live in the plane), this
+     operation effectively performs an orientation-reversing homeomorphism of
+     the surface in which the diagram embeds.
+     In the language of &greentables;, this is a
+     <firstterm>horizontal</firstterm> mirror image.
     </para></listitem>
     <listitem><para>
      If you select
@@ -1315,10 +1911,24 @@
       <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
       <guimenuitem>Rotate</guimenuitem>
      </menuchoice>
-     from the menu, &regina; will rotate your link about an axis in the
+     from the menu or press the corresponding toolbar button,
+     &regina; will rotate your link about an axis in the
      plane (like turning a sheet of paper over so the back becomes visible).
      This means that over-crossings will become under-crossings
      and vice versa, but the sign of each crossing will remain the same.
+    </para><para>
+     For virtual link diagrams (which do not live in the plane), we can think
+     of the diagram as embedded in some thickened surface
+     <replaceable>S</replaceable>&nbsp;&times;&nbsp;I.  This operation
+     effectively performs an orientation-preserving homeomorphism of
+     <replaceable>S</replaceable>&nbsp;&times;&nbsp;I
+     that switches the two copies of <replaceable>S</replaceable> on the
+     boundary.
+    </para><para>
+     Some authors refer to this operation as a <firstterm>flip</firstterm>.
+     In the language of &greentables;, this is the composition of both a
+     <firstterm>vertical</firstterm> and a <firstterm>horizontal</firstterm>
+     mirror image.
     </para></listitem>
     <listitem><para>
      If you select
@@ -1326,7 +1936,8 @@
       <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
       <guimenuitem>Reverse</guimenuitem>
      </menuchoice>
-     from the menu, &regina; will reverse the orientation (i.e.,
+     from the menu or press the corresponding toolbar button,
+     &regina; will reverse the orientation (i.e.,
      direction of traversal) of every component of your link.
      Both the sign (positive or negative) and the side (under or over)
      of each crossing will remain the same, but each component will walk
@@ -1350,95 +1961,44 @@
    </para>
   </sect2>
 
-  <sect2 id="link-cables">
-   <title>Parallel Cables</title>
+  <sect2 id="link-make-alternating">
+   <title>Making a Link Alternating</title>
    <para>
-    You can convert a link into &vark; cables
-    of the link, all parallel to each other using a chosen framing.
-    This will effectively:
-    <itemizedlist>
-     <listitem><para>
-      treat each component of the original link as a ribbon, using
-      the chosen framing;
-     </para></listitem>
-     <listitem><para>
-      create &vark; parallel copies of the original link, following
-      each other side-by-side along these ribbons.
-     </para></listitem>
-    </itemizedlist>
-    Your link will be modified directly.
+    If a link diagram is non-alternating, &regina; can change some of its
+    crossings in order to make the diagram alternating.
+    (To <emphasis>change</emphasis> a crossing means to switch the upper
+    and lower strands.)
+    This operation will typically change the topology of the link.
    </para>
    <para>
     To do this, select
     <menuchoice>
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
-     <guimenuitem>Parallel Cables&hellip;</guimenuitem>
-    </menuchoice>.
-    from the menu.
+     <guimenuitem>Make Alternating</guimenuitem>
+    </menuchoice>
+    from the menu or press the corresponding toolbar button.
    </para>
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-cabling"/>
+      <imagedata multires="link-make-alternating-menu" align="center"/>
      </imageobject>
     </inlinemediaobject>
-   </para>
-   <para>
-    You will be asked to choose the number of cables &vark;,
-    as well as the framing to use.
-   </para>
-   <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-cablingbox"/>
+      <imagedata multires="link-make-alternating-bar" align="center"/>
      </imageobject>
     </inlinemediaobject>
    </para>
    <para>
-    The number of cables should be an integer greater than one
-    (but not too large&mdash;see the warning below).
-    The framing may be one of:
-    <glosslist>
-     <glossentry>
-      <glossterm><guilabel>Seifert framing</guilabel></glossterm>
-      <glossdef>
-       <para>
-        This framing is a property of the underlying link
-        (i.e., it does not depend on your specific choice of link diagram).
-        One way to imagine it is to construct a Seifert surface (an
-        orientable surface embedded in the 3-sphere whose boundary is
-        the link), and then place the ribbons so that they sit flat upon
-        this surface.
-       </para>
-       <para>
-        Another way to imagine it is purely algebraic:
-        for each component &varC;
-        of the link, each edge of the corresponding ribbon follows a
-        curve with trivial homology in the complement of the knot &varC;.
-       </para>
-      </glossdef>
-     </glossentry>
-     <glossentry>
-      <glossterm><guilabel>Blackboard framing</guilabel></glossterm>
-      <glossdef>
-       <para>
-        Here each ribbon sits flat in the plane of the link diagram, with no
-        twists. This framing depends on the specific link diagram that
-        you are using.
-       </para>
-      </glossdef>
-     </glossentry>
-    </glosslist>
+    Your link diagram will be modified directly.
    </para>
-   <warning><para>
-    This operation can increase the number of crossings enormously.
-    If you create &vark; cables then you will
-    multiply the number of crossings by
-    &vark;<superscript>2</superscript>,
-    and if you chose the Seifert framing then there may be even more
-    crossings due to twists in the ribbons.
-    Use a large &vark; at your peril!
-   </para></warning>
+   <para>
+    For classical link diagrams this operation will always succeed.
+    For virtual link diagrams it might not be possible; if the diagram cannot
+    be made alternating then &regina; will report this and leave the diagram
+    unchanged.
+   </para>
   </sect2>
 
   <sect2 id="link-selfframe">
@@ -1454,12 +2014,17 @@
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
      <guimenuitem>Self Frame</guimenuitem>
     </menuchoice>
-    from the menu.
+    from the menu or press the corresponding toolbar button.
    </para>
    <para>
     <inlinemediaobject>
      <imageobject>
-      <imagedata multires="link-selfframe"/>
+      <imagedata multires="link-selfframe-menu" align="center"/>
+     </imageobject>
+    </inlinemediaobject>
+    <inlinemediaobject>
+     <imageobject>
+      <imagedata multires="link-selfframe-bar" align="center"/>
      </imageobject>
     </inlinemediaobject>
    </para>
@@ -1491,7 +2056,7 @@
     Then select
     <menuchoice>
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
-     <guimenuitem>Compose With</guimenuitem>
+     <guimenuitem>Compose With&hellip;</guimenuitem>
     </menuchoice>
     from the menu.
    </para>
@@ -1522,6 +2087,12 @@
     The link <replaceable>L</replaceable> will be changed directly
     into the resulting composite link.
    </para>
+   <para>
+    If you need control over the specific arcs in each link where the
+    composition takes place (which matters with virtual links, for example),
+    you will need to use the function <function>Link::graft()</function>
+    in &cpppython;.
+   </para>
   </sect2>
 
   <sect2 id="link-insert">
@@ -1549,7 +2120,7 @@
     Then select
     <menuchoice>
      <guimenu>Knot&nbsp;/&nbsp;Link</guimenu>
-     <guimenuitem>Insert Link</guimenuitem>
+     <guimenuitem>Insert Link&hellip;</guimenuitem>
     </menuchoice>
     from the menu.
    </para>

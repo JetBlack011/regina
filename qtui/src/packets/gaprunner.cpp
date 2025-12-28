@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -203,7 +201,7 @@ void GAPRunner::processOutput(const QString& output) {
     QString use = output.trimmed();
     std::cout << use.toUtf8().constData() << std::endl;
 
-    unsigned long count;
+    size_t count;
     bool ok;
     std::optional<regina::GroupExpression> reln;
     switch (stage) {
@@ -233,7 +231,16 @@ void GAPRunner::processOutput(const QString& output) {
             status->setText(tr("Extracting new group presentation..."));
             return;
         case GAP_newgenscount:
-            count = use.toULong(&ok);
+            if constexpr (sizeof(size_t) <= sizeof(unsigned long)) {
+                count = use.toULong(&ok);
+            } else {
+                // If size_t is larger than (unsigned long long), I'm not sure
+                // that QString has a string-to-number routine that can
+                // capture it.  However, if gap is holding a group
+                // presentation whose generator count does not fit inside an
+                // unsigned long long, we probably have bigger problems.
+                count = use.toULongLong(&ok);
+            }
             if (ok) {
                 newGenCount = count;
                 newGroup = regina::GroupPresentation();
@@ -257,7 +264,7 @@ void GAPRunner::processOutput(const QString& output) {
         case GAP_newgenseach:
             // Validity testing has already shown it to look like a
             // generator.
-            if (newGens.insert(std::make_pair(use, stageWhichGen)).second) {
+            if (newGens.emplace(use, stageWhichGen).second) {
                 stageWhichGen++;
                 if (stageWhichGen == newGenCount) {
                     // On to the relations.
@@ -274,7 +281,14 @@ void GAPRunner::processOutput(const QString& output) {
                     arg(escape(use)));
             return;
         case GAP_newrelscount:
-            count = use.toULong(&ok);
+            if constexpr (sizeof(size_t) <= sizeof(unsigned long)) {
+                count = use.toULong(&ok);
+            } else {
+                // See earlier comments around QString::toULongLong() as to
+                // why this should be find even if size_t is larger than
+                // unsigned long long.
+                count = use.toULongLong(&ok);
+            }
             if (ok) {
                 newRelnCount = count;
                 if (count == 0) {
@@ -364,8 +378,8 @@ std::optional<regina::GroupExpression> GAPRunner::parseRelation(
 
     QString term;
     QString genStr;
-    std::map<QString, unsigned long>::iterator genPos;
-    unsigned long gen;
+    std::map<QString, size_t>::iterator genPos;
+    size_t gen;
     long exp;
     for (const auto& t : terms) {
         auto match = reGAPTerm.match(t);
@@ -383,7 +397,7 @@ std::optional<regina::GroupExpression> GAPRunner::parseRelation(
                 "<tt>%2</tt>").arg(genStr).arg(escape(reln)));
             return std::nullopt;
         } else {
-            gen = (*genPos).second;
+            gen = genPos->second;
         }
 
         if (match.captured(2).isEmpty())

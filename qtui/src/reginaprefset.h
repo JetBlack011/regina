@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -106,6 +104,8 @@ class ReginaPrefSet : public QObject {
                  normal surface list. */
         enum class CrossingStyle { Pictorial, Text };
             /**< Possible styles for displaying crossings for links. */
+        enum class GroupSimplification { Regina, GAP };
+            /**< Available methods for simplifying group presentations. */
         enum class HomflyStyle { AZ, LM };
             /**< Possible flavours of the HOMFLY-PT polynomial to display. */
         enum class LinkCode { Gauss, DowkerThistlethwaite, KnotSig, Jenkins,
@@ -122,12 +122,18 @@ class ReginaPrefSet : public QObject {
         bool anglesCreationTaut;
             /**< When enumerating angle structures, should the taut
                  structures option be enabled by default? */
+        bool displaySimpleToolbars;
+            /**< Should we use simple toolbars with few actions and text labels
+                 (as opposed to rich toolbars with many actions and icons
+                 only)? */
         bool displayTagsInTree;
             /**< Should we display packet tags in the visual tree? */
         bool displayUnicode;
             /**< Should we use unicode liberally throughout the GUI? */
         QByteArray fileImportExportCodec;
             /**< The codec to use for imports and exports. */
+        GroupSimplification groupSimplification;
+            /**< The preferred method for simplifying group presentations. */
         bool helpIntroOnStartup;
             /**< Should we display introductory help on startup? */
         regina::HyperCoords hypersurfacesCreationCoords;
@@ -157,6 +163,10 @@ class ReginaPrefSet : public QObject {
                  python console. */
         bool pythonWordWrap;
             /**< Should python consoles be word wrapped? */
+        int snapPeaCreationType;
+            /**< The initial option to select in the list of creation options
+                 when creating a new SnapPea triangulation.  This is given as
+                 an index into the list. */
         unsigned surfacesCompatThreshold;
             /**< The maximum number of normal surfaces in a list for which the
                  compatibility matrices will be automatically calculated. */
@@ -203,6 +213,9 @@ class ReginaPrefSet : public QObject {
         int tabLink;
             /**< The index of the initial sub-tab to open in a knot/link
                  viewer. */
+        int tabLinkAlgebra;
+            /**< The index of the initial sub-tab to open in a knot/link
+                 algebra viewer. */
         int tabSnapPeaTri;
             /**< The index of the initial tab to open in a SnapPea
                  triangulation viewer. */
@@ -309,6 +322,12 @@ class ReginaPrefSet : public QObject {
         static int threads();
 
         /**
+         * Returns the Qt tool button style corresponding to the "simple
+         * toolbars" setting.
+         */
+        static Qt::ToolButtonStyle toolButtonStyle();
+
+        /**
          * Opens the given section of an arbitrary handbook in an appropriate
          * manner.  If the handbook is in fact the users' handbook then
          * the argument \a handbook should be 0 (which enables specialised
@@ -399,6 +418,11 @@ inline void ReginaPrefSet::propagate() {
 
 inline const QList<QUrl>& ReginaPrefSet::recentFiles() {
     return instance_.fileRecent_;
+}
+
+inline Qt::ToolButtonStyle ReginaPrefSet::toolButtonStyle() {
+    return (global().displaySimpleToolbars ?
+        Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly);
 }
 
 #endif

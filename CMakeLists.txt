@@ -16,7 +16,7 @@ SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 INCLUDE( ReginaMacros )
 
 # Version
-SET (PACKAGE_VERSION 7.4)
+SET (PACKAGE_VERSION 7.4.1)
 SET (SNAPPY_VERSION 3.0.3)
 SET (PACKAGE_STRING "${PACKAGE_PRETTY_NAME} ${PACKAGE_VERSION}")
 
@@ -54,15 +54,6 @@ ELSE(HIGHDIM)
   MESSAGE (STATUS "Dimensions 9-15: disabled for performance - to enable these, pass -DHIGHDIM=1")
   SET (REGINA_HIGHDIM FALSE)
 ENDIF(HIGHDIM)
-
-# Every year I swear I will drop windows support, and this year is no different.
-# The windows build (as of November 2015) crashes in the test suite with -O3.
-# It looks as though this might be a compiler problem: the ipa-cp-clone
-# optimisation has been known to cause crashes under mingw in other projects
-# in the past also.
-IF (WIN32)
-  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-ipa-cp-clone")
-ENDIF (WIN32)
 
 # Distinguish between the different Regina installation types:
 # XDG = standard freedesktop.org filesystem installation in a fixed location.
@@ -367,6 +358,15 @@ IF (NOT DISABLE_PYTHON)
     ELSEIF (${Python_VERSION_MAJOR} EQUAL 3)
       IF (${Python_VERSION_MINOR} LESS 7)
         MESSAGE(FATAL_ERROR "Regina needs Python >= 3.7.")
+      ELSEIF (${Python_VERSION_MINOR} LESS 12)
+        # Use pybind11 2.x.y with our own hacks for subinterpreters.
+        MESSAGE (STATUS "Using pybind11 2.x.y")
+        SET (REGINA_PYBIND11_VERSION 2)
+      ELSE ()
+        # Use pybind11 3.x.y which has native support for subinterpreters,
+        # but whose subinterpreter support requires python 3.12 or newer.
+        MESSAGE (STATUS "Using pybind11 3.x.y")
+        SET (REGINA_PYBIND11_VERSION 3)
       ENDIF ()
     ELSE ()
       MESSAGE(FATAL_ERROR "Unknown Python major version: ${Python_VERSION_MAJOR}")
@@ -416,10 +416,16 @@ ELSE (${REGINA_INSTALL_TYPE} STREQUAL HPC)
 
   FIND_PACKAGE(Doxygen)
   SET (DOXYGEN_MIN_VERSION 1.9.2)
-  IF (DOXYGEN_FOUND AND (DOXYGEN_VERSION VERSION_LESS DOXYGEN_MIN_VERSION))
-    MESSAGE (STATUS "Doxygen version ${DOXYGEN_VERSION} is too old; Regina requires Doxygen >= ${DOXYGEN_MIN_VERSION}.")
-    SET (DOXYGEN_FOUND FALSE)
-  ENDIF ()
+  IF (DOXYGEN_FOUND)
+    IF (DOXYGEN_VERSION VERSION_LESS DOXYGEN_MIN_VERSION)
+      MESSAGE (STATUS "Doxygen version ${DOXYGEN_VERSION} is too old; Regina requires Doxygen >= ${DOXYGEN_MIN_VERSION}.")
+      SET (DOXYGEN_FOUND FALSE)
+    ELSEIF (DOXYGEN_VERSION VERSION_LESS 1.9.8)
+      SET (DOXYGEN_TOPICS "<a href='modules.html'>Modules</a>")
+    ELSE ()
+      SET (DOXYGEN_TOPICS "<a href='topics.html'>Topics</a>")
+    ENDIF ()
+  ENDIF (DOXYGEN_FOUND)
 
   SET (REGINA_BUILD_ENGINE_DOCS ${DOXYGEN_FOUND})
   MACRO_LOG_FEATURE(DOXYGEN_FOUND
@@ -520,6 +526,24 @@ IF(NOT DISABLE_GUI)
     "Disables the graphical user interface.  The calculation engine, Python bindings and other command-line utilities will still be built."
     FORCE)
 ENDIF(NOT DISABLE_GUI)
+
+IF(NOT GRAPHVIZ_DYNAMIC_PLUGINS)
+  # The flag GRAPHVIZ_DYNAMIC_PLUGINS is provided for platforms that explicitly
+  # disable linking against the graphviz plugins (e.g., openSUSE Leap 16).
+  # Note that dynamic loading requires (amongst other things) the runtime
+  # presence of the file config6, which lists all available graphviz plugins.
+  SET (GRAPHVIZ_DYNAMIC_PLUGINS OFF CACHE STRING
+    "Loads Graphviz plugins dynamically at runtime, instead of linking them directly into the GUI at compile time."
+    FORCE)
+ENDIF(NOT GRAPHVIZ_DYNAMIC_PLUGINS)
+IF(GRAPHVIZ_DYNAMIC_PLUGINS)
+  MESSAGE(STATUS "Graphviz plugins will be loaded dynamically at runtime")
+  SET(LIBGVC_DYNAMIC_PLUGINS TRUE)
+ELSE(GRAPHVIZ_DYNAMIC_PLUGINS)
+  MESSAGE(STATUS "Linking Graphviz plugins directly into the GUI")
+  SET(LIBGVC_DYNAMIC_PLUGINS FALSE)
+ENDIF(GRAPHVIZ_DYNAMIC_PLUGINS)
+
 IF(${REGINA_INSTALL_TYPE} STREQUAL HPC)
   MESSAGE(STATUS "Disabling Regina's GUI for HPC build.")
 ELSEIF(DISABLE_GUI)
@@ -532,6 +556,9 @@ ELSEIF(DISABLE_GUI)
 ELSE(DISABLE_GUI)
   set(CMAKE_AUTOMOC ON)
 
+  # At present, regina only supports Qt6 (not Qt5).  However, we still use
+  # regina's own Qt-related variables in case at some point in the future we
+  # support multiple Qt versions again (e.g., Qt6 and Qt7?).
   FIND_PACKAGE(Qt6Widgets QUIET)
   FIND_PACKAGE(Qt6SvgWidgets QUIET)
   if (Qt6Widgets_FOUND AND Qt6SvgWidgets_FOUND)
@@ -539,18 +566,9 @@ ELSE(DISABLE_GUI)
     set(REGINA_QT 6)
     MESSAGE(STATUS "Found Qt6: ${Qt6_DIR}")
   else (Qt6Widgets_FOUND AND Qt6SvgWidgets_FOUND)
-    MESSAGE(STATUS "Qt6 not found: will look for Qt5 instead")
-    FIND_PACKAGE(Qt5Widgets QUIET)
-    FIND_PACKAGE(Qt5Svg QUIET)
-    if (Qt5Widgets_FOUND AND Qt5Svg_FOUND)
-      set(QT_FOUND TRUE)
-      set(REGINA_QT 5)
-      MESSAGE(STATUS "Found Qt5: ${Qt5Core_DIR}")
-    else (Qt5Widgets_FOUND AND Qt5Svg_FOUND)
-      set(QT_FOUND FALSE)
-      unset(REGINA_QT)
-      MESSAGE(STATUS "Qt5 not found")
-    endif (Qt5Widgets_FOUND AND Qt5Svg_FOUND)
+    set(QT_FOUND FALSE)
+    unset(REGINA_QT)
+    MESSAGE(STATUS "Qt6 not found")
   endif (Qt6Widgets_FOUND AND Qt6SvgWidgets_FOUND)
 
   IF (APPLE AND GRAPHVIZ_FRAMEWORK_PATH)
@@ -592,15 +610,9 @@ ELSE(DISABLE_GUI)
         # - This code assumes the Graphviz path does not contain semicolons.
         # - Although FindPkgConfig sets many LIBGVC_... variables, we only fix
         #   those that we use in our build system.
+        # - We do not fix LIBGVC_INCLUDE_DIRS, since this is legitimately a
+        #   semicolon-separated list.
         #
-        string(REPLACE ";" " " _TMP_STR "${LIBGVC_INCLUDEDIR}")
-        execute_process(
-          COMMAND cmd /c for %A in ("${_TMP_STR}") do @echo %~sA
-          RESULT_VARIABLE _conv_res
-          OUTPUT_VARIABLE _TMP_STR)
-        string(REGEX REPLACE "\n" "" _TMP_STR "${_TMP_STR}")
-        set(LIBGVC_INCLUDEDIR "${_TMP_STR}" CACHE INTERNAL "")
-
         string(REPLACE ";" " " _TMP_STR "${LIBGVC_LIBDIR}")
         execute_process(
           COMMAND cmd /c for %A in ("${_TMP_STR}") do @echo %~sA
@@ -640,7 +652,7 @@ ELSE(DISABLE_GUI)
   endif (QT_FOUND)
 
   MACRO_LOG_FEATURE(QT_FOUND
-    "Qt6 or Qt5"
+    "Qt6"
     "Required for Regina's graphical user interface"
     "https://www.qt.io/"
     TRUE ""
@@ -682,6 +694,7 @@ set(CPACK_SOURCE_IGNORE_FILES
   "^${PROJECT_SOURCE_DIR}/ios/"
   "^${PROJECT_SOURCE_DIR}/packaging/"
   "^${PROJECT_SOURCE_DIR}/python/docstrings/clang-support/"
+  "^${PROJECT_SOURCE_DIR}/swiftui/"
   "^${PROJECT_SOURCE_DIR}/utils/local/"
   "^${PROJECT_SOURCE_DIR}/utils/snappea/"
   "^${PROJECT_SOURCE_DIR}/www/"

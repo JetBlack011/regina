@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,10 +40,10 @@
 #include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
 #include "../generic/facehelper.h"
-#include "../generic/isosig-bindings.h"
 #include "../docstrings/triangulation/dim4/triangulation4.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
 #include "../docstrings/utilities/snapshot.h"
+#include "../generic/isosig-bindings.h" // must come after docstrings
 
 using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
@@ -57,7 +55,7 @@ using regina::MatrixInt;
 using regina::Simplex;
 using regina::Triangulation;
 
-void addTriangulation4(pybind11::module_& m) {
+void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(Triangulation)
     RDOC_SCOPE_BASE_2(detail::TriangulationBase, Snapshottable)
 
@@ -319,7 +317,10 @@ void addTriangulation4(pybind11::module_& m) {
         .def("reflect", &Triangulation<4>::reflect, rbase::reflect)
         .def("triangulateComponents", &Triangulation<4>::triangulateComponents,
             rbase::triangulateComponents)
-        .def("simplify", &Triangulation<4>::simplify, rdoc::simplify)
+        .def("simplify", &Triangulation<4>::simplify,
+            pybind11::arg("tracker") = nullptr,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::simplify)
         .def("intelligentSimplify", &Triangulation<4>::simplify, // deprecated
             rdoc::intelligentSimplify)
         .def("simplifyToLocalMinimum",
@@ -371,28 +372,18 @@ void addTriangulation4(pybind11::module_& m) {
         .def("move20", &Triangulation<4>::move20<0>, rbase::move20)
         .def("move20", &Triangulation<4>::move20<1>, rbase::move20)
         .def("move20", &Triangulation<4>::move20<2>, rbase::move20)
-        .def("fourFourMove", &Triangulation<4>::fourFourMove,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::fourFourMove)
-        .def("openBook", &Triangulation<4>::openBook,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("move44", &Triangulation<4>::move44, rdoc::move44)
+        .def("openBook",
+            overload_cast<regina::Tetrahedron<4>*>(&Triangulation<4>::openBook),
             rdoc::openBook)
         .def("shellBoundary",
             overload_cast<Simplex<4>*>(&Triangulation<4>::shellBoundary),
             rbase::shellBoundary)
-        .def("collapseEdge", &Triangulation<4>::collapseEdge,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("collapseEdge",
+            overload_cast<regina::Edge<4>*>(&Triangulation<4>::collapseEdge),
             rdoc::collapseEdge)
-        .def("snapEdge", &Triangulation<4>::snapEdge,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("snapEdge",
+            overload_cast<regina::Edge<4>*>(&Triangulation<4>::snapEdge),
             rdoc::snapEdge)
         .def("hasPachner", &Triangulation<4>::hasPachner<0>, rbase::hasPachner)
         .def("hasPachner", &Triangulation<4>::hasPachner<1>, rbase::hasPachner)
@@ -431,15 +422,20 @@ void addTriangulation4(pybind11::module_& m) {
             rdoc::withCollapseEdge)
         .def("withSnapEdge", &Triangulation<4>::withSnapEdge,
             rdoc::withSnapEdge)
+        .def("makeIdeal", &Triangulation<4>::makeIdeal, rbase::makeIdeal)
         .def("finiteToIdeal", &Triangulation<4>::finiteToIdeal,
             rbase::finiteToIdeal)
         .def("doubleCover", &Triangulation<4>::doubleCover, rbase::doubleCover)
         .def("makeDoubleCover", [](Triangulation<4>& tri) { // deprecated
             tri = tri.doubleCover();
         }, rbase::makeDoubleCover)
+        .def("doubleOverBoundary", &Triangulation<4>::doubleOverBoundary,
+            rbase::doubleOverBoundary)
         .def("subdivide", &Triangulation<4>::subdivide, rbase::subdivide)
         .def("barycentricSubdivision", // deprecated
             &Triangulation<4>::subdivide, rbase::barycentricSubdivision)
+        .def("truncateIdeal", &Triangulation<4>::truncateIdeal,
+            rdoc::truncateIdeal)
         .def("idealToFinite", &Triangulation<4>::idealToFinite,
             rdoc::idealToFinite)
         .def("linkingSurface", &Triangulation<4>::linkingSurface<0>,
@@ -455,21 +451,7 @@ void addTriangulation4(pybind11::module_& m) {
                 &Triangulation<4>::insertTriangulation),
             rbase::insertTriangulation)
         .def("sig", &Triangulation<4>::sig<>, rbase::sig)
-        .def("isoSig", &Triangulation<4>::isoSig<>, rbase::isoSig)
-        .def("isoSig_EdgeDegrees",
-            &Triangulation<4>::isoSig<regina::IsoSigEdgeDegrees<4>>,
-            rbase::isoSig)
-        .def("isoSig_RidgeDegrees",
-            &Triangulation<4>::isoSig<regina::IsoSigRidgeDegrees<4>>,
-            rbase::isoSig)
-        .def("isoSigDetail", &Triangulation<4>::isoSigDetail<>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_EdgeDegrees",
-            &Triangulation<4>::isoSigDetail<regina::IsoSigEdgeDegrees<4>>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_RidgeDegrees",
-            &Triangulation<4>::isoSigDetail<regina::IsoSigRidgeDegrees<4>>,
-            rbase::isoSigDetail)
+        // Variants of isoSig() are handled through isosig_options() below.
         .def_static("fromIsoSig", &Triangulation<4>::fromIsoSig,
             rbase::fromIsoSig)
         .def_static("fromSig", &Triangulation<4>::fromSig, rbase::fromSig)
@@ -509,76 +491,114 @@ void addTriangulation4(pybind11::module_& m) {
             overload_cast<Face<4, 4>*, bool, bool>(
                 &Triangulation<4>::pachner<4>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<4, 3>*, bool, bool>(
                 &Triangulation<4>::pachner<3>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<4, 2>*, bool, bool>(
                 &Triangulation<4>::pachner<2>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<4, 1>*, bool, bool>(
                 &Triangulation<4>::pachner<1>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<4, 0>*, bool, bool>(
                 &Triangulation<4>::pachner<0>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
+        // For twoZeroMove() and fourFourMove(), the new functions have
+        // different names (move20, move44).  We therefore give a default
+        // value for "ignored" in order to preserve backward compatibility
+        // in cases where both boolean arguments are omitted.
         .def("twoZeroMove", &Triangulation<4>::twoZeroMove<0>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("twoZeroMove", &Triangulation<4>::twoZeroMove<1>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("twoZeroMove", &Triangulation<4>::twoZeroMove<2>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
+        .def("fourFourMove", &Triangulation<4>::fourFourMove,
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::fourFourMove) // deprecated
+        .def("openBook",
+            overload_cast<regina::Tetrahedron<4>*, bool, bool>(
+                &Triangulation<4>::openBook),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::openBook_2) // deprecated
         .def("shellBoundary",
             overload_cast<Simplex<4>*, bool, bool>(
                 &Triangulation<4>::shellBoundary),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::shellBoundary_2) // deprecated
+        .def("collapseEdge",
+            overload_cast<regina::Edge<4>*, bool, bool>(
+                &Triangulation<4>::collapseEdge),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::collapseEdge_2) // deprecated
+        .def("snapEdge",
+            overload_cast<regina::Edge<4>*, bool, bool>(
+                &Triangulation<4>::snapEdge),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::snapEdge_2) // deprecated
     ;
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
+    regina::python::isosig_options<4>(c);
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    regina::python::addListView<decltype(Triangulation<4>().vertices())>(m);
-    regina::python::addListView<decltype(Triangulation<4>().edges())>(m);
-    regina::python::addListView<decltype(Triangulation<4>().triangles())>(m);
-    regina::python::addListView<decltype(Triangulation<4>().tetrahedra())>(m);
-    regina::python::addListView<decltype(Triangulation<4>().pentachora())>(m);
-    regina::python::addListView<decltype(Triangulation<4>().components())>(m);
+    regina::python::addListView<decltype(Triangulation<4>().vertices())>(
+        internal, "Triangulation4_vertices");
+    regina::python::addListView<decltype(Triangulation<4>().edges())>(
+        internal, "Triangulation4_edges");
+    regina::python::addListView<decltype(Triangulation<4>().triangles())>(
+        internal, "Triangulation4_triangles");
+    regina::python::addListView<decltype(Triangulation<4>().tetrahedra())>(
+        internal, "Triangulation4_tetrahedra");
+    regina::python::addListView<decltype(Triangulation<4>().pentachora())>(
+        internal, "Triangulation4_pentachora");
+    regina::python::addListView<decltype(Triangulation<4>().components())>(
+        internal, "Triangulation4_components");
     regina::python::addListView<
-        decltype(Triangulation<4>().boundaryComponents())>(m);
+        decltype(Triangulation<4>().boundaryComponents())>(
+        internal, "Triangulation4_boundaryComponents");
 
     auto wrap = regina::python::add_packet_wrapper<Triangulation<4>>(
         m, "PacketOfTriangulation4");
@@ -602,6 +622,7 @@ void addTriangulation4(pybind11::module_& m) {
     addIsoSigClassic<4>(m, "IsoSigClassic4");
     addIsoSigEdgeDegrees<4>(m, "IsoSigEdgeDegrees4");
     addIsoSigRidgeDegrees<4>(m, "IsoSigRidgeDegrees4");
-    addIsoSigPrintable<4>(m, "IsoSigPrintable4");
+    addIsoSigPrintable<4, true>(m, "IsoSigPrintable4");
+    addIsoSigPrintable<4, false>(m, "IsoSigPrintableLockFree4");
 }
 

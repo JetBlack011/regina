@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,15 +23,12 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 // Regina core includes:
-#include "regina-config.h" // for LIBGVC_FOUND
 #include "treewidth/treedecomposition.h"
 #include "link/link.h"
 
@@ -39,6 +36,7 @@
 #include "linkgraph.h"
 #include "reginaprefset.h"
 #include "reginasupport.h"
+#include "../graphviz.h"
 #include "../messagelayer.h"
 
 #include <fstream>
@@ -54,31 +52,6 @@
 #include <QSysInfo>
 #include <QStackedWidget>
 #include <QTemporaryFile>
-
-#ifdef LIBGVC_FOUND
-#include <graphviz/gvc.h>
-
-// Define LIBGVC_DYNAMIC_PLUGINS if you wish to load plugins dynamically.
-// This requires (amongst other things) the presence of the file config6,
-// which list all available plugins.
-// #define LIBGVC_DYNAMIC_PLUGINS 1
-
-#ifndef LIBGVC_DYNAMIC_PLUGINS
-#if defined(_WIN32)
-__declspec(dllimport) gvplugin_library_t gvplugin_dot_layout_LTX_library;
-__declspec(dllimport) gvplugin_library_t gvplugin_core_LTX_library;
-#else
-extern gvplugin_library_t gvplugin_dot_layout_LTX_library;
-extern gvplugin_library_t gvplugin_core_LTX_library;
-#endif
-
-lt_symlist_t link_lt_preloaded_symbols[] = {
-    { "gvplugin_dot_layout_LTX_library", &gvplugin_dot_layout_LTX_library },
-    { "gvplugin_core_LTX_library", &gvplugin_core_LTX_library },
-    { nullptr, nullptr }
-};
-#endif
-#endif
 
 LinkGraphUI::LinkGraphUI(regina::PacketOf<regina::Link>* useLink,
         PacketTabbedUI* useParentUI) :
@@ -170,13 +143,7 @@ void LinkGraphUI::refresh() {
     chooseType->setEnabled(false);
 
 #ifndef LIBGVC_FOUND
-    showError(tr("<qt>This copy of <i>Regina</i> was built without "
-        "<i>Graphviz</i> support.  Therefore I cannot draw graphs.<p>"
-        "If you downloaded <i>Regina</i> as a ready-made package, please "
-        "contact the package maintainer for a <i>Graphviz</i>-enabled build.<p>"
-        "If you compiled <i>Regina</i> yourself, try installing the "
-        "<i>Graphviz</i> libraries on your system and then compiling "
-        "<i>Regina</i> again.</qt>"));
+    showError(tr(Graphviz::notSupported));
     return;
 #else
     size_t n = link->size();
@@ -222,29 +189,7 @@ void LinkGraphUI::refresh() {
             break;
     }
 
-    char* svg;
-    unsigned svgLen;
-
-#ifdef LIBGVC_DYNAMIC_PLUGINS
-    GVC_t* gvc = gvContext();
-#else
-    // Manually specify our plugins to avoid on-demand loading.
-    GVC_t* gvc = gvContextPlugins(link_lt_preloaded_symbols, 0);
-
-    gvAddLibrary(gvc, &gvplugin_core_LTX_library);
-    gvAddLibrary(gvc, &gvplugin_dot_layout_LTX_library);
-#endif
-
-    Agraph_t* g = agmemread(dot.c_str());
-    gvLayout(gvc, g, "dot");
-    gvRenderData(gvc, g, "svg", &svg, &svgLen);
-    gvFreeLayout(gvc, g);
-    agclose(g);
-    gvFreeContext(gvc);
-
-    graph->load(QByteArray(svg, svgLen));
-    gvFreeRenderData(svg);
-    graph->resize(graph->sizeHint());
+    Graphviz::render(graph, dot, Graphviz::Renderer::Dot);
 
     stack->setCurrentWidget(layerGraph);
     chooseType->setEnabled(true);

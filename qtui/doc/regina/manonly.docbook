@@ -5,7 +5,7 @@
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook V4.2//EN" [
   <!ENTITY regina "Regina">
 
-  <!ENTITY regversion "7.4">
+  <!ENTITY regversion "7.4.1">
   <!ENTITY regabstract
    "<para>
      &regina; is a software package for studying 3-manifold triangulations
@@ -50,11 +50,12 @@
   <!ENTITY api "<acronym>API</acronym>">
   <!ENTITY bzip2 "bzip2">
   <!ENTITY cpp "C++">
-  <!ENTITY dgt "<application><acronym>DGT</acronym></application>">
+  <!ENTITY gui "<acronym>GUI</acronym>">
   <!ENTITY gzip "gzip">
-  <!ENTITY ldquo "&#34;">
   <!ENTITY html "<acronym>HTML</acronym>">
+  <!ENTITY katie "<application>Katie</application>">
   <!ENTITY kde "<acronym>KDE</acronym>">
+  <!ENTITY ldquo "&#34;">
   <!ENTITY linux "<application><acronym>GNU</acronym>/Linux</application>">
   <!ENTITY macosx "<application>macOS</application>">
   <!ENTITY mdash " - ">

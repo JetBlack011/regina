@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,8 +43,8 @@
 
 namespace regina {
 
-template <class T> class SnapshotRef;
-template <class T> class Snapshottable;
+template <typename> class SnapshotRef;
+template <typename> class Snapshottable;
 
 /**
  * An exception thrown when someone tries to modify the read-only deep copy
@@ -206,7 +204,7 @@ class SnapshotWriteError : public std::exception {
  *
  * \ingroup utilities
  */
-template <class T>
+template <typename T>
 class Snapshot {
     static_assert(std::is_base_of_v<Snapshottable<T>, T>,
         "Snapshot<T> requires T to be derived from Snapshottable<T>.");
@@ -303,7 +301,7 @@ class Snapshot {
  *
  * \ingroup utilities
  */
-template <class T>
+template <typename T>
 class Snapshottable {
     private:
         mutable Snapshot<T>* snapshot_;
@@ -531,7 +529,7 @@ class Snapshottable {
  *
  * \ingroup utilities
  */
-template <class T>
+template <typename T>
 class SnapshotRef {
     private:
         Snapshot<T>* snapshot_; // non-null
@@ -747,7 +745,7 @@ class SnapshotRef {
  *
  * \ingroup utilities
  */
-template <class T>
+template <typename T>
 void swap(SnapshotRef<T>& a, SnapshotRef<T>& b) noexcept {
     a.swap(b);
 }

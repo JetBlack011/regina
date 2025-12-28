@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -46,10 +44,10 @@
 #include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
 #include "../generic/facehelper.h"
-#include "../generic/isosig-bindings.h"
 #include "../docstrings/triangulation/dim3/triangulation3.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
 #include "../docstrings/utilities/snapshot.h"
+#include "../generic/isosig-bindings.h" // must come after docstrings
 
 using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
@@ -93,8 +91,11 @@ namespace pybind11::detail {
             bool load(handle src, bool) {
                 if (! pybind11::hasattr(src, "_to_string"))
                     return false;
+                auto _to_string = src.attr("_to_string");
+                if (! PyCallable_Check(_to_string.ptr()))
+                    return false;
 
-                value.string_ = pybind11::str(src.attr("_to_string")());
+                value.string_ = pybind11::str(_to_string());
                 return true;
             }
 
@@ -107,7 +108,7 @@ namespace pybind11::detail {
     };
 } // namespace pybind11::detail
 
-void addTriangulation3(pybind11::module_& m) {
+void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(Triangulation)
     RDOC_SCOPE_BASE_2(detail::TriangulationBase, Snapshottable)
 
@@ -120,8 +121,10 @@ void addTriangulation3(pybind11::module_& m) {
             pybind11::arg("cloneProps"),
             pybind11::arg("cloneLocks") = true,
             rdoc::__init)
-        .def(pybind11::init<const regina::Link&, bool>(),
-            pybind11::arg(), pybind11::arg("simplify") = true, rdoc::__init_2)
+        .def(pybind11::init([](const regina::Link& link, bool simplify) {
+            return link.complement(simplify); // deprecated constructor
+        }), pybind11::arg("link"), pybind11::arg("simplify") = true,
+            rdoc::__init_2)
         .def(pybind11::init<const std::string&>(), rdoc::__init_3)
         .def(pybind11::init([](const regina::python::SnapPyObject& obj) {
             return new Triangulation<3>(obj.string_);
@@ -489,68 +492,34 @@ void addTriangulation3(pybind11::module_& m) {
         .def("pachner",
             overload_cast<Face<3, 0>*>(&Triangulation<3>::pachner<0>),
             rbase::pachner)
-        .def("fourFourMove", &Triangulation<3>::fourFourMove,
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::fourFourMove)
+        .def("move44", &Triangulation<3>::move44, rdoc::move44)
         .def("move20", &Triangulation<3>::move20<0>, rbase::move20)
         .def("move20", &Triangulation<3>::move20<1>, rbase::move20)
-        .def("twoOneMove", &Triangulation<3>::twoOneMove,
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::twoOneMove)
-        .def("zeroTwoMove",
+        .def("move21", &Triangulation<3>::move21, rdoc::move21)
+        .def("move02",
             overload_cast<regina::EdgeEmbedding<3>, int,
-                regina::EdgeEmbedding<3>, int, bool, bool>(
-                &Triangulation<3>::zeroTwoMove),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::zeroTwoMove)
-        .def("zeroTwoMove",
-            overload_cast<regina::Edge<3>*, size_t, size_t, bool, bool>(
-                &Triangulation<3>::zeroTwoMove),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::zeroTwoMove_2)
-        .def("zeroTwoMove",
-            overload_cast<regina::Triangle<3>*, int,
-                regina::Triangle<3>*, int, bool, bool>(
-                &Triangulation<3>::zeroTwoMove),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
-            rdoc::zeroTwoMove_3)
-        .def("openBook", &Triangulation<3>::openBook,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+                regina::EdgeEmbedding<3>, int>(
+                &Triangulation<3>::move02),
+            rdoc::move02)
+        .def("move02",
+            overload_cast<regina::Edge<3>*, size_t, size_t>(
+                &Triangulation<3>::move02),
+            rdoc::move02_2)
+        .def("move02",
+            overload_cast<regina::Triangle<3>*, int, regina::Triangle<3>*, int>(
+                &Triangulation<3>::move02),
+            rdoc::move02_3)
+        .def("openBook",
+            overload_cast<regina::Triangle<3>*>(&Triangulation<3>::openBook),
             rdoc::openBook)
-        .def("closeBook", &Triangulation<3>::closeBook,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("closeBook",
+            overload_cast<regina::Edge<3>*>(&Triangulation<3>::closeBook),
             rdoc::closeBook)
         .def("shellBoundary",
             overload_cast<Simplex<3>*>(&Triangulation<3>::shellBoundary),
             rbase::shellBoundary)
-        .def("collapseEdge", &Triangulation<3>::collapseEdge,
-            pybind11::arg(),
-            pybind11::arg("check") = true,
-            pybind11::arg("perform") = true,
+        .def("collapseEdge",
+            overload_cast<regina::Edge<3>*>(&Triangulation<3>::collapseEdge),
             rdoc::collapseEdge)
         .def("hasPachner", &Triangulation<3>::hasPachner<0>, rbase::hasPachner)
         .def("hasPachner", &Triangulation<3>::hasPachner<1>, rbase::hasPachner)
@@ -675,14 +644,30 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
         .def("niceTreeDecomposition", &Triangulation<3>::niceTreeDecomposition,
             pybind11::return_value_policy::reference_internal,
             rdoc::niceTreeDecomposition)
+        .def("improveTreewidth", &Triangulation<3>::improveTreewidth,
+            pybind11::arg("maxAttempts") = 5000,
+            pybind11::arg("height") = 2,
+            pybind11::arg("threads") = 1,
+            pybind11::arg("tracker") = nullptr,
+            pybind11::call_guard<regina::python::GILScopedRelease>(),
+            rdoc::improveTreewidth)
         .def("doubleCover", &Triangulation<3>::doubleCover, rbase::doubleCover)
         .def("makeDoubleCover", [](Triangulation<3>& tri) { // deprecated
             tri = tri.doubleCover();
         }, rbase::makeDoubleCover)
+        .def("doubleOverBoundary", &Triangulation<3>::doubleOverBoundary,
+            rbase::doubleOverBoundary)
+        .def("truncateIdeal", &Triangulation<3>::truncateIdeal,
+            rdoc::truncateIdeal)
         .def("idealToFinite", &Triangulation<3>::idealToFinite,
             rdoc::idealToFinite)
+        .def("makeIdeal", &Triangulation<3>::makeIdeal, rbase::makeIdeal)
         .def("finiteToIdeal", &Triangulation<3>::finiteToIdeal,
             rbase::finiteToIdeal)
+        .def("truncate", &Triangulation<3>::truncate,
+            pybind11::arg("vertex"),
+            pybind11::arg("lockBoundary") = false,
+            rdoc::truncate)
         .def("subdivide", &Triangulation<3>::subdivide, rbase::subdivide)
         .def("barycentricSubdivision", // deprecated
             &Triangulation<3>::subdivide, rbase::barycentricSubdivision)
@@ -724,21 +709,7 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
         .def("dehydrate", &Triangulation<3>::dehydrate, rdoc::dehydrate)
         .def_static("rehydrate", &Triangulation<3>::rehydrate, rdoc::rehydrate)
         .def("sig", &Triangulation<3>::sig<>, rbase::sig)
-        .def("isoSig", &Triangulation<3>::isoSig<>, rbase::isoSig)
-        .def("isoSig_EdgeDegrees",
-            &Triangulation<3>::isoSig<regina::IsoSigEdgeDegrees<3>>,
-            rbase::isoSig)
-        .def("isoSig_RidgeDegrees",
-            &Triangulation<3>::isoSig<regina::IsoSigRidgeDegrees<3>>,
-            rbase::isoSig)
-        .def("isoSigDetail", &Triangulation<3>::isoSigDetail<>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_EdgeDegrees",
-            &Triangulation<3>::isoSigDetail<regina::IsoSigEdgeDegrees<3>>,
-            rbase::isoSigDetail)
-        .def("isoSigDetail_RidgeDegrees",
-            &Triangulation<3>::isoSigDetail<regina::IsoSigRidgeDegrees<3>>,
-            rbase::isoSigDetail)
+        // Variants of isoSig() are handled through isosig_options() below.
         .def_static("fromGluings", [](size_t size, const std::vector<
                 std::tuple<size_t, int, size_t, regina::Perm<4>>>& g) {
             return Triangulation<3>::fromGluings(size, g.begin(), g.end());
@@ -792,63 +763,143 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
             overload_cast<Face<3, 3>*, bool, bool>(
                 &Triangulation<3>::pachner<3>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<3, 2>*, bool, bool>(
                 &Triangulation<3>::pachner<2>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<3, 1>*, bool, bool>(
                 &Triangulation<3>::pachner<1>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
         .def("pachner",
             overload_cast<Face<3, 0>*, bool, bool>(
                 &Triangulation<3>::pachner<0>),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::pachner_2) // deprecated
+        // For fourFourMove(), twoZeroMove(), twoOneMove() and zeroTwoMove(),
+        // the new functions have different names (move44, move20, etc.).
+        // We therefore give a default value for "ignored" in order to preserve
+        // backward compatibility in cases where both boolean arguments are
+        // omitted.
+        .def("fourFourMove",
+            overload_cast<regina::Edge<3>*, int, bool, bool>(
+                &Triangulation<3>::fourFourMove),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::fourFourMove) // deprecated
         .def("twoZeroMove", &Triangulation<3>::twoZeroMove<0>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
         .def("twoZeroMove", &Triangulation<3>::twoZeroMove<1>,
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored") = true,
             pybind11::arg("perform") = true,
             rbase::twoZeroMove) // deprecated
+        .def("twoOneMove",
+            overload_cast<regina::Edge<3>*, int, bool, bool>(
+                &Triangulation<3>::twoOneMove),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::twoOneMove)
+        .def("zeroTwoMove",
+            overload_cast<regina::EdgeEmbedding<3>, int,
+                regina::EdgeEmbedding<3>, int, bool, bool>(
+                &Triangulation<3>::zeroTwoMove),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::zeroTwoMove)
+        .def("zeroTwoMove",
+            overload_cast<regina::Edge<3>*, size_t, size_t, bool, bool>(
+                &Triangulation<3>::zeroTwoMove),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::zeroTwoMove_2)
+        .def("zeroTwoMove",
+            overload_cast<regina::Triangle<3>*, int,
+                regina::Triangle<3>*, int, bool, bool>(
+                &Triangulation<3>::zeroTwoMove),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg(),
+            pybind11::arg("ignored") = true,
+            pybind11::arg("perform") = true,
+            rdoc::zeroTwoMove_3)
+        .def("openBook",
+            overload_cast<regina::Triangle<3>*, bool, bool>(
+                &Triangulation<3>::openBook),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::openBook_2) // deprecated
+        .def("closeBook",
+            overload_cast<regina::Edge<3>*, bool, bool>(
+                &Triangulation<3>::closeBook),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::closeBook_2) // deprecated
         .def("shellBoundary",
             overload_cast<Simplex<3>*, bool, bool>(
                 &Triangulation<3>::shellBoundary),
             pybind11::arg(),
-            pybind11::arg("check") = true,
+            pybind11::arg("ignored"),
             pybind11::arg("perform") = true,
             rbase::shellBoundary_2) // deprecated
+        .def("collapseEdge",
+            overload_cast<regina::Edge<3>*, bool, bool>(
+                &Triangulation<3>::collapseEdge),
+            pybind11::arg(),
+            pybind11::arg("ignored"),
+            pybind11::arg("perform") = true,
+            rdoc::collapseEdge_2) // deprecated
     ;
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
+    regina::python::isosig_options<3>(c);
     regina::python::add_output(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    regina::python::addListView<decltype(Triangulation<3>().vertices())>(m);
-    regina::python::addListView<decltype(Triangulation<3>().edges())>(m);
-    regina::python::addListView<decltype(Triangulation<3>().triangles())>(m);
-    regina::python::addListView<decltype(Triangulation<3>().tetrahedra())>(m);
-    regina::python::addListView<decltype(Triangulation<3>().components())>(m);
+    regina::python::addListView<decltype(Triangulation<3>().vertices())>(
+        internal, "Triangulation3_vertices");
+    regina::python::addListView<decltype(Triangulation<3>().edges())>(
+        internal, "Triangulation3_edges");
+    regina::python::addListView<decltype(Triangulation<3>().triangles())>(
+        internal, "Triangulation3_triangles");
+    regina::python::addListView<decltype(Triangulation<3>().tetrahedra())>(
+        internal, "Triangulation3_tetrahedra");
+    regina::python::addListView<decltype(Triangulation<3>().components())>(
+        internal, "Triangulation3_components");
     regina::python::addListView<
-        decltype(Triangulation<3>().boundaryComponents())>(m);
+        decltype(Triangulation<3>().boundaryComponents())>(
+        internal, "Triangulation3_boundaryComponents");
 
     auto wrap = regina::python::add_packet_wrapper<Triangulation<3>>(
         m, "PacketOfTriangulation3");
@@ -859,8 +910,10 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
         pybind11::arg("cloneProps"),
         pybind11::arg("cloneLocks") = true,
         rdoc::__init);
-    regina::python::add_packet_constructor<const regina::Link&, bool>(wrap,
-        pybind11::arg(), pybind11::arg("simplify") = true,
+    wrap.def(pybind11::init([](const regina::Link& link, bool simplify) {
+        // deprecated constructor
+        return regina::make_packet(link.complement(simplify));
+    }), pybind11::arg("link"), pybind11::arg("simplify") = true,
         rdoc::__init_2);
     regina::python::add_packet_constructor<const std::string&>(wrap,
         rdoc::__init_3);
@@ -884,6 +937,7 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
     addIsoSigEdgeDegrees<3>(m, "IsoSigEdgeDegrees3");
     // IsoSigEdgeDegrees<3> and IsoSigRidgeDegrees<3> are the same type.
     m.attr("IsoSigRidgeDegrees3") = m.attr("IsoSigEdgeDegrees3");
-    addIsoSigPrintable<3>(m, "IsoSigPrintable3");
+    addIsoSigPrintable<3, true>(m, "IsoSigPrintable3");
+    addIsoSigPrintable<3, false>(m, "IsoSigPrintableLockFree3");
 }
 

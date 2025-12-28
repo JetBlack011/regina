@@ -124,12 +124,21 @@
  </indexdiv><indexdiv id='taskindex-A'><title>&mdash; A &mdash;</title>
 
  <indexentry>
+  <primaryie><link linkend="link-polynomials">affine index
+   polynomial</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>almost normal surfaces</primaryie>
   <seeie>See: normal surfaces</seeie>
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="link-crossings">alternating links</link></primaryie>
+  <primaryie>alternating link diagrams</primaryie>
+  <secondaryie><link linkend="link-make-alternating">making a diagram
+   alternating</link></secondaryie>
+  <secondaryie><link linkend="link-crossings">testing whether a diagram is
+   alternating</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -155,6 +164,11 @@
  <indexentry>
   <primaryie>&api; documentation</primaryie>
   <seeie>See: documentation</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="link-polynomials">arrow
+   polynomial</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -198,12 +212,15 @@
 
  <indexentry>
   <primaryie>boundary</primaryie>
-  <secondaryie><link linkend="tri-real-ideal">extension from real to
+  <secondaryie><link linkend="tri-double">double over</link></secondaryie>
+  <secondaryie><link linkend="tri-makeideal">extension from real to
    ideal</link></secondaryie>
   <secondaryie><link linkend="surfaces-boundary">of a normal surface or
    hypersurface</link></secondaryie>
   <secondaryie><link linkend="tri-propbdry">of a
    triangulation</link></secondaryie>
+  <secondaryie><link linkend="tri-truncate">truncation from ideal to
+   real</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -312,6 +329,10 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="links">classical links, overview</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie><link linkend="packet-clone">cloning packets</link></primaryie>
  </indexentry>
 
@@ -363,9 +384,12 @@
 
  <indexentry>
   <primaryie>command-line tools</primaryie>
+  <secondaryie><link linkend="utils-compilation">for compiling against
+   &regina;</link></secondaryie>
+  <secondaryie><link linkend="utils">mathematical and
+   logistical</link></secondaryie>
   <secondaryie><link linkend="man-regina-python">scripting
    interface</link></secondaryie>
-  <secondaryie><link linkend="utils">specialised utilities</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -382,10 +406,14 @@
 
  <indexentry>
   <primaryie>compiling</primaryie>
-  <secondaryie><link linkend="compiling">compiling &regina; into other
-   code</link></secondaryie>
+  <secondaryie><link linkend="utils-compilation">command-line tools to help
+   with compiling</link></secondaryie>
+  <secondaryie><link linkend="man-regina-engine-config">compiler and linker
+   flags</link></secondaryie>
   <secondaryie><link linkend="trouble-compile">fixing compile errors
    when building &regina;</link></secondaryie>
+  <secondaryie><link linkend="man-regina-helper">makefiles and sample
+   code</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -415,9 +443,12 @@
   <seeie>See: combinatorial composition</seeie>
  </indexentry>
 
+ <indexentry>
+  <primaryie><link linkend="tri-new-bundle">cones, creation</link></primaryie>
+ </indexentry>
+
  <indexentry id="idx-configuration">
   <primaryie>configuration</primaryie>
-  <secondaryie><link linkend="options-tools">&gaplong;</link></secondaryie>
   <secondaryie><link linkend="options-general">general</link></secondaryie>
   <secondaryie><link linkend="options-python">&python;
    scripting</link></secondaryie>
@@ -479,6 +510,8 @@
   <primaryie>crossings, in links</primaryie>
   <secondaryie><link linkend="link-edit-crossings">changing
    (or switching)</link></secondaryie>
+  <secondaryie><link linkend="link-edit-crossings">making
+   virtual</link></secondaryie>
   <secondaryie><link linkend="link-edit-crossings">resolving
    (or splicing)</link></secondaryie>
   <secondaryie><link linkend="link-crossings">viewing</link></secondaryie>
@@ -598,8 +631,11 @@
  </indexentry>
 
  <indexentry>
-  <primaryie>double cover</primaryie>
-  <seeie>See: orientable double cover</seeie>
+  <primaryie><link linkend="tri-double">double cover</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="tri-double">double over boundary</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -648,7 +684,7 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="tri-puncturedrill">edges, drilling out of a
+  <primaryie><link linkend="tri-drill">edges, drilling out of a
    triangulation</link></primaryie>
  </indexentry>
 
@@ -740,8 +776,13 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="link-algebra">extended group,
+   knot/link</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>extension</primaryie>
-  <secondaryie><link linkend="tri-real-ideal">of a triangulation
+  <secondaryie><link linkend="tri-makeideal">of a triangulation
    boundary</link></secondaryie>
  </indexentry>
 
@@ -768,7 +809,14 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="featureset">feature set</link></primaryie>
+  <primaryie>facet locks</primaryie>
+  <seeie>See: locks</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>features</primaryie>
+  <secondaryie><link linkend="featureset">overview</link></secondaryie>
+  <secondaryie><link linkend="services">requesting</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -823,12 +871,17 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="link-flip">flipping links</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie><link linkend="options-unicode">fonts,
    unicode symbols</link></primaryie>
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="link-cables">framings, for links</link></primaryie>
+  <primaryie><link linkend="link-new-cables">framings,
+   for links</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -853,19 +906,22 @@
 
  <indexentry>
   <primaryie>&gaplong;</primaryie>
-  <secondaryie><link linkend="options-tools">configuration</link></secondaryie>
-  <secondaryie><link linkend="tri-algebra-fund">using to
+  <secondaryie><link linkend="options-tools">configuring path to
+   executable</link></secondaryie>
+  <secondaryie><link linkend="options-group-simplification">using to
    simplify group presentations</link></secondaryie>
  </indexentry>
 
  <indexentry>
-  <primaryie>Gauss code, classical or oriented</primaryie>
+  <primaryie>Gauss code</primaryie>
   <secondaryie><link linkend="link-new-classical-gauss">classical Gauss codes,
    described</link></secondaryie>
   <secondaryie><link linkend="link-new-oriented-gauss">oriented Gauss codes,
    described</link></secondaryie>
   <secondaryie><link linkend="link-new-code">reconstructing knots
    from Gauss codes</link></secondaryie>
+  <secondaryie><link linkend="link-new-signed-gauss">signed Gauss codes,
+   described</link></secondaryie>
   <secondaryie><link linkend="link-codes">viewing
    the Gauss codes for a knot</link></secondaryie>
  </indexentry>
@@ -911,7 +967,14 @@
 
  <indexentry>
   <primaryie>group, knot/link</primaryie>
-  <seeie>See: link group</seeie>
+  <seeie>See: link groups</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>group presentations</primaryie>
+  <secondaryie><link linkend="options-group-simplification">configuring
+   tools for simplifying</link></secondaryie>
+  <secondaryie><link linkend="tri-algebra-fund">simplifying</link></secondaryie>
  </indexentry>
 
  </indexdiv><indexdiv id='taskindex-H'><title>&mdash; H &mdash;</title>
@@ -968,10 +1031,10 @@
 
  <indexentry>
   <primaryie>ideal vertices</primaryie>
-  <secondaryie><link linkend="tri-real-ideal">creating from real boundary
+  <secondaryie><link linkend="tri-makeideal">creating from real boundary
    components</link></secondaryie>
   <secondaryie><link linkend="tri-propideal">testing for</link></secondaryie>
-  <secondaryie><link linkend="tri-real-ideal">truncating / converting
+  <secondaryie><link linkend="tri-truncate">truncating / converting
    to real boundary</link></secondaryie>
   <secondaryie><link linkend="tri-faces">viewing</link></secondaryie>
  </indexentry>
@@ -1089,7 +1152,7 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="link-algebra">knot group</link></primaryie>
+  <primaryie><link linkend="link-algebra">knot groups</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -1162,14 +1225,24 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="link-algebra">link group</link></primaryie>
+  <primaryie><link linkend="link-algebra">link groups</link></primaryie>
  </indexentry>
 
  <indexentry>
   <primaryie>links, knots and</primaryie>
-  <secondaryie><link linkend="link-crossings">alternating</link></secondaryie>
-  <secondaryie><link linkend="link-cables">blackboard framing</link></secondaryie>
-  <secondaryie><link linkend="link-cables">cabling</link></secondaryie>
+  <secondaryie><link linkend="link-polynomials">affine index
+   polynomial</link></secondaryie>
+  <secondaryie><link linkend="link-make-alternating">alternating diagram,
+   making</link></secondaryie>
+  <secondaryie><link linkend="link-crossings">alternating diagram,
+   testing for</link></secondaryie>
+  <secondaryie><link linkend="link-polynomials">arrow
+   polynomial</link></secondaryie>
+  <secondaryie><link linkend="link-new-cables">blackboard
+   framing</link></secondaryie>
+  <secondaryie><link linkend="link-new-cables">cabling</link></secondaryie>
+  <secondaryie><link linkend="links">classical versus
+   virtual</link></secondaryie>
   <secondaryie><link linkend="link-complement">complements</link></secondaryie>
   <secondaryie><link linkend="link-decomposition-components">components,
    decomposition</link></secondaryie>
@@ -1180,6 +1253,8 @@
   <secondaryie><link linkend="link-creation">creation</link></secondaryie>
   <secondaryie><link linkend="link-edit-crossings">crossings,
    changing (or switching)</link></secondaryie>
+  <secondaryie><link linkend="link-edit-crossings">crossings,
+   making virtual</link></secondaryie>
   <secondaryie><link linkend="link-edit-crossings">crossings,
    resolving (or splicing)</link></secondaryie>
   <secondaryie><link linkend="link-crossings">crossings,
@@ -1197,12 +1272,14 @@
    creating</link></secondaryie>
   <secondaryie><link linkend="link-census-examples">examples,
    from censuses</link></secondaryie>
-  <secondaryie><link linkend="link-cables">framings</link></secondaryie>
+  <secondaryie><link linkend="link-algebra">extended group</link></secondaryie>
+  <secondaryie><link linkend="link-flip">flipping</link></secondaryie>
+  <secondaryie><link linkend="link-new-cables">framings</link></secondaryie>
   <secondaryie><link linkend="link-new-code">Gauss code
-   (classical or oriented), recreating from</link></secondaryie>
+   (classical, oriented or signed), recreating from</link></secondaryie>
   <secondaryie><link linkend="link-codes">Gauss code
-   (classical or oriented), viewing</link></secondaryie>
-  <secondaryie><link linkend="link-algebra">group</link></secondaryie>
+   (classical, oriented or signed), viewing</link></secondaryie>
+  <secondaryie><link linkend="link-algebra">groups</link></secondaryie>
   <secondaryie><link linkend="link-polynomials">&homflypt;
    polynomial</link></secondaryie>
   <secondaryie><link linkend="link-insert">inserting other
@@ -1221,8 +1298,10 @@
    viewing</link></secondaryie>
   <secondaryie><link linkend="link-graphs-nice">nice tree
    decompositions</link></secondaryie>
+  <secondaryie><link linkend="link-odd-writhe">odd writhe</link></secondaryie>
   <secondaryie><link linkend="link-flip">orienting</link></secondaryie>
-  <secondaryie><link linkend="link-cables">parallel cables</link></secondaryie>
+  <secondaryie><link linkend="link-new-cables">parallel cables,
+   building</link></secondaryie>
   <secondaryie><link linkend="link-new-code">planar diagram code,
    recreating from</link></secondaryie>
   <secondaryie><link linkend="link-codes">planar diagram code,
@@ -1232,11 +1311,22 @@
    moves</link></secondaryie>
   <secondaryie><link linkend="link-flip">reversing</link></secondaryie>
   <secondaryie><link linkend="link-flip">rotating</link></secondaryie>
-  <secondaryie><link linkend="link-cables">Seifert framing</link></secondaryie>
+  <secondaryie><link linkend="link-new-cables">Seifert
+   framing</link></secondaryie>
   <secondaryie><link linkend="link-selfframe">self framing</link></secondaryie>
+  <secondaryie><link linkend="link-odd-writhe">self-linking
+   number</link></secondaryie>
   <secondaryie><link linkend="link-simplify">simplification</link></secondaryie>
   <secondaryie><link linkend="link-graphs-tree">tree
    decompositions</link></secondaryie>
+  <secondaryie><link linkend="link-treewidth">treewidth,
+   improving</link></secondaryie>
+  <secondaryie><link linkend="link-virtual-genus">virtual
+   genus</link></secondaryie>
+  <secondaryie><link linkend="links">virtual versus
+   classical</link></secondaryie>
+  <secondaryie><link linkend="link-new-whitehead-double">Whitehead double,
+   building</link></secondaryie>
  </indexentry>
 
 
@@ -1248,6 +1338,19 @@
  <indexentry>
   <primaryie>locally compatible normal surfaces</primaryie>
   <seeie>See: compatibility matrices for normal surfaces</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>locks, simplex and facet</primaryie>
+  <secondaryie><link linkend="tri-locks-edit">adding and
+   removing</link></secondaryie>
+  <secondaryie><link linkend="tri-locks">description and
+   properties</link></secondaryie>
+  <secondaryie><link linkend="tri-locks-save">encoding in
+   isomorphism signatures</link></secondaryie>
+  <secondaryie><link linkend="tri-locks-save">saving in
+   data files</link></secondaryie>
+  <secondaryie><link linkend="tri-locks-view">viewing</link></secondaryie>
  </indexentry>
 
  <indexentry>
@@ -1293,6 +1396,11 @@
  <indexentry>
   <primaryie><link linkend="packet-move">moving packets in the
    packet tree</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="options-multithreading">multithreading,
+   configuration</link></primaryie>
  </indexentry>
 
  </indexdiv><indexdiv id='taskindex-N'><title>&mdash; N &mdash;</title>
@@ -1386,6 +1494,10 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="link-odd-writhe">odd writhe</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>one-sidedness</primaryie>
   <seeie>See: sidedness</seeie>
  </indexentry>
@@ -1417,7 +1529,7 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="tri-doublecover">orientable double
+  <primaryie><link linkend="tri-double">orientable double
    cover</link></primaryie>
  </indexentry>
 
@@ -1478,7 +1590,12 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="link-cables">parallel cables</link></primaryie>
+  <primaryie><link linkend="options-multithreading">parallel algorithms,
+   configuration</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="link-new-cables">parallel cables</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -1535,7 +1652,7 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="tri-puncturedrill">puncturing a
+  <primaryie><link linkend="tri-puncture">puncturing a
    triangulation</link></primaryie>
  </indexentry>
 
@@ -1619,6 +1736,10 @@
  <indexentry>
   <primaryie><link linkend="link-reidemeister">Reidemeister
    moves</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="services">releases, announcements</link></primaryie>
  </indexentry>
 
  <indexentry>
@@ -1716,6 +1837,11 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="link-odd-writhe">self-linking
+   number</link></primaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>settings</primaryie>
   <seeie>See: configuration</seeie>
  </indexentry>
@@ -1745,6 +1871,16 @@
  <indexentry>
   <primaryie>signatures, splitting surface</primaryie>
   <seeie>See: splitting surfaces</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>signed Gauss code</primaryie>
+  <seeie>See: Gauss code</seeie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>simplex locks</primaryie>
+  <seeie>See: locks</seeie>
  </indexentry>
 
  <indexentry>
@@ -2016,6 +2152,12 @@
  </indexentry>
 
  <indexentry>
+  <primaryie>treewidth, improving</primaryie>
+  <secondaryie><link linkend="link-treewidth">for link
+   diagrams</link></secondaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>triangle arc normal coordinates</primaryie>
   <seeie>See: coordinate systems</seeie>
  </indexentry>
@@ -2057,7 +2199,7 @@
    subdivision</link></secondaryie>
   <secondaryie><link linkend="tri-bdrycomponents">boundary components,
    viewing</link></secondaryie>
-  <secondaryie><link linkend="tri-real-ideal">boundary,
+  <secondaryie><link linkend="tri-makeideal">boundary,
    converting real to ideal</link></secondaryie>
   <secondaryie><link linkend="tri-propbdry">boundary,
    testing for</link></secondaryie>
@@ -2083,8 +2225,10 @@
   <secondaryie><link linkend="tri-new-dehydration">dehydration
    string, rehydrating</link></secondaryie>
   <secondaryie><link linkend="tri-insert">disjoint union</link></secondaryie>
-  <secondaryie><link linkend="tri-puncturedrill">drilling
-   edges</link></secondaryie>
+  <secondaryie><link linkend="tri-double">double cover</link></secondaryie>
+  <secondaryie><link linkend="tri-double">double over
+   boundary</link></secondaryie>
+  <secondaryie><link linkend="tri-drill">drilling edges</link></secondaryie>
   <secondaryie><link linkend="tri-graphs-dual">dual
    graph</link></secondaryie>
   <secondaryie><link linkend="tri-elementarymove">elementary
@@ -2101,6 +2245,7 @@
    graph</link></secondaryie>
   <secondaryie><link linkend="tri-faces-shapes">faces,
    viewing shapes</link></secondaryie>
+  <secondaryie><link linkend="tri-locks">facet locks</link></secondaryie>
   <secondaryie><link linkend="tri-algebra-fund">fundamental
    group</link></secondaryie>
   <secondaryie><link linkend="tri-prophandlebody">handlebody
@@ -2111,11 +2256,11 @@
    type</link></secondaryie>
   <secondaryie><link linkend="tri-hyperbolic">hyperbolicity,
    certifying</link></secondaryie>
-  <secondaryie><link linkend="tri-real-ideal">ideal vertices,
+  <secondaryie><link linkend="tri-makeideal">ideal vertices,
    creation</link></secondaryie>
   <secondaryie><link linkend="tri-propideal">ideal vertices,
    testing for</link></secondaryie>
-  <secondaryie><link linkend="tri-real-ideal">ideal vertices,
+  <secondaryie><link linkend="tri-truncate">ideal vertices,
    truncation</link></secondaryie>
   <secondaryie><link linkend="foreign-import">importing from
    external files</link></secondaryie>
@@ -2127,13 +2272,15 @@
    and subcomplex testing</link></secondaryie>
   <secondaryie><link linkend="tri-new-isosig">isomorphism signature,
    recreating from</link></secondaryie>
+  <secondaryie><link linkend="tri-locks">locks, simplex and
+   facet</link></secondaryie>
   <secondaryie><link linkend="tri-graphs-nice">nice tree
    decomposition</link></secondaryie>
   <secondaryie><link linkend="tri-proporient">orientability</link></secondaryie>
-  <secondaryie><link linkend="tri-doublecover">orientable double
+  <secondaryie><link linkend="tri-double">orientable double
    cover</link></secondaryie>
   <secondaryie><link linkend="tri-orient">orienting</link></secondaryie>
-  <secondaryie><link linkend="tri-puncturedrill">puncturing</link></secondaryie>
+  <secondaryie><link linkend="tri-puncture">puncturing</link></secondaryie>
   <secondaryie><link linkend="tri-identify">recognising the
    underlying 2-manifold</link></secondaryie>
   <secondaryie><link linkend="tri-recognition">recognising the
@@ -2141,6 +2288,7 @@
   <secondaryie><link linkend="tri-orient">reflecting</link></secondaryie>
   <secondaryie><link linkend="tri-censuslookup">searching for a
    triangulation across the census databases</link></secondaryie>
+  <secondaryie><link linkend="tri-locks">simplex locks</link></secondaryie>
   <secondaryie><link linkend="tri-simplification">simplification</link></secondaryie>
   <secondaryie><link linkend="tri-skeleton">skeleton,
    viewing details</link></secondaryie>
@@ -2183,7 +2331,7 @@
  </indexentry>
 
  <indexentry>
-  <primaryie><link linkend="tri-real-ideal">truncation of ideal
+  <primaryie><link linkend="tri-truncate">truncation of
    vertices</link></primaryie>
  </indexentry>
 
@@ -2276,6 +2424,18 @@
  </indexentry>
 
  <indexentry>
+  <primaryie><link linkend="link-edit-crossings">virtual crossings,
+   making</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie>virtual links</primaryie>
+  <secondaryie><link linkend="links">overview</link></secondaryie>
+  <secondaryie><link linkend="link-virtual-genus">virtual
+   genus</link></secondaryie>
+ </indexentry>
+
+ <indexentry>
   <primaryie>volume</primaryie>
   <seeie>See: hyperbolic manifolds, volume</seeie>
  </indexentry>
@@ -2290,6 +2450,11 @@
  <indexentry>
   <primaryie><link linkend="tri-new-example">Weeks
    manifold</link></primaryie>
+ </indexentry>
+
+ <indexentry>
+  <primaryie><link linkend="link-new-whitehead-double">Whitehead
+   double</link></primaryie>
  </indexentry>
 
  </indexdiv><indexdiv id='taskindex-Z'><title>&mdash; Z &mdash;</title>

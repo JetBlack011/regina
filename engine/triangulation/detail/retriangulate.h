@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -49,6 +47,40 @@ namespace regina {
 class ProgressTrackerOpen;
 
 namespace detail {
+
+/**
+ * Represents different options that can be used internally with a
+ * retriangulation or link rewriting function.
+ *
+ * These options are intended to be used as template arguments.  As such,
+ * they are not wrapped into the safer Flags type (since C++20 does not allow
+ * non-type template arguments with private members).  Instead this is an
+ * unscoped enumeration, and these integer constants should be combined
+ * directly using the bitwise OR operator.
+ *
+ * \ingroup detail
+ */
+enum {
+    /**
+     * An empty flag, indicating that we should use default behaviour.
+     */
+    RetriangulateDefault = 0x0000,
+
+    /**
+     * Indicates that the retriangulation/rewrite action should _not_ be
+     * protected by a mutex.  Instead the user is responsible for managing
+     * locks to prevent race conditions when running in multithreaded mode.
+     */
+    RetriangulateNoLocks = 0x0001,
+
+    /**
+     * Indicates that, if a progress tracker is used, it should _not_ be marked
+     * as finished once the retriangulation process is completed.  Instead the
+     * caller is responsible for calling `ProgressTracker::setFinished()`
+     * themselves at an appropriate time.
+     */
+    RetriangulateNotFinished = 0x0002
+};
 
 /**
  * Declares the internal type used to store a callable action that is passed
@@ -79,7 +111,7 @@ namespace detail {
  *
  * \ingroup detail
  */
-template <class Object, bool withSig>
+template <typename Object, bool withSig>
 using RetriangulateActionFunc = std::conditional_t<withSig,
     std::function<bool(const std::string&, Object&&)>,
     std::function<bool(Object&&)>>;
@@ -107,8 +139,17 @@ using RetriangulateActionFunc = std::conditional_t<withSig,
  * text signature and a triangulation in its initial argument(s),
  * or \c false if we are storing an action whose argument list begins with
  * just a triangulation/link.
+ * \tparam flags controls how the retriangulation/rewriting process is managed;
+ * see the RetriangulationOptions enum for what can be included here.
+ * \tparam PropagationOptions Any options needed to specify how objects should
+ * be propagated to produce "nearby" objects.  The domain-specific propagation
+ * function `RetriangulationParams<Object>::propagateFrom<Retriangulator>`
+ * can access this parameter via the type `Retriangulator::PropagationOptions`.
  *
  * \param obj the object being retriangulated or rewritten.
+ * \param rigid \c true if link diagrams should never be reflected,
+ * rotated and/or reversed.  This argument is currently ignored when working
+ * with triangulations.
  * \param height the maximum number of top-dimensional simplices or crossings
  * to allow beyond the initial number in \a obj, or a negative number if
  * this should not be bounded.
@@ -122,9 +163,10 @@ using RetriangulateActionFunc = std::conditional_t<withSig,
  *
  * \ingroup detail
  */
-template <class Object, bool withSig>
-bool retriangulateInternal(const Object& obj, int height, unsigned nThreads,
-        ProgressTrackerOpen* tracker,
+template <typename Object, bool withSig, int flags = RetriangulateDefault,
+    typename PropagationOptions = void>
+bool retriangulateInternal(const Object& obj, bool rigid, int height,
+        int nThreads, ProgressTrackerOpen* tracker,
         RetriangulateActionFunc<Object, withSig>&& action);
 
 /**
@@ -159,7 +201,7 @@ bool retriangulateInternal(const Object& obj, int height, unsigned nThreads,
  *
  * \ingroup detail
  */
-template <class Object, typename Action,
+template <typename Object, typename Action,
         typename FirstArg = typename CallableArg<Action, 0>::type>
 struct RetriangulateActionTraits;
 
@@ -178,6 +220,10 @@ struct RetriangulateActionTraits;
  *
  * \tparam Object the class providing the exhaustive simplification function,
  * such as regina::Triangulation<dim> or regina::Link.
+ * \tparam PropagationOptions Any options needed to specify how objects should
+ * be propagated to produce "nearby" objects.  This will be passed through to
+ * retriangulateInternal(), and is ultimately used by the domain-specific
+ * function `RetriangulationParams<Object>::propagateFrom<Retriangulator>`.
  *
  * \param obj the object being simplified.
  * \param height the maximum number of top-dimensional simplices or crossings
@@ -191,9 +237,9 @@ struct RetriangulateActionTraits;
  *
  * \ingroup detail
  */
-template <class Object>
+template <typename Object, typename PropagationOptions = void>
 bool simplifyExhaustiveInternal(Object& obj, int height,
-        unsigned threads, ProgressTrackerOpen* tracker) {
+        int threads, ProgressTrackerOpen* tracker) {
     // Make a place for the callback to put a simplified object, if it finds
     // one.  Afterwards we will move this into obj, since the change to obj
     // must happen on the calling thread.  The upshot is that we end up moving
@@ -202,8 +248,8 @@ bool simplifyExhaustiveInternal(Object& obj, int height,
     std::unique_ptr<Object> simplified;
 
     size_t initSize = obj.size();
-    if (regina::detail::retriangulateInternal<Object, false>(
-            obj, height, threads, tracker,
+    if (retriangulateInternal<Object, false, RetriangulateDefault,
+            PropagationOptions>(obj, true /* rigid */, height, threads, tracker,
             [&simplified, initSize](Object&& alt) {
                 if (alt.size() < initSize) {
                     simplified.reset(new Object(std::move(alt)));
@@ -219,33 +265,176 @@ bool simplifyExhaustiveInternal(Object& obj, int height,
         return false;
 }
 
+/**
+ * The common implementation of all exhaustive treewidth improvement functions,
+ * which aim to rewrite/retriangulate the given link diagram or triangulation
+ * to become one with a smaller-width greedy tree decomposition.
+ *
+ * This routine performs exactly the task described by
+ * Link::improveTreewidth() or Triangluation<dim>::improveTreewidth()
+ * (for those dimensions where it is defined), with the following differences:
+ *
+ * - This routine assumes any preconditions have already been checked, and
+ *   exceptions thrown if they failed.
+ *
+ * See Triangulation<dim>::improveTreewidth() or Link::improveTreewidth()
+ * for full details on what this routine actually does.
+ *
+ * \tparam Object the class providing the exhaustive treewidth improvement
+ * function, such as regina::Triangulation<dim> or regina::Link.
+ * \tparam PropagationOptions Any options needed to specify how objects should
+ * be propagated to produce "nearby" objects.  This will be passed through to
+ * retriangulateInternal(), and is ultimately used by the domain-specific
+ * function `RetriangulationParams<Object>::propagateFrom<Retriangulator>`.
+ *
+ * \param obj the object whose greedy tree decomposition we hope to improve.
+ * \param maxAttempts the maximum number of combinatorially distinct objects
+ * to examine before we give up and return \c false, or a negative number if
+ * this should not be bounded.
+ * \param height the maximum number of additional top-dimensional simplices or
+ * crossings to allow, or a negative number if this should not be bounded.
+ * \param threads the number of threads to use.  If this is 1 or smaller then
+ * the routine will run single-threaded.
+ * \param tracker a progress tracker through which progress will be reported,
+ * or \c null if no progress reporting is required.
+ * \return \c true if and only if an object with a smaller-width greedy
+ * tree decomposition was found.
+ *
+ * \ingroup detail
+ */
+template <typename Object, typename PropagationOptions = void>
+bool improveTreewidthInternal(Object& obj, ssize_t maxAttempts, int height,
+        int threads, ProgressTrackerOpen* tracker) {
+    // Make a place for the callback to put an improved object, if it finds
+    // one.  Afterwards we will move this into obj, since the change to obj
+    // must happen on the calling thread.  The upshot is that we end up moving
+    // the result twice (not once), but moves are cheap and thread safety
+    // matters.
+    std::unique_ptr<Object> improved;
+    size_t attempts = 0;
+
+    size_t init = TreeDecomposition(obj).width();
+    size_t curr = init;
+
+    // Since computing tree decompositions is non-trivial, we will run our
+    // action outside the usual retriangulate/rewrite locks and instead manage
+    // the locks ourselves.
+    // This mutex protects the variables: improved, attempts, curr.
+    std::mutex mutex_;
+
+    // Make a first attempt to reduce treewidth.
+    if (retriangulateInternal<Object, false,
+            RetriangulateNoLocks | RetriangulateNotFinished,
+            PropagationOptions>(obj, true /* rigid */, height, threads, tracker,
+            [&improved, &attempts, &mutex_, &curr, init,
+            maxAttempts](Object&& alt) {
+                size_t w = TreeDecomposition(alt).width();
+
+                std::unique_lock lock(mutex_);
+                ++attempts;
+                if (w < init) {
+                    improved.reset(new Object(std::move(alt)));
+                    curr = w;
+                    return true;
+                } else if (maxAttempts >= 0 && attempts >= maxAttempts) {
+                    return true;
+                } else
+                    return false;
+            })) {
+        // We explicitly asked the search to stop.
+        // Either we improved the treewidth (in which case we fall through and
+        // continue searching below), or we exhausted our budgeted number of
+        // attempts (in which case we return now).
+        if (! improved) {
+            if (tracker)
+                tracker->setFinished();
+            return false;
+        }
+    } else {
+        // We exhausted the entire flip graph (up to the given height) and did
+        // not find any improvement.
+        if (tracker)
+            tracker->setFinished();
+        return false;
+    }
+
+    // We improved the treewidth, and so we will definitely be changing obj.
+    // If max #attempts was limited, then we will be finishing soon anyway,
+    // so see how much further we can reduce it now.
+    if (maxAttempts >= 0) {
+        while (true) {
+            attempts = 0;
+            init = curr;
+
+            if (retriangulateInternal<Object, false,
+                    RetriangulateNoLocks | RetriangulateNotFinished,
+                    PropagationOptions>(*improved, true /* rigid */, height,
+                    threads, tracker, [&improved, &attempts, &mutex_, &curr,
+                    init, maxAttempts](Object&& alt) {
+                        size_t w = TreeDecomposition(alt).width();
+
+                        std::unique_lock lock(mutex_);
+                        ++attempts;
+                        if (w < init) {
+                            // Note: we are explicitly allowed to change the
+                            // object that we are retriangulating/rewriting.
+                            *improved = std::move(alt);
+                            curr = w;
+                            return true;
+                        } else if (maxAttempts >= 0 &&
+                                attempts >= maxAttempts) {
+                            return true;
+                        } else
+                            return false;
+                    })) {
+                // We explicitly asked the search to stop.
+                // Either we improved the treewidth (in which case we loop
+                // around and try again), or we exhausted our budgeted number
+                // of attempts (in which case stop and return what we've got).
+                if (curr == init)
+                    break;
+            } else {
+                // We exhausted the entire flip graph (up to the given height)
+                // and did not find any improvement.
+                break;
+            }
+        }
+    }
+
+    // Return with whatever improvement we managed to make.
+    obj = std::move(*improved);
+    if (tracker)
+        tracker->setFinished();
+    return true;
+}
+
 #ifndef __DOXYGEN
 
-template <class Object, typename Action, typename FirstArg>
+template <typename Object, typename Action, typename FirstArg>
 struct RetriangulateActionTraits {
     static constexpr bool valid = false;
     static constexpr bool withSig = false;
 };
 
-template <class Object, typename Action>
+template <typename Object, typename Action>
 struct RetriangulateActionTraits<Object, Action, Object> {
     static constexpr bool valid = true;
     static constexpr bool withSig = false;
 };
 
-template <class Object, typename Action>
+template <typename Object, typename Action>
 struct RetriangulateActionTraits<Object, Action, Object&&> {
     static constexpr bool valid = true;
     static constexpr bool withSig = false;
 };
 
-template <class Object, typename Action>
+template <typename Object, typename Action>
 struct RetriangulateActionTraits<Object, Action, const Object&> {
     static constexpr bool valid = true;
     static constexpr bool withSig = false;
 };
 
-template <class Object, typename Action>
+template <typename Object, typename Action>
 struct RetriangulateActionTraits<Object, Action, const std::string&> {
     using SecondArg = typename CallableArg<Action, 1>::type;
     static constexpr bool valid =

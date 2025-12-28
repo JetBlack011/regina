@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -100,15 +98,15 @@ bool ProgressDialogNumeric::run() {
 }
 
 ProgressDialogMessage::ProgressDialogMessage(
-        regina::ProgressTracker* tracker,
-        const QString& displayText, QWidget* parent) :
+        regina::ProgressTrackerBase* tracker,
+        const QString& header, QWidget* parent) :
         QDialog(parent), tracker_(tracker) {
     setWindowTitle(tr("Working"));
     setWindowModality(Qt::WindowModal);
 
     auto* layout = new QVBoxLayout(this);
 
-    auto* label = new QLabel(QString("<qt><b>%1</b></qt>").arg(displayText));
+    auto* label = new QLabel(QString("<b>%1</b>").arg(header));
     label->setAlignment(Qt::AlignCenter);
     layout->addWidget(label);
 
@@ -117,10 +115,11 @@ ProgressDialogMessage::ProgressDialogMessage(
     separator->setFrameShadow(QFrame::Sunken);
     layout->addWidget(separator);
 
-    msg = new QLabel(tr("Starting"));
-    msg->setAlignment(Qt::AlignLeft);
-    msg->setTextFormat(Qt::PlainText);
-    layout->addWidget(msg);
+    stage = new QLabel();
+    stage->setText(tracker_->description().c_str());
+    stage->setAlignment(Qt::AlignLeft);
+    stage->setTextFormat(Qt::PlainText);
+    layout->addWidget(stage);
 
     layout->addStretch(1);
 }
@@ -129,10 +128,9 @@ bool ProgressDialogMessage::run() {
     show();
     QCoreApplication::instance()->processEvents();
 
-    msg->setText(tracker_->description().c_str());
     while (! tracker_->isFinished()) {
         if (tracker_->descriptionChanged()) {
-            msg->setText(tracker_->description().c_str());
+            stage->setText(tracker_->description().c_str());
         }
         QCoreApplication::instance()->processEvents();
         QThread::usleep(250);
@@ -142,7 +140,7 @@ bool ProgressDialogMessage::run() {
 }
 
 ProgressDialogOpen::ProgressDialogOpen(regina::ProgressTrackerOpen* tracker,
-        const QString& displayText, QString detailTemplate, QWidget* parent) :
+        const QString& header, QString detailTemplate, QWidget* parent) :
         QDialog(parent), tracker_(tracker),
         detailTemplate_(std::move(detailTemplate)) {
     setWindowTitle(tr("Working"));
@@ -150,7 +148,7 @@ ProgressDialogOpen::ProgressDialogOpen(regina::ProgressTrackerOpen* tracker,
 
     auto* layout = new QVBoxLayout(this);
 
-    auto* label = new QLabel(QString("<qt><b>%1</b></qt>").arg(displayText));
+    auto* label = new QLabel(QString("<b>%1</b>").arg(header));
     label->setAlignment(Qt::AlignCenter);
     layout->addWidget(label);
 
@@ -175,7 +173,6 @@ bool ProgressDialogOpen::run() {
     show();
     QCoreApplication::instance()->processEvents();
 
-    msg->setText(tracker_->description().c_str());
     while (! tracker_->isFinished()) {
         if (tracker_->stepsChanged()) {
             msg->setText(detailTemplate_.arg(tracker_->steps()));
@@ -191,6 +188,77 @@ bool ProgressDialogOpen::run() {
 }
 
 void ProgressDialogOpen::cancelTask() {
+    // If run() is currently running, then this function will be called
+    // from QCoreApplication::processEvents() within the main run() loop.
+    // In particular, it will be called from the same thread, and so we
+    // do not need to worry about race conditions with tracker_.
+    //
+    // If run() has finished, then tracker_ will be null.
+
+    buttons->button(QDialogButtonBox::Cancel)->setEnabled(false);
+    tracker_->cancel();
+}
+
+ProgressDialogObjective::ProgressDialogObjective(
+        regina::ProgressTrackerObjective* tracker, const QString& header,
+        QString detailTemplate, QWidget* parent) :
+        QDialog(parent), tracker_(tracker),
+        detailTemplate_(std::move(detailTemplate)) {
+    setWindowTitle(tr("Working"));
+    setWindowModality(Qt::WindowModal);
+
+    auto* layout = new QVBoxLayout(this);
+
+    auto* label = new QLabel(QString("<b>%1</b>").arg(header));
+    label->setAlignment(Qt::AlignCenter);
+    layout->addWidget(label);
+
+    auto* separator = new QFrame();
+    separator->setFrameStyle(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    layout->addWidget(separator);
+
+    stage = new QLabel();
+    stage->setText(tracker_->description().c_str());
+    stage->setAlignment(Qt::AlignLeft);
+    stage->setTextFormat(Qt::PlainText);
+    layout->addWidget(stage);
+
+    msg = new QLabel();
+    msg->setText(detailTemplate_.arg(tracker_->objective()));
+    msg->setAlignment(Qt::AlignLeft);
+    msg->setTextFormat(Qt::PlainText);
+    layout->addWidget(msg);
+
+    layout->addStretch(1);
+
+    buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    connect(buttons, SIGNAL(rejected()), this, SLOT(cancelTask()));
+    layout->addWidget(buttons);
+}
+
+bool ProgressDialogObjective::run() {
+    show();
+    QCoreApplication::instance()->processEvents();
+
+    while (! tracker_->isFinished()) {
+        if (tracker_->descriptionChanged()) {
+            stage->setText(tracker_->description().c_str());
+        }
+        if (tracker_->objectiveChanged()) {
+            msg->setText(detailTemplate_.arg(tracker_->objective()));
+        }
+        QCoreApplication::instance()->processEvents();
+        QThread::msleep(100); // Less frequent updates; just 10 per second.
+    }
+
+    bool success = ! tracker_->isCancelled();
+    buttons->button(QDialogButtonBox::Cancel)->setEnabled(false);
+    tracker_ = nullptr;
+    return success;
+}
+
+void ProgressDialogObjective::cancelTask() {
     // If run() is currently running, then this function will be called
     // from QCoreApplication::processEvents() within the main run() loop.
     // In particular, it will be called from the same thread, and so we

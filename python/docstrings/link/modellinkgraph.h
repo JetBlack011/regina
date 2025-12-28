@@ -11,22 +11,53 @@
 namespace regina::python::doc {
 
 
+// Docstring regina::python::doc::GraphConstraint
+static const char *GraphConstraint =
+R"doc(Represents different classes of graph embeddings that one might want
+to generate. Specifically, this enumeration type is used with the
+routine ModelLinkGraph::generateAllEmbeddings().
+
+These values can be combined using the bitwise OR operator, resulting
+in an object of type ``Flags<GraphConstraint>``. If a graph generation
+function takes an argument of type ``Flags<GraphConstraint>``, then it
+will only generate those graphs that satisfy _all_ of the constraints
+that have been ORed together. For such an argument, you can pass a
+single GraphConstraint constant, or a bitwise combination of such
+constants ``(flag1 | flag2)``, or empty braces ``{}`` to indicate no
+flags at all (which is equivalent to passing
+``GraphConstraint::All``).)doc";
+
 // Docstring regina::python::doc::ModelLinkGraph
 static const char *ModelLinkGraph =
-R"doc(Represents an undirected 4-valent planar graph with a specific planar
-embedding. This can be used as the model graph for a knot or link
-diagram, where each node of the graph becomes a crossing.
+R"doc(Represents an undirected 4-valent graph with a specific embedding in
+some closed orientable surface. This class only stores the graph and a
+local description of the embedding (i.e., a cyclic ordering of arcs
+around each node). It does not store the surface explicitly, though
+the surface is implied from the embedding - if you need it you can
+always access a full description of the surface by calling cells().
 
-Current this class does not support circular graph components (which,
-in a link diagram, would correspond to zero-crossing unknot components
-of the link).
+In particular, the surface is assumed to be the minimal genus surface
+in which the graph embeds. Each connected component of the graph is
+embedded in a separate connected component of the surface, and each
+component of the surface is formed from a collection of discs (or
+_cells_) whose boundaries follow the nodes and arcs of the graph
+according to the local embedding.
 
-This class is primarily designed for _enumerating_ knots and links. If
-you wish to study the underlying graph of an existing link, you do not
-need to create a ModelLinkGraph - instead the Link class already gives
-you direct access to the graph structure. In particular, if you
-include link/graph.h, you can use a Link directly as a directed graph
-type with the Boost Graph Library.
+Regina uses graphs like these as model graphs for classical or virtual
+link diagrams, where each node of the graph becomes a classical
+crossing. If the surface is a collection of 2-spheres, then the graph
+is planar and models a _classical_ link diagram. If the surface has
+genus, then the graph is non-planar and instead models a _virtual_
+link diagram.
+
+Currently this class does not support circular graph components
+(which, in a link diagram, would correspond to zero-crossing unknot
+components of the link).
+
+For Boost users: if you wish to study the underlying graph of an
+existing link, you do not need to create a ModelLinkGraph - instead
+you can include link/graph.h and then use Link directly as a directed
+graph type with the Boost Graph Library.
 
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
@@ -53,18 +84,21 @@ functions.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphCells
 static const char *ModelLinkGraphCells =
-R"doc(Describes the cellular decomposition of the sphere that is induced by
-a given planar 4-valent graph.
+R"doc(Describes the cellular decomposition of a closed orientable surface
+induced by a 4-valent graph embedded within it.
 
 The graph is represented by an object of type ModelLinkGraph, which
-also encodes a specific planar embedding of the graph. The nodes and
-arcs of this graph then form the vertices and edges of a cellular
-decomposition; the main purpose of this class is to deduce and
-describe the resulting 2-cells.
+encodes a local embedding of the graph within the surface (i.e., a
+cyclic ordering of arcs around each graph node). The nodes and arcs of
+this graph form the vertices and edges of the cellular decomposition,
+and the 2-cells are topological discs whose boundaries follow these
+nodes and arcs according to their local embeddings. The main purpose
+of this class is to deduce and describe those 2-cells.
 
-At present, this class insists that each 2-cell is a topological disc.
-As a consequence, this class cannot work with empty or disconnected
-graphs.
+As of Regina 7.4, this class can now work with graphs that are non-
+planar (resulting in a surface with positive genus), disconnected
+(resulting in a surface that is likewise disconnected), and/or empty
+(resulting in an empty surface).
 
 Cellular decompositions do not support value semantics: they cannot be
 copied, swapped, or manually constructed. Instead they are computed
@@ -86,6 +120,46 @@ swapped, or manually constructed. Their location in memory defines
 them, and they are often passed and compared by pointer. End users are
 never responsible for their memory management; this is all taken care
 of by the ModelLinkGraph to which they belong.)doc";
+
+// Docstring regina::python::doc::__bor
+static const char *__bor =
+R"doc(Returns the bitwise OR of the two given flags.
+
+Parameter ``lhs``:
+    the first flag to combine.
+
+Parameter ``rhs``:
+    the second flag to combine.
+
+Returns:
+    the combination of both flags.)doc";
+
+namespace GraphConstraint_ {
+
+// Docstring regina::python::doc::GraphConstraint_::All
+static const char *All = R"doc(Indicates that all graph embeddings should be generated.)doc";
+
+// Docstring regina::python::doc::GraphConstraint_::NoTwists
+static const char *NoTwists =
+R"doc(Indicates that only graph embeddings without twists should be
+generated.
+
+By a _twist_, we mean that the embedding has some node with two
+adjacent arcs connected together. An embedding that fails this
+constraint must always model knot or links with twists that can be
+undone using type I Reidemeister moves.)doc";
+
+// Docstring regina::python::doc::GraphConstraint_::SingleTraversal
+static const char *SingleTraversal =
+R"doc(Indicates that only graph embeddings with a single traversal should be
+generated. That is, for every embedding *e* that is generated,
+``e.countTraversals()`` should be precisely 1.
+
+An embedding that satisfies this constraint must always model knots
+(classical or virtual). An embedding that fails this constraint must
+either be empty, or must always model multiple-component links.)doc";
+
+}
 
 namespace ModelLinkGraphArc_ {
 
@@ -246,7 +320,7 @@ Returns:
 // Docstring regina::python::doc::ModelLinkGraphArc_::prev
 static const char *prev =
 R"doc(Returns the previous arc before this when walking through the graph as
-though it were a link, in a direction away from the* current node.
+though it were a link, in a direction away from the current node.
 
 This routine will jump to the opposite arc at the current node, and
 then move to the other endpoint of the graph edge described by that
@@ -320,12 +394,6 @@ if the underlying graph has *n* nodes, then each of the 4*n* possible
 ModelLinkGraphArc values appears exactly once as ``arc(cell, which)``
 for some integers *cell* and *which*.
 
-Precondition:
-    The underlying ModelLinkGraph is non-empty, connected, and
-    describes a planar graph embedding. Note that connectivity is
-    already required by the class constructor, and you can test the
-    remaining conditions by calling isValid().
-
 Parameter ``cell``:
     indicates which cell to query; this must be between 0 and
     countCells()-1 inclusive.
@@ -383,12 +451,6 @@ to the left of the given arc as you walk along it away from
 For any arc *a*, calling ``arc(cell(a), cellPos(a))`` will return the
 same arc *a* again.
 
-Precondition:
-    The underlying ModelLinkGraph is non-empty, connected, and
-    describes a planar graph embedding. Note that connectivity is
-    already required by the class constructor, and you can test the
-    remaining conditions by calling isValid().
-
 Parameter ``arc``:
     the given arc of the underlying graph.
 
@@ -412,12 +474,6 @@ occurs.
 For any arc *a*, calling ``arc(cell(a), cellPos(a))`` will return the
 same arc *a* again.
 
-Precondition:
-    The underlying ModelLinkGraph is non-empty, connected, and
-    describes a planar graph embedding. Note that connectivity is
-    already required by the class constructor, and you can test the
-    remaining conditions by calling isValid().
-
 Parameter ``arc``:
     the given arc of the underlying graph.
 
@@ -426,64 +482,73 @@ Returns:
     left; this will be an integer between 0 and ``size(cell(arc))-1``
     inclusive.)doc";
 
+// Docstring regina::python::doc::ModelLinkGraphCells_::countArcs
+static const char *countArcs =
+R"doc(Returns the total number of directed arcs in the underlying graph.
+This is always four times the number of nodes in the graph.
+
+Recall that each undirected edge of the graph corresponds to two
+directed arcs (one exiting each endpoint of the edge).
+
+Returns:
+    the total number of directed arcs.)doc";
+
 // Docstring regina::python::doc::ModelLinkGraphCells_::countCells
 static const char *countCells =
-R"doc(Returns the number of 2-cells in this cellular decomposition.
+R"doc(Returns the total number of 2-cells in this cellular decomposition.
 
-If isValid() returns ``False`` (i.e., the underlying ModelLinkGraph is
-either empty or does not describe a planar embedding), then this
-routine will return 0 instead. Note that this routine _cannot_ be used
-to test for connectivity, which is a non-negotiable precondition
-required by the class constructor.
+In the common case where this surface is the 2-sphere (i.e., the
+underlying graph models a knot diagram), this will be exactly two more
+than the number of nodes in the underlying graph.
 
-Note that, if isValid() returns ``True``, then countCells() will
-always return *n*+2 where *n* is the number of nodes in the underlying
-graph.
-
-Returns:
-    a strictly positive number of 2-cells if isValid() returns
-    ``True``, or 0 if isValid() returns ``False``.)doc";
-
-// Docstring regina::python::doc::ModelLinkGraphCells_::isValid
-static const char *isValid =
-R"doc(Determines whether the underlying graph is non-empty with a planar
-embedding, assuming that it is already known to be connected.
-
-As described in the class notes, this class can only work with non-
-empty connected graphs where the corresponding ModelLinkGraph object
-also describes a planar embedding.
-
-The constructor for this class requires you to pass a graph that is
-already known to be connected. However, _assuming_ the graph is
-connected, the constructor then tests for the remaining conditions.
-This routine returns the results of these tests: if the underlying
-graph is empty or does not describe a planar embedding, then this
-routine will return ``False``.
-
-This routine is constant time, since the necessary work will have
-already been completed by the class constructor.
-
-.. warning::
-    Most of the routines in this class require isValid() to return
-    ``True``. Essentially, if isValid() returns ``False``, you should
-    not attempt to query the details of the cell decomposition. See
-    the preconditions on individual routines for further details.
+.. note::
+    As of Regina 7.4, this routine will only return 0 when the
+    underlying graph is empty (and so this surface is empty also). In
+    previous versions of Regina, this routine also returned 0 if the
+    graph was non-planar (a scenario that was previously unsupported).
 
 Returns:
-    ``True`` if and only if the underlying ModelLinkGraph describes a
-    planar embedding of a non-empty graph.)doc";
+    the total number of 2-cells.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraphCells_::countComponents
+static const char *countComponents =
+R"doc(Returns the number of connected components in this surface. This will
+be the same as the number of components of the underlying graph.
+
+Returns:
+    the number of connected components.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraphCells_::countEdges
+static const char *countEdges =
+R"doc(Returns the total number of (undirected) edges in this cellular
+decomposition. This is always twice the number of nodes in the
+underlying graph.
+
+Returns:
+    the total number of edges.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraphCells_::countNodes
+static const char *countNodes =
+R"doc(Returns the total number of vertices in this cellular decomposition;
+that is, the total number of nodes in the underlying graph.
+
+Returns:
+    the total number of nodes.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraphCells_::genus
+static const char *genus =
+R"doc(Returns the genus of this closed orientable surface. If the surface
+has multiple components then this will sum the genus over each
+component.
+
+Returns:
+    the genus of this surface.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphCells_::size
 static const char *size =
 R"doc(Returns the number of arcs aloung the boundary of the given 2-cell. If
 the given cell is a *k*-gon, then this routine returns the integer
 *k*.
-
-Precondition:
-    The underlying ModelLinkGraph is non-empty, connected, and
-    describes a planar graph embedding. Note that connectivity is
-    already required by the class constructor, and you can test the
-    remaining conditions by calling isValid().
 
 Parameter ``cell``:
     indicates which cell to query; this must be between 0 and
@@ -547,11 +612,6 @@ that all four arcs at this node were joined together to form two
 loops, each bounding its own 1-gon (which models a 1-crossing unknot
 component of a link diagram).
 
-If the underlying graph is disconnected, this routine will ignore the
-presence of any other connected components. In particular, it will not
-worry about whether other disjoint components have been placed inside
-or outside any bigons.
-
 Returns:
     The number of incident embedded bigons, which will be between 0
     and 4 inclusive.)doc";
@@ -573,17 +633,41 @@ Returns:
 static const char *loops =
 R"doc(Returns the number of loops incident with this node.
 
-For a connected 4-valent graph, this is equivalent to the number of
-1-gons in the dual cell decomposition that are incident with this
-node.
+Regarding loops versus 1-gons:
 
-If the underlying graph is disconnected, this routine will ignore the
-presence of any other connected components. In particular, it will not
-worry about whether other disjoint components have been placed inside
-or outside any 1-gons.
+* For a planar 4-valent graph (i.e., a graph that models a classical
+  link diagram), every loop bounds a 1-gon in the dual cell
+  decomposition, and vice versa. In particular, for a planar graph, at
+  every node we have ``0 ≤ monogons() == loops() ≤ 2``.
+
+* For a non-planar graph (which could be used to model a virtual link
+  diagram), there could be loops that do not bound 1-gons. So, for a
+  non-planar graph, the only guarantee we have at each node is that
+  ``0 ≤ monogons() ≤ loops() ≤ 2``.
 
 Returns:
     The number of incident loops, which will be between 0 and 2
+    inclusive.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraphNode_::monogons
+static const char *monogons =
+R"doc(Returns the number of 1-gons in the dual cell decomposition that are
+incident with this node.
+
+Regarding loops versus 1-gons:
+
+* For a planar 4-valent graph (i.e., a graph that models a classical
+  link diagram), every loop bounds a 1-gon in the dual cell
+  decomposition, and vice versa. In particular, for a planar graph, at
+  every node we have ``0 ≤ monogons() == loops() ≤ 2``.
+
+* For a non-planar graph (which could be used to model a virtual link
+  diagram), there could be loops that do not bound 1-gons. So, for a
+  non-planar graph, the only guarantee we have at each node is that
+  ``0 ≤ monogons() ≤ loops() ≤ 2``.
+
+Returns:
+    The number of incident 1-gons, which will be between 0 and 2
     inclusive.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphNode_::triangles
@@ -595,11 +679,6 @@ Here _embedded_ means that we do not count triangles where two
 vertices are the same. Note that a _non-embedded_ incident triangle
 would imply that the underlying graph contains a loop bounding a 1-gon
 (which models a trivial twist in a link diagram).
-
-If the underlying graph is disconnected, this routine will ignore the
-presence of any other connected components. In particular, it will not
-worry about whether other disjoint components have been placed inside
-or outside any triangles.
 
 Returns:
     The number of incident embedded triangles, which will be between 0
@@ -650,22 +729,83 @@ Using this constructor is identical to calling Link::graph().
 Parameter ``link``:
     the link that this new graph will model.)doc";
 
+// Docstring regina::python::doc::ModelLinkGraph_::__init_2
+static const char *__init_2 =
+R"doc("Magic" constructor that tries to find some way to interpret the given
+string as a 4-valent graph with embedding.
+
+At present, Regina understands the following types of strings (and
+attempts to parse them in the following order):
+
+* Regina's variants of the _plantri_ format, including the default
+  format as well as the tight and extended variants, as produced by
+  plantri(), canonicalPlantri() and extendedPlantri().
+
+This list may grow in future versions of Regina.
+
+Exception ``InvalidArgument``:
+    Regina could not interpret the given string as representing a
+    graph using any of the supported string types.
+
+Parameter ``description``:
+    a string that describes a 4-valent graph with embedding.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::canonical
+static const char *canonical =
+R"doc(Returns the canonical relabelling of this graph.
+
+Here "relabelling" allows for any combination of:
+
+* a relabelling of the nodes;
+
+* a relabelling of the arcs around each node, whilst preserving the
+  cyclic order;
+
+* if *allowReflection* is ``True``, a reversal of the cyclic order of
+  the arcs around _every_ node (i.e., a reflection of the surface in
+  which the graph embeds).
+
+Two graphs are related under such a relabelling if and only if their
+canonical relabellings are identical.
+
+There is no promise that this will be the same canonical labelling as
+used by canonicalPlantri().
+
+The running time for this routine is quadratic in the size of the
+graph.
+
+Precondition:
+    This graph is connected.
+
+Parameter ``allowReflection``:
+    ``True`` if we allow reflection of the surface in which the graph
+    embeds; that is, a graph and its reflection should produce the
+    same canonical relabelling.
+
+Returns:
+    the canonical relabelling of this graph.)doc";
+
 // Docstring regina::python::doc::ModelLinkGraph_::canonicalPlantri
 static const char *canonicalPlantri =
 R"doc(Outputs a text representation of this graph in a variant of the
-*plantri* ASCII format, using a canonical relabelling of nodes and
+_plantri_ ASCII format, using a canonical relabelling of nodes and
 arcs, and with optional compression.
 
 This routine is similar to plantri(), but with two significant
 differences:
 
-* This routine does not preserve the labelling of nodes and the order
-  of arcs around each node. Instead it reorders the nodes and arcs so
-  that any two relabellings of the "same" planar embedding will
-  produce the same canonicalPlantri() output. By "same" we allow for
-  relabelling and isotopy (sliding the graph around the sphere); if
-  the argument *useReflection* is ``True`` then we allow for
-  reflection also.
+* This routine uses a canonical relabelling of the graph.
+  Specifically, two graphs will have the same canonicalPlantri()
+  output if and only if they are related under some combination of:
+  (i) relabelling nodes; (ii) relabelling the arcs around each node
+  whilst preserving their cyclic order; and (iii) if *allowReflection*
+  is ``True``, optionally reversing the cyclic order of the arcs
+  around _every_ node. This corresponds to a homeomorphism between the
+  surfaces in which the graphs embed that maps one graph to the other;
+  the argument *allowReflection* indicates whether this homeomorphism
+  is allowed to reverse orientation. While this has a similar aim to
+  canonical(), there is no promise that both routines will use the
+  same "canonical relabelling".
 
 * If the argument *tight* is ``True``, then this routine uses an
   abbreviated output format. The resulting compression is only trivial
@@ -679,12 +819,12 @@ Regardless of whether *tight* is ``True`` or ``False``, the resulting
 string can be parsed by fromPlantri() to reconstruct the original
 graph. Note however that, due to the canonical labelling, the
 resulting graph might be a relabelling of the original (and might even
-be a reflection of the original, if *useReflection* was passed as
+be a reflection of the original, if *allowReflection* was passed as
 ``True``).
 
 See plantri() for further details on the ASCII format itself,
-including the ways in which Regina's implementation of this format
-differs from *plantri*'s for graphs with more than 26 nodes.
+including how Regina's implementation differs from _plantri_'s for
+graphs with more than 26 nodes.
 
 The running time for this routine is quadratic in the size of the
 graph.
@@ -697,14 +837,13 @@ Precondition:
 
 Precondition:
     The dual to this graph is a _simple_ quadrangulation of the
-    sphere. In particular, the dual must not have any parallel edges.
-    Note that any graph that fails this condition will the model graph
-    for a link diagram that is an "obvious" connected sum.
+    surface in which it embeds; see plantri() for a discussion on why
+    this condition is needed.
 
 Exception ``FailedPrecondition``:
-    This graph has more than 52 nodes.
+    This graph is empty or has more than 52 nodes.
 
-Parameter ``useReflection``:
+Parameter ``allowReflection``:
     ``True`` if a graph and its reflection should be considered the
     same (i.e., produce the same canonical output), or ``False`` if
     they should be considered different. Of course, if a graph is
@@ -712,29 +851,117 @@ Parameter ``useReflection``:
     produce the same canonical output regardless of this parameter.
 
 Parameter ``tight``:
-    ``False`` if the usual *plantri* ASCII format should be used (as
+    ``False`` if the usual _plantri_ ASCII format should be used (as
     described by plantri() and fromPlantri()), or ``True`` if the
     abbreviated format should be used as described above.
 
 Returns:
-    an optionally compressed *plantri* ASCII representation of this
+    an optionally compressed _plantri_ ASCII representation of this
     graph.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::cells
 static const char *cells =
-R"doc(Returns details of the cellular decomposition of the sphere that is
-induced by this graph.
+R"doc(Returns the cellular decomposition of the closed orientable surface in
+which this graph embeds. This will be the decomposition induced by
+this graph; in particular, it will be formed from discs bounded by the
+nodes and arcs of this graph.
 
 This cellular decomposition will only be computed on demand. This
 means that the first call to this function will take linear time (as
 the decomposition is computed), but subsequent calls will be constant
 time (since the decomposition is cached).
 
-Precondition:
-    This graph is connected.
+Note that, as of Regina 7.4, you can call this routine even if the
+graph is non-planar and/or disconnected.
+
+.. warning::
+    This routine is not thread-safe.
+
+Exception ``InvalidArgument``:
+    This graph induces more cells than should ever be possible. This
+    should never occur unless the graph is malformed in some way.
 
 Returns:
-    the induced cellular decomposition of the sphere.)doc";
+    the induced cellular decomposition of the surface in which this
+    graph embeds.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::countComponents
+static const char *countComponents =
+R"doc(Returns the number of connected components in this graph.
+
+.. warning::
+    This routine is not thread-safe, since it caches the number of
+    components after computing it for the first time.
+
+.. note::
+    These are components in the graph theoretical sense, not link
+    components. So, for example, the graph that models the Hopf link
+    is considered to be connected with just one component.
+
+Returns:
+    the number of connected components.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::countTraversals
+static const char *countTraversals =
+R"doc(Returns the number of traversals in this graph.
+
+A _traversal_ is a closed path through the graph that always enters
+and exits a node through opposite arcs. If this graph models a diagram
+for some link *L*, then the number of traversals in this graph will be
+precisely the number of link components in *L*.
+
+This routine runs in linear time (and the result is not cached).
+
+Returns:
+    the number of traversals.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::extendedPlantri
+static const char *extendedPlantri =
+R"doc(Outputs this graph using Regina's extended variant of the _plantri_
+text format, which is better suited for non-planar graphs.
+
+See plantri() for a discussion of the _plantri_ text format. A
+limitation of the _plantri_ format is that it requires the graph to be
+dual to a _simple_ quadrangulation of the surface in which it embeds.
+This is a reasonable requirement for planar graphs, but not so for
+non-planar graphs (which, in particular, are used to model virtual
+link diagrams).
+
+This routine extends the _plantri_ format to more explicitly encode
+the embedding of the graph, which means we can remove the problematic
+requirement on the dual quadrangulation. The format is Regina's own
+(i.e., it is not compatible with the Brinkmann-McKay _plantri_
+software).
+
+The output will be a comma-separated sequence of alphanumeric strings.
+The *i*th such string will consist of four letter-number pairs,
+encoding the endpoints of the four edges in clockwise order that leave
+node *i*. The letters represent nodes (with ``a..zA..Z`` representing
+nodes 0 to 51 respectively). The numbers represent arcs (with ``0..3``
+representing the four arcs around each node in clockwise order). An
+example of such a string (describing a genus one graph that models the
+virtual trefoil) is:
+
+```
+b3b2b0b1,a2a3a1a0
+```
+
+This routine is an inverse to fromExtendedPlantri(). That is, for any
+graph *g* of a supported size,
+``fromExtendedPlantri(g.extendedPlantri())`` will be identical to *g*.
+Likewise, for any string *s* that satisfies the preconditions for
+fromExtendedPlantri(), calling
+``fromExtendedPlantri(s).extendedPlantri()`` will recover the original
+string *s*.
+
+Precondition:
+    This graph has between 1 and 52 nodes inclusive.
+
+Exception ``FailedPrecondition``:
+    This graph is empty or has more than 52 nodes.
+
+Returns:
+    a representation of this graph in the extended _plantri_ format.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::findFlype
 static const char *findFlype =
@@ -780,7 +1007,7 @@ of non-trivial knot diagrams, _any_ suitable flype can be expressed as
 a composition of minimal flypes in this sense.
 
 Precondition:
-    This graph is connected.
+    This graph is planar.
 
 Parameter ``from``:
     the arc that indicates where the flype disc should begin. This is
@@ -856,7 +1083,7 @@ The arc *from* must be given as an arc of the node *outside* the disc
 must be given as arcs of their respective nodes *inside* the disc.
 
 Precondition:
-    This graph is connected.
+    This graph is planar.
 
 Precondition:
     The arcs *from*, *left* and *right* are laid out as in the diagram
@@ -885,9 +1112,10 @@ Precondition:
 
 Exception ``InvalidArgument``:
     One or more of the preconditions above fails to hold. Be warned
-    that the connectivity precondition will not be checked - this is
-    the user's responsibility - but all other preconditions _will_ be
-    checked, and an exception will be thrown if any of them fails.
+    that the connectivity and planarity preconditions will not be
+    checked - these are the user's responsibility - but all other
+    preconditions _will_ be checked, and an exception will be thrown
+    if any of them fails.
 
 Parameter ``from``:
     the first arc that indicates where the flype should take place, as
@@ -923,7 +1151,7 @@ details on the flype operation, and see findFlype() for a discussion
 on what is meant by "smallest possible".
 
 Precondition:
-    This graph is connected.
+    This graph is planar.
 
 Exception ``InvalidArgument``:
     There is no suitable flype on this graph from the given starting
@@ -939,26 +1167,67 @@ Parameter ``from``:
 Returns:
     the graph obtained by performing the flype.)doc";
 
+// Docstring regina::python::doc::ModelLinkGraph_::fromExtendedPlantri
+static const char *fromExtendedPlantri =
+R"doc(Builds a graph from a text representation using Regina's extended
+variant of the _plantri_ format, which is better suited for non-planar
+graphs.
+
+See extendedPlantri() for a detailed description of Regina's extended
+_plantri_ text format. In essence, this extends the original
+Brinkmann-McKay _plantri_ format to more explicitly encode the
+embedding of the graph, thereby removing the original _plantri_
+requirement that the graph be dual to a simple quadrangulation of the
+surface in which it embeds. Removing this requirement is important for
+non-planar graphs (which are used to model virtual link diagrams).
+
+As an example, the string below is the extended _plantri_
+representation of a genus one graph that models the virtual trefoil:
+
+```
+b3b2b0b1,a2a3a1a0
+```
+
+Exception ``InvalidArgument``:
+    The input was not a valid representation of a graph using Regina's
+    extended _plantri_ format.
+
+Parameter ``text``:
+    the representation of a graph using Regina's extended _plantri_
+    format, as described in extendedPlantri().
+
+Returns:
+    the resulting graph.)doc";
+
 // Docstring regina::python::doc::ModelLinkGraph_::fromPlantri
 static const char *fromPlantri =
-R"doc(Builds a graph from a line of *plantri* output, using Regina's variant
-of the *plantri* ASCII format.
+R"doc(Builds a graph from a line of _plantri_ output, using Regina's variant
+of the _plantri_ ASCII format.
 
-The software *plantri*, by Gunnar Brinkmann and Brendan McKay, can be
+The software _plantri_, by Gunnar Brinkmann and Brendan McKay, can be
 used to enumerate 4-valent planar graphs (amongst many other things).
-This routine converts a piece of output from *plantri*, or the
-encoding of a graph using Regina's own plantri() or canonicalPlantri()
-functions, into a ModelLinkGraph object that Regina can work with
-directly.
+This routine converts a piece of output from _plantri_, or the
+encoding of a graph using Regina's more general plantri() or
+canonicalPlantri() functions, into a ModelLinkGraph object that Regina
+can work with directly.
 
-If you are converting output from *plantri*, this output must be in
-ASCII format, and must be the dual graph of a simple quadrangulation
-of the sphere. The corresponding flags that must be passed to
-*plantri* to obtain such output are ``-adq`` (although you will may
-wish to pass additional flags to expand or restrict the classes of
-graphs that *plantri* builds).
+Graphs encoded using Regina's plantri() or canonicalPlantri()
+functions may be disconnected and/or non-planar. However, such a graph
+must be dual to a simple quadrangulation of the surface in which it
+embeds - otherwise the _plantri_ format does not contain enough
+information to recover the embedding of the graph. This in particular
+is a problem for non-planar graphs (which model virtual links). If
+this is an issue for you, you can use Regina's extended _plantri_
+format instead; see extendedPlantri() and fromExtendedPlantri().
 
-When run with these flags, *plantri* produces output in the following
+If you are working with output directly from the software _plantri_,
+this output must be in ASCII format, and must likewise be the dual
+graph of a simple quadrangulation of the sphere. The flags that must
+be passed to _plantri_ to obtain such output are ``-adq`` (although
+you may wish to pass additional flags to expand or restrict the
+classes of graphs that _plantri_ builds).
+
+When run with these flags, _plantri_ produces output in the following
 form:
 
 ```
@@ -979,118 +1248,167 @@ corresponding to the second line of output above, you could call:
 fromPlantri("bcdd,aeec,abfd,acfa,bffb,ceed");
 ```
 
-Regina uses its own variant of *plantri*'s output format, which is
-identical for smaller graphs but which differs from *plantri*'s own
+Regina uses its own variant of _plantri_'s output format, which is
+identical for smaller graphs but which differs from _plantri_'s own
 output format for larger graphs. In particular:
 
-* For graphs with ≤ 26 nodes, Regina and *plantri* use identical
-  formats. Here Regina can happily recognise the output from *plantri*
+* For graphs with ≤ 26 nodes, Regina and _plantri_ use identical
+  formats. Here Regina can happily recognise the output from _plantri_
   as described above, as well as the output from Regina's own
   plantri() and canonicalPlantri() functions.
 
-* For graphs with 27-52 nodes, Regina's and *plantri*'s formats
-  differ: whereas *plantri* uses punctuation for higher-index nodes,
-  Regina uses the upper-case letters ``A``,...,``Z``. For these larger
+* For graphs with 27-52 nodes, Regina's and _plantri_'s formats
+  differ: whereas _plantri_ uses punctuation for higher-index nodes,
+  Regina uses the upper-case letters ``A,...,Z``. For these larger
   graphs, Regina can only recognise Regina's own plantri() and
-  canonicalPlantri() output, not *plantri*'s punctuation-based
+  canonicalPlantri() output, not _plantri_'s punctuation-based
   encodings.
 
 * For graphs with 53 nodes or more, Regina cannot encode or decode
-  such graphs using *plantri* format at all.
+  such graphs using _plantri_ format at all.
 
-Even for graphs with at most 26 nodes, the given string does not
-_need_ to be come from the program *plantri* itself. Whereas *plantri*
-always outputs graphs with a particular canonical labelling, this
-function can accept an arbitrary ordering of nodes and arcs - in
-particular, it can accept the string ``g.plantri()`` for any graph *g*
-that meets the preconditions below. Nevertheless, the graph must still
-meet these preconditions, since otherwise the *plantri* format might
-not be enough to uniquely reconstruct the graph and its planar
-embedding.
+Note that, whilst the software _plantri_ always outputs graphs using a
+particular canonical labelling, this function has no such restriction:
+it can accept an arbitrary ordering of nodes and arcs - in particular,
+it can accept the string ``g.plantri()`` for any graph *g* that meets
+the preconditions below.
 
 This routine can also interpret the "tight" format that is optionally
 produced by the member function canonicalPlantri() (even though such
-output would certainly _not_ be produced by the program *plantri*).
+output would certainly _not_ be produced by the software _plantri_).
+Note that, by design, the tight format can only represented connected
+graphs.
 
 .. warning::
     While this routine does some basic error checking on the input,
     these checks are not exhaustive. In particular, it does _not_ test
-    for planarity of the graph. (Of course *plantri* does not output
-    non-planar graphs, but a user could still construct one by hand
-    and passes it to this routine, in which case the resulting
-    behaviour is undefined.)
-
-Precondition:
-    The graph being described is connected.
+    that the graph is dual to a simple quadrangulation.
 
 Precondition:
     The graph being described is dual to a _simple_ quadrangulation of
-    the sphere. In particular, the dual must not have any parallel
-    edges. Note that any graph that fails this condition will the
-    model graph for a link diagram that is an "obvious" connected sum.
+    the surface in which it embeds; see plantri() for further
+    discussion on why this condition is needed.
 
 Exception ``InvalidArgument``:
     The input was not a valid representation of a graph using the
-    *plantri* output format. As noted above, the checks performed here
-    are not exhaustive.
+    _plantri_ output format.
 
 Parameter ``plantri``:
     a string containing the comma-separated sequence of alphabetical
-    strings in *plantri* format, as described above.
+    strings in _plantri_ format, as described above.
 
 Returns:
     the resulting graph.)doc";
 
-// Docstring regina::python::doc::ModelLinkGraph_::generateAnyLink
-static const char *generateAnyLink =
-R"doc(Generates an arbitrary link diagram that is modelled by this graph.
+// Docstring regina::python::doc::ModelLinkGraph_::generateAllEmbeddings
+static const char *generateAllEmbeddings =
+R"doc(Generates all possible local embeddings of the given 4-valent graph
+into some closed orientable surface.
 
-All link diagrams modelled by this graph are identical up to switching
-of individual crossings and/or reversal of individual link components.
-This routine will generate just one of these many possible link
-diagrams. If you wish to generate _all_ such diagrams, consider
-whether generateMinimalLinks() might be more appropriate for what you
-need.
+The input 4-valent graph (which does _not_ contain any embedding data)
+should be presented as a closed 3-dimensional facet pairing (since
+these can be generated efficiently using Regina).
 
-Unlike generateMinimalLinks(), there is no guarantee that the diagram
-produced by this routine is minimal or even locally minimal in any
-sense. For example, it is entirely possible that the link diagram
-returned by this routine will have a reducing Reidemeister move.
+This routine will, up to canonical relabelling, generate all local
+embeddings of the given graph into a closed orientable surface (i.e.,
+all ModelLinkGraph objects corresponding to the input graph), each
+exactly once.
 
-In the link diagram that is generated, crossing *k* will always
-correspond to node *k* of this graph.)doc";
+The graphs that are generated will be labelled canonically as
+described by canonical(). This means that the nodes of the graph might
+use a different labelling from the simplices of the given facet
+pairing. The argument *allowReflection* will be passed through to
+canonical().
 
-// Docstring regina::python::doc::ModelLinkGraph_::generateMinimalLinks
-static const char *generateMinimalLinks =
-R"doc(Exhaustively generates potentially-minimal link diagrams that are
-modelled by this graph.
+This routine is a work in progress. Currently it is _very_ inefficient
+and memory-hungry; the algorithm will be improved over time if/when it
+becomes important to do so.
 
-Here _potentially-minimal_ means there are no "obvious" simplification
-moves (such as a simplifying type II Reidemeister move, for example).
-The list of "obvious" moves considered here is subject to change in
-future versions of Regina.
+If *allowReflection* is ``False``, then if we run all possible facet
+pairings through this routine, the combined results should be
+precisely those graphs described by OEIS sequence A292206. If
+*allowReflection* is ``True``, then (once we reach three nodes or
+more) the output set should be smaller.
 
-By _exhaustive_, we mean:
+For each graph that is generated, this routine will call *action*
+(which must be a function or some other callable object).
 
-* Every minimal link diagram modelled by this graph will be generated
-  by this routine, up to reflection and/or reversal (as noted below).
+* The first argument passed to *action* will be the graph that was
+  generated (of type ModelLinkGraph). This will be passed as an
+  rvalue; a typical action could (for example) take it by const
+  reference and query it, or take it by value and modify it, or take
+  it by rvalue reference and move it into more permanent storage.
 
-* If a link diagram is non-minimal and modelled by this graph, it
-  _might_ still be generated by this routine.
+* If there are any additional arguments supplied in the list *args*,
+  then these will be passed as subsequent arguments to *action*.
 
-In other words, this routine will generate all minimal link diagrams
-modelled by this graph, but there is no promise that all of the
-diagrams generated are minimal.
+* *action* must return ``void``.
 
-Labelled diagrams are only generated once up to reflection of the
-diagram and/or reversal of each component. That is, this routine will
-fix the orientation of each link component (always following the
-smallest numbered available arc away from the smallest index graph
-node in each link component), and it will fix the sign of the crossing
-at node 0 (always positive).
+.. warning::
+    The API for this class or function has not yet been finalised.
+    This means that the interface may change in new versions of
+    Regina, without maintaining backward compatibility. If you use
+    this class directly in your own code, please check the detailed
+    changelog with each new release to see if you need to make changes
+    to your code.
+
+Precondition:
+    The given facet pairing is connected, and is also closed (i.e.,
+    has no unmatched facets).
+
+Python:
+    This function is available in Python, and the *action* argument
+    may be a pure Python function. However, its form is more
+    restricted: the argument *args* is removed, so you simply call it
+    as ``generateAllEmbeddings(pairing, allowReflection, action)``.
+    Moreover, *action* must take exactly one argument (the graph).
+
+Exception ``InvalidArgument``:
+    The given pairing is disconnected and/or has unmatched facets.
+
+Parameter ``pairing``:
+    the 4-valent graph for which we wish to produce local embeddings.
+
+Parameter ``allowReflection``:
+    ``True`` if we consider a reflection of the surface in which the
+    graph embeds to produce the same embedding.
+
+Parameter ``constraints``:
+    indicates any constraints that the embeddings that we generate
+    must satisfy. This should be a bitwise OR of constants from the
+    GraphConstraint enumeration, or else ``GraphConstraint::All`` (or
+    just empty braces ``{}``) if we should generate every possible
+    embedding. If several constraints are ORed together, then only
+    embeddings that satisfy _all_ of the these constraints will be
+    produced.
+
+Parameter ``action``:
+    a function (or other callable object) to call for each graph that
+    is generated.
+
+Parameter ``args``:
+    any additional arguments that should be passed to *action*,
+    following the initial graph argument.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::generateAllLinks
+static const char *generateAllLinks =
+R"doc(Exhaustively generates all link diagrams that are modelled by this
+graph, up to reversal of individual link components. If this graph has
+*n* nodes, then there will be ``2^n`` link diagrams generated in
+total.
+
+This routine is provided mainly to help with exhaustive testing. If
+you are not interested in "obviously" non-minimal link diagrams, then
+you should call generateMinimalLinks() instead.
+
+Labelled diagrams are only generated once up to reversal of each
+component. Specifically, this routine will fix the orientation of each
+link component (always following the smallest numbered available arc
+away from the smallest index graph node in each link component).
 
 In each link diagram that is generated, crossing *k* will always
-correspond to node *k* of this graph.
+correspond to node *k* of this graph. If this graph is non-planar,
+then the resulting link diagrams will all be virtual.
 
 For each link diagram that is generated, this routine will call
 *action* (which must be a function or some other callable object).
@@ -1118,8 +1436,8 @@ Python:
     This function is available in Python, and the *action* argument
     may be a pure Python function. However, its form is more
     restricted: the argument *args* is removed, so you simply call it
-    as generateMinimalLinks(action). Moreover, *action* must take
-    exactly one argument (the link diagram).
+    as generateAllLinks(action). Moreover, *action* must take exactly
+    one argument (the link diagram).
 
 Parameter ``action``:
     a function (or other callable object) to call for each link
@@ -1128,6 +1446,125 @@ Parameter ``action``:
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
     following the initial link diagram argument.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::generateAnyLink
+static const char *generateAnyLink =
+R"doc(Generates an arbitrary link diagram that is modelled by this graph.
+
+All link diagrams modelled by this graph are identical up to switching
+of individual crossings and/or reversal of individual link components.
+This routine will generate just one of these many possible link
+diagrams. If you wish to generate _all_ such diagrams, consider
+whether generateMinimalLinks() might be more appropriate for what you
+need.
+
+Unlike generateMinimalLinks(), there is no guarantee that the diagram
+produced by this routine is minimal or even locally minimal in any
+sense. For example, it is entirely possible that the link diagram
+returned by this routine will have a reducing Reidemeister move.
+
+In the link diagram that is generated, crossing *k* will always
+correspond to node *k* of this graph. If this graph is non-planar,
+then the resulting link diagram will be virtual.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::generateMinimalLinks
+static const char *generateMinimalLinks =
+R"doc(Exhaustively generates potentially-minimal link diagrams that are
+modelled by this graph.
+
+Here _potentially-minimal_ means there are no "obvious" simplification
+moves (such as a simplifying type II Reidemeister move, for example).
+The list of "obvious" moves considered here is subject to change in
+future versions of Regina.
+
+By _exhaustive_, we mean:
+
+* Every minimal link diagram modelled by this graph will be generated
+  by this routine, up to reflection and/or reversal (as explained
+  below).
+
+* If a link diagram is non-minimal and modelled by this graph, it
+  _might_ still be generated by this routine.
+
+In other words, this routine will generate all minimal link diagrams
+modelled by this graph, but there is no promise that all of the
+diagrams generated are minimal.
+
+Labelled diagrams are only generated once up to reflection of the
+diagram and/or reversal of each component. Here "reflection"
+corresponds to the function Link::changeAll(), which reflects the link
+diagram in the surface that contains it. Specifically, this routine
+will fix the orientation of each link component (always following the
+smallest numbered available arc away from the smallest index graph
+node in each link component), and it will fix the upper and lower
+strands at node 0 so that the corresponding crossing is always
+positive.
+
+In each link diagram that is generated, crossing *k* will always
+correspond to node *k* of this graph. If this graph is non-planar,
+then the resulting link diagrams will all be virtual.
+
+For each link diagram that is generated, this routine will call
+*action* (which must be a function or some other callable object).
+
+* The first argument passed to *action* will be the link diagram that
+  was generated (of type Link). This will be passed as an rvalue; a
+  typical action could (for example) take it by const reference and
+  query it, or take it by value and modify it, or take it by rvalue
+  reference and move it into more permanent storage.
+
+* If there are any additional arguments supplied in the list *args*,
+  then these will be passed as subsequent arguments to *action*.
+
+* *action* must return ``void``.
+
+.. warning::
+    The API for this class or function has not yet been finalised.
+    This means that the interface may change in new versions of
+    Regina, without maintaining backward compatibility. If you use
+    this class directly in your own code, please check the detailed
+    changelog with each new release to see if you need to make changes
+    to your code.
+
+Precondition:
+    The cell decomposition induced by this graph has no 1-gons (which,
+    in any link diagram that the graph models, would yield a reducing
+    type I Reidemeister move).
+
+Python:
+    This function is available in Python, and the *action* argument
+    may be a pure Python function. However, its form is more
+    restricted: the argument *args* is removed, so you simply call it
+    as generateMinimalLinks(action). Moreover, *action* must take
+    exactly one argument (the link diagram).
+
+Exception ``FailedPrecondition``:
+    There is a 1-gon in the cell decomposition induced by this graph.
+
+Parameter ``action``:
+    a function (or other callable object) to call for each link
+    diagram that is generated.
+
+Parameter ``args``:
+    any additional arguments that should be passed to *action*,
+    following the initial link diagram argument.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::genus
+static const char *genus =
+R"doc(Returns the genus of the closed orientable surface in which this graph
+embeds.
+
+As described in the class notes, this surface is chosen to have the
+smallest possible genus: it is built from a collection of discs whose
+boundaries follow the nodes and arcs of this graph according to the
+local embedding.
+
+If this graph is disconnected (and therefore the surface is also
+disconnected), then this routine will return the sum of the genus over
+all components.
+
+Returns:
+    the genus of the surface in which this graph embeds.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::global_swap
 static const char *global_swap =
@@ -1144,6 +1581,20 @@ Parameter ``lhs``:
 Parameter ``rhs``:
     the graph whose contents should be swapped with *lhs*.)doc";
 
+// Docstring regina::python::doc::ModelLinkGraph_::insertGraph
+static const char *insertGraph =
+R"doc(Inserts a copy of the given graph into this graph.
+
+The nodes of *source* will be copied into this graph, and placed after
+any pre-existing nodes. Specifically, if the original number of nodes
+in this graph was *N*, then node *i* of *source* will be copied to a
+new node ``N+i`` of this graph.
+
+This routine behaves correctly when *source* is this graph.
+
+Parameter ``source``:
+    the graph whose copy will be inserted.)doc";
+
 // Docstring regina::python::doc::ModelLinkGraph_::isConnected
 static const char *isConnected =
 R"doc(Identifies whether this graph is connected.
@@ -1151,8 +1602,20 @@ R"doc(Identifies whether this graph is connected.
 For the purposes of this routine, an empty graph is considered to be
 connected.
 
+.. warning::
+    This routine is not thread-safe, since it caches the number of
+    components after computing it for the first time.
+
 Returns:
     ``True`` if and only if this graph is connected.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::isEmpty
+static const char *isEmpty =
+R"doc(Determines whether this graph is empty. An empty graph is one with no
+nodes at all.
+
+Returns:
+    ``True`` if and only if this graph is empty.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::isSimple
 static const char *isSimple =
@@ -1161,6 +1624,33 @@ multiple edges.
 
 Returns:
     ``True`` if and only if this graph is simple.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::moveContentsTo
+static const char *moveContentsTo =
+R"doc(Moves the contents of this graph into the given destination graph,
+leaving this graph empty but otherwise usable.
+
+The nodes of this graph will be moved directly into *dest*, and placed
+after any pre-existing nodes. Specifically, if the original number of
+nodes in *dest* was *N*, then node *i* of this graph will become node
+``N+i`` of *dest*.
+
+This graph will become empty as a result, but it will otherwise remain
+a valid and usable ModelLinkGraph object. Any arc references or node
+pointers that referred to either this graph or *dest* will remain
+valid (and will all now refer to *dest*), though if they originally
+referred to this graph then they will now return different numerical
+node indices.
+
+Calling ``graph.moveContentsTo(dest)`` is similar to calling
+``dest.insertGraph(std::move(graph))``; it is a little slower but it
+comes with the benefit of leaving this graph in a usable state.
+
+Precondition:
+    *dest* is not this graph.
+
+Parameter ``dest``:
+    the graph into which the contents of this graph should be moved.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::node
 static const char *node =
@@ -1212,12 +1702,12 @@ Returns:
 // Docstring regina::python::doc::ModelLinkGraph_::plantri
 static const char *plantri =
 R"doc(Outputs this graph in a variant of the ASCII text format used by
-*plantri*.
+_plantri_.
 
-The software *plantri*, by Gunnar Brinkmann and Brendan McKay, can be
+The software _plantri_, by Gunnar Brinkmann and Brendan McKay, can be
 used to enumerate 4-valent planar graphs (amongst many other things).
-This routine outputs this graph in a format that mimics *plantri*'s
-own dual ASCII format (i.e., the format that *plantri* outputs when
+This routine outputs this graph in a format that mimics _plantri_'s
+own dual ASCII format (i.e., the format that _plantri_ outputs when
 run with the flags ``-adq``).
 
 Specifically, the output will be a comma-separated sequence of
@@ -1232,49 +1722,84 @@ example of such a string is:
 bcdd,aeec,abfd,acfa,bffb,ceed
 ```
 
-For graphs with at most 26 nodes, this is identical to *plantri*'s own
-dual ASCII format. For larger graphs, this format differs: *plantri*
+For graphs with at most 26 nodes, this is identical to _plantri_'s own
+dual ASCII format. For larger graphs, this format differs: _plantri_
 uses punctuation to represent higher-index nodes, whereas Regina uses
 upper-case letters.
 
-This routine is an inverse to fromPlantri(): for any graph *g* that
-satisfies the preconditions below, ``fromPlantri(g.plantri())`` is
-identical to *g*. Likewise, for any string *s* that satisfies the
-preconditions for fromPlantri(), calling ``fromPlantri(s).plantri()``
-will recover the original string *s*.
+Although _plantri_ is designed to work with graphs that are connected
+and planar, this routine will happily produce output for disconnected
+and/or non-planar graphs. However, there remains an unavoidable
+requirement: the graph must be dual to a _simple_ quadrangulation. In
+detail:
 
-It is important to note the preconditions below: in particular, that
-this graph must be dual to a _simple_ quadrangulation of the sphere.
-This is because the planar embeddings for more general graphs (i.e.,
-the duals of non-simple quadrangulations) cannot always be uniquely
-reconstructed from their *plantri* output.
+* The dual to this 4-valent graph will be a quadrangulation of the
+  surface in which it embeds. The _plantri_ format inherently requires
+  that this quadrangulation is _simple_: that is, the dual must have
+  no loops or parallel edges.
+
+* This requirement exists because, if the dual is _not_ simple, the
+  embedding of the original graph cannot be uniquely reconstructed
+  from its _plantri_ output. In particular, the embedding becomes
+  ambiguous around parallel edges in the original 4-valent graph.
+
+* For _planar_ graphs, this requirement is relatively harmless: a
+  parity condition shows that loops in the dual are impossible, and
+  parallel edges in the dual mean that any link diagram that this
+  graph models is an "obvious" connected sum.
+
+* For _non-planar_ graphs, this requirement is more problematic. For
+  example, consider the graph that models the virtual trefoil: the
+  dual quadrangulation of the torus contains both loops and parallel
+  edges. This makes the _plantri_ format unusable in practice for
+  graps that model virtual links.
+
+If this constraint is too onerous (e.g., you are working with virtual
+links), you could use extendedPlantri() instead, which is not
+compatible with the Brinkmann-McKay _plantri_ software but which
+removes this requirement for the dual quadrangulation to be simple.
+
+For graphs that the _plantri_ format _does_ support, this routine is
+an inverse to fromPlantri(). That is, for any graph *g* that satisfies
+the preconditions below, ``fromPlantri(g.plantri())`` is identical to
+*g*. Likewise, for any string *s* that satisfies the preconditions for
+fromPlantri(), calling ``fromPlantri(s).plantri()`` will recover the
+original string *s*.
 
 .. note::
     The output of this function might not correspond to any possible
-    output from the program *plantri* itself, even if only lower-case
-    letters are used. This is because *plantri* only outputs graphs
-    with a certain canonical labelling. In contrast, plantri() can be
-    called on any graph that satisfies the preconditions below, and it
-    will preserve the labels of the nodes and the order of the arcs
-    around each node.
-
-Precondition:
-    This graph is connected.
+    output from the program _plantri_ itself, even if the graph is
+    connected and planar, the dual quadrangulation is simple, and only
+    lower-case letters are used. This is because _plantri_ only
+    outputs graphs with a certain canonical labelling. In contrast,
+    plantri() can be called on any graph that satisfies the
+    preconditions below, and it will preserve the labels of the nodes
+    and the order of the arcs around each node.
 
 Precondition:
     This graph has between 1 and 52 nodes inclusive.
 
 Precondition:
     The dual to this graph is a _simple_ quadrangulation of the
-    sphere. In particular, the dual must not have any parallel edges.
-    Note that any graph that fails this condition will the model graph
-    for a link diagram that is an "obvious" connected sum.
+    surface in which it embeds.
 
 Exception ``FailedPrecondition``:
-    This graph has more than 52 nodes.
+    This graph is empty or has more than 52 nodes.
 
 Returns:
-    a *plantri* format ASCII representation of this graph.)doc";
+    a _plantri_ format ASCII representation of this graph.)doc";
+
+// Docstring regina::python::doc::ModelLinkGraph_::randomise
+static const char *randomise =
+R"doc(Randomly relabels this graph in an orientation-preserving manner.
+
+The nodes will be relabelled arbitrarily. Around each node, the four
+outgoing arcs will be relabelled in a random way that preserves their
+cyclic order (thereby preserving the local embedding of the graph,
+without reflection).
+
+This routine is thread-safe, and uses RandomEngine for its random
+number generation.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraph_::reflect
 static const char *reflect =

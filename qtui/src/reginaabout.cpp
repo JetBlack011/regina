@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -60,7 +58,7 @@
 #define NMZ_VERSION_STRING REGINA_XSTR(NMZ_VERSION)
 
 const QString ReginaAbout::regCopyright(
-    tr("Copyright (c) 1999-2023, The Regina development team"));
+    tr("Copyright (c) 1999-2025, The Regina development team"));
 
 const QString ReginaAbout::regDescription(
     tr("Software for low-dimensional topology"));
@@ -68,13 +66,13 @@ const QString ReginaAbout::regDescription(
 const QString ReginaAbout::regWebsite("http://regina-normal.github.io/");
 
 const QString ReginaAbout::regLicense( tr( 
-    "Copyright (c) 1999-2023, The Regina development team\n\n"
+    "Copyright (c) 1999-2025, The Regina development team\n\n"
     "CITATION:\n\n"
     "If you find Regina useful in your research, please consider citing it as\n"
     "you would any other paper that you use.  A suggested form of reference is:\n\n"
     "  Benjamin A. Burton, Ryan Budney, William Pettersson, et al.,\n"
     "  \"Regina: Software for low-dimensional topology\",\n"
-    "  http://regina-normal.github.io/, 1999-2023.\n\n"
+    "  http://regina-normal.github.io/, 1999-2025.\n\n"
     "COPYING AND MODIFICATION:\n\n"
     "This program is free software; you can redistribute it and/or modify it\n"
     "under the terms of the GNU General Public License as published by the\n"
@@ -87,8 +85,7 @@ const QString ReginaAbout::regLicense( tr(
     "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General\n"
     "Public License for more details.\n\n"
     "You should have received a copy of the GNU General Public License along\n"
-    "with this program; if not, write to the Free Software Foundation, Inc.,\n"
-    "51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.\n\n"
+    "with this program. If not, see <https://www.gnu.org/licenses/>.\n\n"
     "ONLINE DISTRIBUTION:\n\n"
     "Regina's own source code comes with the following permissions in\n"
     "addition to the GNU General Public License:\n\n"

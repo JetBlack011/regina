@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -49,7 +47,7 @@
 
 namespace regina {
 
-template <class BitmaskType, class RayIterator>
+template <ReginaBitmask BitmaskType, typename RayIterator>
 std::vector<BitmaskType> MaxAdmissible::enumerate(
         RayIterator beginExtremalRays, RayIterator endExtremalRays,
         const ValidityConstraints& constraints) {
@@ -85,15 +83,12 @@ std::vector<BitmaskType> MaxAdmissible::enumerate(
     // faces of dimension i+1, and identifies all _maximal_ admissible
     // faces of dimension i.
     std::list<BitmaskType> nextDim;
-    typename std::vector<BitmaskType>::const_iterator r, c;
-    typename std::list<BitmaskType>::const_iterator f;
-    typename std::list<BitmaskType>::iterator n, next;
     bool isMax, broken;
     while (! faces.empty()) {
-        for (f = faces.begin(); f != faces.end(); ++f) {
+        for (auto f = faces.begin(); f != faces.end(); ++f) {
             // Expand this face by combining with other extremal rays.
             isMax = true;
-            for (r = rays.begin(); r != rays.end(); ++r) {
+            for (auto r = rays.begin(); r != rays.end(); ++r) {
                 BitmaskType comb(*f);
                 comb |= *r;
 
@@ -103,7 +98,7 @@ std::vector<BitmaskType> MaxAdmissible::enumerate(
 
                 // Ignore rays that will break admissibility.
                 broken = false;
-                for (c = constMasks.begin(); c != constMasks.end(); ++c) {
+                for (auto c = constMasks.begin(); c != constMasks.end(); ++c) {
                     b = comb;
                     b &= *c;
                     if (! b.atMostOneBit()) {
@@ -121,9 +116,9 @@ std::vector<BitmaskType> MaxAdmissible::enumerate(
                 // too high a dimension (since we only want to step up one
                 // dimension at a time).
                 broken = false;
-                n = nextDim.begin();
+                auto n = nextDim.begin();
                 while (n != nextDim.end()) {
-                    next = n;
+                    auto next = n;
                     ++next;
                     if (*n <= comb) {
                         // comb has too high a dimension, or is a duplicate.

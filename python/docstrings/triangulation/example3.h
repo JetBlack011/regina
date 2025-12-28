@@ -48,6 +48,10 @@ negative arguments are allowed.
 The new tetrahedra will be inserted at the end of the list of
 tetrahedra in the triangulation.
 
+Note that the current construction does _not_ give an oriented
+triangulation (due to the specific choice of labelling); this may
+change in a future version of Regina.
+
 Precondition:
     gcd(*a1*, *b1*) = gcd(*a2*, *b2*) = gcd(*a3*, *b3*) = 1.
 
@@ -151,6 +155,10 @@ how to do this; this routine makes an arbitrary choice.
 
 For genus 0, this routine uses the one-tetrahedron 3-ball.
 
+Note that the current construction does _not_ give an oriented
+triangulation (due to the specific choice of labelling); this may
+change in a future version of Regina.
+
 Parameter ``genus``:
     the genus of the handlebody.
 
@@ -167,6 +175,10 @@ boundary. This triangulation has one internal finite vertex and one
 genus two ideal vertex.
 
 Prior to Regina 7.4, this routine was called cuspedGenusTwoTorus().
+
+Note that the current construction does _not_ give an oriented
+triangulation (due to the specific choice of labelling); this may
+change in a future version of Regina.
 
 Returns:
     the solid genus two handlebody with ideal boundary.)doc";
@@ -228,6 +240,10 @@ Only the parameters *a* and *b* are passed as arguments to this
 routine. The third parameter *c* will be deduced automatically as *c*
 = (*a* + *b*).
 
+Note that the current construction does _not_ give an oriented
+triangulation (due to the specific choice of labelling); this may
+change in a future version of Regina.
+
 Precondition:
     gcd(*a*, *b*) = 1.
 
@@ -255,10 +271,10 @@ Returns:
 // Docstring regina::python::doc::Example_::rp2xs1
 static const char *rp2xs1 =
 R"doc(Returns a three-tetrahedron triangulation of the non-orientable
-product space ``RP² x S¹``.
+product space ``RP² × S¹``.
 
 Returns:
-    the product space ``RP² x S¹``.)doc";
+    the product space ``RP² × S¹``.)doc";
 
 // Docstring regina::python::doc::Example_::rp3rp3
 static const char *rp3rp3 =
@@ -269,11 +285,11 @@ Returns:
 
 // Docstring regina::python::doc::Example_::s2xs1
 static const char *s2xs1 =
-R"doc(Returns a two-tetrahedron triangulation of the product space ``S² x
+R"doc(Returns a two-tetrahedron triangulation of the product space ``S² ×
 S¹``. This is identical to calling the generic routine sphereBundle().
 
 Returns:
-    the product space ``S² x S¹``.)doc";
+    the product space ``S² × S¹``.)doc";
 
 // Docstring regina::python::doc::Example_::sfsOverSphere
 static const char *sfsOverSphere =
@@ -295,6 +311,10 @@ all of the parameter pairs may be (1, *k*) or even (1, 0).
 If you wish to construct more complex Seifert fibred spaces (e.g.,
 with more exceptional fibres, or with a different base orbifold), you
 can use the more sophisticated SFSpace::construct().
+
+Note that the current construction does _not_ give an oriented
+triangulation (due to the specific choice of labelling); this may
+change in a future version of Regina.
 
 Precondition:
     None of *a1*, *a2* or *a3* are 0.
@@ -346,7 +366,7 @@ Returns:
 
 // Docstring regina::python::doc::Example_::solidKleinBottle
 static const char *solidKleinBottle =
-R"doc(Returns a triangulation of the solid Klein bottle. This is isomorphic
+R"doc(Returns a triangulation of the solid Klein bottle. This is identical
 to the triangulation returned by the generic routine
 twistedBallBundle().
 
@@ -374,6 +394,14 @@ tetrahedra instead.
 
 Returns:
     a one-tetrahedron 3-sphere.)doc";
+
+// Docstring regina::python::doc::Example_::threeTorus
+static const char *threeTorus =
+R"doc(Returns a six-tetrahedron triangulation of the 3-torus; that is, the
+product space ``S¹ × S¹ × S¹``.
+
+Returns:
+    the product space ``S¹ × S¹ × S¹``.)doc";
 
 // Docstring regina::python::doc::Example_::trefoil
 static const char *trefoil =

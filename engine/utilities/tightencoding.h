@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,6 +40,8 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include "concepts/core.h"
+#include "concepts/iterator.h"
 #include "utilities/exception.h"
 
 namespace regina {
@@ -181,7 +181,7 @@ class IntegerBase;
  *
  * \ingroup utilities
  */
-template <class T>
+template <typename T>
 struct TightEncodable {
     /**
      * Returns the tight encoding of this object.
@@ -543,6 +543,7 @@ namespace detail {
      * \ingroup utilities
      */
     template <typename Int>
+    requires StandardCppInteger<Int> || ArbitraryPrecisionInteger<Int>
     void tightEncodeInteger(std::ostream& out, Int value);
 
     /**
@@ -577,8 +578,6 @@ namespace detail {
      * precision integer types (i.e., regina::Integer or regina::LargeInteger).
      * In particular, \c bool is not allowed here.
      *
-     * \tparam iterator an input iterator type.
-     *
      * \param start an iterator that points to the beginning of a
      * tight encoding.
      * \param limit an iterator that, if reached, indicates that no more
@@ -590,7 +589,8 @@ namespace detail {
      *
      * \ingroup utilities
      */
-    template <typename Int, typename iterator>
+    template <typename Int, CharIterator iterator>
+    requires StandardCppInteger<Int> || ArbitraryPrecisionInteger<Int>
     Int tightDecodeInteger(iterator start, iterator limit, bool noTrailingData);
 
     /**

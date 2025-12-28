@@ -4,11 +4,8 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
- *                                                                        *
- *  The implementation of fromDT() is based on the Dowker-Thistlethwaite  *
- *  implementation from the SnapPy/SnapPea kernel.                        *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
  *  modify it under the terms of the GNU General Public License as        *
@@ -26,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -63,6 +58,9 @@ void Link::dt(std::ostream& out, bool alpha) const {
     if (alpha && size() > 26)
         throw NotImplemented("Alphabetical Dowker-Thistlethwaite notation is "
             "only implemented for links with at most 26 crossings");
+    if (! isClassical())
+        throw NotImplemented("Dowker-Thistlethwaite notation is only "
+            "implemented for classical link diagrams, not virtual diagrams");
 
     // Dowker-Thistlethwaite notation requires us to start on the lower strand.
     StrandRef start = components_.front();
@@ -75,10 +73,10 @@ void Link::dt(std::ostream& out, bool alpha) const {
     using Int = std::make_signed_t<size_t>;
 
     // Odd steps in traversal -> crossing index
-    auto* oddCrossing = new size_t[n];
+    FixedArray<size_t> oddCrossing(n);
 
     // Crossing index -> even steps in traversal, negated if passing under
-    auto* evenStep = new Int[n];
+    FixedArray<Int> evenStep(n);
 
     StrandRef s = start;
     Int step = 0;
@@ -107,9 +105,6 @@ void Link::dt(std::ostream& out, bool alpha) const {
             out << evenStep[oddCrossing[i]];
         }
     }
-
-    delete[] evenStep;
-    delete[] oddCrossing;
 }
 
 std::vector<int> Link::dtData() const {
@@ -121,6 +116,9 @@ std::vector<int> Link::dtData() const {
     if (2 * size() > INT_MAX)
         throw NotImplemented("This Dowker-Thistlethwaite notation has "
             "entries that cannot fit into a C++ int");
+    if (! isClassical())
+        throw NotImplemented("Dowker-Thistlethwaite notation is only "
+            "implemented for classical link diagrams, not virtual diagrams");
 
     // Dowker-Thistlethwaite notation requires us to start on the lower strand.
     StrandRef start = components_.front();
@@ -130,10 +128,10 @@ std::vector<int> Link::dtData() const {
     int n = static_cast<int>(size());
 
     // Odd steps in traversal -> crossing index
-    int* oddCrossing = new int[n];
+    FixedArray<int> oddCrossing(n);
 
     // Crossing index -> even steps in traversal, negated if passing under
-    int* evenStep = new int[n];
+    FixedArray<int> evenStep(n);
 
     StrandRef s = start;
     int step = 0;
@@ -154,8 +152,6 @@ std::vector<int> Link::dtData() const {
     for (int i = 0; i < n; ++i)
         ans.push_back(evenStep[oddCrossing[i]]);
 
-    delete[] evenStep;
-    delete[] oddCrossing;
     return ans;
 }
 
@@ -166,7 +162,7 @@ Link Link::fromDT(const std::string& s) {
         ++it;
     if (it == s.end()) {
         // Empty string, so return the unknot.
-        return Link(1);
+        return { 1 };
     }
 
     // Work with the largest integer type that we could possibly need.
@@ -204,204 +200,6 @@ Link Link::fromDT(const std::string& s) {
         throw InvalidArgument("fromDT(): invalid character");
 
     return fromDT(terms.begin(), terms.end());
-}
-
-// -----------------------------------------------------------------------
-//
-// The following code is modified from kernel/unix_kit/decode_new_DT.c
-// from the SnapPy/SnapPea kernel.
-//
-// A full explanation of decoding Dowker-Thistlethwaite codes may be found in
-//
-//     Dowker and Thistlethwaite, Classification of knot projections,
-//     Topology and its Applications 16 (1983) 19-31.
-//
-// -----------------------------------------------------------------------
-
-bool Link::realizeDT(
-    size_t  *anInvolution,
-    bool    *aRealization,
-    size_t  aNumCrossings)
-{
-    /*
-     *  Returns true iff the sequence was realizable.  If so, then
-     *  aRealization will be filled with a realization.  If not, then
-     *  the contents of aRealization will be undefined.
-     *
-     *  I'm hoping to read through -- and understand -- Dowker
-     *  and Thistlethwaite's paper.  But for the moment I'll
-     *  try to splice in some of Jim's code and hope I'm interpreting
-     *  it correctly.
-     */
-
-    size_t N;
-    size_t i,j;
-    size_t *modTWO_N;
-    size_t *seq;
-    int *emb; // +1 or -1, or 0 for uninitialised
-    bool *A,*D;
-    bool Aempty,Dempty;
-    bool OkSoFar;
-    int *phi; // +1 or -1
-    size_t x;
-
-    N = aNumCrossings;
-
-    /*
-     *  Allocate local arrays.
-     */
-    modTWO_N    = new size_t[4 * N];
-    seq         = new size_t[4 * N];
-    emb         = new int[2 * N];
-    A           = new bool[2 * N];
-    D           = new bool[2 * N];
-    phi         = new int[2 * N];
-
-    /*create the modTWO_N array*/
-    for(i=0;i<2*N;i++){
-        modTWO_N[i]=i;
-        modTWO_N[i+2*N]=i;
-    }
-
-    /* get seq and height from DT code*/
-    /* seq is two copies of full DT involution on crossings numbered 0 to
-2N-1 */
-
-    /*
-     *  Concatenate two copies of theInvolution[] to obtain seq[].
-     */
-    for(i = 0; i < 2*N; i++)
-    {
-        seq[i      ] = anInvolution[i];
-        seq[i + 2*N] = anInvolution[i];
-    }
-
-    /* begin realizability routine to recover embedding of projection */
-    /*zero emb, A, and D. A and D will only contain zeroes and ones*/
-    for(i=0;i<2*N;i++){
-        emb[i]=0;
-        A[i]=D[i]=false;
-    }
-    /*set initial conditions*/
-    OkSoFar=A[0]=A[seq[0]]=true;
-    emb[0]=1;
-    emb[seq[0]]=-1;
-
-    /* see if A is empty, ie is all zeroes*/
-    for(j=0;j<2*N-1 && !A[j];j++)
-        /*nothing*/;
-    Aempty=!A[j];
-
-    while(!Aempty && OkSoFar){
-        /* let i be least member of A*/
-        for(i=0; !A[i]; i++)
-            /*nothing*/;
-        /*determine phi for this value of i*/
-        phi[i]=1;
-        for(j=i+1;j<i+2*N;j++){
-            phi[modTWO_N[j]]=(seq[j]>=i && seq[j]<=seq[i]) ?
--phi[modTWO_N[j-1]]:phi[modTWO_N[j-1]];
-        }
-        /*establish D*/
-        for(j=0; j<i; j++)
-            D[j]=true;
-        for(j=seq[i]+1; j<2*N; j++)
-            D[j]=true;
-        /* see if D is empty, ie is all zeroes*/
-        for(j=0;j<2*N-1 && !D[j];j++)
-            ;
-        Dempty=!D[j];
-        while(!Dempty && OkSoFar){
-            /*let x be least member of D*/
-            for(x=0; !D[x]; x++)
-                /*nothing*/;
-            if(x<i){
-                if(seq[x]<i || seq[x]>seq[i]){
-                    if(phi[x]*phi[seq[x]]==1){
-                        D[x]=D[seq[x]]=false;
-                    }
-                    else{
-                        OkSoFar=false;
-                    }
-                }
-                else{
-                    if(emb[x] != 0){/* emb[x] is already defined*/
-                        if(phi[x]*phi[seq[x]]*emb[i]==emb[x])
-                            D[x]=false;
-                        else
-                            OkSoFar=false;
-                    }
-                    else{/* emb[x] is not yet defined. Hence x<>0 and
-x<>seq[0]*/
-                        emb[x]=phi[x]*phi[seq[x]]*emb[i];
-                        emb[seq[x]]=-emb[x];
-                        D[x]=false;
-                        if( modTWO_N[absdiff(seq[x], seq[x-1])]==1){
-                            /*nothing*/
-                        }
-                        else{
-                            A[x]=A[seq[x]]=true;
-                        }
-                    }
-                }
-            }
-            else{/*x>seq[i]*/
-                if(seq[x]<i || seq[x]>seq[i]){
-                    D[x]=D[seq[x]]=false;
-                }
-                else{
-                    if(emb[x]!=0){
-                        D[x]=false;
-                    }
-                    else{
-                        emb[x]=phi[x]*phi[seq[x]]*emb[i];
-                        emb[seq[x]]=-emb[x];
-                        D[x]=false;
-                        if( modTWO_N[absdiff(seq[x], seq[x-1])]==1){
-                            /*nothing*/
-                        }
-                        else{
-                            A[x]=A[seq[x]]=true;
-                        }
-                    }
-                }
-            }
-            /* see if D is empty, ie is all zeroes*/
-            for(j=0;j<2*N-1 && !D[j];j++)
-                ;
-            Dempty=!D[j];
-        }/*end of while*/
-        A[i]=false;
-        A[seq[i]]=false;
-        /* see if A is empty, ie is all zeroes*/
-        for(j=0;j<2*N-1 && !A[j];j++)
-            /*nothing*/;
-        Aempty=!A[j];
-    }/*end of while*/
-
-    /*end of realizability routine*/
-
-    /*
-     *  Convert emb[] to aRealization[].
-     */
-    if (OkSoFar)
-        for(i = 0; i < 2*N; i++)
-            aRealization[i] = (emb[i] == +1);
-
-    /*
-     *  Free local arrays.
-     */
-    delete[] modTWO_N;
-    delete[] seq;
-    delete[] emb;
-    delete[] A;
-    delete[] D;
-    delete[] phi;
-
-    /*
-     *  Return whether the sequence is realizable.
-     */
-    return OkSoFar;
 }
 
 } // namespace regina

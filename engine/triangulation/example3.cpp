@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -67,6 +65,16 @@ Triangulation<3> Example<3>::rp2xs1() {
     r->join(3, t, Perm<4>(2, 3, 0, 1));
 
     return ans;
+}
+
+Triangulation<3> Example<3>::threeTorus() {
+    return Triangulation<3>::fromGluings(6, {
+        { 0, 0, 1, {0,1,3,2} }, { 0, 1, 2, {0,1,3,2} },
+        { 0, 2, 3, {0,1,3,2} }, { 0, 3, 4, {0,1,3,2} },
+        { 1, 1, 5, {0,1,3,2} }, { 1, 2, 3, {2,3,1,0} },
+        { 1, 3, 4, {3,2,0,1} }, { 2, 0, 5, {0,1,3,2} },
+        { 2, 2, 3, {3,2,0,1} }, { 2, 3, 4, {2,3,1,0} },
+        { 3, 2, 5, {1,0,2,3} }, { 4, 3, 5, {1,0,2,3} }});
 }
 
 Triangulation<3> Example<3>::rp3rp3() {
@@ -541,11 +549,11 @@ Triangulation<3> Example<3>::b5() {
     // - SFS [S2: (2,1) (3,1) (16,-13)]
     // - SFS [S2: (2,1) (3,1) (17,-14)]
     return Triangulation<3>::fromGluings(8, {
-        { 0, 0, 1, {0,1,2,3} }, { 0, 1, 2, {0,1,2,3} },
-        { 0, 3, 3, {0,1,2,3} }, { 1, 1, 4, {0,1,2,3} },
-        { 1, 3, 2, {3,0,1,2} }, { 2, 0, 5, {0,1,2,3} },
-        { 2, 3, 6, {0,1,2,3} }, { 3, 0, 6, {2,0,1,3} },
-        { 3, 1, 7, {0,1,2,3} }, { 3, 2, 5, {1,0,3,2} },
+        { 0, 0, 1, {0,1,3,2} }, { 0, 1, 2, {0,1,3,2} },
+        { 0, 3, 3, {0,1,3,2} }, { 1, 1, 4, {0,1,3,2} },
+        { 1, 2, 2, {2,0,3,1} }, { 2, 0, 5, {0,1,3,2} },
+        { 2, 2, 6, {0,1,3,2} }, { 3, 0, 6, {2,0,3,1} },
+        { 3, 1, 7, {0,1,3,2} }, { 3, 3, 5, {1,0,2,3} },
         { 4, 0, 5, {1,0,2,3} }, { 4, 2, 6, {2,1,0,3} },
         { 4, 3, 7, {3,0,1,2} }, { 5, 2, 7, {2,1,0,3} },
         { 6, 1, 7, {0,3,2,1} }
@@ -600,10 +608,10 @@ Triangulation<3> Example<3>::idealGenusTwoHandlebody() {
     // We create this by first constructing an ordinary solid genus two
     // torus and then converting the real boundary to an ideal vertex.
     Triangulation<3> ans = Triangulation<3>::fromGluings(4, {
-        { 0, 0, 1, {} }, { 0, 1, 2, {1,2,3,0} }, { 0, 2, 3, {1,0,3,2} },
-        { 1, 3, 2, {} }, { 2, 1, 3, {} }
+        { 0, 0, 1, {0,1} }, { 0, 1, 2, {1,2,3,0} }, { 0, 2, 3, {2,3} },
+        { 1, 3, 2, {0,1} }, { 2, 1, 3, {0,1} }
     });
-    ans.finiteToIdeal();
+    ans.makeIdeal();
     return ans;
 }
 

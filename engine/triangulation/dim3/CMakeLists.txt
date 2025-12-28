@@ -1,7 +1,6 @@
 # Files to compile
 SET ( FILES
   angle.cpp
-  complement.cpp
   crushtri.cpp
   decompose.cpp
   homology.cpp
@@ -18,6 +17,7 @@ SET ( FILES
   subdivide.cpp
   surfaces.cpp
   triangulation3.cpp
+  truncate.cpp
   turaevviro.cpp
   vertex3.cpp
   )

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -126,16 +124,9 @@ void AttachmentUI::refresh() {
         filename->setText(tr("Filename: %1").arg(
             QFile::decodeName(attachment->filename().c_str())));
 
-#if QT_VERSION >= QT_VERSION_CHECK(5,10,0)
         QLocale locale = ui->locale();
         size->setText(locale.formattedDataSize(attachment->size(),
             2 /* precision */, QLocale::DataSizeSIFormat));
-#else
-        // Just write something brutal, since almost everyone should
-        // have Qt 5.10 or above by now.  Even debian buster had Qt 5.11.
-        // On ubuntu you have to go back to bionic (18.04 LTS) to see Qt 5.9.
-        size->setText(tr("%1 bytes").arg(attachment->size()));
-#endif
 
         viewButton->setEnabled(true);
         saveButton->setEnabled(true);

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -62,6 +60,7 @@ void addExample3(pybind11::module_& m) {
         .def_static("bingsHouse", &Example<3>::bingsHouse, rdoc::bingsHouse)
         .def_static("s2xs1", &Example<3>::s2xs1, rdoc::s2xs1)
         .def_static("rp2xs1", &Example<3>::rp2xs1, rdoc::rp2xs1)
+        .def_static("threeTorus", &Example<3>::threeTorus, rdoc::threeTorus)
         .def_static("rp3rp3", &Example<3>::rp3rp3, rdoc::rp3rp3)
         .def_static("lens", &Example<3>::lens, rdoc::lens)
         .def_static("layeredLoop", &Example<3>::layeredLoop,

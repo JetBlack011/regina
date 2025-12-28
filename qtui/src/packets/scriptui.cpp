@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -253,8 +251,8 @@ ScriptUI::ScriptUI(Script* packet, PacketPane* enclosingPane) :
 
     // --- Action Toolbar ---
 
-    auto* actionBar = new QToolBar(ui);
-    actionBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    actionBar = new QToolBar(ui);
+    actionBar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
     layout->addWidget(actionBar);
 
     // --- Variable Table ---
@@ -311,12 +309,10 @@ ScriptUI::ScriptUI(Script* packet, PacketPane* enclosingPane) :
 
     // --- Script Actions ---
 
-    //scriptActions = new KActionCollection((QObject*)0);
-    
     actAdd = new QAction(this);
-    //scriptActions->addAction("script_add_var");
-    actAdd->setText(tr("&Add Var"));
-    actAdd->setIcon(ReginaSupport::regIcon("insert"));
+    actAdd->setText(tr("&Add Variable"));
+    actAdd->setIconText(tr("Add Var"));
+    actAdd->setIcon(ReginaSupport::regIcon("insert-mono"));
     actAdd->setToolTip(tr("Add a new script variable"));
     actAdd->setWhatsThis(tr("Add a new variable to this script.<p>"
         "A script may come with any number of variables, each of which "
@@ -328,9 +324,9 @@ ScriptUI::ScriptUI(Script* packet, PacketPane* enclosingPane) :
     scriptActionList.push_back(actAdd);
 
     actRemove = new QAction(this);
-    //scriptActions->addAction("script_remove_var");
-    actRemove->setText(tr("Re&move Var"));
-    actRemove->setIcon(ReginaSupport::regIcon("delete"));
+    actRemove->setText(tr("Re&move Variable"));
+    actRemove->setIconText(tr("Remove Var"));
+    actRemove->setIcon(ReginaSupport::regIcon("delete-mono"));
     actRemove->setToolTip(tr(
         "Remove the currently selected script variable(s)"));
     actRemove->setEnabled(false);
@@ -349,13 +345,11 @@ ScriptUI::ScriptUI(Script* packet, PacketPane* enclosingPane) :
     scriptActionList.push_back(actRemove);
 
     auto* actSep = new QAction(this);
-    //scriptActions->addAction("script_separator");
     actSep->setSeparator(true);
     actionBar->addAction(actSep);
     scriptActionList.push_back(actSep);
 
     auto* actRun = new QAction(this);
-    //scriptActions->addAction("script_run");;
     actRun->setText(tr("&Run"));
     actRun->setIcon(ReginaSupport::regIcon("run"));
     actRun->setToolTip(tr("Execute the Python script"));
@@ -550,6 +544,7 @@ void ScriptUI::execute() {
 void ScriptUI::updatePreferences() {
     editWidget->setFont(ReginaPrefSet::fixedWidthFont());
     updateTabWidth();
+    actionBar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
 }
 
 void ScriptUI::updateTabWidth() {

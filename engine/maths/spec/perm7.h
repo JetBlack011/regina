@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -440,7 +438,7 @@ class Perm<7> {
          * \param code the first-generation code that will determine the
          * new value of this permutation.
          */
-        void setPermCode1(Code1 code);
+        constexpr void setPermCode1(Code1 code);
 
         /**
          * Sets this permutation to that represented by the given
@@ -455,7 +453,7 @@ class Perm<7> {
          * \param code the second-generation code that will determine the
          * new value of this permutation.
          */
-        void setPermCode2(Code2 code);
+        constexpr void setPermCode2(Code2 code);
 
         /**
          * Creates a permutation from the given first-generation
@@ -566,7 +564,7 @@ class Perm<7> {
          * to this permutation.
          * \return a reference to this permutation.
          */
-        Perm<7>& operator = (const Perm<7>& cloneMe) = default;
+        constexpr Perm<7>& operator = (const Perm<7>& cloneMe) = default;
 
         /**
          * Returns the composition of this permutation with the given
@@ -907,7 +905,7 @@ class Perm<7> {
          *
          * \return a reference to this permutation after the increment.
          */
-        Perm<7>& operator ++();
+        constexpr Perm<7>& operator ++();
 
         /**
          * A postincrement operator that changes this to be the next permutation
@@ -993,7 +991,7 @@ class Perm<7> {
          * returned with equal probability).
          * \return a random permutation.
          */
-        template <class URBG>
+        template <typename URBG>
         static Perm rand(URBG&& gen, bool even = false);
 
         /**
@@ -1130,7 +1128,7 @@ class Perm<7> {
          * \param from the first integer whose image should be reset.
          * This must be between 0 and 7 inclusive.
          */
-        void clear(unsigned from);
+        constexpr void clear(unsigned from);
 
         /**
          * Returns the index of this permutation in the Perm<7>::Sn array.
@@ -1832,8 +1830,6 @@ class Perm<7> {
          * \exception InvalidInput The given iterator does not point to
          * a tight encoding of a 7-element permutation.
          *
-         * \tparam iterator an input iterator type.
-         *
          * \param start an iterator that points to the beginning of a
          * tight encoding.
          * \param limit an iterator that, if reached, indicates that no more
@@ -1843,7 +1839,7 @@ class Perm<7> {
          * allowed to be additional unread data.
          * \return the permutation represented by the given tight encoding.
          */
-        template <typename iterator>
+        template <CharIterator iterator>
         static Perm tightDecode(iterator start, iterator limit,
             bool noTrailingData);
 
@@ -1927,7 +1923,7 @@ inline constexpr Perm<7>::Code2 Perm<7>::permCode2() const {
     return code2_;
 }
 
-inline void Perm<7>::setPermCode1(Code1 code) {
+inline constexpr void Perm<7>::setPermCode1(Code1 code) {
     code2_ = static_cast<Code2>(S7Index(
         code & 0x07,
         (code >> 3) & 0x07,
@@ -1938,7 +1934,7 @@ inline void Perm<7>::setPermCode1(Code1 code) {
         (code >> 18) & 0x07));
 }
 
-inline void Perm<7>::setPermCode2(Code2 code) {
+inline constexpr void Perm<7>::setPermCode2(Code2 code) {
     code2_ = code;
 }
 
@@ -2148,7 +2144,7 @@ inline constexpr bool Perm<7>::isIdentity() const {
     return (code2_ == 0);
 }
 
-inline Perm<7>& Perm<7>::operator ++() {
+inline constexpr Perm<7>& Perm<7>::operator ++() {
     if (++code2_ == 5040)
         code2_ = 0;
     return *this;
@@ -2181,7 +2177,7 @@ inline Perm<7> Perm<7>::rand(bool even) {
 #ifndef __DOXYGEN
 // Doxygen does not match this to the documented declaration.  I think the
 // issue is that the return type "looks" different due to the explicit <T>.
-template <class URBG>
+template <typename URBG>
 inline Perm<7> Perm<7>::rand(URBG&& gen, bool even) {
     if (even) {
         std::uniform_int_distribution<short> d(0, 2519);
@@ -2227,7 +2223,7 @@ inline Perm<7> Perm<7>::tightDecode(std::istream& input) {
 #ifndef __DOXYGEN
 // Doxygen does not match this to the documented declaration.  I think the
 // issue is that the return type "looks" different due to the explicit <T>.
-template <typename iterator>
+template <CharIterator iterator>
 Perm<7> Perm<7>::tightDecode(iterator start, iterator limit,
         bool noTrailingData) {
     // All codes are >= 0 because we are using an unsigned data type.

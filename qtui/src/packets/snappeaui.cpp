@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,6 +43,7 @@
 #include "tri3surfaces.h"
 #include "packeteditiface.h"
 #include "reginamain.h"
+#include "reginaprefset.h"
 #include "reginasupport.h"
 
 #include <QApplication>
@@ -57,9 +56,9 @@ using regina::SnapPeaTriangulation;
 
 SnapPeaUI::SnapPeaUI(regina::PacketOf<regina::SnapPeaTriangulation>* packet,
         PacketPane* newEnclosingPane) :
-        PacketTabbedUI(newEnclosingPane,
-            ReginaPrefSet::global().tabSnapPeaTri) {
-    auto* header = new SnapPeaHeaderUI(packet, this);
+        PacketTabbedUI(newEnclosingPane, ReginaPrefSet::global().tabSnapPeaTri),
+        simpleToolbars(ReginaPrefSet::global().displaySimpleToolbars) {
+    header = new SnapPeaHeaderUI(packet, this);
     shapes = new SnapPeaShapesUI(packet, this);
     gluings = new SnapPeaGluingsUI(packet, this);
     skeleton = new Tri3SkeletonUI(packet, packet, this);
@@ -79,6 +78,9 @@ SnapPeaUI::SnapPeaUI(regina::PacketOf<regina::SnapPeaTriangulation>* packet,
     addTab(new SnapPeaFileUI(packet, this), QObject::tr("&File"));
 
     editIface = new PacketEditTabbedUI(this);
+
+    connect(&ReginaPrefSet::global(), SIGNAL(preferencesChanged()),
+        this, SLOT(updatePreferences()));
 }
 
 SnapPeaUI::~SnapPeaUI() {
@@ -93,6 +95,18 @@ QString SnapPeaUI::getPacketMenuText() const {
     return QObject::tr("&SnapPea Triangulation");
 }
 
+void SnapPeaUI::updatePreferences() {
+    bool newVal = ReginaPrefSet::global().displaySimpleToolbars;
+    if (newVal != simpleToolbars) {
+        simpleToolbars = newVal;
+
+        auto* toolbar = header->getToolBar();
+        toolbar->clear();
+        toolbar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
+        shapes->fillToolBar(toolbar);
+    }
+}
+
 SnapPeaHeaderUI::SnapPeaHeaderUI(
         regina::PacketOf<regina::SnapPeaTriangulation>* packet,
         PacketTabbedUI* useParentUI) : PacketViewerTab(useParentUI),
@@ -102,7 +116,7 @@ SnapPeaHeaderUI::SnapPeaHeaderUI(
     uiLayout->setContentsMargins(0, 0, 0, 0);
 
     bar = new QToolBar(ui);
-    bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    bar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
     uiLayout->addWidget(bar);
 
     header = new QLabel();

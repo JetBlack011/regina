@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,12 +51,18 @@ template <int> class NativeInteger;
 
 /**
  * A compile-time boolean constant that indicates whether the type \a T is a
- * native C++ integer type, allowing for 128-bit integers also.
+ * native C++ integer type, allowing for 128-bit integers also but excluding
+ * booleans.
  *
- * This is true precisely when either `std::is_integral_v<T>` is true and/or
- * \a T is a native 128-bit integer.
+ * Except for booleans, this is true precisely when either
+ * `std::is_integral_v<T>` is true and/or \a T is a native 128-bit integer.
  *
- * The only reason for using this constant (as opposed to
+ * Regina treats booleans differently: `is_cpp_integer_v<bool>` is false,
+ * even though C++ `std::is_integral_v<bool>` is true, since Regina's
+ * functions aim to identify native types that _behave_ like integers
+ * arithmetically.
+ *
+ * The main reason for using this constant (as opposed to
  * `std::is_integral_v<T>`) is because the C++ standard constants treat
  * 128-bit integers differently under different compilers.
  *
@@ -68,26 +72,79 @@ template <int> class NativeInteger;
  */
 template <typename T>
 #if defined(INTERNAL___INT128_FOUND)
-    constexpr bool is_cpp_integer_v = std::is_integral_v<T> ||
-        std::is_same_v<T, __int128> || std::is_same_v<T, __uint128>;
+    constexpr bool is_cpp_integer_v = (std::is_integral_v<T> ||
+        std::is_same_v<T, __int128> || std::is_same_v<T, __uint128>) &&
+        ! std::is_same_v<T, bool>;
 #elif defined(INTERNAL___INT128_T_FOUND)
-    constexpr bool is_cpp_integer_v = std::is_integral_v<T> ||
-        std::is_same_v<T, __int128_t> || std::is_same_v<T, __uint128_t>;
+    constexpr bool is_cpp_integer_v = (std::is_integral_v<T> ||
+        std::is_same_v<T, __int128_t> || std::is_same_v<T, __uint128_t>) &&
+        ! std::is_same_v<T, bool>;
 #elif defined(INTERNAL_INT128_T_FOUND)
-    constexpr bool is_cpp_integer_v = std::is_integral_v<T> ||
-        std::is_same_v<T, int128_t> || std::is_same_v<T, uint128_t>;
+    constexpr bool is_cpp_integer_v = (std::is_integral_v<T> ||
+        std::is_same_v<T, int128_t> || std::is_same_v<T, uint128_t>) &&
+        ! std::is_same_v<T, bool>;
 #else
-    constexpr bool is_cpp_integer_v = std::is_integral_v<T>;
+    constexpr bool is_cpp_integer_v = std::is_integral_v<T> &&
+        ! std::is_same_v<T, bool>;
+#endif
+
+/**
+ * A compile-time boolean constant that indicates whether the type \a T is a
+ * signed native C++ integer type, allowing for 128-bit integers also but
+ * excluding booleans.
+ *
+ * Except for booleans, this is true precisely when (i) either
+ * `std::is_integral_v<T>` is true and/or \a T is a native 128-bit integer,
+ * and (ii) \a T is a signed type.
+ *
+ * Regina treats booleans differently: `is_signed_cpp_integer_v<bool>` is
+ * false, even though C++ `std::is_integral_v<bool>` is true, since Regina's
+ * functions aim to identify native types that _behave_ like integers
+ * arithmetically.
+ *
+ * The main reason for using this constant (as opposed to
+ * `std::is_integral_v<T>` and `std::is_signed_v<T>`) is because the
+ * C++ standard constants treat 128-bit integers differently under
+ * different compilers.
+ *
+ * \nopython
+ *
+ * \ingroup utilities
+ */
+template <typename T>
+#if defined(INTERNAL___INT128_FOUND)
+    constexpr bool is_signed_cpp_integer_v =
+        ((std::is_integral_v<T> && std::is_signed_v<T>) ||
+        std::is_same_v<T, __int128>) && ! std::is_same_v<T, bool>;
+#elif defined(INTERNAL___INT128_T_FOUND)
+    constexpr bool is_signed_cpp_integer_v =
+        ((std::is_integral_v<T> && std::is_signed_v<T>) ||
+        std::is_same_v<T, __int128_t>) && ! std::is_same_v<T, bool>;
+#elif defined(INTERNAL_INT128_T_FOUND)
+    constexpr bool is_signed_cpp_integer_v =
+        ((std::is_integral_v<T> && std::is_signed_v<T>) ||
+        std::is_same_v<T, int128_t>) && ! std::is_same_v<T, bool>;
+#else
+    constexpr bool is_signed_cpp_integer_v =
+        (std::is_integral_v<T> && std::is_signed_v<T>) &&
+        ! std::is_same_v<T, bool>;
 #endif
 
 /**
  * A compile-time boolean constant that indicates whether the type \a T is an
- * unsigned native C++ integer type, allowing for 128-bit integers also.
+ * unsigned native C++ integer type, allowing for 128-bit integers also but
+ * excluding booleans.
  *
- * This is true precisely when (i) either `std::is_integral_v<T>` is true
- * and/or \a T is a native 128-bit integer, and (ii) \a T is an unsigned type.
+ * Except for booleans, this is true precisely when (i) either
+ * `std::is_integral_v<T>` is true and/or \a T is a native 128-bit integer,
+ * and (ii) \a T is an unsigned type.
  *
- * The only reason for using this constant (as opposed to
+ * Regina treats booleans differently: `is_unsigned_cpp_integer_v<bool>` is
+ * false, even though C++ `std::is_integral_v<bool>` and
+ * `std::is_unsigned_v<bool>` are both true, since Regina's functions aim to
+ * identify native types that _behave_ like integers arithmetically.
+ *
+ * The main reason for using this constant (as opposed to
  * `std::is_integral_v<T>` and `std::is_unsigned_v<T>`)
  * is because the C++ standard constants treat 128-bit integers differently
  * under different compilers.
@@ -99,19 +156,20 @@ template <typename T>
 template <typename T>
 #if defined(INTERNAL___INT128_FOUND)
     constexpr bool is_unsigned_cpp_integer_v =
-        (std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        std::is_same_v<T, __uint128>;
+        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
+        std::is_same_v<T, __uint128>) && ! std::is_same_v<T, bool>;
 #elif defined(INTERNAL___INT128_T_FOUND)
     constexpr bool is_unsigned_cpp_integer_v =
-        (std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        std::is_same_v<T, __uint128_t>;
+        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
+        std::is_same_v<T, __uint128_t>) && ! std::is_same_v<T, bool>;
 #elif defined(INTERNAL_INT128_T_FOUND)
     constexpr bool is_unsigned_cpp_integer_v =
-        (std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        std::is_same_v<T, uint128_t>;
+        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
+        std::is_same_v<T, uint128_t>) && ! std::is_same_v<T, bool>;
 #else
     constexpr bool is_unsigned_cpp_integer_v =
-        (std::is_integral_v<T> && std::is_unsigned_v<T>);
+        (std::is_integral_v<T> && std::is_unsigned_v<T>) &&
+        ! std::is_same_v<T, bool>;
 #endif
 
 /**

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -47,8 +45,8 @@
 
 namespace regina {
 
-template <typename Iterator>
-Tangle Tangle::fromOrientedGauss(Iterator begin, Iterator end) {
+template <RandomAccessIteratorFor<std::string> iterator>
+Tangle Tangle::fromOrientedGauss(iterator begin, iterator end) {
     // Extract the number of crossings.
     size_t n = end - begin;
     if (n < 2)
@@ -64,20 +62,17 @@ Tangle Tangle::fromOrientedGauss(Iterator begin, Iterator end) {
     Tangle ans;
     ans.type_ = type;
 
-    size_t i;
-    for (i = 0; i < n; ++i)
+    for (size_t i = 0; i < n; ++i)
         ans.crossings_.push_back(new Crossing);
 
     StrandRef prev, curr;
-    Iterator it = begin;
 
     int string = 0;
 
     size_t tmpCross;
     int tmpStrand, tmpSign;
-    Crossing* cr;
 
-    for ( ; it != end; ++it) {
+    for (auto it = begin; it != end; ++it) {
         if (! Link::parseOrientedGaussTerm(
                 *it, n, tmpCross, tmpStrand, tmpSign)) {
             if (extractChar(*it) == '_') {
@@ -101,7 +96,7 @@ Tangle Tangle::fromOrientedGauss(Iterator begin, Iterator end) {
 
         prev = curr;
 
-        cr = ans.crossings_[tmpCross - 1];
+        Crossing* cr = ans.crossings_[tmpCross - 1];
 
         if (cr->sign_ == 0)
             cr->sign_ = tmpSign;

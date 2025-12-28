@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -70,7 +68,7 @@ namespace regina {
  * These objects are small enough to pass by value and swap with std::swap(),
  * with no need for any specialised move operations or swap functions.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 struct DiscType {
     size_t tetIndex;
@@ -116,7 +114,7 @@ struct DiscType {
      *
      * \return a reference to this disc type.
      */
-    DiscType& operator = (const DiscType&) = default;
+    constexpr DiscType& operator = (const DiscType&) = default;
     /**
      * Determines if this and the given disc type are identical.
      *
@@ -155,7 +153,7 @@ struct DiscType {
  * \param type the disc type to write.
  * \return a reference to the given output stream.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 std::ostream& operator << (std::ostream& out, const DiscType& type);
 

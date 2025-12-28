@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -68,11 +66,8 @@ namespace {
      * Bitmask1 and Bitmask2 are preferred; however, if the number
      * of coordinates is too large then the slower general-use Bitmask
      * class will need to be used instead.
-     *
-     * \pre The template argument \a BitmaskType is one of Regina's
-     * bitmask types, such as Bitmask, Bitmask1 or Bitmask2.
      */
-    template <class BitmaskType>
+    template <ReginaBitmask BitmaskType>
     class RaySpec : private Vector<LargeInteger> {
         private:
             BitmaskType facets_;
@@ -320,7 +315,7 @@ void NormalSurfaces::buildStandardFromReduced(
         buildStandardFromReducedUsing<Bitmask>(reducedList, tracker);
 }
 
-template <class BitmaskType>
+template <ReginaBitmask BitmaskType>
 void NormalSurfaces::buildStandardFromReducedUsing(
         const std::vector<NormalSurface>& reducedList,
         ProgressTracker* tracker) {

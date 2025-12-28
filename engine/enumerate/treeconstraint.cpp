@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 2011-2023, Ben Burton                                   *
+ *  Copyright (c) 2011-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -62,10 +60,9 @@ template BanTorusBoundary::BanTorusBoundary(
     const LPInitialTableaux<LPConstraintNonSpun>&);
 
 void LPConstraintEulerPositive::addRows(
-        LPCol<regina::LPConstraintEulerPositive>* col,
-        const LPInitialTableaux<LPConstraintEulerPositive>& init) {
-    const Triangulation<3>& tri = init.tri();
-
+        detail::LPCol<constraints.size(), Coefficient>* col,
+        const Triangulation<3>& tri,
+        const size_t* columnPerm) {
     int* obj = new int[7 * tri.size()];
     size_t tet, i;
     Perm<4> p;
@@ -91,7 +88,7 @@ void LPConstraintEulerPositive::addRows(
     }
 
     for (i = 0; i < 7 * tri.size(); ++i)
-        col[i].extra[0] = obj[init.columnPerm()[i]];
+        col[i].extra[0] = obj[columnPerm[i]];
 
     col[7 * tri.size()].extra[0] = -1;
 
@@ -99,10 +96,9 @@ void LPConstraintEulerPositive::addRows(
 }
 
 void LPConstraintEulerZero::addRows(
-        LPCol<regina::LPConstraintEulerZero>* col,
-        const LPInitialTableaux<LPConstraintEulerZero>& init) {
-    const Triangulation<3>& tri = init.tri();
-
+        detail::LPCol<constraints.size(), Coefficient>* col,
+        const Triangulation<3>& tri,
+        const size_t* columnPerm) {
     int* obj = new int[7 * tri.size()];
     size_t tet, i;
     Perm<4> p;
@@ -128,7 +124,7 @@ void LPConstraintEulerZero::addRows(
     }
 
     for (i = 0; i < 7 * tri.size(); ++i)
-        col[i].extra[0] = obj[init.columnPerm()[i]];
+        col[i].extra[0] = obj[columnPerm[i]];
 
     col[7 * tri.size()].extra[0] = -1;
 
@@ -136,10 +132,9 @@ void LPConstraintEulerZero::addRows(
 }
 
 void LPConstraintNonSpun::addRows(
-        LPCol<regina::LPConstraintNonSpun>* col,
-        const LPInitialTableaux<LPConstraintNonSpun>& init) {
-    const Triangulation<3>& tri = init.tri();
-
+        detail::LPCol<constraints.size(), Coefficient>* col,
+        const Triangulation<3>& tri,
+        const size_t* columnPerm) {
     // Add the coefficients for the two new variables now.
     col[3 * tri.size()].extra[0] = -1;
     col[3 * tri.size() + 1].extra[1] = -1;
@@ -178,9 +173,9 @@ void LPConstraintNonSpun::addRows(
     try {
         for (size_t i = 0; i < 3 * tri.size(); ++i) {
             col[i].extra[0] =
-                coeffs.entry(0, init.columnPerm()[i]).safeLongValue();
+                coeffs.entry(0, columnPerm[i]).safeLongValue();
             col[i].extra[1] =
-                coeffs.entry(1, init.columnPerm()[i]).safeLongValue();
+                coeffs.entry(1, columnPerm[i]).safeLongValue();
         }
     } catch (const NoSolution&) {
         throw UnsolvedCase("The coefficients of the slope equations "

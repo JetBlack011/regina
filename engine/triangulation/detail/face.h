@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -50,6 +48,7 @@
 #include "utilities/markedvector.h"
 #include "utilities/shortarray.h"
 #include "utilities/typeutils.h"
+#include <algorithm>
 #include <deque>
 #include <vector>
 
@@ -119,6 +118,7 @@ enum class TriangleType {
 namespace detail {
 
 template <int dim> class TriangulationBase;
+template <int dim, int subdim> class FaceBase;
 
 /**
  * Helper class that provides core functionality for describing how a
@@ -234,9 +234,20 @@ class FaceEmbeddingBase :
          * FaceEmbedding objects for the same underlying <i>subdim</i>-face.
          *
          * This routine returns the same permutation as
-         * `simplex().faceMapping<subdim>(face())` (and this
+         * `simplex()->faceMapping<subdim>(face())` (and this
          * routine is faster if you already have a FaceEmbedding).
          * See Simplex<dim>::faceMapping() for details.
+         *
+         * \warning Be aware that if the triangulation changes then the
+         * skeleton will be recomputed, and there is no guarantee that the new
+         * Face objects will use the same inherent labelling as the old ones.
+         * In particular, after the triangulation changes, the FaceEmbedding
+         * for the same face of the same simplex might return a different
+         * permutation for `vertices()`.  Likewise, if you keep a copy of an
+         * old FaceEmbedding `emb` and then change the triangulation, the
+         * connection between `emb.vertices()` (which will not be updated) and
+         * `emb.simplex()->faceMapping<subdim>(emb.face())` (which will be
+         * updated) will be lost.
          *
          * \return a mapping from the vertices of the underlying
          * <i>subdim</i>-face to the corresponding vertices of simplex().
@@ -289,6 +300,8 @@ class FaceEmbeddingBase :
          * (\a simplex, \a vertices) constructor instead.
          */
         FaceEmbeddingBase(Simplex<dim>*, int);
+
+    friend class FaceBase<dim, subdim>;
 };
 
 #ifndef __DOXYGEN
@@ -761,9 +774,9 @@ class FaceBase :
          * This routine is fast: it uses pre-computed information, and
          * does not need to build a full triangulation of the link.
          *
-         * \warning If this face is identified with itself under a
-         * non-identity permutation (which makes the face invalid), then
-         * the return value of this routine is undefined.
+         * As of Regina 7.4.1, the orientability of the link will be calculated
+         * correctly even if the face is invalid due to a non-trivial
+         * self-identification.
          *
          * \return \c true if and only if the link is orientable.
          */
@@ -1036,6 +1049,49 @@ class FaceBase :
         Perm<dim + 1> pentachoronMapping(int face) const;
 
         /**
+         * For boundary facets, joins this to another boundary facet using the
+         * given gluing.
+         *
+         * This is a convenience method that calls Simplex<dim>::join().
+         * Where it differs is that:
+         *
+         * - you directly pass the two `(dim-1)`-faces that need to be joined,
+         *   as opposed to working with `dim`-dimensional simplices;
+         *
+         * - the gluing permutation is relative to the inherent labellings of
+         *   the vertices of the (`dim-1`)-faces, _not_ the vertices of the
+         *   top-dimensional simplices.
+         *
+         * By "inherent labelling of vertices" of a face \a f we mean the way
+         * that the vertices of \a f are labelled according to
+         * FaceEmbedding::vertices().  This labelling is independent of the
+         * vertex numbers in any top-dimensional simplices that contain \a f.
+         *
+         * \pre The facial dimension \a subdim is precisely `dim-1`.
+         * \pre This and the given face are distinct boundary facets of the
+         * same triangulation.
+         *
+         * \warning As soon as the join takes place, both this and the given
+         * facet will be destroyed (since the skeleton of a triangulation
+         * is rebuilt whenever the triangulation changes).
+         *
+         * \exception InvalidArgument At least one of the preconditions above
+         * fails; that is, this and the given face are the same, or belong to
+         * different triangulations, or are not both boundary facets.
+         *
+         * \exception LockViolation Either this or the given face is a locked
+         * facet.  This exception will be thrown before any change is made.
+         * See Simplex::lockFacet() for further details on how facet locks
+         * work and what their implications are.
+         *
+         * \param you the other boundary facet that this should be glued to.
+         * \param gluing a permutation that describes how the inherent vertices
+         * of this boundary facet will map to the inherent vertices of the
+         * given boundary facet across the new gluing.
+         */
+        void join(Face<dim, subdim>* you, Perm<dim> gluing);
+
+        /**
          * For edges, determines whether this face is a loop.
          * A _loop_ is an edge whose two endpoints are identified.
          *
@@ -1087,6 +1143,46 @@ class FaceBase :
          * vertex or edge.
          */
         int triangleSubtype();
+
+        /**
+         * For triangles, determines whether this face is wrapped up to form
+         * a Möbius band, possibly with or without additional identifications
+         * between its vertices and/or edges.
+         *
+         * Note that several different triangle types (as returned by
+         * triangleType()) can produce this result.
+         * Note also that a triangle can satisfy both formsMobiusBand() and
+         * formsCone().
+         *
+         * The reason this routine is non-const is because the triangle type
+         * is cached when first computed.
+         *
+         * \pre The facial dimension \a subdim is precisely 2, and the
+         * triangulation dimension \a dim is at least 3.
+         *
+         * \return \c true if and only if this triangle forms a Mobius band.
+         */
+        bool formsMobiusBand();
+
+        /**
+         * For triangles, determines whether this face is wrapped up to form
+         * a cone, possibly with or without additional identifications between
+         * its vertices and/or edges.
+         *
+         * Note that several different triangle types (as returned by
+         * triangleType()) can produce this result.
+         * Note also that a triangle can satisfy both formsMobiusBand() and
+         * formsCone().
+         *
+         * The reason this routine is non-const is because the triangle type
+         * is cached when first computed.
+         *
+         * \pre The facial dimension \a subdim is precisely 2, and the
+         * triangulation dimension \a dim is at least 3.
+         *
+         * \return \c true if and only if this triangle forms a cone.
+         */
+        bool formsCone();
 
         /**
          * Locks this codimension-1-face.
@@ -1177,8 +1273,33 @@ class FaceBase :
          */
         FaceBase(Component<dim>* component);
 
+    private:
+        /**
+         * Relabels the vertices of this face.
+         *
+         * Denote this face by \a f.  For each top-dimensional simplex \a s of
+         * the triangulation that contains \a f, if the old mapping from
+         * vertices `0,1,...,subdim` of \a f to vertices of \a s (as returned
+         * by Simplex<dim>::faceMapping()) is given by the permutation \a p,
+         * then the new mapping will become `p * adjust`.
+         *
+         * Although \a adjust is a permutation on integers `0,...,dim`,
+         * only the images of `0,...,subdim` will be used - the images of
+         * `subdim+1,...,dim` will be ignored.
+         *
+         * \pre The given permutation maps the set `{0,1,...,subdim}`
+         * to itself, and maps the set `{subdim+1,...,dim}` to itself.
+         * \pre If this face has codimension one, then it has degree two
+         * (not degree one).  Otherwise it may be impossible for the
+         * relabelling to meet the strict permutation requirements laid down
+         * by Simplex::faceMapping().
+         */
+        void relabel(Perm<dim + 1> adjust);
+
     friend class Triangulation<dim>;
     friend class TriangulationBase<dim>;
+    // BoundaryComponent::buildRealBoundary() calls Face::relabel().
+    template<int> friend class BoundaryComponentBase;
 };
 
 // Inline functions for FaceEmbeddingBase
@@ -1399,7 +1520,7 @@ Perm<dim + 1> FaceBase<dim, subdim>::faceMapping(int f) const {
 
     int inSimp = (
         // If lowerdim = 0, the general formula can be simplified.
-        lowerdim == 0 ?  front().vertices()[f] :
+        lowerdim == 0 ? front().vertices()[f] :
         FaceNumbering<dim, lowerdim>::faceNumber(
             front().vertices() * Perm<dim + 1>::extend(
                 FaceNumbering<subdim, lowerdim>::ordering(f))));
@@ -1453,6 +1574,21 @@ inline Perm<dim + 1> FaceBase<dim, subdim>::pentachoronMapping(int face) const {
     static_assert(subdim >= 5, "pentachoronMapping() is only available "
         "for faces of dimension >= 5.");
     return faceMapping<4>(face);
+}
+
+template <int dim, int subdim>
+inline void FaceBase<dim, subdim>::join(Face<dim, subdim>* you,
+        Perm<dim> gluing) {
+    static_assert(subdim == dim - 1, "Face<dim, subdim>::join() is only "
+        "available for faces of dimension subdim == dim - 1.");
+
+    // The preconditions and locks will be checked by Simplex::join().
+    // All we need to do is pull together the correct arguments.
+    auto emb0 = front();
+    auto emb1 = you->front();
+    emb0.simplex()->join(emb0.vertices()[dim], emb1.simplex(),
+        emb1.vertices() * Perm<dim+1>::extend(gluing) *
+            emb0.vertices().inverse());
 }
 
 template <int dim, int subdim>
@@ -1542,6 +1678,41 @@ inline int FaceBase<dim, subdim>::triangleSubtype() {
 }
 
 template <int dim, int subdim>
+inline bool FaceBase<dim, subdim>::formsMobiusBand() {
+    static_assert(subdim == 2,
+        "formsMobiusBand() is only available for triangles.");
+    static_assert(dim >= 3,
+        "formsMobiusBand() is only available in triangulations of "
+        "dimension ≥ 3.");
+
+    switch (triangleType()) {
+        case TriangleType::L31:
+        case TriangleType::DunceHat:
+        case TriangleType::Mobius:
+            return true;
+        default:
+            return false;
+    }
+}
+
+template <int dim, int subdim>
+inline bool FaceBase<dim, subdim>::formsCone() {
+    static_assert(subdim == 2,
+        "formsCone() is only available for triangles.");
+    static_assert(dim >= 3,
+        "formsCone() is only available in triangulations of dimension ≥ 3.");
+
+    switch (triangleType()) {
+        case TriangleType::DunceHat:
+        case TriangleType::Cone:
+        case TriangleType::Horn:
+            return true;
+        default:
+            return false;
+    }
+}
+
+template <int dim, int subdim>
 inline void FaceBase<dim, subdim>::lock() {
     static_assert(subdim == dim - 1,
         "lock() is only available for faces of codimension 1.");
@@ -1621,6 +1792,46 @@ void FaceBase<dim, subdim>::writeTextShort(std::ostream& out) const {
         else
             out << ", ";
         out << emb;
+    }
+}
+
+template <int dim, int subdim>
+void FaceBase<dim, subdim>::relabel(Perm<dim + 1> adjust) {
+    adjust.clear(subdim + 1);
+    if (! adjust.isIdentity()) {
+        if (adjust.sign() < 0) {
+            // We need to make further adjustments so that we satisfy the
+            // various promises made about permutation signs in the
+            // Simplex::faceMapping() notes.
+            if constexpr (subdim == dim - 1) {
+                // We cannot make adjust into an even permutation.  Instead,
+                // the constraint we need to satisfy involves the order of the
+                // two embeddings.
+                // (The preconditions for relabel() tell us that we have
+                // two embeddings; nevertheless, we check this again now.
+                // With only one embedding then would be no way to meet the
+                // face mapping constraints.)
+                if (degree() == 2)
+                    std::swap(embeddings_[0], embeddings_[1]);
+            } else if constexpr (subdim == dim - 2) {
+                // We can make adjust into an even permutation; however, this
+                // also requires us to reverse the sequence of embeddings so
+                // that the images of (dim - 1, dim) point in the correct
+                // direction around the link.
+                adjust = adjust * Perm<dim + 1>(dim - 1, dim);
+                std::reverse(embeddings_.begin(), embeddings_.end());
+            } else {
+                // Make adjust an even permutation by adjusting the images of
+                // the vertices of the opposite face.
+                adjust = adjust * Perm<dim + 1>(dim - 1, dim);
+            }
+        }
+
+        for (auto& emb : embeddings_) {
+            emb.vertices_ = emb.vertices_ * adjust;
+            std::get<subdim>(emb.simplex()->mappings_)[emb.face()] =
+                emb.vertices_;
+        }
     }
 }
 

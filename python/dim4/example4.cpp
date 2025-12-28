@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -70,13 +68,20 @@ void addExample4(pybind11::module_& m) {
         .def_static("s3xs1", &Example<4>::s3xs1, rdoc::s3xs1)
         .def_static("s3xs1Twisted", &Example<4>::s3xs1Twisted,
             rdoc::s3xs1Twisted)
+        .def_static("fourTorus", &Example<4>::fourTorus, rdoc::fourTorus)
         .def_static("k3", &Example<4>::k3, rdoc::k3)
         .def_static("cappellShaneson", &Example<4>::cappellShaneson,
             rdoc::cappellShaneson)
         .def_static("iBundle", &Example<4>::iBundle, rdoc::iBundle)
         .def_static("s1Bundle", &Example<4>::s1Bundle, rdoc::s1Bundle)
+        .def_static("boundarySpin", &Example<4>::boundarySpin,
+            rdoc::boundarySpin)
         .def_static("bundleWithMonodromy", &Example<4>::bundleWithMonodromy,
             rdoc::bundleWithMonodromy)
+        .def_static("spun", &Example<4>::spun,
+            pybind11::arg("knot"),
+            pybind11::arg("breakOpen") = regina::StrandRef(),
+            rdoc::spun)
     ;
     regina::python::no_eq_static(c);
 

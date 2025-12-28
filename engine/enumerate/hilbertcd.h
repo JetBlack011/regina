@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -41,6 +39,8 @@
 #endif
 
 #include "regina-core.h"
+#include "concepts/core.h"
+#include "concepts/maths.h"
 #include "maths/matrix.h"
 #include "maths/vector.h"
 #include <iterator>
@@ -75,7 +75,7 @@ class HilbertCD {
          * Determines the Hilbert basis that generates all integer
          * points in the intersection of the <i>n</i>-dimensional
          * non-negative orthant with some linear subspace.
-         * The resulting basis elements will be of the class \a RayClass,
+         * The resulting basis elements will be of the class \a Ray,
          * and will be passed into the given action function one at a time.
          *
          * The non-negative orthant is an <i>n</i>-dimensional cone with
@@ -106,14 +106,10 @@ class HilbertCD {
          * For each of the resulting basis elements, this routine will call
          * \a action (which must be a function or some other callable object).
          * This action should return \c void, and must take exactly one
-         * argument, which will be the basis element stored using \a RayClass.
+         * argument, which will be the basis element stored using type \a Ray.
          * The argument will be passed as an rvalue; a typical \a action
-         * would take it as an rvalue reference (RayClass&&) and move its
+         * would take it as an rvalue reference (`Ray&&`) and move its
          * contents into some other more permanent storage.
-         *
-         * \pre The template argument RayClass is derived from (or equal to)
-         * Vector<T>, where \a T is one of Regina's arbitrary-precision
-         * integer classes (Integer or LargeInteger).
          *
          * \warning For normal surface theory, the Contejean-Devie algorithm is
          * extremely slow, even when modified to incorporate admissibility
@@ -126,11 +122,11 @@ class HilbertCD {
          * The second form does not have an \a action argument; instead you
          * call `enumerate(subspace, constraints)`,
          * and it returns a Python list containing all Hilbert basis elements.
-         * In both versions, the argument \a RayClass is fixed as VectorInt.
+         * In both versions, the template argument \a Ray is fixed as VectorInt.
          *
          * \param action a function (or other callable object) that will be
          * called for each basis element.  This function must take a single
-         * argument, which will be passed as an rvalue of type RayClass.
+         * argument, which will be passed as an rvalue of type Ray.
          * \param subspace a matrix defining the linear subspace to intersect
          * with the given cone.  Each row of this matrix is the equation
          * for one of the hyperplanes whose intersection forms this linear
@@ -139,7 +135,7 @@ class HilbertCD {
          * \param constraints a set of validity constraints as described above,
          * or ValidityConstraints::none if none should be imposed.
          */
-        template <class RayClass, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray, typename Action>
         static void enumerate(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints);
 
@@ -151,21 +147,11 @@ class HilbertCD {
          * A helper class for Hilbert basis enumeration, describing a
          * single candidate basis vector.
          *
-         * The coordinates of the vector are inherited through the
-         * Vector superclass.
-         *
-         * The \a BitmaskType template argument is used to store one bit
-         * per coordinate, which is \c false if the coordinate is zero
-         * or \c true if the coordinate is non-zero.
-         *
-         * \tparam IntegerType the integer type used to store and manipulate
-         * vectors; this must be one of Regina's own integer types.
-         *
-         * \tparam BitmaskType the bitmask type used to indicate zero/non-zero
-         * coordinates; this must be one of Regina's own bitmask types, such as
-         * Bitmask, Bitmask1 or Bitmask2.
+         * The integer coordinates of the vector are inherited through the
+         * Vector superclass.  This class augments it with a bitmask whose
+         * individual bits indicate which coordinates are zero vs non-zero.
          */
-        template <class IntegerType, class BitmaskType>
+        template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
         struct VecSpec : public Vector<IntegerType> {
             BitmaskType mask_;
                 /**< A bitmask indicating which coordinates are zero
@@ -191,27 +177,26 @@ class HilbertCD {
         };
         /**
          * Identical to the public routine enumerate(),
-         * except that there is an extra template parameter \a BitmaskType.
-         * This describes what type should be used for bitmasks that
-         * assign flags to individual coordinate positions.
+         * except that there is an extra template parameter \a BitmaskType
+         * to indicate what bitmask type we should use to assign flags to
+         * individual coordinate positions.
          *
          * All arguments to this function are identical to those for the
          * public routine enumerate().
          *
-         * \pre The bitmask type is one of Regina's bitmask types, such
-         * as Bitmask, Bitmask1 or Bitmask2.
          * \pre The type \a BitmaskType can handle at least \a n bits,
          * where \a n is the dimension of the Euclidean space (i.e., the
          * number of columns in \a subspace).
          */
-        template <class RayClass, class BitmaskType, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray,
+            ReginaBitmask BitmaskType, typename Action>
         static void enumerateUsingBitmask(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints);
 };
 
 // Inline functions for HilbertCD::VecSpec
 
-template <class IntegerType, class BitmaskType>
+template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline HilbertCD::VecSpec<IntegerType, BitmaskType>::VecSpec(size_t dim) :
         Vector<IntegerType>(dim), mask_(dim) {
     // All vector elements are initialised to zero thanks to the default

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,7 +38,8 @@
 using regina::Component;
 
 template <int dim>
-void addComponent(pybind11::module_& m, const char* name) {
+void addComponent(pybind11::module_& m, pybind11::module_& internal,
+        const char* name) {
     // We use the global scope here because all of Component's members are
     // inherited, and so Component's own docstring namespace does not exist.
     RDOC_SCOPE_BEGIN_MAIN
@@ -71,9 +70,11 @@ void addComponent(pybind11::module_& m, const char* name) {
     regina::python::add_eq_operators(c);
 
     regina::python::addListView<
-        decltype(std::declval<Component<dim>>().simplices())>(m);
+        decltype(std::declval<Component<dim>>().simplices())>(internal,
+        (std::string(name) + "_simplices").c_str());
     regina::python::addListView<
-        decltype(std::declval<Component<dim>>().boundaryComponents())>(m);
+        decltype(std::declval<Component<dim>>().boundaryComponents())>(internal,
+        (std::string(name) + "_boundaryComponents").c_str());
 
     RDOC_SCOPE_END
 }

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -97,11 +95,13 @@ ReginaPreferences::ReginaPreferences(ReginaMain* parent) :
         tr("Tools"));
 
     // Read the current preferences from the main window.
+    // Note: The chooser indices that we set here _must_ be kept in sync with
+    // the combo box construction in the ReginaPrefGeneral class constructor.
     // generalPrefs->cbDisplayTagsInTree->setChecked(prefSet.displayTagsInTree);
     generalPrefs->cbUnicode->setChecked(prefSet.displayUnicode);
+    generalPrefs->chooserToolbars->setCurrentIndex(
+        prefSet.displaySimpleToolbars ? 1 : 0);
     switch (prefSet.threadCount) {
-        // These indices must be kept in sync with the combo box
-        // construction in the ReginaPrefGeneral class constructor.
         case ReginaPrefSet::ThreadCount::Single:
             generalPrefs->chooserThreadCount->setCurrentIndex(0);
             break;
@@ -112,12 +112,17 @@ ReginaPreferences::ReginaPreferences(ReginaMain* parent) :
             generalPrefs->chooserThreadCount->setCurrentIndex(1);
             break;
     }
+    switch (prefSet.groupSimplification) {
+        case ReginaPrefSet::GroupSimplification::GAP:
+            generalPrefs->chooserGroupSimplification->setCurrentIndex(1);
+            break;
+        default: /* Regina */
+            generalPrefs->chooserGroupSimplification->setCurrentIndex(0);
+            break;
+    }
     generalPrefs->editTreeJumpSize->setText(
         QString::number(prefSet.treeJumpSize));
     generalPrefs->cbGraphvizLabels->setChecked(prefSet.triGraphvizLabels);
-//    generalPrefs->cbTipOfDay->setChecked(
-//        KConfigGroup(KGlobal::config(), "TipOfDay").
-//        readEntry("RunOnStart", true));
     generalPrefs->cbIntroOnStartup->setChecked(prefSet.helpIntroOnStartup);
     generalPrefs->chooserImportExportCodec->setCodecName(
         prefSet.fileImportExportCodec);
@@ -162,12 +167,15 @@ void ReginaPreferences::slotApply() {
 
     // prefSet.displayTagsInTree = generalPrefs->cbDisplayTagsInTree->isChecked();
     prefSet.displayUnicode = generalPrefs->cbUnicode->isChecked();
-    //KTipDialog::setShowOnStart(generalPrefs->cbTipOfDay->isChecked());
     prefSet.helpIntroOnStartup = generalPrefs->cbIntroOnStartup->isChecked();
 
+    // Note: The chooser indices below _must_ be kept in sync with the
+    // combo box construction in the ReginaPrefGeneral class constructor.
+
+    prefSet.displaySimpleToolbars =
+        (generalPrefs->chooserToolbars->currentIndex() == 1);
+
     switch (generalPrefs->chooserThreadCount->currentIndex()) {
-        // These indices must be kept in sync with the combo box
-        // construction in the ReginaPrefGeneral class constructor.
         case 0:
             prefSet.threadCount = ReginaPrefSet::ThreadCount::Single;
             break;
@@ -176,6 +184,17 @@ void ReginaPreferences::slotApply() {
             break;
         default:
             prefSet.threadCount = ReginaPrefSet::ThreadCount::Polite;
+            break;
+    }
+
+    switch (generalPrefs->chooserGroupSimplification->currentIndex()) {
+        case 1:
+            prefSet.groupSimplification =
+                ReginaPrefSet::GroupSimplification::GAP;
+            break;
+        default:
+            prefSet.groupSimplification =
+                ReginaPrefSet::GroupSimplification::Regina;
             break;
     }
 
@@ -323,25 +342,60 @@ ReginaPrefGeneral::ReginaPrefGeneral(QWidget* parent) : QWidget(parent) {
     layout->addWidget(cbWarnOnNonEmbedded);
 
     // Set up Graphviz options.
-    cbGraphvizLabels = new QCheckBox(tr("Labels on face pairing graphs"));
-    cbGraphvizLabels->setWhatsThis(tr("Labels each node in a "
-        "face pairing graph with the corresponding tetrahedron number."));
+    cbGraphvizLabels = new QCheckBox(tr("Labels on facet pairing graphs"));
+    cbGraphvizLabels->setWhatsThis(tr("Labels each node in a facet pairing "
+        "graph with the corresponding top-dimensional simplex number."));
     layout->addWidget(cbGraphvizLabels);
 
-    // The combo box indices must be kept in sync with the switch statements
+    // These combo box indices must be kept in sync with the switch statements
     // in the ReginaPreferences constructor and slotApply().
     auto* box = new QHBoxLayout();
-    auto* label = new QLabel(tr("Multithreading:"));
+    auto* label = new QLabel(tr("Toolbars:"));
+    box->addWidget(label);
+    chooserToolbars = new QComboBox();
+    chooserToolbars->addItem(tr("Detailed (new style)"));
+    chooserToolbars->addItem(tr("Simple (old style)"));
+    box->addWidget(chooserToolbars, 1);
+    QString msg = tr("Indicates whether you prefer detailed toolbars with many "
+        "icon-only buttons (the default since Regina 7.4), or simple toolbars "
+        "with few buttons but including text labels (the style until "
+        "Regina 7.3.1).<p>"
+        "This setting is used for toolbars in the triangulation and link "
+        "viewers.");
+    label->setWhatsThis(msg);
+    chooserToolbars->setWhatsThis(msg);
+    layout->addLayout(box);
+
+    // These combo box indices must be kept in sync with the switch statements
+    // in the ReginaPreferences constructor and slotApply().
+    box = new QHBoxLayout();
+    label = new QLabel(tr("Multithreading:"));
     box->addWidget(label);
     chooserThreadCount = new QComboBox();
     chooserThreadCount->addItem(tr("None (single-threaded)"));
     chooserThreadCount->addItem(tr("Polite (50% of cores)"));
     chooserThreadCount->addItem(tr("Aggressive (all cores)"));
     box->addWidget(chooserThreadCount, 1);
-    QString msg = tr("Indicates what level of multithreading should be "
+    msg = tr("Indicates what level of multithreading should be "
         "used for long computations that support it.");
     label->setWhatsThis(msg);
     chooserThreadCount->setWhatsThis(msg);
+    layout->addLayout(box);
+
+    // These combo box indices must be kept in sync with the switch statements
+    // in the ReginaPreferences constructor and slotApply().
+    box = new QHBoxLayout();
+    label = new QLabel(tr("Group simplification:"));
+    box->addWidget(label);
+    chooserGroupSimplification = new QComboBox();
+    chooserGroupSimplification->addItem(tr("Use Regina"));
+    chooserGroupSimplification->addItem(tr("Use GAP"));
+    box->addWidget(chooserGroupSimplification, 1);
+    msg = tr("The preferred method for simplifying group "
+        "presentations.  If you choose GAP, you can visit the <i>Tools</i> "
+        "tab to tell Regina how to find the GAP executable.");
+    label->setWhatsThis(msg);
+    chooserGroupSimplification->setWhatsThis(msg);
     layout->addLayout(box);
 
     // Set up the tree jump size.
@@ -383,12 +437,6 @@ ReginaPrefGeneral::ReginaPrefGeneral(QWidget* parent) : QWidget(parent) {
     layout->addWidget(cbIntroOnStartup);
 
     // More options.
-
-    // TODO: Tip of the day?
-    // cbTipOfDay = new QCheckBox(tr("Show tip of the day"));
-    // cbTipOfDay->setWhatsThis(tr("Show a tip of the day each time "
-    //     "Regina is started."));
-    // layout->addWidget(cbTipOfDay);
 
     // Add some space at the end.
     layout->addStretch(1);

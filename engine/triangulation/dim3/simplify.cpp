@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -70,7 +68,7 @@ namespace {
     }
 }
 
-bool Triangulation<3>::fourFourMove(Edge<3>* e, int newAxis, bool check,
+bool Triangulation<3>::internal44(Edge<3>* e, int newAxis, bool check,
         bool perform) {
     if (check) {
         if (e->isBoundary() || ! e->isValid())
@@ -81,13 +79,14 @@ bool Triangulation<3>::fourFourMove(Edge<3>* e, int newAxis, bool check,
 
     // Find the unwanted tetrahedra.
     Tetrahedron<3>* oldTet[4];
-    std::set<Tetrahedron<3>*> oldTets;
     int oldPos = 0;
-    for (auto& emb : *e) {
+    for (const auto& emb : *e) {
         oldTet[oldPos] = emb.simplex();
-        if (check)
-            if (! oldTets.insert(emb.simplex()).second)
-                return false;
+        if (check) {
+            for (int i = 0; i < oldPos; ++i)
+                if (oldTet[i] == emb.simplex())
+                    return false;
+        }
         if (emb.simplex()->locks_) {
             if (emb.simplex()->isLocked() ||
                     emb.simplex()->isFacetLocked(emb.vertices()[2]) ||
@@ -99,7 +98,7 @@ bool Triangulation<3>::fourFourMove(Edge<3>* e, int newAxis, bool check,
                         "4-4 move using a locked tetrahedron and/or facet");
             }
         }
-        oldPos++;
+        ++oldPos;
     }
 
     if (! perform)
@@ -127,7 +126,7 @@ bool Triangulation<3>::fourFourMove(Edge<3>* e, int newAxis, bool check,
     return true;
 }
 
-bool Triangulation<3>::twoOneMove(Edge<3>* e, int edgeEnd,
+bool Triangulation<3>::internal21(Edge<3>* e, int edgeEnd,
         bool check, bool perform) {
     // edgeEnd is the end opposite where the action is.
     if (check) {
@@ -285,7 +284,7 @@ bool Triangulation<3>::twoOneMove(Edge<3>* e, int edgeEnd,
     return true;
 }
 
-bool Triangulation<3>::zeroTwoMove(
+bool Triangulation<3>::internal02(
         EdgeEmbedding<3> e0, int t0, EdgeEmbedding<3> e1, int t1,
         bool check, bool perform ) {
     Edge<3>* e = e0.tetrahedron()->edge(e0.edge());
@@ -458,7 +457,7 @@ bool Triangulation<3>::zeroTwoMove(
     return true;
 }
 
-bool Triangulation<3>::zeroTwoMove(
+bool Triangulation<3>::internal02(
         Edge<3>* e, size_t t0, size_t t1,
         bool check, bool perform ) {
     size_t deg = e->degree();
@@ -483,10 +482,10 @@ bool Triangulation<3>::zeroTwoMove(
             tri[i] = 3;
         }
     }
-    return zeroTwoMove( emb[0], tri[0], emb[1], tri[1], check, perform );
+    return internal02( emb[0], tri[0], emb[1], tri[1], check, perform );
 }
 
-bool Triangulation<3>::zeroTwoMove(
+bool Triangulation<3>::internal02(
         Triangle<3>* t0, int e0, Triangle<3>* t1, int e1,
         bool check, bool perform ) {
     Triangle<3>* t[2] = {t0, t1};
@@ -503,10 +502,11 @@ bool Triangulation<3>::zeroTwoMove(
                         ve * Perm<4>( 2, e[i] ) ) ) );
         tri[i] = ( (emb[i].vertices()[2] == ve[3]) ? 2 : 3 );
     }
-    return zeroTwoMove( emb[0], tri[0], emb[1], tri[1], check, perform );
+    return internal02( emb[0], tri[0], emb[1], tri[1], check, perform );
 }
 
-bool Triangulation<3>::openBook(Triangle<3>* f, bool check, bool perform) {
+bool Triangulation<3>::internalOpenBook(Triangle<3>* f, bool check,
+        bool perform) {
     if (f->isLocked()) {
         if (check)
             return false;
@@ -561,7 +561,8 @@ bool Triangulation<3>::openBook(Triangle<3>* f, bool check, bool perform) {
     return true;
 }
 
-bool Triangulation<3>::closeBook(Edge<3>* e, bool check, bool perform) {
+bool Triangulation<3>::internalCloseBook(Edge<3>* e, bool check,
+        bool perform) {
     if (check) {
         if (! e->isBoundary())
             return false;
@@ -607,7 +608,8 @@ bool Triangulation<3>::closeBook(Edge<3>* e, bool check, bool perform) {
     return true;
 }
 
-bool Triangulation<3>::collapseEdge(Edge<3>* e, bool check, bool perform) {
+bool Triangulation<3>::internalCollapseEdge(Edge<3>* e, bool check,
+        bool perform) {
     // Find the tetrahedra to remove.
     if (check) {
         // Note: We never check whether the edge is valid, but this

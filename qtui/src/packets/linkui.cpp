@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -42,6 +40,7 @@
 #include "linkui.h"
 #include "packeteditiface.h"
 #include "reginamain.h"
+#include "reginaprefset.h"
 
 #include <QLabel>
 #include <QToolBar>
@@ -56,8 +55,9 @@ using regina::Link;
 #define RIGHT_COLOUR "#008000"
 
 LinkUI::LinkUI(regina::PacketOf<Link>* packet, PacketPane* newEnclosingPane) :
-        PacketTabbedUI(newEnclosingPane, ReginaPrefSet::global().tabLink) {
-    auto* header = new LinkHeaderUI(packet, this);
+        PacketTabbedUI(newEnclosingPane, ReginaPrefSet::global().tabLink),
+        simpleToolbars(ReginaPrefSet::global().displaySimpleToolbars) {
+    header = new LinkHeaderUI(packet, this);
     crossings = new LinkCrossingsUI(packet, this);
 
     crossings->fillToolBar(header->getToolBar());
@@ -70,6 +70,9 @@ LinkUI::LinkUI(regina::PacketOf<Link>* packet, PacketPane* newEnclosingPane) :
     addTab(new LinkGraphUI(packet, this), QObject::tr("&Graphs"));
 
     editIface = new PacketEditTabbedUI(this);
+
+    connect(&ReginaPrefSet::global(), SIGNAL(preferencesChanged()),
+        this, SLOT(updatePreferences()));
 }
 
 LinkUI::~LinkUI() {
@@ -84,6 +87,18 @@ QString LinkUI::getPacketMenuText() const {
     return QObject::tr("&Knot / Link");
 }
 
+void LinkUI::updatePreferences() {
+    bool newVal = ReginaPrefSet::global().displaySimpleToolbars;
+    if (newVal != simpleToolbars) {
+        simpleToolbars = newVal;
+
+        auto* toolbar = header->getToolBar();
+        toolbar->clear();
+        toolbar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
+        crossings->fillToolBar(toolbar);
+    }
+}
+
 LinkHeaderUI::LinkHeaderUI(regina::PacketOf<Link>* packet,
         PacketTabbedUI* useParentUI) : PacketViewerTab(useParentUI),
         link(packet) {
@@ -92,7 +107,7 @@ LinkHeaderUI::LinkHeaderUI(regina::PacketOf<Link>* packet,
     uiLayout->setContentsMargins(0, 0, 0, 0);
 
     bar = new QToolBar(ui);
-    bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    bar->setToolButtonStyle(ReginaPrefSet::toolButtonStyle());
     uiLayout->addWidget(bar);
 
     header = new QLabel();
@@ -147,40 +162,52 @@ QString LinkHeaderUI::summaryInfo(const regina::Link& link) {
                 "−ve</span>");
     }
 
+    QString mainText;
     if (link.countComponents() == 1) {
         // Knot:
         if (link.size() == 0) {
-            return QObject::tr("Unknot with no crossings");
+            mainText = QObject::tr("Unknot: no crossings");
         } else if (link.size() == 1) {
             // Must be alternating.
-            return QObject::tr("Alternating knot with 1 crossing (%1)")
+            mainText = QObject::tr("Alternating knot: 1 crossing (%1)")
                 .arg(signs);
         } else if (link.isAlternating()) {
-            return QObject::tr("Alternating knot with %1 crossings (%2)")
+            mainText = QObject::tr("Alternating knot: %1 crossings (%2)")
                 .arg(link.size()).arg(signs);
         } else {
-            return QObject::tr("Non-alternating knot with %1 crossings (%2)")
+            mainText = QObject::tr(
+                "Non-alternating knot: %1 crossings (%2)")
                 .arg(link.size()).arg(signs);
         }
     } else {
         // Multiple component link:
         if (link.size() == 0) {
-            return QObject::tr("Unlink with %1 components, no crossings")
+            mainText = QObject::tr("Unlink: %1 components, no crossings")
                 .arg(link.countComponents());
         } else if (link.size() == 1) {
             // Must be alternating.
-            return QObject::tr(
-                "Alternating link with %1 components, 1 crossing (%2)")
+            mainText = QObject::tr(
+                "Alternating link: %1 components, 1 crossing (%2)")
                 .arg(link.countComponents()).arg(signs);
         } else if (link.isAlternating()) {
-            return QObject::tr(
-                "Alternating link with %1 components, %2 crossings (%3)")
+            mainText = QObject::tr(
+                "Alternating link: %1 components, %2 crossings (%3)")
                 .arg(link.countComponents()).arg(link.size()).arg(signs);
         } else {
-            return QObject::tr(
-                "Non-alternating link with %1 components, %2 crossings (%3)")
+            mainText = QObject::tr(
+                "Non-alternating link: %1 components, %2 crossings (%3)")
                 .arg(link.countComponents()).arg(link.size()).arg(signs);
         }
     }
+
+    if (link.isClassical())
+        return mainText;
+    else if (link.countComponents() == 1)
+        return QObject::tr("<qt>%1<br>Virtual diagram: genus %2, "
+            "odd writhe %3</qt>")
+            .arg(mainText).arg(link.virtualGenus()).arg(link.oddWrithe());
+    else
+        return QObject::tr("<qt>%1<br>Virtual diagram: genus %2</qt>")
+            .arg(mainText).arg(link.virtualGenus());
 }
 

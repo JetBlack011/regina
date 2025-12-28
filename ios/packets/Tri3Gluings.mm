@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  iOS User Interface                                                    *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -444,7 +444,7 @@
     self.packet->subdivide();
 }
 
-- (IBAction)idealToFinite:(id)sender
+- (IBAction)truncateIdeal:(id)sender
 {
     [self endEditing];
     if (! [self checkEditable])
@@ -461,7 +461,7 @@
     }
     
     regina::Packet::PacketChangeGroup span(self.packet);
-    self.packet->idealToFinite();
+    self.packet->truncateIdeal();
     self.packet->simplify();
 }
 
@@ -482,7 +482,7 @@
     }
 
     regina::Packet::PacketChangeGroup span(self.packet);
-    self.packet->finiteToIdeal();
+    self.packet->makeIdeal();
     self.packet->simplify();
 }
 
@@ -798,7 +798,7 @@ cleanUpGluing:
         case 1:
             [self barycentricSubdivision:nil]; break;
         case 2:
-            [self idealToFinite:nil]; break;
+            [self truncateIdeal:nil]; break;
         case 3:
             [self makeIdeal:nil]; break;
         case 4:

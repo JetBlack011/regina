@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -41,6 +39,7 @@
 
 class GroupWidget;
 class QLabel;
+class QStackedWidget;
 
 namespace regina {
     class Link;
@@ -48,9 +47,30 @@ namespace regina {
 };
 
 /**
- * A packet viewer tab for viewing algebraic properties of a link.
+ * A packet viewer tab for viewing all of the groups associated with a link.
  */
-class LinkAlgebraUI : public QObject, public PacketViewerTab {
+class LinkAlgebraUI : public PacketTabbedViewerTab {
+    private:
+        regina::PacketOf<regina::Link>* link;
+        bool usesKnotLabels;
+
+    public:
+        /**
+         * Constructor.
+         */
+        LinkAlgebraUI(regina::PacketOf<regina::Link>* packet,
+            PacketTabbedUI* parentUI);
+
+        /**
+         * PacketTabbedViewerTab overrides.
+         */
+        void refresh() override;
+};
+
+/**
+ * A packet viewer tab for viewing a particular class of link groups.
+ */
+class LinkGroupUI : public QObject, public PacketViewerTab {
     Q_OBJECT
 
     private:
@@ -58,20 +78,22 @@ class LinkAlgebraUI : public QObject, public PacketViewerTab {
          * Packet details
          */
         regina::PacketOf<regina::Link>* link;
+        bool extended;
 
         /**
          * Internal components
          */
-        QWidget* ui;
-        QLabel* fgTitle;
-        GroupWidget* fgGroup;
+        QStackedWidget* pages;
+        GroupWidget* group;
+        GroupWidget* groupAbove;
+        GroupWidget* groupBelow;
 
     public:
         /**
          * Constructor.
          */
-        LinkAlgebraUI(regina::PacketOf<regina::Link>* packet,
-                PacketTabbedUI* useParentUI);
+        LinkGroupUI(regina::PacketOf<regina::Link>* packet,
+            bool extended, PacketTabbedViewerTab* parentUI);
 
         /**
          * PacketViewerTab overrides.

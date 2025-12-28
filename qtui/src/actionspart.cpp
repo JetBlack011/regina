@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -47,7 +45,6 @@
 #include <QToolBar>
 
 // TODO: Undo/redo are not yet implemented.
-
 
 void ReginaMain::setupActions() {
     QAction* act;
@@ -348,7 +345,7 @@ void ReginaMain::setupActions() {
     actContainer->setShortcut(tr("Alt+c"));
     actContainer->setToolTip(tr("New container"));
     actContainer->setWhatsThis(tr("Create a new container packet.  Containers "
-        "are used to help keep the packet tree organised &ndash; "
+        "are used to help keep the packet tree organised – "
         "they serve no purpose other than to store child packets."));
     connect(actContainer, SIGNAL(triggered()), this, SLOT(newContainer()) );
     treeGeneralEditActions.push_back(actContainer);
@@ -532,6 +529,7 @@ void ReginaMain::setupActions() {
     treeMenu->addAction(actDelete);
 
     QMenu* treeNavMenu = treeMenu->addMenu(tr("&Move"));
+    treeNavMenu->setIcon(ReginaSupport::regIcon("move"));
 
     // Tree reorganisation:
     act = new QAction(this);
@@ -643,19 +641,18 @@ void ReginaMain::setupActions() {
 
     act = new QAction(this);
     act->setText(tr("C&lone Packet"));
-    act->setIcon(ReginaSupport::themeIcon("edit-copy"));
+    act->setIcon(ReginaSupport::regIcon("clone-packet"));
     act->setShortcut(tr("Alt+l"));
     act->setToolTip(tr("Clone the selected packet only"));
-    act->setWhatsThis(tr("Clone the packet currently selected in "
-        "the tree.  The new clone will be placed alongside the original "
-        "packet."));
+    act->setWhatsThis(tr("Clone the packet currently selected in the tree.  "
+        "The new clone will be placed alongside the original packet."));
     connect(act, SIGNAL(triggered()), this, SLOT(clonePacket()) );
     treePacketEditActions.push_back(act);
     treeMenu->addAction(act);
 
-
     act = new QAction(this);
     act->setText(tr("Clone Su&btree"));
+    act->setIcon(ReginaSupport::regIcon("clone-subtree"));
     act->setToolTip(tr("Clone the subtree beneath the selected packet"));
     act->setWhatsThis(tr("Clone the packet currently selected in "
         "the tree, as well as all of its descendants in the tree.  The new "

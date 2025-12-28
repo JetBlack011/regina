@@ -411,6 +411,46 @@ Returns:
     a mapping from the vertices of the underlying *lowerdim*-face of
     the triangulation to the vertices of this *subdim*-face.)doc";
 
+// Docstring regina::python::doc::detail::FaceBase_::formsCone
+constexpr const char *formsCone =
+R"doc(For triangles, determines whether this face is wrapped up to form a
+cone, possibly with or without additional identifications between its
+vertices and/or edges.
+
+Note that several different triangle types (as returned by
+triangleType()) can produce this result. Note also that a triangle can
+satisfy both formsMobiusBand() and formsCone().
+
+The reason this routine is non-const is because the triangle type is
+cached when first computed.
+
+Precondition:
+    The facial dimension *subdim* is precisely 2, and the
+    triangulation dimension *dim* is at least 3.
+
+Returns:
+    ``True`` if and only if this triangle forms a cone.)doc";
+
+// Docstring regina::python::doc::detail::FaceBase_::formsMobiusBand
+constexpr const char *formsMobiusBand =
+R"doc(For triangles, determines whether this face is wrapped up to form a
+Möbius band, possibly with or without additional identifications
+between its vertices and/or edges.
+
+Note that several different triangle types (as returned by
+triangleType()) can produce this result. Note also that a triangle can
+satisfy both formsMobiusBand() and formsCone().
+
+The reason this routine is non-const is because the triangle type is
+cached when first computed.
+
+Precondition:
+    The facial dimension *subdim* is precisely 2, and the
+    triangulation dimension *dim* is at least 3.
+
+Returns:
+    ``True`` if and only if this triangle forms a Mobius band.)doc";
+
 // Docstring regina::python::doc::detail::FaceBase_::front
 constexpr const char *front =
 R"doc(Returns the first appearance of this face within a top-dimensional
@@ -525,10 +565,9 @@ R"doc(Determines if the link of this face is orientable.
 This routine is fast: it uses pre-computed information, and does not
 need to build a full triangulation of the link.
 
-.. warning::
-    If this face is identified with itself under a non-identity
-    permutation (which makes the face invalid), then the return value
-    of this routine is undefined.
+As of Regina 7.4.1, the orientability of the link will be calculated
+correctly even if the face is invalid due to a non-trivial self-
+identification.
 
 Returns:
     ``True`` if and only if the link is orientable.)doc";
@@ -604,6 +643,57 @@ Returns:
     this face is valid according to both conditions (1) and (2) above;
     for non-standard dimensions *dim*, returns ``True`` if and only if
     this face is valid according to condition (1).)doc";
+
+// Docstring regina::python::doc::detail::FaceBase_::join
+constexpr const char *join =
+R"doc(For boundary facets, joins this to another boundary facet using the
+given gluing.
+
+This is a convenience method that calls Simplex<dim>::join(). Where it
+differs is that:
+
+* you directly pass the two `(dim-1)`-faces that need to be joined, as
+  opposed to working with `dim`-dimensional simplices;
+
+* the gluing permutation is relative to the inherent labellings of the
+  vertices of the (``dim-1``)-faces, _not_ the vertices of the top-
+  dimensional simplices.
+
+By "inherent labelling of vertices" of a face *f* we mean the way that
+the vertices of *f* are labelled according to
+FaceEmbedding::vertices(). This labelling is independent of the vertex
+numbers in any top-dimensional simplices that contain *f*.
+
+Precondition:
+    The facial dimension *subdim* is precisely ``dim-1``.
+
+Precondition:
+    This and the given face are distinct boundary facets of the same
+    triangulation.
+
+.. warning::
+    As soon as the join takes place, both this and the given facet
+    will be destroyed (since the skeleton of a triangulation is
+    rebuilt whenever the triangulation changes).
+
+Exception ``InvalidArgument``:
+    At least one of the preconditions above fails; that is, this and
+    the given face are the same, or belong to different
+    triangulations, or are not both boundary facets.
+
+Exception ``LockViolation``:
+    Either this or the given face is a locked facet. This exception
+    will be thrown before any change is made. See Simplex::lockFacet()
+    for further details on how facet locks work and what their
+    implications are.
+
+Parameter ``you``:
+    the other boundary facet that this should be glued to.
+
+Parameter ``gluing``:
+    a permutation that describes how the inherent vertices of this
+    boundary facet will map to the inherent vertices of the given
+    boundary facet across the new gluing.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::lock
 constexpr const char *lock =
@@ -855,9 +945,21 @@ walk through the many different FaceEmbedding objects for the same
 underlying *subdim*-face.
 
 This routine returns the same permutation as
-``simplex().faceMapping<subdim>(face())`` (and this routine is faster
+``simplex()->faceMapping<subdim>(face())`` (and this routine is faster
 if you already have a FaceEmbedding). See Simplex<dim>::faceMapping()
 for details.
+
+.. warning::
+    Be aware that if the triangulation changes then the skeleton will
+    be recomputed, and there is no guarantee that the new Face objects
+    will use the same inherent labelling as the old ones. In
+    particular, after the triangulation changes, the FaceEmbedding for
+    the same face of the same simplex might return a different
+    permutation for ``vertices()``. Likewise, if you keep a copy of an
+    old FaceEmbedding ``emb`` and then change the triangulation, the
+    connection between ``emb.vertices()`` (which will not be updated)
+    and ``emb.simplex()->faceMapping<subdim>(emb.face())`` (which will
+    be updated) will be lost.
 
 Returns:
     a mapping from the vertices of the underlying *subdim*-face to the

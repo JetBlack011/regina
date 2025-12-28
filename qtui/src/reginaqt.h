@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -38,25 +36,12 @@
 #ifndef __REGINAQT_H
 #define __REGINAQT_H
 
-// If we are building against Qt6, then explicitly disable everything
-// from Qt5 that is now deprecated in Qt6.
+// Explicitly disable everything from Qt5 that is now deprecated in Qt6.
 //
 // A problem: we should do this *before* including QtGlobal, since QtGlobal
 // will define QT_DISABLE_DEPRECATED_BEFORE if we have not already done so.
-//
-// For this, we test for the existence of a header that is new to the Qt6 API.
 
-#if __has_include(<QStringConverter>)
-    // We are building against Qt6 (or later).
-    #define QT_DISABLE_DEPRECATED_BEFORE 0x060000
-#else
-    // We are building against Qt5.
-    // Just to be sure, check that our __has_include is checking the
-    // Qt header directory at all.
-    #if ! __has_include(<QString>)
-        #error Cannot find Qt headers!
-    #endif
-#endif
+#define QT_DISABLE_DEPRECATED_BEFORE 0x060000
 
 #endif
 

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,15 +51,9 @@
 
 namespace regina {
 
-template <class RayClass, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, typename Action>
 void HilbertCD::enumerate(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints) {
-    static_assert(
-        IsReginaArbitraryPrecisionInteger<typename RayClass::value_type>::value,
-        "HilbertCD::enumerate() requires the RayClass "
-        "template parameter to be equal to or derived from Vector<T>, "
-        "where T is one of Regina's arbitrary precision integer types.");
-
     // Get the dimension of the space.
     size_t dim = subspace.columns();
     if (dim == 0)
@@ -72,35 +64,36 @@ void HilbertCD::enumerate(Action&& action,
     // Then farm the work out to the real enumeration routine that is
     // templated on the bitmask type.
     if (dim <= 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned> >(
             std::forward<Action>(action), subspace, constraints);
     else if (dim <= 8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long> >(
             std::forward<Action>(action), subspace, constraints);
     else if (dim <= 8 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask1<unsigned long long> >(
+        enumerateUsingBitmask<Ray, Bitmask1<unsigned long long> >(
             std::forward<Action>(action), subspace, constraints);
     else if (dim <= 8 * sizeof(unsigned long long) + 8 * sizeof(unsigned))
-        enumerateUsingBitmask<RayClass,
+        enumerateUsingBitmask<Ray,
             Bitmask2<unsigned long long, unsigned> >(
             std::forward<Action>(action), subspace, constraints);
     else if (dim <= 8 * sizeof(unsigned long long) +
             8 * sizeof(unsigned long))
-        enumerateUsingBitmask<RayClass,
+        enumerateUsingBitmask<Ray,
             Bitmask2<unsigned long long, unsigned long> >(
             std::forward<Action>(action), subspace, constraints);
     else if (dim <= 16 * sizeof(unsigned long long))
-        enumerateUsingBitmask<RayClass, Bitmask2<unsigned long long> >(
+        enumerateUsingBitmask<Ray, Bitmask2<unsigned long long> >(
             std::forward<Action>(action), subspace, constraints);
     else
-        enumerateUsingBitmask<RayClass, Bitmask>(
+        enumerateUsingBitmask<Ray, Bitmask>(
             std::forward<Action>(action), subspace, constraints);
 }
 
-template <class RayClass, class BitmaskType, typename Action>
+template <ArbitraryPrecisionIntegerVector Ray, ReginaBitmask BitmaskType,
+    typename Action>
 void HilbertCD::enumerateUsingBitmask(Action&& action,
         const MatrixInt& subspace, const ValidityConstraints& constraints) {
-    using IntegerType = typename RayClass::value_type;
+    using IntegerType = typename Ray::value_type;
 
     // Stack-based Contejean-Devie algorithm (Information & Computation, 1994).
     size_t dim = subspace.columns();
@@ -109,7 +102,6 @@ void HilbertCD::enumerateUsingBitmask(Action&& action,
     auto constraintMasks = constraints.bitmasks<BitmaskType>(dim);
 
     std::list<VecSpec<IntegerType, BitmaskType>*> basis;
-    typename std::list<VecSpec<IntegerType, BitmaskType>*>::iterator bit;
 
     auto* unitMatch = new Vector<IntegerType>*[dim];
     for (size_t i = 0; i < dim; ++i) {
@@ -195,7 +187,7 @@ void HilbertCD::enumerateUsingBitmask(Action&& action,
 
                 // Domination test.
                 found = false;
-                for (bit = basis.begin(); bit != basis.end(); ++bit) {
+                for (auto bit = basis.begin(); bit != basis.end(); ++bit) {
                     // Is (**bit) <= (*c + ith unit vector) ?
                     // Quick pre-check using bitmasks.
                     if (! ((*bit)->mask_ <= mask))
@@ -255,9 +247,9 @@ void HilbertCD::enumerateUsingBitmask(Action&& action,
     delete[] frozen;
 
     // Output basis elements.
-    for (bit = basis.begin(); bit != basis.end(); ++bit) {
-        action(RayClass(**bit));
-        delete *bit;
+    for (auto ptr : basis) {
+        action(Ray(*ptr));
+        delete ptr;
     }
 }
 

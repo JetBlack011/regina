@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -224,7 +222,7 @@ struct PermSn {
              *
              * \return a reference to this iterator.
              */
-            iterator& operator = (const iterator&) = default;
+            constexpr iterator& operator = (const iterator&) = default;
             /**
              * Compares this with the given iterator for equality.
              *
@@ -232,7 +230,6 @@ struct PermSn {
              * dereferencable and pointing to the same permutation, or must
              * both be past-the-end.
              *
-             * \param rhs the iterator to compare this with.
              * \return \c true if and only if the two iterators are equal.
              */
             constexpr bool operator == (const iterator&) const = default;
@@ -274,7 +271,7 @@ struct PermSn {
              *
              * \return a reference to this iterator after the increment.
              */
-            iterator& operator ++ () {
+            constexpr iterator& operator ++ () {
                 if constexpr (order == PermOrder::Sign)
                     ++perm_;
                 else
@@ -292,7 +289,7 @@ struct PermSn {
              *
              * \return a copy of this iterator before the increment took place.
              */
-            iterator operator ++ (int) {
+            constexpr iterator operator ++ (int) {
                 if constexpr (order == PermOrder::Sign) {
                     Perm<n> ans = perm_++;
                     if (perm_.isIdentity())
@@ -581,7 +578,7 @@ struct PermSn<n, order, PermCodeType::Index> {
             constexpr iterator(bool valid) :
                 index_(valid ? 0 : Perm<n>::nPerms) {}
             constexpr iterator(const iterator&) = default;
-            iterator& operator = (const iterator&) = default;
+            constexpr iterator& operator = (const iterator&) = default;
             constexpr bool operator == (const iterator&) const = default;
             constexpr std::strong_ordering operator <=> (const iterator&)
                 const = default;
@@ -599,21 +596,21 @@ struct PermSn<n, order, PermCodeType::Index> {
                 }
             }
 
-            iterator& operator ++ () {
+            constexpr iterator& operator ++ () {
                 ++index_;
                 return *this;
             }
 
-            iterator operator ++ (int) {
+            constexpr iterator operator ++ (int) {
                 return iterator(index_++);
             }
 
-            iterator& operator -- () {
+            constexpr iterator& operator -- () {
                 --index_;
                 return *this;
             }
 
-            iterator operator -- (int) {
+            constexpr iterator operator -- (int) {
                 return iterator(index_--);
             }
 
@@ -621,11 +618,11 @@ struct PermSn<n, order, PermCodeType::Index> {
                 return iterator(index_ + k);
             }
 
-            friend iterator operator + (difference_type k, iterator i) {
+            friend constexpr iterator operator + (difference_type k, iterator i) {
                 return iterator(i.index_ + k);
             }
 
-            iterator& operator += (difference_type k) {
+            constexpr iterator& operator += (difference_type k) {
                 index_ += k;
                 return *this;
             }
@@ -634,7 +631,7 @@ struct PermSn<n, order, PermCodeType::Index> {
                 return iterator(index_ - k);
             }
 
-            iterator& operator -= (difference_type k) {
+            constexpr iterator& operator -= (difference_type k) {
                 index_ -= k;
                 return *this;
             }

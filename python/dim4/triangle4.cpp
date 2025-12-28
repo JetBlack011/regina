@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -48,7 +46,7 @@ using regina::Face;
 using regina::FaceEmbedding;
 using regina::python::wrapTableView;
 
-void addTriangle4(pybind11::module_& m) {
+void addTriangle4(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
     RDOC_SCOPE_BASE_3(detail::FaceEmbeddingBase, alias::FaceNumber,
         alias::SimplexVoid)
@@ -104,6 +102,9 @@ void addTriangle4(pybind11::module_& m) {
         .def("triangleType", &Triangle<4>::triangleType, rbase::triangleType)
         .def("triangleSubtype", &Triangle<4>::triangleSubtype,
             rbase::triangleSubtype)
+        .def("formsMobiusBand", &Triangle<4>::formsMobiusBand,
+            rbase::formsMobiusBand)
+        .def("formsCone", &Triangle<4>::formsCone, rbase::formsCone)
         .def("degree", &Triangle<4>::degree, rbase::degree)
         .def("isBoundary", &Triangle<4>::isBoundary, rbase::isBoundary)
         .def("isLinkOrientable", &Triangle<4>::isLinkOrientable,
@@ -124,8 +125,10 @@ void addTriangle4(pybind11::module_& m) {
         .def_readonly_static("subdimension", &Triangle<4>::subdimension)
     ;
 
-    c.attr("triangleNumber") = wrapTableView(m, Triangle<4>::triangleNumber);
-    c.attr("triangleVertex") = wrapTableView(m, Triangle<4>::triangleVertex);
+    c.attr("triangleNumber") = wrapTableView(internal,
+        Triangle<4>::triangleNumber);
+    c.attr("triangleVertex") = wrapTableView(internal,
+        Triangle<4>::triangleVertex);
 
     regina::python::add_output(c);
     regina::python::add_eq_operators(c);
@@ -133,7 +136,8 @@ void addTriangle4(pybind11::module_& m) {
     RDOC_SCOPE_END
 
     regina::python::addListView<
-        decltype(std::declval<Triangle<4>>().embeddings())>(m);
+        decltype(std::declval<Triangle<4>>().embeddings())>(internal,
+        "Face4_2_embeddings");
 
     m.attr("TriangleEmbedding4") = m.attr("FaceEmbedding4_2");
     m.attr("Triangle4") = m.attr("Face4_2");

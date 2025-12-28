@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -79,6 +77,399 @@ class TriangulationTest : public testing::Test {
             Triangulation<dim> tri;
             const char* name;
         };
+
+        /**
+         * We make detailed skeletal tests public because we may wish to
+         * access them from test suites in other dimensions.
+         */
+        static void verifyComponentsDetail(const Triangulation<dim>& tri) {
+            bool allOrbl = true;
+            size_t totSize = 0;
+            size_t totBdry = 0;
+            size_t totBdryFacets = 0;
+            for (auto c : tri.components()) {
+                bool allOrblInComponent = true;
+                bool allValidInComponent = true;
+                size_t boundaryFacets = 0;
+                size_t doubleDualTree = 0;
+
+                totSize += c->size();
+                for (auto s : c->simplices()) {
+                    EXPECT_EQ(s->component(), c);
+                    EXPECT_EQ(std::abs(s->orientation()), 1);
+                    for (int i = 0; i <= dim; ++i) {
+                        if (auto adj = s->adjacentSimplex(i)) {
+                            if (s->adjacentGluing(i).sign() > 0) {
+                                if (adj->orientation() != - s->orientation())
+                                    allOrbl = allOrblInComponent = false;
+                            } else {
+                                if (adj->orientation() != s->orientation())
+                                    allOrbl = allOrblInComponent = false;
+                            }
+                            if (s->facetInMaximalForest(i)) {
+                                ++doubleDualTree;
+                                EXPECT_TRUE(adj->facetInMaximalForest(
+                                    s->adjacentFacet(i)));
+                            }
+                        } else {
+                            ++boundaryFacets;
+                            ++totBdryFacets;
+                            EXPECT_FALSE(s->facetInMaximalForest(i));
+                        }
+                    }
+                }
+
+                totBdry += c->countBoundaryComponents();
+                for (auto b : c->boundaryComponents())
+                    EXPECT_EQ(b->component(), c);
+
+                // See if this component contains any invalid faces.
+                regina::for_constexpr<0, dim>([c, &allValidInComponent](
+                        auto subdim) {
+                    if constexpr (regina::standardDim(dim)) {
+                        // Access faces directly from the component.
+                        for (auto f : c->template faces<subdim>())
+                            if (! f->isValid()) {
+                                allValidInComponent = false;
+                                return; // from lambda
+                            }
+                    } else {
+                        // Access faces via the top-dimensional simplices.
+                        for (auto s : c->simplices())
+                            for (size_t j = 0;
+                                    j < regina::Face<dim, subdim>::nFaces; ++j)
+                                if (! s->template face<subdim>(j)->isValid()) {
+                                    allValidInComponent = false;
+                                    return; // from lambda
+                                }
+                    }
+                });
+
+                EXPECT_EQ(c->isOrientable(), allOrblInComponent);
+                EXPECT_EQ(c->isValid(), allValidInComponent);
+                EXPECT_EQ(c->countBoundaryFacets(), boundaryFacets);
+                EXPECT_EQ(doubleDualTree, 2 * (c->size() - 1));
+            }
+            EXPECT_EQ(tri.isOrientable(), allOrbl);
+            EXPECT_EQ(tri.size(), totSize);
+            EXPECT_EQ(tri.countBoundaryComponents(), totBdry);
+            EXPECT_EQ(tri.countBoundaryFacets(), totBdryFacets);
+        }
+
+        static void verifyBoundaryComponentsDetail(
+                const Triangulation<dim>& tri) {
+            size_t totBdryFacets = 0;
+            for (auto b : tri.boundaryComponents()) {
+                totBdryFacets += b->size();
+                EXPECT_EQ(b->size() * dim, b->countRidges() * 2);
+
+                size_t builtSize = 0;
+                if (b->isReal()) {
+                    builtSize = b->size();
+
+                    for (auto f : b->facets())
+                        EXPECT_EQ(f->boundaryComponent(), b);
+
+                    // NOTE: Below we test whether face->boundaryComponent()
+                    // matches the boundary component containing face.
+                    // This test could fail for legitimate reasons if the face
+                    // is pinched between two different boundary components.
+                    // However, none of our test cases have this property,
+                    // and so we leave the tests as they are for now.
+                    if constexpr (regina::BoundaryComponent<dim>::allFaces) {
+                        // Access faces directly from the boundary component.
+                        regina::for_constexpr<0, dim-1>([b](auto subdim) {
+                            for (auto f : b->template faces<subdim>()) {
+                                EXPECT_EQ(f->boundaryComponent(), b);
+                            }
+                        });
+                    } else {
+                        // Access faces via the boundary facets.
+                        for (auto f : b->facets()) {
+                            regina::for_constexpr<0, dim-1>(
+                                    [b, f](auto subdim) {
+                                // Check all subdim-faces of f.
+                                for (size_t j = 0;
+                                        j < regina::Face<dim-1, subdim>::nFaces;
+                                        ++j) {
+                                    auto sub = f->template face<subdim>(j);
+                                    EXPECT_EQ(sub->boundaryComponent(), b);
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    if constexpr (regina::BoundaryComponent<dim>::allowVertex) {
+                        EXPECT_EQ(b->countVertices(), 1);
+                        regina::for_constexpr<1, dim>([b](auto subdim) {
+                            EXPECT_EQ(b->template countFaces<subdim>(), 0);
+                        });
+
+                        auto v = b->vertex(0);
+                        builtSize = v->degree();
+                        // NOTE: This next test could fail for legitimate
+                        // reasons if the vertex is pinched between two
+                        // different boundary components.  See above for
+                        // further explanation.
+                        EXPECT_EQ(v->boundaryComponent(), b);
+                    } else {
+                        ADD_FAILURE() << "Vertex-only boundary component "
+                            "not allowed in this dimension";
+                    }
+                }
+
+                if constexpr (dim > 2) {
+                    Triangulation<dim - 1> built = b->build();
+                    EXPECT_EQ(built.size(), builtSize);
+                    EXPECT_EQ(built.isOrientable(), b->isOrientable());
+                }
+            }
+            EXPECT_EQ(tri.countBoundaryFacets(), totBdryFacets);
+        }
+
+        static void verifyFacesDetail(const Triangulation<dim>& tri) {
+            bool allValid = true;
+            regina::for_constexpr<0, dim>([&tri, &allValid](auto subdim) {
+                size_t bdry = 0;
+                size_t degreeSum = 0;
+                for (auto f : tri.template faces<subdim>()) {
+                    SCOPED_TRACE_NUMERIC(subdim);
+
+                    if (! f->isValid())
+                        allValid = false;
+                    if (f->isBoundary())
+                        ++bdry;
+                    degreeSum += f->degree();
+
+                    EXPECT_EQ(f->component(),
+                        f->front().simplex()->component());
+
+                    if (! f->hasBadIdentification()) {
+                        // We already test link orientability more precisely
+                        // for dim == 3,4 further below (we compare the
+                        // cached link orientability to the
+                        // orientability of the full triangulated link).
+                        // Therefore the tests here only need to be things
+                        // that are relevant in higher dimensions.
+                        if (f->isLinkOrientable()) {
+                            // What is there that's sensible to test here?
+                        } else {
+                            EXPECT_FALSE(f->component()->isOrientable());
+                        }
+                    }
+
+                    size_t embIndex = 0;
+                    for (auto emb : f->embeddings()) {
+                        auto s = emb.simplex();
+                        auto v = emb.vertices();
+                        auto which = regina::Face<dim, subdim>::faceNumber(v);
+                        EXPECT_EQ(s->template face<subdim>(which), f);
+                        EXPECT_EQ(s->template faceMapping<subdim>(which), v);
+
+                        if (s->component()->isOrientable()) {
+                            if constexpr (subdim < dim - 1) {
+                                EXPECT_EQ(v.sign(), s->orientation());
+                            } else {
+                                if (embIndex == 0) {
+                                    EXPECT_EQ(v.sign(), s->orientation());
+                                } else {
+                                    EXPECT_EQ(v.sign(), - s->orientation());
+                                }
+                            }
+                        }
+
+                        for (int i = subdim + 1; i <= dim; ++i) {
+                            if (auto adj = s->adjacentSimplex(v[i])) {
+                                Perm adjMap = s->adjacentGluing(v[i]) * v;
+                                Perm crossMap =
+                                    adj->template faceMapping<subdim>(
+                                    regina::Face<dim, subdim>::faceNumber(
+                                    adjMap)).inverse() * adjMap;
+                                // The permutation crossMap is essentially
+                                // a "gluing map" for the implicit vertices
+                                // of f and the implicit vertices of the
+                                // face opposite f when we step across
+                                // facet v[i] of simplex s.
+
+                                if constexpr (subdim < dim - 1) {
+                                    if (f->isLinkOrientable()) {
+                                        // The faces opposite f should have
+                                        // consistent implicit orientations.
+                                        // Here we need to ignore the images
+                                        // of i ≤ subdim.
+                                        SCOPED_TRACE("Gluings for faces "
+                                            "opposite f");
+                                        Perm reverse = Perm<dim+1>().reverse();
+                                        Perm p = reverse * crossMap * reverse;
+                                        p.clear(dim - subdim);
+                                        EXPECT_EQ(p.sign(), -1);
+                                    }
+                                }
+
+                                if (! f->hasBadIdentification()) {
+                                    // For the vertices of f itself, this map
+                                    // should be the identity.  Here we need
+                                    // to ignore the images of i ≥ subdim+1.
+                                    SCOPED_TRACE("Gluings for f");
+                                    Perm p = crossMap;
+                                    p.clear(subdim + 1);
+                                    EXPECT_TRUE(p.isIdentity());
+                                }
+                            }
+                        }
+
+                        ++embIndex;
+                    }
+
+                    if constexpr (subdim == dim - 2) {
+                        // For codimension 2, the order of embeddings is
+                        // specified precisely.
+                        for (size_t i = 1; i < f->degree(); ++i) {
+                            auto prev = f->embedding(i - 1);
+                            auto next = f->embedding(i);
+
+                            int facet = prev.vertices()[dim - 1];
+                            auto adj = prev.simplex()->adjacentSimplex(facet);
+                            EXPECT_EQ(next.simplex(), adj);
+                            if (adj) {
+                                EXPECT_EQ(next.vertices(),
+                                    prev.simplex()->adjacentGluing(facet) *
+                                    prev.vertices() * Perm<dim+1>(dim-1, dim));
+                            }
+                        }
+                    }
+                }
+                constexpr size_t nFaces = regina::Face<dim, subdim>::nFaces;
+                EXPECT_EQ(bdry, tri.template countBoundaryFaces<subdim>());
+                EXPECT_EQ(degreeSum, tri.size() * nFaces);
+            });
+            EXPECT_EQ(tri.isValid(), allValid);
+
+            if constexpr (dim == 3) {
+                // All triangle types should, at this point, be not yet
+                // determined.
+                for (auto t : tri.triangles()) {
+                    int sub = t->triangleSubtype();
+                    switch (t->triangleType()) {
+                        case regina::TriangleType::Triangle:
+                        case regina::TriangleType::Parachute:
+                        case regina::TriangleType::L31:
+                            EXPECT_EQ(sub, -1);
+                            break;
+
+                        case regina::TriangleType::Scarf:
+                        case regina::TriangleType::Cone:
+                        case regina::TriangleType::Mobius:
+                        case regina::TriangleType::Horn:
+                        case regina::TriangleType::DunceHat:
+                            EXPECT_GE(sub, 0);
+                            EXPECT_LE(sub, 2);
+                            break;
+
+                        default:
+                            ADD_FAILURE() << "Unexpected triangle type";
+                            break;
+                    }
+                }
+            }
+        }
+
+        static void verifySkeletonDetail(const Triangulation<dim>& tri) {
+            verifyComponentsDetail(tri);
+            verifyBoundaryComponentsDetail(tri);
+            verifyFacesDetail(tri);
+
+            // Additional skeletal data for low dimensions:
+            if constexpr (regina::standardDim(dim)) {
+                regina::for_constexpr<0, dim>([&tri](auto subdim) {
+                    size_t count = 0;
+                    for (auto c : tri.components()) {
+                        for (auto f : c->template faces<subdim>()) {
+                            EXPECT_EQ(f->component(), c);
+                            ++count;
+                        }
+                    }
+                    EXPECT_EQ(count, tri.template countFaces<subdim>());
+                });
+            }
+            if constexpr (dim == 3 || dim == 4) {
+                bool foundIdeal = false;
+                bool allStandard = true;
+                for (auto c : tri.components()) {
+                    bool foundIdealInComponent = false;
+                    for (auto v : c->vertices()) {
+                        if (v->isIdeal())
+                            foundIdeal = foundIdealInComponent = true;
+
+                        const auto& link = v->buildLink();
+                        EXPECT_EQ(v->isLinkOrientable(), link.isOrientable());
+
+                        if (link.isSphere()) {
+                            EXPECT_TRUE(v->isValid());
+                            EXPECT_FALSE(v->isIdeal());
+                            if constexpr (dim == 3)
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Sphere);
+                        } else if (link.isBall()) {
+                            EXPECT_TRUE(v->isValid());
+                            EXPECT_FALSE(v->isIdeal());
+                            if constexpr (dim == 3)
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Disc);
+                        } else if (link.isValid() && link.isClosed()) {
+                            EXPECT_TRUE(v->isValid());
+                            EXPECT_TRUE(v->isIdeal());
+                            if constexpr (dim == 3) {
+                                if (link.eulerCharTri() == 0) {
+                                    if (link.isOrientable())
+                                        EXPECT_EQ(v->linkType(),
+                                            Vertex<dim>::Link::Torus);
+                                    else
+                                        EXPECT_EQ(v->linkType(),
+                                            Vertex<dim>::Link::KleinBottle);
+                                } else {
+                                    allStandard = false;
+                                    EXPECT_EQ(v->linkType(),
+                                        Vertex<dim>::Link::NonStandardCusp);
+                                }
+                            }
+                        } else {
+                            allStandard = false;
+                            EXPECT_FALSE(v->isValid());
+                            EXPECT_FALSE(v->isIdeal());
+                            if constexpr (dim == 3)
+                                EXPECT_EQ(v->linkType(),
+                                    Vertex<dim>::Link::Invalid);
+                        }
+
+                        if constexpr (dim == 3)
+                            EXPECT_EQ(link.eulerCharTri(), v->linkEulerChar());
+                    }
+                    if constexpr (dim == 4) {
+                        for (auto e : c->edges()) {
+                            const auto& link = e->buildLink();
+                            EXPECT_EQ(e->isLinkOrientable(),
+                                link.isOrientable());
+                            EXPECT_EQ(e->hasBadLink(),
+                                ! (link.isSphere() || link.isBall()));
+                        }
+                    }
+                    EXPECT_EQ(c->isIdeal(), foundIdealInComponent);
+                }
+                if constexpr (dim == 4) {
+                    // In 4-D, we restrict the notion of "ideal triangulations"
+                    // to only include valid triangulations.
+                    // See Triangulation<4>::isIdeal() for why.
+                    if (tri.isValid())
+                        EXPECT_EQ(tri.isIdeal(), foundIdeal);
+                    else
+                        EXPECT_FALSE(tri.isIdeal());
+                } else /* dim == 3 */ {
+                    EXPECT_EQ(tri.isIdeal(), foundIdeal);
+                    EXPECT_EQ(tri.isStandard(), allStandard);
+                }
+            }
+        }
 
     protected:
         // Trivial case:
@@ -446,314 +837,6 @@ class TriangulationTest : public testing::Test {
             }
         }
 
-        static void verifySkeletonDetail(const Triangulation<dim>& tri) {
-            // Components and their boundary components and simplices:
-            bool allOrbl = true;
-            size_t totSize = 0;
-            size_t totBdry = 0;
-            size_t totBdryFacets = 0;
-            for (auto c : tri.components()) {
-                bool allOrblInComponent = true;
-                bool allValidInComponent = true;
-                size_t boundaryFacets = 0;
-                size_t doubleDualTree = 0;
-
-                totSize += c->size();
-                for (auto s : c->simplices()) {
-                    EXPECT_EQ(s->component(), c);
-                    EXPECT_EQ(std::abs(s->orientation()), 1);
-                    for (int i = 0; i <= dim; ++i) {
-                        if (auto adj = s->adjacentSimplex(i)) {
-                            if (s->adjacentGluing(i).sign() > 0) {
-                                if (adj->orientation() != - s->orientation())
-                                    allOrbl = allOrblInComponent = false;
-                            } else {
-                                if (adj->orientation() != s->orientation())
-                                    allOrbl = allOrblInComponent = false;
-                            }
-                            if (s->facetInMaximalForest(i)) {
-                                ++doubleDualTree;
-                                EXPECT_TRUE(adj->facetInMaximalForest(
-                                    s->adjacentFacet(i)));
-                            }
-                        } else {
-                            ++boundaryFacets;
-                            ++totBdryFacets;
-                            EXPECT_FALSE(s->facetInMaximalForest(i));
-                        }
-                    }
-                }
-
-                totBdry += c->countBoundaryComponents();
-                for (auto b : c->boundaryComponents())
-                    EXPECT_EQ(b->component(), c);
-
-                // See if this component contains any invalid faces.
-                regina::for_constexpr<0, dim>([c, &allValidInComponent](
-                        auto subdim) {
-                    if constexpr (regina::standardDim(dim)) {
-                        // Access faces directly from the component.
-                        for (auto f : c->template faces<subdim>())
-                            if (! f->isValid()) {
-                                allValidInComponent = false;
-                                return; // from lambda
-                            }
-                    } else {
-                        // Access faces via the top-dimensional simplices.
-                        for (auto s : c->simplices())
-                            for (size_t j = 0;
-                                    j < regina::binomSmall(dim+1, subdim+1);
-                                    ++j)
-                                if (! s->template face<subdim>(j)->isValid()) {
-                                    allValidInComponent = false;
-                                    return; // from lambda
-                                }
-                    }
-                });
-
-                EXPECT_EQ(c->isOrientable(), allOrblInComponent);
-                EXPECT_EQ(c->isValid(), allValidInComponent);
-                EXPECT_EQ(c->countBoundaryFacets(), boundaryFacets);
-                EXPECT_EQ(doubleDualTree, 2 * (c->size() - 1));
-            }
-            EXPECT_EQ(tri.isOrientable(), allOrbl);
-            EXPECT_EQ(tri.size(), totSize);
-            EXPECT_EQ(tri.countBoundaryComponents(), totBdry);
-            EXPECT_EQ(tri.countBoundaryFacets(), totBdryFacets);
-
-            // More boundary components:
-            totBdryFacets = 0; // reset, since we will count this again
-            for (auto b : tri.boundaryComponents()) {
-                totBdryFacets += b->size();
-                EXPECT_EQ(b->size() * dim, b->countRidges() * 2);
-
-                size_t builtSize = 0;
-                if (b->isReal()) {
-                    builtSize = b->size();
-
-                    for (auto f : b->facets())
-                        EXPECT_EQ(f->boundaryComponent(), b);
-
-                    // NOTE: Below we test whether face->boundaryComponent()
-                    // matches the boundary component containing face.
-                    // This test could fail for legitimate reasons if the face
-                    // is pinched between two different boundary components.
-                    // However, none of our test cases have this property,
-                    // and so we leave the tests as they are for now.
-                    if constexpr (regina::BoundaryComponent<dim>::allFaces) {
-                        // Access faces directly from the boundary component.
-                        regina::for_constexpr<0, dim-1>([b](auto subdim) {
-                            for (auto f : b->template faces<subdim>()) {
-                                EXPECT_EQ(f->boundaryComponent(), b);
-                            }
-                        });
-                    } else {
-                        // Access faces via the boundary facets.
-                        for (auto f : b->facets()) {
-                            regina::for_constexpr<0, dim-1>(
-                                    [b, f](auto subdim) {
-                                // Check all subdim-faces of f.
-                                for (size_t j = 0;
-                                        j < regina::binomSmall(dim, subdim+1);
-                                        ++j) {
-                                    auto sub = f->template face<subdim>(j);
-                                    EXPECT_EQ(sub->boundaryComponent(), b);
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    if constexpr (regina::BoundaryComponent<dim>::allowVertex) {
-                        EXPECT_EQ(b->countVertices(), 1);
-                        regina::for_constexpr<1, dim>([b](auto subdim) {
-                            EXPECT_EQ(b->template countFaces<subdim>(), 0);
-                        });
-
-                        auto v = b->vertex(0);
-                        builtSize = v->degree();
-                        // NOTE: This next test could fail for legitimate
-                        // reasons if the vertex is pinched between two
-                        // different boundary components.  See above for
-                        // further explanation.
-                        EXPECT_EQ(v->boundaryComponent(), b);
-                    } else {
-                        ADD_FAILURE() << "Vertex-only boundary component "
-                            "not allowed in this dimension";
-                    }
-                }
-
-                if constexpr (dim > 2) {
-                    Triangulation<dim - 1> built = b->build();
-                    EXPECT_EQ(built.size(), builtSize);
-                    EXPECT_EQ(built.isOrientable(), b->isOrientable());
-                }
-            }
-            EXPECT_EQ(tri.countBoundaryFacets(), totBdryFacets);
-
-            // Faces:
-            bool allValid = true;
-            regina::for_constexpr<0, dim>([&tri, &allValid](auto subdim) {
-                size_t bdry = 0;
-                size_t degreeSum = 0;
-                for (auto f : tri.template faces<subdim>()) {
-                    if (! f->isValid())
-                        allValid = false;
-                    if (f->isBoundary())
-                        ++bdry;
-                    degreeSum += f->degree();
-
-                    EXPECT_EQ(f->component(),
-                        f->front().simplex()->component());
-
-                    if (! f->hasBadIdentification()) {
-                        // We already test link orientability more precisely
-                        // for dim == 3,4 further below (we compare the
-                        // cached link orientability to the
-                        // orientability of the full triangulated link).
-                        // Therefore the tests here only need to be things
-                        // that are relevant in higher dimensions.
-                        if (f->isLinkOrientable()) {
-                            // What is there that's sensible to test here?
-                        } else {
-                            EXPECT_FALSE(f->component()->isOrientable());
-                        }
-                    }
-
-                    for (auto emb : f->embeddings()) {
-                        auto s = emb.simplex();
-                        auto v = emb.vertices();
-                        auto which = regina::Face<dim, subdim>::faceNumber(v);
-                        EXPECT_EQ(s->template face<subdim>(which), f);
-                        EXPECT_EQ(s->template faceMapping<subdim>(which), v);
-                    }
-                }
-                EXPECT_EQ(bdry, tri.template countBoundaryFaces<subdim>());
-                EXPECT_EQ(degreeSum,
-                    tri.size() * regina::binomSmall(dim + 1, subdim + 1));
-            });
-            EXPECT_EQ(tri.isValid(), allValid);
-
-            // Additional skeletal data for low dimensions:
-            if constexpr (regina::standardDim(dim)) {
-                regina::for_constexpr<0, dim>([&tri](auto subdim) {
-                    size_t count = 0;
-                    for (auto c : tri.components()) {
-                        for (auto f : c->template faces<subdim>()) {
-                            EXPECT_EQ(f->component(), c);
-                            ++count;
-                        }
-                    }
-                    EXPECT_EQ(count, tri.template countFaces<subdim>());
-                });
-            }
-            if constexpr (dim == 3 || dim == 4) {
-                bool foundIdeal = false;
-                bool allStandard = true;
-                for (auto c : tri.components()) {
-                    bool foundIdealInComponent = false;
-                    for (auto v : c->vertices()) {
-                        if (v->isIdeal())
-                            foundIdeal = foundIdealInComponent = true;
-
-                        const auto& link = v->buildLink();
-                        EXPECT_EQ(v->isLinkOrientable(), link.isOrientable());
-
-                        if (link.isSphere()) {
-                            EXPECT_TRUE(v->isValid());
-                            EXPECT_FALSE(v->isIdeal());
-                            if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(),
-                                    Vertex<dim>::Link::Sphere);
-                        } else if (link.isBall()) {
-                            EXPECT_TRUE(v->isValid());
-                            EXPECT_FALSE(v->isIdeal());
-                            if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(),
-                                    Vertex<dim>::Link::Disc);
-                        } else if (link.isValid() && link.isClosed()) {
-                            EXPECT_TRUE(v->isValid());
-                            EXPECT_TRUE(v->isIdeal());
-                            if constexpr (dim == 3) {
-                                if (link.eulerCharTri() == 0) {
-                                    if (link.isOrientable())
-                                        EXPECT_EQ(v->linkType(),
-                                            Vertex<dim>::Link::Torus);
-                                    else
-                                        EXPECT_EQ(v->linkType(),
-                                            Vertex<dim>::Link::KleinBottle);
-                                } else {
-                                    allStandard = false;
-                                    EXPECT_EQ(v->linkType(),
-                                        Vertex<dim>::Link::NonStandardCusp);
-                                }
-                            }
-                        } else {
-                            allStandard = false;
-                            EXPECT_FALSE(v->isValid());
-                            EXPECT_FALSE(v->isIdeal());
-                            if constexpr (dim == 3)
-                                EXPECT_EQ(v->linkType(),
-                                    Vertex<dim>::Link::Invalid);
-                        }
-
-                        if constexpr (dim == 3)
-                            EXPECT_EQ(link.eulerCharTri(), v->linkEulerChar());
-                    }
-                    if constexpr (dim == 4) {
-                        for (auto e : c->edges()) {
-                            const auto& link = e->buildLink();
-                            if (! e->hasBadIdentification())
-                                EXPECT_EQ(e->isLinkOrientable(),
-                                    link.isOrientable());
-
-                            EXPECT_EQ(e->hasBadLink(),
-                                ! (link.isSphere() || link.isBall()));
-                        }
-                    }
-                    EXPECT_EQ(c->isIdeal(), foundIdealInComponent);
-                }
-                if constexpr (dim == 4) {
-                    // In 4-D, we restrict the notion of "ideal triangulations"
-                    // to only include valid triangulations.
-                    // See Triangulation<4>::isIdeal() for why.
-                    if (tri.isValid())
-                        EXPECT_EQ(tri.isIdeal(), foundIdeal);
-                    else
-                        EXPECT_FALSE(tri.isIdeal());
-                } else /* dim == 3 */ {
-                    EXPECT_EQ(tri.isIdeal(), foundIdeal);
-                    EXPECT_EQ(tri.isStandard(), allStandard);
-                }
-            }
-            if constexpr (dim == 3) {
-                // All triangle types should, at this point, be not yet
-                // determined.
-                for (auto t : tri.triangles()) {
-                    int sub = t->triangleSubtype();
-                    switch (t->triangleType()) {
-                        case regina::TriangleType::Triangle:
-                        case regina::TriangleType::Parachute:
-                        case regina::TriangleType::L31:
-                            EXPECT_EQ(sub, -1);
-                            break;
-
-                        case regina::TriangleType::Scarf:
-                        case regina::TriangleType::Cone:
-                        case regina::TriangleType::Mobius:
-                        case regina::TriangleType::Horn:
-                        case regina::TriangleType::DunceHat:
-                            EXPECT_GE(sub, 0);
-                            EXPECT_LE(sub, 2);
-                            break;
-
-                        default:
-                            ADD_FAILURE() << "Unexpected triangle type";
-                            break;
-                    }
-                }
-            }
-        }
-
         static void verifySkeleton(const Triangulation<dim>& tri,
                 const char* name) {
             SCOPED_TRACE_CSTRING(name);
@@ -777,6 +860,11 @@ class TriangulationTest : public testing::Test {
 
             regina::for_constexpr<0, dim-1>([bc, &built](auto subdim) {
                 SCOPED_TRACE_NUMERIC(subdim);
+
+                // Before doing anything else, check the consistency of the
+                // skeleton (which includes the face mapping permutations).
+                TriangulationTest<dim-1>::verifySkeletonDetail(built);
+                EXPECT_EQ(built.countBoundaryFacets(), 0);
 
                 // The labelling and ordering of subdim-faces is only
                 // guaranteed if no subdim-face is pinched.  Conversely, if
@@ -817,7 +905,7 @@ class TriangulationTest : public testing::Test {
                     const auto* innerSimp = built.simplex(i);
                     const auto* outerSimp = bc->template face<dim-1>(i);
 
-                    for (size_t j = 0; j < regina::binomSmall(dim, subdim+1);
+                    for (size_t j = 0; j < regina::Face<dim-1, subdim>::nFaces;
                             ++j) {
                         auto* innerFace = innerSimp->template face<subdim>(j);
                         auto* outerFace = outerSimp->template face<subdim>(j);
@@ -1027,6 +1115,78 @@ class TriangulationTest : public testing::Test {
             }
         }
 
+        static void verifyDoubleOverBoundary(const Triangulation<dim>& tri,
+                const char* name) {
+            SCOPED_TRACE_CSTRING(name);
+
+            Triangulation<dim> dbl = tri.doubleOverBoundary();
+
+            if (tri.isEmpty()) {
+                EXPECT_TRUE(dbl.isEmpty());
+                return;
+            }
+
+            if (! tri.hasBoundaryFacets()) {
+                // We should simply come away with two identical copies of tri.
+                auto components = dbl.triangulateComponents();
+                EXPECT_EQ(components.size(), 2 * tri.countComponents());
+                if (tri.isConnected())
+                    for (const Triangulation<dim>& c : components)
+                        EXPECT_TRUE(tri.isIsomorphicTo(c));
+                return;
+            }
+
+            if (tri.isConnected())
+                EXPECT_EQ(dbl.countComponents(), 1);
+            else {
+                EXPECT_GE(dbl.countComponents(), 1);
+                EXPECT_LT(dbl.countComponents(), 2 * tri.countComponents());
+            }
+            EXPECT_EQ(dbl.isOrientable(), tri.isOrientable());
+            EXPECT_FALSE(dbl.isOriented());
+            EXPECT_FALSE(dbl.hasBoundaryFacets());
+            EXPECT_EQ(dbl.size(), 2 * tri.size());
+
+            if constexpr (regina::standardDim(dim)) {
+                if (tri.isValid()) {
+                    size_t nIdeal = 0;
+                    long bdryEuler = 0;
+                    for (auto b : tri.boundaryComponents()) {
+                        if (b->isReal())
+                            bdryEuler += b->eulerChar();
+                        else
+                            ++nIdeal;
+                    }
+                    EXPECT_EQ(dbl.countBoundaryComponents(), 2 * nIdeal);
+                    EXPECT_EQ(dbl.eulerCharTri(),
+                        2 * tri.eulerCharTri() - bdryEuler);
+                    if constexpr (dim > 2) {
+                        EXPECT_EQ(dbl.eulerCharManifold(),
+                            2 * tri.eulerCharManifold() - bdryEuler);
+                    }
+                }
+            }
+
+            // Note: invalid vertices will become ideal vertices.
+            // Any other invalid face will remain invalid.
+            if (tri.isValid())
+                EXPECT_TRUE(dbl.isValid());
+            else {
+                bool expectValid = true;
+                regina::for_constexpr<1, dim-1>([&tri, &expectValid](
+                        auto subdim) {
+                    if (! expectValid)
+                        return;
+                    for (auto f : tri.template faces<subdim>())
+                        if (! f->isValid()) {
+                            expectValid = false;
+                            break;
+                        }
+                });
+                EXPECT_EQ(dbl.isValid(), expectValid);
+            }
+        }
+
         static void verifyMakeCanonical(const Triangulation<dim>& tri,
                 const char* name) {
             SCOPED_TRACE_CSTRING(name);
@@ -1102,9 +1262,26 @@ class TriangulationTest : public testing::Test {
                 auto detail = tri.template isoSigDetail<Type<dim>>();
 
                 EXPECT_EQ(detail.first, sig);
-                EXPECT_EQ(detail.second(tri),
-                    Triangulation<dim>::fromIsoSig(detail.first));
+
+                auto relabelled = detail.second(tri);
+                auto reconstructed =
+                    Triangulation<dim>::fromIsoSig(detail.first);
+
+                EXPECT_EQ(relabelled, reconstructed);
+
+                EXPECT_EQ(tri.hasLocks(), reconstructed.hasLocks());
+                for (size_t i = 0;
+                        i < relabelled.size() && i < reconstructed.size(); ++i)
+                    EXPECT_EQ(relabelled.simplex(i)->lockMask(),
+                        reconstructed.simplex(i)->lockMask());
             }
+
+            std::string lockFree = tri.template isoSig<Type<dim>,
+                regina::IsoSigPrintableLockFree<dim>>();
+            if (tri.hasLocks())
+                EXPECT_NE(lockFree, sig);
+            else
+                EXPECT_EQ(lockFree, sig);
         }
 
         static void verifyIsomorphismSignature(const Triangulation<dim>& tri,
@@ -1113,6 +1290,310 @@ class TriangulationTest : public testing::Test {
 
             verifyIsomorphismSignatureUsing<regina::IsoSigClassic>(tri);
             verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(tri);
+        }
+
+        static void verifyIsomorphismSignatureWithLocks(
+                const Triangulation<dim>& tri, const char* name) {
+            SCOPED_TRACE_CSTRING(name);
+
+            Triangulation<dim> t = tri;
+
+            // Lock one simplex.
+            for (auto s : t.simplices()) {
+                s->lock();
+                verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+                s->unlock();
+            }
+
+            // Lock all simplices.
+            for (auto s : t.simplices())
+                s->lock();
+            verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+            for (auto s : t.simplices())
+                s->unlock();
+
+            // Lock one facet.
+            for (auto f : t.template faces<dim - 1>()) {
+                f->lock();
+                verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+                f->unlock();
+            }
+
+            // Lock all facets.
+            for (auto f : t.template faces<dim - 1>())
+                f->lock();
+            verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+            for (auto f : t.template faces<dim - 1>())
+                f->unlock();
+
+            // Lock one simplex and one facet.
+            for (auto s : t.simplices()) {
+                s->lock();
+                for (auto f : t.template faces<dim - 1>()) {
+                    f->lock();
+                    verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+                    f->unlock();
+                }
+                s->unlock();
+            }
+
+            // Lock all simplices and facets.
+            for (auto s : t.simplices())
+                s->lock();
+            for (auto f : t.template faces<dim - 1>())
+                f->lock();
+            verifyIsomorphismSignatureUsing<regina::IsoSigEdgeDegrees>(t);
+            for (auto f : t.template faces<dim - 1>())
+                f->unlock();
+            for (auto s : t.simplices())
+                s->unlock();
+        }
+
+        static void verifyLockPropagation(const Triangulation<dim>& tri,
+                const char* name) {
+            SCOPED_TRACE_CSTRING(name);
+
+            static constexpr int trials = 10;
+
+            // This test uses isosigs, so only do it for small triangulations.
+            // Also, locks are not relevant for the empty triangulation.
+            if (tri.isEmpty() || tri.size() > 10)
+                return;
+
+            Triangulation<dim> locked(tri, false, false);
+            locked.simplex(0)->lock();
+            locked.simplex(0)->lockFacet(dim);
+            locked.simplex(locked.size() - 1)->lockFacet(dim - 1);
+            std::string lockedSig = locked.sig();
+            EXPECT_NE(lockedSig.find_first_of('.'), std::string::npos);
+
+            {
+                SCOPED_TRACE("Propagating through direct copy");
+                Triangulation<dim> clone(locked, false, true);
+                EXPECT_EQ(clone, locked);
+                EXPECT_EQ(clone, tri); // a == b should ignore locks
+                EXPECT_EQ(clone.sig(), lockedSig);
+
+                SCOPED_TRACE("Propagating through move assignment");
+                Triangulation<dim> alt = regina::Example<dim>::sphere();
+                alt = std::move(clone);
+                EXPECT_EQ(alt, locked);
+                EXPECT_EQ(alt, tri); // a == b should ignore locks
+                EXPECT_EQ(alt.sig(), lockedSig);
+            }
+
+            {
+                SCOPED_TRACE("Propagating through copy assignment");
+                Triangulation<dim> alt = regina::Example<dim>::sphere();
+                alt = locked;
+                EXPECT_EQ(alt, locked);
+                EXPECT_EQ(alt, tri); // a == b should ignore locks
+                EXPECT_EQ(alt.sig(), lockedSig);
+            }
+
+            for (int i = 0; i < trials; ++i) {
+                SCOPED_TRACE("Propagating through isomorphic copy");
+                Triangulation<dim> relabelled =
+                    Isomorphism<dim>::random(locked.size())(locked);
+                EXPECT_EQ(relabelled.sig(), lockedSig);
+
+                {
+                    SCOPED_TRACE("Propagating through reorderBFS()");
+                    for (int j = 0; j < 2; ++j) {
+                        Triangulation<dim> reordered(relabelled, false, true);
+                        reordered.reorderBFS(j == 0);
+                        EXPECT_EQ(reordered.sig(), lockedSig);
+                    }
+                }
+
+                {
+                    SCOPED_TRACE("Propagating through orient()");
+                    relabelled.orient();
+                    EXPECT_EQ(tri.isOrientable(), relabelled.isOrientable());
+                    if (tri.isOrientable())
+                        EXPECT_TRUE(relabelled.isOriented());
+                    EXPECT_EQ(relabelled.sig(), lockedSig);
+                }
+
+                {
+                    SCOPED_TRACE("Propagating through reflect()");
+                    relabelled.reflect();
+                    EXPECT_EQ(tri.isOrientable(), relabelled.isOrientable());
+                    if (tri.isOrientable())
+                        EXPECT_TRUE(relabelled.isOriented());
+                    EXPECT_EQ(relabelled.sig(), lockedSig);
+                }
+
+                {
+                    SCOPED_TRACE("Propagating through doubleCover()");
+                    Triangulation<dim> dbl = tri.doubleCover();
+                    for (size_t i = 0; i < tri.size(); ++i) {
+                        EXPECT_EQ(tri.simplex(i)->lockMask(),
+                            dbl.simplex(i)->lockMask());
+                        EXPECT_EQ(tri.simplex(i)->lockMask(),
+                            dbl.simplex(tri.size() + i)->lockMask());
+                    }
+                }
+                {
+                    SCOPED_TRACE("Propagating through doubleOverBoundary()");
+                    Triangulation<dim> dbl = tri.doubleOverBoundary();
+                    for (size_t i = 0; i < tri.size(); ++i) {
+                        EXPECT_EQ(tri.simplex(i)->lockMask(),
+                            dbl.simplex(i)->lockMask());
+                        EXPECT_EQ(tri.simplex(i)->lockMask(),
+                            dbl.simplex(tri.size() + i)->lockMask());
+                    }
+                }
+
+                if constexpr (dim == 3) {
+                    // Test the result of order() for small triangulations
+                    // only, since the order() algorithm could be slow:
+                    if (tri.size() <= 5 && tri.isValid()) {
+                        SCOPED_TRACE("Propagating through order()");
+                        for (int i = 0; i < 2; ++i) {
+                            Triangulation<dim> alt(locked, false, true);
+                            alt.order(i == 0);
+                            EXPECT_EQ(alt.sig(), lockedSig);
+                        }
+                    }
+                }
+            }
+
+            // In 3-D, summands() explicitly does _not_ propagate locks.
+            // We test this elsewhere (in the connected sum decomposition
+            // tests), so no need to test it again here.
+
+            // TODO: Some other things that would be nice to check here:
+            // triangulateComponents(), insertTriangulation(), makeCanonical(),
+            // application of Cut.
+            //
+            // Also, in dimension 3: connectedSumWith().
+            // Also, in dimension 4: I-bundles, S1-bundles, bundles with
+            // monodromy.
+        }
+
+        static void verifyLockEnforcement(const Triangulation<dim>& tri,
+                const char* name) {
+            SCOPED_TRACE_CSTRING(name);
+
+            // Locks are not relevant for the empty triangulation.
+            if (tri.isEmpty())
+                return;
+
+            if constexpr (regina::standardDim(dim)) {
+                SCOPED_TRACE("Trying subdivide()");
+                Triangulation<dim> alt(tri, false, false);
+
+                alt.simplex(alt.size() - 1)->lock();
+                EXPECT_THROW({ alt.subdivide(); }, regina::LockViolation);
+                alt.unlockAll();
+                alt.simplex(0)->lockFacet(dim - 1);
+                EXPECT_THROW({ alt.subdivide(); }, regina::LockViolation);
+
+                // Check that no subdivisions were performed.
+                EXPECT_EQ(alt, tri);
+            }
+
+            if constexpr (regina::standardDim(dim) && dim > 2) {
+                SCOPED_TRACE("Trying truncateIdeal()");
+                Triangulation<dim> alt(tri, false, false);
+
+                bool hasIdealOrInvalid = false;
+                for (auto v : alt.vertices())
+                    if (v->isIdeal() || ! v->isValid()) {
+                        hasIdealOrInvalid = true;
+                        break;
+                    }
+
+                if (hasIdealOrInvalid) {
+                    // There is something to truncate.
+                    alt.simplex(alt.size() - 1)->lock();
+                    EXPECT_THROW({ alt.truncateIdeal(); },
+                        regina::LockViolation);
+                    alt.unlockAll();
+                    alt.simplex(0)->lockFacet(dim - 1);
+                    EXPECT_THROW({ alt.truncateIdeal(); },
+                        regina::LockViolation);
+
+                    // Check that no subdivisions were performed.
+                    EXPECT_EQ(alt, tri);
+                } else {
+                    // There is nothing to truncate.
+                    bool result;
+                    alt.simplex(alt.size() - 1)->lock();
+                    EXPECT_NO_THROW({ result = alt.truncateIdeal(); });
+                    EXPECT_FALSE(result);
+                    EXPECT_EQ(alt, tri);
+                    EXPECT_TRUE(alt.hasLocks());
+                    alt.unlockAll();
+                    alt.simplex(0)->lockFacet(dim - 1);
+                    EXPECT_NO_THROW({ result = alt.truncateIdeal(); });
+                    EXPECT_FALSE(result);
+                    EXPECT_EQ(alt, tri);
+                    EXPECT_TRUE(alt.hasLocks());
+                }
+            }
+
+            if constexpr (dim == 3) {
+                SCOPED_TRACE("Trying truncate()");
+                Triangulation<dim> alt(tri, false, false);
+
+                alt.simplex(alt.size() - 1)->lock();
+                EXPECT_THROW({ alt.truncate(alt.vertex(0)); },
+                    regina::LockViolation);
+                alt.unlockAll();
+                alt.simplex(0)->lockFacet(dim - 1);
+                EXPECT_THROW({ alt.truncate(alt.vertex(0)); },
+                    regina::LockViolation);
+
+                // Check that no subdivisions were performed.
+                EXPECT_EQ(alt, tri);
+            }
+
+            {
+                SCOPED_TRACE("Trying makeIdeal()");
+                {
+                    Triangulation<dim> alt(tri, false, false);
+                    for (auto f : alt.template faces<dim - 1>())
+                        if (f->isBoundary()) {
+                            f->lock();
+                            EXPECT_THROW({ alt.makeIdeal(); },
+                                regina::LockViolation);
+                            f->unlock();
+
+                            // Check that the operation was not performed.
+                            EXPECT_EQ(alt, tri);
+                            EXPECT_FALSE(alt.hasLocks());
+                        }
+                }
+                {
+                    // Locked simplices should not be a problem.
+                    // Nor should locked internal facets.
+                    Triangulation<dim> alt(tri, false, false);
+                    for (auto s : alt.simplices())
+                        s->lock();
+                    for (auto f : alt.template faces<dim - 1>())
+                        if (! f->isBoundary())
+                            f->lock();
+                    EXPECT_NO_THROW({ alt.makeIdeal(); });
+
+                    // Check that the operation was actually performed.
+                    if (tri.hasBoundaryFacets())
+                        EXPECT_NE(alt, tri);
+                    else
+                        EXPECT_EQ(alt, tri);
+                }
+            }
+
+            // TODO: We should be testing all of our local moves here.
+            // We should also test simple operations such as adding/removing
+            // simplices, or gluing/ungluing them.
+            //
+            // Also, in dimensions 3,4: simplification, improveTreewidth(),
+            // more local moves
+            //
+            // Also, in dimension 3 only: truncateIdeal(), truncate(),
+            // layerOn(), puncture(), drillEdge()
         }
 
         /**
@@ -1299,13 +1780,11 @@ class TriangulationTest : public testing::Test {
                     // collapse (which is supported for dimensions 3 and 4).
                     regina::Triangulation<dim> inv(result);
 
-                    performed = inv.collapseEdge(
+                    EXPECT_TRUE(inv.collapseEdge(
                         inv.simplex(iso.simpImage(tri.size() + dim - 1))->
                             edge(regina::Edge<dim>::edgeNumber
                                 [iso.facetPerm(tri.size() + dim - 1)[0]]
-                                [iso.facetPerm(tri.size() + dim - 1)[dim]]),
-                        true, true);
-                    EXPECT_TRUE(performed);
+                                [iso.facetPerm(tri.size() + dim - 1)[dim]])));
 
                     // Don't clear properties from inv, since what we're about
                     // to test does not rely on computed topological properties.

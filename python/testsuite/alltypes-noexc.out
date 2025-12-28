@@ -4,6 +4,7 @@ AngleAlg : enum
 AngleAlgFlags : alias -> enum AngleAlg
 AngleStructure : class -> EqualityType.BY_VALUE
 AngleStructures : class -> EqualityType.BY_VALUE
+Arrow : class -> EqualityType.BY_VALUE
 Attachment : class -> EqualityType.BY_VALUE
 AugTriSolidTorus : class -> EqualityType.BY_VALUE
 BagComparison : enum
@@ -182,6 +183,7 @@ FileFormat : enum
 FileInfo : class -> EqualityType.BY_VALUE
 Flags_AngleAlg : class -> EqualityType.BY_VALUE
 Flags_CensusPurge : class -> EqualityType.BY_VALUE
+Flags_GraphConstraint : class -> EqualityType.BY_VALUE
 Flags_HyperAlg : class -> EqualityType.BY_VALUE
 Flags_HyperList : class -> EqualityType.BY_VALUE
 Flags_NormalAlg : class -> EqualityType.BY_VALUE
@@ -199,6 +201,7 @@ GluingPerms5 : class -> EqualityType.BY_VALUE
 GluingPerms6 : class -> EqualityType.BY_VALUE
 GluingPerms7 : class -> EqualityType.BY_VALUE
 GluingPerms8 : class -> EqualityType.BY_VALUE
+GraphConstraint : enum
 GraphLoop : class -> EqualityType.BY_VALUE
 GraphPair : class -> EqualityType.BY_VALUE
 GraphTriple : class -> EqualityType.BY_VALUE
@@ -220,6 +223,7 @@ HyperInfo : class -> EqualityType.NEVER_INSTANTIATED
 HyperList : enum
 HyperListFlags : alias -> enum HyperList
 HyperbolicMinSearcher : class -> EqualityType.BY_REFERENCE
+ImpossibleScenario : exception
 Integer : class -> EqualityType.BY_VALUE
 IntersectionForm : class -> EqualityType.BY_VALUE
 InvalidArgument : exception
@@ -245,6 +249,13 @@ IsoSigPrintable5 : class -> EqualityType.NEVER_INSTANTIATED
 IsoSigPrintable6 : class -> EqualityType.NEVER_INSTANTIATED
 IsoSigPrintable7 : class -> EqualityType.NEVER_INSTANTIATED
 IsoSigPrintable8 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree2 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree3 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree4 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree5 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree6 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree7 : class -> EqualityType.NEVER_INSTANTIATED
+IsoSigPrintableLockFree8 : class -> EqualityType.NEVER_INSTANTIATED
 IsoSigRidgeDegrees2 : class -> EqualityType.DISABLED
 IsoSigRidgeDegrees3 : alias -> IsoSigEdgeDegrees3
 IsoSigRidgeDegrees4 : class -> EqualityType.DISABLED
@@ -263,6 +274,7 @@ LPConstraintEulerPositive : class -> EqualityType.NEVER_INSTANTIATED
 LPConstraintEulerZero : class -> EqualityType.NEVER_INSTANTIATED
 LPConstraintNonSpun : class -> EqualityType.NEVER_INSTANTIATED
 LPConstraintNone : class -> EqualityType.NEVER_INSTANTIATED
+LPConstraintType : enum
 LPData : class -> EqualityType.DISABLED
 LPData_EulerPositive : class -> EqualityType.DISABLED
 LPData_EulerZero : class -> EqualityType.DISABLED
@@ -450,12 +462,15 @@ PermSubSn5_4_Sign : class -> EqualityType.BY_VALUE
 PillowTwoSphere : class -> EqualityType.BY_VALUE
 PlugTriSolidTorus : class -> EqualityType.BY_VALUE
 PluggedTorusBundle : class -> EqualityType.BY_VALUE
-Polynomial : class -> EqualityType.BY_VALUE
+Polynomial : alias -> PolynomialRational
+PolynomialInt : class -> EqualityType.BY_VALUE
+PolynomialRational : class -> EqualityType.BY_VALUE
 PosOrder : class -> EqualityType.DISABLED
 Primes : class -> EqualityType.NEVER_INSTANTIATED
 PrismSpec : class -> EqualityType.BY_VALUE
 ProgressTracker : class -> EqualityType.BY_REFERENCE
 ProgressTrackerBase : class -> EqualityType.BY_REFERENCE
+ProgressTrackerObjective : class -> EqualityType.BY_REFERENCE
 ProgressTrackerOpen : class -> EqualityType.BY_REFERENCE
 Qitmask128 : class -> EqualityType.BY_VALUE
 Qitmask16 : class -> EqualityType.BY_VALUE
@@ -536,10 +551,6 @@ TreeEnumeration : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_BanBoundary : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_BanEdge : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_BanTorusBoundary : class -> EqualityType.BY_REFERENCE
-TreeEnumeration_EulerPositive : class -> EqualityType.BY_REFERENCE
-TreeEnumeration_EulerPositive_BanBoundary : class -> EqualityType.BY_REFERENCE
-TreeEnumeration_EulerPositive_BanEdge : class -> EqualityType.BY_REFERENCE
-TreeEnumeration_EulerPositive_BanTorusBoundary : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_EulerZero : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_EulerZero_BanBoundary : class -> EqualityType.BY_REFERENCE
 TreeEnumeration_EulerZero_BanEdge : class -> EqualityType.BY_REFERENCE
@@ -674,6 +685,7 @@ torsionAutInverse : function
 utf8ValidTo : function
 versionMajor : function
 versionMinor : function
+versionPybind11Major : function
 versionSnapPea : function
 versionSnapPy : function
 versionString : function

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -40,6 +38,7 @@
 #endif
 
 #include "regina-core.h"
+#include "maths/forward.h"
 #include "triangulation/dim3.h"
 #include <complex>
 #include <functional>
@@ -54,9 +53,6 @@ namespace regina {
 class SnapPeaTriangulation;
 class XMLSnapPeaReader;
 class XMLLegacySnapPeaReader;
-
-template <typename, bool> class Matrix;
-using MatrixInt = Matrix<Integer, true>;
 
 /**
  * \defgroup snappea SnapPea Triangulations
@@ -777,18 +773,18 @@ class SnapPeaTriangulation :
     private:
         regina::snappea::Triangulation* data_;
             /**< The triangulation stored in SnapPea's native format,
-                 or \c nullptr if this is a null triangulation. */
+                 or \c null if this is a null triangulation. */
         std::complex<double>* shape_;
             /**< The array of tetrahedron shapes, in rectangular form, using a
                  fixed coordinate system (fixed alignment in SnapPea's
                  terminology).  All shapes are with respect to the Dehn filled
                  hyperbolic structure.  If this is a null triangulation, or if
                  the solution type is `None` or `NotAttempted`, then shape_ will
-                 be \c nullptr. */
+                 be \c null. */
         Cusp* cusp_;
             /**< An array that caches information about each cusp of the
                  internal SnapPea triangulation.  If this is a null
-                 triangulation then cusp_ will be \c nullptr. */
+                 triangulation then cusp_ will be \c null. */
         unsigned filledCusps_;
             /**< The number of cusps that are currently filled.
                  This has type \c unsigned (not \c size_t) to match
@@ -982,7 +978,7 @@ class SnapPeaTriangulation :
          *
          * This is _not_ the same triangulation that would be produced by
          * calling `SnapPeaTriangulation(link.complement())`.
-         * By calling `link.complement()`, you through Regina's
+         * By calling `link.complement()`, you go through Regina's
          * Triangulation<3> class and therefore lose the peripheral curves.
          * Although the SnapPeaTriangulation constructor will install new
          * peripheral curves, there is no guarantee that these are the same
@@ -994,8 +990,11 @@ class SnapPeaTriangulation :
          * not by Regina.  As a result, the peripheral curves installed by
          * SnapPea will be precisely the curves from the link diagram.
          *
-         * \exception InvalidArgument The given link is empty, or it has
-         * so many crossings and/or components that SnapPea cannot handle it.
+         * \pre The given link diagram is classical (not virtual).
+         *
+         * \exception InvalidArgument The given link diagram is empty, or it
+         * is virtual (not classical), or it has so many crossings and/or
+         * components that SnapPea cannot handle it.
          * (The latter problem will only occur if the number of crossings
          * and/or components does not fit into a native C++ \c int.)
          *
@@ -1315,7 +1314,7 @@ class SnapPeaTriangulation :
          * \return a matrix with (\a number_of_rows + \a number_of_cusps) rows
          * and (3 * \a number_of_tetrahedra) columns as described above.
          */
-        MatrixInt gluingEquations() const;
+        Matrix<Integer> gluingEquations() const;
 
         /**
          * Returns a matrix describing Thurston's gluing equations in a
@@ -1349,7 +1348,7 @@ class SnapPeaTriangulation :
          * \return a matrix with (\a number_of_rows + \a number_of_cusps) rows
          * and (2 * \a number_of_tetrahedra + 1) columns as described above.
          */
-        MatrixInt gluingEquationsRect() const;
+        Matrix<Integer> gluingEquationsRect() const;
 
         /**
          * Determines whether this and the given SnapPea triangulation
@@ -1736,7 +1735,7 @@ class SnapPeaTriangulation :
          * \return a matrix with (2 * \a number_of_cusps) rows
          * and (3 * \a number_of_tetrahedra) columns as described above.
          */
-        MatrixInt slopeEquations() const;
+        Matrix<Integer> slopeEquations() const;
 
         /*@}*/
         /**

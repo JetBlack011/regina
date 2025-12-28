@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,15 +23,13 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 /*! \file link/link.h
- *  \brief Deals with knots and links in the 3-sphere.
+ *  \brief Deals with classical and virtual knots and links.
  */
 
 #ifndef __REGINA_LINK_H
@@ -45,6 +43,7 @@
 #include <vector>
 #include "regina-core.h"
 #include "algebra/grouppresentation.h"
+#include "maths/arrow.h"
 #include "maths/integer.h"
 #include "maths/laurent.h"
 #include "maths/laurent2.h"
@@ -67,15 +66,11 @@ namespace regina {
 class Crossing;
 class Link;
 class ModelLinkGraph;
-class ProgressTracker;
 class Tangle;
-template <typename T> class Laurent;
-template <typename T> class Laurent2;
-template <int> class Triangulation;
 
 /**
  * \defgroup link Knots and Links
- * Knots and links in the 3-sphere
+ * Classical and virtual knots and links
  */
 
 /**
@@ -88,17 +83,25 @@ template <int> class Triangulation;
  */
 enum class Framing {
     /**
-     * Indicates the _Seifert framing_, which is defined
-     * algebraically and is independent of the knot/link projection.
+     * Indicates the _Seifert framing_, which is defined algebraically and is
+     * independent of the knot/link projection.
      *
-     * For each component of the link, draw a Seifert surface (i.e., an
-     * orientable surface embedded in the 3-sphere that is bounded by the
-     * corresponding knot).  The Seifert framing is the vector field
-     * that points into the corresponding surface.
+     * There are several ways in which the Seifert framing can be defined.
+     * One simple definition that works for both classical and virtual links
+     * is this: for each component of the link, the Seifert framing chooses
+     * the unique longitude for the corresponding knot that has linking number
+     * zero with the knot itself.
      *
-     * Equivalently, for each component of the link, the Seifert framing
-     * chooses the unique longitude for the corresponding knot that is
-     * trivial in the homology of the knot complement.
+     * Some alternative definitions for classical links:
+     *
+     * - For each component of the link, draw a Seifert surface (i.e., an
+     *   orientable surface embedded in the 3-sphere that is bounded by the
+     *   corresponding knot).  The Seifert framing is the vector field
+     *   that points into the corresponding surface.
+     *
+     * - For each component of the link, the Seifert framing chooses the
+     *   unique longitude for the corresponding knot that is trivial in the
+     *   homology of the knot complement.
      */
     Seifert = 1,
     /**
@@ -106,7 +109,7 @@ enum class Framing {
      * knot/link projection.
      *
      * For the blackboard framing, the normal vector field stays within
-     * the projection plane.  Equivalently, the blackboard framing chooses
+     * the projection surface.  Equivalently, the blackboard framing chooses
      * longitudes whose projections do not intersect the original link diagram.
      */
     Blackboard = 2
@@ -599,21 +602,48 @@ class Crossing : public MarkedElement, public ShortOutput<Crossing> {
 };
 
 /**
- * Represents a combinatorial diagram of a directed knot or link in the
- * 3-sphere.
+ * Represents a combinatorial diagram of a directed knot or link.
  *
- * This class Link is a "purely combinatorial" representation of a link, as
- * it represents the combinatorics of a 2-dimensional link diagram, with no
- * geometric information about the specific placement of strands or crossings.
- * This is as opposed to the SpatialLink class, which is "purely geometric"
- * (storing a specific embedding of the link in 3-dimensional space).
+ * Regina uses the word _link_ to refer to links with any number of components,
+ * including knots (which have exactly one component) and the empty link
+ * (which has no components at all).
  *
- * - For most purposes, you should use the Link class, which has a rich
- *   set of mathematical features and uses exact discrete algorithms.
+ * Since Regina 7.4, this class supports both classical and virtual links:
  *
- * - For visualisation, you may wish to use SpatialLink instead, with the
- *   caveat that SpatialLink is based on floating-point arithmetic and is
- *   therefore susceptible to floating-point errors.
+ * - A _classical_ link is a link in the 3-sphere (i.e., the type of link that
+ *   one might typically read about in an undergraduate topology course).
+ *   Classical links are considered equivalent under ambient isotopy.
+ *
+ * - A _virtual_ link is a link in some thickened orientable surface \a S.
+ *   Virtual links are considered equivalent under ambient isotopy,
+ *   orientation-preserving homeomorphisms of \a S, and the addition and/or
+ *   removal of empty handles from \a S.
+ *
+ * This class stores a purely combinatorial representation of a 2-dimensional
+ * link diagram, using just the combinatorics of the classical crossings and
+ * the connections between them.  In particular:
+ *
+ * - The Link class does not store any geometric information about the
+ *   specific placement of strands or crossings in the ambient 3-dimensional
+ *   space.
+ *
+ * - For classical links, you can visualise a link using the SpatialLink class,
+ *   which stores a specific embedding of the link in 3-dimensional Euclidean
+ *   space, but which is based on floating-point arithmetic (and is therefore
+ *   susceptible to floating-point errors).  For most mathematical purposes
+ *   however, you should use this Link class, which has a rich set of
+ *   mathematical features and uses exact discrete algorithms.
+ *
+ * - For virtual links, some authors like to use diagrams in the plane with
+ *   "virtual crossings".  Regina does not use virtual crossings at all;
+ *   instead it stores only the classical crossings in the thickened surface
+ *   (where one strand passes over another).  Regina also does not store the
+ *   surface itself; instead it uses the (unique) surface of smallest possible
+ *   genus in which this diagram embeds (i.e., the surface in which the diagram
+ *   embeds with no empty handles).  Put differently: Regina treats the
+ *   crossings and strands of this diagram as defining a local embedding of the
+ *   1-skeleton of some polygonal decomposition of the surface; the 2-cells of
+ *   this decomposition are then assumed to be topological discs.
  *
  * This Link class supports links with any number of components (including
  * zero), and it also supports components with no crossings (which form
@@ -660,29 +690,53 @@ class Link :
                  crossings, then it is represented in this array by a
                  null reference. */
 
+        mutable ssize_t virtualGenus_;
+            /**< The virtual genus of the link diagram, or -1 if this has not
+                 yet been computed. */
+        mutable std::optional<Polynomial<Integer>> alexander_;
+            /**< The Alexander polynomial of the link.
+                 This is std::nullopt if it has not yet been computed,
+                 or if this link does not have exactly one component. */
         mutable std::optional<Laurent<Integer>> jones_;
             /**< The Jones polynomial of the link.
-                 This is std::nullopt if it has not yet been computed. */
+                 This is std::nullopt if it has not yet been computed.
+                 We insist that jones_ is non-null if and only if bracket_
+                 is non-null. */
         mutable std::optional<Laurent2<Integer>> homflyLM_;
-            /**< The HOMFLY polynomial of the link, as a polynomial in
+            /**< The HOMFLY-PT polynomial of the link, as a polynomial in
                  \a l and \a m.  This property will be known if and only
                  if \a homflyAZ_ is known.
                  This is std::nullopt if it has not yet been computed. */
         mutable std::optional<Laurent2<Integer>> homflyAZ_;
-            /**< The HOMFLY polynomial of the link, as a polynomial in
+            /**< The HOMFLY-PT polynomial of the link, as a polynomial in
                  \a alpha and \a z.  This property will be known if and
                  only if \a homflyLM_ is known.
                  This is std::nullopt if it has not yet been computed. */
         mutable std::optional<Laurent<Integer>> bracket_;
             /**< The Kauffman bracket polynomial of the link diagram.
+                 This is std::nullopt if it has not yet been computed.
+                 We insist that bracket_ is non-null if and only if jones_
+                 is non-null. */
+        mutable std::optional<Arrow> arrow_;
+            /**< The arrow polynomial of the link.
                  This is std::nullopt if it has not yet been computed. */
 
         mutable std::optional<TreeDecomposition> niceTreeDecomposition_;
-            /**< A nice tree decomposition of the planar 4-valent multigraph
+            /**< A nice tree decomposition of the 4-valent multigraph
                  formed by the link diagram.
                  This is std::nullopt if it has not yet been computed. */
 
     public:
+        /**
+         * The name of the variable used in the Alexander polynomial, as
+         * returned by alexander().  This is provided to help with
+         * pretty-printing Alexander polynomials for human consumption.
+         *
+         * To pretty-print the Alexander polynomial for human consumption,
+         * you can call `Laurent::str(Link::alexanderVar)`.
+         */
+        static constexpr const char* alexanderVar = "t";
+
         /**
          * The name of the variable used in the Jones polynomial, as returned
          * by jones().  This is provided to help with pretty-printing
@@ -698,62 +752,72 @@ class Link :
         static constexpr const char* jonesVar = "\u221At"; // \u221A = root
 
         /**
-         * The name of the first variable used in the variant of the
-         * HOMFLY polynomial as returned by homflyAZ().  This is provided to
-         * help with pretty-printing HOMFLY polynomials for human consumption.
+         * The name of the variable used in the Kauffman bracket, as returned
+         * by bracket().  This is provided to help with pretty-printing
+         * Kauffman brackets for human consumption.
+         *
+         * To pretty-print the Kauffman bracket for human consumption,
+         * you can call `Laurent::str(Link::bracketVar)`.
+         */
+        static constexpr const char* bracketVar = "A";
+
+        /**
+         * The name of the first variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homflyAZ().  This is provided to help with
+         * pretty-printing HOMFLY-PT polynomials for human consumption.
          *
          * Since homflyAZ() returns a Laurent polynomial in \a alpha and \a z,
          * this string just contains the mathematical symbol \a alpha
          * (encoded in UTF-8).
          *
-         * To pretty-print this HOMFLY polynomial for human consumption, you can
-         * call `Laurent2::str(Link::homflyAZVarX, Link::homflyAZVarY)`.
+         * To pretty-print this HOMFLY-PT polynomial for human consumption, you
+         * can call `Laurent2::str(Link::homflyAZVarX, Link::homflyAZVarY)`.
          */
         static constexpr const char* homflyAZVarX = "\u03B1"; // alpha
 
         /**
-         * The name of the second variable used in the variant of the
-         * HOMFLY polynomial as returned by homflyAZ().  This is provided to
-         * help with pretty-printing HOMFLY polynomials for human consumption.
+         * The name of the second variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homflyAZ().  This is provided to help with
+         * pretty-printing HOMFLY-PT polynomials for human consumption.
          *
          * Since homflyAZ() returns a Laurent polynomial in \a alpha and \a z,
          * this string just contains the single character \a z.
          *
-         * To pretty-print this HOMFLY polynomial for human consumption, you can
-         * call `Laurent2::str(Link::homflyAZVarX, Link::homflyAZVarY)`.
+         * To pretty-print this HOMFLY-PT polynomial for human consumption, you
+         * can call `Laurent2::str(Link::homflyAZVarX, Link::homflyAZVarY)`.
          */
         static constexpr const char* homflyAZVarY = "z";
 
         /**
-         * The name of the first variable used in the variant of the
-         * HOMFLY polynomial as returned by homflyLM().  This is provided to
-         * help with pretty-printing HOMFLY polynomials for human consumption.
+         * The name of the first variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homflyLM().  This is provided to help with
+         * pretty-printing HOMFLY-PT polynomials for human consumption.
          *
          * Since homflyLM() returns a Laurent polynomial in \a l and \a m,
          * this string just contains the mathematical script symbol for \a l
          * (encoded in UTF-8).
          *
-         * To pretty-print this HOMFLY polynomial for human consumption, you can
-         * call `Laurent2::str(Link::homflyLMVarX, Link::homflyLMVarY)`.
+         * To pretty-print this HOMFLY-PT polynomial for human consumption, you
+         * can call `Laurent2::str(Link::homflyLMVarX, Link::homflyLMVarY)`.
          */
         static constexpr const char* homflyLMVarX = "\U0001D4C1"; // $\ell$
 
         /**
-         * The name of the second variable used in the variant of the
-         * HOMFLY polynomial as returned by homflyLM().  This is provided to
-         * help with pretty-printing HOMFLY polynomials for human consumption.
+         * The name of the second variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homflyLM().  This is provided to help with
+         * pretty-printing HOMFLY-PT polynomials for human consumption.
          *
          * Since homflyLM() returns a Laurent polynomial in \a l and \a m,
          * this string just contains the single character \a m.
          *
-         * To pretty-print this HOMFLY polynomial for human consumption, you can
-         * call `Laurent2::str(Link::homflyLMVarX, Link::homflyLMVarY)`.
+         * To pretty-print this HOMFLY-PT polynomial for human consumption, you
+         * can call `Laurent2::str(Link::homflyLMVarX, Link::homflyLMVarY)`.
          */
         static constexpr const char* homflyLMVarY = "m";
 
         /**
-         * The name of the first variable used in the variant of the
-         * HOMFLY polynomial as returned by homfly().
+         * The name of the first variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homfly().
          *
          * This is simply an alias for homflyAZVarX.  See the documentation
          * for homflyAZVarX for further details.
@@ -761,13 +825,23 @@ class Link :
         static constexpr const char* homflyVarX = homflyAZVarX;
 
         /**
-         * The name of the second variable used in the variant of the
-         * HOMFLY polynomial as returned by homfly().
+         * The name of the second variable used in the variant of the HOMFLY-PT
+         * polynomial as returned by homfly().
          *
          * This is simply an alias for homflyAZVarY.  See the documentation
          * for homflyAZVarY for further details.
          */
         static constexpr const char* homflyVarY = homflyAZVarY;
+
+        /**
+         * The name of the variable used in the affine index polynomial, as
+         * returned by affineIndex().  This is provided to help with
+         * pretty-printing affine index polynomials for human consumption.
+         *
+         * To pretty-print the affine index polynomial for human consumption,
+         * you can call `Laurent::str(Link::affineIndexVar)`.
+         */
+        static constexpr const char* affineIndexVar = "t";
 
     public:
         /**
@@ -778,7 +852,7 @@ class Link :
         /**
          * Constructs an empty link.  This will have zero components.
          */
-        Link() = default;
+        Link();
         /**
          * Constructs the unlink with the given number of components.
          *
@@ -836,6 +910,7 @@ class Link :
          *
          * - knot/link signatures, as used by fromSig();
          * - oriented Gauss codes, as used by fromOrientedGauss();
+         * - signed Gauss codes, as used by fromSignedGauss();
          * - classical Gauss codes, as used by fromGauss();
          * - numeric or alphabetical Dowker-Thistlethwaite strings, as
          *   used by fromDT();
@@ -884,6 +959,10 @@ class Link :
 
         /**
          * Returns the number of components in this link.
+         *
+         * This is the number of circles embedded in the ambient 3-manifold
+         * (it has nothing to do with the connectivity of the link diagram).
+         * So, for example, the number of components in the Hopf link is two.
          *
          * \return the number of components.
          */
@@ -937,6 +1016,10 @@ class Link :
         /**
          * Returns a strand in the given component of this link.
          *
+         * Components are individual circles embedded in the ambient 3-manifold
+         * (they have nothing to do with the connectivity of the link diagram).
+         * So, for example, the Hopf link has two components.
+         *
          * For each component of the link, this routine returns a
          * "starting strand".  You can traverse the entire component by
          * beginning at this starting strand and repeatedly incrementing
@@ -958,6 +1041,10 @@ class Link :
         /**
          * Returns an object that allows iteration through and random access
          * to all components of this link.
+         *
+         * Components are individual circles embedded in the ambient 3-manifold
+         * (they have nothing to do with the connectivity of the link diagram).
+         * So, for example, the Hopf link has two components.
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
@@ -991,6 +1078,39 @@ class Link :
          * \return the number of zero-crossing unknot components.
          */
         size_t countTrivialComponents() const;
+
+        /**
+         * Returns the starting strand for the link component containing the
+         * given strand.
+         *
+         * By the _starting strand_ for a link component, we mean the strand
+         * that is returned by `component(i)` for the appropriate index \a i,
+         * or equivalently the strand representing that component in the list
+         * `components()`.  In particular:
+         *
+         * - If \a s and \a t are two strands of the same link component,
+         *   then `component(s)` and `component(t)` will always be equal.
+         *
+         * - If \a s and \a t come from different link components, and at
+         *   least one of them is not a null strand reference, then
+         *   `component(s)` and `component(t)` will be different.
+         *
+         * - If \a s is a null strand reference and this link diagram contains
+         *   one or more zero-crossing unknot components, then `component(s)`
+         *   will return a null strand reference to indicate this.
+         *
+         * If the strand \a s does not belong to this link diagram at all
+         * (including the case where \a s is a null reference but this link
+         * diagram has no zero-crossing unknot components), then `component(s)`
+         * will thrown an exception.
+         *
+         * \exception NoSolution The given strand \a s does not belong to this
+         * link diagram.
+         *
+         * \param s the strand to query.
+         * \return the starting strand for the link component containing \a s.
+         */
+        StrandRef component(const StrandRef& s) const;
 
         /**
          * Returns the strand in the link with the given integer ID.
@@ -1122,8 +1242,9 @@ class Link :
          * Note: for knots and empty links, this routine is constant time.
          * For multiple-component links, it is linear in the link size.
          *
-         * See also diagramComponents(), which extracts the connected
-         * components of a link diagram as individual Link objects.
+         * See also countDiagramComponents() which returns an integer count
+         * instead of a boolean, and diagramComponents() which extracts the
+         * diagra components as individual Link objects.
          *
          * \return \c true if and only if this link diagram is connected.
          */
@@ -1145,8 +1266,12 @@ class Link :
          * See isConnected() for further discussion on the connectivity of
          * link diagrams.
          *
-         * Note: for knots and empty links, this routine is constant time.
-         * For multiple-component links, it is linear in the link size.
+         * In general this routine requires time linear in the link size
+         * (though it is constant time for knots and empty links).
+         * If you are planning to call this routine frequently, you might wish
+         * to consider using diagramComponentIndices() instead.  That routine
+         * returns a lookup table with which you can then test pairwise
+         * connectivity via constant-time lookup.
          *
          * \param a the first of the two crossings to examine.
          * \param b the second of the two crossings to examine.
@@ -1186,13 +1311,78 @@ class Link :
          * equal size(), and the total number of _link_ components across all
          * of the links that are returned will equal countComponents().
          *
-         * If you simply wish to know whether this diagram is connected, you
-         * should call isConnected() instead which is much more lightweight.
+         * In the list that is returned, any zero-crossing diagram components
+         * will all appear at the end, after all of the components that do
+         * involve crossings.
+         *
+         * If you do not need a collection of fully-formed link objects, you
+         * could instead try one of the lightweight variants of this routine:
+         *
+         * - isConnected() simply tests whether or not there are multiple
+         *   diagram components;
+         *
+         * - countDiagramComponents() returns the total number of diagram
+         *   components;
+         *
+         * - diagramComponentIndices() returns a table of integers indicating
+         *   which crossings belong to which diagram components.
          *
          * \return a list containing the individual connected components of
          * this link diagram.
          */
         std::vector<Link> diagramComponents() const;
+
+        /**
+         * Returns the total number of connected diagram components.
+         *
+         * As with diagramComponents(), this routine is interested in connected
+         * components of the link diagram (i.e., components that are connected
+         * in the graph theoretical sense if we treat each crossing as a 4-way
+         * intersection).  See diagramComponents() for further discussion on
+         * this.
+         *
+         * This routine simply computes the total number of connected
+         * components (including trivial zero-crossing components).
+         *
+         * \return the total number of connected diagram components.
+         */
+        size_t countDiagramComponents() const;
+
+        /**
+         * Returns an array that maps crossing numbers to connected diagram
+         * components.
+         *
+         * This routine performs a similar function to diagramComponents(),
+         * but returns its results as just a list of numbers (not a list of
+         * links), and thereby involves less overhead.  This could (for
+         * example) be useful as a part of some larger algorithm that needs
+         * access to a lookup table for testing pairwise connectivity between
+         * crossings.
+         *
+         * As with diagramComponents(), this routine is interested in
+         * connected components of the link diagram (i.e., components that are
+         * connected in the graph theoretical sense if we treat each crossing
+         * as a 4-way intersection).  See diagramComponents() for further
+         * discussion on this.
+         *
+         * This routine returns a mapping from crossing indices to diagram
+         * components, where both are represented by integer indices.  For
+         * crossings we use the usual crossing index; for diagram components,
+         * we number the diagram components from 0 upwards and ignore trivial
+         * (zero-crossing) components entirely.
+         *
+         * \warning It is possible that the data type used for the array will
+         * change in a subsequent version of Regina.  C++ users should use
+         * `auto` to collect the return value from this routine.  (For Python
+         * users, the array will be converted into a Python list.)
+         *
+         * \return A pair containing (i) the array as described above; and
+         * (ii) the total number of non-trivial diagram components (so again,
+         * ignoring zero-crossing components).  Note that this latter number
+         * may be different from countDiagramComponents(), which counts _all_
+         * diagram components (including the trivial ones).
+         */
+        std::pair<FixedArray<size_t>, size_t> diagramComponentIndices() const;
 
         /**
          * Locates an over-crossing within the same link component as the
@@ -1203,8 +1393,8 @@ class Link :
          * null reference (indicating a zero-crossing component).
          * \return an over-crossing in the same link component, or a null
          * reference if the given link component contains only under-crossings
-         * (i.e., it is a zero-crossing unknot placed beneath the rest of the
-         * diagram).
+         * (which for classical links means it is a zero-crossing unknot placed
+         * beneath the rest of the diagram).
          */
         StrandRef overForComponent(StrandRef component) const;
         /**
@@ -1216,8 +1406,8 @@ class Link :
          * null reference (indicating a zero-crossing component).
          * \return an under-crossing in the same link component, or a null
          * reference if the given link component contains only over-crossings
-         * (i.e., it is a zero-crossing unknot placed above the rest of the
-         * diagram).
+         * (which for classical links means it is a zero-crossing unknot placed
+         * above the rest of the diagram).
          */
         StrandRef underForComponent(StrandRef component) const;
 
@@ -1247,16 +1437,24 @@ class Link :
         bool operator == (const Link& other) const;
 
         /**
-         * Returns the 4-valent planar graph that models this link.
+         * Returns the 4-valent graph that models this link diagram, along with
+         * the local embedding of the graph into the surface that contains the
+         * diagram.
          *
          * Any zero-component unknot components of this link will be ignored.
+         *
+         * For classical links, the result will be a planar graph with a
+         * specific planar embedding.  For virtual links, this may be an
+         * embedding of the graph into some higher genus closed orientable
+         * surface, depending on the virtual genus of the link.  See
+         * ModelLinkGraph for further discussion on local embeddings.
          *
          * The nodes of the resulting graph will be numbered in the same way
          * as the crossings of this link.  For each node, arc 0 will represent
          * the outgoing lower strand of the corresponding crossing.
          *
-         * Calling graph() is identical to passing this link to the
-         * ModelLinkGraph constructor.
+         * Calling `link.graph()` is identical to creating a graph via
+         * `ModelLinkGraph(link)`.
          *
          * \return the graph that models this link.
          */
@@ -1407,10 +1605,13 @@ class Link :
 
         /**
          * Switches the upper and lower strands of every crossing in the
-         * diagram.
+         * diagram.  As a result, the sign of every crossing will also change.
          *
          * This operation corresponds to reflecting the link diagram
-         * through the plane on which it is drawn.
+         * through the surface on which it is drawn.
+         *
+         * In the language of Jeremy Green's virtual knot tables, this
+         * operation is a _vertical_ mirror image.
          */
         void changeAll();
 
@@ -1419,30 +1620,140 @@ class Link :
          * switch connections with the two outgoing strands, with the
          * result that the given crossing is removed entirely.
          *
-         * \note The number of components in the link _will_ change
-         * as a result of this operation.
+         * \note The number of components in the link will change as a result
+         * of this operation.
          *
          * \param c the crossing to resolve.
          */
         void resolve(Crossing* c);
 
         /**
+         * Converts the given classical crossing into a virtual crossing.
+         *
+         * This essentially adds a handle to the surface in which the diagram
+         * is embedded, so that the old upper and lower strands can use this
+         * handle to pass by one another without actually crossing in the link
+         * diagram.
+         *
+         * Note that the virtual genus of this link might actually go _down_ as
+         * a result of this operation, since the operation might generate more
+         * empty handles (which Regina implicitly removes, as explained in
+         * the class notes).  A virtual link could even become classical as a
+         * result of this operation.
+         *
+         * For the combinatorics of the link diagram, this operation simply
+         * removes the given crossing entirely (recall that Regina does not
+         * store virtual crossings explicitly).  The incoming and outgoing
+         * upper strands will merge into one, and the incoming and outgoing
+         * lower strands will merge into one.
+         *
+         * This routine is safe to call if \a crossing is \c null (in which
+         * case this routine does nothing).
+         *
+         * \pre The given crossing is either a null pointer, or else some
+         * crossing in this link.
+         *
+         * \param crossing the (classical) crossing that should be made virtual.
+         */
+        void makeVirtual(Crossing* crossing);
+
+        /**
+         * Grafts the two given arcs of this link together, possibly making
+         * this a virtual link in the process.
+         *
+         * This routine is intended for use with virtual links and, unlike
+         * composeWith(), it offers a way to build a composite knot with full
+         * control over exactly which arcs are grafted together.
+         *
+         * This operation is simple: it reroutes the part of the link that
+         * enters along the first arc to exit along the second, and it reroutes
+         * the part of the link that enters along the second arc to exit along
+         * the first.  As a result:
+         *
+         * - If \a first and \a second belong to _different_ components of this
+         *   link then it will effectively combine those two components in an
+         *   operation akin to knot composition.  The main difference is that,
+         *   if the two components are already part of the same connected
+         *   diagram component (e.g., they are already linked together), then
+         *   this operation will make no attempt to separate them beforehand.
+         *
+         * - If \a first and \a second belong to the _same_ component of this
+         *   link then this operation will effectively split that component
+         *   into two.  It will not make any attempt to separate and/or unlink
+         *   the two resulting components.
+         *
+         * The operation will never add or remove any crossings.  Therefore,
+         * if the two given arcs belong to the same connected component of the
+         * diagram but do not bound the same dual 2-cell with the same
+         * orientation, this operation may increase the virtual genus.
+         *
+         * Regarding the two arguments:
+         *
+         * - It is allowed for \a first and \a second to refer to the same arc
+         *   (in which case this operation will just split off a new
+         *   zero-crossing component).
+         *
+         * - It is allowed for either \a first or \a second to be a null
+         *   reference.  In this case it will be taken to refer to a
+         *   zero-crossing component, and so this operation will effectively
+         *   absorb the zero-crossing component into the other link component.
+         *
+         * - If \a first and \a second are both null references, then they will
+         *   be assumed to refer to _different_ zero-crossing components.
+         *
+         * See the StrandRef documentation for the convention on how arcs are
+         * represented using StrandRef objects.
+         *
+         * \pre Each of the given strand references is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * \exception InvalidArgument Either one of \a first or \a second is a
+         * null reference but this link does not contain any zero-crossing
+         * components, or _both_ \a first and \a second are null references but
+         * this link does not contain at least two zero-crossing components.
+         *
+         * \param first the first of the two arcs to graft together.
+         * \param second the second of the two arcs to graft together.
+         */
+        void graft(StrandRef first, StrandRef second);
+
+        /**
          * Converts this link into its reflection.
          *
          * This routine changes the sign of every crossing, but leaves
-         * the upper and lower strands the same.  This operation
-         * corresponds to reflecting the link diagram about some axis in
-         * the plane.
+         * the upper and lower strands the same.
+         *
+         * - For classical links, this operation corresponds to reflecting the
+         *   link diagram about some axis in the plane.
+         *
+         * - For virtual links, this operation performs an orientation-reversing
+         *   homeomorphism of the surface in which the link diagram embeds.
+         *
+         * In the language of Jeremy Green's virtual knot tables, this
+         * operation is a _horizontal_ mirror image.
          */
         void reflect();
 
         /**
-         * Rotates this link diagram, converting it into a different
-         * diagram of the same link.
+         * Rotates this link diagram, effectively flipping the surface that
+         * contains it "upside-down".
          *
          * This routine keeps the sign of each crossing fixed, but
-         * switches the upper and lower strands.  This operation corresponds
-         * to a 3-dimensional rotation about some axis in the plane.
+         * switches the upper and lower strands.
+         *
+         * - For classical links, this operation corresponds to a 3-dimensional
+         *   rotation about some axis in the plane; the result will be a
+         *   different diagram of the same link.
+         *
+         * - For virtual links, let \a S denote the closed orientable surface
+         *   in which the link diagram embeds, and think of this as a link in
+         *   the thickened surface `S × I`.  Then this operation performs an
+         *   orientation-preserving homeomorphism of `S × I` that switches the
+         *   boundaries `S × {0}` and `S × {1}`.
+         *
+         * Some authors refer to this operation as a _flip_.  In the language
+         * of Jeremy Green's virtual knot tables, this is the composition of
+         * both a vertical and a horizontal mirror image.
          */
         void rotate();
 
@@ -1476,17 +1787,24 @@ class Link :
          * upper and lower strands (so this operation may change this into
          * a topologically different link).
          *
-         * The empty diagram and any zero-crossing unknot components
-         * will be considered alternating.
+         * This is always possible for classical link diagrams; however, for
+         * virtual link diagrams it might or might not be possibe.
          *
-         * For each connected piece of the link diagram (which may incorporate
-         * several link components), there is a unique alternating diagram up
-         * to reflection through the plane in which the diagram is drawn.
-         * The reflection that is chosen will be the one that preserves the
-         * sign of the lowest-index crossing in that piece of the diagram.
+         * Any zero-crossing unknot components will be considered alternating;
+         * likewise, the empty link is considered alternating.
          *
-         * \return \c true if the link diagram was changed, or \a false if it
-         * was already alternating to begin with.
+         * Assuming the diagram _can_ be made alternating, for each connected
+         * piece of the link diagram (which may incorporate several link
+         * components), one must choose between two possible alternating
+         * diagrams.  Regina will choose the option that preserves the sign of
+         * the lowest-index crossing in that connected piece of the diagram.
+         *
+         * If this diagram cannot be made alternating, or if it was already
+         * alternating to begin with, then it will be left unchanged.
+         *
+         * \return \c true if this link diagram was successfully made
+         * alternating (or was already alternating to begin with), or \c false
+         * if this is a virtual link diagram that cannot be made alternating.
          */
         bool makeAlternating();
 
@@ -1502,9 +1820,8 @@ class Link :
          * this move involves undoing a trivial twist at the given crossing.
          *
          * You may pass a null pointer for \a crossing.  However, in this case
-         * the move cannot be performed, which means (i) \a check must be
-         * \c true, and therefore (ii) this routine will do nothing and return
-         * \c false.
+         * the move cannot be performed, which means this routine will do
+         * nothing and simply return \c false.
          *
          * \warning A side-effect of this move is that, because one crossing
          * is being removed, the other crossings in the link may be reindexed.
@@ -1583,9 +1900,8 @@ class Link :
          * convention on how arcs are represented using StrandRef objects.
          *
          * You may pass a null reference for \a arc.  However, in this case
-         * the move cannot be performed, which means (i) \a check must be
-         * \c true, and therefore (ii) this routine will do nothing and return
-         * \c false.
+         * the move cannot be performed, which means this routine will do
+         * nothing and simply return \c false.
          *
          * \warning A side-effect of this move is that, because two crossings
          * are being removed, the other crossings in the link may be reindexed.
@@ -1625,9 +1941,8 @@ class Link :
          * will be removed by this move.
          *
          * You may pass a null pointer for \a crossing.  However, in this case
-         * the move cannot be performed, which means (i) \a check must be
-         * \c true, and therefore (ii) this routine will do nothing and return
-         * \c false.
+         * the move cannot be performed, which means this routine will do
+         * nothing and simply return \c false.
          *
          * \warning A side-effect of this move is that, because two crossings
          * are being removed, the other crossings in the link may be reindexed.
@@ -1644,11 +1959,25 @@ class Link :
          */
         bool r2(Crossing* crossing);
         /**
-         * If possible, performs a type II Reidemeister move to add
-         * two new crossings at the given location.
+         * If possible, performs a classical type II Reidemeister move to add
+         * two new crossings by pushing two different strands over one another.
          * If such a move is not allowed, then this routine does nothing.
          *
          * This link diagram will be changed directly.
+         *
+         * By a _classical_ type II move, we mean that the move can be
+         * performed without adding a handle to the surface \a S in which the
+         * link diagram is embedded.  More precisely: the two "sides of strands"
+         * that will be passed over one another either belong to different
+         * connected components of the link diagram, or else both bound the same
+         * 2-cell in the dual cell decomposition of \a S.  Performing a
+         * classical type II move on a classical link diagram will always
+         * result in a classical link diagram.
+         *
+         * If you are working with virtual links, you may wish to use
+         * r2Virtual() instead, which does allow changing the surface \a S
+         * (and which could therefore convert a classical link diagram into a
+         * virtual diagram with positive virtual genus).
          *
          * The location of this move is specified by the arguments \a upperArc,
          * \a upperSide, \a lowerArc and \a lowerSide.  Specifically, this
@@ -1658,6 +1987,13 @@ class Link :
          * the overlap takes place.  See the StrandRef documentation for the
          * convention on how arcs are represented using StrandRef objects.
          *
+         * If \a upperArc and \a lowerArc are identical and non-null, then this
+         * routine will declare that the move cannot be performed.  This is
+         * because passing the same strand over itself requires additional
+         * information (it is unclear whether the upper arc comes before or
+         * after the lower arc).  You can achieve the same effect by adding
+         * two twists instead (i.e., performing two type I Reidemeister moves).
+         *
          * If either \a upperArc or \a lowerArc is a null reference, then
          * the move will be performed upon a zero-crossing unknot component;
          * it will be assumed that this unknot component is oriented clockwise.
@@ -1666,18 +2002,13 @@ class Link :
          * and if there are multiple zero-crossing components then the first
          * such component will be used.
          *
-         * Likewise, if _both_ arcs are null references, then the move
-         * will be performed upon two _different_ zero-crossing unknot
-         * components.  In this case, if there are fewer than two such
-         * components then the move cannot be performed, and otherwise
-         * \a upperArc will be the first such component and \a lowerArc
-         * will be the second.
-         *
-         * Currently, Regina cannot perform the move when \a upperArc and
-         * \a lowerArc represent the same arc (or the same zero-crossing unknot
-         * component).  In this case there is a workaround: you can achieve
-         * the same effect by performing two type I Reidemeister moves
-         * (i.e., by adding two twists).
+         * If _both_ arcs are null references, then the move will be performed
+         * upon two _different_ zero-crossing unknot components.  In this case,
+         * if there are fewer than two such components then the move cannot be
+         * performed, and otherwise \a upperArc will be the first such component
+         * and \a lowerArc will be the second.  As before, this routine will
+         * refuse to pass the same zero-crossing unknot component over itself,
+         * but you can achieve the same effect by adding two twists.
          *
          * The existing crossings in this link will keep the same indices,
          * and the two new crossings will be given the next two indices
@@ -1686,12 +2017,12 @@ class Link :
          * \pre Each of the given strand references is either a null reference,
          * or else refers to some strand of some crossing in this link.
          *
-         * \warning The check for this move is expensive (linear time),
-         * since it includes testing whether both sides-of-arcs belong
-         * to the same 2-cell of the knot diagram.  If you are certain that
-         * the move is legal, and you wish to circumvent this check, C++ users
-         * can call the variant of this function that takes an extra
-         * Unprotected argument.
+         * \warning The checks for this move are expensive (linear time).  If
+         * you are certain that the move is legal and you wish to circumvent
+         * this check, you can always call r2Virtual() instead.  If the move you
+         * wish to perform is indeed classical and legal, then r2Virtual()
+         * will have the same effect but will avoid the expensive planarity
+         * check.
          *
          * \param upperArc identifies the arc of the link which will be
          * passed over the other, as described above.
@@ -1711,37 +2042,42 @@ class Link :
         bool r2(StrandRef upperArc, int upperSide, StrandRef lowerArc,
             int lowerSide);
         /**
-         * Performs a type II Reidemeister move at the given location to add
-         * two crossings, without any safety checks.
+         * If possible, performs a virtual type II Reidemeister move to add
+         * two new crossings by pushing two different strands over one another.
+         * If such a move is not allowed, then this routine does nothing.
          *
-         * This variant of r2() is offered because it is expensive to test
-         * whether a type II move can be performed at a given location
-         * (essentially one must walk around an entire 2-cell of the link
-         * diagram, which takes linear time).
+         * This link diagram will be changed directly.
          *
-         * This function will _always_ perform the requested Reidemeister move
-         * directy on this link, _without_ first testing whether it is legal.
-         * The onus is on the programmer to ensure the legality of the move
-         * beforehand.  Getting this wrong could be disastrous (essentially
-         * you could end up with a link diagram that does not actually embed
-         * in the plane).
+         * By a _virtual_ type II move, we mean that the move can be performed
+         * upon _any_ two "sides of strands", even if this requires adding a
+         * handle to the surface in which the link diagram is embedded.
+         * As a result, a virtual type II move could potentially change the
+         * virtual genus of the link diagram; in particular, it could convert a
+         * classical link diagram into a virtual diagram with positive virtual
+         * genus.
          *
-         * The (unnamed) Unprotected argument would typically be the constant
-         * `regina::unprotected`.
+         * The location of this move is specified by passing two "sides of
+         * strands", in the same way as for classical type II moves.
+         * See r2(StrandRef, int, StrandRef, int) for details on how the
+         * location arguments are interpreted, and in particular how this move
+         * works with zero-crossing unknot components when passing null strand
+         * references.
          *
-         * For more detail on type II moves and when they can be performed,
-         * see r2(StrandRef, int, StrandRef, int).
+         * Just like r2(), this routine cannot pass a strand over itself, since
+         * this requires additional information (it is unclear whether the
+         * upper arc comes before or after the lower arc).  To do this in the
+         * classical way (using the same side of the same strand), you can add
+         * two twists (type I moves) instead.  To do this in the virtual way
+         * (using opposite sides of the same strand), you can can call the
+         * function r2Virtual(StrandRef, int, int) which is designed precisely
+         * for this purpose.
+         *
+         * The existing crossings in this link will keep the same indices,
+         * and the two new crossings will be given the next two indices
+         * that are available.
          *
          * \pre Each of the given strand references is either a null reference,
          * or else refers to some strand of some crossing in this link.
-         * \pre It is known in advance that this move is in fact legal
-         * (i.e., the given sides of the given arcs bound the same 2-cell of
-         * the link diagram, _and_ \a upperArc and \a lowerArc do not represent
-         * the same arc (or the same zero-crossing unknot component).
-         *
-         * \nopython By design, Python users are not able to circumvent the
-         * legality checks for Reidemeister moves.  If speed is essential, you
-         * should be using C++.
          *
          * \param upperArc identifies the arc of the link which will be
          * passed over the other.  See r2(StrandRef, int, StrandRef, int)
@@ -1757,9 +2093,72 @@ class Link :
          * of \a lowerArc (when walking along \a lowerArc in the forward
          * direction), or 1 if the new overlap should take place on the right
          * of \a lowerArc.
+         * \return \c true if and only if the requested move was able to
+         * be performed.
          */
-        void r2(StrandRef upperArc, int upperSide, StrandRef lowerArc,
-            int lowerSide, Unprotected);
+        bool r2Virtual(StrandRef upperArc, int upperSide, StrandRef lowerArc,
+            int lowerSide);
+        /**
+         * If possible, performs a virtual type II Reidemeister move to add
+         * two new crossings by pushing the same strand over itself from
+         * opposite sides.
+         * If such a move is not allowed, then this routine does nothing.
+         *
+         * This link diagram will be changed directly.
+         *
+         * This move only makes sense when working with virtual links; in a
+         * classical setting it is never possible (since opposite sides of the
+         * same strand cannot bound the same dual 2-cell on the sphere).
+         * For a virtual link diagram, if both sides of the given strand already
+         * bound the same 2-cell then this move will not change the virtual
+         * genus; otherwise it will add a handle to the surface in which the
+         * diagram is embedded, and the virtual genus will increase as a result.
+         * In particular, if the original link diagram is classical, then this
+         * move will always convert it into a virtual diagram with positive
+         * virtual genus.
+         *
+         * The location of this move is specified by the arguments \a arc,
+         * \a firstSide, and \a firstStrand.  Specifically, this move involves:
+         *
+         * - taking two portions of the given arc and pushing these away from
+         *   the arc in opposite directions, with the first portion (when
+         *   following the orientation of the link) pushing out on \a firstSide,
+         *   and with the second portion pushing out on the opposite side;
+         *
+         * - passing those two portions over each other, where the first portion
+         *   moves either over or under the second portion according to whether
+         *   \a firstStrand is 1 or 0.
+         *
+         * See the StrandRef documentation for the convention on how arcs are
+         * represented using StrandRef objects.
+         *
+         * If \a arc is a null reference, then the move will be performed upon
+         * a zero-crossing unknot component; it will be assumed that this unknot
+         * component is oriented clockwise.  If \a arc is a null reference but
+         * there is no zero-crossing component then the move cannot be
+         * performed, and if there are multiple zero-crossing components then
+         * the first such component will be used.
+         *
+         * The existing crossings in this link will keep the same indices,
+         * and the two new crossings will be given the next two indices
+         * that are available.
+         *
+         * \pre The given strand reference is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * \param arc identifies the arc of the link which will be passed over
+         * itself, as described above.
+         * \param firstSide 0 if the first portion of the arc should push out
+         * to the left of the arc (when walking along the arc in the forward
+         * direction), or 1 if the first portion should push out to the right
+         * of the arc.
+         * \param firstStrand 0 if the first portion of the arc should be
+         * pushed under the second, or 1 if the first portion should be pushed
+         * over the second.
+         * \return \c true if and only if the requested move was able to
+         * be performed.
+         */
+        bool r2Virtual(StrandRef arc, int firstSide, int firstStrand);
         /**
          * If possible, performs a type III Reidemeister move at the given
          * location.
@@ -1783,9 +2182,8 @@ class Link :
          * objects.
          *
          * You may pass a null reference for \a arc.  However, in this case
-         * the move cannot be performed, which means (i) \a check must be
-         * \c true, and therefore (ii) this routine will do nothing and return
-         * \c false.
+         * the move cannot be performed, which means this routine will do
+         * nothing and simply return \c false.
          *
          * All crossings in this link will keep the same indices, and
          * no crossings will be created or destroyed.  Instead, the three
@@ -1830,9 +2228,8 @@ class Link :
          * located.
          *
          * You may pass a null pointer for \a crossing.  However, in this case
-         * the move cannot be performed, which means (i) \a check must be
-         * \c true, and therefore (ii) this routine will do nothing and return
-         * \c false.
+         * the move cannot be performed, which means this routine will do
+         * nothing and simply return \c false.
          *
          * All crossings in this link will keep the same indices, and
          * no crossings will be created or destroyed.  Instead, the three
@@ -1924,18 +2321,27 @@ class Link :
          */
         bool hasR2(Crossing* crossing) const;
         /**
-         * Determines whether it is possible to perform a type II Reidemeister
-         * move at the given location to add two new crossings.
+         * Determines whether it is possible to perform a classical type II
+         * Reidemeister move at the given location to add two new crossings
+         * by pushing two different strands over one another.
          *
-         * For more detail on type II moves and when they can be performed,
-         * see r2(StrandRef, int, StrandRef, int).
+         * For more detail on classical type II moves and when they can be
+         * performed, see r2(StrandRef, int, StrandRef, int).  Note that a
+         * classical type II move on a classical link diagram will always
+         * result in a classical link diagram.
+         *
+         * If you are working with virtual links, you may wish to use
+         * hasR2Virtual() instead, which (unlike this routine) allow moves
+         * that could change the surface in which the link diagram is embedded,
+         * and in particular which could convert a classical link diagram into
+         * a virtual diagram with positive virtual genus.
          *
          * \pre Each of the given strand references is either a null reference,
          * or else refers to some strand of some crossing in this link.
          *
-         * \warning The check for this move is expensive (linear time),
-         * since it includes testing whether both sides-of-arcs belong
-         * to the same 2-cell of the knot diagram.
+         * \warning The check for classical type II moves is expensive
+         * (linear time).  This is in contrast to the check for _virtual_
+         * type II moves, which is extremely fast.
          *
          * \param upperArc identifies which arc of the link would be passed
          * over another in this candidate move.  See
@@ -1957,6 +2363,72 @@ class Link :
          */
         bool hasR2(StrandRef upperArc, int upperSide,
             StrandRef lowerArc, int lowerSide) const;
+        /**
+         * Determines whether it is possible to perform a virtual type II
+         * Reidemeister move at the given location to add two new crossings
+         * by pushing two different strands over one another.
+         *
+         * For more detail on these kinds of virtual type II moves and when
+         * they can be performed, see r2Virtual(StrandRef, int, StrandRef, int).
+         * Note that a virtual type II move could potentially change the
+         * virtual genus of the link diagram; in particular, it could convert
+         * a classical link diagram into a virtual diagram with positive
+         * virtual genus.
+         *
+         * \pre Each of the given strand references is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * The check for virtual type II moves is extremely fast (as opposed
+         * to _classical_ type II moves, where the check takes linear time).
+         *
+         * \param upperArc identifies which arc of the link would be passed
+         * over another in this candidate move.  See
+         * r2(StrandRef, int, StrandRef, int) for details on exactly how this
+         * will be interpreted.
+         * \param upperSide 0 if the new overlap would take place on the left
+         * of \a upperArc (when walking along \a upperArc in the forward
+         * direction), or 1 if the new overlap would take place on the right
+         * of \a upperArc.
+         * \param lowerArc identifies which arc of the link would be passed
+         * beneath another in this candidate move.  See
+         * r2(StrandRef, int, StrandRef, int) for details on exactly how this
+         * will be interpreted.
+         * \param lowerSide 0 if the new overlap would take place on the left
+         * of \a lowerArc (when walking along \a lowerArc in the forward
+         * direction), or 1 if the new overlap would take place on the right
+         * of \a lowerArc.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasR2Virtual(StrandRef upperArc, int upperSide,
+            StrandRef lowerArc, int lowerSide) const;
+        /**
+         * Determines whether it is possible to perform a virtual type II
+         * Reidemeister move at the given location to add two new crossings
+         * by pushing the same strand over itself from opposite sides.
+         *
+         * For more detail on these kinds of virtual type II moves and when
+         * they can be performed, see r2Virtual(StrandRef, int, int).
+         * Note that a virtual type II move could potentially change the
+         * virtual genus of the link diagram; in particular, it could convert
+         * a classical link diagram into a virtual diagram with positive
+         * virtual genus.
+         *
+         * \pre The given strand reference is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * \param arc identifies which arc of the link would be passed over
+         * itself in this candidate move.  See r2(StrandRef, int, int) for
+         * details on exactly how this will be interpreted.
+         * \param firstSide 0 if the first portion of the arc would push out
+         * to the left of the arc (when walking along the arc in the forward
+         * direction), or 1 if the first portion would push out to the right
+         * of the arc.
+         * \param firstStrand 0 if the first portion of the arc would be
+         * pushed under the second, or 1 if the first portion would be pushed
+         * over the second.
+         * \return \c true if and only if the requested move can be performed.
+         */
+        bool hasR2Virtual(StrandRef arc, int firstSide, int firstStrand) const;
         /**
          * Determines whether it is possible to perform a type III Reidemeister
          * move at the given location.
@@ -2084,21 +2556,24 @@ class Link :
          */
         std::optional<Link> withR2(Crossing* crossing) const;
         /**
-         * If possible, returns the diagram obtained by performing a type II
-         * Reidemeister move at the given location to add two new crossings.
+         * If possible, returns the diagram obtained by performing a classical
+         * type II Reidemeister move at the given location to add two new
+         * crossings by pushing two different strands over one another.
          * If such a move is not allowed, then this routine returns no value.
          *
          * This link diagram will not be changed.
          *
-         * For more detail on type II moves and when they can be performed,
-         * see r2(StrandRef, int, StrandRef, int).
+         * For more detail on classical type II moves and when they can be
+         * performed, see r2(StrandRef, int, StrandRef, int).  Note that a
+         * classical type II move on a classical link diagram will always
+         * result in a classical link diagram.
          *
          * \pre Each of the given strand references is either a null reference,
          * or else refers to some strand of some crossing in this link.
          *
-         * \warning The check for this move is expensive (linear time),
-         * since it includes testing whether both sides-of-arcs belong
-         * to the same 2-cell of the knot diagram.
+         * \warning The check for classical type II moves is expensive
+         * (linear time).  This is in contrast to the check for _virtual_
+         * type II moves, which is extremely fast.
          *
          * \param upperArc identifies which arc of the link will be passed
          * over another.  See r2(StrandRef, int, StrandRef, int) for details
@@ -2119,6 +2594,79 @@ class Link :
          */
         std::optional<Link> withR2(StrandRef upperArc, int upperSide,
             StrandRef lowerArc, int lowerSide) const;
+        /**
+         * If possible, returns the diagram obtained by performing a virtual
+         * type II Reidemeister move at the given location to add two new
+         * crossings by pushing two different strands over one another.
+         * If such a move is not allowed, then this routine returns no value.
+         *
+         * This link diagram will not be changed.
+         *
+         * For more detail on these kinds of virtual type II moves and when
+         * they can be performed, see r2Virtual(StrandRef, int, StrandRef, int).
+         * Note that a virtual type II move could potentially change the
+         * virtual genus of the link diagram; in particular, it could convert
+         * a classical link diagram into a virtual diagram with positive
+         * virtual genus.
+         *
+         * \pre Each of the given strand references is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * The check for virtual type II moves is extremely fast (as opposed
+         * to _classical_ type II moves, where the check takes linear time).
+         *
+         * \param upperArc identifies which arc of the link will be passed
+         * over another.  See r2(StrandRef, int, StrandRef, int) for details
+         * on exactly how this will be interpreted.
+         * \param upperSide 0 if the new overlap should take place on the left
+         * of \a upperArc (when walking along \a upperArc in the forward
+         * direction), or 1 if the new overlap should take place on the right
+         * of \a upperArc.
+         * \param lowerArc identifies which arc of the link will be passed
+         * beneath another.  See r2(StrandRef, int, StrandRef, int) for details
+         * on exactly how this will be interpreted.
+         * \param lowerSide 0 if the new overlap should take place on the left
+         * of \a lowerArc (when walking along \a lowerArc in the forward
+         * direction), or 1 if the new overlap should take place on the right
+         * of \a lowerArc.
+         * \return The new link diagram obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Link> withR2Virtual(StrandRef upperArc, int upperSide,
+            StrandRef lowerArc, int lowerSide) const;
+        /**
+         * If possible, returns the diagram obtained by performing a virtual
+         * type II Reidemeister move at the given location to add two new
+         * crossings by pushing the same strand over itself from opposite sides.
+         * If such a move is not allowed, then this routine returns no value.
+         *
+         * This link diagram will not be changed.
+         *
+         * For more detail on these kinds of virtual type II moves and when
+         * they can be performed, see r2Virtual(StrandRef, int, int).
+         * Note that a virtual type II move could potentially change the
+         * virtual genus of the link diagram; in particular, it could convert
+         * a classical link diagram into a virtual diagram with positive
+         * virtual genus.
+         *
+         * \pre The given strand reference is either a null reference,
+         * or else refers to some strand of some crossing in this link.
+         *
+         * \param arc identifies which arc of the link will be passed over
+         * itself.  See r2(StrandRef, int, int) for details on exactly how
+         * this will be interpreted.
+         * \param firstSide 0 if the first portion of the arc should push out
+         * to the left of the arc (when walking along the arc in the forward
+         * direction), or 1 if the first portion should push out to the right
+         * of the arc.
+         * \param firstStrand 0 if the first portion of the arc should be
+         * pushed under the second, or 1 if the first portion should be pushed
+         * over the second.
+         * \return The new link diagram obtained by performing the requested
+         * move, or no value if the requested move cannot be performed.
+         */
+        std::optional<Link> withR2Virtual(StrandRef arc, int firstSide,
+            int firstStrand) const;
         /**
          * If possible, returns the diagram obtained by performing a type III
          * Reidemeister move at the given location.
@@ -2179,7 +2727,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR1().  If you wish to both check and perform the move,
          * call r1() without the two additional boolean arguments.
          *
@@ -2213,7 +2761,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR1().  If you wish to both check and perform the move,
          * call r1() without the two additional boolean arguments.
          *
@@ -2248,7 +2796,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR2().  If you wish to both check and perform the move,
          * call r2() without the two additional boolean arguments.
          *
@@ -2283,7 +2831,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR2().  If you wish to both check and perform the move,
          * call r2() without the two additional boolean arguments.
          *
@@ -2308,26 +2856,27 @@ class Link :
         [[deprecated]] bool r2(Crossing* crossing,
             bool ignored, bool perform = true);
         /**
-         * Deprecated routine that tests for and optionally performs a type II
-         * Reidemeister move to add two new crossings.
+         * Deprecated routine that tests for and optionally performs a classical
+         * type II Reidemeister move to add two new crossings by pushing two
+         * different strands over one another.
          *
-         * For more detail on type II moves and when they can be performed,
-         * see r2(StrandRef, int, StrandRef, int).
+         * For more detail on classical type II moves and when they can be
+         * performed, see r2(StrandRef, int, StrandRef, int).  This deprecated
+         * routine will not perform virtual type II moves; for that you should
+         * use the new routine r2Virtual() instead.
          *
          * This routine will always _check_ whether the requested move is
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR2().  If you wish to both check and perform the move,
          * call r2() without the two additional boolean arguments.
          *
          * \pre Each of the given strand references is either a null reference,
          * or else refers to some strand of some crossing in this link.
          *
-         * \warning The check for this move is expensive (linear time),
-         * since it includes testing whether both sides-of-arcs belong
-         * to the same 2-cell of the knot diagram.
+         * \warning The check for this move is expensive (linear time).
          *
          * \param upperArc identifies which arc of the link would be passed
          * over another in this move.  See r2(StrandRef, int, StrandRef, int)
@@ -2364,7 +2913,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR3().  If you wish to both check and perform the move,
          * call r3() without the two additional boolean arguments.
          *
@@ -2398,7 +2947,7 @@ class Link :
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR3().  If you wish to both check and perform the move,
          * call r3() without the two additional boolean arguments.
          *
@@ -2423,20 +2972,28 @@ class Link :
             bool ignored, bool perform = true);
 
         /**
-         * Tests whether this link has a pass move that will reduce the
-         * number of crossings.
+         * Tests whether this classical link has a pass move that will reduce
+         * the number of crossings.
          *
-         * A _pass_ move involves taking a section of some link component
-         * that involves only over-crossings (or only under-crossings), and
-         * then lifting that section above (or beneath respectively) the
-         * diagram and placing it back again in a different location.
-         * In particular, this routine searches for a different location
-         * that will involve fewer crossings than the original location.
+         * A _pass_ move involves taking a section of some link component that
+         * involves only over-crossings (or only under-crossings), and then
+         * lifting that section above (or beneath respectively) the plane of
+         * the diagram and placing it back again in a different location.
+         * In particular, this routine searches for a different location that
+         * will involve fewer crossings than the original location.
+         *
+         * In Regina, pass moves can only be used with classical links, not
+         * the more general setting of virtual link diagrams.
          *
          * This routine does not actually _perform_ the pass move; it
          * simply determines whether one exists.
          *
          * The running time is cubic in the number of crossings.
+         *
+         * \pre This link diagram is classical (not virtual).
+         *
+         * \exception FailedPrecondition This is a virtual (not classical)
+         * link diagram.
          *
          * \return \c true if and only if there is a pass move that
          * reduces the number of crossings.
@@ -2472,7 +3029,7 @@ class Link :
          * component), then in such cases you can try the more powerful but
          * (much) slower simplifyExhaustive() instead.
          *
-         * This routine will never reflect or reverse the link.
+         * This routine will never reflect, rotate or reverse the link diagram.
          *
          * \warning Running this routine multiple times upon the same link may
          * return different results, since the implementation makes random
@@ -2515,7 +3072,7 @@ class Link :
          * crossings) are not used in this routine.  Such moves do however
          * feature in simplify().
          *
-         * This routine will never reflect or reverse the link.
+         * This routine will never reflect, rotate or reverse the link diagram.
          *
          * \warning The implementation of this routine (and therefore
          * its results) may change between different releases of Regina.
@@ -2536,24 +3093,36 @@ class Link :
          * exhaustive search through the Reidemeister graph.  This routine is
          * more powerful but much slower than simplify().
          *
-         * Unlike simplify(), this routine **could potentially
-         * reflect or reverse the link**.
+         * As of Regina 7.4, this routine will never reflect, rotate or
+         * reverse the link diagram.
          *
-         * As of Regina 7.4, this routine is now available for any connected
-         * link diagram with fewer than 64 link components.
-         * If this link has 64 or more components then this
-         * routine will throw an exception (as described below).
+         * Also, as of Regina 7.4, this routine is now available for any link
+         * diagram (classical or virtual) with fewer than 64 link components.
+         * If this link has 64 or more components then this routine will throw
+         * an exception (as described below).
          *
          * This routine will iterate through all link diagrams that can be
          * reached from this via Reidemeister moves, without ever exceeding
          * \a height additional crossings beyond the original number.
+         * (If this link diagram is disconnected, then there is an exception:
+         * this routine will never use a type II move to merge distinct
+         * diagram components together, which would never help with
+         * simplification).
          *
-         * If at any stage it finds a diagram with _fewer_
-         * crossings than the original, then this routine will call
-         * simplify() to simplify the diagram further if
-         * possible and will then return \c true.  If it cannot find a
-         * diagram with fewer crossings then it will leave this
-         * link diagram unchanged and return \c false.
+         * If at any stage this routine finds a diagram with _fewer_ crossings
+         * than the original, then it will call simplify() to simplify the
+         * diagram further if possible and will then return \c true.
+         * If it cannot find a diagram with fewer crossings then it will leave
+         * this link diagram unchanged and return \c false.
+         *
+         * If this is a _classical_ link diagram then only classical
+         * Reidemeister moves will be used, as implemented by r1(), r2() and
+         * r3(); in particular, this routine will never consider link diagrams
+         * with positive virtual genus.  If this is a _virtual_ link diagram,
+         * then both classical and virtual Reidemeister moves will be used,
+         * including r1(), r2(), r3(), and r2Virtual(); this means that the
+         * exploration through the Reidemeister graph might pass through
+         * diagrams with smaller and/or greater virtual genus than the original.
          *
          * This routine can be very slow and very memory-intensive: the
          * number of link diagrams it visits may be exponential in
@@ -2614,21 +3183,22 @@ class Link :
          * \return \c true if and only if this diagram was successfully
          * simplified to fewer crossings.
          */
-        bool simplifyExhaustive(int height = 1, unsigned threads = 1,
+        bool simplifyExhaustive(int height = 1, int threads = 1,
             ProgressTrackerOpen* tracker = nullptr);
 
         /**
          * Explores all link diagrams that can be reached from this via
-         * Reidemeister moves, without exceeding a given number of additional
-         * crossings.
+         * classical Reidemeister moves, without exceeding a given number of
+         * additional crossings.
          *
-         * As of Regina 7.4, this routine is now available for any connected
-         * link diagram with fewer than 64 link components.
-         * If this link has 64 or more components then this
-         * routine will throw an exception (as described below).
+         * As of Regina 7.4, this routine is now available for any link diagram
+         * (classical or virtual) with fewer than 64 link components.  If this
+         * link has 64 or more components then this routine will throw an
+         * exception (as described below).
          *
          * This routine iterates through all link diagrams that can be reached
-         * from this via Reidemeister moves, without ever exceeding
+         * from this one via classical Reidemeister moves (with an important
+         * exception involving disconnected diagrams), without ever exceeding
          * \a height additional crossings beyond the original number.
          * With the current implementation, these diagrams **could become
          * reflected and/or reversed**, and moreover each diagram will only be
@@ -2636,9 +3206,27 @@ class Link :
          * behaviour could change and/or become configurable in a future version
          * of Regina.
          *
-         * For every such link diagram (including this starting diagram), this
-         * routine will call \a action (which must be a function or some other
-         * callable object).
+         * By _classical_ Reidemeister moves, we mean that we avoid any moves
+         * that could require adding a handle to the surface \a S in which the
+         * link diagram is embedded.  That is, we allow ourselves to use the
+         * classical type I, II and III moves as implemented by r1(), r2() and
+         * r3(), but not the _virtual_ type II move as implemented by
+         * r2Virtual().  If this link diagram is classical then every link
+         * diagram that this routine produces will also be classical; indeed,
+         * this routine uses exactly the Reidemeister moves as they would be
+         * taught in a standard (classical) knot theory text.
+         *
+         * If you are working with _virtual_ links, you may wish to use
+         * rewriteVirtual() instead.  The routine rewriteVirtual() uses the
+         * same classical moves as above, but also allows the virtual type II
+         * move, which could change the genus of the surface containing the
+         * link diagram.  Indeed, calling rewriteVirtual() on a classical link
+         * diagram could easily produce virtual diagrams with positive virtual
+         * genus.
+         *
+         * For every link diagram that this routine encounters (including this
+         * starting diagram), this routine will call \a action (which must be
+         * a function or some other callable object).
          *
          * - \a action must take the following initial argument(s).
          *   Either (a) the first argument must be a link (the precise type
@@ -2660,17 +3248,25 @@ class Link :
          *   \c true, then this indicates that processing should stop
          *   immediately (i.e., no more link diagrams will be processed).
          *
-         * - \a action may, if it chooses, make changes to this link
+         * - \a action may, if it chooses, make changes to this link diagram
          *   (i.e., the original link upon which rewrite() was called).
-         *   This will not affect the search: all link diagrams
-         *   that this routine visits will be obtained via Reidemeister moves
-         *   from the original link diagram, before any subsequent changes
-         *   (if any) were made.
+         *   This will not affect the search: all link diagrams that this
+         *   routine visits will be obtained via Reidemeister moves from the
+         *   original link diagram, before any subsequent changes (if any)
+         *   were made.
          *
          * - \a action will only be called once for each link diagram
          *   (including this starting diagram).  In other words, no
          *   link diagram will be revisited a second time in a single call
          *   to rewrite().
+         *
+         * The exception for disconnected diagrams is this: if this link
+         * diagram has more than one connected component, then this routine
+         * will never use a type II move to merge those components together
+         * (i.e., the diagram will always remain disconnected).  Of course, if
+         * your link diagram is disconnected, then it will be _much_ more
+         * efficient to call diagramComponents() and run rewrite() on each
+         * component independently.
          *
          * This routine can be very slow and very memory-intensive, since the
          * number of link diagrams it visits may be exponential in
@@ -2733,28 +3329,85 @@ class Link :
          * completion.
          */
         template <typename Action, typename... Args>
-        bool rewrite(int height, unsigned threads,
+        bool rewrite(int height, int threads,
             ProgressTrackerOpen* tracker,
             Action&& action, Args&&... args) const;
 
         /**
-         * Forms the composition of this with the given link.
-         * This link will be altered directly.
+         * Explores all link diagrams that can be reached from this via
+         * classical and/or virtual Reidemeister moves, without exceeding a
+         * given number of additional crossings.
          *
-         * Specifically, the first component of the given link will be
-         * grafted into the first component of this link, in a way that
-         * preserves orientations and crossing signs.  If the given link
-         * has any additional components, then they will be copied into
-         * this link directly with no modification.
+         * This routine works in a similar manner to rewrite(); you should
+         * read the rewrite() documentation to learn about what it does,
+         * how it works, and how the callable \a action argument is expected
+         * to behave.
          *
-         * This routine may be expanded in future versions of Regina to
-         * allow more flexibility (in particular, to allow you to choose
-         * which components of the two links to graft together, and/or
-         * at which strands to graft them).
+         * The main difference is that, in addition to supporting all three
+         * classical Reidemeister moves, this routine also uses the virtual
+         * type II Reidemeister move, as implemented by r2Virtual().  As a
+         * result, this routine could produce link diagrams with a different
+         * virtual genus to the original; in particular, even if the original
+         * link diagram is classical, this routine could (and typically will)
+         * produce diagrams with positive virtual genus as a result.
+         *
+         * \pre This link has fewer than 64 link components.
+         *
+         * \exception FailedPrecondition This link has 64 or more link
+         * components.  If a progress tracker was passed, it will be marked as
+         * finished before the exception is thrown.
+         *
+         * \apinotfinal
+         *
+         * \python This function is available in Python, and the \a action
+         * argument may be a pure Python function.  However, its form is more
+         * restricted: the arguments \a tracker and \a args are removed, so you
+         * simply call it as rewriteVirtual(height, threads, action).
+         * Moreover, \a action must take exactly two arguments
+         * (const std::string&, Link&&) representing the signature and
+         * the link diagram, as described in option (b) above.
+         *
+         * \param height the maximum number of _additional_ crossings to
+         * allow beyond the number of crossings originally present in this
+         * link diagram, or a negative number if this should not be bounded.
+         * \param threads the number of threads to use.  If this is
+         * 1 or smaller then the routine will run single-threaded.
+         * \param tracker a progress tracker through which progress will
+         * be reported, or \c null if no progress reporting is required.
+         * \param action a function (or other callable object) to call
+         * for each link diagram that is found.
+         * \param args any additional arguments that should be passed to
+         * \a action, following the initial link argument(s).
+         * \return \c true if some call to \a action returned \c true (thereby
+         * terminating the search early), or \c false if the search ran to
+         * completion.
+         */
+        template <typename Action, typename... Args>
+        bool rewriteVirtual(int height, int threads,
+            ProgressTrackerOpen* tracker,
+            Action&& action, Args&&... args) const;
+
+        /**
+         * Forms the composition of this with the given link.  This link will
+         * be altered directly, and the given link will be left unchanged.
+         *
+         * Specifically, this routine will insert a copy of the given link
+         * into this link, and will graft its first component into the first
+         * component of this link in a way that preserves orientations and
+         * crossing signs.  If either this and/or the given link has more than
+         * one component, then any additional components will be left alone
+         * (i.e., they will remain as different components in the final result).
          *
          * If either link is empty (i.e., contains no components at all),
          * then the result will simply be a clone of the other link
          * (with no composition operation performed).
+         *
+         * \note If you need to specify which components of the two links to
+         * graft together, or if you need to choose the specific arcs at which
+         * the graft takes place (which is important when working with _virtual_
+         * links), you should use graft() instead.  Note that graft() assumes
+         * that both components being grafted together already belong to this
+         * link; you can use insertLink() to arrange this.
          *
          * It is allowed to pass this link as \a other.
          *
@@ -2785,16 +3438,50 @@ class Link :
         bool isAlternating() const;
 
         /**
-         * Returns the linking number of this link.
+         * Returns the linking number of this link, or throws an exception
+         * if it is not an integer.
          *
-         * This is an invariant of the link, computed as half the sum of the
-         * signs of all crossings that involve different link components.
+         * The linking number is an invariant of the link, computed as half
+         * the sum of the signs of all crossings that involve different link
+         * components.
+         *
+         * For classical links, the linking number is always an integer, and
+         * so linking() will always return successfully.
+         *
+         * For virtual links, the linking number might have a half-integer part;
+         * if this happens then linking() will throw an exception.  If you are
+         * working with virtual links then you should use linking2() instead,
+         * which does not halve the sum of signs, and which therefore always
+         * returns successfully with an integer result.
          *
          * The algorithm to compute linking number is linear time.
+         *
+         * \exception NotImplemented This is a virtual link whose linking
+         * number is not an integer.
          *
          * \return the linking number.
          */
         long linking() const;
+
+        /**
+         * Returns twice the linking number of this link, which is always an
+         * integer for both classical and virtual links.
+         *
+         * The linking number is an invariant of a link, computed as half
+         * the sum of the signs of all crossings that involve different link
+         * components.  For classical links the linking number is always an
+         * integer, whereas for virtual links it might have a half-integer part.
+         *
+         * This routine returns _twice_ the linking number, which is always
+         * guaranteed to be an integer.  If you are working with virtual links
+         * then you should use linking2() instead of linking(), since linking()
+         * will throw an exception if its result has a fractional part.
+         *
+         * The algorithm to compute linking number is linear time.
+         *
+         * \return twice the linking number.
+         */
+        long linking2() const;
 
         /**
          * Returns the writhe of this link diagram.
@@ -2850,6 +3537,77 @@ class Link :
         long writheOfComponent(size_t index) const;
 
         /**
+         * Returns the odd writhe, or self-linking number, of this knot.
+         *
+         * The _odd writhe_ is an invariant of virtual knots, which sums the
+         * signs of all odd crossings.  A crossing \a c is _odd_ if, when
+         * traversing the knot, we pass through an odd number of crossings
+         * between the over-strand and the under-strand of \a c.
+         *
+         * Some authors call this invariant the _self-linking number_ of the
+         * knot.
+         *
+         * For a classical knot, every crossing will be even, and so the
+         * odd writhe will always be zero.
+         *
+         * \pre This link has exactly one component (i.e., it is a knot).
+         *
+         * \exception FailedPrecondition This link is empty or has multiple
+         * components.
+         *
+         * \return the odd writhe of this knot.
+         */
+        long oddWrithe() const;
+
+        /**
+         * Determines whether this link diagram is classical (that is, planar).
+         * A link diagram that is _not_ classical cannot be drawn in the plane
+         * without the addition of virtual crossings.
+         *
+         * Some notes:
+         *
+         * - Calling isClassical() is equivalent to testing whether
+         *   virtualGenus() is zero.
+         *
+         * - This is a property of the link _diagram_, not the link itself.
+         *   In particular, it is possible for a classical link to be
+         *   represented using a non-classical diagram (i.e., a diagram that
+         *   requires virtual crossings when drawn in the plane).
+         *
+         * - As mentioned in the class notes, the Link class does not actually
+         *   store virtual crossings; instead it treats the link diagram as
+         *   living within some closed orientable surface.  Any discussion of
+         *   virtual crossings in the notes above is for exposition only.
+         *
+         * This routine runs in time linear in the size of the link diagram.
+         * However, the virtual genus is cached, and so subsequent calls to
+         * isClassical() or virtualGenus() will be instantaneous.
+         *
+         * \return \c true if and only if this link diagram is classical.
+         * (i.e., planar).
+         */
+        bool isClassical() const;
+
+        /**
+         * Determines the virtual genus of this link diagram.  The virtual
+         * genus is the smallest genus of closed orientable surface in which
+         * the diagram embeds.
+         *
+         * Note that this is a property of the link _diagram_, not the link
+         * itself.
+         *
+         * For classical link diagrams, the virtual genus will always be zero
+         * (since classical link diagrams are by definition planar).
+         *
+         * This routine runs in time linear in the size of the link diagram.
+         * However, the virtual genus is cached, and so subsequent calls to
+         * virtualGenus() or isClassical() will be instantaneous.
+         *
+         * \return the virtual genus of this link diagram.
+         */
+        size_t virtualGenus() const;
+
+        /**
          * Returns the number of Seifert circles for this link diagram.
          * This is the number of circles obtained when we smooth every
          * crossing in a way that respects the orientations of the strands.
@@ -2864,12 +3622,36 @@ class Link :
 
         /**
          * Returns an ideal triangulation of the complement of this link
-         * in the 3-sphere.
+         * diagram.  The triangulation will have one ideal vertex for each
+         * link component.
          *
-         * The triangulation will have one ideal vertex for each link
-         * component.  Assuming you pass \a simplify as \c true (the default),
-         * there will typically be no internal vertices; however, this
-         * is not guaranteed.
+         * If this is a classical link diagram:
+         *
+         * - The triangulation will represent the complement of this link in
+         *   the 3-sphere.  If the link diagram is disconnected, then the
+         *   resulting 3-manifold will be the connected sum of the complements
+         *   of each connected diagram component.
+         *
+         * If this is a virtual (non-classical) diagram:
+         *
+         * - A virtual link diagram is embedded in some closed orientable
+         *   surface \a S with positive genus.  The triangulation that is
+         *   returned will represent the complement of this link diagram in
+         *   the thickened surface `S × I`.  There will be two additional
+         *   ideal vertices, one for each copy of \a S on the boundary.
+         *   If the link diagram is disconnected, then the surface \a S that
+         *   is used will be the connected sum of the individual closed
+         *   orientable surfaces that host each connected diagram component
+         *   (i.e., the resulting triangulation will be connected).
+         *
+         * Note that for classical links, the complement is a topological
+         * invariant of the link; however, for virtual (non-classical) links,
+         * the complement (and indeed the genus of the surface \a S) is a
+         * property of the specific link diagram.
+         *
+         * Assuming you pass \a simplify as \c true (the default), the
+         * resulting triangulation will typically have no internal vertices;
+         * however, this is not guaranteed.
          *
          * Initially, each tetrahedron will be oriented according to a
          * right-hand rule: the thumb of the right hand points from vertices
@@ -2879,14 +3661,105 @@ class Link :
          * this may relabel the tetrahedra, though their orientations will
          * be preserved.
          *
-         * This is the same triangulation that would be produced by passing
-         * this link to the Triangulation<3> constructor.
-         *
          * \param simplify \c true if and only if the triangulation of the
          * complement should be simplified to use as few tetrahedra as possible.
-         * \return the complement of this link.
+         * \return the complement of this link diagram.
          */
         Triangulation<3> complement(bool simplify = true) const;
+
+        /**
+         * Treats this as a long knot, and returns a triangulation of the
+         * complement with mixed real/ideal boundary.
+         *
+         * Conceptually, one can think of this routine as doing the following:
+         *
+         * - Break this knot open at the given arc, and embed the knot inside a
+         *   3-ball with the two free ends on the boundary of the ball (thus
+         *   turning this into a _long knot_);
+         *
+         * - Drill out the long knot from the 3-ball;
+         *
+         * - Triangulate the resulting space so that:
+         *
+         *   - the sphere bounding the ball is represented using four boundary
+         *     triangles with two points pinched together at some vertex \a v;
+         *
+         *   - this vertex \a v has annulus link;
+         *
+         *   - if we trunate \a v, then the resulting annulus follows the
+         *     part of boundary where the long knot was drilled out of the ball.
+         *
+         * The vertex \a v as described above will be invalid, since its link
+         * is an annulus.  Essentially, the real part of the boundary (the
+         * four boundary triangles) describes the sphere bounding the 3-ball,
+         * and the ideal part of the boundary (the link of \a v) describes the
+         * annulus bounding the long knot inside this ball.
+         *
+         * If you truncate \a v (e.g., by calling `complement.truncate(v)` or
+         * `complement.truncateIdeal()`), then the result will be a valid
+         * triangulation of the knot complement with real boundary.
+         *
+         * As with complement(), each tetrahedron will be oriented according
+         * to a right-hand rule: the thumb of the right hand points from
+         * vertices 0 to 1, and the fingers curl around to point from vertices
+         * 2 to 3.  If you pass \a simplify as \c true, then Regina will
+         * attempt to simplify the triangulation to as few tetrahedra as
+         * possible: this may relabel the tetrahedra, though their
+         * orientations will be preserved.
+         *
+         * \pre This is a classical knot.  That is, the link diagram is not
+         * virtual, and has exactly one link component.
+         *
+         * \exception FailedPrecondition This link is empty, has multiple
+         * components, and/or is virtual (as opposed to classical).
+         *
+         * \param breakOpen indicates where to break open this knot diagram to
+         * produce a long knot.  See the StrandRef documentation for the
+         * convention on how arcs are represented using StrandRef objects.
+         * This may be a null reference (the default), in which case this
+         * routine will choose an arbitrary location to break the knot open.
+         * \param simplify \c true if and only if the resulting triangulation
+         * should be simplified to use as few tetrahedra as possible.
+         * \return the long knot complement with mixed real/ideal boundary,
+         * as described above.
+         */
+        Triangulation<3> longComplement(StrandRef breakOpen = {},
+            bool simplify = true) const;
+
+        /**
+         * Returns the untwisted positive or negative Whitehead double of this
+         * knot.
+         *
+         * This routine works only with knots, not multiple-component links.
+         * If this link is empty or has more than one component, then this
+         * routine will throw an exception.
+         *
+         * This routine creates a new link by (i) creating two parallel copies
+         * of the original knot using the Seifert framing, and then (ii) cutting
+         * open these two copies and re-connecting them using a clasp.
+         * The signs of the two crossings in the clasp are determined by the
+         * optional argument \a positive (the default is to use two positive
+         * crossings).
+         *
+         * The two parallel copies of the original link will be oriented as
+         * follows: when following the orientation of the original knot, the
+         * left copy will have the same orientation, and the right copy will
+         * have the reverse orientation.
+         *
+         * This link will not be modified.
+         *
+         * \pre This link has exactly one component (i.e., it is a knot).
+         *
+         * \exception FailedPrecondition This link is empty or has multiple
+         * components.
+         *
+         * \param positive \c true if the clasp should use positive crossings
+         * (which builds the _positive_ Whitehead double), or \c false if the
+         * clasp should use negative crossings (which builds the _negative_
+         * Whitehead double).
+         * \return the requested untwisted Whitehead double of this knot.
+         */
+        Link whiteheadDouble(bool positive = true) const;
 
         /**
          * Returns \a k cables of this link, all parallel to each
@@ -2910,6 +3783,52 @@ class Link :
         Link parallel(int k, Framing framing = Framing::Seifert) const;
 
         /**
+         * Returns the Alexander polynomial of this classical knot.
+         *
+         * At present, Regina only computes Alexander polynomials for classical
+         * knots, not multiple-component links or virtual knots.  If this link
+         * is empty, has more than one component, or uses a virtual diagram,
+         * then this routine will throw an exception.
+         *
+         * To pretty-print the Alexander polynomial for human consumption, you
+         * can call `Polynomial::str(Link::alexanderVar)`.
+         *
+         * Bear in mind that each time a link changes, all of its
+         * polynomials will be deleted.  Thus the reference that is returned
+         * from this routine should not be kept for later use.  Instead,
+         * alexander() should be called again; this will be instantaneous if
+         * the Alexander polynomial has already been calculated.
+         *
+         * If this polynomial has already been computed, then the result will
+         * be cached and so this routine will be instantaneous (since it just
+         * returns the previously computed result).
+         *
+         * \pre This link diagram is classical (not virtual), and has exactly
+         * one component (i.e., it is a knot).
+         *
+         * \exception FailedPrecondition This link is empty, has multiple
+         * components, and/or uses a virtual (not classical) link diagram.
+         *
+         * \return the Alexander polynomial of this knot.
+         */
+        const Polynomial<Integer>& alexander() const;
+        /**
+         * Is the Alexander polynomial of this knot already known?
+         * See alexander() for further details.
+         *
+         * If this property is already known, future calls to alexander() will
+         * be very fast (simply returning the precalculated value).
+         *
+         * At present, Regina only computes Alexander polynomials for classical
+         * knots.  If this link is empty, has multiple components, or uses a
+         * virtual diagram, then this routine is still safe to call, and will
+         * simply return \c false.
+         *
+         * \return \c true if and only if this property is already known.
+         */
+        bool knowsAlexander() const;
+
+        /**
          * Returns the Kauffman bracket polynomial of this link diagram.
          *
          * Note that the bracket polynomial is not an invariant - it is
@@ -2918,7 +3837,10 @@ class Link :
          * If this is the empty link, then this routine will return the zero
          * polynomial.
          *
-         * Bear in mind that each time the link changes, all of its
+         * To pretty-print this polynomial for human consumption, you can
+         * call `Laurent::str(Link::bracketVar)`.
+         *
+         * Bear in mind that each time a link changes, all of its
          * polynomials will be deleted.  Thus the reference that is
          * returned from this routine should not be kept for later use.
          * Instead, bracket() should be called again; this will be
@@ -2942,9 +3864,9 @@ class Link :
          * will ignore your choice of algorithm and use the treewidth-based
          * algorithm regardless.
          *
-         * \exception NotImplemented This link is \e so large that the maximum
-         * possible strand ID cannot fit into an \c int.  (On a typical machine
-         * where \c int is 32-bit, this would require over a _billion_
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
          * crossings).  Note that, if you have such a link, then this function
          * (which is exponential time) would be intractably slow anyway.
          *
@@ -2961,11 +3883,48 @@ class Link :
          * tractable treewidth-based algorithm.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
+         * \param threads the number of threads to use.  If this is 1 or
+         * smaller then the computation will run single-threaded.  Currently
+         * only the naive algorithm supports multithreading; if you use the
+         * treewidth-based algorithm then it will run single-threaded
+         * regardless of the value of \a threads.
          * \return the bracket polynomial, or the zero polynomial if the
          * calculation was cancelled via the given progress tracker.
          */
         const Laurent<Integer>& bracket(Algorithm alg = Algorithm::Default,
-            ProgressTracker* tracker = nullptr) const;
+            int threads = 1, ProgressTracker* tracker = nullptr) const;
+        /**
+         * Deprecated routine that returns the Kauffman bracket polynomial of
+         * this link diagram, using a single thread and an explicit
+         * progress tracker.
+         *
+         * This routine is provided for backward compatibility: its only
+         * purpose is to offer a syntax that was supported in old versions of
+         * Regina but is not consistent with the new form of bracket() that
+         * supports multithreading.
+         *
+         * See bracket(Algorithm, int, ProgressTracker*) for further details
+         * on what this routine does and relevant warnings that you should be
+         * aware of.
+         *
+         * \deprecated If you need to use this form of bracket() (i.e.,
+         * single-threaded with an explicit progress tracker), you should call
+         * `bracket(alg, 1, tracker)` instead.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.
+         *
+         * \python The global interpreter lock will be released while this
+         * function runs, so you can use it with Python-based multithreading.
+         *
+         * \param alg the algorithm with which to compute the polynomial.
+         * \param tracker a progress tracker through which progress will
+         * be reported, or \c null if no progress reporting is required.
+         * \return the bracket polynomial, or the zero polynomial if the
+         * calculation was cancelled via the given progress tracker.
+         */
+        [[deprecated]] const Laurent<Integer>& bracket(
+            Algorithm alg, ProgressTracker* tracker) const;
         /**
          * Is the Kauffman bracket polynomial of this link diagram
          * already known?  See bracket() for further details.
@@ -3008,7 +3967,7 @@ class Link :
          * To pretty-print this polynomial for human consumption, you can
          * call `Laurent::str(Link::jonesVar)`.
          *
-         * Bear in mind that each time the link changes, all of its
+         * Bear in mind that each time a link changes, all of its
          * polynomials will be deleted.  Thus the reference that is
          * returned from this routine should not be kept for later use.
          * Instead, jones() should be called again; this will be
@@ -3032,9 +3991,9 @@ class Link :
          * will ignore your choice of algorithm and use the treewidth-based
          * algorithm regardless.
          *
-         * \exception NotImplemented This link is \e so large that the maximum
-         * possible strand ID cannot fit into an \c int.  (On a typical machine
-         * where \c int is 32-bit, this would require over a _billion_
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
          * crossings).  Note that, if you have such a link, then this function
          * (which is exponential time) would be intractably slow anyway.
          *
@@ -3051,13 +4010,50 @@ class Link :
          * tractable treewidth-based algorithm.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
+         * \param threads the number of threads to use.  If this is 1 or
+         * smaller then the computation will run single-threaded.  Currently
+         * only the naive algorithm supports multithreading; if you use the
+         * treewidth-based algorithm then it will run single-threaded
+         * regardless of the value of \a threads.
          * \return the Jones polynomial, or the zero polynomial if the
          * calculation was cancelled via the given progress tracker.
          */
         const Laurent<Integer>& jones(Algorithm alg = Algorithm::Default,
-            ProgressTracker* tracker = nullptr) const;
+            int threads = 1, ProgressTracker* tracker = nullptr) const;
         /**
-         * Is the Jones polynomial of this link diagram already known?
+         * Deprecated routine that returns the Jones polynomial of this link
+         * with all exponents doubled, using a single thread and an explicit
+         * progress tracker.
+         *
+         * This routine is provided for backward compatibility: its only
+         * purpose is to offer a syntax that was supported in old versions of
+         * Regina but is not consistent with the new form of jones() that
+         * supports multithreading.
+         *
+         * See jones(Algorithm, int, ProgressTracker*) for further details
+         * on what this routine does and relevant warnings that you should be
+         * aware of.
+         *
+         * \deprecated If you need to use this form of jones() (i.e.,
+         * single-threaded with an explicit progress tracker), you should call
+         * `jones(alg, 1, tracker)` instead.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.
+         *
+         * \python The global interpreter lock will be released while this
+         * function runs, so you can use it with Python-based multithreading.
+         *
+         * \param alg the algorithm with which to compute the polynomial.
+         * \param tracker a progress tracker through which progress will
+         * be reported, or \c null if no progress reporting is required.
+         * \return the Jones polynomial, or the zero polynomial if the
+         * calculation was cancelled via the given progress tracker.
+         */
+        [[deprecated]] const Laurent<Integer>& jones(
+            Algorithm alg, ProgressTracker* tracker) const;
+        /**
+         * Is the Jones polynomial of this link already known?
          * See jones() for further details.
          *
          * If this property is already known, future calls to jones() will be
@@ -3068,15 +4064,19 @@ class Link :
         bool knowsJones() const;
 
         /**
-         * Returns the HOMFLY polynomial of this link, as a polynomial
-         * in \a alpha and \a z.
+         * Returns the HOMFLY-PT polynomial of this classical link, as a
+         * polynomial in \a alpha and \a z.
          *
-         * This variant of the HOMFLY polynomial is described (amongst other
+         * At present, Regina only computes HOMFLY-PT polynomials for classical
+         * links.  If this is a virtual link diagram, then this routine will
+         * throw an exception.
+         *
+         * This variant of the HOMFLY-PT polynomial is described (amongst other
          * places) in G. Gouesbet et al., "Computer evaluation of Homfly
          * polynomials by using Gauss codes, with a skein-template algorithm",
          * Applied Mathematics and Computation 105 (1999), 271-289.
          *
-         * The (\a alpha, \a z) and (\a l, \a m) variants of the HOMFLY
+         * The (\a alpha, \a z) and (\a l, \a m) variants of the HOMFLY-PT
          * polynomial are related by a simple transformation:
          * \a alpha = \a l \a i and \a z = -\a m \a i,
          * where \a i represents (as usual) a square root of -1.
@@ -3098,17 +4098,18 @@ class Link :
          * polynomials by using Gauss codes, with a skein-template algorithm",
          * Applied Mathematics and Computation 105 (1999), 271-289.
          *
-         * Bear in mind that each time the link changes, all of its
-         * polynomials will be deleted.  Thus the reference that is
-         * returned from this routine should not be kept for later use.
-         * Instead, homflyAZ() should be called again; this will be
-         * instantaneous if the HOMFLY polynomial has already been calculated.
+         * Bear in mind that each time a link changes, all of its polynomials
+         * will be deleted.  Thus the reference that is returned from this
+         * routine should not be kept for later use.  Instead, homflyAZ()
+         * should be called again; this will be instantaneous if the HOMFLY-PT
+         * polynomial has already been calculated.
          *
-         * If the HOMFLY polynomial has already been computed (either in terms
-         * of \a alpha and \a z or in terms of \a l and \a m), then the result
-         * will be cached and so this routine will be very fast (since it just
-         * returns the previously computed result).  Otherwise the computation
-         * could be quite slow, particularly for larger numbers of crossings.
+         * If the HOMFLY-PT polynomial has already been computed (either in
+         * terms of \a alpha and \a z or in terms of \a l and \a m), then the
+         * result will be cached and so this routine will be very fast (since
+         * it just returns the previously computed result).  Otherwise the
+         * computation could be quite slow, particularly for larger numbers of
+         * crossings.
          *
          * Since Regina 7.0, this routine will not return until the polynomial
          * computation is complete, regardless of whether a progress tracker
@@ -3116,9 +4117,14 @@ class Link :
          * tracker caused the computation to start in the background), simply
          * call this routine in a new detached thread.
          *
-         * \exception NotImplemented This link is \e so large that the maximum
-         * possible strand ID cannot fit into an \c int.  (On a typical machine
-         * where \c int is 32-bit, this would require over a _billion_
+         * \pre This link diagram is classical (not virtual).
+         *
+         * \exception FailedPrecondition This is a virtual (not classical)
+         * link diagram.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
          * crossings).  Note that, if you have such a link, then this function
          * (which is exponential time) would be intractably slow anyway.
          *
@@ -3134,19 +4140,23 @@ class Link :
          * fixed-parameter tractable treewidth-based algorithm.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
-         * \return the HOMFLY polynomial, or the zero polynomial if the
+         * \return the HOMFLY-PT polynomial, or the zero polynomial if the
          * calculation was cancelled via the given progress tracker.
          */
         const Laurent2<Integer>& homflyAZ(Algorithm alg = Algorithm::Default,
             ProgressTracker* tracker = nullptr) const;
         /**
-         * Returns the HOMFLY polynomial of this link, as a polynomial
-         * in \a l and \a m.
+         * Returns the HOMFLY-PT polynomial of this classical link, as a
+         * polynomial in \a l and \a m.
          *
-         * This variant of the HOMFLY polynomial is described (amongst other
+         * At present, Regina only computes HOMFLY-PT polynomials for classical
+         * links.  If this is a virtual link diagram, then this routine will
+         * throw an exception.
+         *
+         * This variant of the HOMFLY-PT polynomial is described (amongst other
          * places) in C. C. Adams, "The knot book", W. H. Freeman & Co., 1994.
          *
-         * The (\a alpha, \a z) and (\a l, \a m) variants of the HOMFLY
+         * The (\a alpha, \a z) and (\a l, \a m) variants of the HOMFLY-PT
          * polynomial are related by a simple transformation:
          * \a alpha = \a l \a i and \a z = -\a m \a i,
          * where \a i represents (as usual) a square root of -1.
@@ -3168,17 +4178,18 @@ class Link :
          * polynomials by using Gauss codes, with a skein-template algorithm",
          * Applied Mathematics and Computation 105 (1999), 271-289.
          *
-         * Bear in mind that each time the link changes, all of its
-         * polynomials will be deleted.  Thus the reference that is
-         * returned from this routine should not be kept for later use.
-         * Instead, homflyLM() should be called again; this will be
-         * instantaneous if the HOMFLY polynomial has already been calculated.
+         * Bear in mind that each time a link changes, all of its polynomials
+         * will be deleted.  Thus the reference that is returned from this
+         * routine should not be kept for later use.  Instead, homflyLM()
+         * should be called again; this will be instantaneous if the HOMFLY-PT
+         * polynomial has already been calculated.
          *
-         * If the HOMFLY polynomial has already been computed (either in terms
-         * of \a alpha and \a z or in terms of \a l and \a m), then the result
-         * will be cached and so this routine will be very fast (since it just
-         * returns the previously computed result).  Otherwise the computation
-         * could be quite slow, particularly for larger numbers of crossings.
+         * If the HOMFLY-PT polynomial has already been computed (either in
+         * terms of \a alpha and \a z or in terms of \a l and \a m), then the
+         * result will be cached and so this routine will be very fast (since
+         * it just returns the previously computed result).  Otherwise the
+         * computation could be quite slow, particularly for larger numbers of
+         * crossings.
          *
          * Since Regina 7.0, this routine will not return until the polynomial
          * computation is complete, regardless of whether a progress tracker
@@ -3186,9 +4197,14 @@ class Link :
          * tracker caused the computation to start in the background), simply
          * call this routine in a new detached thread.
          *
-         * \exception NotImplemented This link is \e so large that the maximum
-         * possible strand ID cannot fit into an \c int.  (On a typical machine
-         * where \c int is 32-bit, this would require over a _billion_
+         * \pre This link diagram is classical (not virtual).
+         *
+         * \exception FailedPrecondition This is a virtual (not classical)
+         * link diagram.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
          * crossings).  Note that, if you have such a link, then this function
          * (which is exponential time) would be intractably slow anyway.
          *
@@ -3204,30 +4220,39 @@ class Link :
          * fixed-parameter tractable treewidth-based algorithm.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
-         * \return the HOMFLY polynomial, or the zero polynomial if the
+         * \return the HOMFLY-PT polynomial, or the zero polynomial if the
          * calculation was cancelled via the given progress tracker.
          */
         const Laurent2<Integer>& homflyLM(Algorithm alg = Algorithm::Default,
             ProgressTracker* tracker = nullptr) const;
         /**
-         * Returns the HOMFLY polynomial of this link, as a polynomial
-         * in \a alpha and \a z.
+         * Returns the HOMFLY-PT polynomial of this classical link, as a
+         * polynomial in \a alpha and \a z.
          *
          * This routine is simply an alias for homflyAZ().  See the
          * documentation for homflyAZ() for further details.
          *
+         * At present, Regina only computes HOMFLY-PT polynomials for classical
+         * links.  If this is a virtual link diagram, then this routine will
+         * throw an exception.
+         *
          * To pretty-print this polynomial for human consumption, you can call
          * `Laurent2::str(Link::homflyVarX, Link::homflyVarY)`.
          *
-         * Bear in mind that each time the link changes, all of its
-         * polynomials will be deleted.  Thus the reference that is
-         * returned from this routine should not be kept for later use.
-         * Instead, homfly() should be called again; this will be
-         * instantaneous if the HOMFLY polynomial has already been calculated.
+         * Bear in mind that each time a link changes, all of its polynomials
+         * will be deleted.  Thus the reference that is returned from this
+         * routine should not be kept for later use.  Instead, homfly() should
+         * be called again; this will be instantaneous if the HOMFLY-PT
+         * polynomial has already been calculated.
          *
-         * \exception NotImplemented This link is \e so large that the maximum
-         * possible strand ID cannot fit into an \c int.  (On a typical machine
-         * where \c int is 32-bit, this would require over a _billion_
+         * \pre This link diagram is classical (not virtual).
+         *
+         * \exception FailedPrecondition This is a virtual (not classical)
+         * link diagram.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
          * crossings).  Note that, if you have such a link, then this function
          * (which is exponential time) would be intractably slow anyway.
          *
@@ -3243,18 +4268,22 @@ class Link :
          * fixed-parameter tractable treewidth-based algorithm.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
-         * \return the HOMFLY polynomial, or the zero polynomial if the
+         * \return the HOMFLY-PT polynomial, or the zero polynomial if the
          * calculation was cancelled via the given progress tracker.
          */
         const Laurent2<Integer>& homfly(Algorithm alg = Algorithm::Default,
             ProgressTracker* tracker = nullptr) const;
         /**
-         * Is the HOMFLY polynomial of this link diagram already known?
+         * Is the HOMFLY-PT polynomial of this link already known?
          * See homflyAZ() and homflyLM() for further details.
          *
          * If this property is already known, future calls to homfly(),
          * homflyAZ() and homflyLM() will all be very fast (simply returning
          * the precalculated values).
+         *
+         * At present, Regina only computes HOMFLY-PT polynomials for classical
+         * links.  If this is a virtual (not classical) link diagram, then
+         * this routine is still safe to call, and will simply return \c false.
          *
          * \return \c true if and only if this property is already known.
          */
@@ -3262,7 +4291,7 @@ class Link :
 
         /**
          * Converts between the (\a alpha, \a z) and (\a l, \a m)
-         * representations of the HOMFLY polynomial.
+         * representations of the HOMFLY-PT polynomial.
          *
          * The (\a alpha, \a z) and (\a l, \a m) variants are related by a
          * simple transformation: \a alpha = \a l \a i and \a z = -\a m \a i,
@@ -3270,47 +4299,310 @@ class Link :
          *
          * See homflyAZ() and homflyLM() for further details.
          *
-         * \param homflyAZ the HOMFLY polynomial of a link as a polynomial in
-         * \a alpha and \a z, where (\a alpha, \a z) are represented by
+         * \param homflyAZ the HOMFLY-PT polynomial of a link as a polynomial
+         * in \a alpha and \a z, where (\a alpha, \a z) are represented by
          * (\a x, \a y) in the class Laurent2<Integer>.
-         * \return the HOMFLY polynomial of the same link as a polynomial in
-         * \a l and \a m, where (\a l, \a m) are represented by (\a x, \a y)
+         * \return the HOMFLY-PT polynomial of the same link as a polynomial
+         * in \a l and \a m, where (\a l, \a m) are represented by (\a x, \a y)
          * in the class Laurent2<Integer>.
          */
         static Laurent2<Integer> homflyAZtoLM(Laurent2<Integer> homflyAZ);
 
         /**
-         * Returns the group of this link; that is, the fundamental group of
-         * the link exterior.
+         * Returns the normalised arrow polynomial of this link.
          *
-         * This routine builds the Wirtinger presentation, where all relations
-         * are some variant of the form `xy=yz`.
+         * The arrow polynomial is a generalisation of the Kauffman bracket for
+         * virtual knots and links.  The polynomial will be normalised using
+         * the writhe of the diagram to obtain a virtual link invariant, in a
+         * similar way to how the Kauffman bracket can be normalised to obtain
+         * the Jones polynomial.  Regina follows the description in H.A. Dye and
+         * L.H. Kauffman, "Virtual crossing number and the arrow polynomial",
+         * J. Knot Theory Ramifications 18 (2009), no. 10, 1335-1357.
          *
-         * If you pass \a simplify as \c false, it will leave the presentation
-         * in exactly this form (i.e., the Wirtinger presentation), and not
-         * simplify it further.  If you pass \a simplify as \c true (the
-         * default), this routine will attempt to simplify the group
+         * If this is the empty link, then this routine will return the zero
+         * polynomial.
+         *
+         * Bear in mind that each time a link changes, all of its
+         * polynomials will be deleted.  Thus the reference that is
+         * returned from this routine should not be kept for later use.
+         * Instead, arrow() should be called again; this will be
+         * instantaneous if the arrow polynomial has already been calculated.
+         *
+         * If this polynomial has already been computed, then the result will
+         * be cached and so this routine will be very fast (since it just
+         * returns the previously computed result).  Otherwise the computation
+         * could be quite slow, particularly for larger numbers of crossings.
+         *
+         * \warning The naive algorithm can only handle a limited number of
+         * crossings (currently at most 63).  If you pass Algorithm::Naive and
+         * you have too many crossings (which is not advised, since the
+         * naive algorithm requires 2^<i>n</i> time), then this routine
+         * will ignore your choice of algorithm and use the treewidth-based
+         * algorithm regardless.
+         *
+         * \exception NotImplemented This link is \e so large that the total
+         * number of strands cannot fit into a signed \c int.  (On a typical
+         * machine where \c int is 32-bit, this would require over a _billion_
+         * crossings).  Note that, if you have such a link, then this function
+         * (which is exponential time) would be intractably slow anyway.
+         *
+         * \python The global interpreter lock will be released while
+         * this function runs, so you can use it with Python-based
+         * multithreading.
+         *
+         * \param alg the algorithm with which to compute the polynomial.
+         * If you are not sure, the default (Algorithm::Default) is a safe
+         * choice.  If you wish to specify a particular algorithm, there are
+         * currently two choices: Algorithm::Naive is a slow algorithm that
+         * computes the arrow polynomial by resolving all crossings in all
+         * possible ways, and Algorithm::Treewidth uses a fixed-parameter
+         * tractable treewidth-based algorithm.
+         * \param tracker a progress tracker through which progress will
+         * be reported, or \c null if no progress reporting is required.
+         * \param threads the number of threads to use.  If this is 1 or
+         * smaller then the computation will run single-threaded.  Currently
+         * only the naive algorithm supports multithreading; if you use the
+         * treewidth-based algorithm then it will run single-threaded
+         * regardless of the value of \a threads.
+         * \return the normalised arrow polynomial, or the zero polynomial if
+         * the calculation was cancelled via the given progress tracker.
+         */
+        const Arrow& arrow(Algorithm alg = Algorithm::Default,
+            int threads = 1, ProgressTracker* tracker = nullptr) const;
+        /**
+         * Is the normalised arrow polynomial of this link already known?
+         * See arrow() for further details.
+         *
+         * If this property is already known, future calls to arrow() will be
+         * very fast (simply returning the precalculated value).
+         *
+         * \return \c true if and only if this property is already known.
+         */
+        bool knowsArrow() const;
+
+        /**
+         * Returns the affine index polynomial of this knot.  This polynomial
+         * invariant is described in L.H. Kauffman, "An affine index polynomial
+         * invariant of virtual knots", J. Knot Theory Ramifications 22 (2013),
+         * no. 4, 1340007.
+         *
+         * At present, Regina only computes affine index polynomials for knots,
+         * not multiple-component links.  Virtual knots are supported (and
+         * indeed are the only meaningful case, since the affine index
+         * polynomial of a classical knot is always zero).  If this link is
+         * empty or has more than one component, then this routine will throw
+         * an exception.
+         *
+         * To pretty-print the affine index polynomial for human consumption,
+         * you can call `Laurent::str(Link::affineIndexVar)`.
+         *
+         * Unlike most polynomial invariants, computing the affine index
+         * polynomial is extremely fast, and so this polynomial is not cached.
+         *
+         * \pre This link has exactly one component (i.e., it is a knot).
+         *
+         * \exception FailedPrecondition This link is empty or has multiple
+         * components.
+         *
+         * \return the affine index polynomial.
+         */
+        Laurent<Integer> affineIndex() const;
+
+        /**
+         * Returns the link group, as constructed from the Wirtinger
+         * presentation.
+         *
+         * In the Wirtinger presentation, each relation is some variant of the
+         * form `xy=yz`, where \a y corresponds to the upper strand at some
+         * crossing, and \a x and \a z correspond to the two sides of the
+         * lower strand at that same crossing.
+         *
+         * If you are working with virtual links, there are some points to note:
+         *
+         * - The group _could_ change depending upon whether you view the link
+         *   from above or below the diagram.  That is, switching the upper and
+         *   lower strands at every crossing could yield non-isomorphic groups.
+         *   As a result, you may wish to call groups() instead, which builds
+         *   _both_ group presentations.  See the groups() documentation for
+         *   further discussion, or ExampleLink::gpv() for an example of a
+         *   virtual knot for which these two groups are indeed non-isomorphic.
+         *
+         * - The link group is not a particularly strong invariant for virtual
+         *   links.  You might instead wish to use the _extended_ group, which
+         *   is stronger (but which yields larger group presentations).  See
+         *   extendedGroup() and extendedGroups() for further details.
+         *
+         * For classical links, the link group will always be isomorphic to the
+         * fundamental group of the link exterior (and in particular, the
+         * isomorphism type will not depend upon whether you view the diagram
+         * from above or below).
+         *
+         * Note that, regardless of whether your link diagram is classical or
+         * virtual, _reflecting_ the diagram (i.e., changing the sign of every
+         * crossing but keeping the upper/lower strands the same) will never
+         * change the isomorphism type of the link group.
+         *
+         * If you pass \a simplify as \c false, this routine will keep the
+         * Wirtinger presentation and not try to simplify it further.
+         * If you pass \a simplify as \c true (the default), this routine will
+         * attempt to simplify the group presentation before returning.
+         *
+         * \note If you have a classical link and you are finding the resulting
+         * group presentation too large even after simplification, you could
+         * also try calling complement() and computing the fundamental group of
+         * the resulting 3-manifold triangulation instead.  Sometimes the
+         * presentation obtained via the complement is better, and sometimes
+         * it is worse.
+         *
+         * This group is _not_ cached; instead it is reconstructed every time
+         * this function is called.  This behaviour may change in future
+         * versions of Regina.
+         *
+         * \param simplify \c true if we should attempt to simplify the group
          * presentation before returning.
-         *
-         * \note If you are finding the resulting group presentation too large
-         * for your liking even after simplification, then you could also try
-         * calling complement() and computing the fundamental group of the
-         * resulting 3-manifold triangulation.  Sometimes the presentation
-         * obtained via the complement is better, and sometimes it is worse.
-         *
-         * Currently this group is _not_ cached; instead it is reconstructed
-         * every time this function is called.  This behaviour may change in
-         * future versions of Regina.
-         *
          * \return the group of this link.
          */
         GroupPresentation group(bool simplify = true) const;
 
         /**
-         * Returns a nice tree decomposition of the planar 4-valent
-         * multigraph formed by this link diagram.  This can (for example)
-         * be used in implementing algorithms that are fixed-parameter
-         * tractable in the treewidth of this graph.
+         * Returns the two groups constructed from the Wirtinger presentation
+         * for this link and its mirror image.  This function is intended for
+         * use with virtual links, where these two groups might not be
+         * isomorphic.
+         *
+         * As with group(), each Wirtinger presentation builds a group using
+         * relations of the form `xy=yz`:
+         *
+         * - In first group that is returned, \a y corresponds to the upper
+         *   strand at some crossing, and \a x and \a z correspond to the two
+         *   sides of the lower strand at that same crossing.  This is exactly
+         *   the same presentation constructed by group().
+         *
+         * - In the second group that is returned, we conceptually reflect the
+         *   link diagram through the surface in which it is embedded (as
+         *   though we had called changeAll(), though this link diagram will
+         *   not actually be changed).  This means that \a y will correspond to
+         *   the _lower_ strand at some crossing, and \a x and \a z correspond
+         *   to the two sides of the _upper_ strand at that same crossing.
+         *
+         * For classical links, both groups will always be isomorphic, and so
+         * there is little value in calling this function; you should just use
+         * group() instead.
+         *
+         * For virtual links, these groups might _not_ be isomorphic, and so
+         * this pair gives more information than you would obtain by just
+         * calling group().  See ExampleLink::gpv() for an example of a virtual
+         * knot whose "native" Wirtinger presentation (the first group) gives
+         * the trefoil group, but whose "reflected" Wirtinger presentation
+         * (the second group) gives the unknot group.
+         *
+         * A further note, however: if you are working with virtual links then
+         * the link group is not a particularly strong invariant.  You might
+         * wish to consider using the _extended_ link group instead; see
+         * extendedGroup() and extendedGroups() for further details.
+         *
+         * If you pass \a simplify as \c false, this routine will keep both
+         * Wirtinger presentations and not try to simplify them further.
+         * If you pass \a simplify as \c true (the default), this routine will
+         * attempt to simplify both group presentations before returning.
+         *
+         * These groups are _not_ cached; instead they are reconstructed
+         * every time this function is called.  This behaviour may change in
+         * future versions of Regina.
+         *
+         * \param simplify \c true if we should attempt to simplify the group
+         * presentations before returning.
+         * \return the groups of this link obtained by the "native" and
+         * "reflected" Wirtinger presentations, as described above.
+         */
+        std::pair<GroupPresentation, GroupPresentation> groups(
+            bool simplify = true) const;
+
+        /**
+         * Returns the extended group of this link, as defined by Silver and
+         * Williams.
+         *
+         * The extended group is defined by Daniel S. Silver and Susan G.
+         * Williams in "Crowell's derived group and twisted polynomials",
+         * J. Knot Theory Ramifications 15 (2006), no. 8, 1079-1094.
+         * It is intended for use with virtual links, where the (ordinary)
+         * link group is not a particularly strong invariant.  As an invariant,
+         * the extended group is stronger, though it also yields more complex
+         * group presentations.
+         *
+         * As with the ordinary link group, the extended group of a virtual
+         * link _could_ change its isomorphism type depending upon whether you
+         * view the link from above or below the diagram, and so you may wish
+         * to call extendedGroups() instead, which builds both group
+         * presentations.  Again, as with the ordinary link group,
+         * ExampleLink::gpv() provides an example for which these two groups
+         * are non-isomorphic.
+         *
+         * Note that, regardless of whether your link diagram is classical or
+         * virtual, _reflecting_ the diagram (i.e., changing the sign of every
+         * crossing but keeping the upper/lower strands the same) will never
+         * change the isomorphism type of the extended link group.
+         *
+         * If you pass \a simplify as \c false, this routine will keep the
+         * presentation in the form described by Silver and Williams, and will
+         * not try to simplify it further.  If you pass \a simplify as \c true
+         * (the default), this routine will attempt to simplify the group
+         * presentation before returning.
+         *
+         * This group is _not_ cached; instead it is reconstructed every time
+         * this function is called.  This behaviour may change in future
+         * versions of Regina.
+         *
+         * \param simplify \c true if we should attempt to simplify the group
+         * presentation before returning.
+         * \return the extended group of this link.
+         */
+        GroupPresentation extendedGroup(bool simplify = true) const;
+
+        /**
+         * Returns the extended groups of this link and its mirror image.
+         *
+         * The extended group is defined by Silver and Williams for use with
+         * virtual links (see extendedGroup() for details).  This routine is
+         * provided because viewing a virtual link diagram from below instead
+         * of above can change the isomorphism type of the extended group, and
+         * so this routine returns _both_ groups.  Specifically:
+         *
+         * - In first group that is returned, we use the presentation exactly
+         *   as described by Silver and Williams.  This is the same presentation
+         *   that is constructed by extendedGroup().
+         *
+         * - In the second group that is returned, we conceptually reflect the
+         *   link diagram through the surface in which it is embedded (as
+         *   though we had called changeAll(), though this link diagram will
+         *   not actually be changed).
+         *
+         * See ExampleLink::gpv() for an example of a virtual knot for which
+         * these two extended link groups are not isomorphic.
+         *
+         * If you pass \a simplify as \c false, this routine will keep both
+         * presentations in the form described by Silver and Williams, and
+         * will not try to simplify them further.  If you pass \a simplify as
+         * \c true (the default), this routine will attempt to simplify both
+         * group presentations before returning.
+         *
+         * These groups are _not_ cached; instead they are reconstructed
+         * every time this function is called.  This behaviour may change in
+         * future versions of Regina.
+         *
+         * \param simplify \c true if we should attempt to simplify the group
+         * presentations before returning.
+         * \return the groups of this link obtained by the "native" and
+         * "reflected" Silver-Williams presentations, as described above.
+         */
+        std::pair<GroupPresentation, GroupPresentation> extendedGroups(
+            bool simplify = true) const;
+
+        /**
+         * Returns a nice tree decomposition of the 4-valent multigraph formed
+         * by this link diagram.  This can (for example) be used in
+         * implementing algorithms that are fixed-parameter tractable in the
+         * treewidth of this graph.
          *
          * See TreeDecomposition for further details on tree decompositions,
          * and see TreeDecomposition::makeNice() for details on what it
@@ -3341,7 +4633,7 @@ class Link :
          * For some link routines, including niceTreeDecomposition() as
          * well as computations such as jones() that support the option
          * Algorithm::Treewidth, Regina needs a tree decomposition of the
-         * planar 4-valent multigraph formed by this link diagram.
+         * 4-valent multigraph formed by this link diagram.
          *
          * By default, Regina will compute (and then cache) such a tree
          * decomposition itself, using in-built greedy heuristics.  This
@@ -3360,10 +4652,118 @@ class Link :
          * Regina will automatically create a nice tree decomposition
          * from it if \e td is not nice already.
          *
-         * \param td a tree decomposition of the planar 4-valent
-         * multigraph formed by this link diagram.
+         * \param td a tree decomposition of the 4-valent multigraph formed
+         * by this link diagram.
          */
         void useTreeDecomposition(TreeDecomposition td);
+
+        /**
+         * Attempts to rewrite this link diagram to become one with a smaller
+         * width tree decomposition.  Regina does not compute treewidth
+         * precisely (and indeed, this is an NP-hard problem); instead what it
+         * tries to minimise is the width of the greedy tree decomposition
+         * produced by `TreeDecomposition(link)`.
+         *
+         * Much like simplifyExhaustive(), this routine searches for a better
+         * diagram by performing an exhaustive search through all link diagrams
+         * that can be reached from this via Reidemeister moves, within certain
+         * user-supplied limits as described below.  (If this link diagram is
+         * disconnected, then there is an exception: this routine will never
+         * use a type II move to merge distinct diagram components together,
+         * which would never help with improving treewidth).  It does this in
+         * a way that will never reflect, rotate or reverse the link diagram.
+         * Both classical and virtual link diagrams are supported.
+         *
+         * This routine can be very slow and very memory-intensive: the number
+         * of link diagrams it visits may be exponential in the number of
+         * crossings, and it records every diagram that it visits (so as to
+         * avoid revisiting the same diagram again).  You can limit the cost
+         * of this search in two ways:
+         *
+         * - You can pass a \a maxAttempts argument, which means this return
+         *   will give up after visiting \a maxAttempts distinct link diagrams
+         *   (up to the kind of combinatorial equivalence described by sig()).
+         *   If \a maxAttempts is negative, the number of attempts will not be
+         *   limited.
+         *
+         * - You can pass a \a height argument to limit the number of extra
+         *   crossings.  Again, if \a height is negative, the number of
+         *   additional crossings will not be limited.
+         *
+         * - The defaults for \a maxAttempts and \a height are both
+         *   non-negative, and have been chosen to keep the default invocation
+         *   of this routine relatively fast.
+         *
+         * - If _both_ \a maxAttempts and \a height are negative, this routine
+         *   will not terminate until a smaller-width diagram is found.  If no
+         *   such diagram exists then the only way to terminate this routine
+         *   is to cancel the operation via a progress tracker (read on for
+         *   details).
+         *
+         * If this routine finds a diagram with a smaller-width greedy tree
+         * decomposition, then:
+         *
+         * - If \a maxAttempts was negative (i.e., unlimited), it will stop
+         *   the search at this point and leave you with this better diagram.
+         *   You may wish to try calling improveTreewidth() again, since it is
+         *   possible that another search will be able to improve the diagram
+         *   even further.
+         *
+         * - If \a maxAttempts was non-negative (i.e., limited), it will keep
+         *   going by restarting the search again from this better diagram.
+         *   In other words, this routine will proceed with a kind of "greedy
+         *   descent".  The \a height argument will now be treated with respect
+         *   to this _new_ diagram, and the number of attempts (which is limited
+         *   by \a maxAttempts) will be reset to zero.  This means that overall
+         *   you may end up with more than \a height extra crossings, and you
+         *   may have visited more than \a maxAttempts distinct diagrams;
+         *   however, if this happens then you know you are getting a better
+         *   diagram.
+         *
+         * If this routine cannot produce a smaller-width tree decomposition
+         * within the bounds given via \a maxAttempts and/or \a height, then
+         * it will leave this link diagram unchanged.
+         *
+         * If this is a _classical_ link diagram then only classical
+         * Reidemeister moves will be used, as implemented by r1(), r2() and
+         * r3(); in particular, this routine will never consider link diagrams
+         * with positive virtual genus.  If this is a _virtual_ link diagram,
+         * then both classical and virtual Reidemeister moves will be used,
+         * including r1(), r2(), r3(), and r2Virtual(); this means that the
+         * exploration through the Reidemeister graph might pass through
+         * diagrams with smaller and/or greater virtual genus than the original.
+         *
+         * To assist with performance, this routine can run in parallel
+         * (multithreaded) mode; simply pass the number of parallel threads
+         * in the argument \a threads.  Even in multithreaded mode, this
+         * routine will not return until processing has finished (i.e., either
+         * a better link diagram was found or the search was exhausted), and
+         * any change to this link diagram will happen in the calling thread.
+         *
+         * \pre This link has at most 64 link components.
+         *
+         * \exception FailedPrecondition This link has 64 or more link
+         * components.  If a progress tracker was passed, it will be marked as
+         * finished before the exception is thrown.
+         *
+         * \python The global interpreter lock will be released while
+         * this function runs, so you can use it with Python-based
+         * multithreading.
+         *
+         * \param maxAttempts the maximum number of distinct link diagrams to
+         * examine before we give up and return \c false, or a negative number
+         * if this should not be bounded.
+         * \param height the maximum number of _additional_ crossings to allow,
+         * or a negative number if this should not be bounded.
+         * \param threads the number of threads to use.  If this is
+         * 1 or smaller then the routine will run single-threaded.
+         * \param tracker a progress tracker through which progress will
+         * be reported, or \c null if no progress reporting is required.
+         * \return \c true if and only if this diagram was successfully
+         * changed to give a smaller-width greedy tree decomposition.
+         */
+        bool improveTreewidth(ssize_t maxAttempts = 1000, int height = 1,
+            int threads = 1, ProgressTrackerOpen* tracker = nullptr);
 
         /*@}*/
         /**
@@ -3444,21 +4844,27 @@ class Link :
          *
          * Classical Gauss codes essentially describe the 4-valent graph
          * of a knot but not the particular embedding in the plane.
-         * These codes come with two major restrictions:
+         * These codes come with major restrictions:
          *
          * - In general, they do not carry enough information to uniquely
-         *   reconstruct a knot.  For instance, both a knot and its reflection
-         *   can be described by the same Gauss code; moreover, for composite
-         *   knots, the Gauss code can describe inequivalent knots (even when
-         *   allowing for reflections).
+         *   reconstruct a classical knot.  For instance, both a classical
+         *   knot and its reflection can be described by the same Gauss code;
+         *   moreover, for _composite_ knots, the same Gauss code can describe
+         *   inequivalent knots even when allowing for reflections.
          *
-         * - Parsing a Gauss code is complex, since it requires an embedding
-         *   to be deduced using some variant of a planarity testing algorithm.
+         * - Parsing a Gauss code to reconstruct a classical knot is complex,
+         *   since it requires an embedding to be deduced using some variant
+         *   of a planarity testing algorithm.
          *
-         * If you need a code that specifies the knot uniquely and/or that
-         * is fast to parse, consider using the _oriented_ Gauss code instead,
-         * which resolves both of these issues.
+         * - Because Gauss codes rely on planarity, they are not suitable at
+         *   all for working with virtual knots.
          *
+         * If you need a code that specifies the knot uniquely, and/or is fast
+         * to parse, and/or can work with both classical and virtual knots,
+         * you should use the _oriented_ Gauss code instead, which resolves
+         * all of these issues.
+         *
+         * The contents of a classical Gauss code are as follows.
          * A Gauss code for an <i>n</i>-crossing knot is described by
          * a sequence of 2<i>n</i> positive and negative integers,
          * representing strands that pass over and under crossings
@@ -3490,6 +4896,12 @@ class Link :
          * format (as a C++ vector), instead of the human-readable format
          * used here (a string).  There is also another variant of gauss()
          * that writes directly to an output stream.
+         *
+         * Although classical Gauss codes do not support virtual knots, if
+         * this is a virtual link diagram then gauss() will still produce
+         * correct output; the problem is simply that too much information is
+         * lost, and you cannot _reconstruct_ your virtual link from this
+         * output.
          *
          * \exception NotImplemented This link is empty or has multiple
          * components.
@@ -3529,9 +4941,10 @@ class Link :
          * would be returned by gauss().  In particular, the output does
          * not contain any newlines.
          *
-         * See also gauss(), which returns the Gauss code as a
-         * human-readable string, and gaussData(), which returns it
-         * as a machine-readable sequence of integers.
+         * For a function that _returns_ the Gauss code (as opposed to writing
+         * it to an output stream), you could use gauss() (which returns the
+         * Gauss code as a human-readable string), or gaussData() (which
+         * returns it as a machine-readable sequence of integers).
          *
          * \exception NotImplemented This link is empty or has multiple
          * components.
@@ -3551,7 +4964,8 @@ class Link :
          * characters to describe the orientation of the other strand
          * passing by at each crossing.  This extra information removes
          * both the topological ambiguities and the complexity in the
-         * reconstruction procedure for classical Gauss codes.
+         * reconstruction procedure for classical Gauss codes.  It also makes
+         * the code suitable for both virtual and classical knots.
          *
          * This "oriented" format is described at
          * http://www.javaview.de/services/knots/doc/description.html#gc,
@@ -3579,6 +4993,11 @@ class Link :
            \verbatim
            +>1 -<2 +>3 -<1 +>2 -<3
            \endverbatim
+         *
+         * Note that _oriented_ Gauss codes are different from _signed_ Gauss
+         * codes.  Both formats improve upon classical Gauss codes by resolving
+         * the topological ambiguities and making reconstruction easy; however,
+         * they do so in different ways.
          *
          * Currently Regina only supports Gauss codes for knots, not
          * empty or multiple component links.  If this link does not
@@ -3645,9 +5064,11 @@ class Link :
          * would be returned by orientedGauss().  In particular, the output
          * does not contain any newlines.
          *
-         * See also orientedGauss(), which returns the oriented Gauss code as
-         * a human-readable string, and orientedGaussData(), which returns it
-         * as a machine-readable sequence of tokens.
+         * For a function that _returns_ the oriented Gauss code (as opposed to
+         * writing it to an output stream), you could use orientedGauss()
+         * (which returns the oriented Gauss code as a human-readable string),
+         * or orientedGaussData() (which returns it as a machine-readable
+         * sequence of tokens).
          *
          * \exception NotImplemented This link is empty or has multiple
          * components.
@@ -3660,6 +5081,129 @@ class Link :
         void orientedGauss(std::ostream& out) const;
 
         /**
+         * Returns a signed Gauss code for this knot, presented as a string.
+         *
+         * The signed Gauss code, as described by Kauffman, modifies the
+         * classical Gauss code to indicate which crossings are positive
+         * and which are negative.  This extra information removes both the
+         * topological ambiguities and the complexity in the reconstruction
+         * procedure for classical Gauss codes.  It also makes the code
+         * suitable for both virtual and classical knots.
+         *
+         * Be warned that for signed Gauss codes, the signs `+/-` play a
+         * very different role from classical Gauss codes: in signed Gauss
+         * codes they indicate positive versus negative crossings, whereas in
+         * classical Gauss codes they indicate upper versus lower strands.
+         *
+         * This format is used in Louis H. Kauffman, "Virtual knot theory",
+         * European J. Combin. 20 (1999), no. 7, 663-690.  It works as follows:
+         *
+         * - Label the crossings arbitrarily as 1, 2, ..., \a n.
+         *
+         * - Start at some point on the knot and follow it around.
+         *   At every crossing that you pass, write symbols of the form
+         *   `Ok+`, `Ok-`, `Uk+` or `Uk-`, where:
+         *
+         *     * the symbol `O` indicates that you are passing over the
+         *       crossing labelled \a k, and the symbol `U` indicates
+         *       that you are passing under the crossing labelled \a k;
+         *
+         *     * the symbol `+` indicates that the crossing labelled \a k
+         *       is positive, and the symbol `-` indicates that the crossing
+         *       labelled \a k is negative;
+         *
+         *     * \a k is replaced with the integer crossing label.
+         *
+         * - All of the symbols should be concatenated together, without any
+         *   separation by whitespace.
+         *
+         * As an example, you can represent the figure eight knot using the
+         * code:
+         *
+           \verbatim
+           U1+O2+U3-O4-U2+O1+U4-O3-
+           \endverbatim
+         *
+         * Note that _signed_ Gauss codes are different from _oriented_ Gauss
+         * codes.  Both formats improve upon classical Gauss codes by resolving
+         * the topological ambiguities and making reconstruction easy; however,
+         * they do so in different ways.
+         *
+         * Currently Regina only supports Gauss codes for knots, not
+         * empty or multiple component links.  If this link does not
+         * have precisely one component, then this routine will throw an
+         * exception.  It is possible that in future versions of Regina,
+         * Gauss codes will be expanded to cover all possible link diagrams
+         * (hence the choice of NotImplemented as the exception type).
+         *
+         * The routine signedGaussData() returns this same data in
+         * machine-readable format (as a C++ vector of shorter string tokens,
+         * one for each crossing that you pass), instead of the single long
+         * string that is returned here.  There is also another variant of
+         * signedGauss() that writes directly to an output stream.
+         *
+         * \exception NotImplemented This link is empty or has multiple
+         * components.
+         *
+         * \return a signed Gauss code as described above.
+         */
+        std::string signedGauss() const;
+
+        /**
+         * Returns a signed Gauss code for this knot, presented as a
+         * vector of string tokens.
+         *
+         * See signedGauss() for a full description of signed Gauss codes
+         * as they are used in Regina, as well as their limitations.
+         *
+         * For an <i>n</i>-crossing knot, the elements of the returned vector
+         * will be the 2<i>n</i> individual tokens of the form
+         * `Ok+`, `Ok-`, `Uk+` or `Uk-` that would normally be concatenated
+         * together to form a complete signed Gauss code.  For example, for
+         * the figure eight knot, the vector might contain the eight tokens:
+         *
+           \verbatim
+           { "U1+", "O2+", "U3-", "O4-", "U2+", "O1+", "U4-", "O3-" }
+           \endverbatim
+         *
+         * This routine returns machine-readable data (as a C++ vector);
+         * in contrast, signedGauss() returns the same data in
+         * human-readable format (as a single long string).
+         *
+         * \exception NotImplemented This link is empty or has multiple
+         * components.
+         *
+         * \return a signed Gauss code for this knot in machine-readable form.
+         */
+        std::vector<std::string> signedGaussData() const;
+
+        /**
+         * Writes a signed Gauss code for this knot to the given output stream.
+         *
+         * See signedGauss() for a full description of signed Gauss codes
+         * as they are used in Regina, as well as their limitations.
+         *
+         * The output from this routine is precisely the string that
+         * would be returned by signedGauss().  In particular, the output
+         * does not contain any newlines.
+         *
+         * For a function that _returns_ the signed Gauss code (as opposed to
+         * writing it to an output stream), you could use signedGauss()
+         * (which returns the signed Gauss code as a human-readable string),
+         * or signedGaussData() (which returns it as a machine-readable
+         * sequence of tokens).
+         *
+         * \exception NotImplemented This link is empty or has multiple
+         * components.
+         *
+         * \nopython Instead use the variants signedGauss() or signedGaussData()
+         * that take no arguments.
+         *
+         * \param out the output stream to which to write.
+         */
+        void signedGauss(std::ostream& out) const;
+
+        /**
          * Exports this link using Bob Jenkins' text format, returning a
          * single string.
          *
@@ -3667,9 +5211,10 @@ class Link :
          * Gauss codes or Dowker-Thistlethwaite notation, there are no
          * topological ambiguities in the format, and reconstructing a link
          * from Jenkins' format is simple.  Moreover, the format is suitable
-         * for links with any number of components.
+         * for links with any number of components, and can be used with both
+         * virtual and classical links.
          *
-         * Jenkins' format is described in his HOMFLY polynomial software,
+         * Jenkins' format is described in his HOMFLY-PT polynomial software,
          * which is available online from
          * http://burtleburtle.net/bob/knot/homfly.html.
          * The format consists of a sequence of integers separated by
@@ -3754,9 +5299,11 @@ class Link :
          * would be returned by jenkins().  In particular, the output will
          * typically span multiple lines, and will finish with a newline.
          *
-         * See also jenkins(), which exports this link in Jenkins' format
-         * as a human-readable string, and jenkinsData(), which exports it
-         * as a machine-readable sequence of integers.
+         * For a function that _returns_ the link in Jenkins' format (as
+         * opposed to writing it to an output stream), you could use jenkins()
+         * (which returns the description as a human-readable string), or
+         * jenkinsData() (which returns it as a machine-readable sequence of
+         * integers).
          *
          * \nopython Instead use the variants jenkins() or jenkinsData() that
          * take no arguments.
@@ -3766,27 +5313,31 @@ class Link :
         void jenkins(std::ostream& out) const;
 
         /**
-         * Exports this knot in either numerical or alphabetical
+         * Exports this classical knot in either numerical or alphabetical
          * Dowker-Thistlethwaite notation, returning a string.
          *
          * Like classical Gauss codes, Dowker-Thistlethwaite notation
          * essentially describes the 4-valent graph of a knot but not the
-         * particular embedding in the plane.  It comes with two major
-         * restrictions:
+         * particular embedding in the plane.  It comes with major restrictions:
          *
-         * - In general, it does not carry enough information to uniquely
-         *   reconstruct a knot.  For instance, both a knot and its reflection
-         *   can be described by the same Dowker-Thistlethwaite notation;
-         *   moreover, for composite knots, the same notation can describe
-         *   inequivalent knots (even when allowing for reflections).
+         * - It relies on parity properties that only hold for classical knots.
+         *   As a result, Dowker-Thistlethwaite notation cannot be used with
+         *   virtual knots at all.
          *
-         * - Parsing Dowker-Thistlethwaite notation is complex, since it
-         *   requires an embedding to be deduced using some variant of a
-         *   planarity testing algorithm.
+         * - Even for classical knots, it does not carry enough information to
+         *   uniquely reconstruct a knot.  For instance, both a knot and its
+         *   reflection can be described by the same Dowker-Thistlethwaite
+         *   notation; moreover, for _composite_ knots, the same notation can
+         *   describe inequivalent knots even when allowing for reflections.
          *
-         * If you need a code that specifies the knot uniquely and/or that
-         * is fast to parse, consider using the _oriented_ Gauss code instead,
-         * which resolves both of these issues.
+         * - Parsing Dowker-Thistlethwaite notation to reconstruct a classical
+         *   knot is complex, since it requires an embedding to be deduced
+         *   using some variant of a planarity testing algorithm.
+         *
+         * If you need a code that specifies the knot uniquely, and/or is fast
+         * to parse, and/or can work with both classical and virtual knots,
+         * you should use the _oriented_ Gauss code instead, which resolves
+         * all of these issues.
          *
          * For an <i>n</i>-crossing knot, Regina supports two variants
          * of Dowker-Thistlethwaite notation:
@@ -3839,7 +5390,8 @@ class Link :
          * alphabetical variant directly to an output stream.
          *
          * \exception NotImplemented Either this link is empty or has multiple
-         * components, or \a alpha is true and it has more than 26 crossings.
+         * components, or this is a virtual (not classical) link diagram, or
+         * \a alpha is true and this link diagram has more than 26 crossings.
          *
          * \param alpha \c true to use alphabetical notation, or \c false
          * (the default) to use numerical notation.
@@ -3848,8 +5400,8 @@ class Link :
         std::string dt(bool alpha = false) const;
 
         /**
-         * Exports this knot in numerical Dowker-Thistlethwaite notation,
-         * returning a vector of integers.
+         * Exports this classical knot in numerical Dowker-Thistlethwaite
+         * notation, returning a vector of integers.
          *
          * See dt(bool) for a full description of Dowker-Thistlethwaite
          * notation as it is used in Regina, as well as its limitations.
@@ -3863,8 +5415,9 @@ class Link :
          * in contrast, calling `dt()` returns the same integer
          * sequence in human-readable format (as a string).
          *
-         * \exception NotImplemented This link is empty, or has multiple
-         * components, or has so many crossings that the Dowker-Thistlethwaite
+         * \exception NotImplemented Either this link is empty or has multiple
+         * components, or this is a virtual (not classical) link diagram, or
+         * this diagram has so many crossings that the Dowker-Thistlethwaite
          * notation cannot be expressed using native C++ integers.
          *
          * \return the numerical Dowker-Thistlethwaite notation in
@@ -3873,7 +5426,7 @@ class Link :
         std::vector<int> dtData() const;
 
         /**
-         * Writes this knot to the given output stream using
+         * Writes this classical knot to the given output stream using
          * Dowker-Thistlethwaite notation.
          *
          * See dt(bool) for a full description of Dowker-Thistlethwaite
@@ -3887,13 +5440,16 @@ class Link :
          * would be returned by dt(bool).  In particular, the output does
          * not contain any newlines.
          *
-         * See also dtBool(bool), which can export either the numerical
-         * or alphabetical variant of Dowker-Thistlethwaite notation as a
-         * human-readable string, and dtData(), which exports the numerical
-         * variant only as a machine-readable sequence of integers.
+         * For a function that _returns_ the Dowker-Thistlethwaite notation
+         * (as opposed to writing it to an output stream), you could use
+         * dt(bool) (which returns the Dowker-Thistlethwaite notation as a
+         * human-readable string), or dtData() (which returns the numerical
+         * Dowker-Thistlethwaite notation as a machine-readable sequence of
+         * integers).
          *
          * \exception NotImplemented Either this link is empty or has multiple
-         * components, or \a alpha is true and it has more than 26 crossings.
+         * components, or this is a virtual (not classical) link diagram, or
+         * \a alpha is true and this link diagram has more than 26 crossings.
          *
          * \nopython Instead use the variants dt(bool) or dtData() that take
          * no arguments.
@@ -3907,10 +5463,11 @@ class Link :
         /**
          * Returns a planar diagram code for this link, presented as a string.
          *
-         * Planar diagram codes encode the local information at each
-         * crossing, and present this information as a list of 4-tuples.
-         * These codes are available for links as well as knots, but they do
-         * come with some minor restrictions:
+         * Planar diagram codes encode the local information at each crossing,
+         * and present this information as a list of 4-tuples.  These codes
+         * are available for links as well as knots.  Moreover (despite their
+         * name) they are available for virtual as well as classical links.
+         * However, they do come with some minor restrictions:
          *
          * - They cannot encode zero-crossing unknot components (i.e.,
          *   components for which the component() function returns a null
@@ -3918,12 +5475,16 @@ class Link :
          *   You can detect such components by calling countTrivialComponents().
          *
          * - If a link has any components that consist entirely of
-         *   over-crossings (which must be unknots "placed on top of" the link
-         *   diagram), a planar diagram code does not carry enough data to
-         *   reconstruct the _orientation_ of these components.  The topology
-         *   will be preserved, but in general the combinatorics of such a link
-         *   diagram cannot be reconstructed faithfully.  You can detect such
-         *   components by calling pdAmbiguous().
+         *   over-crossings (that is, zero-crossing components that are "placed
+         *   on top of" the rest of the link diagram), then a planar diagram
+         *   code does not carry enough data to reconstruct the _orientation_
+         *   of these components.  For classical links, the topology will still
+         *   be preserved (since such components must be topological unknots),
+         *   but in general the combinatorics of such a link diagram cannot be
+         *   reconstructed faithfully.  For virtual links, the problems are
+         *   more serious (since such components may traverse handles in the
+         *   surface in which the link diagram is embedded).  In all cases,
+         *   you can detect such components by calling pdAmbiguous().
          *
          * If you need a text code that can work with these types of
          * link diagrams, you can always use Jenkins' format instead.
@@ -3994,8 +5555,8 @@ class Link :
          * Returns a planar diagram code for this link, presented as
          * vector of 4-tuples.
          *
-         * See pd() for a full description of planar diagram codes as
-         * they are used in Regina, as well as their limitations.
+         * See pd() for a full description of planar diagram codes as they are
+         * used in Regina, as well as their limitations.
          *
          * This routine returns machine-readable data (as a C++ vector);
          * in contrast, pd() returns the same data in human-readable format
@@ -4012,16 +5573,17 @@ class Link :
          * Writes a planar diagram code for this link to the given output
          * stream.
          *
-         * See pd() for a full description of planar diagram codes as
-         * they are used in Regina, as well as their limitations.
+         * See pd() for a full description of planar diagram codes as they are
+         * used in Regina, as well as their limitations.
          *
-         * The output from this routine is precisely the string that
-         * would be returned by pd().  In particular, the output does
-         * not contain any newlines.
+         * The output from this routine is precisely the string that would be
+         * returned by pd().  In particular, the output does not contain any
+         * newlines.
          *
-         * See also pd(), which returns the planar diagram code as a
-         * human-readable string, and pdData(), which returns it
-         * as a machine-readable sequence of 4-tuples of integers.
+         * For a function that _returns_ the planar diagram code (as opposed to
+         * writing it to an output stream), you could use pd() (which returns
+         * the code as a human-readable string), or pdData() (which returns it
+         * as a machine-readable sequence of 4-tuples of integers).
          *
          * \nopython Instead use the variants pd() or pdData() that take no
          * arguments.
@@ -4035,11 +5597,12 @@ class Link :
          * cannot be recovered from a planar diagram code.
          *
          * Such components must have at least one crossing, and must consist
-         * _entirely_ of over-crossings.  These are essentially unknotted
-         * loops that are "placed on top of" the remainder of the link diagram.
+         * _entirely_ of over-crossings.  See pd() for a detailed discussion
+         * on such components (which must be trivial for classical links,
+         * but which could be more interesting for virtual links).
          *
-         * Note that planar diagrams have another limitation, which is that
-         * they cannot represent zero-crossing components at all (any such
+         * Note that planar diagram codes have another limitation, which is
+         * that they cannot represent zero-crossing components at all (any such
          * components are omitted from planar diagram codes entirely).
          * Zero-crossing components are _not_ recognised by this routine, but
          * can be recognised instead by calling countTrivialComponents().
@@ -4050,8 +5613,8 @@ class Link :
         bool pdAmbiguous() const;
 
         /**
-         * Outputs the underlying planar 4-valent multigraph using the
-         * PACE text format.  This text format is described in detail at
+         * Outputs the underlying 4-valent multigraph for this link diagram
+         * using the PACE text format.  This format is described in detail at
          * https://pacechallenge.wordpress.com/pace-2016/track-a-treewidth/,
          * and is documented in detail by the routine pace().
          *
@@ -4069,9 +5632,9 @@ class Link :
          */
         void writePACE(std::ostream& out) const;
         /**
-         * Returns a text representation of the underlying planar
-         * 4-valent multigraph, using the PACE text format.
-         * This text format is described in detail at
+         * Returns a text representation of the underlying 4-valent multigraph
+         * for this link diagram, using the PACE text format.
+         * This format is described in detail at
          * https://pacechallenge.wordpress.com/pace-2016/track-a-treewidth/.
          *
          * In summary, the PACE text representation will consist of several
@@ -4144,11 +5707,18 @@ class Link :
         /**
          * Constructs the _signature_ for this knot or link diagram.
          *
-         * A _signature_ is a compact text representation of a link
-         * diagram that uniquely determines the diagram up to: relabelling;
-         * rotating connected components of the diagram; and (optionally)
-         * reflecting the entire diagram and/or reversing some or all link
-         * components.
+         * A _signature_ is a compact text representation of a link diagram
+         * that uniquely determines the diagram up to any combination of:
+         *
+         * - relabelling;
+         *
+         * - (optionally) reflecting the entire diagram, which changes the sign
+         *   of every crossing but leaves the upper and lower strands the same;
+         *
+         * - (optionally) reversing some or all link components;
+         *
+         * - (optionally) rotating the entire diagram, which preserves the sign
+         *   of every crossing but switches the upper and lower strands.
          *
          * Signatures are now supported for all link diagrams with fewer than
          * 64 link components.  Specifically:
@@ -4173,9 +5743,9 @@ class Link :
          * The routine fromSig() can be used to recover a link diagram from
          * its signature.  The resulting diagram might not be identical to
          * the original, but it will be related by zero or more applications
-         * of relabelling, rotating connected components of the diagram, and/or
-         * (according to the arguments) reflection of the entire diagram and/or
-         * reversal of individual link components.
+         * of relabelling, and (according to the arguments) reflection of the
+         * diagram, rotation of the diagram, and/or reversal of individual
+         * link components.
          *
          * The running time is quadratic in the number of crossings and (if we
          * allow reversal, which is the default) exponential in the number of
@@ -4195,10 +5765,14 @@ class Link :
          * should preserve the signature, or \c false if the signature should
          * distinguish between different orientations (again, unless of course
          * there are symmetries).
+         * \param allowRotation \c true if rotating the entire link diagram
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between a diagram and its rotation (again, unless there
+         * is a symmetry).
          * \return the signature for this link diagram.
          */
-        std::string sig(
-            bool allowReflection = true, bool allowReversal = true) const;
+        std::string sig(bool allowReflection = true, bool allowReversal = true,
+            bool allowRotation = true) const;
 
         /**
          * Alias for sig(), which constructs the signature for this
@@ -4223,10 +5797,14 @@ class Link :
          * should preserve the signature, or \c false if the signature should
          * distinguish between different orientations (again, unless of course
          * there are symmetries).
+         * \param allowRotation \c true if rotating the entire link diagram
+         * should preserve the signature, or \c false if the signature should
+         * distinguish between a diagram and its rotation (again, unless there
+         * is a symmetry).
          * \return the signature for this link diagram.
          */
-        std::string knotSig(
-            bool allowReflection = true, bool allowReversal = true) const;
+        std::string knotSig(bool allowReflection = true,
+            bool allowReversal = true, bool allowRotation = true) const;
 
         /**
          * Writes the tight encoding of this link to the given output stream.
@@ -4291,8 +5869,8 @@ class Link :
         void insertTorusLink(int p, int q, bool positive = true);
 
         /**
-         * Creates a link from hard-coded information about its crossings
-         * and components.
+         * Creates a new classical or virtual link from hard-coded information
+         * about its crossings and components.
          *
          * This routine takes a series of C++ initialiser lists
          * (each a list of integers), which makes it useful for creating
@@ -4306,7 +5884,7 @@ class Link :
          *   in order, where each sign is either +1 or -1.
          *
          * - Each subsequent list describes a single component of the link.
-         *   The list identifies which crossings you visit in order when 
+         *   The list identifies which crossings you visit in order when
          *   traversing the component; a positive entry \a i indicates
          *   that you pass over crossing \a i, and a negative entry -\a i
          *   indicates that you pass under crossing \a i.  Empty lists
@@ -4327,13 +5905,6 @@ class Link :
          * trefoil = Link::fromData({ -1, -1, -1 }, { 1, -2, 3, -1, 2, -3 });
          * hopf = Link::fromData({ +1, +1 }, { 1, -2 }, { -1, 2 });
          * \endcode
-         *
-         * \warning While this routine does some error checking on the
-         * input, it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
          *
          * \note If you have an existing link that you would like to
          * hard-code, the routine source() will output source code that
@@ -4357,8 +5928,8 @@ class Link :
             std::initializer_list<Args>... components);
 
         /**
-         * Creates a new link from information about its crossings and
-         * components.
+         * Creates a new classical or virtual link from information about its
+         * crossings and components.
          *
          * This routine is an analogue to the variant of fromData() that
          * takes C++ initialiser lists; however, here the input data may be
@@ -4401,13 +5972,6 @@ class Link :
          * hopf = Link.fromData([ +1, +1 ], [[ 1, -2 ], [ -1, 2 ]])
          * \endcode
          *
-         * \warning While this routine does some error checking on the
-         * input, it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument A link could not be reconstructed from
          * the given data.
          *
@@ -4433,15 +5997,15 @@ class Link :
             ComponentIterator beginComponents, ComponentIterator endComponents);
 
         /**
-         * Recovers a link diagram from its knot/link signature.
-         * See sig() for more information on these signatures.
+         * Recovers a classical or virtual link diagram from its knot/link
+         * signature.  See sig() for more information on these signatures.
          *
-         * Calling sig() followed by fromSig() is not guaranteed to
-         * produce an _identical_ knot diagram to the original, but it is
-         * guaranteed to produce one that is related by relabelling, rotating
-         * connected components of the diagram, and optionally (according to
-         * the arguments that were passed to sig()) reflection of the
-         * entire diagram and/or reversal of individual link components.
+         * Calling sig() followed by fromSig() is not guaranteed to produce
+         * an _identical_ link diagram to the original, but it is guaranteed
+         * to produce one that is related by zero or more applications of
+         * relabelling, and (according to the arguments that were passed
+         * to sig()) reflection of the diagram, rotation of the diagram,
+         * and/or reversal of individual link components.
          *
          * \exception InvalidArgument The given string was not a valid
          * knot/link signature.
@@ -4453,8 +6017,8 @@ class Link :
         static Link fromSig(const std::string& sig);
 
         /**
-         * Alias for fromSig(), to recover a link diagram from its
-         * knot/link signature.
+         * Alias for fromSig(), to recover a classical or virtual link diagram
+         * from its knot/link signature.
          *
          * This alias fromKnotSig() has been kept to reflect the fact that, in
          * older versions of Regina, these signatures were only available for
@@ -4474,8 +6038,8 @@ class Link :
         static Link fromKnotSig(const std::string& sig);
 
         /**
-         * Reconstructs a link from its given tight encoding.
-         * See the page on \ref tight "tight encodings" for details.
+         * Reconstructs a classical or virtual link from its given tight
+         * encoding.  See the page on \ref tight "tight encodings" for details.
          *
          * The tight encoding will be read from the given input stream.
          * If the input stream contains leading whitespace then it will be
@@ -4498,14 +6062,17 @@ class Link :
         static Link tightDecode(std::istream& input);
 
         /**
-         * Creates a new knot from a classical Gauss code, presented as
-         * a string.
+         * Creates a new classical knot from a classical Gauss code,
+         * presented as a string.
          *
          * Classical Gauss codes essentially describe the 4-valent graph
-         * of a knot but not the particular embedding in the plane.  As
-         * a result, there can be topological ambiguities when a knot is
-         * reconstructed from a gauss code; these are described in the
-         * warnings below.
+         * of a knot but not the particular embedding in the plane.  As a
+         * result, there can be topological ambiguities when a classical knot
+         * is reconstructed from a Gauss code; these are described in the
+         * warnings below.  For virtual (not classical) knots, the ambiguities
+         * inherent in classical Gauss codes are even more severe, and so
+         * Regina will not attempt to reconstruct a virtual knot from its
+         * classical Gauss code at all.
          *
          * The Gauss code for an <i>n</i>-crossing knot is described by
          * a sequence of 2<i>n</i> positive and negative integers.
@@ -4521,12 +6088,12 @@ class Link :
          * Regina imposes the following restrictions when reconstructing
          * a knot from a classical Gauss code:
          *
-         * - This can only be done for knots (i.e., links with exactly one
-         *   component).
+         * - This can only be done for _knots_ (i.e., links with exactly one
+         *   component), and only for _classical_ knots (not the more general
+         *   virtual knot diagrams).
          *
          * - The crossings of the knot must be labelled 1, 2, ..., \a n
-         *   (i.e., they cannot be arbitrary natural numbers with "gaps",
-         *   and the numbering cannot use a different starting point).
+         *   in some order.
          *
          * Be aware that, once the knot has been constructed, the crossings
          * 1, ..., \a n will have been reindexed as 0, ..., <i>n</i>-1
@@ -4542,39 +6109,31 @@ class Link :
          * beginning or end of the string is allowed.
          *
          * \warning In general, the classical Gauss code does not contain
-         * enough information to uniquely reconstruct a knot.  For prime knots,
-         * both a knot and its reflection can be described by the same Gauss
-         * code; for composite knots, the same Gauss code can describe
-         * knots that are topologically inequivalent, even when allowing for
-         * reflection.  If you need to reconstruct a knot uniquely, consider
-         * using the _oriented_ Gauss code instead.
-         *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
+         * enough information to uniquely reconstruct a classical knot.
+         * For prime knots, both a knot and its reflection can be described by
+         * the same Gauss code; for composite knots, the same Gauss code can
+         * describe knots that are topologically inequivalent, even when
+         * allowing for reflection.  If you need to reconstruct a knot uniquely,
+         * consider using the _oriented_ Gauss code instead.
          *
          * \exception InvalidArgument The given string was not a valid
-         * classical Gauss code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
+         * classical Gauss code for a classical knot.
          *
          * \author Adam Gowty
          *
-         * \param str a classical Gauss code for a knot, as described above.
+         * \param str a classical Gauss code for a classical knot, as
+         * described above.
          * \return the reconstructed knot.
          */
         static Link fromGauss(const std::string& str);
 
         /**
-         * Creates a new knot from a classical Gauss code, presented as
-         * an integer sequence.
+         * Creates a new classical knot from a classical Gauss code,
+         * presented as an integer sequence.
          *
          * See gauss() for a full description of classical Gauss codes as
          * they are used in Regina, and see fromGauss(const std::string&)
-         * for a detailed discussion of how Regina reconstructs knots
+         * for a detailed discussion of how Regina reconstructs classical knots
          * from such codes.
          *
          * This routine is a variant of fromGauss(const std::string&) which,
@@ -4588,24 +6147,15 @@ class Link :
          * from the type \a Iterator.)
          *
          * \warning In general, the classical Gauss code does not contain
-         * enough information to uniquely reconstruct a knot.  For prime knots,
-         * both a knot and its reflection can be described by the same Gauss
-         * code; for composite knots, the same Gauss code can describe
-         * knots that are topologically inequivalent, even when allowing for
-         * reflection.  If you need to reconstruct a knot uniquely, consider
-         * using the _oriented_ Gauss code instead.
-         *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
+         * enough information to uniquely reconstruct a classical knot.
+         * For prime knots, both a knot and its reflection can be described by
+         * the same Gauss code; for composite knots, the same Gauss code can
+         * describe knots that are topologically inequivalent, even when
+         * allowing for reflection.  If you need to reconstruct a knot uniquely,
+         * consider using the _oriented_ Gauss code instead.
          *
          * \exception InvalidArgument The given sequence was not a valid
-         * classical Gauss code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
+         * classical Gauss code for a classical knot.
          *
          * \python Instead of a pair of begin and past-the-end
          * iterators, this routine takes a Python list of integers.
@@ -4622,8 +6172,8 @@ class Link :
         static Link fromGauss(Iterator begin, Iterator end);
 
         /**
-         * Creates a new knot from an "oriented" variant of the Gauss code,
-         * presented as string.
+         * Creates a new classical or virtual knot from an "oriented" variant
+         * of the Gauss code, presented as string.
          *
          * Oriented gauss codes overcome the limitations of classical Gauss
          * codes by encoding all of the data needed to quickly and correctly
@@ -4639,17 +6189,18 @@ class Link :
          *
          * See orientedGauss() for a full description of oriented Gauss codes
          * as they are used in Regina (and in particular, what these tokens
-         * represent).
+         * represent).  Also note that _oriented_ Gauss codes are different
+         * from _signed_ Gauss codes: see orientedGauss() versus signedGauss()
+         * for details.
          *
          * Regina imposes the following restrictions when reconstructing
          * a knot from an oriented Gauss code:
          *
          * - This can only be done for knots (i.e., links with exactly one
-         *   component).
+         *   component).  Both classical and virtual knots are supported.
          *
          * - The crossings of the knot must be labelled 1, 2, ..., \a n
-         *   (i.e., they cannot be arbitrary natural numbers with "gaps",
-         *   and the numbering cannot use a different starting point).
+         *   in some order.
          *
          * Be aware that, once the knot has been constructed, the crossings
          * 1, ..., \a n will have been reindexed as 0, ..., <i>n</i>-1
@@ -4664,17 +6215,8 @@ class Link :
          * whitespace does not matter, and additional whitespace at the
          * beginning or end of the string is allowed.
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given string was not a valid
-         * oriented Gauss code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
+         * oriented Gauss code for a classical or virtual knot.
          *
          * \param str an "oriented" Gauss code for a knot, as described above.
          * \return the reconstructed knot.
@@ -4682,8 +6224,8 @@ class Link :
         static Link fromOrientedGauss(const std::string& str);
 
         /**
-         * Creates a new knot from an "oriented" variant of the Gauss code,
-         * presented as a sequence of string tokens.
+         * Creates a new classical or virtual knot from an "oriented" variant
+         * of the Gauss code, presented as a sequence of string tokens.
          *
          * See orientedGauss() for a full description of oriented Gauss codes
          * as they are used in Regina, and see
@@ -4709,23 +6251,8 @@ class Link :
          * otherwise this routine may fail to parse the token(s) and
          * could throw an exception as a result.
          *
-         * \pre \a Iterator is a random access iterator type.
-         *
-         * \pre Dereferencing such an iterator produces either a
-         * C-style string (which can be cast to `const char*`) or a
-         * C++-style string (which can be cast to `const std::string&`).
-         *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given sequence was not a valid
-         * oriented Gauss code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
+         * oriented Gauss code for a classical or virtual knot.
          *
          * \python Instead of a pair of begin and past-the-end
          * iterators, this routine takes a Python list of strings.
@@ -4736,11 +6263,111 @@ class Link :
          * sequence of tokens for an "oriented" Gauss code.
          * \return the reconstructed knot.
          */
-        template <typename Iterator>
-        static Link fromOrientedGauss(Iterator begin, Iterator end);
+        template <RandomAccessIteratorFor<std::string> iterator>
+        static Link fromOrientedGauss(iterator begin, iterator end);
 
         /**
-         * Creates a new link from Bob Jenkins' format, presented as a string.
+         * Creates a new classical or virtual knot from a "signed" variant
+         * of the Gauss code, presented as string.
+         *
+         * Signed gauss codes overcome the limitations of classical Gauss
+         * codes by encoding all of the data needed to quickly and correctly
+         * reconstruct a knot diagram.
+         *
+         * The signed Gauss code for an <i>n</i>-crossing knot is described
+         * by a sequence of 2<i>n</i> string tokens, all concatenated together
+         * with no internal whitespace.  As an example, you can construct the
+         * figure eight knot using the code:
+         *
+           \verbatim
+           U1+O2+U3-O4-U2+O1+U4-O3-
+           \endverbatim
+         *
+         * See signedGauss() for a full description of signed Gauss codes
+         * as they are used in Regina (and in particular, what these tokens
+         * represent).  Also note that _signed_ Gauss codes are different from
+         * _oriented_ Gauss codes: see signedGauss() versus orientedGauss()
+         * for details.
+         *
+         * Regina imposes the following restrictions when reconstructing
+         * a knot from a signed Gauss code:
+         *
+         * - This can only be done for knots (i.e., links with exactly one
+         *   component).  Both classical and virtual knots are supported.
+         *
+         * - The crossings of the knot must be labelled 1, 2, ..., \a n
+         *   in some order.
+         *
+         * Be aware that, once the knot has been constructed, the crossings
+         * 1, ..., \a n will have been reindexed as 0, ..., <i>n</i>-1
+         * (since every Link object numbers its crossings starting from 0).
+         *
+         * There are two variants of this routine.  This variant takes a
+         * single string, where the tokens have been concatenated together
+         * with no internal whitespace.  The other variant takes a sequence of
+         * 2<i>n</i> individual tokens, defined by a pair of iterators.
+         *
+         * In this variant (the string variant), the code should not contain
+         * any internal whitespace; however, whitespace at the beginning or
+         * end of the string is allowed.  The symbols `U` and `O` may be
+         * either upper-case or lower-case (or you may use some mix of both).
+         *
+         * \exception InvalidArgument The given string was not a valid
+         * signed Gauss code for a classical or virtual knot.
+         *
+         * \param str a "signed" Gauss code for a knot, as described above.
+         * \return the reconstructed knot.
+         */
+        static Link fromSignedGauss(const std::string& str);
+
+        /**
+         * Creates a new classical or virtual knot from a "signed" variant
+         * of the Gauss code, presented as a sequence of string tokens.
+         *
+         * See signedGauss() for a full description of signed Gauss codes
+         * as they are used in Regina, and see
+         * fromSignedGauss(const std::string&) for a detailed discussion
+         * of how Regina reconstructs knots from such codes.
+         *
+         * This routine is a variant of fromSignedGauss(const std::string&)
+         * which, instead of taking a human-readable string, takes a
+         * machine-readable sequence of smaller string tokens (one for each
+         * crossing that you pass through when traversing the knot).
+         * This sequence is given by passing a pair of begin/end iterators.
+         *
+         * The tokens in the input sequence should be the individual tokens of
+         * the form `Ok+`, `Ok-`, `Uk+` or `Uk-` that would normally be
+         * concatenated together to form a complete signed Gauss code.
+         * For example, to describe the figure eight knot, the input sequence
+         * could be a vector containing the eight tokens:
+         *
+           \verbatim
+           { "U1+", "O2+", "U3-", "O4-", "U2+", "O1+", "U4-", "O3-" }
+           \endverbatim
+         *
+         * None of the tokens should contain any whitespace; otherwise this
+         * routine may fail to parse the token(s) and could throw an exception
+         * as a result.  The symbols `U` and `O` that begin each token may be
+         * either upper-case or lower-case (or you may use some mix of both).
+         *
+         * \exception InvalidArgument The given sequence was not a valid
+         * signed Gauss code for a classical or virtual knot.
+         *
+         * \python Instead of a pair of begin and past-the-end
+         * iterators, this routine takes a Python list of strings.
+         *
+         * \param begin an iterator that points to the beginning of the
+         * sequence of tokens for a "signed" Gauss code.
+         * \param end an iterator that points past the end of the
+         * sequence of tokens for a "signed" Gauss code.
+         * \return the reconstructed knot.
+         */
+        template <RandomAccessIteratorFor<std::string> iterator>
+        static Link fromSignedGauss(iterator begin, iterator end);
+
+        /**
+         * Creates a new classical or virtual link from Bob Jenkins' format,
+         * presented as a string.
          *
          * Jenkins' format overcomes the limitations of classical Gauss
          * codes by encoding all of the data needed to quickly and correctly
@@ -4769,17 +6396,8 @@ class Link :
          * whitespace does not matter, and additional whitespace at the
          * beginning or end of the string is allowed.
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given string was not a valid
-         * encoding of a link in Jenkins' format.  As noted above, the
-         * checks performed here are not exhaustive.
+         * encoding of a classical or virtual link in Jenkins' format.
          *
          * \param str a string describing a link in Jenkins' format,
          * as described above.
@@ -4788,8 +6406,8 @@ class Link :
         static Link fromJenkins(const std::string& str);
 
         /**
-         * Creates a new link from Bob Jenkins' format, read directly
-         * from an input stream.
+         * Creates a new classical or virtual link from Bob Jenkins' format,
+         * read directly from an input stream.
          *
          * See jenkins() for a full description of Bob Jenkins' format as
          * it is used in Regina, and see fromJenkins(const std::string&)
@@ -4806,17 +6424,8 @@ class Link :
          * This means that the stream may contain additional material,
          * which can be read by the user after this routine has finished.
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given input was not a valid
-         * encoding of a link in Jenkins' format.  As noted above, the
-         * checks performed here are not exhaustive.
+         * encoding of a classical or virtual link in Jenkins' format.
          *
          * \nopython Instead use the variant fromJenkins(const std::string&),
          * which takes the input as a string.
@@ -4828,8 +6437,8 @@ class Link :
         static Link fromJenkins(std::istream& in);
 
         /**
-         * Creates a new link from Bob Jenkins' format, presented as an
-         * integer sequence.
+         * Creates a new classical or virtual link from Bob Jenkins' format,
+         * presented as an integer sequence.
          *
          * See jenkins() for a full description of Bob Jenkins' format as
          * it is used in Regina, and see fromJenkins(const std::string&)
@@ -4846,17 +6455,8 @@ class Link :
          * (The specific native C++ integer type being used will be deduced
          * from the type \a Iterator.)
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given sequence was not a valid
-         * encoding of a link in Jenkins' format.  As noted above, the
-         * checks performed here are not exhaustive.
+         * encoding of a classical or virtual link in Jenkins' format.
          *
          * \python Instead of a pair of begin and past-the-end
          * iterators, this routine takes a Python list of integers.
@@ -4871,14 +6471,15 @@ class Link :
         static Link fromJenkins(Iterator begin, Iterator end);
 
         /**
-         * Creates a new knot from either alphabetical or numerical
+         * Creates a new classical knot from either alphabetical or numerical
          * Dowker-Thistlethwaite notation, presented as a string.
          *
          * Dowker-Thistlethwaite notation essentially describes the 4-valent
-         * graph of a knot but not the particular embedding in the plane.
-         * As a result, there can be topological ambiguities when a knot is
-         * reconstructed from Dowker-Thistlethwaite notation; these are
-         * described in the warnings below.
+         * graph of a knot but not its particular embedding in the plane.
+         * As a result, there can be topological ambiguities when a
+         * classical knot is reconstructed from Dowker-Thistlethwaite notation;
+         * these are described in the warnings below.  Dowker-Thistlethwaite
+         * notation cannot be used with virtual (not classical) knots at all.
          *
          * Dowker-Thistlethwaite notation comes in two forms: numerical
          * and alphabetical.  For an <i>n</i>-crossing knot, the numerical
@@ -4909,41 +6510,30 @@ class Link :
          * of the whitespace that separates the integers does not matter.
          *
          * \warning In general, Dowker-Thistlethwaite notation does not contain
-         * enough information to uniquely reconstruct a knot.  For prime knots,
-         * both a knot and its reflection can be described by the same notation;
-         * for composite knots, the same notation can describe knots that are
-         * topologically inequivalent, even when allowing for reflection.
-         * If you need to reconstruct a knot uniquely, consider
-         * using the oriented Gauss code instead.
-         *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
+         * enough information to uniquely reconstruct a classical knot.
+         * For prime knots, both a knot and its reflection can be described by
+         * the same notation; for composite knots, the same notation can
+         * describe knots that are topologically inequivalent, even when
+         * allowing for reflection.  If you need to reconstruct a knot uniquely,
+         * consider using the oriented Gauss code instead.
          *
          * \exception InvalidArgument The given string was not a valid
-         * Dowker-Thistlethwaite code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
-         *
-         * \author Much of the code for this routine is based on the
-         * Dowker-Thistlethwaite implementation in the SnapPea/SnapPy kernel.
+         * Dowker-Thistlethwaite code for a classical knot.
          *
          * \param str either the alphabetical or numerical
-         * Dowker-Thistlethwaite notation for a knot, as described above.
+         * Dowker-Thistlethwaite notation for a classical knot, as described
+         * above.
          * \return the reconstructed knot.
          */
         static Link fromDT(const std::string& str);
 
         /**
-         * Creates a new knot from numerical Dowker-Thistlethwaite notation,
-         * presented as an integer sequence.
+         * Creates a new classical knot from numerical Dowker-Thistlethwaite
+         * notation, presented as an integer sequence.
          *
          * See dt(bool) for a full description of Dowker-Thistlethwaite
          * notation as it is used in Regina, and see fromDT(const std::string&)
-         * for a detailed discussion of how Regina reconstructs knots
+         * for a detailed discussion of how Regina reconstructs classical knots
          * from such notation.
          *
          * This routine is a variant of fromDT(const std::string&) which,
@@ -4962,51 +6552,41 @@ class Link :
          * from the type \a Iterator.)
          *
          * \warning In general, Dowker-Thistlethwaite notation does not contain
-         * enough information to uniquely reconstruct a knot.  For prime knots,
-         * both a knot and its reflection can be described by the same notation;
-         * for composite knots, the same notation can describe knots that are
-         * topologically inequivalent, even when allowing for reflection.
-         * If you need to reconstruct a knot uniquely, consider
-         * using the oriented Gauss code instead.
-         *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a knot diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
+         * enough information to uniquely reconstruct a classical knot.
+         * For prime knots, both a knot and its reflection can be described by
+         * the same notation; for composite knots, the same notation can
+         * describe knots that are topologically inequivalent, even when
+         * allowing for reflection.  If you need to reconstruct a knot uniquely,
+         * consider using the oriented Gauss code instead.
          *
          * \exception InvalidArgument The given sequence was not a valid
-         * Dowker-Thistlethwaite code for a knot.  As noted above, the checks
-         * performed here are not exhaustive.
+         * Dowker-Thistlethwaite code for a classical knot.
          *
          * \python Instead of a pair of begin and past-the-end
          * iterators, this routine takes a Python list of integers.
          *
-         * \author Much of the code for this routine is based on the
-         * Dowker-Thistlethwaite implementation in the SnapPea/SnapPy kernel.
-         *
          * \param begin an iterator that points to the beginning of the
          * sequence of integers for the Dowker-Thistlethwaite notation
-         * for a knot.
+         * for a classical knot.
          * \param end an iterator that points past the end of the
          * sequence of integers for the Dowker-Thistlethwaite notation
-         * for a knot.
+         * for a classical knot.
          * \return the reconstructed knot.
          */
         template <typename Iterator>
         static Link fromDT(Iterator begin, Iterator end);
 
         /**
-         * Creates a new link from a planar diagram code, presented as a string.
+         * Creates a new classical or virtual link from a planar diagram code,
+         * presented as a string.
          *
          * Planar diagram codes overcome the limitations of classical Gauss
          * codes by encoding the local information at each crossing, though
          * they do introduce their own (less severe) ambiguities and
          * computational difficulties, as described in the warnings below.
          * They can work with links as well as knots, though they cannot
-         * encode zero-crossing unknot components.
+         * encode zero-crossing unknot components.  They can also (despite
+         * their name) work with virtual links as well as classical links.
          *
          * A planar diagram code for an <i>n</i>-crossing link is formed
          * from a sequence of \a n 4-tuples of integers.  An example,
@@ -5024,9 +6604,7 @@ class Link :
          *
          * - The integers used in the input sequence (which denote the
          *   2<i>n</i> strands in the link diagram) must be in the range
-         *   1, 2, ..., 2<i>n</i>.  That is, they cannot be arbitrary natural
-         *   numbers with "gaps", and the numbering of strands cannot use a
-         *   different starting point.
+         *   `1,2,...,2n`, with each of these numbers used exactly twice.
          *
          * When Regina builds the resulting link, it numbers the crossings
          * and components (but not the strands).  It will do this as follows:
@@ -5076,24 +6654,15 @@ class Link :
          * tuples.  Regina does _not_ attribute any meaning to these symbols,
          * and will treat them as nothing more than separators.
          *
-         * \warning If the link contains an unknotted loop that sits
-         * completely above all other link components (in other words,
-         * a link components that consists entirely of over-crossings), then
-         * the orientation of this loop might not be reconstructed correctly.
+         * \warning If the link contains any components that sit completely
+         * above all other link components (in other words, link components
+         * that consist entirely of over-crossings), then the orientations of
+         * these components might not be reconstructed correctly.
          * This is unavoidable: the planar diagram code simply does not
          * contain this information.
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given string was not a valid
-         * planar diagram code.  As noted above, the checks performed here
-         * are not exhaustive.
+         * planar diagram code for a classical or virtual link.
          *
          * \param str a planar diagram code for a link, as described above.
          * \return the reconstructed link.
@@ -5101,8 +6670,8 @@ class Link :
         static Link fromPD(const std::string& str);
 
         /**
-         * Creates a new link from a planar diagram code, presented as a
-         * sequence of 4-tuples.
+         * Creates a new classical or virtual link from a planar diagram code,
+         * presented as a sequence of 4-tuples.
          *
          * See pd() for a full description of planar diagram codes as
          * they are used in Regina, and see fromPD(const std::string&)
@@ -5123,24 +6692,15 @@ class Link :
          * C++ integer type being used will be deduced from the type
          * \a Iterator.)
          *
-         * \warning If the link contains an unknotted loop that sits
-         * completely above all other link components (in other words,
-         * a link components that consists entire of over-crossings), then
-         * the orientation of this loop might not be reconstructed correctly.
+         * \warning If the link contains any components that sit completely
+         * above all other link components (in other words, link components
+         * that consist entirely of over-crossings), then the orientations of
+         * these components might not be reconstructed correctly.
          * This is unavoidable: the planar diagram code simply does not
          * contain this information.
          *
-         * \warning While this routine does some error checking on the
-         * input, these checks are not exhaustive.  In particular,
-         * it does _not_ test for planarity of the diagram.
-         * That is, if the input describes a link diagram that must be
-         * drawn on some higher-genus surface as opposed to the plane,
-         * this will not be detected.  Of course such inputs are not
-         * allowed, and it is currently up to the user to enforce this.
-         *
          * \exception InvalidArgument The given sequence was not a valid
-         * planar diagram code.  As noted above, the checks performed here
-         * are not exhaustive.
+         * planar diagram code for a classical or virtual link.
          *
          * \python Instead of a pair of begin and past-the-end
          * iterators, this routine takes a Python list.  Each element
@@ -5186,6 +6746,34 @@ class Link :
         static void join(const StrandRef& s, const StrandRef& t);
 
         /**
+         * Returns the location in \a components_ of the link component
+         * containing \a s, or `components_.end()` if \a s does not belong to
+         * any component of this link.
+         *
+         * The given strand may be a null strand reference (in which case this
+         * routine will look for a zero-crossing component).
+         */
+        std::vector<StrandRef>::iterator componentIterator(const StrandRef& s);
+
+        /**
+         * Used with fromEnhancedGauss() to indicate which kind of Gauss code
+         * we are reconstructing a knot from.
+         */
+        enum class GaussEnhancement {
+            Oriented = 1, Signed = 2
+        };
+        /**
+         * Implements either fromOrientedGauss() or fromSignedGauss(),
+         * depending on the value of \a type_.  See fromOrientedGauss() and
+         * fromSignedGauss() for details.
+         *
+         * This routine exists because fromOrientedGauss() and fromSignedGauss()
+         * share much of the same source code.
+         */
+        template <GaussEnhancement type_,
+            RandomAccessIteratorFor<std::string> iterator>
+        static Link fromEnhancedGauss(iterator begin, iterator end);
+        /**
          * Internal to fromOrientedGauss().
          *
          * This routine parses a single token in an "oriented" Gauss code.
@@ -5206,9 +6794,9 @@ class Link :
         static bool parseOrientedGaussTerm(const std::string& s,
             size_t nCross, size_t& crossing, int& strand, int& sign);
         /**
-         * Internal to fromOrientedGauss().
+         * Internal to fromSignedGauss().
          *
-         * This routine parses a single token in an "oriented" Gauss code.
+         * This routine parses a single token in a "signed" Gauss code.
          * The token must not contain any whitespace.
          *
          * \param s the token to parse.
@@ -5223,25 +6811,8 @@ class Link :
          * \return \c true if and only if no errors were detected when
          * parsing the token.
          */
-        static bool parseOrientedGaussTerm(const char* s,
+        static bool parseSignedGaussTerm(const std::string& s,
             size_t nCross, size_t& crossing, int& strand, int& sign);
-
-        /**
-         * Internal to fromDT().
-         *
-         * This routine attempts to deduce the orientation of each crossing
-         * in order to make a planar embedding of the 4-valent graph
-         * described by the Dowker-Thistlethwaite notation.
-         *
-         * See the source code for further documentation.
-         *
-         * \return \c true if and only if a planar embedding was found.
-         *
-         * \author This routine is based on the Dowker-Thistlethwaite
-         * implementation from the SnapPea/SnapPy kernel.
-         */
-        static bool realizeDT(size_t* anInvolution, bool* aRealization,
-            size_t aNumCrossings);
 
         /**
          * Internal to fromData().
@@ -5343,8 +6914,43 @@ class Link :
         bool internalR2(StrandRef arc, bool check, bool perform);
 
         /**
-         * Implements testing for and/or performing Reidemeister moves.
+         * Implements testing for and/or performing both classical and virtual
+         * type II Reidemeister moves.
          * See r2() for details on what the location arguments mean.
+         *
+         * If \a classicalOnly is \c true, then this routine works with
+         * classical type II moves, as described by r2().  If \a classicalOnly
+         * is \c false, then this routine works with the more general virtual
+         * type II Reidemeister moves, as described by r2Virtual().
+         *
+         * This routine has no "checking" argument; instead checks will always
+         * be performed.  In particular:
+         *
+         * - This routine will always check that any null strand reference
+         *   that is passed has a corresponding zero-crossing unknot component
+         *   to operate upon.  This check is extremely fast (linear in the
+         *   number of link components).
+         *
+         * - If \a classicalOnly is \c true, this routine will also ensure that
+         *   the move is planar; that is, the two strands being moved over one
+         *   another either both push into the same dual 2-cell, or belong to
+         *   different connected components of the link diagram.  This check is
+         *   more expensive (linear in the number of crossings).
+         *
+         * \param classicalOnly indicates whether we should ensure that the
+         * requested move is planar.
+         * \param perform indicates whether we should actually perform the
+         * move, assuming any requested checks are successful.
+         * \return \c true if and only if the all of the checks pass.
+         */
+        bool internalR2General(StrandRef upperArc, int upperSide,
+            StrandRef lowerArc, int lowerSide,
+            bool classicalOnly, bool perform);
+
+        /**
+         * Implements testing for and/or performing virtual type II Reidemeister
+         * moves that pass the same strand over itself from opposite sides.
+         * See r2Virtual() for details on what the location arguments mean.
          *
          * \pre The arguments \a check and \a perform are not both \c false.
          * \pre If \a perform is \c true but \a check is \c false, then
@@ -5358,8 +6964,8 @@ class Link :
          * \return \c true if the requested checks pass, or if \a check was
          * \c false (which means no checks were performed at all).
          */
-        bool internalR2(StrandRef upperArc, int upperSide,
-            StrandRef lowerArc, int lowerSide, bool check, bool perform);
+        bool internalR2Virtual(StrandRef arc, int firstSide, int firstStrand,
+            bool check, bool perform);
 
         /**
          * Implements testing for and/or performing Reidemeister moves.
@@ -5398,49 +7004,21 @@ class Link :
         bool internalR3(Crossing* crossing, int side, bool check, bool perform);
 
         /**
-         * Internal to bracketNaive().
+         * A joint implementation of complement() and longComplement().
          *
-         * Returns the number of loops in the link produced by resolving
-         * each crossing according to the given bitmask:
+         * If \a breakOpen is a null reference, then this routine will build
+         * the complement as described by complement(), without simplifying
+         * the resulting triangulation.
          *
-         * - If the <i>i</i>th bit in \a mask is 0, this indicates that
-         *   crossing \a i should be resolved by turning _left_ when
-         *   entering along the upper strand.
+         * If \a breakOpen is not a null reference, then this routine will
+         * build the long knot complement, as described by longComplement().
          *
-         * - If the <i>i</i>th bit in \a mask is 1, this indicates that
-         *   crossing \a i should be resolved by turning _right_ when
-         *   entering along the upper strand.
+         * \pre If \a breakOpen is non-null, then this is a classical knot
+         * diagram (not a link, not virtual) with at least one crossing.
          *
-         * If the array \a loopIDs is non-null, then it will be filled
-         * with an identifier for each loop.  Each identifier will be
-         * the minimum of the following values that are computed as you
-         * follow the loop: when passing through crossing \a i, if we
-         * encounter the half of the upper strand that _exits_ the crossing
-         * then we take the value \a i, and if we encounter the half of
-         * the upper strand that _enters_ the crossing then we take the
-         * value (\a i + \a n).  These identifiers will be returned in the
-         * array \a loopIDs in sorted order.
-         *
-         * If the array \a loopLengths is non-null, then it will be
-         * filled with the number of strands in each loop (so these
-         * should sum to twice the number of crossings).  These loop
-         * lengths will be placed in the array in the same order as the
-         * loop IDs as described above.
-         *
-         * \pre The number of crossings is less than 64 (the length of
-         * the bitmask type).
-         *
-         * \pre If either or both the arrays \a loopIDs and \a loopLengths
-         * are not null, then they are arrays whose size is at least the
-         * return value (i.e., the number of loops).  This typically means
-         * that the caller must put an upper bound on the number of loops
-         * in advance, before calling this routine.
-         *
-         * \return the resulting number of loops after all crossings are
-         * resolved.
+         * See complement() and longComplement() for further details.
          */
-        size_t resolutionLoops(uint64_t mask, size_t* loopIDs = nullptr,
-            size_t* loopLengths = nullptr) const;
+        Triangulation<3> internalComplement(StrandRef breakOpen) const;
 
         /**
          * Compute the Kauffman bracket polynomial using a naive
@@ -5451,7 +7029,8 @@ class Link :
          *
          * See bracket() for further details.
          */
-        Laurent<Integer> bracketNaive(ProgressTracker* tracker) const;
+        Laurent<Integer> bracketNaive(int threads, ProgressTracker* tracker)
+            const;
 
         /**
          * Compute the Kauffman bracket polynomial using a fixed-parameter
@@ -5462,14 +7041,14 @@ class Link :
          *
          * See bracket() for further details.
          *
-         * \pre The maximum possible strand ID can fit into an \c int.
+         * \pre The total number of strands can fit into a signed \c int.
          * In other words, if an \c int contains \a b bits, then the
-         * number of crossings is less than 2^(<i>b</i>-2).
+         * number of crossings is less than `2^(b-2)`.
          */
         Laurent<Integer> bracketTreewidth(ProgressTracker* tracker) const;
 
         /**
-         * Compute the HOMFLY polynomial of this link, as a polynomial
+         * Compute the HOMFLY-PT polynomial of this link, as a polynomial
          * in \a alpha and \a z, using Kauffman's skein-template algorithm.
          *
          * See homflyAZ() for further details.
@@ -5479,7 +7058,7 @@ class Link :
         Laurent2<Integer> homflyKauffman(ProgressTracker* tracker) const;
 
         /**
-         * Compute the HOMFLY polynomial of this link, as a polynomial
+         * Compute the HOMFLY-PT polynomial of this link, as a polynomial
          * in \a alpha and \a z, using a fixed-parameter tractable algorithm
          * based on a tree decomposition.
          *
@@ -5487,9 +7066,9 @@ class Link :
          *
          * \pre This link contains at least one crossing.
          *
-         * \pre The maximum possible strand ID can fit into an \c int.
+         * \pre The total number of strands can fit into a signed \c int.
          * In other words, if an \c int contains \a b bits, then the
-         * number of crossings is less than 2^(<i>b</i>-2).
+         * number of crossings is less than `2^(b-2)`.
          */
         Laurent2<Integer> homflyTreewidth(ProgressTracker* tracker) const;
 
@@ -5510,6 +7089,64 @@ class Link :
          * \param td the tree decomposition to optimise.
          */
         void optimiseForJones(TreeDecomposition& td) const;
+
+        /**
+         * Compute the arrow polynomial using a naive algorithm that sums over
+         * all resolutions of all crossings.
+         *
+         * The given progress tracker may be \c null.
+         * This routine does _not_ mark the tracker as finished.
+         *
+         * See arrow() for further details.
+         */
+        Arrow arrowNaive(int threads, ProgressTracker* tracker) const;
+
+        /**
+         * Compute the arrow polynomial using a fixed-parameter tractable
+         * algorithm based on a tree decomposition.
+         *
+         * The given progress tracker may be \c null.
+         * This routine does _not_ mark the tracker as finished.
+         *
+         * See arrow() for further details.
+         *
+         * \pre The total number of strands can fit into a signed \c int.
+         * In other words, if an \c int contains \a b bits, then the
+         * number of crossings is less than `2^(b-2)`.
+         */
+        Arrow arrowTreewidth(ProgressTracker* tracker) const;
+
+        /**
+         * Returns the group of this link as constructed from the Wirtinger
+         * presentation, possibly switching the roles of the upper and lower
+         * strands at every crossing.
+         *
+         * \param flip \c false if we should build the "native" Wirtinger
+         * presentation, as constructed by the public function group(), or
+         * \c true if we should build the "reflection" Wirtinger presentation,
+         * which would be obtained by group() if we had called changeAll()
+         * beforehand.
+         * \param simplify \c true if we should attempt to simplify the group
+         * presentation before returning.
+         * \return the requested link group.
+         */
+        GroupPresentation internalGroup(bool flip, bool simplify) const;
+
+        /**
+         * Returns the extended group of this link as constructed from the
+         * Silver-Williams presentation, possibly switching the roles of the
+         * upper and lower strands at every crossing.
+         *
+         * \param flip \c false if we should build the "native" Silver-Williams
+         * presentation, as constructed by the public function extendedGroup(),
+         * or \c true if we should build the "reflection" presentation, which
+         * would be obtained by extendedGroup() if we had called changeAll()
+         * beforehand.
+         * \param simplify \c true if we should attempt to simplify the group
+         * presentation before returning.
+         * \return the requested extended group.
+         */
+        GroupPresentation internalExtendedGroup(bool flip, bool simplify) const;
 
         /**
          * Takes an arbitrary tree decomposition for this link, and
@@ -5671,11 +7308,14 @@ namespace regina {
 
 inline void Link::clearAllProperties() {
     if (! topologyLocked()) {
+        alexander_.reset();
         jones_.reset();
         homflyAZ_.reset();
         homflyLM_.reset();
+        arrow_.reset();
     }
 
+    virtualGenus_ = -1;
     bracket_.reset();
     niceTreeDecomposition_.reset();
 }
@@ -5805,7 +7445,10 @@ inline Crossing::Crossing(int sign) : sign_(sign) {
 
 // Inline functions for Link
 
-inline Link::Link(size_t unknots) {
+inline Link::Link() : virtualGenus_(-1) {
+}
+
+inline Link::Link(size_t unknots) : virtualGenus_(-1) {
     components_.resize(unknots);
     std::fill(components_.begin(), components_.end(), StrandRef());
 }
@@ -5866,10 +7509,6 @@ inline ModelLinkGraph Link::graph() const {
     return ModelLinkGraph(*this);
 }
 
-inline Triangulation<3> Link::complement(bool simplify) const {
-    return Triangulation<3>(*this, simplify);
-}
-
 inline long Link::writhe() const {
     long ans = 0;
     for (const Crossing* c : crossings_)
@@ -5881,20 +7520,64 @@ inline long Link::writheOfComponent(size_t index) const {
     return writheOfComponent(components_[index]);
 }
 
+inline size_t Link::virtualGenus() const {
+    if (virtualGenus_ < 0)
+        virtualGenus_ = graph().genus();
+    return virtualGenus_;
+}
+
+inline bool Link::isClassical() const {
+    return virtualGenus() == 0;
+}
+
+inline long Link::linking() const {
+    long twice = linking2();
+    if (twice & 1)
+        throw NotImplemented("This is a virtual link whose linking number "
+            "is not an integer: use linking2() instead");
+    else
+        return twice >> 1;
+}
+
+inline Triangulation<3> Link::complement(bool simplify) const {
+    Triangulation<3> ans = internalComplement({});
+    if (simplify)
+        ans.simplify();
+    return ans;
+}
+
+inline const Laurent<Integer>& Link::bracket(Algorithm alg,
+        ProgressTracker* tracker) const {
+    return bracket(alg, 1 /* single-threaded */, tracker);
+}
+inline const Laurent<Integer>& Link::jones(Algorithm alg,
+        ProgressTracker* tracker) const {
+    return jones(alg, 1 /* single-threaded */, tracker);
+}
 inline const Laurent2<Integer>& Link::homfly(Algorithm alg,
         ProgressTracker* tracker) const {
     return homflyAZ(alg, tracker);
 }
 
+inline bool Link::knowsAlexander() const {
+    return alexander_.has_value();
+}
 inline bool Link::knowsBracket() const {
-    return bracket_.has_value();
+    // If we know the arrow polynomial, then the Kauffman bracket and
+    // Jones polynomial are trivial to deduce.
+    return bracket_.has_value() || arrow_.has_value();
 }
 inline bool Link::knowsJones() const {
-    return jones_.has_value();
+    // If we know the arrow polynomial, then the Kauffman bracket and
+    // Jones polynomial are trivial to deduce.
+    return jones_.has_value() || arrow_.has_value();
 }
 inline bool Link::knowsHomfly() const {
     // Either both homflyAZ_ and homflyLM_ are known, or neither are known.
     return homflyAZ_.has_value();
+}
+inline bool Link::knowsArrow() const {
+    return arrow_.has_value();
 }
 
 inline bool Link::r1(Crossing* crossing) {
@@ -5915,12 +7598,18 @@ inline bool Link::r2(Crossing* crossing) {
 
 inline bool Link::r2(StrandRef upperArc, int upperSide,
         StrandRef lowerArc, int lowerSide) {
-    return internalR2(upperArc, upperSide, lowerArc, lowerSide, true, true);
+    return internalR2General(upperArc, upperSide, lowerArc, lowerSide,
+        true /* classical only */, true);
 }
 
-inline void Link::r2(StrandRef upperArc, int upperSide,
-        StrandRef lowerArc, int lowerSide, Unprotected) {
-    internalR2(upperArc, upperSide, lowerArc, lowerSide, false, true);
+inline bool Link::r2Virtual(StrandRef upperArc, int upperSide,
+        StrandRef lowerArc, int lowerSide) {
+    return internalR2General(upperArc, upperSide, lowerArc, lowerSide,
+        false /* allow virtual */, true);
+}
+
+inline bool Link::r2Virtual(StrandRef arc, int firstSide, int firstStrand) {
+    return internalR2Virtual(arc, firstSide, firstStrand, true, true);
 }
 
 inline bool Link::r3(StrandRef arc, int side) {
@@ -5950,8 +7639,20 @@ inline bool Link::hasR2(Crossing* crossing) const {
 
 inline bool Link::hasR2(StrandRef upperArc, int upperSide,
         StrandRef lowerArc, int lowerSide) const {
-    return const_cast<Link*>(this)->internalR2(upperArc, upperSide,
-        lowerArc, lowerSide, true, false);
+    return const_cast<Link*>(this)->internalR2General(upperArc, upperSide,
+        lowerArc, lowerSide, true /* classical only */, false);
+}
+
+inline bool Link::hasR2Virtual(StrandRef upperArc, int upperSide,
+        StrandRef lowerArc, int lowerSide) const {
+    return const_cast<Link*>(this)->internalR2General(upperArc, upperSide,
+        lowerArc, lowerSide, false /* allow virtual */, false);
+}
+
+inline bool Link::hasR2Virtual(StrandRef arc, int firstSide, int firstStrand)
+        const {
+    return const_cast<Link*>(this)->internalR2Virtual(arc, firstSide,
+        firstStrand, true, false);
 }
 
 inline bool Link::hasR3(StrandRef arc, int side) const {
@@ -6005,8 +7706,33 @@ inline std::optional<Link> Link::withR2(StrandRef upperArc, int upperSide,
         return {};
 
     std::optional<Link> ans(std::in_place, *this);
-    ans->internalR2(ans->translate(upperArc), upperSide,
-        ans->translate(lowerArc), lowerSide, false, true);
+    // We already know that the move will be planar.
+    // There is no need to run the expensive planarity check again.
+    ans->internalR2General(ans->translate(upperArc), upperSide,
+        ans->translate(lowerArc), lowerSide,
+            false /* allow non-planar moves */, true);
+    return ans;
+}
+
+inline std::optional<Link> Link::withR2Virtual(StrandRef upperArc,
+        int upperSide, StrandRef lowerArc, int lowerSide) const {
+    if (! hasR2Virtual(upperArc, upperSide, lowerArc, lowerSide))
+        return {};
+
+    std::optional<Link> ans(std::in_place, *this);
+    ans->internalR2General(ans->translate(upperArc), upperSide,
+        ans->translate(lowerArc), lowerSide, false /* allow virtual */, true);
+    return ans;
+}
+
+inline std::optional<Link> Link::withR2Virtual(StrandRef arc, int firstSide,
+        int firstStrand) const {
+    if (! hasR2Virtual(arc, firstSide, firstStrand))
+        return {};
+
+    std::optional<Link> ans(std::in_place, *this);
+    ans->internalR2Virtual(ans->translate(arc), firstSide, firstStrand,
+        false, true);
     return ans;
 }
 
@@ -6046,7 +7772,8 @@ inline bool Link::r2(Crossing* crossing, bool, bool perform) {
 
 inline bool Link::r2(StrandRef upperArc, int upperSide,
         StrandRef lowerArc, int lowerSide, bool, bool perform) {
-    return internalR2(upperArc, upperSide, lowerArc, lowerSide, true, perform);
+    return internalR2General(upperArc, upperSide, lowerArc, lowerSide,
+        true /* classical only */, perform);
 }
 
 inline bool Link::r3(StrandRef arc, int side, bool, bool perform) {
@@ -6070,6 +7797,25 @@ inline bool Link::internalR3(Crossing* crossing, int side, bool check,
     }
 
     return internalR3(s, side, check, perform);
+}
+
+inline GroupPresentation Link::group(bool simplify) const {
+    return internalGroup(false, simplify);
+}
+
+inline std::pair<GroupPresentation, GroupPresentation> Link::groups(
+        bool simplify) const {
+    return { internalGroup(false, simplify), internalGroup(true, simplify) };
+}
+
+inline GroupPresentation Link::extendedGroup(bool simplify) const {
+    return internalExtendedGroup(false, simplify);
+}
+
+inline std::pair<GroupPresentation, GroupPresentation> Link::extendedGroups(
+        bool simplify) const {
+    return { internalExtendedGroup(false, simplify),
+        internalExtendedGroup(true, simplify) };
 }
 
 inline const TreeDecomposition& Link::niceTreeDecomposition() const {
@@ -6103,7 +7849,7 @@ inline bool Link::intelligentSimplify() {
 }
 
 template <typename Action, typename... Args>
-inline bool Link::rewrite(int height, unsigned threads,
+inline bool Link::rewrite(int height, int threads,
         ProgressTrackerOpen* tracker, Action&& action, Args&&... args) const {
     if (components_.size() >= 64) {
         if (tracker)
@@ -6117,22 +7863,61 @@ inline bool Link::rewrite(int height, unsigned threads,
     using Traits = regina::detail::RetriangulateActionTraits<Link, Action>;
     static_assert(Traits::valid,
         "The action that is passed to rewrite() does not take the correct initial argument type(s).");
+
+    // The template option std::true_type means allow classical moves only.
     if constexpr (Traits::withSig) {
-        return regina::detail::retriangulateInternal<Link, true>(
-            *this, height, threads, tracker,
+        return detail::retriangulateInternal<Link, true,
+            detail::RetriangulateDefault, std::true_type>(
+            *this, false /* rigid */, height, threads, tracker,
             [&](const std::string& sig, Link&& obj) {
                 return action(sig, std::move(obj), std::forward<Args>(args)...);
             });
     } else {
-        return regina::detail::retriangulateInternal<Link, false>(
-            *this, height, threads, tracker,
+        return detail::retriangulateInternal<Link, false,
+            detail::RetriangulateDefault, std::true_type>(
+            *this, false /* rigid */, height, threads, tracker,
             [&](Link&& obj) {
                 return action(std::move(obj), std::forward<Args>(args)...);
             });
     }
 }
 
-inline bool Link::simplifyExhaustive(int height, unsigned threads,
+template <typename Action, typename... Args>
+inline bool Link::rewriteVirtual(int height, int threads,
+        ProgressTrackerOpen* tracker, Action&& action, Args&&... args) const {
+    if (components_.size() >= 64) {
+        if (tracker)
+            tracker->setFinished();
+        throw FailedPrecondition(
+            "rewriteVirtual() requires fewer than 64 link components");
+    }
+
+    // Use RetriangulateActionTraits to deduce whether the given action takes
+    // a link or both a signature and link as its initial argument(s).
+    using Traits = regina::detail::RetriangulateActionTraits<Link, Action>;
+    static_assert(Traits::valid,
+        "The action that is passed to rewriteVirtual() does not take the correct initial argument type(s).");
+
+    // The template option std::false_type means allow both classical and
+    // virtual moves.
+    if constexpr (Traits::withSig) {
+        return detail::retriangulateInternal<Link, true,
+            detail::RetriangulateDefault, std::false_type>(
+            *this, false /* rigid */, height, threads, tracker,
+            [&](const std::string& sig, Link&& obj) {
+                return action(sig, std::move(obj), std::forward<Args>(args)...);
+            });
+    } else {
+        return detail::retriangulateInternal<Link, false,
+            detail::RetriangulateDefault, std::false_type>(
+            *this, false /* rigid */, height, threads, tracker,
+            [&](Link&& obj) {
+                return action(std::move(obj), std::forward<Args>(args)...);
+            });
+    }
+}
+
+inline bool Link::simplifyExhaustive(int height, int threads,
         ProgressTrackerOpen* tracker) {
     if (components_.size() >= 64) {
         if (tracker)
@@ -6141,8 +7926,14 @@ inline bool Link::simplifyExhaustive(int height, unsigned threads,
             "simplifyExhaustive() requires fewer than 64 link components");
     }
 
-    return regina::detail::simplifyExhaustiveInternal<Link>(
-        *this, height, threads, tracker);
+    // The template option std::true_type means allow classical moves only,
+    // and std::false_type means allow both classical and virtual moves.
+    if (isClassical())
+        return detail::simplifyExhaustiveInternal<Link, std::true_type>(
+            *this, height, threads, tracker);
+    else
+        return detail::simplifyExhaustiveInternal<Link, std::false_type>(
+            *this, height, threads, tracker);
 }
 
 inline void Link::join(const StrandRef& s, const StrandRef& t) {
@@ -6150,12 +7941,23 @@ inline void Link::join(const StrandRef& s, const StrandRef& t) {
     t.crossing_->prev_[t.strand_] = s;
 }
 
-inline std::string Link::knotSig(bool allowReflection, bool allowReversal) const {
-    return sig(allowReflection, allowReversal);
+inline std::string Link::knotSig(bool allowReflection, bool allowReversal,
+        bool allowRotation) const {
+    return sig(allowReflection, allowReversal, allowRotation);
 }
 
 inline Link Link::fromKnotSig(const std::string& sig) {
     return Link::fromSig(sig);
+}
+
+template <RandomAccessIteratorFor<std::string> iterator>
+inline Link Link::fromOrientedGauss(iterator begin, iterator end) {
+    return fromEnhancedGauss<GaussEnhancement::Oriented, iterator>(begin, end);
+}
+
+template <RandomAccessIteratorFor<std::string> iterator>
+inline Link Link::fromSignedGauss(iterator begin, iterator end) {
+    return fromEnhancedGauss<GaussEnhancement::Signed, iterator>(begin, end);
 }
 
 inline std::string Link::dumpConstruction() const {

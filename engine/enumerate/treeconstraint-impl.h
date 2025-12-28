@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 2011-2023, Ben Burton                                   *
+ *  Copyright (c) 2011-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -50,8 +48,8 @@
 
 namespace regina {
 
-template <class LPConstraint>
-BanBoundary::BanBoundary(const LPInitialTableaux<LPConstraint>& init) :
+template <LPConstraint Constraint>
+BanBoundary::BanBoundary(const LPInitialTableaux<Constraint>& init) :
         BanConstraintBase(init) {
     size_t n = tri_.size();
     size_t tet;
@@ -93,8 +91,8 @@ BanBoundary::BanBoundary(const LPInitialTableaux<LPConstraint>& init) :
         }
 }
 
-template <class LPConstraint>
-BanEdge::BanEdge(const LPInitialTableaux<LPConstraint>& init, Edge<3>* edge) :
+template <LPConstraint Constraint>
+BanEdge::BanEdge(const LPInitialTableaux<Constraint>& init, Edge<3>* edge) :
         BanConstraintBase(init) {
     size_t n = tri_.size();
     size_t tet;
@@ -141,10 +139,9 @@ BanEdge::BanEdge(const LPInitialTableaux<LPConstraint>& init, Edge<3>* edge) :
         }
 }
 
-template <class LPConstraint>
+template <LPConstraint Constraint>
 BanTorusBoundary::BanTorusBoundary(
-        const LPInitialTableaux<LPConstraint>& init) :
-        BanConstraintBase(init) {
+        const LPInitialTableaux<Constraint>& init) : BanConstraintBase(init) {
     size_t n = tri_.size();
     size_t tet;
 

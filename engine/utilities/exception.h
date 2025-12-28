@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -254,6 +252,38 @@ class LockViolation : public ReginaException {
         LockViolation(const char* msg) : ReginaException(msg) {}
         LockViolation(const LockViolation&) noexcept = default;
         LockViolation& operator = (const LockViolation&) noexcept = default;
+};
+
+/**
+ * An exception thrown when an unexpected scenario arises that should never
+ * be possible.
+ *
+ * By "unexpected", we do not mean (for example) that a precondition was
+ * violated, or an invalid argument was passed to some function.  Instead, we
+ * mean that within the implementation of some function, a situation arises
+ * that should be provably impossible.  Seeing this exception would most likely
+ * indicate a bug in Regina's own source code (as opposed to an error by the
+ * user, or an incorrect use of Regina's API).
+ *
+ * Such exceptions will typically not be mentioned in the API documentation
+ * (since, by their nature, they should never be thrown).
+ *
+ * All member functions follow the same pattern as the parent class
+ * ReginaException, and are not documented again here.
+ *
+ * \ingroup utilities
+ */
+class ImpossibleScenario : public ReginaException {
+    public:
+        ImpossibleScenario(const std::string& msg) :
+            ReginaException("An impossible scenario has occurred - "
+                "please report this to the Regina developers: " + msg) {}
+        ImpossibleScenario(const char* msg) :
+            ReginaException(std::string("An impossible scenario has occurred - "
+                "please report this to the Regina developers: ") + msg) {}
+        ImpossibleScenario(const ImpossibleScenario&) noexcept = default;
+        ImpossibleScenario& operator = (const ImpossibleScenario&) noexcept =
+            default;
 };
 
 /**

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -271,18 +269,18 @@ class TableView {
                 /**
                  * Creates a new uninitialised iterator.
                  */
-                iterator() = default;
+                constexpr iterator() = default;
                 /**
                  * Creates a copy of the given iterator.
                  */
-                iterator(const iterator&) = default;
+                constexpr iterator(const iterator&) = default;
 
                 /**
                  * Makes this a copy of the given iterator.
                  *
                  * \return a reference to this iterator.
                  */
-                iterator& operator = (const iterator&) = default;
+                constexpr iterator& operator = (const iterator&) = default;
 
                 /**
                  * Compares this with the given iterator for equality.
@@ -292,7 +290,7 @@ class TableView {
                  * subarray/element of the underlying table, or \c false
                  * if they do not.
                  */
-                bool operator == (const iterator& rhs) const {
+                constexpr bool operator == (const iterator& rhs) const {
                     return current_ == rhs.current_;
                 }
 
@@ -301,7 +299,7 @@ class TableView {
                  *
                  * \return a reference to this iterator after the increment.
                  */
-                iterator& operator ++ () {
+                constexpr iterator& operator ++ () {
                     ++current_;
                     return *this;
                 }
@@ -311,7 +309,7 @@ class TableView {
                  * \return a copy of this iterator before the increment took
                  * place.
                  */
-                iterator operator ++ (int) {
+                constexpr iterator operator ++ (int) {
                     iterator prev(*this);
                     ++current_;
                     return prev;
@@ -321,7 +319,7 @@ class TableView {
                  *
                  * \return a reference to this iterator after the decrement.
                  */
-                iterator& operator -- () {
+                constexpr iterator& operator -- () {
                     --current_;
                     return *this;
                 }
@@ -331,7 +329,7 @@ class TableView {
                  * \return a copy of this iterator before the decrement took
                  * place.
                  */
-                iterator operator -- (int) {
+                constexpr iterator operator -- (int) {
                     iterator prev(*this);
                     --current_;
                     return prev;
@@ -354,7 +352,7 @@ class TableView {
                  *
                  * \return the corresponding subarray or table element.
                  */
-                Subview operator * () const {
+                constexpr Subview operator * () const {
                     return *current_;
                 }
 
@@ -363,7 +361,7 @@ class TableView {
                  * Creates a new iterator pointing to the given
                  * subarray/element of the underlying table.
                  */
-                iterator(Subarray* s) : current_(s) {}
+                constexpr iterator(Subarray* s) : current_(s) {}
 
             friend class TableView;
         };
@@ -405,7 +403,7 @@ class TableView {
          *
          * \return a reference to this table view.
          */
-        TableView& operator = (const TableView&) = default;
+        constexpr TableView& operator = (const TableView&) = default;
 
         /**
          * Returns the size of this array, across all of the array dimensions.
@@ -469,7 +467,7 @@ class TableView {
          *
          * \return an iterator at the beginning of this table.
          */
-        const_iterator begin() const {
+        constexpr const_iterator begin() const {
             return iterator(array_);
         }
         /**
@@ -490,7 +488,7 @@ class TableView {
          *
          * \return an iterator beyond the end of this table.
          */
-        const_iterator end() const {
+        constexpr const_iterator end() const {
             return array_ + dim1;
         }
 #ifdef __APIDOCS
@@ -514,7 +512,7 @@ class TableView {
          *
          * \return an iterator over the subarrays or elements of this table.
          */
-        auto __iter__() const;
+        constexpr auto __iter__() const;
 #endif
         /**
          * Determines whether this and the given table view are accessing

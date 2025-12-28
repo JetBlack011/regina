@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -38,6 +36,7 @@
 #include <array>
 #include <iostream>
 #include "regina-core.h"
+#include "maths/ring.h"
 
 /*! \file maths/matrix2.h
  *  \brief Deals with 2x2 integer matrices.
@@ -372,6 +371,18 @@ std::strong_ordering simplerThreeWay(
 [[deprecated]] bool simpler(
         const Matrix2& pair1first, const Matrix2& pair1second,
         const Matrix2& pair2first, const Matrix2& pair2second);
+
+#ifndef __DOXYGEN
+// Don't confuse doxygen with specialisations.
+template <>
+struct RingTraits<Matrix2> {
+    inline static const Matrix2 zero;
+    inline static const Matrix2 one { 1, 0, 0, 1 };
+    static constexpr bool commutative = false;
+    static constexpr bool zeroInitialised = true;
+    static constexpr bool zeroDivisors = true;
+};
+#endif // __DOXYGEN
 
 // Inline functions for Matrix2
 

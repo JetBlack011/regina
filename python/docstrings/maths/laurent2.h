@@ -19,20 +19,6 @@ ordinary polynomial in that it allows negative exponents (so, for
 example, you can represent a polynomial such as ``2 + 3x² + y/x -
 1/y³``).
 
-The type *T* must represent a ring with no zero divisors. In
-particular, it must:
-
-* support basic arithmetic operations;
-
-* support assignments of the form ``x = int`` and tests of the form
-  ``x == int`` and ``x < int``;
-
-* have a default constructor that assigns an explicit value of zero.
-
-This means that Regina's numerical types such as Integer and Rational
-are supported, but native data types such as int and long are not
-(since they have no zero-initialising default constructor).
-
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
 possible, even when passing or returning objects by value.
@@ -45,7 +31,13 @@ just one variable.
 
 Python:
     In Python, the class Laurent2 refers to the specific template
-    class Laurent2<Integer>.)doc";
+    class Laurent2<Integer>.
+
+Template parameter ``T``:
+    the coefficient type. A typical coefficient type would be Integer
+    or Rational. Note that native C++ integer types are _not_
+    supported (since they have no zero-initialising default
+    constructor).)doc";
 
 // Docstring regina::python::doc::__add
 static const char *__add =
@@ -388,8 +380,16 @@ Returns:
 
 // Docstring regina::python::doc::Laurent2_::__init
 static const char *__init =
-R"doc(Creates the polynomial ``x^d y^e`` for the given exponents *d* and
-*e*.
+R"doc(Deprecated constructor that creates the polynomial ``x^d y^e`` for the
+given exponents *d* and *e*.
+
+.. deprecated::
+    This will be removed in a future version of Regina for consistency
+    with the single-variable polynomial classes Laurent and
+    Polynomial, since for those classes it is too easy for a casual
+    reader to misread what such an "exponent-based constructor"
+    actually does. You can still create ``x^d y^e`` by calling
+    ``initExp(d, e)`` instead.
 
 Parameter ``xExp``:
     the exponent *d*, which is attached to *x*.
@@ -418,7 +418,7 @@ static const char *__init_3 =
 R"doc(Creates a new polynomial from the given collection of coefficients.
 
 The coefficients should be presented as a collection of tuples of the
-form (*d*, *e*, *v*), each representing a term of the form ``v x^d
+form ``(d, e, v)``, each representing a term of the form ``v x^d
 y^e``.
 
 The tuples may be given in any order. An empty sequence will be
@@ -432,17 +432,6 @@ using the += operator).
 Python:
     Instead of the iterators *begin* and *end*, this routine takes a
     python list of tuples.
-
-Template parameter ``iterator``:
-    an iterator type which, when dereferenced, gives a std::tuple of
-    the form (*d*, *e*, *v*), where *d* and *e* can be assigned to
-    long integers, and where *v* can be assigned to type *T*.
-
-Template parameter ``deref``:
-    a dummy argument that should be ignored. This is present to ensure
-    that *iterator* can be dereferenced, so that a call such as
-    Laurent2(int, int) falls through to the (long, long) constructor,
-    and not this iterator-based constructor instead.
 
 Parameter ``begin``:
     the beginning of the set of coefficients, as outlined above.
@@ -482,6 +471,23 @@ static const char *init = R"doc(Sets this to become the zero polynomial.)doc";
 
 // Docstring regina::python::doc::Laurent2_::init_2
 static const char *init_2 =
+R"doc(Deprecated function that sets this to become the polynomial ``x^d
+y^e`` for the given exponents *d* and *e*.
+
+.. deprecated::
+    This has been renamed to initExp() for consistency with the
+    single-variable polynomial classes Laurent and Polynomial, since
+    for those classes it is too easy for a casual reader to misread
+    what such an "exponent-based initialisation" actually does.
+
+Parameter ``xExp``:
+    the new exponent *d*, which is attached to *x*.
+
+Parameter ``yExp``:
+    the new exponent *e*, which is attached to *y*.)doc";
+
+// Docstring regina::python::doc::Laurent2_::initExp
+static const char *initExp =
 R"doc(Sets this to become the polynomial ``x^d y^e`` for the given exponents
 *d* and *e*.
 

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -54,7 +52,7 @@ namespace regina {
 // - For more than one connected component:
 //
 //   * Build the sequence for each connected component, with each sequence
-//     treated as a standalong link diagram (so we reuse crossing numbers).
+//     treated as a standalone link diagram (so we reuse crossing numbers).
 //   * Sort these sequences, then concatenate the corresponding signatures.
 //     The ordering (which seems natural for describing a link diagram) is by:
 //     + the number of crossings, descending;
@@ -197,7 +195,8 @@ namespace {
      * and fewer than 64 link components.
      */
     SigSequence sigSequenceConnected(const Link& link,
-            BoolSet reflectionOptions, bool allowReversal) {
+            BoolSet reflectionOptions, bool allowReversal,
+            BoolSet rotationOptions) {
         const size_t n = link.size();
         Symmetries sym(link);
 
@@ -255,7 +254,9 @@ namespace {
                     if (startPositive && startSign < 0)
                         continue;
 
-                    for (sym.rotate = 0; sym.rotate < 2; ++sym.rotate) {
+                    for (sym.rotate = (rotationOptions.hasFalse() ? 0 : 1);
+                            sym.rotate < (rotationOptions.hasTrue() ? 2 : 1);
+                            ++sym.rotate) {
                         // Follow the link around from this starting point,
                         // using the chosen set of component orientations.
 
@@ -362,7 +363,7 @@ namespace {
         // Output strands and signs, each as a packed sequence of bits.
         // Note: both the strands and the signs could be written using n bits
         // each, not 2n bits each (we are basically writing everything twice) -
-        // however, the old knot signatured wrote 2n bits and it would be bad
+        // however, the old knot signatures wrote 2n bits and it would be bad
         // to break compatibility with those.  Ah well.  An extra 2n bits ~ n/3
         // chars is not the end of the world: it only multiplies the length of
         // the signature by 7/6 (or less, if ints require more than one char).
@@ -400,7 +401,8 @@ namespace {
     }
 }
 
-std::string Link::sig(bool allowReflection, bool allowReversal) const {
+std::string Link::sig(bool allowReflection, bool allowReversal,
+        bool allowRotation) const {
     if (components_.size() >= 64)
         throw NotImplemented("Signatures are only implemented for "
             "fewer than 64 link components");
@@ -427,14 +429,16 @@ std::string Link::sig(bool allowReflection, bool allowReversal) const {
         encodeSigSequence(enc, sigSequenceConnected(*this,
             allowReflection ? BoolSet(true, true) /* both options */ :
                 BoolSet(false) /* false only */,
-            allowReversal));
+            allowReversal,
+            allowRotation ? BoolSet(true, true) /* both options */ :
+                BoolSet(false) /* false only */));
     } else {
         // We need to build a sequence for each connected component.
         // For now we will not worry too much about overhead since people
         // should not be doing intense work with disconnected link diagrams
         // in practice (?).
         //
-        // Do this first without reflection.
+        // Do this first without reflection or rotation.
         auto components = diagramComponents();
         size_t nTrivial = 0;
 
@@ -444,19 +448,41 @@ std::string Link::sig(bool allowReflection, bool allowReversal) const {
                 // This is a zero-crossing unknot component.
                 ++nTrivial;
             } else {
-                bits.push_back(sigSequenceConnected(c, { false },
-                    allowReversal));
+                bits.push_back(sigSequenceConnected(c,
+                    { false }, allowReversal, { false }));
             }
         }
         std::sort(bits.begin(), bits.end());
 
+        // ... and again with reflection and/or rotation.
         if (allowReflection) {
-            // ... and again with reflection.
             std::vector<SigSequence> alt;
             for (auto c : components) {
                 if (c.size() > 0)
-                    alt.push_back(sigSequenceConnected(c, { true },
-                        allowReversal));
+                    alt.push_back(sigSequenceConnected(c,
+                        { true }, allowReversal, { false }));
+            }
+            std::sort(alt.begin(), alt.end());
+            if (alt < bits)
+                alt.swap(bits);
+        }
+        if (allowRotation) {
+            std::vector<SigSequence> alt;
+            for (auto c : components) {
+                if (c.size() > 0)
+                    alt.push_back(sigSequenceConnected(c,
+                        { false }, allowReversal, { true }));
+            }
+            std::sort(alt.begin(), alt.end());
+            if (alt < bits)
+                alt.swap(bits);
+        }
+        if (allowReflection && allowRotation) {
+            std::vector<SigSequence> alt;
+            for (auto c : components) {
+                if (c.size() > 0)
+                    alt.push_back(sigSequenceConnected(c,
+                        { true }, allowReversal, { true }));
             }
             std::sort(alt.begin(), alt.end());
             if (alt < bits)
@@ -493,7 +519,7 @@ Link Link::fromSig(const std::string& sig) {
 
     try {
         while (! dec.done()) {
-            // Read one component of the link diagram at a time.
+            // Read one connected component of the link diagram at a time.
             // Note: the call to dec.done() ignores whitespace, but if there
             // _is_ internal whitespace between components then this will be
             // caught by decodeSize() below.
@@ -508,11 +534,11 @@ Link Link::fromSig(const std::string& sig) {
             FixedArray<int> sign(2 * n);
             FixedArray<int> strand(2 * n);
 
-            // A connected diagram with n ≥ 1 crossings can have at most n
-            // link components, since each component uses ≥ 2 strands.  Here
-            // compStart[i] is the index into crossing[] at which component i
-            // begins, and we terminate compStart[] with an extra value of 2n.
-            FixedArray<size_t> compStart(n + 1);
+            // A connected _virtual_ diagram with n ≥ 1 crossings can have up
+            // to n+1 link components.  Here compStart[i] is the index into
+            // crossing[] at which component i begins, and we terminate
+            // compStart[] with an extra value of 2n.
+            FixedArray<size_t> compStart(n + 2);
 
             size_t i = 0;    // next index into crossing[] to read
             size_t comp = 0; // current component being read

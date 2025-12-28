@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Swift User Interface                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -132,18 +130,20 @@ struct TreeDetail: View {
 struct TreeView: View {
     // @ObservedObject var document: ReginaDocument
     @ObservedObject private var root: PacketWrapper
-    // TODO: Should the title be a binding?
-    let title: String
-
     @StateObject private var display = DisplayState()
 
     @State private var inputNewPacket = false
     @State private var inputNewPacketType: regina.PacketType = .None
     @State private var createBeneath: PacketWrapper?
+    
+    @State private var showSettings = false
 
-    init(packet: regina.SharedPacket, title: String) {
+    #if !os(macOS)
+    @Environment(\.dismiss) private var dismiss
+    #endif
+
+    init(packet: regina.SharedPacket) {
         root = .init(packet: packet)
-        self.title = title
     }
 
     var body: some View {
@@ -159,7 +159,6 @@ struct TreeView: View {
                 List(root.children ?? [], selection: $display.selected) { item in
                     PacketCell(wrapper: item, depth: 0)
                 }
-                .navigationTitle(title)
                 .onChange(of: display.selected) { wrapper in
                     if let wrapper = wrapper {
                         if wrapper.packet.type() == .Container {
@@ -177,6 +176,16 @@ struct TreeView: View {
                     }
                 }
                 .toolbar {
+                    #if !os(macOS)
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Settings", systemImage: "gear") {
+                            showSettings = true
+                        }
+                    }
+                    #if !os(visionOS)
+                    ToolbarSpacer(placement: .primaryAction)
+                    #endif
+                    #endif
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
                             // TODO: Should this be a static list?
@@ -239,6 +248,20 @@ struct TreeView: View {
 
             }
         }
+        #if !os(macOS)
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close", systemImage: "xmark") {
+                                dismiss()
+                            }
+                        }
+                    }
+            }.presentationSizing(.page)
+        }
+        #endif
     }
 }
 
@@ -265,6 +288,6 @@ struct TreeView_Previews: PreviewProvider {
     }
     
     static var previews: some View {
-        TreeView(packet: simpleTree, title: "Sample")
+        TreeView(packet: simpleTree)
     }
 }

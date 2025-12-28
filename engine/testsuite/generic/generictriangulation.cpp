@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -73,11 +71,23 @@ TEST_F(Dim5Test, reordering) {
 TEST_F(Dim5Test, doubleCover) {
     testGenericCases(TriangulationTest<5>::verifyDoubleCover);
 }
+TEST_F(Dim5Test, doubleOverBoundary) {
+    testGenericCases(TriangulationTest<5>::verifyDoubleOverBoundary);
+}
 TEST_F(Dim5Test, makeCanonical) {
     testGenericCases(TriangulationTest<5>::verifyMakeCanonical);
 }
 TEST_F(Dim5Test, isomorphismSignature) {
     testGenericCases(TriangulationTest<5>::verifyIsomorphismSignature);
+    verifyIsomorphismSignatureWithLocks(
+        TriangulationTest<5>::twistedSphereBundle.tri,
+        TriangulationTest<5>::twistedSphereBundle.name);
+    verifyIsomorphismSignatureWithLocks(
+        TriangulationTest<5>::twistedBallBundle.tri,
+        TriangulationTest<5>::twistedBallBundle.name);
+}
+TEST_F(Dim5Test, lockEnforcement) {
+    testGenericCases(TriangulationTest<5>::verifyLockEnforcement);
 }
 TEST_F(Dim5Test, pachner) {
     testGenericCases(TriangulationTest<5>::verifyPachner);
@@ -141,11 +151,23 @@ TEST_F(Dim6Test, reordering) {
 TEST_F(Dim6Test, doubleCover) {
     testGenericCases(TriangulationTest<6>::verifyDoubleCover);
 }
+TEST_F(Dim6Test, doubleOverBoundary) {
+    testGenericCases(TriangulationTest<6>::verifyDoubleOverBoundary);
+}
 TEST_F(Dim6Test, makeCanonical) {
     testGenericCases(TriangulationTest<6>::verifyMakeCanonical);
 }
 TEST_F(Dim6Test, isomorphismSignature) {
     testGenericCases(TriangulationTest<6>::verifyIsomorphismSignature);
+    verifyIsomorphismSignatureWithLocks(
+        TriangulationTest<6>::twistedSphereBundle.tri,
+        TriangulationTest<6>::twistedSphereBundle.name);
+    verifyIsomorphismSignatureWithLocks(
+        TriangulationTest<6>::twistedBallBundle.tri,
+        TriangulationTest<6>::twistedBallBundle.name);
+}
+TEST_F(Dim6Test, lockEnforcement) {
+    testGenericCases(TriangulationTest<6>::verifyLockEnforcement);
 }
 TEST_F(Dim6Test, pachner) {
     testGenericCases(TriangulationTest<6>::verifyPachner);
@@ -219,6 +241,12 @@ TEST_F(Dim8Test, reordering) {
 }
 TEST_F(Dim8Test, doubleCover) {
     testGenericCases(TriangulationTest<8>::verifyDoubleCover);
+}
+TEST_F(Dim8Test, doubleOverBoundary) {
+    testGenericCases(TriangulationTest<8>::verifyDoubleOverBoundary);
+}
+TEST_F(Dim8Test, lockEnforcement) {
+    testGenericCases(TriangulationTest<8>::verifyLockEnforcement);
 }
 TEST_F(Dim8Test, tightEncoding) {
     testGenericCases(TriangulationTest<8>::verifyTightEncoding);

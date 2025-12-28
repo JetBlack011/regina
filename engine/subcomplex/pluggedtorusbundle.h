@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -55,7 +53,7 @@ namespace regina {
  * possibly with layerings in between.
  *
  * The thin I-bundle must be untwisted, so that it forms the product
- * `T x I` with two boundary tori.  Moreover, it must be isomorphic
+ * `T × I` with two boundary tori.  Moreover, it must be isomorphic
  * to some existing instance of the class TxICore.
  *
  * The saturated region is described by an object of the class SatRegion.
@@ -196,7 +194,7 @@ class PluggedTorusBundle : public StandardTriangulation {
          * Returns an isomorphic copy of the thin I-bundle that forms part
          * of this triangulation.  Like all objects of class TxICore, the
          * thin I-bundle that is returned is an external object with its own
-         * separate triangulation of the product `T x I`.  For
+         * separate triangulation of the product `T × I`.  For
          * information on how the thin I-bundle is embedded within this
          * triangulation, see the routine bundleIso().
          *

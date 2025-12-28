@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -51,11 +49,11 @@ namespace regina {
  * corresponding four endpoints attached to four marked points on
  * the 3-ball boundary.
  *
- * Regina stores tangles as projections, with the four endpoints
- * fixed at the top-left, top-right, bottom-left and bottom-right
- * corners of the diagram.
+ * Regina stores tangles as projections onto a disc.  The four endpoints
+ * of the tangle are fixed at four special points on the disc boundary,
+ * located at the top-left, top-right, bottom-left, and bottom-right.
  *
- * Each tangles has a _type_, indicating how the four endpoints are
+ * Each tangle has a _type_, indicating how the four endpoints are
  * connected.  The three possible types are:
  *
  * - _horizontal_, indicating that the two top endpoints are connected,
@@ -76,6 +74,11 @@ namespace regina {
  * When traversing a tangle, if you reach one of the endpoints of a string
  * then the corresponding return value of Crossing::next() or
  * Crossing::prev() (whichever is relevant) will be a null strand reference.
+ *
+ * Note that, although Regina can work with both classical and virtual knots
+ * and links, it only considers tangles in the classical sense.  That is,
+ * Regina's tangles always live within the 3-ball, and their diagrams are
+ * always projections onto a disc.
  *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
@@ -150,9 +153,9 @@ class Tangle : public Output<Tangle> {
          */
         Tangle(int num, int den);
         /**
-         * Creates a tangle from two parallel copies of the given knot.
+         * Creates a tangle from two parallel copies of a classical knot.
          *
-         * Specifically, the tangle will consist of two parallel copies
+         * Specifically, the new tangle will consist of two parallel copies
          * of the given knot diagram, which will be broken just before
          * the starting strand as returned by `knot.component(0)`.
          *
@@ -165,8 +168,9 @@ class Tangle : public Output<Tangle> {
          *
          * The tangle will contain `4 * knot.size()` crossings in total.
          *
-         * \pre The argument contains exactly one component (i.e., it
-         * is actually a knot, and not empty or a multiple-component link).
+         * \pre The given link is classical, and it contains exactly one
+         * component (i.e., it is actually a knot, and not empty or a
+         * multiple-component link).
          *
          * \param knot the knot to break and duplicate to form this tangle.
          */
@@ -659,7 +663,7 @@ class Tangle : public Output<Tangle> {
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR1().  If you wish to both check and perform the move,
          * call r1() without the two additional boolean arguments.
          *
@@ -689,7 +693,7 @@ class Tangle : public Output<Tangle> {
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR2().  If you wish to both check and perform the move,
          * call r2() without the two additional boolean arguments.
          *
@@ -719,7 +723,7 @@ class Tangle : public Output<Tangle> {
          * allowed.  If it is, and if the argument \a perform is \c true,
          * this routine will also _perform_ the move.
          *
-         * \deprecated If you just wish to test whether a such move is possible,
+         * \deprecated If you just wish to test whether such a move is possible,
          * call hasR2().  If you wish to both check and perform the move,
          * call r2() without the two additional boolean arguments.
          *
@@ -1114,12 +1118,6 @@ class Tangle : public Output<Tangle> {
          * have been combined together and separated by whitespace.  This
          * variant takes a sequence of tokens, defined by a pair of iterators.
          *
-         * \pre \a Iterator is a random access iterator type.
-         *
-         * \pre Dereferencing such an iterator produces either a
-         * C-style string (which can be cast to `const char*`) or a
-         * C++-style string (which can be cast to `const std::string&`).
-         *
          * \pre The tokens in the input sequence do not contain any whitespace.
          *
          * \warning While this routine does some error checking on the input,
@@ -1142,8 +1140,8 @@ class Tangle : public Output<Tangle> {
          * sequence of tokens for an oriented Gauss code.
          * \return the resulting tangle.
          */
-        template <typename Iterator>
-        static Tangle fromOrientedGauss(Iterator begin, Iterator end);
+        template <RandomAccessIteratorFor<std::string> iterator>
+        static Tangle fromOrientedGauss(iterator begin, iterator end);
 
         /*@}*/
 

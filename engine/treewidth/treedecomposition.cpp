@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,6 +37,7 @@
 #include "triangulation/dim2.h"
 #include "triangulation/dim3.h"
 #include "triangulation/dim4.h"
+#include "utilities/fixedarray.h"
 
 namespace regina {
 
@@ -433,12 +432,10 @@ void TreeDecomposition::greedyFillIn(Graph& graph) {
     // Note: This step currently requires O(n^4) time; surely with a
     // little tweaking we can improve this.
 
-    bool* used = new bool[graph.order_];
-    auto* elimOrder = new size_t[graph.order_]; // Elimination stage -> vertex
-    auto* elimStage = new size_t[graph.order_]; // Vertex -> elimination stage
-    auto* bags = new TreeBag*[graph.order_];
-
-    std::fill(used, used + graph.order_, false);
+    FixedArray<bool> used(graph.order_, false);
+    FixedArray<size_t> elimOrder(graph.order_); // Elimination stage -> vertex
+    FixedArray<size_t> elimStage(graph.order_); // Vertex -> elimination stage
+    FixedArray<TreeBag*> bags(graph.order_);
 
     for (size_t stage = 0; stage < graph.order_; ++stage) {
         ssize_t bestElim = -1;
@@ -525,13 +522,6 @@ void TreeDecomposition::greedyFillIn(Graph& graph) {
         }
         bags[parent]->insertChild(bags[stage]);
     }
-
-    // Clean up.
-
-    delete[] used;
-    delete[] elimOrder;
-    delete[] elimStage;
-    delete[] bags;
 }
 
 const TreeBag* TreeDecomposition::first() const {

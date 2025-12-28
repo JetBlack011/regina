@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Swift User Interface                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -39,84 +37,156 @@ extension UTType {
     static let snapPeaTriangulation = UTType(exportedAs: "org.computop.snappea-triangulation")
 }
 
+enum ReginaDocumentError: Error {
+    /// Indicates that the document is still in a loading state.
+    case documentLoading
+    /// Indicates that the document tried to load but failed.
+    case documentHasError
+    /// Indicates that the C++ engine returned a null pointer where data was expected.
+    case noData
+}
+
+// TODO: We need a way to observe changes to the packet and/or the packet tree.
+// This should happen via the ObservableObject protocol (which ReferenceFileDocument inherits),
+// and it will need to somehow communicate with Regina's packet listener interface.
+
 // TODO: Remember whether the data file was compressed when opened, and write it the same way.
 // Currently we are saving uncompressed, always.
-class ReginaDocument: ReferenceFileDocument {
-    // TODO: We need a way to observe changes to the packet and/or the packet tree.
-    // This should happen via the ObservableObject protocol (which ReferenceFileDocument inherits),
-    // and it will need to somehow communicate with Regina's packet listener interface.
-    var root: regina.SharedPacket
-    var title: String
-
+final class ReginaDocument: ReferenceFileDocument {
     static var readableContentTypes: [UTType] { [.reginaData, .snapPeaTriangulation] }
     static var writableContentTypes: [UTType] { [.reginaData] }
 
+    enum Origin {
+        case url
+        case example(title: String)
+    }
+    
+    enum Status {
+        /**
+         * The file is currently loading.
+         */
+        case loading
+        /**
+         * The file has been successfully loaded (which means it should be visible to the user).
+         */
+        case open(root: regina.SharedPacket)
+        /**
+         * There was an error attempting to open the file.
+         */
+        case error
+    }
+    
+    let origin: Origin
+    @Published var status: Status
+    
+    var isOpen: Bool {
+        if case .open = status {
+            return true
+        } else {
+            return false
+        }
+    }
+    
     init() {
         // The root packet is not visible, and does not need a packet label.
-        root = regina.SharedContainer.make().asPacket()
-        
         // TODO: Add a helpful child text packet to explain what users should do.
-        
-        // This should never appear, since a new document gets saved and then opened under its real filename (e.g., "Untitled.rga").
-        title = "New Document"
+        origin = .url
+        status = .open(root: regina.SharedContainer.make().asPacket())
     }
     
     init(example: String, title: String) throws {
-        // TODO: Work out how to make the example file read-only and the
-        // document treated as a new document with an appropriate filename.
+        // TODO: Work out how to make the example file read-only.
         guard let fileURL = Bundle.main.url(forResource: example, withExtension: "rga", subdirectory: "examples") else {
             throw CocoaError(.fileNoSuchFile)
         }
-        self.title = title
+        origin = .example(title: title)
+        status = .loading
 
-        let data = try Data(contentsOf: fileURL)
-        root = data.withUnsafeBytes { bytes in
-            regina.SharedPacket.open(bytes.baseAddress, data.count)
-        }
-        if root.isNull() {
-            throw CocoaError(.fileReadCorruptFile)
+        // We load this in the background, much like how we do it
+        // in the ReadConfiguration initialiser below.
+        Task { [weak self] in
+            let data = try Data(contentsOf: fileURL)
+            let root = data.withUnsafeBytes { bytes in
+                regina.SharedPacket.open(bytes.baseAddress, data.count)
+            }
+            guard let self else {
+                print("EXAMPLE LOAD CANCELLED (#1)")
+                return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    print("EXAMPLE LOAD CANCELLED (#2)")
+                    return
+                }
+                if root.isNull() {
+                    self.status = .error
+                } else {
+                    self.status = .open(root: root)
+                }
+            }
         }
     }
     
     required init(configuration: ReadConfiguration) throws {
         guard let data = configuration.file.regularFileContents else {
-            throw CocoaError(.fileReadCorruptFile)
+            throw CocoaError(.fileReadUnknown)
         }
-        if let filename = configuration.file.filename {
-            self.title = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-        } else {
-            self.title = "Regina Document"
-        }
+        origin = .url
+        status = .loading
+        let filename = configuration.file.filename
 
         switch configuration.contentType {
         case .reginaData:
-            root = data.withUnsafeBytes { bytes in
-                regina.SharedPacket.open(bytes.baseAddress, data.count)
+            // We will load the document in a background thread, since
+            // files could be large.
+            // To cancel a load, the user can just close the window.
+            // The task will finish and then throw the result away.
+            Task { [weak self] in
+                let root = data.withUnsafeBytes { bytes in
+                    regina.SharedPacket.open(bytes.baseAddress, data.count)
+                }
+                guard let self else {
+                    print("DOCUMENT LOAD CANCELLED (#1)")
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    guard let self else {
+                        print("DOCUMENT LOAD CANCELLED (#2)")
+                        return
+                    }
+                    if root.isNull() {
+                        self.status = .error
+                    } else {
+                        self.status = .open(root: root)
+                    }
+                }
             }
         case .snapPeaTriangulation:
             // TODO: support reading SnapPea data files
             throw CocoaError(.fileReadUnsupportedScheme)
         default:
-            // TODO: what *should* we be throwing here?
             throw CocoaError(.fileReadUnsupportedScheme)
         }
-
-        if root.isNull() {
-            throw CocoaError(.fileReadCorruptFile)
+    }
+    
+    func snapshot(contentType: UTType) throws -> Data {
+        print("DOCUMENT SNAPSHOT")
+        switch status {
+        case .loading:
+            throw ReginaDocumentError.documentLoading
+        case .error:
+            throw ReginaDocumentError.documentHasError
+        case .open(let root):
+            let save = root.save()
+            guard let bytes = save.__dataUnsafe() else {
+                throw ReginaDocumentError.noData
+            }
+            return Data(bytes: bytes, count: save.length())
         }
     }
     
-    func snapshot(contentType: UTType) throws -> std.string {
-        return root.save()
-    }
-    
-    func fileWrapper(snapshot: std.string, configuration: WriteConfiguration) throws -> FileWrapper {
-        // TODO: Can we std::move() from snapshot into the new String?
-        // TODO: Check exactly when String.data() can return null.
-        // TODO: update file URL
-        if let filename = configuration.existingFile?.filename {
-            self.title = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-        }
-        return .init(regularFileWithContents: String(snapshot).data(using: .utf8)!)
+    func fileWrapper(snapshot: Data, configuration: WriteConfiguration) throws -> FileWrapper {
+        print("DOCUMENT WRITE: \(configuration.existingFile?.filename ?? "New file")")
+        return .init(regularFileWithContents: snapshot)
     }
 }

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -176,8 +174,8 @@ class ExampleLink {
          * and Thompson.
          *
          * Specifically, this knot is Figure 2 from their paper
-         * "Fibered knots and potential counterexamples to the property
-         * 2R and slice-ribbon conjectures", arXiv:1103.1601.
+         * "Fibered knots and potential counterexamples to the property 2R and
+         * slice-ribbon conjectures", Geometry & Topology 14 (2010), 2305-2347.
          *
          * \return the Gompf-Scharlemann-Thompson knot.
          */
@@ -202,6 +200,52 @@ class ExampleLink {
          * counterexample to the 3-move conjecture.
          */
         static Link chen();
+
+        /**
+         * Returns a two-crossing diagram of the virtual trefoil.
+         * Both crossings will be positive.
+         *
+         * This is the mirror image of virtual knot 2.1 in the Jeremy Green
+         * tables (where by "mirror image" we mean switching the upper and
+         * lower strands in each crossing - Green calls this a _vertical_
+         * mirror image).
+         *
+         * \return the virtual trefoil.
+         */
+        static Link virtualTrefoil();
+
+        /**
+         * Returns a four-crossing diagram of the Kishino knot.
+         * This is a non-trivial virtual knot that is the composition of two
+         * virtual unknots.  It is a non-trivial virtual knot; however, it has
+         * the same group as the unknot, and it has trivial Jones polynomial.
+         *
+         * This is virtual knot 4.55 in the Jeremy Green tables.
+         *
+         * \return the Kishino knot.
+         */
+        static Link kishino();
+
+        /**
+         * Returns a four-crossing diagram of the Goussarov-Polyak-Viro virtual
+         * knot.  This is a knot whose group changes when we switch the upper
+         * and lower strands at each crossing (a behaviour that is impossible
+         * for classical knots and links).
+         *
+         * Specifically: if we denote this knot \a K, then `K.group()` is
+         * isomorphic to the trefoil group; however, if we call `K.changeAll()`
+         * or `K.rotate()` then `K.group()` becomes isomorphic to the
+         * unknot group (i.e., the infinite cyclic group).
+         *
+         * This is the rotation of virtual knot 4.73 in the Jeremy Green
+         * tables (where by "rotation" we mean flipping the diagram upside-down
+         * so that each crossing keeps its sign but switches its upper vs lower
+         * strands - in Green's terminology, this is the composition of both a
+         * vertical and a horizontal mirror image).
+         *
+         * \return the Goussarov-Polyak-Viro virtual knot.
+         */
+        static Link gpv();
 
         /**
          * Returns a simple and symmetric embedding in 3-space of the

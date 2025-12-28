@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -53,12 +51,8 @@
 namespace regina::detail {
 
 template <typename Int>
+requires StandardCppInteger<Int> || ArbitraryPrecisionInteger<Int>
 void tightEncodeInteger(std::ostream& out, Int value) {
-    static_assert((std::is_integral_v<Int> && ! std::is_same_v<Int, bool>)
-            || IsReginaArbitraryPrecisionInteger<Int>::value,
-        "tightEncodeInteger() requires either a native C++ integer type "
-        "or one of Regina's arbitrary precision integer types.");
-
     // Here we use the 90 values 33..122 as "digit" characters,
     // and the four values 123..126 as different types of markers.
     // As characters, the four markers are: { | } ~
@@ -229,13 +223,9 @@ void tightEncodeInteger(std::ostream& out, Int value) {
     out << '}';
 }
 
-template <typename Int, typename iterator>
+template <typename Int, CharIterator iterator>
+requires StandardCppInteger<Int> || ArbitraryPrecisionInteger<Int>
 Int tightDecodeInteger(iterator start, iterator limit, bool noTrailingData) {
-    static_assert((std::is_integral_v<Int> && ! std::is_same_v<Int, bool>)
-            || IsReginaArbitraryPrecisionInteger<Int>::value,
-        "tightEncodeInteger() requires either a native C++ integer type "
-        "or one of Regina's arbitrary precision integer types.");
-
     Int result;
     bool overflow = false;
 

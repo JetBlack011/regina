@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -137,14 +135,14 @@ Triangulation<2> Example<2>::sphereOctahedron() {
     s->join(1, t, Perm<3>(1, 2));
     t->join(1, u, Perm<3>(1, 2));
     u->join(1, r, Perm<3>(1, 2));
-    v->join(1, w, Perm<3>(1, 2));
-    w->join(1, x, Perm<3>(1, 2));
-    x->join(1, y, Perm<3>(1, 2));
-    y->join(1, v, Perm<3>(1, 2));
-    r->join(0, v, Perm<3>());
-    s->join(0, w, Perm<3>());
-    t->join(0, x, Perm<3>());
-    u->join(0, y, Perm<3>());
+    v->join(2, w, Perm<3>(1, 2));
+    w->join(2, x, Perm<3>(1, 2));
+    x->join(2, y, Perm<3>(1, 2));
+    y->join(2, v, Perm<3>(1, 2));
+    r->join(0, v, Perm<3>(1, 2));
+    s->join(0, w, Perm<3>(1, 2));
+    t->join(0, x, Perm<3>(1, 2));
+    u->join(0, y, Perm<3>(1, 2));
 
     return ans;
 }

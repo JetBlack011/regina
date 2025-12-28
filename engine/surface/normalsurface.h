@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -44,6 +42,7 @@
 #include <utility>
 #include "regina-core.h"
 #include "core/output.h"
+#include "maths/forward.h"
 #include "maths/perm.h"
 #include "maths/vector.h"
 #include "packet/packet.h"
@@ -58,7 +57,7 @@ namespace regina {
 class NormalSurfaces;
 
 /**
- * \defgroup surfaces Normal Surfaces
+ * \defgroup surface Normal Surfaces
  * Normal surfaces in 3-manifold triangulations.
  */
 
@@ -75,7 +74,7 @@ class NormalSurfaces;
  * edge \a i together (and will therefore also keep the vertices of edge
  * \a 5-i together).
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr int quadSeparating[4][4] = {
     { -1, 0, 1, 2 }, {  0,-1, 2, 1 }, {  1, 2,-1, 0 }, {  2, 1, 0,-1 }
@@ -90,7 +89,7 @@ inline constexpr int quadSeparating[4][4] = {
  * quadrilateral types that meet the edge joining tetrahedron vertices
  * `i` and `j`.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr int quadMeeting[4][4][2] = {
     { {-1,-1}, { 1, 2}, { 0, 2}, { 0, 1} },
@@ -119,7 +118,7 @@ inline constexpr int quadMeeting[4][4][2] = {
  * this will give the same results for \a j = 0 and 1, but it might
  * switch the results for \a j = 2 and 3.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr int quadDefn[3][4] = {
     { 0, 1, 2, 3 }, { 0, 2, 1, 3 }, { 0, 3, 1, 2 }
@@ -134,7 +133,7 @@ inline constexpr int quadDefn[3][4] = {
  * Quadrilateral type \c i pairs vertex \c v with
  * vertex `quadPartner[i][v]`.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr int quadPartner[3][4] = {
     { 1, 0, 3, 2}, { 2, 3, 0, 1}, { 3, 2, 1, 0}
@@ -154,7 +153,7 @@ inline constexpr int quadPartner[3][4] = {
  * strings.  In such cases, this constant will be marked `inline const`
  * but not `constexpr`.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 #if defined(__APIDOCS) || __cpp_lib_constexpr_string >= 201907L
 inline constexpr std::string quadString[3] = { "01/23", "02/13", "03/12" };
@@ -175,7 +174,7 @@ inline const std::string quadString[3] = { "01/23", "02/13", "03/12" };
  *
  * Note that every permutation in this array is even.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr Perm<4> triDiscArcs[4][3] = {
     Perm<4>(0,1,2,3), Perm<4>(0,2,3,1), Perm<4>(0,3,1,2),
@@ -197,7 +196,7 @@ inline constexpr Perm<4> triDiscArcs[4][3] = {
  * Note that permutation `quadDiscArcs[i][j]` will be even
  * precisely when `j` is even.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr Perm<4> quadDiscArcs[3][4] = {
     Perm<4>(0,2,3,1), Perm<4>(3,0,1,2), Perm<4>(1,3,2,0), Perm<4>(2,1,0,3),
@@ -218,7 +217,7 @@ inline constexpr Perm<4> quadDiscArcs[3][4] = {
  * Note that permutation `octDiscArcs[i][j]` will be even
  * precisely when `j` is 0, 1, 4 or 5.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 inline constexpr Perm<4> octDiscArcs[3][8] = {
     Perm<4>(0,3,1,2), Perm<4>(0,1,2,3), Perm<4>(2,0,3,1), Perm<4>(2,3,1,0),
@@ -228,9 +227,6 @@ inline constexpr Perm<4> octDiscArcs[3][8] = {
     Perm<4>(0,2,3,1), Perm<4>(0,3,1,2), Perm<4>(1,0,2,3), Perm<4>(1,2,3,0),
     Perm<4>(3,1,0,2), Perm<4>(3,0,2,1), Perm<4>(2,3,1,0), Perm<4>(2,1,0,3)
 };
-
-template <typename, bool> class Matrix;
-using MatrixInt = Matrix<Integer, true>;
 
 /**
  * Represents a single normal surface in a 3-manifold triangulation.
@@ -283,7 +279,7 @@ using MatrixInt = Matrix<Integer, true>;
  * \todo \featurelong Determine which faces in the solution space a
  * normal surface belongs to.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class NormalSurface : public ShortOutput<NormalSurface> {
     protected:
@@ -1457,6 +1453,15 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * now handle octagons, including cases with multiple octagons in the
          * same tetrahedron and/or octagons in multiple tetrahedra.
          *
+         * This operation does _not_ preserve orientation.  That is,
+         * even if the original triangulation is oriented, there are no
+         * guarantees regarding the orientation of the tetrahedra in the
+         * cut-open triangulation.  The cut-open triangulation might have the
+         * same or opposite orientation as the original, or it might not be
+         * oriented at all.  If you need to preserve orientation, consider
+         * whether crush() (which _does_ preserve orientation) might work for
+         * you instead.
+         *
          * This routine will ignore any locks on tetrahedra and/or triangles
          * of the original triangulation (and of course the original
          * triangulation will be left safely unchanged).  The triangulation
@@ -1495,6 +1500,9 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * connected sum decompositions, removal of 3-spheres and
          * small Lens spaces and so on; a full list of possible changes
          * is beyond the scope of this API documentation.
+         *
+         * If the original triangulation is oriented, then the crushing
+         * operation will preserve this orientation.
          *
          * This routine will ignore any locks on tetrahedra and/or triangles
          * of the original triangulation (and of course the original
@@ -1780,7 +1788,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \return a matrix with \a number_of_vertices rows and two columns
          * as described above.
          */
-        MatrixInt boundaryIntersections() const;
+        Matrix<Integer> boundaryIntersections() const;
 
         /**
          * Gives read-only access to the integer vector that Regina uses
@@ -1946,7 +1954,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
  * \param a the first normal surface whose contents should be swapped.
  * \param b the second normal surface whose contents should be swapped.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 void swap(NormalSurface& a, NormalSurface& b) noexcept;
 

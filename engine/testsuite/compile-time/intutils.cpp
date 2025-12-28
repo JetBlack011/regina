@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Test Suite                                                            *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -61,3 +59,49 @@ static_assert(! regina::FaithfulAssignment<
     regina::LargeInteger, regina::Integer>::value);
 static_assert(regina::FaithfulAssignment<
     regina::LargeInteger, regina::LargeInteger>::value);
+
+static_assert(! regina::is_cpp_integer_v<bool>);
+static_assert(! regina::is_unsigned_cpp_integer_v<bool>);
+static_assert(! regina::is_signed_cpp_integer_v<bool>);
+
+static_assert(regina::is_cpp_integer_v<unsigned char>);
+static_assert(regina::is_unsigned_cpp_integer_v<unsigned char>);
+static_assert(! regina::is_signed_cpp_integer_v<unsigned char>);
+
+static_assert(regina::is_cpp_integer_v<signed char>);
+static_assert(! regina::is_unsigned_cpp_integer_v<signed char>);
+static_assert(regina::is_signed_cpp_integer_v<signed char>);
+
+static_assert(regina::is_cpp_integer_v<unsigned>);
+static_assert(regina::is_unsigned_cpp_integer_v<unsigned>);
+static_assert(! regina::is_signed_cpp_integer_v<unsigned>);
+
+static_assert(regina::is_cpp_integer_v<int>);
+static_assert(! regina::is_unsigned_cpp_integer_v<int>);
+static_assert(regina::is_signed_cpp_integer_v<int>);
+
+static_assert(regina::is_cpp_integer_v<unsigned long long>);
+static_assert(regina::is_unsigned_cpp_integer_v<unsigned long long>);
+static_assert(! regina::is_signed_cpp_integer_v<unsigned long long>);
+
+static_assert(regina::is_cpp_integer_v<long long>);
+static_assert(! regina::is_unsigned_cpp_integer_v<long long>);
+static_assert(regina::is_signed_cpp_integer_v<long long>);
+
+static_assert(regina::is_cpp_integer_v<size_t>);
+static_assert(regina::is_unsigned_cpp_integer_v<size_t>);
+static_assert(! regina::is_signed_cpp_integer_v<size_t>);
+
+static_assert(regina::is_cpp_integer_v<ssize_t>);
+static_assert(! regina::is_unsigned_cpp_integer_v<ssize_t>);
+static_assert(regina::is_signed_cpp_integer_v<ssize_t>);
+
+#if defined(INT128_AVAILABLE)
+static_assert(regina::is_cpp_integer_v<regina::IntOfSize<16>::utype>);
+static_assert(regina::is_unsigned_cpp_integer_v<regina::IntOfSize<16>::utype>);
+static_assert(! regina::is_signed_cpp_integer_v<regina::IntOfSize<16>::utype>);
+
+static_assert(regina::is_cpp_integer_v<regina::IntOfSize<16>::type>);
+static_assert(! regina::is_unsigned_cpp_integer_v<regina::IntOfSize<16>::type>);
+static_assert(regina::is_signed_cpp_integer_v<regina::IntOfSize<16>::type>);
+#endif

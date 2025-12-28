@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -113,7 +111,6 @@ EltMoveDialog3::EltMoveDialog3(QWidget* parent,
     dialogLayout->addWidget(overview);
 
     auto* layout = new QGridLayout();
-      //, 10, 2, 0 /* margin */, spacingHint());
     dialogLayout->addLayout(layout);
 
     use41 = new QRadioButton(tr("4-1"), this);
@@ -382,7 +379,7 @@ void EltMoveDialog3::clicked(QAbstractButton* btn) {
     } else if (use44->isChecked()) {
         std::pair<regina::Edge<3>*, int> s = box44->selected();
         if (s.first)
-            tri->fourFourMove(s.first, s.second);
+            tri->move44(s.first, s.second);
     } else if (use20e->isChecked()) {
         regina::Edge<3>* e = box20e->selected();
         if (e)
@@ -394,7 +391,7 @@ void EltMoveDialog3::clicked(QAbstractButton* btn) {
     } else if (use21->isChecked()) {
         std::pair<regina::Edge<3>*, int> s = box21->selected();
         if (s.first)
-            tri->twoOneMove(s.first, s.second);
+            tri->move21(s.first, s.second);
     } else if (useOpenBook->isChecked()) {
         regina::Triangle<3>* f = boxOpenBook->selected();
         if (f)

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,11 +43,23 @@
 namespace regina {
 
 /**
- * A fixed-size array whose size can be computed at runtime.
+ * A lightweight fixed-size random-access array whose size can be provided at
+ * runtime.
  *
- * This is essentially a wrapper around `new[]` and `delete[]` that allows the
- * array object to live on the stack, avoiding the need to worry about memory
- * management (particularly in the presence of exceptions).
+ * This class is intended to be used for temporary working arrays within the
+ * implementations of algorithms: it is lightweight and provides the speed of
+ * C-style arrays, but avoids the pitfalls of `new[]` and `delete[]`, instead
+ * offering safe and simple stack-based memory mangement and exception safety.
+ *
+ * Typically the size of the array would be passed to the constructor and remain
+ * fixed from that point on.  After construction, the only way to change the
+ * size of the array is to replace its entire contents with those of some other
+ * FixedArray, via swap() or the move assignment operator (both of which are
+ * very fast operations).
+ *
+ * This class is very similar in nature to LightweightSequence, but was born
+ * from different needs.  It is possible that these two classes will be unified
+ * in some future version of Regina.
  *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
@@ -75,11 +85,13 @@ class FixedArray {
          */
         using const_reference = T const&;
         /**
-         * A random-access iterator over this array.
+         * A random-access iterator that gives read-write access to the
+         * elements of this array.
          */
         using iterator = T*;
         /**
-         * A constant random-access iterator over this array.
+         * A random-access iterator that gives read-only access to the
+         * elements of this array.
          */
         using const_iterator = T const*;
         /**
@@ -94,6 +106,17 @@ class FixedArray {
          * The type used for a signed distance between two iterators.
          */
         using difference_type = ptrdiff_t;
+
+        /**
+         * Constructs a new empty array.
+         *
+         * If you ever plan to give this array some real contents at a later
+         * stage, this will need to be done by transfer from some other
+         * FixedArray, using either swap() or the move assignment operator
+         * (both of which are very fast operations).
+         */
+        FixedArray() : data_(nullptr), size_(0) {
+        }
 
         /**
          * Constructs a new array of the given size.
@@ -130,11 +153,12 @@ class FixedArray {
          */
         FixedArray(const FixedArray& src) :
                 data_(new T[src.size_]), size_(src.size_) {
-            std::copy(src.begin(), src.end(), data_);
+            std::copy(src.data_, src.data_ + src.size_, data_);
         }
 
         /**
          * Moves the contents of the given array into this new array.
+         * This is a fast (constant time) operation.
          *
          * The array \a src that was passed will no longer be usable.
          *
@@ -146,7 +170,24 @@ class FixedArray {
         }
 
         /**
+         * Creates a new array containing a hard-coded sequence of values.
+         *
+         * \pre The type \a T has a copy assignment operator.
+         *
+         * \param values the sequence of values to copy into this new list.
+         */
+        FixedArray(std::initializer_list<T> values) :
+                data_(new T[values.size()]), size_(values.size()) {
+            std::copy(values.begin(), values.end(), data_);
+        }
+
+        /**
          * Destroys this array.
+         *
+         * All elements of this array will be destroyed using the destructor
+         * for type \a T.  If the elements are pointers whose pointee objects
+         * need to be deleted also, you must do this separately before
+         * destroying the array itself.
          */
         ~FixedArray() {
             delete[] data_;
@@ -189,6 +230,8 @@ class FixedArray {
 
         /**
          * Determines whether this array is empty.
+         *
+         * This is true if and only if `size() == 0`.
          *
          * \return \c true if and only if this array is empty.
          */
@@ -263,6 +306,47 @@ class FixedArray {
          */
         const_iterator cend() const {
             return data_ + size_;
+        }
+
+        /**
+         * Returns a read-only reference to the first element of this array.
+         *
+         * \pre This array is non-empty.
+         *
+         * \return a reference to the first element.
+         */
+        const T& front() const {
+            return *data_;
+        }
+        /**
+         * Returns a read-write reference to the first element of this array.
+         *
+         * \pre This array is non-empty.
+         *
+         * \return a reference to the first element.
+         */
+        T& front() {
+            return *data_;
+        }
+        /**
+         * Returns a read-only reference to the last element of this array.
+         *
+         * \pre This array is non-empty.
+         *
+         * \return a reference to the last element.
+         */
+        const T& back() const {
+            return data_[size_ - 1];
+        }
+        /**
+         * Returns a read-write reference to the last element of this array.
+         *
+         * \pre This array is non-empty.
+         *
+         * \return a reference to the last element.
+         */
+        T& back() {
+            return data_[size_ - 1];
         }
 
         /**

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -44,7 +42,8 @@ using regina::Face;
 using regina::FaceEmbedding;
 
 template <int dim, int subdim>
-void addFace(pybind11::module_& m, const char* name, const char* embName) {
+void addFace(pybind11::module_& m, pybind11::module_& internal,
+        const char* name, const char* embName) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
     RDOC_SCOPE_BASE_2(detail::FaceEmbeddingBase, alias::FaceNumber)
 
@@ -173,8 +172,12 @@ void addFace(pybind11::module_& m, const char* name, const char* embName) {
             rbase::triangleType);
         c.def("triangleSubtype", &Face<dim, subdim>::triangleSubtype,
             rbase::triangleSubtype);
+        c.def("formsMobiusBand", &Face<dim, subdim>::formsMobiusBand,
+            rbase::formsMobiusBand);
+        c.def("formsCone", &Face<dim, subdim>::formsCone, rbase::formsCone);
     }
     if constexpr (dim - subdim == 1) {
+        c.def("join", &Face<dim, subdim>::join, rbase::join);
         c.def("lock", &Face<dim, subdim>::lock, rbase::lock);
         c.def("unlock", &Face<dim, subdim>::unlock, rbase::unlock);
         c.def("isLocked", &Face<dim, subdim>::isLocked, rbase::isLocked);
@@ -187,8 +190,13 @@ void addFace(pybind11::module_& m, const char* name, const char* embName) {
     RDOC_SCOPE_END
 
     regina::python::addListView<
-        decltype(std::declval<Face<dim, subdim>>().embeddings())>(m);
+        decltype(std::declval<Face<dim, subdim>>().embeddings())>(internal,
+        (std::string(name) + "_embeddings").c_str());
+    // The name we give to the next ListView class is not in the typical form
+    // Triangulation<dim>_faces<subdim>; however, this is an internal class,
+    // and the name we do use is easy to build from what we already know.
     regina::python::addListView<
-        decltype(regina::Triangulation<dim>().template faces<subdim>())>(m);
+        decltype(regina::Triangulation<dim>().template faces<subdim>())>(
+        internal, (std::string(name) + "_faces").c_str());
 }
 

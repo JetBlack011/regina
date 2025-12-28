@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -48,7 +46,7 @@ using regina::Triangle;
 using regina::TriangleEmbedding;
 using regina::TriangleType;
 
-void addTriangle3(pybind11::module_& m) {
+void addTriangle3(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
     RDOC_SCOPE_BASE_3(detail::FaceEmbeddingBase, alias::FaceNumber,
         alias::SimplexVoid)
@@ -87,8 +85,6 @@ void addTriangle3(pybind11::module_& m) {
         .def("isBoundary", &Triangle<3>::isBoundary, rbase::isBoundary)
         .def("inMaximalForest", &Triangle<3>::inMaximalForest,
             rbase::inMaximalForest)
-        .def("isMobiusBand", &Triangle<3>::isMobiusBand, rdoc::isMobiusBand)
-        .def("isCone", &Triangle<3>::isCone, rdoc::isCone)
         .def("linkingSurface", &Triangle<3>::linkingSurface,
             rdoc::linkingSurface)
         .def("isValid", &Triangle<3>::isValid, rbase::isValid)
@@ -115,12 +111,19 @@ void addTriangle3(pybind11::module_& m) {
             rbase::faceMapping)
         .def("vertexMapping", &Triangle<3>::vertexMapping, rbase::vertexMapping)
         .def("edgeMapping", &Triangle<3>::edgeMapping, rbase::edgeMapping)
+        .def("join", &Triangle<3>::join, rbase::join)
         .def("triangleType", &Triangle<3>::triangleType, rbase::triangleType)
         .def("type", &Triangle<3>::triangleType, rdoc::type) // deprecated
         .def("triangleSubtype", &Triangle<3>::triangleSubtype,
             rbase::triangleSubtype)
         .def("subtype", &Triangle<3>::triangleSubtype,
             rdoc::subtype) // deprecated
+        .def("formsMobiusBand", &Triangle<3>::formsMobiusBand,
+            rbase::formsMobiusBand)
+        .def("isMobiusBand", &Triangle<3>::formsMobiusBand,
+            rdoc::isMobiusBand) // deprecated
+        .def("formsCone", &Triangle<3>::formsCone, rbase::formsCone)
+        .def("isCone", &Triangle<3>::formsCone, rdoc::isCone) // deprecated
         .def("lock", &Triangle<3>::lock, rbase::lock)
         .def("unlock", &Triangle<3>::unlock, rbase::unlock)
         .def("isLocked", &Triangle<3>::isLocked, rbase::isLocked)
@@ -137,7 +140,8 @@ void addTriangle3(pybind11::module_& m) {
     regina::python::add_eq_operators(c);
 
     regina::python::addListView<
-        decltype(std::declval<Triangle<3>>().embeddings())>(m);
+        decltype(std::declval<Triangle<3>>().embeddings())>(internal,
+        "Face3_2_embeddings");
 
     // Deprecated types and constants:
     c.attr("Type") = m.attr("TriangleType");

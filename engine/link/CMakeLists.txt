@@ -2,19 +2,26 @@
 
 # Files to compile
 SET ( FILES
+  affineindex.cpp
+  alexander.cpp
   algebra.cpp
+  arrow.cpp
+  complement.cpp
   dt.cpp
   examplelink.cpp
   flype.cpp
   gauss.cpp
+  group.cpp
   homfly.cpp
   jenkins.cpp
   jones.cpp
   knotplot.cpp
   link.cpp
   modellinkgraph.cpp
+  operations.cpp
   pass.cpp
   pd.cpp
+  plantri.cpp
   reidemeister.cpp
   reidemeister-tangle.cpp
   rewrite.cpp

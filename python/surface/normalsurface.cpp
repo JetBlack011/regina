@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -45,7 +43,7 @@ using regina::NormalSurface;
 using regina::Triangulation;
 using regina::python::wrapTableView;
 
-void addNormalSurface(pybind11::module_& m) {
+void addNormalSurface(pybind11::module_& m, pybind11::module_& internal) {
     RDOC_SCOPE_BEGIN(NormalSurface)
 
     auto c = pybind11::class_<NormalSurface>(m, "NormalSurface", rdoc_scope)
@@ -179,13 +177,13 @@ void addNormalSurface(pybind11::module_& m) {
     RDOC_SCOPE_END
 
     // Global arrays:
-    m.attr("quadSeparating") = wrapTableView(m, regina::quadSeparating);
-    m.attr("quadMeeting") = wrapTableView(m, regina::quadMeeting);
-    m.attr("quadDefn") = wrapTableView(m, regina::quadDefn);
-    m.attr("quadPartner") = wrapTableView(m, regina::quadPartner);
-    m.attr("triDiscArcs") = wrapTableView(m, regina::triDiscArcs);
-    m.attr("quadDiscArcs") = wrapTableView(m, regina::quadDiscArcs);
-    m.attr("octDiscArcs") = wrapTableView(m, regina::octDiscArcs);
-    m.attr("quadString") = wrapTableView(m, regina::quadString);
+    m.attr("quadSeparating") = wrapTableView(internal, regina::quadSeparating);
+    m.attr("quadMeeting") = wrapTableView(internal, regina::quadMeeting);
+    m.attr("quadDefn") = wrapTableView(internal, regina::quadDefn);
+    m.attr("quadPartner") = wrapTableView(internal, regina::quadPartner);
+    m.attr("triDiscArcs") = wrapTableView(internal, regina::triDiscArcs);
+    m.attr("quadDiscArcs") = wrapTableView(internal, regina::quadDiscArcs);
+    m.attr("octDiscArcs") = wrapTableView(internal, regina::octDiscArcs);
+    m.attr("quadString") = wrapTableView(internal, regina::quadString);
 }
 

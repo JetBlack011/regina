@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -48,7 +46,6 @@
 #include <QMessageBox>
 #include <QPushButton>
 
-#define MAX_RELATIONS_FOR_PROLIFERATION 8
 #define MAX_RELATIONS_FOR_RECOGNITION 50
 
 GroupWidget::GroupWidget(bool allowSimplify, bool paddingStretch) : QWidget() {
@@ -68,72 +65,40 @@ GroupWidget::GroupWidget(bool allowSimplify, bool paddingStretch) : QWidget() {
     layout->addWidget(relCount_);
     rels_ = new QListWidget();
     rels_->setSelectionMode(QListWidget::NoSelection);
-    layout->addWidget(rels_, 3);
+    rels_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    if (paddingStretch) {
+        layout->addWidget(rels_, 3);
+        noRels_ = nullptr;
+    } else {
+        layout->addWidget(rels_);
+        noRels_ = new QWidget();
+        noRels_->hide();
+        layout->addWidget(noRels_, 1);
+    }
 
     // The simplification buttons:
     if (allowSimplify) {
+        if (paddingStretch)
+            layout->addStretch(1);
+
+        auto* sublayout = new QHBoxLayout();
+        sublayout->setContentsMargins(0, 0, 0, 0);
+        sublayout->setSpacing(0);
+
+        auto* btn = new QPushButton(tr("Simplify"));
+        btn->setToolTip(tr("Attempt to simplify the group presentation"));
+        btn->setWhatsThis(tr("Attempt to simplify the group presentation. "
+            "You can choose the simplification method in Regina's settings."));
+        connect(btn, SIGNAL(clicked()), this, SLOT(simplify()));
+
+        sublayout->addStretch();
+        sublayout->addWidget(btn);
+        sublayout->addStretch();
+
+        layout->addLayout(sublayout);
+    } else if (paddingStretch) {
         layout->addStretch(1);
-
-        auto* label = new QLabel(tr("Try to simplify:"));
-        label->setAlignment(Qt::AlignCenter);
-        layout->addWidget(label);
-
-        QBoxLayout* buttonBox = new QVBoxLayout();
-        buttonBox->setSpacing(0);
-
-        QBoxLayout* hLayout;
-        QPushButton* btn;
-
-        btn = new QPushButton(tr("Using Regina"));
-        btn->setToolTip(tr("Simplify the group presentation using Regina"));
-        btn->setWhatsThis(tr("<qt>Simplify the group presentation using "
-            "Regina's own code, which is based on small cancellation theory "
-            "and Nielsen moves.<p>"
-            "Pressing this button a second time should have no effect.</qt>"));
-        connect(btn, SIGNAL(clicked()), this, SLOT(simplifyInternal()));
-        hLayout = new QHBoxLayout();
-        hLayout->addStretch(1);
-        hLayout->addWidget(btn);
-        hLayout->addStretch(1);
-        buttonBox->addLayout(hLayout);
-
-        btn = new QPushButton(tr("Using GAP"));
-        btn->setToolTip(tr("Simplify the group presentation using "
-            "GAP (Groups, Algorithms and Programming)"));
-        btn->setWhatsThis(tr("<qt>Simplify the group presentation "
-            "using the program GAP (Groups, Algorithms and "
-            "Programming).<p>Note that GAP will need to be installed "
-            "separately on your system.</qt>"));
-        connect(btn, SIGNAL(clicked()), this, SLOT(simplifyGAP()));
-        hLayout = new QHBoxLayout();
-        hLayout->addStretch(1);
-        hLayout->addWidget(btn);
-        hLayout->addStretch(1);
-        buttonBox->addLayout(hLayout);
-
-        btn = new QPushButton(tr("Relator explosion"));
-        btn->setToolTip(tr("Generate new relators from old (can be "
-            "memory-intensive)"));
-        btn->setWhatsThis(tr("<qt>Generate new relators from old.  "
-            "This attempts to multiply all the relators "
-            "together in a moderately intelligent way to create new, hopefully "
-            "useful relators.  You should alternate this "
-            "with one of the simplification buttons above.<p>"
-            "This routine has been found particularly useful when trying to "
-            "prove that a group is trivial.<p>"
-            "<b>Warning:</b> If the presentation is already large then "
-            "this computation might easily exceed the memory of your "
-            "computer.</qt>"));
-        connect(btn, SIGNAL(clicked()), this, SLOT(proliferateRelators()));
-        hLayout = new QHBoxLayout();
-        hLayout->addStretch(1);
-        hLayout->addWidget(btn);
-        hLayout->addStretch(1);
-        buttonBox->addLayout(hLayout);
-
-        layout->addLayout(buttonBox);
-    } else if (paddingStretch)
-        layout->addStretch(1);
+    }
 }
 
 void GroupWidget::refresh() {
@@ -159,7 +124,7 @@ void GroupWidget::refresh() {
         name_->show();
     }
 
-    unsigned long nGens = group_.countGenerators();
+    size_t nGens = group_.countGenerators();
     bool alphabetic = (nGens <= 26);
     if (nGens == 0)
         gens_->setText(tr("No generators"));
@@ -177,13 +142,19 @@ void GroupWidget::refresh() {
     unsigned long nRels = group_.countRelations();
     if (nRels == 0) {
         relCount_->setText(tr("No relations"));
+        if (noRels_)
+            noRels_->show();
         rels_->hide();
     } else if (nRels == 1) {
         relCount_->setText(tr("1 relation:"));
         rels_->show();
+        if (noRels_)
+            noRels_->hide();
     } else {
         relCount_->setText(tr("%1 relations:").arg(nRels));
         rels_->show();
+        if (noRels_)
+            noRels_->hide();
     }
 
     rels_->clear();
@@ -195,52 +166,55 @@ void GroupWidget::refresh() {
             new QListWidgetItem(QString(r.str(alphabetic).c_str()), rels_);
 }
 
-void GroupWidget::simplifyInternal() {
-    // This *should* block the UI, which means we don't need to worry
-    // about race conditons with group_.
-    group_.simplify();
-    refresh();
-    emit simplified();
-}
+void GroupWidget::simplify() {
+    switch (ReginaPrefSet::global().groupSimplification) {
+        // Regina is the default if all else fails, so this will come last.
+        case ReginaPrefSet::GroupSimplification::GAP:
+            {
+                // Can we actually run GAP?
+                QString useExec = verifyGAPExec();
+                if (useExec.isNull())
+                    return;
 
-void GroupWidget::proliferateRelators() {
-    if (group_.countRelations() > MAX_RELATIONS_FOR_PROLIFERATION)
-        if (! ReginaSupport::warnYesNo(this,
-                tr("This group presentation is already large."),
-                tr("A relator explosion on a large group presentation "
-                    "could easily exceed the memory of your machine.  "
-                    "Are you sure you wish to do this?")))
-            return;
-
-    // This *should* block the UI, which means we don't need to worry
-    // about race conditons with group_.
-    group_.proliferateRelators(1);
-    refresh();
-    emit simplified();
-}
-
-void GroupWidget::simplifyGAP() {
-    // Can we actually run GAP?
-    QString useExec = verifyGAPExec();
-    if (useExec.isNull())
-        return;
-
-    GAPRunner dlg(this, useExec, group_);
-    if (dlg.exec() == GAPRunner::Accepted) {
-        if (auto ans = dlg.simplifiedGroup()) {
-            group_ = *ans;
+                GAPRunner dlg(this, useExec, group_);
+                if (dlg.exec() == GAPRunner::Accepted) {
+                    if (auto ans = dlg.simplifiedGroup()) {
+                        group_ = *ans;
+                        refresh();
+                        emit simplified();
+                    } else {
+                        ReginaSupport::sorry(this,
+                            tr("An unexpected error occurred whilst "
+                                "attempting to simplify the group presentation "
+                                "using GAP."),
+                            tr("Please verify that GAP "
+                                "(Groups, Algorithms and Programming) is "
+                                "correctly installed on your system, and that "
+                                "Regina has been correctly configured to use "
+                                "it (see the <i>Tools</i> section in Regina's "
+                                "settings).<p>"
+                                "If you prefer, you can edit Regina's settings "
+                                "to use other tools for group simplification "
+                                "(such as Regina's own algorithms) instead."));
+                    }
+                }
+            }
+            break;
+        default: /* use regina */
+            // This *should* block the UI, which means we don't need to worry
+            // about race conditons with group_.
+            if (! group_.simplify()) {
+                ReginaSupport::info(this,
+                    tr("I could not simplify the group presentation."),
+                    tr("I tried Regina's own internal simplification "
+                        "algorithm.  If you prefer, you can edit Regina's "
+                        "settings to use external tools for group "
+                        "simplification (such as GAP) instead."));
+                return;
+            }
             refresh();
             emit simplified();
-        } else {
-            ReginaSupport::sorry(this,
-                tr("An unexpected error occurred whilst "
-                "attempting to simplify the group presentation using GAP."),
-                tr("<qt>Please verify that GAP "
-                "(Groups, Algorithms and Programming) "
-                "is correctly installed on your system, and that Regina "
-                "has been correctly configured to use it (see the "
-                "<i>Tools</i> section in Regina's settings).</qt>"));
-        }
+            break;
     }
 }
 
@@ -270,13 +244,16 @@ QString GroupWidget::verifyGAPExec() {
         }
         if (! found) {
             ReginaSupport::sorry(this,
-                tr("<qt>I could not find the GAP executable <i>%1</i> "
-                "on the default search path.</qt>").
+                tr("I could not find the GAP executable <i>%1</i> "
+                   "on the default search path.").
                     arg(useExec.toHtmlEscaped()),
-                tr("<qt>If you have GAP (Groups, Algorithms and Programming) "
-                "installed on your system, please go into Regina's "
-                "settings (<i>Tools</i> section) and tell Regina "
-                "where it can find GAP.</qt>"));
+                tr("If you have GAP (Groups, Algorithms and Programming) "
+                   "installed on your system, please go into Regina's "
+                   "settings (<i>Tools</i> section) and tell Regina "
+                   "where it can find GAP.<p>"
+                   "If you prefer, you can edit Regina's settings "
+                   "to use other tools for group simplification "
+                   "(such as Regina's own algorithms) instead."));
             return QString();
         }
     }
@@ -285,21 +262,27 @@ QString GroupWidget::verifyGAPExec() {
     QFileInfo info(useExec);
     if (! info.exists()) {
         ReginaSupport::sorry(this,
-            tr("<qt>The GAP executable <i>%1</i> does not exist.</qt>").
+            tr("The GAP executable <i>%1</i> does not exist.").
                 arg(useExec.toHtmlEscaped()),
-            tr("<qt>If you have GAP (Groups, Algorithms and Programming) "
-            "installed on your system, please go into Regina's "
-            "settings (<i>Tools</i> section) and tell Regina "
-            "where it can find GAP.</qt>"));
+            tr("If you have GAP (Groups, Algorithms and Programming) "
+               "installed on your system, please go into Regina's "
+               "settings (<i>Tools</i> section) and tell Regina "
+               "where it can find GAP.<p>"
+               "If you prefer, you can edit Regina's settings "
+               "to use other tools for group simplification "
+               "(such as Regina's own algorithms) instead."));
         return QString();
     } else if (! (info.isFile() && info.isExecutable())) {
         ReginaSupport::sorry(this,
-            tr("<qt>The GAP executable <i>%1</i> does not appear to be "
-            "an executable program.</qt>").arg(useExec.toHtmlEscaped()),
-            tr("<qt>If you have GAP (Groups, Algorithms and Programming) "
-            "installed on your system, please go into Regina's "
-            "settings (<i>Tools</i> section) and tell Regina "
-            "where it can find GAP.</qt>"));
+            tr("The GAP executable <i>%1</i> does not appear to be "
+               "an executable program.").arg(useExec.toHtmlEscaped()),
+            tr("If you have GAP (Groups, Algorithms and Programming) "
+               "installed on your system, please go into Regina's "
+               "settings (<i>Tools</i> section) and tell Regina "
+               "where it can find GAP.<p>"
+               "If you prefer, you can edit Regina's settings "
+               "to use other tools for group simplification "
+               "(such as Regina's own algorithms) instead."));
         return QString();
     }
 

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -41,6 +39,75 @@
 #include "../docstrings/triangulation/isosigtype.h"
 
 using regina::Perm;
+
+namespace regina::python {
+
+/**
+ * Adds all of the available variants of isoSig() to the python bindings for a
+ * C++ triangulation class.
+ *
+ * To use this for the C++ class `Triangulation<dim>`, simply call
+ * `regina::python::isosig_options<dim>(c)`, where \a c is the
+ * pybind11::class_ object that wraps `Triangulation<dim>`.
+ */
+template <int dim, typename PythonClass>
+void isosig_options(PythonClass& classWrapper) {
+    RDOC_SCOPE_BASE(detail::TriangulationBase)
+
+    using LockFree = regina::IsoSigPrintableLockFree<dim>;
+
+    classWrapper
+        .def("isoSig",
+            &Triangulation<dim>::template isoSig<>,
+            rbase::isoSig)
+        .def("isoSig_LockFree",
+            &Triangulation<dim>::template isoSig<
+                regina::IsoSigClassic<dim>, LockFree>,
+            rbase::isoSig)
+        .def("isoSig_EdgeDegrees",
+            &Triangulation<dim>::template isoSig<
+                regina::IsoSigEdgeDegrees<dim>>,
+            rbase::isoSig)
+        .def("isoSig_EdgeDegrees_LockFree",
+            &Triangulation<dim>::template isoSig<
+                regina::IsoSigEdgeDegrees<dim>, LockFree>,
+            rbase::isoSig)
+        .def("isoSig_RidgeDegrees",
+            &Triangulation<dim>::template isoSig<
+                regina::IsoSigRidgeDegrees<dim>>,
+            rbase::isoSig)
+        .def("isoSig_RidgeDegrees_LockFree",
+            &Triangulation<dim>::template isoSig<
+                regina::IsoSigRidgeDegrees<dim>, LockFree>,
+            rbase::isoSig)
+
+        .def("isoSigDetail",
+            &Triangulation<dim>::template isoSigDetail<>,
+            rbase::isoSigDetail)
+        .def("isoSigDetail_LockFree",
+            &Triangulation<dim>::template isoSigDetail<
+                regina::IsoSigClassic<dim>, LockFree>,
+            rbase::isoSigDetail)
+        .def("isoSigDetail_EdgeDegrees",
+            &Triangulation<dim>::template isoSigDetail<
+                regina::IsoSigEdgeDegrees<dim>>,
+            rbase::isoSigDetail)
+        .def("isoSigDetail_EdgeDegrees_LockFree",
+            &Triangulation<dim>::template isoSigDetail<
+                regina::IsoSigEdgeDegrees<dim>, LockFree>,
+            rbase::isoSigDetail)
+        .def("isoSigDetail_RidgeDegrees",
+            &Triangulation<dim>::template isoSigDetail<
+                regina::IsoSigRidgeDegrees<dim>>,
+            rbase::isoSigDetail)
+        .def("isoSigDetail_RidgeDegrees_LockFree",
+            &Triangulation<dim>::template isoSigDetail<
+                regina::IsoSigRidgeDegrees<dim>, LockFree>,
+            rbase::isoSigDetail)
+        ;
+}
+
+} // namespace regina::python
 
 template <int dim>
 void addIsoSigClassic(pybind11::module_& m, const char* name) {
@@ -90,11 +157,11 @@ void addIsoSigRidgeDegrees(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_END
 }
 
-template <int dim>
+template <int dim, bool supportLocks>
 void addIsoSigPrintable(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_BEGIN(IsoSigPrintable)
 
-    using Encoding = regina::IsoSigPrintable<dim>;
+    using Encoding = regina::IsoSigPrintable<dim, supportLocks>;
     auto s = pybind11::class_<Encoding>(m, name, rdoc_scope)
         .def_readonly_static("charsPerPerm", &Encoding::charsPerPerm)
         .def_static("emptySig", &Encoding::emptySig, rdoc::emptySig)
@@ -102,15 +169,19 @@ void addIsoSigPrintable(pybind11::module_& m, const char* name) {
                 size_t size,
                 const std::vector<uint8_t>& facetAction,
                 const std::vector<size_t>& joinDest,
-                const std::vector<typename Perm<dim+1>::Index>& joinGluing) {
+                const std::vector<typename Perm<dim+1>::Index>& joinGluing,
+                const std::optional<std::vector<
+                    typename regina::Simplex<dim>::LockMask>> lockMasks) {
             if (joinDest.size() != joinGluing.size())
                 throw regina::InvalidArgument("The arguments "
                     "joinDest and joinGluing must be lists of the same size");
             return Encoding::encode(size, facetAction.size(),
                 facetAction.data(), joinDest.size(), joinDest.data(),
-                joinGluing.data());
+                joinGluing.data(),
+                (lockMasks ? lockMasks->data() : nullptr));
         }, pybind11::arg("size"), pybind11::arg("facetAction"),
             pybind11::arg("joinDest"), pybind11::arg("joinGluing"),
+            pybind11::arg("lockMasks"),
             rdoc::encode)
         ;
     regina::python::no_eq_static(s);

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -52,7 +50,7 @@ namespace regina {
  * Regina to include your own coordinate system, you should choose
  * an ID ≥ 10000.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 enum class NormalCoords {
     /**
@@ -340,7 +338,7 @@ enum class NormalCoords {
  * These objects are small enough to pass by value and swap with std::swap(),
  * with no need for any specialised move operations or swap functions.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class NormalEncoding {
     private:
@@ -470,7 +468,7 @@ class NormalEncoding {
          *
          * \return a reference to this encoding.
          */
-        NormalEncoding& operator = (const NormalEncoding&) = default;
+        constexpr NormalEncoding& operator = (const NormalEncoding&) = default;
 
         /**
          * Determines whether this and the given encoding are identical.
@@ -762,7 +760,7 @@ class NormalEncoding {
  * Much of the functionality that was available in this class in Regina 6.0.1
  * and earlier can now be accessed through the new NormalEncoding class.
  *
- * \ingroup surfaces
+ * \ingroup surface
  */
 class NormalInfo {
     public:

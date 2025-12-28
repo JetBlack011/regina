@@ -1,7 +1,7 @@
 # Regina - A Normal Surface Theory Calculator
 # Python Test Suite Component
 #
-# Copyright (c) 2007-2023, Ben Burton
+# Copyright (c) 2007-2025, Ben Burton
 # For further details contact Ben Burton (bab@debian.org).
 #
 # Tests the Python repr() output for some of Regina's classes.
@@ -26,10 +26,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public
-# License along with this program; if not, write to the Free
-# Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Fetch the python/testsuite path in the source tree, since we will need
 # to access external files.
@@ -252,6 +250,7 @@ dump(t.vertex(0))
 dump(t.vertex(0).front())
 dump(t.edge(0))
 dump(t.edge(0).front())
+dump(t.edges())
 dump(t.triangle(0))
 dump(t.triangle(0).front())
 dump(t.tetrahedron(0))

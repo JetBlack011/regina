@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -129,7 +127,7 @@ Tri3HomologyFundUI::Tri3HomologyFundUI(
 
     // Homology:
 
-    auto* homologyGrid = new QGridLayout();//, 7, 4, 0, 5);
+    auto* homologyGrid = new QGridLayout();
     homologyGrid->setRowStretch(0, 1);
     homologyGrid->setRowStretch(6, 1);
     homologyGrid->setColumnStretch(0, 1);
@@ -197,7 +195,7 @@ Tri3HomologyFundUI::Tri3HomologyFundUI(
     fundLayout->addWidget(fgMsg);
     fgMsg->hide();
 
-    fgGroup = new GroupWidget(true, true);
+    fgGroup = new GroupWidget(true /* simplification */, true /* padding */);
     fgGroup->setWhatsThis(tr("A full set of generators and relations "
         "for the fundamental group of this triangulation."));
     connect(fgGroup, SIGNAL(simplified()), this, SLOT(fundGroupSimplified()));
@@ -639,7 +637,7 @@ Tri3CellularInfoUI::Tri3CellularInfoUI(
     auto* grid = new QWidget(scroller->viewport());
     scroller->setWidget(grid);
 
-    auto* homologyGrid = new QGridLayout(grid);//, 11, 4, 0, 5);
+    auto* homologyGrid = new QGridLayout(grid);
     homologyGrid->setRowStretch(0, 1);
     homologyGrid->setRowStretch(11, 1);
     homologyGrid->setColumnStretch(0, 1);
@@ -719,7 +717,7 @@ Tri3CellularInfoUI::Tri3CellularInfoUI(
     homologyGrid->addWidget(label, 7, 1);
     TorForOrders = new QLabel(grid);
     homologyGrid->addWidget(TorForOrders, 7, 2);
-    msg = QObject::tr("<qt>This is the first of the three Kawauchi-Kojima "
+    msg = QObject::tr("This is the first of the three Kawauchi-Kojima "
                "invariants.  These are invariants of the torsion linking "
                "form on the torsion subgroup of H<sub>1</sub> of an "
                "oriented manifold, and they form a complete set of "
@@ -729,7 +727,7 @@ Tri3CellularInfoUI::Tri3CellularInfoUI(
                "<p>For further information, see Kawauchi and Kojima's paper "
                "<i>Algebraic classification of linking pairings "
                "on 3-manifolds</i>, Math. Ann. <b>253</b> (1980), "
-               "no. 1, 29&ndash;42.</qt>"
+               "no. 1, 29–42."
                 );
     label->setWhatsThis(msg);
     TorForOrders->setWhatsThis(msg);
@@ -738,14 +736,14 @@ Tri3CellularInfoUI::Tri3CellularInfoUI(
     homologyGrid->addWidget(label, 8, 1);
     TorForSigma = new QLabel(grid);
     homologyGrid->addWidget(TorForSigma, 8, 2);
-    msg = QObject::tr("<qt>If H<sub>1</sub> has 2-torsion, this is the "
+    msg = QObject::tr("If H<sub>1</sub> has 2-torsion, this is the "
                "2-torsion sigma-vector.  The sigma-vector is the "
                "second of the Kawauchi-Kojima invariants, and is an "
                "orientation-sensitive invariant."
                "<p>For further information, see Kawauchi and Kojima's paper "
                "<i>Algebraic classification of linking pairings "
                "on 3-manifolds</i>, Math. Ann. <b>253</b> (1980), "
-               "no. 1, 29&ndash;42.</qt>"
+               "no. 1, 29–42."
                 );
     label->setWhatsThis(msg);
     TorForSigma->setWhatsThis(msg);
@@ -754,14 +752,14 @@ Tri3CellularInfoUI::Tri3CellularInfoUI(
     homologyGrid->addWidget(label, 9, 1);
     TorForLegendre = new QLabel(grid);
     homologyGrid->addWidget(TorForLegendre, 9, 2);
-    msg = QObject::tr("<qt>If H<sub>1</sub> has odd torsion, this is the "
+    msg = QObject::tr("If H<sub>1</sub> has odd torsion, this is the "
                "Legendre symbol vector.  The Legendre symbol vector "
                "is the last of the Kawauchi-Kojima invariants, and was "
                "originally constructed by Seifert."
                "<p>For further information, see Kawauchi and Kojima's paper "
                "<i>Algebraic classification of linking pairings "
                "on 3-manifolds</i>, Math. Ann. <b>253</b> (1980), "
-               "no. 1, 29&ndash;42.</qt>"
+               "no. 1, 29–42."
                 );
     label->setWhatsThis(msg);
     TorForLegendre->setWhatsThis(msg);

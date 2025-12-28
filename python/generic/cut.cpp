@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -34,6 +32,8 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 #include "regina-config.h" // for REGINA_HIGHDIM
+#include "link/link.h"
+#include "link/modellinkgraph.h"
 #include "triangulation/cut.h"
 #include "triangulation/dim2.h"
 #include "triangulation/dim3.h"
@@ -124,6 +124,16 @@ void addCut(pybind11::module_& m) {
         .def("weight", overload_cast<const FacetPairing<15>&>(
             &Cut::weight<15>, pybind11::const_), rdoc::weight_2)
 #endif /* REGINA_HIGHDIM */
+        // Use a static_cast here, since overload_cast gets confused between
+        // templated and non-templated versions of weight().
+        .def("weight",
+            static_cast<size_t (Cut::*)(const regina::Link&) const>(
+                &Cut::weight),
+            rdoc::weight_3)
+        .def("weight",
+            static_cast<size_t (Cut::*)(const regina::ModelLinkGraph&) const>(
+                &Cut::weight),
+            rdoc::weight_4)
         .def("__call__", overload_cast<const Triangulation<2>&>(
             &Cut::operator()<2>, pybind11::const_), rdoc::__call)
         .def("__call__", overload_cast<const Triangulation<3>&>(

@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -444,7 +442,7 @@ class SimplexBase : public MarkedElement, public Output<SimplexBase<dim>> {
          *   edge collapses that merge \a F with a parallel (\a dim-1)-face,
          *   even if this changes \a F from internal to boundary (because
          *   \a F was merged with a boundary facet).  Likewise, we allow
-         *   boundary shellings that expose a internal locked facet to the
+         *   boundary shellings that expose an internal locked facet to the
          *   boundary (because this is a "topological flattening", not just
          *   an arbitrary ungluing).  In all such cases, the lock "moves"
          *   with \a F to its new (possibly merged, possibly boundary) location.
@@ -1064,8 +1062,7 @@ class SimplexBase : public MarkedElement, public Output<SimplexBase<dim>> {
          * scenarios:
          *
          * - triangulation constructors, but only in settings where no
-         *   properties (including the skeleton) have been computed yet
-         *   (as an example, see the constructor that builds a link complement);
+         *   properties (including the skeleton) have been computed yet;
          *
          * - routines that create a "staging" triangulation, without computing
          *   its skeleton or any other properties, and then swap or move this
@@ -1140,6 +1137,8 @@ class SimplexBase : public MarkedElement, public Output<SimplexBase<dim>> {
     friend class Triangulation<dim>;
     friend class regina::XMLSimplexReader<dim>;
     friend class regina::XMLTriangulationReader<dim>;
+    // Face::relabel() adjusts Simplex::mappings_.
+    template<int, int> friend class FaceBase;
 };
 
 // Inline functions for SimplexBase

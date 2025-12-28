@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -1215,13 +1213,33 @@ QVariant Triangle4Model::data(const QModelIndex& index, int role) const {
         switch (index.column()) {
             case 0:
                 return index.row();
-            case 1:
+            case 1: {
                 if (! item->isValid())
                     return tr("Invalid");
-                else if (item->isBoundary())
-                    return tr("Bdry");
-                else
-                    return QString();
+
+                QString prefix;
+                if (item->isBoundary())
+                    prefix = tr("(Bdry) ");
+
+                auto type = item->triangleType();
+                if (type == regina::TriangleType::Triangle)
+                    return prefix + tr("Triangle");
+                if (type == regina::TriangleType::Scarf)
+                    return prefix + tr("Scarf");
+                if (type == regina::TriangleType::Parachute)
+                    return prefix + tr("Parachute");
+                if (type == regina::TriangleType::Mobius)
+                    return prefix + tr("Möbius band");
+                if (type == regina::TriangleType::Cone)
+                    return prefix + tr("Cone");
+                if (type == regina::TriangleType::Horn)
+                    return prefix + tr("Horn");
+                if (type == regina::TriangleType::DunceHat)
+                    return prefix + tr("Dunce hat");
+                if (type == regina::TriangleType::L31)
+                    return prefix + tr("L(3,1)");
+                return prefix + tr("UNKNOWN");
+            }
             case 2:
                 return static_cast<unsigned>(item->degree());
             case 3:

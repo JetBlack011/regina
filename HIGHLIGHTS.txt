@@ -1,15 +1,92 @@
 
-Regina - A Normal Surface Theory Calculator
+Regina - Software for low-dimensional topology
 
     This file describes key highlights of the changes between releases.
 
     For a full list of changes, including all changes to the C++/Python API,
     see the file CHANGES.txt.
 
-Version 7.4  [ (to be announced) ]
+Version 7.4.1  [ 30 November, 2025 ]
 
-    Python / C++:
-        - Regina now uses the C++20 standard.
+    Overview:
+        - This is a service release to fix some important bugs, and to support
+          additional build environments.
+    Bugs fixed:
+        - Fixed a serious (and very old) bug that occurred when triangulating
+          a real boundary component.  In short, the new triangulation of the
+          original boundary component could have had inconsistencies in the
+          labelling of its own lower-dimensional faces.  Ideal boundaries were
+          not affected.  For a detailed discussion of how this might have
+          affected you, see: https://regina-normal.github.io/bugs.html#bcbuild
+        - Fixed a bug in Katie's quadricolour search routine, which would cause
+          a segfault for certain inputs.
+        - Added a few missing Python bindings for triangulations in higher
+          dimensions.
+
+Version 7.4  [ 29 August, 2025 ] - Happy Wear it Purple day!
+
+    Requirements:
+        - Regina now uses C++20 (not C++17), the GUI now requires Qt 6.x, and
+          the API docs now require Doxygen ≥ 1.9.2.
+        - You no longer need Jansson, Popt or CppUnit to build Regina.
+    Features:
+        - Now supports virtual knots and links, with new invariants such as
+          odd writhe, arrow polynomials, affine index polynomials, and
+          extended groups.
+        - Several new constructions, such as Whitehead doubles over links,
+          doubling triangulations over their boundaries, and many new
+          out-of-the-box example triangulations and links.
+        - Several new operations on triangulations and link diagrams, including
+          improving treewidth, truncating individual vertices in 3-D, and more
+          elementary moves in more dimensions.
+        - New invariants and properties for link diagrams, including Alexander
+          polynomials, Seifert circles, and connected diagram components.
+        - Significantly better simplification for 4-D triangulations,
+          including Rhuaidi Burke's "up-side-down" simplification heuristics.
+        - Text codes for link diagrams now include signed Gauss codes, plus an
+          extension of Regina's knot signatures to multiple-component links.
+        - You can now lock top-dimensional simplices and/or their facets in a
+          triangulation, to prevent these from being modified during operations
+          such as simplification or elementary moves.  Locks are also encoded
+          as part of the isomorphism signature.
+        - Gave the graphical user interface a general glow-up, and added
+          initial support for multithreaded computations.
+        - The tool DGT is now called Katie, and can now work with 1-handles
+          (thanks again to Rhuaidi Burke).
+        - New command-line tool regina-helper, which can do things like create
+          Makefiles and run the test suite.
+        - Many, many other smaller features and optimisations.
+    Bugs fixed:
+        - Fixed an occasional problem where the "try harder" option for
+          simplifying triangulations could make the user interface crash.
+
+Version 7.3.1  [ 11 July, 2025 ]
+
+    Overview:
+        - This is a service release to fix some important bugs, and to support
+          Python 3.12 and later.  Python 3.6 is no longer supported.
+    Bugs fixed:
+        - Manually resolving a crossing in a link would not clear out cached
+          polynomials that had already been computed for that link.
+          See: https://regina-normal.github.io/bugs.html#resolve
+        - Manually setting a coefficient in a Laurent polynomial in C++/Python
+          would, in special circumstances, have no effect.  This did not affect
+          the GUI or any Jones polynomial computations.
+          See: https://regina-normal.github.io/bugs.html#laurentset
+        - If a normal surface was a normalised triangle link but not a thin
+          triangle link, then using C++/Python to call isThinTriangleLink()
+          _before_ isNormalTriangleLink() would make the latter return an
+          empty list of results.  Likewise with tetrahedron links in
+          4-dimensional triangulations.  This did not affect the GUI.
+          See: https://regina-normal.github.io/bugs.html#tritetlinks
+        - If the connectness of a normal surface had already been computed, then
+          calling NormalSurface.components() in C++/Python would return the
+          entire surface as a single component.  This did not affect the GUI.
+          See: https://regina-normal.github.io/bugs.html#surfacecomp
+        - Fixed some less important problems also: see CHANGES.txt for details.
+    Other improvements:
+        - Improved the speed of iteration in Python (specifically,
+          throwing/catching StopIteration exceptions).
 
 Version 7.3  [ 18 March, 2023 ]
 

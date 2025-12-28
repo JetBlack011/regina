@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,32 +23,31 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
 /*! \file examplecreator.h
- *  \brief Helps with the creation of ready-made example triangulations.
+ *  \brief Helps with the creation of ready-made example triangulations and
+ *  links.
  */
 
 #ifndef __EXAMPLECREATOR_H
 #define __EXAMPLECREATOR_H
 
-#include "triangulation/forward.h"
-
 #include "reginaqt.h"
 #include <QString>
 
 /**
- * A ready-made example triangulation that Regina can create.
+ * A ready-made example triangulation or link that Regina can create.
+ *
+ * The class \a Object would typically be `Triangulation<dim>` or `Link`.
  */
-template <int dim>
+template <typename Object>
 class ExampleCreator {
     public:
-        using CreatorFunc = regina::Triangulation<dim> (*)();
+        using CreatorFunc = Object (*)();
 
     private:
         QString name_;
@@ -63,8 +62,7 @@ class ExampleCreator {
             return name_;
         }
 
-        std::shared_ptr<regina::PacketOf<regina::Triangulation<dim>>> create()
-                const {
+        std::shared_ptr<regina::PacketOf<Object>> create() const {
             return regina::make_packet((*creator_)(),
                 name_.toUtf8().constData());
         }

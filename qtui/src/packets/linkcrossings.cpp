@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Qt User Interface                                                     *
  *                                                                        *
- *  Copyright (c) 1999-2023, Ben Burton                                   *
+ *  Copyright (c) 1999-2025, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -23,10 +23,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
  *  General Public License for more details.                              *
  *                                                                        *
- *  You should have received a copy of the GNU General Public             *
- *  License along with this program; if not, write to the Free            *
- *  Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,       *
- *  MA 02110-1301, USA.                                                   *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
  *                                                                        *
  **************************************************************************/
 
@@ -323,23 +321,37 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
 
     actSimplify = new QAction(this);
     actSimplify->setText(tr("&Simplify"));
-    actSimplify->setIcon(ReginaSupport::regIcon("simplify-link"));
-    actSimplify->setToolTip(tr(
-        "Simplify the knot or link as far as possible"));
-    actSimplify->setWhatsThis(tr("Simplify this link to use fewer "
-        "crossings.  This link will be modified directly.<p>"
-        "This procedure uses only fast heuristics based on Reidemeister "
-        "moves, and so there is no guarantee that the smallest possible "
-        "number of crossings will be achieved."));
+    actSimplify->setIcon(ReginaSupport::regIcon("simplify-clean"));
+    actSimplify->setToolTip(tr("Simplify the link diagram"));
+    actSimplify->setWhatsThis(tr("Attempts to simplify this link diagram "
+        "to use fewer crossings.<p>"
+        "This procedure searches for useful combinations of Reidemeister "
+        "moves.  There is no guarantee that the "
+        "smallest possible number of crossings will be achieved."));
     actionList.push_back(actSimplify);
     connect(actSimplify, SIGNAL(triggered()), this, SLOT(simplify()));
 
-    auto* actMoves = new QAction(this);
+    actTreewidth = new QAction(this);
+    actTreewidth->setText(tr("Improve &Treewidth"));
+    actTreewidth->setIconText(tr("Treewidth"));
+    actTreewidth->setIcon(ReginaSupport::regIcon("treewidth"));
+    actTreewidth->setToolTip(tr("Reduce the treewidth of the link diagram"));
+    actTreewidth->setWhatsThis(tr("Explores nearby diagrams via "
+        "Reidemeister moves in an attempt to reduce the treewidth "
+        "of this link diagram.  "
+        "This operation might increase the number of crossings, "
+        "but it should improve the performance of treewidth-based algorithms "
+        "(e.g., for computing knot/link polynomials)."));
+    actionList.push_back(actTreewidth);
+    connect(actTreewidth, SIGNAL(triggered()), this, SLOT(improveTreewidth()));
+
+    actMoves = new QAction(this);
     actMoves->setText(tr("Reidemeister &Moves..."));
-    actMoves->setToolTip(tr(
-        "Modify the link diagram using Reidemeister moves"));
-    actMoves->setWhatsThis(tr("Perform Reidemeister moves upon this "
-        "link diagram.  <i>Reidemeister moves</i> are modifications "
+    actMoves->setIconText(tr("Moves"));
+    actMoves->setIcon(ReginaSupport::regIcon("eltmoves"));
+    actMoves->setToolTip(tr("Perform individual Reidemeister moves"));
+    actMoves->setWhatsThis(tr("Allows you to perform Reidemeister moves upon "
+        "this link diagram.  <i>Reidemeister moves</i> are modifications "
         "local to a small number of crossings that do not change "
         "the underlying link.<p>"
         "A dialog will be presented for you to select which "
@@ -355,18 +367,18 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
     actReflect = new QAction(this);
     actReflect->setText(tr("Re&flect"));
     actReflect->setIcon(ReginaSupport::regIcon("reflect"));
-    actReflect->setToolTip(tr("Reflect this link"));
-    actReflect->setWhatsThis(tr("Reflect this link about some axis in "
+    actReflect->setToolTip(tr("Reflect the link"));
+    actReflect->setWhatsThis(tr("Reflects this link about some axis in "
         "the plane.  Every crossing will change sign, but its upper "
         "and lower strands will remain the same."));
     actionList.push_back(actReflect);
     connect(actReflect, SIGNAL(triggered()), this, SLOT(reflect()));
 
-    auto* actRotate = new QAction(this);
+    actRotate = new QAction(this);
     actRotate->setText(tr("&Rotate"));
     actRotate->setIcon(ReginaSupport::regIcon("rotate"));
-    actRotate->setToolTip(tr("Rotate this link"));
-    actRotate->setWhatsThis(tr("Rotate this link about some axis in "
+    actRotate->setToolTip(tr("Rotate the link"));
+    actRotate->setWhatsThis(tr("Rotates this link about some axis in "
         "the plane.  Every crossing will keep the same sign, but its upper "
         "and lower strands will be switched.<p>"
         "This operation simply produces a different diagram of the "
@@ -374,11 +386,11 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
     actionList.push_back(actRotate);
     connect(actRotate, SIGNAL(triggered()), this, SLOT(rotate()));
 
-    auto* actReverse = new QAction(this);
+    actReverse = new QAction(this);
     actReverse->setText(tr("Re&verse"));
     actReverse->setIcon(ReginaSupport::regIcon("reverse"));
-    actReverse->setToolTip(tr("Reverse this link"));
-    actReverse->setWhatsThis(tr("Reverse the orientation of each component "
+    actReverse->setToolTip(tr("Reverse the link"));
+    actReverse->setWhatsThis(tr("Reverses the orientation of each component "
         "of this link.  Every crossing will keep the same sign and the "
         "same upper/lower strands, but the order in which you traverse "
         "the strands will be reversed."));
@@ -387,53 +399,41 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
 
     actAlternating = new QAction(this);
     actAlternating->setText(tr("Make &Alternating"));
+    actAlternating->setIconText(tr("Alternate"));
     actAlternating->setIcon(ReginaSupport::regIcon("alternating"));
     actAlternating->setToolTip(tr("Make this an alternating link"));
-    actAlternating->setWhatsThis(tr("Switch the upper/lower strands on "
-        "crossings where necessary to convert this into an alternating link.  "
-        "This link will be modified directly."));
+    actAlternating->setWhatsThis(tr("Switches the upper/lower strands on "
+        "crossings where necessary to convert this into an alternating link."));
     actionList.push_back(actAlternating);
     connect(actAlternating, SIGNAL(triggered()), this, SLOT(alternating()));
 
-    auto* actParallel = new QAction(this);
-    actParallel->setText(tr("Parallel Ca&bles..."));
-    actParallel->setIcon(ReginaSupport::regIcon("parallel"));
-    actParallel->setToolTip(tr("Expand into parallel cables"));
-    actParallel->setWhatsThis(tr("Expands this link into many cables, "
-        "all of which will be parallel according to a chosen framing.  "
-        "This link will be modified directly."));
-    actionList.push_back(actParallel);
-    connect(actParallel, SIGNAL(triggered()), this, SLOT(parallel()));
-
-    auto* actSelfFrame = new QAction(this);
+    actSelfFrame = new QAction(this);
     actSelfFrame->setText(tr("Self Frame"));
     actSelfFrame->setIcon(ReginaSupport::regIcon("selfframe"));
     actSelfFrame->setToolTip(tr("Self-frame by adding twists"));
-    actSelfFrame->setWhatsThis(tr("Adds twists "
-        "to ensure that each component has zero writhe.  "
-        "This link will be modified directly."));
+    actSelfFrame->setWhatsThis(tr("Adds twists to this link "
+        "to ensure that each component has zero writhe."));
     actionList.push_back(actSelfFrame);
     connect(actSelfFrame, SIGNAL(triggered()), this, SLOT(selfFrame()));
 
     auto* actComposeWith = new QAction(this);
     actComposeWith->setText(tr("Com&pose With..."));
+    actComposeWith->setIconText(tr("Compose"));
     actComposeWith->setIcon(ReginaSupport::regIcon("connectedsumwith"));
-    actComposeWith->setToolTip(
-        tr("Make this into a composition with another link"));
-    actComposeWith->setWhatsThis(tr("Forms the composition of "
-        "this link with some other link.  "
-        "This link will be modified directly."));
+    actComposeWith->setToolTip(tr("Compose this with some other link"));
+    actComposeWith->setWhatsThis(tr("Converts this into the composite of "
+        "this link with some other chosen link."));
     actionList.push_back(actComposeWith);
     connect(actComposeWith, SIGNAL(triggered()), this, SLOT(composeWith()));
 
     auto* actInsertLink = new QAction(this);
     actInsertLink->setText(tr("&Insert Link..."));
+    actInsertLink->setIconText(tr("Insert"));
     actInsertLink->setIcon(ReginaSupport::regIcon("disjointunion"));
-    actInsertLink->setToolTip(
-        tr("Insert another link as additional diagram component(s)"));
-    actInsertLink->setWhatsThis(tr("Forms the split union of "
-        "this link with some other link.  "
-        "This link will be modified directly."));
+    actInsertLink->setToolTip(tr("Insert a copy of some other link diagram"));
+    actInsertLink->setWhatsThis(tr("Inserts a copy of some chosen link diagram "
+        "into this diagram.  The effect will be to convert this into the "
+        "split union of the two original links."));
     actionList.push_back(actInsertLink);
     connect(actInsertLink, SIGNAL(triggered()), this, SLOT(insertLink()));
 
@@ -441,43 +441,81 @@ LinkCrossingsUI::LinkCrossingsUI(regina::PacketOf<regina::Link>* packet,
     sep->setSeparator(true);
     actionList.push_back(sep);
 
-    auto* actDiagramComponents = new QAction(this);
-    actDiagramComponents->setText(tr("Extract Diagram C&omponents"));
-    actDiagramComponents->setIcon(ReginaSupport::regIcon("components"));
-    actDiagramComponents->setToolTip(tr("Form a new link from each "
-        "connected component of this diagram"));
-    actDiagramComponents->setWhatsThis(tr("<qt>Split a disconnected "
-        "link diagram into its individual connected components.  This "
-        "link diagram will not be changed &ndash; each "
-        "connected component will be added as a new link beneath "
-        "it in the packet tree.<p>"
-        "If this link diagram is already connected, this operation will "
-        "do nothing.</qt>"));
-    actionList.push_back(actDiagramComponents);
-    connect(actDiagramComponents, SIGNAL(triggered()), this,
-        SLOT(diagramComponents()));
+    actWhiteheadDouble = new QAction(this);
+    actWhiteheadDouble->setText(tr("Build &Whitehead Double"));
+    actWhiteheadDouble->setIconText(tr("Double"));
+    actWhiteheadDouble->setIcon(ReginaSupport::regIcon("whitehead-double"));
+    actWhiteheadDouble->setToolTip(tr("Build the Whitehead double of this "
+        "knot"));
+    actWhiteheadDouble->setWhatsThis(tr("Builds the Whitehead double "
+        "of this knot.  "
+        "This knot will not be changed – the "
+        "Whitehead double will be added as a new link beneath "
+        "it in the packet tree."));
+    actionList.push_back(actWhiteheadDouble);
+    connect(actWhiteheadDouble, SIGNAL(triggered()), this,
+        SLOT(whiteheadDouble()));
+
+    auto* actParallel = new QAction(this);
+    actParallel->setText(tr("Build Parallel Ca&bles..."));
+    actParallel->setIconText(tr("Parallel"));
+    actParallel->setIcon(ReginaSupport::regIcon("parallel"));
+    actParallel->setToolTip(tr("Expand into parallel cables"));
+    actParallel->setWhatsThis(tr("Builds a new link using <i>k</i> cables "
+        "of this link, all parallel via a chosen framing.  "
+        "Both <i>k</i> and the framing can be selected.  "
+        "This link will not be changed – the new link will be added "
+        "beneath it in the packet tree."));
+    actionList.push_back(actParallel);
+    connect(actParallel, SIGNAL(triggered()), this, SLOT(parallel()));
 
     actComplement = new QAction(this);
     actComplement->setText(tr("&Complement"));
     actComplement->setIcon(ReginaSupport::regIcon("packet_triangulation3"));
-    actComplement->setToolTip(tr("Triangulate the complement of this link "
-        "within Regina."));
-    actComplement->setWhatsThis(tr("Construct the complement of this "
-        "knot or link as an ideal Regina triangulation.  "
+    actComplement->setToolTip(tr("Build the complement as a Regina "
+        "triangulation"));
+    actComplement->setWhatsThis(tr("Builds the complement of this link as an "
+        "ideal Regina triangulation, using Regina's own implementation.  "
         "The meridinal and longitudinal curves will be forgotten."));
     actionList.push_back(actComplement);
     connect(actComplement, SIGNAL(triggered()), this, SLOT(complement()));
 
     actSnapPea = new QAction(this);
-    actSnapPea->setText(tr("S&napPea"));
+    actSnapPea->setText(tr("Complement Via S&napPea"));
+    actSnapPea->setIconText(tr("SnapPea"));
     actSnapPea->setIcon(ReginaSupport::regIcon("packet_snappea"));
-    actSnapPea->setToolTip(tr("Triangulate the complement of this link "
-        "within the SnapPea kernel."));
-    actSnapPea->setWhatsThis(tr("Construct the complement of this "
-        "knot or link as a SnapPea triangulation."
+    actSnapPea->setToolTip(tr("Build the complement as a SnapPea "
+        "triangulation"));
+    actSnapPea->setWhatsThis(tr("Builds the complement of this "
+        "link as a SnapPea triangulation, using the SnapPea kernel.  "
         "The meridinal and longitudinal curves will be preserved."));
     actionList.push_back(actSnapPea);
     connect(actSnapPea, SIGNAL(triggered()), this, SLOT(snapPea()));
+
+    sep = new QAction(this);
+    sep->setSeparator(true);
+    actionList.push_back(sep);
+
+    // Possibly we should only enable this action when there are multiple
+    // diagram components.  However, this test is not constant-time (and
+    // connectedness is not cached for links), and so we just leave it enabled
+    // always for now.
+    auto* actDiagramComponents = new QAction(this);
+    actDiagramComponents->setText(tr("Extract Diagram C&omponents"));
+    actDiagramComponents->setIconText(tr("Components"));
+    actDiagramComponents->setIcon(ReginaSupport::regIcon("components"));
+    actDiagramComponents->setToolTip(
+        tr("Extract connected diagram components"));
+    actDiagramComponents->setWhatsThis(tr("Splits a disconnected "
+        "link diagram into its individual connected components.  This "
+        "link diagram will not be changed – each "
+        "connected component will be added as a new link beneath "
+        "it in the packet tree.<p>"
+        "If this link diagram is already connected, this operation will "
+        "do nothing."));
+    actionList.push_back(actDiagramComponents);
+    connect(actDiagramComponents, SIGNAL(triggered()), this,
+        SLOT(diagramComponents()));
 
     connect(&ReginaPrefSet::global(), SIGNAL(preferencesChanged()),
         this, SLOT(updatePreferences()));
@@ -494,11 +532,26 @@ LinkCrossingsUI::~LinkCrossingsUI() {
 }
 
 void LinkCrossingsUI::fillToolBar(QToolBar* bar) {
-    bar->addAction(actReflect);
-    bar->addAction(actSimplify);
-    bar->addSeparator();
-    bar->addAction(actComplement);
-    bar->addAction(actSnapPea);
+    if (ReginaPrefSet::global().displaySimpleToolbars) {
+        bar->addAction(actSimplify);
+        bar->addAction(actReflect);
+        bar->addSeparator();
+        bar->addAction(actComplement);
+        bar->addAction(actSnapPea);
+    } else {
+        bar->addAction(actSimplify);
+        bar->addAction(actTreewidth);
+        bar->addAction(actMoves);
+        bar->addSeparator();
+        bar->addAction(actReflect);
+        bar->addAction(actRotate);
+        bar->addAction(actReverse);
+        bar->addAction(actAlternating);
+        bar->addAction(actSelfFrame);
+        bar->addSeparator();
+        bar->addAction(actComplement);
+        bar->addAction(actSnapPea);
+    }
 }
 
 regina::Packet* LinkCrossingsUI::getPacket() {
@@ -608,6 +661,8 @@ void LinkCrossingsUI::refresh() {
                 crossings->setMovement(QListView::Static);
                 crossings->setWrapping(true);
                 crossings->setResizeMode(QListView::Adjust);
+                crossings->setSizeAdjustPolicy(
+                    QAbstractScrollArea::AdjustToContents);
                 crossings->setSelectionMode(QListView::NoSelection);
                 crossings->setUniformItemSizes(true);
                 crossings->setItemDelegate(new CrossingDelegate(crossings));
@@ -629,6 +684,8 @@ void LinkCrossingsUI::refresh() {
             crossings->setMovement(QListView::Static);
             crossings->setWrapping(true);
             crossings->setResizeMode(QListView::Adjust);
+            crossings->setSizeAdjustPolicy(
+                QAbstractScrollArea::AdjustToContents);
             crossings->setSelectionMode(QListView::NoSelection);
             crossings->setUniformItemSizes(true);
             crossings->setItemDelegate(new CrossingDelegate(crossings));
@@ -653,6 +710,8 @@ void LinkCrossingsUI::refresh() {
     }
 
     actAlternating->setEnabled(! link->isAlternating());
+    actWhiteheadDouble->setEnabled(link->countComponents() == 1);
+    actSnapPea->setEnabled(link->isClassical());
 }
 
 void LinkCrossingsUI::simplify() {
@@ -695,10 +754,22 @@ void LinkCrossingsUI::simplifyExhaustive(int height) {
     ProgressDialogOpen dlg(&tracker, tr("Searching Reidemeister graph..."),
         (knot ? tr("Tried %1 knots") : tr("Tried %1 links")), ui);
 
-    std::thread(&Link::simplifyExhaustive, link, height,
-        ReginaPrefSet::threads(), std::addressof(tracker)).detach();
+    bool result;
+    {
+        // We cannot have a packet change event fired from the computation
+        // thread, since this could lead to Qt crashing.  We therefore wrap
+        // the entire computation in a PacketChangeGroup, so that the change
+        // event is fired here in this thread, at the end of this braced block,
+        // after the computation thread is guaranteed to have finished.
 
-    if (dlg.run() && link->size() == initSize) {
+        regina::Packet::PacketChangeGroup span(*link);
+        std::thread t(&Link::simplifyExhaustive, link, height,
+            ReginaPrefSet::threads(), std::addressof(tracker));
+        result = dlg.run();
+        t.join();
+    }
+
+    if (result && link->size() == initSize) {
         dlg.hide();
 
         QMessageBox msgBox(ui);
@@ -706,7 +777,7 @@ void LinkCrossingsUI::simplifyExhaustive(int height) {
         msgBox.setIcon(QMessageBox::Information);
         msgBox.setText(tr("I still could not simplify the %1.")
             .arg(knot ? "knot" : "link"));
-        msgBox.setInformativeText(tr("<qt>I have exhaustively searched "
+        msgBox.setInformativeText(tr("I have exhaustively searched "
             "the Reidemeister graph up to %1 crossings.<p>"
             "I can look further, but be warned: the time and memory "
             "required could grow <i>very</i> rapidly.").arg(initSize + height));
@@ -717,6 +788,74 @@ void LinkCrossingsUI::simplifyExhaustive(int height) {
         msgBox.exec();
         if (msgBox.clickedButton() == work)
             simplifyExhaustive(height + 1);
+    }
+}
+
+void LinkCrossingsUI::improveTreewidth(int attempt) {
+    Link orig(*link, false);
+
+    regina::ProgressTrackerOpen tracker;
+    ProgressDialogOpen dlg(&tracker, tr("Searching Reidemeister graph..."),
+        tr("Tried %1 diagrams"), ui);
+
+    // Choose sensible bounds for the search.
+    // For now we limit the height but leave the number of attempts unlimited.
+    // The user can always cancel if they need to.
+    int height = attempt + 2;
+
+    bool result;
+    {
+        // We cannot have a packet change event fired from the computation
+        // thread, since this could lead to Qt crashing.  We therefore wrap
+        // the entire computation in a PacketChangeGroup, so that the change
+        // event is fired here in this thread, at the end of this braced block,
+        // after the computation thread is guaranteed to have finished.
+
+        regina::Packet::PacketChangeGroup span(*link);
+        std::thread t(&Link::improveTreewidth, link, -1 /* maxAttempts */,
+            height, ReginaPrefSet::threads(), std::addressof(tracker));
+        result = dlg.run();
+        t.join();
+    }
+
+    if (result) {
+        dlg.hide();
+
+        if (*link == orig) {
+            // Nothing changed.
+            QMessageBox msgBox(ui);
+            msgBox.setWindowTitle(tr("Information"));
+            msgBox.setIcon(QMessageBox::Information);
+            msgBox.setText(tr("I could not find a smaller treewidth diagram."));
+            msgBox.setInformativeText(tr("I limited my search through the "
+                "Reidemeister graph to ≤ %1 extra crossings.<p>"
+                "I can look further, but be warned: the time and memory "
+                "required could grow <i>very</i> rapidly.").arg(height));
+            msgBox.setStandardButtons(QMessageBox::Close);
+            QAbstractButton* work = msgBox.addButton(
+                tr("Keep trying"), QMessageBox::ActionRole);
+            msgBox.setDefaultButton(QMessageBox::Close);
+            msgBox.exec();
+            if (msgBox.clickedButton() == work)
+                improveTreewidth(attempt + 1);
+        } else {
+            // We did manage to improve the treewidth.
+            QMessageBox msgBox(ui);
+            msgBox.setWindowTitle(tr("Information"));
+            msgBox.setIcon(QMessageBox::Information);
+            msgBox.setText(tr("Success! I improved the treewidth."));
+            msgBox.setInformativeText(tr("If you like, I can keep searching "
+                "and try to improve the treewidth even further.  However, "
+                "be warned: the time and memory required could grow "
+                "<i>very</i> rapidly."));
+            msgBox.setStandardButtons(QMessageBox::Close);
+            QAbstractButton* work = msgBox.addButton(
+                tr("Keep trying"), QMessageBox::ActionRole);
+            msgBox.setDefaultButton(QMessageBox::Close);
+            msgBox.exec();
+            if (msgBox.clickedButton() == work)
+                improveTreewidth(attempt + 1);
+        }
     }
 }
 
@@ -733,12 +872,13 @@ void LinkCrossingsUI::reverse() {
 }
 
 void LinkCrossingsUI::alternating() {
-    link->makeAlternating();
-}
-
-void LinkCrossingsUI::parallel() {
-    ParallelDialog dlg(ui, *link);
-    dlg.exec();
+    if (link->isAlternating())
+        ReginaSupport::info(ui,
+            tr("This link diagram is already alternating."));
+    else if (! link->makeAlternating())
+        ReginaSupport::info(ui,
+            tr("This link diagram cannot be made alternating."),
+            tr("This can only occur with virtual link diagrams."));
 }
 
 void LinkCrossingsUI::selfFrame() {
@@ -777,6 +917,33 @@ void LinkCrossingsUI::insertLink() {
 
 void LinkCrossingsUI::moves() {
     (new LinkMoveDialog(ui, link))->show();
+}
+
+void LinkCrossingsUI::whiteheadDouble() {
+    // Note: There are two ways to create Whitehead doubles.
+    // This menu action code should be kept in sync with the code that
+    // creates Whitehead doubles via "New Knot/Link".
+    if (link->isEmpty()) {
+        ReginaSupport::info(ui, tr("This link diagram is empty."));
+    } else if (link->countComponents() > 1) {
+        ReginaSupport::info(ui, tr("This link has multiple components."),
+            tr("I can only build the Whitehead double of a knot, not a "
+                "multiple-component link."));
+    } else {
+        // Unlike the "New Knot/Link" method of creating Whitehead doubles,
+        // we don't incorporate the source packet label into the new packet
+        // label here since the new packet will appear directly beneath the
+        // source in the packet tree.
+        auto ans = regina::make_packet(link->whiteheadDouble(),
+            "Whitehead double");
+        link->append(ans);
+        enclosingPane->getMainWindow()->packetView(*ans, true, true);
+    }
+}
+
+void LinkCrossingsUI::parallel() {
+    ParallelDialog dlg(ui, link, enclosingPane->getMainWindow());
+    dlg.exec();
 }
 
 void LinkCrossingsUI::diagramComponents() {
@@ -827,8 +994,16 @@ void LinkCrossingsUI::complement() {
 void LinkCrossingsUI::snapPea() {
     if (link->isEmpty()) {
         ReginaSupport::sorry(ui,
+            tr("This link diagram is empty."),
             tr("The SnapPea kernel cannot triangulate the complement "
                 "of an empty link."));
+        return;
+    }
+    if (! link->isClassical()) {
+        ReginaSupport::sorry(ui,
+            tr("This link diagram is virtual."),
+            tr("The SnapPea kernel can only triangulate the complement "
+                "of a classical link diagram, not a virtual link diagram."));
         return;
     }
     auto ans = regina::make_packet<regina::SnapPeaTriangulation>(
@@ -872,12 +1047,16 @@ void LinkCrossingsUI::contextStrand(const QPoint& pos) {
 
             QAction change(tr("Change crossing %1").arg(useCrossing), this);
             QAction resolve(tr("Resolve crossing %1").arg(useCrossing), this);
+            QAction makeVirtual(tr("Make crossing %1 virtual").arg(useCrossing),
+                this);
             QAction reverse(tr("Reverse component"), this);
             connect(&change, SIGNAL(triggered()), this, SLOT(changeCrossing()));
             connect(&resolve, SIGNAL(triggered()), this, SLOT(resolveCrossing()));
+            connect(&makeVirtual, SIGNAL(triggered()), this, SLOT(makeVirtual()));
             connect(&reverse, SIGNAL(triggered()), this, SLOT(reverseComponent()));
             m.addAction(&change);
             m.addAction(&resolve);
+            m.addAction(&makeVirtual);
             m.addAction(&reverse);
 
             m.exec(ui->mapToGlobal(pos));
@@ -905,17 +1084,24 @@ void LinkCrossingsUI::reverseComponent() {
     useStrand = -1;
 }
 
+void LinkCrossingsUI::makeVirtual() {
+    if (useStrand >= 0 && useStrand < 2 * link->size())
+        link->makeVirtual(link->crossing(useStrand >> 1));
+    useStrand = -1;
+}
+
 void LinkCrossingsUI::updatePreferences() {
     // This should be enough to trigger a re-layout:
     typeChanged(1);
 }
 
-ParallelDialog::ParallelDialog(QWidget* parent, regina::Link& link) :
-        QDialog(parent), link_(link) {
+ParallelDialog::ParallelDialog(QWidget* parent,
+        regina::PacketOf<regina::Link>* link, ReginaMain* mainWindow):
+        QDialog(parent), link_(link), mainWindow_(mainWindow) {
     setWindowTitle(tr("Parallel Cables"));
-    setWhatsThis(tr("This will construct a new link that represents "
-        "several cables of the link that you are viewing., all parallel using a chosen framing.  "
-        "This link will not be modified."));
+    setWhatsThis(tr("This will build a new link using several cables of the "
+        "link that you are viewing, all parallel via the chosen framing.  "
+        "The original link will not be modified."));
     auto* layout = new QVBoxLayout(this);
 
     auto* subLayout = new QHBoxLayout();
@@ -954,6 +1140,9 @@ ParallelDialog::ParallelDialog(QWidget* parent, regina::Link& link) :
 }
 
 void ParallelDialog::slotOk() {
+    // Note: There are two ways to create parallel cables.
+    // This menu action code should be kept in sync with the code that
+    // creates parallel cables via "New Knot/Link".
     auto match = reCables.match(nCables->text());
     if (! match.hasMatch()) {
         ReginaSupport::sorry(this,
@@ -961,7 +1150,7 @@ void ParallelDialog::slotOk() {
         return;
     }
 
-    unsigned long n = match.captured(1).toULong();
+    int n = match.captured(1).toInt();
     if (n < 1) {
         ReginaSupport::sorry(this,
             tr("The number of cables should be positive."));
@@ -969,7 +1158,8 @@ void ParallelDialog::slotOk() {
     }
     if (n == 1) {
         ReginaSupport::sorry(this,
-            tr("If there is only one cable then the link will not change."));
+            tr("If there is only one cable then the new link will be no "
+                "different."));
         return;
     }
     if (n > MAX_CABLES) {
@@ -989,7 +1179,16 @@ void ParallelDialog::slotOk() {
             break;
     }
 
-    link_ = link_.parallel(n, f);
+    // Unlike the "New Knot/Link" method of creating parallel cables,
+    // we don't incorporate the source packet label into the new packet
+    // label here since the new packet will appear directly beneath the
+    // source in the packet tree.
+    std::ostringstream label;
+    label << n << " cables";
+
+    auto ans = regina::make_packet(link_->parallel(n, f), label.str());
+    link_->append(ans);
+    mainWindow_->packetView(*ans, true, true);
 
     accept();
 }
