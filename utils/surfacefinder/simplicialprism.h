@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <gmpxx.h>
-#include <link/link.h>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
