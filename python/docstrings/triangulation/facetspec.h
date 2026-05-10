@@ -41,8 +41,7 @@ Python:
     FacetSpec3 for dimensions 2 and 3).
 
 Template parameter ``dim``:
-    the dimension of the underlying triangulation. This must be
-    between 2 and 15 inclusive.)doc";
+    the dimension of the underlying triangulation.)doc";
 
 namespace FacetSpec_ {
 
@@ -68,7 +67,7 @@ Parameter ``rhs``:
     the specifier to compare with this.
 
 Returns:
-    The result of the comparison between this and the given specifier.)doc";
+    the result of the comparison between this and the given specifier.)doc";
 
 // Docstring regina::python::doc::FacetSpec_::__copy
 static const char *__copy =
@@ -94,7 +93,7 @@ Python:
     decrement operator.
 
 Returns:
-    A copy of this specifier before it was decremented.)doc";
+    a copy of this specifier before it was decremented.)doc";
 
 // Docstring regina::python::doc::FacetSpec_::__default
 static const char *__default =
@@ -127,7 +126,7 @@ Python:
     increment operator.
 
 Returns:
-    A copy of this specifier before it was incremented.)doc";
+    a copy of this specifier before it was incremented.)doc";
 
 // Docstring regina::python::doc::FacetSpec_::__init
 static const char *__init =

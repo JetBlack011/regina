@@ -37,8 +37,11 @@
  *  \brief Implements groups of permutations on \a n objects.
  */
 
+#include <concepts>
 #include "core/output.h"
 #include "maths/perm.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -112,13 +115,11 @@ enum class NamedPermGroup {
  * and work with them in-place where possible.
  *
  * \python Python does not support templates.  In Python, the "vanilla"
- * non-cached variants `Perm<n>` are available under the names
- * PermGroup2, PermGroup3, ..., PermGroup16, and the cached variants
- * `Perm<n, true>` are available under the names
- * PermGroup2_Cached, PermGroup3_Cached, ..., PermGroup16_Cached.
+ * non-cached variants `PermGroup<n>` are available under the names
+ * PermGroup2, PermGroup3, …, and the cached variants `Perm<n, true>` are
+ * available under the names PermGroup2_Cached, PermGroup3_Cached, ….
  *
  * \tparam n the number of objects being permuted.
- * This must be between 2 and 16 inclusive.
  * \tparam cached \c true if we should use precomputation-assisted routines
  * such as Perm<n>::cachedComp() and Perm<n>::cachedInverse(), or \c false
  * (the default) if we should just use the composition operator, inverse(),
@@ -129,6 +130,7 @@ enum class NamedPermGroup {
  * \ingroup maths
  */
 template <int n, bool cached = false>
+requires (2 <= n && n <= maxPermDegree())
 class PermGroup : public Output<PermGroup<n, cached>> {
     private:
         /**
@@ -395,7 +397,7 @@ class PermGroup : public Output<PermGroup<n, cached>> {
          * in \a parent for which `test(p, args...)` returns \c true.
          *
          * The argument \a test should be a function or some other callable
-         * object.  It must return a boolean, and its first argument should
+         * type.  It must return a boolean, and its first argument should
          * be a permutation (either by value as type `Perm<n>`, or by
          * const reference as type `const Perm<n>&`).  If there are
          * any additional arguments supplied in the list \a args, these
@@ -419,12 +421,13 @@ class PermGroup : public Output<PermGroup<n, cached>> {
          *
          * \param parent the "starting" group of all permutations under
          * consideration.
-         * \param test a function (or other callable object) that determines
+         * \param test a function (or other callable type) that determines
          * which permutations in \a parent become members of this subgroup.
          * \param args any additional arguments that should be passed to
          * \a test, following the initial permutation argument.
          */
         template <typename Test, typename... Args>
+        requires std::predicate<Test, Perm<n>, Args...>
         PermGroup(const PermGroup& parent, Test&& test, Args&&... args);
 
         /**
@@ -511,7 +514,7 @@ class PermGroup : public Output<PermGroup<n, cached>> {
          *
          * \nocpp For C++ users, PermGroup provides the usual begin() and end()
          * functions instead.  In particular, you can iterate over the elements
-         * of this group in the usual way using a range-based \c for loop.
+         * of this group in the usual way using a range-based `for` loop.
          *
          * \return an iterator over the elements of this group.
          */
@@ -583,15 +586,18 @@ class PermGroup : public Output<PermGroup<n, cached>> {
 // Inline functions for PermGroup::iterator
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline PermGroup<n, cached>::iterator::iterator() : group_(nullptr) {
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline PermGroup<n, cached>::iterator::iterator(
         const PermGroup<n, cached>* group) : group_(group) {
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline bool PermGroup<n, cached>::iterator::operator == (
         const PermGroup<n, cached>::iterator& rhs) const {
     if (*this) {
@@ -608,6 +614,7 @@ inline bool PermGroup<n, cached>::iterator::operator == (
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline typename PermGroup<n, cached>::iterator
         PermGroup<n, cached>::iterator::operator ++(int) {
     iterator prev = *this;
@@ -616,11 +623,13 @@ inline typename PermGroup<n, cached>::iterator
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline Perm<n> PermGroup<n, cached>::iterator::operator * () const {
     return current_;
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline PermGroup<n, cached>::iterator::operator bool() const {
     return pos_[0] == 0;
 }
@@ -628,6 +637,7 @@ inline PermGroup<n, cached>::iterator::operator bool() const {
 // Inline functions for PermGroup
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline PermGroup<n, cached>::PermGroup() {
     // All permutations term_[k][j] are already initialised to the identity.
     std::fill(count_, count_ + n, 1);
@@ -642,7 +652,9 @@ inline PermGroup<n, cached>::PermGroup() {
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 template <typename Test, typename... Args>
+requires std::predicate<Test, Perm<n>, Args...>
 inline PermGroup<n, cached>::PermGroup(const PermGroup& parent, Test&& test,
         Args&&... args) {
     // Go through and fix term_[k][j] (k >= j), in order of increasing k.
@@ -752,6 +764,7 @@ inline PermGroup<n, cached>::PermGroup(const PermGroup& parent, Test&& test,
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline typename Perm<n>::Index PermGroup<n, cached>::size() const {
     using Index = typename Perm<n>::Index;
     Index ans = 1;
@@ -761,6 +774,7 @@ inline typename Perm<n>::Index PermGroup<n, cached>::size() const {
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline typename PermGroup<n, cached>::iterator PermGroup<n, cached>::begin()
         const {
     iterator ans(this);
@@ -770,6 +784,7 @@ inline typename PermGroup<n, cached>::iterator PermGroup<n, cached>::begin()
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline typename PermGroup<n, cached>::iterator PermGroup<n, cached>::end()
         const {
     iterator ans(this);
@@ -779,6 +794,7 @@ inline typename PermGroup<n, cached>::iterator PermGroup<n, cached>::end()
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline void PermGroup<n, cached>::writeTextShort(std::ostream& out) const {
     auto s = size();
     out << (s == 1 ? "Trivial" : s == Perm<n>::nPerms ? "Symmetric" :
@@ -787,6 +803,7 @@ inline void PermGroup<n, cached>::writeTextShort(std::ostream& out) const {
 }
 
 template <int n, bool cached>
+requires (2 <= n && n <= maxPermDegree())
 inline void PermGroup<n, cached>::setup() {
     // Note: if this routine is ever expanded to do more than fill initSeq[],
     // then the default constructor will need to be adjusted accordingly (since

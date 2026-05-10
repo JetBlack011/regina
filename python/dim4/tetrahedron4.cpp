@@ -32,11 +32,11 @@
 #include "triangulation/dim4.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
+#include "../docstrings/triangulation/facenumbering.h"
 #include "../docstrings/triangulation/alias/face.h"
 #include "../docstrings/triangulation/alias/facenumber.h"
 #include "../docstrings/triangulation/dim4/tetrahedron4.h"
 #include "../docstrings/triangulation/detail/face.h"
-#include "../docstrings/triangulation/detail/facenumbering.h"
 #include "../docstrings/triangulation/generic/faceembedding.h"
 
 using regina::Tetrahedron;
@@ -63,11 +63,11 @@ void addTetrahedron4(pybind11::module_& m, pybind11::module_& internal) {
             rbase2::tetrahedron)
         .def("vertices", &TetrahedronEmbedding<4>::vertices, rbase::vertices)
     ;
-    regina::python::add_output(e);
+    regina::python::add_output_rich(e);
     regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
-    RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
+    RDOC_SCOPE_BASE_2(detail::FaceBase, FaceNumbering)
 
     auto c = pybind11::class_<Face<4, 3>>(m, "Face4_3", rdoc_scope)
         .def("index", &Tetrahedron<4>::index, rbase::index)
@@ -88,7 +88,7 @@ void addTetrahedron4(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::component)
         .def("boundaryComponent", &Tetrahedron<4>::boundaryComponent,
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
-        .def("face", &regina::python::face<Tetrahedron<4>, 3, int>,
+        .def("face", &regina::python::face<4, 3>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::face)
         .def("vertex", &Tetrahedron<4>::vertex,
@@ -97,7 +97,7 @@ void addTetrahedron4(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::edge)
         .def("triangle", &Tetrahedron<4>::triangle,
             pybind11::return_value_policy::reference, rbase::triangle)
-        .def("faceMapping", &regina::python::faceMapping<Tetrahedron<4>, 3, 5>,
+        .def("faceMapping", &regina::python::faceMapping<4, 3>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping)
         .def("vertexMapping", &Tetrahedron<4>::vertexMapping,
@@ -120,21 +120,27 @@ void addTetrahedron4(pybind11::module_& m, pybind11::module_& internal) {
             rbase::inMaximalForest)
         .def("linkingSurface", &Tetrahedron<4>::linkingSurface,
             rdoc::linkingSurface)
-        .def_static("ordering", &Tetrahedron<4>::ordering)
-        .def_static("faceNumber", &Tetrahedron<4>::faceNumber)
-        .def_static("containsVertex", &Tetrahedron<4>::containsVertex)
+        .def_static("ordering", &Tetrahedron<4>::ordering, rbase2::ordering)
+        .def_static("faceNumber",
+            pybind11::overload_cast<regina::Perm<5>>(
+                &Tetrahedron<4>::faceNumber),
+            rbase2::faceNumber)
+        .def_static("containsVertex", &Tetrahedron<4>::containsVertex,
+            rbase2::containsVertex)
         .def_readonly_static("nFaces", &Tetrahedron<4>::nFaces)
         .def_readonly_static("lexNumbering", &Tetrahedron<4>::lexNumbering)
         .def_readonly_static("oppositeDim", &Tetrahedron<4>::oppositeDim)
         .def_readonly_static("dimension", &Tetrahedron<4>::dimension)
         .def_readonly_static("subdimension", &Tetrahedron<4>::subdimension)
+        .def_readonly_static("hasNumberingTables",
+            &Tetrahedron<4>::hasNumberingTables)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Tetrahedron<4>>().embeddings())>(internal,
         "Face4_3_embeddings");
 

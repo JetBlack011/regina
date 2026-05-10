@@ -46,9 +46,12 @@
 #include "utilities/fixedarray.h"
 #include <set>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 template <typename Action, typename... Args>
+requires VoidCallback<Action, Link&&, Args...>
 void ModelLinkGraph::generateMinimalLinks(Action&& action, Args&&... args)
         const {
     if (size() == 0) {
@@ -309,6 +312,7 @@ void ModelLinkGraph::generateMinimalLinks(Action&& action, Args&&... args)
 }
 
 template <typename Action, typename... Args>
+requires VoidCallback<Action, Link&&, Args...>
 void ModelLinkGraph::generateAllLinks(Action&& action, Args&&... args)
         const {
     if (size() == 0) {
@@ -443,6 +447,7 @@ void ModelLinkGraph::generateAllLinks(Action&& action, Args&&... args)
 }
 
 template <typename Action, typename... Args>
+requires VoidCallback<Action, ModelLinkGraph&&, Args...>
 void ModelLinkGraph::generateAllEmbeddings(const FacetPairing<3>& pairing,
         bool allowReflection, Flags<GraphConstraint> constraints,
         Action&& action, Args&&... args) {

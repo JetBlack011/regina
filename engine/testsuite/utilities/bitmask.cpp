@@ -35,7 +35,6 @@
 #include "maths/binom.h"
 #include "utilities/bitmask.h"
 #include "utilities/bitmanip.h"
-#include "utilities/intutils.h"
 
 #include "testhelper.h"
 
@@ -99,8 +98,10 @@ TEST(BitmaskTest, sizes) {
     EXPECT_GE(sizeof(regina::Bitmask1<uint16_t>), 2);
     EXPECT_GE(sizeof(regina::Bitmask1<uint32_t>), 4);
     EXPECT_GE(sizeof(regina::Bitmask1<uint64_t>), 8);
+    EXPECT_GE(sizeof(regina::Bitmask2<uint64_t>), 16);
 #ifdef INT128_AVAILABLE
-    EXPECT_GE(sizeof(regina::Bitmask1<regina::IntOfSize<16>::utype>), 16);
+    EXPECT_GE(sizeof(regina::Bitmask1<regina::UInt128>), 16);
+    EXPECT_GE(sizeof(regina::Bitmask2<regina::UInt128>), 32);
 #endif
 }
 
@@ -130,9 +131,6 @@ TEST(BitmaskTest, firstLastBit) {
     testFirstLastBit<regina::Bitmask1<uint16_t>>(16);
     testFirstLastBit<regina::Bitmask1<uint32_t>>(32);
     testFirstLastBit<regina::Bitmask1<uint64_t>>(64);
-#ifdef INT128_AVAILABLE
-    testFirstLastBit<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
-#endif
     testFirstLastBit<regina::Bitmask1<unsigned char>>(8);
     testFirstLastBit<regina::Bitmask1<unsigned long>>(longBits);
     testFirstLastBit<regina::Bitmask2<unsigned char, unsigned char>>(16);
@@ -141,6 +139,10 @@ TEST(BitmaskTest, firstLastBit) {
     testFirstLastBit<regina::Bitmask2<unsigned long, unsigned char>>
         (8 + longBits);
     testFirstLastBit<regina::Bitmask>(128);
+#ifdef INT128_AVAILABLE
+    testFirstLastBit<regina::Bitmask1<regina::UInt128>>(128);
+    testFirstLastBit<regina::Bitmask2<regina::UInt128>>(128);
+#endif
 }
 
 template <regina::ReginaBitmask BitmaskType>
@@ -170,15 +172,17 @@ TEST(BitmaskTest, bits) {
     testBits<regina::Bitmask1<uint16_t>>(16);
     testBits<regina::Bitmask1<uint32_t>>(32);
     testBits<regina::Bitmask1<uint64_t>>(64);
-#ifdef INT128_AVAILABLE
-    testBits<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
-#endif
     testBits<regina::Bitmask1<unsigned char>>(8);
     testBits<regina::Bitmask1<unsigned long>>(longBits);
-    testBits<regina::Bitmask2<unsigned char, unsigned char>>(16);
+    testBits<regina::Bitmask2<unsigned char>>(16);
+    testBits<regina::Bitmask2<unsigned long>>(2 * longBits);
     testBits<regina::Bitmask2<unsigned char, unsigned long>>(8 + longBits);
     testBits<regina::Bitmask2<unsigned long, unsigned char>>(8 + longBits);
     testBits<regina::Bitmask>(128);
+#ifdef INT128_AVAILABLE
+    testBits<regina::Bitmask1<regina::UInt128>>(128);
+    testBits<regina::Bitmask2<regina::UInt128>>(256);
+#endif
 }
 
 template <regina::ReginaBitmask BitmaskType>
@@ -210,19 +214,21 @@ TEST(BitmaskTest, truncate) {
     testTruncate<regina::Bitmask1<uint16_t>>(16);
     testTruncate<regina::Bitmask1<uint32_t>>(32);
     testTruncate<regina::Bitmask1<uint64_t>>(64);
-#ifdef INT128_AVAILABLE
-    testTruncate<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
-#endif
     testTruncate<regina::Bitmask1<unsigned char>>(8);
     testTruncate<regina::Bitmask1<unsigned long>>(longBits);
-    testTruncate<regina::Bitmask2<unsigned char, unsigned char>>(16);
+    testTruncate<regina::Bitmask2<unsigned char>>(16);
+    testTruncate<regina::Bitmask2<unsigned long>>(2 * longBits);
     testTruncate<regina::Bitmask2<unsigned char, unsigned long>>(8 + longBits);
     testTruncate<regina::Bitmask2<unsigned long, unsigned char>>(8 + longBits);
     testTruncate<regina::Bitmask>(128);
+#ifdef INT128_AVAILABLE
+    testTruncate<regina::Bitmask1<regina::UInt128>>(128);
+    testTruncate<regina::Bitmask2<regina::UInt128>>(256);
+#endif
 }
 
 template <regina::ReginaBitmask BitmaskType>
-static void testLexOrder(int length) {
+static void testNumericalOrder(int length) {
     SCOPED_TRACE_TYPE(BitmaskType);
     SCOPED_TRACE_NUMERIC(length);
 
@@ -239,34 +245,40 @@ static void testLexOrder(int length) {
     for (i = 0; i < 256; ++i) {
         SCOPED_TRACE(b[i]);
 
-        // Note: Bitmask uses lessThan() not <, since ≤ tests for subsets.
-        EXPECT_FALSE(b[i].lessThan(b[i]));
+        // Note: Bitmask uses numericalComp() not <=>, since <=> tests the
+        // subset relation.
+        EXPECT_EQ(b[i].numericalComp(b[i]), std::strong_ordering::equal);
         if (i > 0) {
-            EXPECT_TRUE(b[i - 1].lessThan(b[i]));
-            EXPECT_FALSE(b[i].lessThan(b[i - 1]));
+            EXPECT_EQ(b[i - 1].numericalComp(b[i]), std::strong_ordering::less);
+            EXPECT_EQ(b[i].numericalComp(b[i - 1]),
+                std::strong_ordering::greater);
         }
     }
 }
 
-TEST(BitmaskTest, lexOrder) {
+TEST(BitmaskTest, numericalOrder) {
     static constexpr int longBits = 8 * sizeof(unsigned long);
 
-    testLexOrder<regina::Bitmask1<uint8_t>>(8);
-    testLexOrder<regina::Bitmask1<uint16_t>>(16);
-    testLexOrder<regina::Bitmask1<uint32_t>>(32);
-    testLexOrder<regina::Bitmask1<uint64_t>>(64);
+    testNumericalOrder<regina::Bitmask1<uint8_t>>(8);
+    testNumericalOrder<regina::Bitmask1<uint16_t>>(16);
+    testNumericalOrder<regina::Bitmask1<uint32_t>>(32);
+    testNumericalOrder<regina::Bitmask1<uint64_t>>(64);
+    testNumericalOrder<regina::Bitmask1<unsigned char>>(8);
+    testNumericalOrder<regina::Bitmask1<unsigned long>>(longBits);
+    testNumericalOrder<regina::Bitmask2<unsigned char>>(16);
+    testNumericalOrder<regina::Bitmask2<unsigned long>>(2 * longBits);
+    testNumericalOrder<regina::Bitmask2<unsigned char, unsigned long>>(
+        8 + longBits);
+    testNumericalOrder<regina::Bitmask2<unsigned long, unsigned char>>(
+        8 + longBits);
+    testNumericalOrder<regina::Bitmask>(128);
 #ifdef INT128_AVAILABLE
-    testLexOrder<regina::Bitmask1<regina::IntOfSize<16>::utype>>(128);
+    testNumericalOrder<regina::Bitmask1<regina::UInt128>>(128);
+    testNumericalOrder<regina::Bitmask2<regina::UInt128>>(256);
 #endif
-    testLexOrder<regina::Bitmask1<unsigned char>>(8);
-    testLexOrder<regina::Bitmask1<unsigned long>>(longBits);
-    testLexOrder<regina::Bitmask2<unsigned char, unsigned char>>(16);
-    testLexOrder<regina::Bitmask2<unsigned char, unsigned long>>(8 + longBits);
-    testLexOrder<regina::Bitmask2<unsigned long, unsigned char>>(8 + longBits);
-    testLexOrder<regina::Bitmask>(128);
 }
 
-template <typename T, int k>
+template <regina::UnsignedCppInteger T, int k>
 static void verifyNextPermutationFor() {
     SCOPED_TRACE_TYPE(T);
     SCOPED_TRACE_NUMERIC(k);
@@ -294,7 +306,7 @@ static void verifyNextPermutationFor() {
     EXPECT_EQ(count, binomEdge(sizeof(T) * 8, k));
 }
 
-template <typename T>
+template <regina::UnsignedCppInteger T>
 static void verifyNextPermutation() {
     SCOPED_TRACE_TYPE(T);
 
@@ -312,11 +324,11 @@ TEST(BitmaskTest, nextPermutation) {
     verifyNextPermutation<unsigned int>();
     verifyNextPermutation<unsigned long>();
     verifyNextPermutation<unsigned long long>();
-    verifyNextPermutation<regina::IntOfSize<1>::utype>();
-    verifyNextPermutation<regina::IntOfSize<2>::utype>();
-    verifyNextPermutation<regina::IntOfSize<4>::utype>();
-    verifyNextPermutation<regina::IntOfSize<8>::utype>();
+    verifyNextPermutation<uint8_t>();
+    verifyNextPermutation<uint16_t>();
+    verifyNextPermutation<uint32_t>();
+    verifyNextPermutation<uint64_t>();
 #ifdef INT128_AVAILABLE
-    verifyNextPermutation<regina::IntOfSize<16>::utype>();
+    verifyNextPermutation<regina::UInt128>();
 #endif
 }

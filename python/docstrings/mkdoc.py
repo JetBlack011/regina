@@ -68,6 +68,11 @@ PRINT_LIST = [
     CursorKind.FIELD_DECL
 ]
 
+PRINT_BLACKLIST = [
+    CursorKind.TYPE_ALIAS_DECL,
+    CursorKind.TYPE_ALIAS_TEMPLATE_DECL
+]
+
 PREFIX_BLACKLIST = [
     CursorKind.TRANSLATION_UNIT
 ]
@@ -257,6 +262,7 @@ def process_comment(comment, preserveAmpersands):
     s = re.sub(r'\\headerfile\s(.*?)\s?\n\n', r'', s, flags=re.DOTALL)
     s = re.sub(r'\\cpp\s(.*?)\s?\n\n', r'', s, flags=re.DOTALL)
     s = re.sub(r'\\nocpp\s?(.*?)\s?\n\n', r'', s, flags=re.DOTALL)
+    s = re.sub(r'\\pyname{\S+}', r'', s, flags=re.DOTALL)
     s = re.sub(r'\\swift\s?(.*?)\s?\n\n', r'', s, flags=re.DOTALL)
 
     # Doxygen paragraphs that we will likewise ignore in Python:
@@ -493,6 +499,28 @@ def extract(filename, node, namespace, output):
             # C++ docs tell us not to generate docstrings for it.
             return
 
+    generateDocstring = (node.kind in PRINT_LIST and \
+        (node.access_specifier not in ACCESS_BLACKLIST and \
+            node.availability not in AVAILABILITY_BLACKLIST and \
+            node.spelling not in MEMBER_BLACKLIST and \
+            node.spelling not in CLASS_BLACKLIST and \
+            (not node.is_move_constructor())))
+
+    if (not generateDocstring) and (node.kind not in PRINT_BLACKLIST) and \
+            '\\python' in node.raw_comment:
+        # This entity has Python-specific comments, so generate a docstring
+        # even though the node type is not in the print whitelist.
+        # print('Print override for node kind:', node.kind)
+        generateDocstring = True
+
+    name = sanitize_name(d(node.spelling))
+    if node.raw_comment:
+        match = re.search(r'\\pyname{(\S+)}($|\s)', node.raw_comment)
+        if match:
+            newName = match.group(1)
+            print('Name override:', name, '->', newName)
+            name = newName
+
     if node.kind in RECURSE_LIST and \
             (node.access_specifier not in ACCESS_BLACKLIST and \
                 node.spelling not in CLASS_BLACKLIST and \
@@ -506,19 +534,14 @@ def extract(filename, node, namespace, output):
                         node.spelling == 'regina' and namespace == ''):
                     if len(namespace) > 0:
                         sub_namespace += '::'
-                    sub_namespace += sanitize_name(d(node.spelling))
+                    sub_namespace += name
                     # When delving into the class/struct/enum X, use the
                     # namespace X_ for the members of X.
                     if node.kind != CursorKind.NAMESPACE:
                         sub_namespace += '_'
             for i in node.get_children():
                 extract(filename, i, sub_namespace, output)
-    if node.kind in PRINT_LIST and \
-            (node.access_specifier not in ACCESS_BLACKLIST and \
-                node.availability not in AVAILABILITY_BLACKLIST and \
-                node.spelling not in MEMBER_BLACKLIST and \
-                node.spelling not in CLASS_BLACKLIST and \
-                (not node.is_move_constructor())):
+    if generateDocstring:
         sub_namespace = namespace
         if len(node.spelling) > 0:
             # We are seeing functions with inline definitions and/or
@@ -552,15 +575,13 @@ def extract(filename, node, namespace, output):
                     name = '__default'
                 else:
                     name = '__init'
-            else:
-                name = sanitize_name(d(node.spelling))
 
             fullname = 'regina::'
             if namespace:
                 fullname = fullname + namespace + '::'
             fullname += name
 
-            if node.raw_comment is None:
+            if node.raw_comment is None or node.raw_comment == '':
                 # print('    Undocumented:', fullname, '-- skipping')
                 return
 
@@ -769,8 +790,8 @@ def read_args(args):
                 cindex.Config.set_library_file(library_file)
     elif platform.system() == 'Linux':
         # LLVM switched to a monolithical setup that includes everything under
-        # /usr/lib/llvm{version_number}/. We glob for the library and select
-        # the highest version
+        # /usr/lib/llvm-{version_number}/. We glob for the library and select
+        # the highest version.
         def folder_version(d):
             return [int(ver) for ver in re.findall(r'(?<!lib)(?<!\d)\d+', d)]
 

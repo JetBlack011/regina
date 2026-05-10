@@ -42,6 +42,8 @@
 #include "triangulation/forward.h"
 #include "triangulation/detail/example.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -69,13 +71,12 @@ namespace regina {
  * and Example3 for dimensions 2 and 3).
  *
  * \tparam dim the dimension of the example triangulations to construct.
- * This must be between 2 and 15 inclusive.
  *
  * \headerfile triangulation/generic.h
  *
  * \ingroup triangulation
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class Example : public detail::ExampleBase<dim> {
     static_assert(! standardDim(dim),
         "The generic implementation of Example<dim> "

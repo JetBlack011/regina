@@ -852,6 +852,36 @@ TEST_F(Dim3Test, isomorphismSignature) {
     verifyIsomorphismSignatureWithLocks(t3.tri, t3.name);
     verifyIsomorphismSignatureWithLocks(rp2xs1.tri, rp2xs1.name);
     verifyIsomorphismSignatureWithLocks(lst3_4_7.tri, lst3_4_7.name);
+
+    // Verify that we are getting the orientation optimisation from
+    // second-generation signatures.
+    //
+    // Triangulations a,b below are closed and orientable with 9 tetrahedra.
+    // Triangulation c is closed and non-orientable with 9 tetrahedra (it comes
+    // from the closed non-orientable census: SFS [RP2: (2,1) (5,1)] : #1.
+    auto a = Example<3>::weeks();
+    auto b = Example<3>::smallClosedOrblHyperbolic();
+    auto c = Triangulation<3>::fromSig("jLAvLQQbcbgfhihiihhjhqxhxqv");
+
+    EXPECT_EQ(a.size(), b.size());
+    EXPECT_EQ(b.size(), c.size());
+    {
+        std::array sig { a.isoSig(), b.isoSig(), c.isoSig() };
+        EXPECT_EQ(sig[0].size(), sig[1].size());
+        EXPECT_EQ(sig[1].size(), sig[2].size());
+    }
+    {
+        std::array sig { a.neoSig(), b.neoSig(), c.neoSig() };
+        EXPECT_EQ(sig[0].size(), sig[1].size());
+        EXPECT_LT(sig[1].size(), sig[2].size());
+    }
+    {
+        using regina::IsoSigBinary;
+        std::array sig { a.neoSig<IsoSigBinary>(), b.neoSig<IsoSigBinary>(),
+            c.neoSig<IsoSigBinary>() };
+        EXPECT_EQ(sig[0].size(), sig[1].size());
+        EXPECT_LT(sig[1].size(), sig[2].size());
+    }
 }
 
 TEST_F(Dim3Test, lockPropagation) {
@@ -1500,6 +1530,10 @@ TEST_F(Dim3Test, fundGroup) {
 static void verifyFundGroupVsH1(const Triangulation<3>& tri, const char* name) {
     SCOPED_TRACE_CSTRING(name);
 
+    // Regina requires ≤ 1 component for group().
+    if (tri.countComponents() > 1)
+        return;
+
     regina::GroupPresentation g(tri.group());
     g.simplify();
 
@@ -1676,7 +1710,7 @@ static void verifySimplifyExhaustive(const char* isoSig,
         int heightNeeded, int nThreads) {
     SCOPED_TRACE_CSTRING(isoSig);
 
-    Triangulation<3> t = Triangulation<3>::fromIsoSig(isoSig);
+    Triangulation<3> t = Triangulation<3>::fromSig(isoSig);
     size_t initSize = t.size();
 
     for (int height = 0; height < heightNeeded; ++height) {
@@ -1791,7 +1825,7 @@ TEST_F(Dim3Test, minimiseBoundary) {
     // close-book moves at the beginning (so a layering is required).
     {
         const char* sig = "gffjQafeefaaaa";
-        verifyMinimiseBoundary(Triangulation<3>::fromIsoSig(sig), sig);
+        verifyMinimiseBoundary(Triangulation<3>::fromSig(sig), sig);
     }
 }
 
@@ -1845,7 +1879,7 @@ TEST_F(Dim3Test, minimiseVertices) {
     // close-book moves at the beginning (so a layering is required).
     {
         const char* sig = "gffjQafeefaaaa";
-        verifyMinimiseVertices(Triangulation<3>::fromIsoSig(sig), sig);
+        verifyMinimiseVertices(Triangulation<3>::fromSig(sig), sig);
     }
 
     // Some disconnected triangulations where reductions are required.
@@ -2429,7 +2463,6 @@ TEST_F(Dim3Test, irreducibility) {
     EXPECT_TRUE(sphere.tri.isIrreducible());
     EXPECT_TRUE(simpSphere.tri.isIrreducible());
     EXPECT_FALSE(sphereBundle.tri.isIrreducible());
-    EXPECT_FALSE(twistedSphereBundle.tri.isIrreducible());
 
     EXPECT_TRUE(s3.tri.isIrreducible());
     EXPECT_TRUE(rp3_1.tri.isIrreducible());

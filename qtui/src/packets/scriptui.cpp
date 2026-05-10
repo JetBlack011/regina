@@ -29,7 +29,6 @@
  **************************************************************************/
 
 // Regina core includes:
-#include "regina-config.h"
 #include "file/globaldirs.h"
 #include "packet/script.h"
 
@@ -282,8 +281,7 @@ ScriptUI::ScriptUI(Script* packet, PacketPane* enclosingPane) :
 
     // --- Text Editor ---
 
-    editWidget = new DocWidget<Script, DocWidgetFinalNewline>(
-        packet, splitter);
+    editWidget = new DocWidget<Script>(packet, splitter);
     editWidget->setLineWrapMode(QPlainTextEdit::NoWrap);
     editWidget->setFont(ReginaPrefSet::fixedWidthFont());
     updateTabWidth();

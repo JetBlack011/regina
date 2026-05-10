@@ -40,6 +40,8 @@
 #include "regina-core.h"
 #include "utilities/flags.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -606,6 +608,9 @@ enum class NormalTransform {
      *   vertex surfaces in quadrilateral or quadrilateral-octagon coordinates.
      *   This will be checked by examining NormalSurface::coords() and
      *   NormalSurface::which().
+     *
+     * Assuming the preconditions are met, this transformation should always
+     * succeed.
      */
     ConvertReducedToStandard = 0x01,
     /**
@@ -633,6 +638,9 @@ enum class NormalTransform {
      *   vertex surfaces in standard normal or almost normal coordinates.
      *   This will be checked by examining NormalSurface::coords() and
      *   NormalSurface::which().
+     *
+     * Assuming the preconditions are met, this transformation should always
+     * succeed.
      */
     ConvertStandardToReduced = 0x02,
     /**
@@ -654,6 +662,9 @@ enum class NormalTransform {
      *
      * - The input list contains only embedded normal or almost normal surfaces.
      *   This will be checked by examining NormalSurface::which().
+     *
+     * Assuming the preconditions are met, this transformation should always
+     * succeed.
      */
     FilterCompatible = 0x10,
     /**
@@ -683,6 +694,11 @@ enum class NormalTransform {
      *
      * - The input list contains only embedded normal or almost normal surfaces.
      *   This will be checked by examining NormalSurface::which().
+     *
+     * Assuming the preconditions are met, this transformation could still fail
+     * with an UnsolvedCase exception if the algorithm encounters an impossible
+     * memory requirement, due to some normal surface having enormous normal
+     * coordinates.  See NormalSurface::disjoint() for further discussion.
      */
     FilterDisjoint = 0x20,
     /**
@@ -728,6 +744,9 @@ enum class NormalTransform {
      *
      * - The input list contains only compact, connected, embedded normal
      *   surfaces.  In particular, almost normal surfaces are not supported.
+     *
+     * Assuming the preconditions are met, this transformation should always
+     * succeed.
      *
      * \warning The behaviour of this transformation is subject to change
      * in future versions of Regina, since additional tests may be added to

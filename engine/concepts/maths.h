@@ -29,7 +29,8 @@
  **************************************************************************/
 
 /*! \file concepts/maths.h
- *  \brief Concepts related to "large" mathematical types, such as vectors.
+ *  \brief Concepts related to "large" mathematical types, such as vectors,
+ *  links, and triangulations.
  */
 
 #ifndef __REGINA_CONCEPTS_MATHS_H
@@ -38,8 +39,11 @@
 #endif
 
 #include <type_traits>
+#include <iostream>
 #include "concepts/core.h"
 #include "maths/forward.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -70,6 +74,41 @@ concept IntegerVector =
         []<typename U>(Vector<U>&){}(x); // derived from Vector<...>
     } &&
     ReginaInteger<typename T::value_type>;
+
+/**
+ * A type that can be used to hold signatures that identify mathematical
+ * objects uniquely up to combinatorial isomorphism.  Such signatures include
+ * isomorphism signatures of triangulations, and knot/link signatures.
+ *
+ * Important semantic requirements for this type are:
+ * - the operation `x += y` must concatenate \a y to the end of \a x;
+ * - the default constructor must create an empty signature;
+ * - the output operator should write printable characters (for example,
+ *   regina::ByteSequence writes its bytes in hexadecimal, not as raw bytes).
+ *
+ * Examples of such types include `std::string` and `regina::ByteSequence`.
+ */
+template <typename T>
+concept SignatureType =
+    std::regular<T> &&
+    std::totally_ordered<T> &&
+    requires(T x, const T y, std::ostream s) {
+        { y.size() } -> std::same_as<size_t>;
+        { x += y } -> std::same_as<T&>;
+        { s << y } -> std::same_as<std::ostream&>;
+    };
+
+/**
+ * One of Regina's mathematical types that allows reconstruction from
+ * string-based signatures, up to combinatorial isomorphism.
+ *
+ * Examples of such types include `Triangulation<dim>` and Link.
+ */
+template <typename T>
+concept SignatureReconstructible =
+    requires(const std::string sig) {
+        { T::fromSig(sig) } -> std::same_as<T>;
+    };
 
 } // namespace regina
 

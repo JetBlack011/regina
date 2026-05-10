@@ -40,7 +40,7 @@
 
 namespace regina {
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void XMLWriter<Triangulation<dim>>::openPre() {
     if (format_ == FileFormat::XmlGen2) {
         out_ << R"(<packet type=")" << dim
@@ -52,7 +52,7 @@ void XMLWriter<Triangulation<dim>>::openPre() {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void XMLWriter<Triangulation<dim>>::writeContent() {
     // Write the simplex gluings.
     // We send permutation indices directly to the output stream.
@@ -169,61 +169,59 @@ void XMLWriter<Triangulation<dim>>::writeContent() {
         }
     }
 
-    data_.writeXMLBaseProperties(out_);
-
     using regina::xml::xmlValueTag;
 
+    // Properties for triangulations of all dimensions:
+    if (data_.cachedGroup()) {
+        out_ << "  <fundgroup>\n";
+        data_.group().writeXMLData(out_);
+        out_ << "  </fundgroup>\n";
+    }
+    if (data_.template knowsHomology<1>(true)) {
+        out_ << "  <H1>";
+        data_.template homology<1>().writeXMLData(out_);
+        out_ << "</H1>\n";
+    }
+
+    // Additional properties that are specific to the triangulation dimension:
     if constexpr (dim == 3) {
-        if (data_.prop_.H1Rel_.has_value()) {
+        if (data_.knowsHomologyRel(true)) {
             out_ << "  <H1Rel>";
-            data_.prop_.H1Rel_->writeXMLData(out_);
+            data_.homologyRel().writeXMLData(out_);
             out_ << "</H1Rel>\n";
         }
-        if (data_.prop_.H1Bdry_.has_value()) {
-            out_ << "  <H1Bdry>";
-            data_.prop_.H1Bdry_->writeXMLData(out_);
-            out_ << "</H1Bdry>\n";
-        }
-        if (data_.prop_.H2_.has_value()) {
-            out_ << "  <H2>";
-            data_.prop_.H2_->writeXMLData(out_);
-            out_ << "</H2>\n";
-        }
-        if (data_.prop_.zeroEfficient_.has_value())
-            out_ << "  " << xmlValueTag("zeroeff", *data_.prop_.zeroEfficient_)
+        if (data_.knowsZeroEfficient(true))
+            out_ << "  " << xmlValueTag("zeroeff", data_.isZeroEfficient())
                 << '\n';
-        if (data_.prop_.oneEfficient_.has_value())
-            out_ << "  " << xmlValueTag("oneeff", *data_.prop_.oneEfficient_)
+        if (data_.knowsOneEfficient(true))
+            out_ << "  " << xmlValueTag("oneeff", data_.isOneEfficient())
                 << '\n';
-        if (data_.prop_.splittingSurface_.has_value())
-            out_ << "  " << xmlValueTag("splitsfce",
-                *data_.prop_.splittingSurface_) << '\n';
-        if (data_.prop_.threeSphere_.has_value())
+        if (data_.knowsSphere(true))
             out_ << "  " << xmlValueTag("threesphere",
-                *data_.prop_.threeSphere_) << '\n';
-        if (data_.prop_.handlebody_.has_value())
+                data_.isSphere()) << '\n';
+        if (data_.knowsHandlebody(true))
             out_ << "  " << xmlValueTag("handlebody",
-                *data_.prop_.handlebody_) << '\n';
-        if (data_.prop_.TxI_.has_value())
-            out_ << "  " << xmlValueTag("txi", *data_.prop_.TxI_) << '\n';
-        if (data_.prop_.irreducible_.has_value())
+                data_.recogniseHandlebody()) << '\n';
+        if (data_.knowsTxI(true))
+            out_ << "  " << xmlValueTag("txi", data_.isTxI()) << '\n';
+        if (data_.knowsIrreducible(true))
             out_ << "  " << xmlValueTag("irreducible",
-                *data_.prop_.irreducible_) << '\n';
-        if (data_.prop_.compressingDisc_.has_value())
+                data_.isIrreducible()) << '\n';
+        if (data_.knowsCompressingDisc(true))
             out_ << "  " << xmlValueTag("compressingdisc",
-                *data_.prop_.compressingDisc_) << '\n';
-        if (data_.prop_.haken_.has_value())
-            out_ << "  " << xmlValueTag("haken", *data_.prop_.haken_) << '\n';
+                data_.hasCompressingDisc()) << '\n';
+        if (data_.knowsHaken(true))
+            out_ << "  " << xmlValueTag("haken", data_.isHaken()) << '\n';
     } else if constexpr (dim == 4) {
-        if (data_.prop_.H2_.has_value()) {
+        if (data_.template knowsHomology<2>(true)) {
             out_ << "  <H2>";
-            data_.prop_.H2_->writeXMLData(out_);
+            data_.template homology<2>().writeXMLData(out_);
             out_ << "</H2>\n";
         }
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void XMLWriter<Triangulation<dim>>::close() {
     if (format_ == FileFormat::XmlGen2)
         out_ << "</packet> <!-- Triangulation -->\n";

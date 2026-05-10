@@ -103,7 +103,7 @@ string as a triangulation.
 At present, Regina understands the following types of strings (and
 attempts to parse them in the following order):
 
-* isomorphism signatures (see fromIsoSig()).
+* isomorphism signatures (see fromSig()).
 
 This list may grow in future versions of Regina.
 
@@ -478,8 +478,7 @@ compressions along discs and 3-balls, as well as removing trivial
 4-sphere components.
 
 Template parameter ``subdim``:
-    the dimension of the face to link; this must be between 0 and 3
-    inclusive.
+    the dimension of the face to link.
 
 Precondition:
     The given face is a face of this triangulation.
@@ -712,20 +711,19 @@ this may be added in a future verson of Regina.
 
 For every such triangulation (including this starting triangulation),
 this routine will call *action* (which must be a function or some
-other callable object).
+other callable type).
 
 * *action* must take the following initial argument(s). Either (a) the
   first argument must be a triangulation (the precise type is
-  discussed below), representing the triangluation that has been
-  found; or else (b) the first two arguments must be of types const
-  std::string& followed by a triangulation, representing both the
-  triangulation and its isomorphism signature. The second form is
-  offered in order to avoid unnecessary recomputation within the
-  *action* function; however, note that the signature might not be of
-  the IsoSigClassic type (i.e., it might not match the output from the
-  default version of isoSig()). If there are any additional arguments
-  supplied in the list *args*, then these will be passed as subsequent
-  arguments to *action*.
+  discussed below), representing the triangulation that has been
+  found; or else (b) the first two arguments must be of types ``const
+  ByteSequence&`` followed by a triangulation, representing both the
+  triangulation and its second-generation isomorphism signature. The
+  signature will be a byte sequence as returned by
+  ``neoSig<IsoSigBinary>()``; this second form may help avoid
+  unnecessary recomputation within the *action* function. If there are
+  any additional arguments supplied in the list *args*, then these
+  will be passed as subsequent arguments to *action*.
 
 * The triangulation argument will be passed as an rvalue; a typical
   action could (for example) take it by const reference and query it,
@@ -807,10 +805,11 @@ Python:
     This function is available in Python, and the *action* argument
     may be a pure Python function. However, its form is more
     restricted: the arguments *tracker* and *args* are removed, so you
-    call it as retriangulate(height, threads, action). Moreover,
-    *action* must take exactly two arguments (const std::string&,
-    Triangulation<4>&&) representing a signature and the
-    triangulation, as described in option (b) above.
+    call it as ``retriangulate(height, threads, action)``. Moreover,
+    *action* must take exactly two arguments ``(bytes,
+    Triangulation<4>&&)`` representing a signature and the
+    triangulation, as described in option (b) above; the signature
+    will be passed as a Python ``bytes`` object.
 
 Parameter ``height``:
     the maximum number of _additional_ pentachora to allow beyond the
@@ -826,8 +825,8 @@ Parameter ``tracker``:
     ``None`` if no progress reporting is required.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each
-    triangulation that is found.
+    a function (or other callable type) to call for each triangulation
+    that is found.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -1273,7 +1272,7 @@ Parameter ``e``:
     the edge about which to perform the move.
 
 Returns:
-    The new triangulation obtained by performing the requested move,
+    the new triangulation obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Triangulation_::withCollapseEdge
@@ -1295,7 +1294,7 @@ Parameter ``e``:
     the edge to collapse.
 
 Returns:
-    The new triangulation obtained by performing the requested move,
+    the new triangulation obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Triangulation_::withOpenBook
@@ -1317,7 +1316,7 @@ Parameter ``t``:
     the tetrahedron about which to perform the move.
 
 Returns:
-    The new triangulation obtained by performing the requested move,
+    the new triangulation obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Triangulation_::withSnapEdge
@@ -1338,7 +1337,7 @@ Parameter ``e``:
     the edge whose endpoints are to be snapped together.
 
 Returns:
-    The new triangulation obtained by performing the requested move,
+    the new triangulation obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 }

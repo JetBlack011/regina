@@ -37,12 +37,12 @@
 
 using pybind11::overload_cast;
 
-template <typename T>
+template <regina::ArbitraryPrecisionInteger T>
 void addVectorOf(pybind11::module_& m, const char* className) {
     using Vec = regina::Vector<T>;
 
-    // For now, T is one of Regina's arbitrary-precision integer classes.
-    // Fetch the _other_ integer type, for use with our constructors.
+    // Fetch the _other_ arbitrary precision integer type, for use with
+    // our constructors.
     using T_Alt = regina::IntegerBase<! T::supportsInfinity>;
 
     RDOC_SCOPE_BEGIN(Vector)
@@ -51,7 +51,7 @@ void addVectorOf(pybind11::module_& m, const char* className) {
         .def(pybind11::init<size_t>(), rdoc::__init)
         .def(pybind11::init<size_t, const T&>(), rdoc::__init_2)
         .def(pybind11::init<const Vec&>(), rdoc::__copy)
-        .def(pybind11::init([](const std::vector<T> v) {
+        .def(pybind11::init([](const std::vector<T>& v) {
             return new Vec(v.begin(), v.end());
         }), pybind11::arg("elements"), rdoc::__init_3)
         .def(pybind11::init<const regina::Vector<T_Alt>&>(), rdoc::__init_4)
@@ -84,7 +84,7 @@ void addVectorOf(pybind11::module_& m, const char* className) {
         .def("scaleDown", &Vec::scaleDown, rdoc::scaleDown)
         .def_static("unit", &Vec::unit, rdoc::unit)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 

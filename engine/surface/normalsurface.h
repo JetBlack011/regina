@@ -40,7 +40,7 @@
 
 #include <optional>
 #include <utility>
-#include "regina-core.h"
+#include "concepts/core.h"
 #include "core/output.h"
 #include "maths/forward.h"
 #include "maths/perm.h"
@@ -51,6 +51,8 @@
 #include "triangulation/forward.h"
 #include "utilities/boolset.h"
 #include "utilities/snapshot.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -425,12 +427,9 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * surface inside the given triangulation, using the given encoding.
          * This will not be checked!
          *
-         * \python The supported types for the template parameter \a U are
+         * \python The supported element types for the given vector are
          * regina::Integer and regina::LargeInteger.  You may also, if you
          * prefer, pass \a vector as a Python list of integers.
-         *
-         * \tparam U the type of object held by the given vector.  It must be
-         * possible to assign an object of type \a U to a regina::LargeInteger.
          *
          * \param triang the triangulation in which this normal surface resides.
          * \param enc indicates precisely how the given vector encodes a normal
@@ -438,7 +437,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \param vector a vector containing the coordinates of the normal
          * surface.
          */
-        template <typename U>
+        template <AssignableTo<LargeInteger&> U>
         NormalSurface(const Triangulation<3>& triang, NormalEncoding enc,
             const Vector<U>& vector);
 
@@ -492,9 +491,6 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          *
          * \nopython Instead use the version that takes a "pure" triangulation.
          *
-         * \tparam U the type of object held by the given vector.  It must be
-         * possible to assign an object of type \a U to a regina::LargeInteger.
-         *
          * \param triang a snapshot, frozen in time, of the
          * triangulation in which this normal surface resides.
          * \param enc indicates precisely how the given vector encodes a normal
@@ -502,7 +498,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \param vector a vector containing the coordinates of the normal
          * surface.
          */
-        template <typename U>
+        template <AssignableTo<LargeInteger&> U>
         NormalSurface(const SnapshotRef<Triangulation<3>>& triang,
             NormalEncoding enc, const Vector<U>& vector);
 
@@ -560,12 +556,9 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * surface inside the given triangulation, using the encoding
          * `NormalEncoding(coords)`.  This will not be checked!
          *
-         * \python The supported types for the template parameter \a U are
+         * \python The supported element types for the given vector are
          * regina::Integer and regina::LargeInteger.  You may also, if you
          * prefer, pass \a vector as a Python list of integers.
-         *
-         * \tparam U the type of object held by the given vector.  It must be
-         * possible to assign an object of type \a U to a regina::LargeInteger.
          *
          * \param triang the triangulation in which this normal surface resides.
          * \param coords the coordinate system from which the vector
@@ -573,7 +566,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \param vector a vector containing the coordinates of the normal
          * surface.
          */
-        template <typename U>
+        template <AssignableTo<LargeInteger&> U>
         NormalSurface(const Triangulation<3>& triang, NormalCoords coords,
             const Vector<U>& vector);
 
@@ -635,9 +628,6 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          *
          * \nopython Instead use the version that takes a "pure" triangulation.
          *
-         * \tparam U the type of object held by the given vector.  It must be
-         * possible to assign an object of type \a U to a regina::LargeInteger.
-         *
          * \param triang a snapshot, frozen in time, of the
          * triangulation in which this normal surface resides.
          * \param coords the coordinate system from which the vector
@@ -645,7 +635,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \param vector a vector containing the coordinates of the normal
          * surface.
          */
-        template <typename U>
+        template <AssignableTo<LargeInteger&> U>
         NormalSurface(const SnapshotRef<Triangulation<3>>& triang,
             NormalCoords coords, const Vector<U>& vector);
 
@@ -1042,9 +1032,17 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
          *
-         * \warning This routine explicitly builds the normal discs,
-         * and so may run out of memory if the normal coordinates
-         * are extremely large.
+         * \warning This routine explicitly builds all of the normal discs
+         * in this surface.  If the normal coordinates are extremely large,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \return \c true if this surface is orientable, or \c false if
          * this surface is non-orientable.
@@ -1062,9 +1060,17 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
          *
-         * \warning This routine explicitly builds the normal discs,
-         * and so may run out of memory if the normal coordinates
-         * are extremely large.
+         * \warning This routine explicitly builds all of the normal discs
+         * in this surface.  If the normal coordinates are extremely large,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \return \c true if this surface is two-sided, or \c false if
          * this surface is one-sided.
@@ -1082,9 +1088,17 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
          *
-         * \warning This routine explicitly builds the normal discs,
-         * and so may run out of memory if the normal coordinates
-         * are extremely large.
+         * \warning This routine explicitly builds all of the normal discs
+         * in this surface.  If the normal coordinates are extremely large,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \return \c true if this surface is connected, or \c false if
          * this surface is disconnected.
@@ -1113,9 +1127,17 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
          *
-         * \warning This routine explicitly builds the normal discs,
-         * and so may run out of memory if the normal coordinates
-         * are extremely large.
+         * \warning This routine explicitly builds all of the normal discs
+         * in this surface.  If the normal coordinates are extremely large,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \return the list of connected components.
          */
@@ -1356,15 +1378,21 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
          *
-         * \warning This routine explicitly builds the normal arcs on
+         * \warning This routine explicitly builds all of the normal arcs on
          * the boundary.  If the normal coordinates are extremely large,
-         * (in particular, of a similar order of magnitude as the
-         * largest possible long integer), then the behaviour of this
-         * routine is undefined.
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
          *
-         * \author Alex He
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some boundary
+         * edge weight at least `2^64`.
          *
          * \return the number of disjoint boundary curves.
+         *
+         * \author Alex He
          */
         size_t countBoundaries() const;
 
@@ -1388,9 +1416,19 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \todo \prob Check for absurdly large numbers of discs and bail
          * accordingly.
          *
-         * \warning This routine might cut along the surface and
-         * retriangulate, and so may run out of memory if the normal
-         * coordinates are extremely large.
+         * \warning This routine might need to perform some operation(s) whose
+         * time and memory requirements depend upon the number of normal discs
+         * in this surface (e.g., iterating through individual discs, or
+         * cutting along the surface).  If this surface has enormous normal
+         * coordinates, this could lead to performance problems.
+         * In extreme cases, this routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \param knownConnected \c true if this normal surface is
          * already known to be connected (for instance, if it came from
@@ -1423,16 +1461,25 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * If this surface is one-sided, the incompressibility test will
          * be run on its two-sided double cover.
          *
-         * \warning This routine may in some circumstances be extremely slow.
-         * This is because the underlying algorithm cuts along this surface,
-         * retriangulates (possibly using a very large number of tetrahedra),
-         * and then searches for a normal compressing disc in each
-         * component of the cut-open triangulation.
-         *
          * \pre The underlying triangulation is valid and closed, and
          * represents an irreducible 3-manifold.
          * \pre This normal surface is compact, embedded and connected,
          * and contains no octagonal discs.
+         *
+         * \warning This routine might need to perform some operation(s) whose
+         * time and memory requirements depend upon the number of normal discs
+         * in this _or_ some other intermediate surface.  Examples of such
+         * operations include iterating through individual discs, or cutting
+         * along a surface.  If the algorithm encounters a surface with
+         * enormous normal coordinates, this could lead to performance problems.
+         * In extreme cases, this routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \return \c true if this surface is incompressible, or \c false if
          * this surface is not incompressible (or if it is a sphere).
@@ -1624,7 +1671,7 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the surface to compare this surface with.
-         * \return The result of the comparison between this and the given
+         * \return the result of the comparison between this and the given
          * surface.  This is marked as a weak ordering (not a strong
          * ordering) to reflect the fact that (for example) surfaces in
          * different triangulations or using different encodings could be
@@ -1709,8 +1756,17 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          * \pre Both this and the given surface are compact (have
          * finitely many discs), embedded, non-empty and connected.
          *
-         * \warning This routine is slow, since it performs a depth-first
-         * search over the entire set of normal discs.
+         * \warning This routine explicitly builds all of the normal discs
+         * in this and the given surface.  If the normal coordinates are
+         * extremely large, this could lead to performance problems.
+         * In extreme cases, this routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \param other the other surface to test alongside this surface
          * for potential intersections.
@@ -1902,11 +1958,14 @@ class NormalSurface : public ShortOutput<NormalSurface> {
          */
         void calculateEulerChar() const;
         /**
-         * Calculates whether this surface is orientable and/or
-         * two-sided and stores the results as properties.
+         * Calculates whether this surface is orientable, two-sided and/or
+         * connected, and stores the results as properties.
          *
          * \pre This normal surface is embedded (not singular or immersed).
          * \pre This normal surface is compact (has finitely many discs).
+         *
+         * \exception UnsolvedCase Some normal disc count does not fit into a
+         * standard C++ \c size_t.
          */
         void calculateOrientable() const;
         /**
@@ -1917,6 +1976,9 @@ class NormalSurface : public ShortOutput<NormalSurface> {
         /**
          * Computes the number of disjoint boundary curves and stores the
          * result as a property.
+         *
+         * \exception UnsolvedCase Some normal arc count on the boundary
+         * does not fit into a standard C++ \c size_t.
          */
         void calculateBoundaries() const;
 
@@ -1960,7 +2022,7 @@ void swap(NormalSurface& a, NormalSurface& b) noexcept;
 
 // Inline functions for NormalSurface
 
-template <typename U>
+template <AssignableTo<LargeInteger&> U>
 inline NormalSurface::NormalSurface(const Triangulation<3>& tri,
         NormalEncoding enc, const Vector<U>& vector) :
         enc_(enc), vector_(vector), triangulation_(tri) {
@@ -1978,7 +2040,7 @@ inline NormalSurface::NormalSurface(const Triangulation<3>& tri,
         enc_ = reconstructTriangles(tri, vector_, enc_);
 }
 
-template <typename U>
+template <AssignableTo<LargeInteger&> U>
 inline NormalSurface::NormalSurface(
         const SnapshotRef<Triangulation<3>>& tri,
         NormalEncoding enc, const Vector<U>& vector) :
@@ -1995,7 +2057,7 @@ inline NormalSurface::NormalSurface(
         enc_ = reconstructTriangles(*tri, vector_, enc_);
 }
 
-template <typename U>
+template <AssignableTo<LargeInteger&> U>
 inline NormalSurface::NormalSurface(const Triangulation<3>& tri,
         NormalCoords coords, const Vector<U>& vector) :
         enc_(coords), vector_(vector), triangulation_(tri) {
@@ -2011,7 +2073,7 @@ inline NormalSurface::NormalSurface(const Triangulation<3>& tri,
         enc_ = reconstructTriangles(tri, vector_, enc_);
 }
 
-template <typename U>
+template <AssignableTo<LargeInteger&> U>
 inline NormalSurface::NormalSurface(
         const SnapshotRef<Triangulation<3>>& tri,
         NormalCoords coords, const Vector<U>& vector) :

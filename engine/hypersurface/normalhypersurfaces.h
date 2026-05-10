@@ -52,6 +52,8 @@
 #include "progress/progresstracker.h"
 #include "utilities/exception.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class NormalHypersurface;
@@ -414,7 +416,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * hypersurfaces.
          *
          * These begin() and end() functions allow you to iterate through all
-         * hypersurfaces in this list using a range-based \c for loop:
+         * hypersurfaces in this list using a range-based `for` loop:
          *
          * \code{.cpp}
          * NormalHypersurfaces list(...);
@@ -424,7 +426,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * The type that is returned will be a lightweight iterator type,
          * guaranteed to satisfy the C++ LegacyRandomAccessIterator requirement.
          * The precise C++ type of the iterator is subject to change, so
-         * C++ users should use \c auto (just like this declaration does).
+         * C++ users should use `auto` (just like this declaration does).
          *
          * \nopython For Python users, NormalHypersurfaces implements the Python
          * iterable interface.  You can iterate over the normal hypersurfaces in
@@ -438,7 +440,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * Returns a C++ iterator beyond the end of this list of hypersurfaces.
          *
          * These begin() and end() routines allow you to iterate through all
-         * hypersurfaces in this list using a range-based \c for loop.
+         * hypersurfaces in this list using a range-based `for` loop.
          * See the begin() documentation for further details.
          *
          * \nopython For Python users, NormalHypersurfaces implements the Python
@@ -465,7 +467,7 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * \nocpp For C++ users, NormalHypersurfaces provides the usual begin()
          * and end() functions instead.  In particular, you can iterate over
          * the normal hypersurfaces in this list in the usual way using a
-         * range-based \c for loop.
+         * range-based `for` loop.
          *
          * \return an iterator over the normal hypersurfaces in this list.
          */
@@ -536,12 +538,12 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
          * \python This is available in Python, and \a comp may be
          * a pure Python function.
          *
-         * \param comp a binary function (or other callable object) that
+         * \param comp a binary function (or other callable type) that
          * accepts two const HyperSurface references, and returns \c true
          * if and only if the first hypersurface should appear before the
          * second in the sorted list.
          */
-        template <typename Comparison>
+        template <StrictWeakOrder<const NormalHypersurface&> Comparison>
         void sort(Comparison&& comp);
 
         /**
@@ -870,7 +872,6 @@ class NormalHypersurfaces : public PacketData<NormalHypersurfaces>,
 
     friend class XMLNormalHypersurfacesReader;
     friend class XMLLegacyNormalHypersurfacesReader;
-    friend class XMLWriter<NormalHypersurfaces>;
 };
 
 /**
@@ -1054,7 +1055,7 @@ inline bool NormalHypersurfaces::allowsNonCompact() const {
     return HyperEncoding(coords_).couldBeNonCompact();
 }
 
-template <typename Comparison>
+template <StrictWeakOrder<const NormalHypersurface&> Comparison>
 inline void NormalHypersurfaces::sort(Comparison&& comp) {
     PacketChangeSpan span(*this);
     std::stable_sort(surfaces_.begin(), surfaces_.end(), comp);

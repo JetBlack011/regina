@@ -93,12 +93,10 @@ Python:
     subdim> is.
 
 Template parameter ``dim``:
-    the dimension of the underlying triangulation. This must be
-    between 2 and 15 inclusive.
+    the dimension of the underlying triangulation.
 
 Template parameter ``subdim``:
-    the dimension of the faces that this class represents. This must
-    be between 0 and *dim*-1 inclusive.)doc";
+    the dimension of the faces that this class represents.)doc";
 
 // Docstring regina::python::doc::detail::FaceEmbeddingBase
 constexpr const char *FaceEmbeddingBase =
@@ -117,12 +115,10 @@ Python:
     FaceEmbedding<dim, subdim> is.
 
 Template parameter ``dim``:
-    the dimension of the underlying triangulation. This must be
-    between 2 and 15 inclusive.
+    the dimension of the underlying triangulation.
 
 Template parameter ``subdim``:
-    the dimension of the faces of the underlying triangulation. This
-    must be between 0 and *dim*-1 inclusive.)doc";
+    the dimension of the faces of the underlying triangulation.)doc";
 
 }
 
@@ -167,7 +163,7 @@ Returns:
 // Docstring regina::python::doc::detail::FaceBase_::back
 constexpr const char *back =
 R"doc(Returns the last appearance of this face within a top-dimensional
-simplex of the underlying triangluation.
+simplex of the underlying triangulation.
 
 This is equivalent to calling ``embedding(degree()-1)``.
 
@@ -226,26 +222,22 @@ Returns:
 constexpr const char *edge =
 R"doc(A dimension-specific alias for face<1>().
 
-This alias is available for all facial dimensions *subdim*.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::edgeMapping
 constexpr const char *edgeMapping =
 R"doc(A dimension-specific alias for faceMapping<1>().
 
-This alias is available for all facial dimensions *subdim*.
-
 See faceMapping() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::embedding
 constexpr const char *embedding =
 R"doc(Returns one of the ways in which this face appears within a top-
-dimensional simplex of the underlying triangluation.
+dimensional simplex of the underlying triangulation.
 
 For convenience, you can also use begin() and end() to iterate through
 all such appearances, or equivalently you can iterate over the
-lightweight object returned by embeddings().
+lightweight view returned by embeddings().
 
 In most cases, the ordering of appearances is arbitrary. The exception
 is for codimension 2, where these appearances are ordered in a way
@@ -263,17 +255,17 @@ Returns:
 constexpr const char *embeddings =
 R"doc(Returns an object that allows iteration through and random access to
 all of the ways in which this face appears within a top-dimensional
-simplex of the underlying triangluation.
+simplex of the underlying triangulation.
 
 The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. The elements of the list will be read-only
-objects of type FaceEmbedding<dim, subdim>. For example, your code
-might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. The elements of the list will be read-only objects of
+type ``FaceEmbedding<dim, subdim>``. For example, your code might look
+like:
 
 ```
 Face<dim, subdim>* face = ...;
@@ -336,8 +328,7 @@ Python:
     the function.
 
 Template parameter ``lowerdim``:
-    the dimension of subface to examine. This must be between 0 and
-    (*subdim* - 1) inclusive.
+    the dimension of subface to examine.
 
 Parameter ``face``:
     the *lowerdim*-face of this *subdim*-face to examine. This should
@@ -400,8 +391,7 @@ Python:
     argument of the function.
 
 Template parameter ``lowerdim``:
-    the dimension of subface to examine. This must be between 0 and
-    (*subdim* - 1) inclusive.
+    the dimension of subface to examine.
 
 Parameter ``face``:
     the *lowerdim*-face of this *subdim*-face to examine. This should
@@ -424,10 +414,6 @@ satisfy both formsMobiusBand() and formsCone().
 The reason this routine is non-const is because the triangle type is
 cached when first computed.
 
-Precondition:
-    The facial dimension *subdim* is precisely 2, and the
-    triangulation dimension *dim* is at least 3.
-
 Returns:
     ``True`` if and only if this triangle forms a cone.)doc";
 
@@ -444,17 +430,13 @@ satisfy both formsMobiusBand() and formsCone().
 The reason this routine is non-const is because the triangle type is
 cached when first computed.
 
-Precondition:
-    The facial dimension *subdim* is precisely 2, and the
-    triangulation dimension *dim* is at least 3.
-
 Returns:
     ``True`` if and only if this triangle forms a Mobius band.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::front
 constexpr const char *front =
 R"doc(Returns the first appearance of this face within a top-dimensional
-simplex of the underlying triangluation.
+simplex of the underlying triangulation.
 
 This is equivalent to calling ``*begin()``, or ``embedding(0)``.
 
@@ -493,12 +475,9 @@ A face whose link is not appropriate will always be marked as invalid.
 Note that there are other types of invalid faces also. See isValid()
 for a full discussion of what it means for a face to be valid.
 
-Precondition:
-    The dimension *dim* is one of Regina's standard dimensions. Any
-    attempt to use this routine in higher dimensions *dim* will result
-    in a compile-time error. This is because testing for bad links in
-    higher dimensions can require solutions to problems that are
-    proven to be undecidable.
+This routine is only available when *dim* is one of Regina's standard
+dimensions, because testing for bad links in higher dimensions can
+require solutions to undecidable problems.
 
 Returns:
     ``True`` if the link of this face is not appropriate (thereby
@@ -531,9 +510,6 @@ to use.
 
 If the skeleton has already been computed, then this routine is very
 fast (since it just returns a precomputed answer).
-
-Precondition:
-    The facial dimension *subdim* is precisely *dim*-1.
 
 Returns:
     ``True`` if and only if this (*dim*-1)-face represents a dual edge
@@ -587,9 +563,6 @@ See Triangulation<dim>::hasLocks() for a convenient way to test
 whether any top-dimensional simplex and/or (*dim*-1)-face is locked
 across an entire triangulation.
 
-Precondition:
-    The facial dimension *subdim* is precisely *dim*-1.
-
 Returns:
     ``True`` if and only if this (*dim*-1)-face is locked.)doc";
 
@@ -597,9 +570,6 @@ Returns:
 constexpr const char *isLoop =
 R"doc(For edges, determines whether this face is a loop. A _loop_ is an edge
 whose two endpoints are identified.
-
-Precondition:
-    The facial dimension *subdim* is precisely 1.
 
 Returns:
     ``True`` if and only if this edge is a loop.)doc";
@@ -665,9 +635,6 @@ FaceEmbedding::vertices(). This labelling is independent of the vertex
 numbers in any top-dimensional simplices that contain *f*.
 
 Precondition:
-    The facial dimension *subdim* is precisely ``dim-1``.
-
-Precondition:
     This and the given face are distinct boundary facets of the same
     triangulation.
 
@@ -712,16 +679,11 @@ lock will nevertheless be preserved.
 This is equivalent to calling Simplex<dim>::lockFacet() from one of
 the simplices on either side of this (*dim*-1)-face.
 
-It is safe to call this function even if this face is already locked.
-
-Precondition:
-    The facial dimension *subdim* is precisely *dim*-1.)doc";
+It is safe to call this function even if this face is already locked.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::pentachoron
 constexpr const char *pentachoron =
 R"doc(A dimension-specific alias for face<4>().
-
-This alias is available for facial dimensions *subdim* ≥ 5.
 
 See face() for further information.)doc";
 
@@ -729,15 +691,11 @@ See face() for further information.)doc";
 constexpr const char *pentachoronMapping =
 R"doc(A dimension-specific alias for faceMapping<4>().
 
-This alias is available for facial dimensions *subdim* ≥ 5.
-
 See faceMapping() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::tetrahedron
 constexpr const char *tetrahedron =
 R"doc(A dimension-specific alias for face<3>().
-
-This alias is available for facial dimensions *subdim* ≥ 4.
 
 See face() for further information.)doc";
 
@@ -745,23 +703,17 @@ See face() for further information.)doc";
 constexpr const char *tetrahedronMapping =
 R"doc(A dimension-specific alias for faceMapping<3>().
 
-This alias is available for facial dimensions *subdim* ≥ 4.
-
 See faceMapping() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::triangle
 constexpr const char *triangle =
 R"doc(A dimension-specific alias for face<2>().
 
-This alias is available for facial dimensions *subdim* ≥ 3.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::triangleMapping
 constexpr const char *triangleMapping =
 R"doc(A dimension-specific alias for faceMapping<2>().
-
-This alias is available for facial dimensions *subdim* ≥ 3.
 
 See faceMapping() for further information.)doc";
 
@@ -779,12 +731,8 @@ so the return value will likewise be undefined.
 The reason this routine is non-const is because the triangle type and
 subtype are cached when first computed.
 
-Precondition:
-    The facial dimension *subdim* is precisely 2, and the
-    triangulation dimension *dim* is at least 3.
-
 Returns:
-    The vertex or edge number (0, 1 or 2) that plays a special role,
+    the vertex or edge number (0, 1 or 2) that plays a special role,
     or -1 if this triangle's combinatorial type has no special vertex
     or edge.)doc";
 
@@ -801,10 +749,6 @@ so the return value will likewise be undefined.
 
 The reason this routine is non-const is because the triangle type and
 subtype are cached when first computed.
-
-Precondition:
-    The facial dimension *subdim* is precisely 2, and the
-    triangulation dimension *dim* is at least 3.
 
 Returns:
     the combinatorial type of this triangle. This routine will never
@@ -833,24 +777,17 @@ unlocked.
 
 See Triangulation<dim>::unlockAll() for a convenient way to unlock all
 top-dimensional simplices and (*dim*-1)-faces across an entire
-triangulation.
-
-Precondition:
-    The facial dimension *subdim* is precisely *dim*-1.)doc";
+triangulation.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::vertex
 constexpr const char *vertex =
 R"doc(A dimension-specific alias for face<0>().
-
-This alias is available for all facial dimensions *subdim*.
 
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::FaceBase_::vertexMapping
 constexpr const char *vertexMapping =
 R"doc(A dimension-specific alias for faceMapping<0>().
-
-This alias is available for all facial dimensions *subdim*.
 
 See faceMapping() for further information.)doc";
 

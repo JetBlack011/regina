@@ -33,11 +33,11 @@
 #include "triangulation/dim3.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
+#include "../docstrings/triangulation/facenumbering.h"
 #include "../docstrings/triangulation/alias/face.h"
 #include "../docstrings/triangulation/alias/facenumber.h"
 #include "../docstrings/triangulation/dim3/triangle3.h"
 #include "../docstrings/triangulation/detail/face.h"
-#include "../docstrings/triangulation/detail/facenumbering.h"
 #include "../docstrings/triangulation/generic/faceembedding.h"
 
 using regina::Face;
@@ -64,11 +64,11 @@ void addTriangle3(pybind11::module_& m, pybind11::module_& internal) {
         .def("triangle", &TriangleEmbedding<3>::triangle, rbase2::triangle)
         .def("vertices", &TriangleEmbedding<3>::vertices, rbase::vertices)
     ;
-    regina::python::add_output(e);
+    regina::python::add_output_rich(e);
     regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
-    RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
+    RDOC_SCOPE_BASE_2(detail::FaceBase, FaceNumbering)
 
     auto c = pybind11::class_<Face<3, 2>>(m, "Face3_2", rdoc_scope)
         .def("index", &Triangle<3>::index, rbase::index)
@@ -99,14 +99,14 @@ void addTriangle3(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::component)
         .def("boundaryComponent", &Triangle<3>::boundaryComponent,
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
-        .def("face", &regina::python::face<Triangle<3>, 2, int>,
+        .def("face", &regina::python::face<3, 2>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::face)
         .def("vertex", &Triangle<3>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
         .def("edge", &Triangle<3>::edge,
             pybind11::return_value_policy::reference, rbase::edge)
-        .def("faceMapping", &regina::python::faceMapping<Triangle<3>, 2, 4>,
+        .def("faceMapping", &regina::python::faceMapping<3, 2>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping)
         .def("vertexMapping", &Triangle<3>::vertexMapping, rbase::vertexMapping)
@@ -127,19 +127,24 @@ void addTriangle3(pybind11::module_& m, pybind11::module_& internal) {
         .def("lock", &Triangle<3>::lock, rbase::lock)
         .def("unlock", &Triangle<3>::unlock, rbase::unlock)
         .def("isLocked", &Triangle<3>::isLocked, rbase::isLocked)
-        .def_static("ordering", &Triangle<3>::ordering)
-        .def_static("faceNumber", &Triangle<3>::faceNumber)
-        .def_static("containsVertex", &Triangle<3>::containsVertex)
+        .def_static("ordering", &Triangle<3>::ordering, rbase2::ordering)
+        .def_static("faceNumber",
+            pybind11::overload_cast<regina::Perm<4>>(&Triangle<3>::faceNumber),
+            rbase2::faceNumber)
+        .def_static("containsVertex", &Triangle<3>::containsVertex,
+            rbase2::containsVertex)
         .def_readonly_static("nFaces", &Triangle<3>::nFaces)
         .def_readonly_static("lexNumbering", &Triangle<3>::lexNumbering)
         .def_readonly_static("oppositeDim", &Triangle<3>::oppositeDim)
         .def_readonly_static("dimension", &Triangle<3>::dimension)
         .def_readonly_static("subdimension", &Triangle<3>::subdimension)
+        .def_readonly_static("hasNumberingTables",
+            &Triangle<3>::hasNumberingTables)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Triangle<3>>().embeddings())>(internal,
         "Face3_2_embeddings");
 

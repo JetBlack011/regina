@@ -41,6 +41,8 @@
 #include <cstdint>
 #include <iostream>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -166,7 +168,7 @@ class FacePair {
          * \python This spaceship operator `x <=> y` is not available, but the
          * other comparison operators that it generates _are_ available.
          *
-         * \return The result of the lexicographical comparison between this
+         * \return the result of the lexicographical comparison between this
          * and the given face pair.
          */
         std::strong_ordering operator <=> (const FacePair&) const = default;

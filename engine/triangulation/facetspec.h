@@ -43,6 +43,8 @@
 #include <iostream>
 #include <sys/types.h> // for ssize_t
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -72,11 +74,10 @@ namespace regina {
  * and FacetSpec3 for dimensions 2 and 3).
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \ingroup triangulation
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
     ssize_t simp;
         /**< The simplex referred to.  Simplex numbering begins
@@ -183,7 +184,7 @@ struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
      * \nopython The postincrement operator is present in Python as the
      * member function inc().
      *
-     * \return A reference to this specifier.
+     * \return a reference to this specifier.
      */
     FacetSpec& operator ++ ();
     /**
@@ -198,7 +199,7 @@ struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
      * \python This routine is named inc() since python does not
      * support the increment operator.
      *
-     * \return A copy of this specifier before it was incremented.
+     * \return a copy of this specifier before it was incremented.
      */
     FacetSpec operator ++ (int);
     /**
@@ -213,7 +214,7 @@ struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
      * \nopython The postdecrement operator is present in Python as the
      * member function dec().
      *
-     * \return A reference to this specifier.
+     * \return a reference to this specifier.
      */
     FacetSpec& operator -- ();
     /**
@@ -228,7 +229,7 @@ struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
      * \python This routine is named dec() since python does not
      * support the decrement operator.
      *
-     * \return A copy of this specifier before it was decremented.
+     * \return a copy of this specifier before it was decremented.
      */
     FacetSpec operator -- (int);
 
@@ -257,7 +258,7 @@ struct FacetSpec : public TightEncodable<FacetSpec<dim>> {
      * other comparison operators that it generates _are_ available.
      *
      * \param rhs the specifier to compare with this.
-     * \return The result of the comparison between this and the given
+     * \return the result of the comparison between this and the given
      * specifier.
      */
     std::strong_ordering operator <=> (const FacetSpec<dim>& rhs) const;
@@ -317,52 +318,52 @@ std::ostream& operator << (std::ostream& out, const FacetSpec<dim>& spec);
 
 // Inline functions for FacetSpec
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim>::FacetSpec(ssize_t newSimp, int newFacet) :
         simp(newSimp), facet(newFacet) {
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool FacetSpec<dim>::isBoundary(size_t nSimplices) const {
     return (simp == static_cast<ssize_t>(nSimplices) && facet == 0);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool FacetSpec<dim>::isBeforeStart() const {
     return (simp < 0);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool FacetSpec<dim>::isPastEnd(size_t nSimplices, bool boundaryAlso)
         const {
     return (simp == static_cast<ssize_t>(nSimplices) &&
         (boundaryAlso || facet > 0));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void FacetSpec<dim>::setFirst() {
     simp = facet = 0;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void FacetSpec<dim>::setBoundary(size_t nSimplices) {
     simp = nSimplices;
     facet = 0;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void FacetSpec<dim>::setBeforeStart() {
     simp = -1;
     facet = dim;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void FacetSpec<dim>::setPastEnd(size_t nSimplices) {
     simp = nSimplices;
     facet = 1;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim>& FacetSpec<dim>::operator ++ () {
     if (++facet > dim) {
         facet = 0;
@@ -371,7 +372,7 @@ inline FacetSpec<dim>& FacetSpec<dim>::operator ++ () {
     return *this;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim> FacetSpec<dim>::operator ++ (int) {
     FacetSpec<dim> ans(*this);
     if (++facet > dim) {
@@ -381,7 +382,7 @@ inline FacetSpec<dim> FacetSpec<dim>::operator ++ (int) {
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim>& FacetSpec<dim>::operator -- () {
     if (--facet < 0) {
         facet = dim;
@@ -390,7 +391,7 @@ inline FacetSpec<dim>& FacetSpec<dim>::operator -- () {
     return *this;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim> FacetSpec<dim>::operator -- (int) {
     FacetSpec<dim> ans(*this);
     if (--facet < 0) {
@@ -400,20 +401,17 @@ inline FacetSpec<dim> FacetSpec<dim>::operator -- (int) {
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool FacetSpec<dim>::operator == (const FacetSpec& rhs) const {
     return (simp == rhs.simp && facet == rhs.facet);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline std::strong_ordering FacetSpec<dim>::operator <=> (const FacetSpec& rhs)
         const {
-    if (simp < rhs.simp)
-        return std::strong_ordering::less;
-    else if (simp > rhs.simp)
-        return std::strong_ordering::greater;
-    else
-        return facet <=> rhs.facet;
+    if (auto c = simp <=> rhs.simp; c != 0)
+        return c;
+    return facet <=> rhs.facet;
 }
 
 template <int dim>
@@ -422,13 +420,13 @@ inline std::ostream& operator << (std::ostream& out,
     return out << spec.simp << ':' << spec.facet;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void FacetSpec<dim>::tightEncode(std::ostream& out) const {
     ssize_t enc = (simp < 0 ? -1 : simp * (dim + 1) + facet);
     regina::detail::tightEncodeIndex(out, enc);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetSpec<dim> FacetSpec<dim>::tightDecode(std::istream& input) {
     auto enc = regina::detail::tightDecodeIndex<ssize_t>(input);
     if (enc < 0)

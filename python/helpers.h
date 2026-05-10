@@ -50,15 +50,17 @@
 #error "A system installation of pybind11 is being included instead of Regina's own patched version."
 #endif
 
+// #include "helpers/bytesequence.h"
+#include "helpers/concepts.h"
 #include "helpers/docstrings.h"
 #include "helpers/equality.h"
 // #include "helpers/flags.h"
 #include "helpers/gil.h"
 #include "helpers/globals.h"
 #include "helpers/output.h"
-#include "helpers/listview.h"
-#include "helpers/packet.h"
+// #include "helpers/packet.h"
 // #include "helpers/tableview.h"
 #include "helpers/tightencoding.h"
+#include "helpers/view.h"
 
 #endif

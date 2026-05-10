@@ -38,6 +38,7 @@
 #include "triangulation/dim3.h"
 #include "../helpers.h"
 #include "../helpers/flags.h"
+#include "../helpers/packet.h"
 #include "../docstrings/surface/normalsurfaces.h"
 
 using namespace regina::python;
@@ -145,7 +146,7 @@ void addNormalSurfaces(pybind11::module_& m) {
         }, pybind11::keep_alive<0, 1>(), // iterator keeps list alive
             rdoc::vectors)
     ;
-    regina::python::add_output(l);
+    regina::python::add_output_rich(l);
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 

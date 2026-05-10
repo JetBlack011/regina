@@ -44,19 +44,24 @@ void addComponent2(pybind11::module_& m, pybind11::module_& internal) {
 
     auto c = pybind11::class_<Component<2>>(m, "Component2", rdoc_scope)
         .def("index", &Component<2>::index, rbase::index)
+        .def("triangulation", &Component<2>::triangulation,
+            rbase::triangulation)
         .def("size", &Component<2>::size, rbase::size)
         .def("countTriangles", &Component<2>::countTriangles,
             rbase::countTriangles)
-        .def("countFaces", &regina::python::countFaces<Component<2>, 2, 2>,
-            pybind11::arg("subdim"), rdoc::countFaces)
+        .def("countFaces", (regina::python::countFacesFunc<Component<2>>)(
+            &Component<2>::countFaces), rdoc::countFaces)
         .def("countEdges", &Component<2>::countEdges, rbase::countEdges)
         .def("countVertices", &Component<2>::countVertices,
             rbase::countVertices)
+        .def("countFacets", &Component<2>::countFacets, rbase::countFacets)
         .def("countBoundaryComponents", &Component<2>::countBoundaryComponents,
             rbase::countBoundaryComponents)
         .def("simplices", &Component<2>::simplices, rbase::simplices)
         .def("triangles", &Component<2>::triangles, rbase::triangles)
-        .def("faces", &regina::python::faces<Component<2>, 2>,
+        .def("hasLocks", &Component<2>::hasLocks, rbase::hasLocks)
+        .def("faces",
+            (regina::python::facesFunc<Component<2>>)(&Component<2>::faces),
             pybind11::arg("subdim"), rdoc::faces)
         .def("vertices", &Component<2>::vertices, rbase::vertices)
         .def("edges", &Component<2>::edges, rbase::edges)
@@ -66,8 +71,10 @@ void addComponent2(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::triangle)
         .def("simplex", &Component<2>::simplex,
             pybind11::return_value_policy::reference, rbase::simplex)
-        .def("face", &regina::python::face<Component<2>, 2, size_t>,
-            pybind11::arg("subdim"), pybind11::arg("index"), rdoc::face)
+        .def("face",
+            (regina::python::faceFunc<Component<2>>)(&Component<2>::face),
+            pybind11::arg("subdim"), pybind11::arg("index"),
+            pybind11::return_value_policy::reference, rdoc::face)
         .def("edge", &Component<2>::edge,
             pybind11::return_value_policy::reference, rbase::edge)
         .def("vertex", &Component<2>::vertex,
@@ -87,17 +94,17 @@ void addComponent2(pybind11::module_& m, pybind11::module_& internal) {
             rdoc::countBoundaryEdges)
         .def_readonly_static("dimension", &Component<2>::dimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
     // No need for lower-dimensional faces here, since these reuse the same
-    // ListView classes as Triangulation2.
-    regina::python::addListView<
+    // view classes as Triangulation2.
+    regina::python::addStdView<
         decltype(std::declval<Component<2>>().triangles())>(internal,
         "Component2_simplices");
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Component<2>>().boundaryComponents())>(internal,
         "Component2_boundaryComponents");
 }

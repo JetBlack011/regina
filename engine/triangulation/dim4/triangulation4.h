@@ -53,13 +53,15 @@
 // NOTE: More #includes for faces, components and boundary components
 // follow after the class declarations.
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class IntersectionForm;
 class ProgressTracker;
 class ProgressTrackerOpen;
 
-template <int> class XMLTriangulationReader;
+template <int dim> requires (supportedDim(dim)) class XMLTriangulationReader;
 
 /**
  * \defgroup dim4 4-Manifold Triangulations
@@ -123,20 +125,6 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
                  Crucially, this property may be known _before_ the skeleton
                  is computed (thereby allowing us to avoid costly 3-sphere or
                  3-ball recognition when the skeleton is computed later on). */
-
-        /**
-         * A struct that holds all of our calculated properties.
-         * This is a convenience so we can use its implicitly defined
-         * assignment operators and copy constructors.  It is mutable so that
-         * expensive read-only calculations can cache their results.
-         *
-         * All std::optional properties are std::nullopt if they have
-         * not yet been computed.
-         */
-        mutable struct {
-            std::optional<AbelianGroup> H2_;
-                /**< Second homology group of the triangulation. */
-        } prop_;
 
     public:
         /**
@@ -236,7 +224,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * At present, Regina understands the following types of strings
          * (and attempts to parse them in the following order):
          *
-         * - isomorphism signatures (see fromIsoSig()).
+         * - isomorphism signatures (see fromSig()).
          *
          * This list may grow in future versions of Regina.
          *
@@ -279,7 +267,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          *
          * See newSimplices() for further information.
          */
-        template <int k>
+        template <int k> requires (k >= 0)
         std::array<Pentachoron<4>*, k> newPentachora();
         /**
          * A dimension-specific alias for newSimplices().
@@ -802,18 +790,17 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          *
          * For every such triangulation (including this starting
          * triangulation), this routine will call \a action (which must
-         * be a function or some other callable object).
+         * be a function or some other callable type).
          *
          * - \a action must take the following initial argument(s).
          *   Either (a) the first argument must be a triangulation (the precise
-         *   type is discussed below), representing the triangluation that has
+         *   type is discussed below), representing the triangulation that has
          *   been found; or else (b) the first two arguments must be of types
-         *   const std::string& followed by a triangulation, representing both
-         *   the triangulation and its isomorphism signature.
-         *   The second form is offered in order to avoid unnecessary
-         *   recomputation within the \a action function; however, note that
-         *   the signature might not be of the IsoSigClassic type (i.e., it
-         *   might not match the output from the default version of isoSig()).
+         *   `const ByteSequence&` followed by a triangulation, representing
+         *   both the triangulation and its second-generation isomorphism
+         *   signature.  The signature will be a byte sequence as returned by
+         *   `neoSig<IsoSigBinary>()`; this second form may help avoid
+         *   unnecessary recomputation within the \a action function.
          *   If there are any additional arguments supplied in the list \a args,
          *   then these will be passed as subsequent arguments to \a action.
          *
@@ -886,13 +873,14 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          *
          * \apinotfinal
          *
-         * \python This function is available in Python, and the
-         * \a action argument may be a pure Python function.  However, its
-         * form is more restricted: the arguments \a tracker and \a args are
-         * removed, so you call it as retriangulate(height, threads, action).
+         * \python This function is available in Python, and the \a action
+         * argument may be a pure Python function.  However, its form is more
+         * restricted: the arguments \a tracker and \a args are removed,
+         * so you call it as `retriangulate(height, threads, action)`.
          * Moreover, \a action must take exactly two arguments
-         * (const std::string&, Triangulation<4>&&) representing a signature
-         * and the triangulation, as described in option (b) above.
+         * `(bytes, Triangulation<4>&&)` representing a signature and the
+         * triangulation, as described in option (b) above; the signature will
+         * be passed as a Python `bytes` object.
          *
          * \param height the maximum number of _additional_ pentachora to
          * allow beyond the number of pentachora originally present in the
@@ -901,7 +889,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * 1 or smaller then the routine will run single-threaded.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each triangulation that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial triangulation argument(s).
@@ -910,6 +898,10 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * completion.
          */
         template <typename Action, typename... Args>
+        requires
+            TerminatingCallback<Action, Triangulation<4>&&, Args...> ||
+            TerminatingCallback<Action, const ByteSequence&, Triangulation<4>&&,
+                Args...>
         bool retriangulate(int height, int threads,
             ProgressTrackerOpen* tracker,
             Action&& action, Args&&... args) const;
@@ -1197,7 +1189,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * \pre The given edge is an edge of this triangulation.
          *
          * \param e the edge about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<4>> with44(Edge<4>* e) const;
@@ -1215,7 +1207,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * \pre The given tetrahedron is a tetrahedron of this triangulation.
          *
          * \param t the tetrahedron about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<4>> withOpenBook(Tetrahedron<4>* t) const;
@@ -1233,7 +1225,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * \pre The given edge is an edge of this triangulation.
          *
          * \param e the edge to collapse.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<4>> withCollapseEdge(Edge<4>* e) const;
@@ -1250,7 +1242,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * \pre The given edge is an edge of this triangulation.
          *
          * \param e the edge whose endpoints are to be snapped together.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<4>> withSnapEdge(Edge<4>* e) const;
@@ -1457,8 +1449,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * and boundary compressions along discs and 3-balls, as well as
          * removing trivial 4-sphere components.
          *
-         * \tparam subdim the dimension of the face to link; this must be
-         * between 0 and 3 inclusive.
+         * \tparam subdim the dimension of the face to link.
          *
          * \pre The given face is a face of this triangulation.
          *
@@ -1466,7 +1457,7 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
          * normal hypersurface, and \a thin is \c true if and only if this link
          * is thin (i.e., no additional normalisation steps were required).
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < 4)
         std::pair<NormalHypersurface, bool> linkingSurface(
             const Face<4, subdim>& face) const;
 
@@ -1662,7 +1653,6 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
     friend class regina::detail::SimplexBase<4>;
     friend class regina::detail::TriangulationBase<4>;
     friend class regina::XMLTriangulationReader<4>;
-    friend class regina::XMLWriter<Triangulation<4>>;
 };
 
 } // namespace regina
@@ -1674,6 +1664,34 @@ class Triangulation<4> : public detail::TriangulationBase<4> {
 #include "triangulation/dim4/vertex4.h"
 #include "triangulation/dim4/component4.h"
 namespace regina {
+
+#ifndef __APIDOCS
+namespace detail {
+    template <>
+    struct RetriangulateParams<Triangulation<4>> {
+        using Signature = ByteSequence;
+
+        static Signature sig(const Triangulation<4>& tri) {
+            // Choose a fast and small signature type.
+            return tri.neoSig<IsoSigBinary>();
+        }
+
+        static Signature rigidSig(const Triangulation<4>& tri) {
+            // Currently rigidity is not supported for triangulations.
+            return tri.neoSig<IsoSigBinary>();
+        }
+
+        static constexpr const char* progressStage = "Exploring triangulations";
+
+        using PropagationOptions = NoPropagationOptions;
+
+        template <TerminatingCallback<Triangulation<4>&&, const Signature&>
+            Action>
+        static void propagateFrom(const Signature& sig, size_t maxSize,
+                PropagationOptions options, Action&& candidateAction);
+    };
+} // namespace detail
+#endif // __APIDOCS
 
 // Inline functions for Triangulation<4>
 
@@ -1691,7 +1709,7 @@ inline Pentachoron<4>* Triangulation<4>::newPentachoron(
     return newSimplex(desc);
 }
 
-template <int k>
+template <int k> requires (k >= 0)
 inline std::array<Pentachoron<4>*, k> Triangulation<4>::newPentachora() {
     return newSimplices<k>();
 }
@@ -1727,7 +1745,6 @@ inline Triangulation<4>& Triangulation<4>::operator = (
     TriangulationBase<4>::operator = (src);
 
     vertexLinkSummary_ = src.vertexLinkSummary_;
-    prop_ = src.prop_;
 
     return *this;
 }
@@ -1744,7 +1761,6 @@ inline Triangulation<4>& Triangulation<4>::operator = (Triangulation&& src) {
     // The parent class assignment goes last, since its move invalidates src.
 
     vertexLinkSummary_ = src.vertexLinkSummary_;
-    prop_ = std::move(src.prop_);
 
     TriangulationBase<4>::operator = (std::move(src));
 
@@ -1792,6 +1808,10 @@ inline bool Triangulation<4>::simplifyUpDown(ssize_t max24, ssize_t max33,
 }
 
 template <typename Action, typename... Args>
+requires
+    TerminatingCallback<Action, Triangulation<4>&&, Args...> ||
+    TerminatingCallback<Action, const ByteSequence&, Triangulation<4>&&,
+        Args...>
 inline bool Triangulation<4>::retriangulate(int height, int threads,
         ProgressTrackerOpen* tracker, Action&& action, Args&&... args) const {
     if (countComponents() > 1) {
@@ -1801,24 +1821,19 @@ inline bool Triangulation<4>::retriangulate(int height, int threads,
             "retriangulate() requires a connected triangulation");
     }
 
-    // Use RetriangulateActionTraits to deduce whether the given action
-    // takes a triangulation or both an isomorphism signature and triangulation
-    // as its initial argument(s).
-    using Traits =
-        regina::detail::RetriangulateActionTraits<Triangulation<4>, Action>;
-    static_assert(Traits::valid,
-        "The action that is passed to retriangulate() does not take the correct initial argument type(s).");
-    if constexpr (Traits::withSig) {
-        return regina::detail::retriangulateInternal<Triangulation<4>, true>(
-            *this, false /* rigid */, height, threads, tracker,
-            [&](const std::string& sig, Triangulation<4>&& obj) {
-                return action(sig, std::move(obj), std::forward<Args>(args)...);
-            });
-    } else {
+    if constexpr (TerminatingCallback<Action, Triangulation<4>&&, Args...>) {
+        // Action takes just a triangulation.
         return regina::detail::retriangulateInternal<Triangulation<4>, false>(
             *this, false /* rigid */, height, threads, tracker,
             [&](Triangulation<4>&& obj) {
                 return action(std::move(obj), std::forward<Args>(args)...);
+            });
+    } else {
+        // Action takes both an isomorphism signature and a triangulation.
+        return regina::detail::retriangulateInternal<Triangulation<4>, true>(
+            *this, false /* rigid */, height, threads, tracker,
+            [&](const ByteSequence& sig, Triangulation<4>&& obj) {
+                return action(sig, std::move(obj), std::forward<Args>(args)...);
             });
     }
 }

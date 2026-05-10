@@ -31,14 +31,14 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
-#include "../helpers.h"
 #include "algebra/grouppresentation.h"
 #include "algebra/intersectionform.h"
 #include "progress/progresstracker.h"
 #include "triangulation/dim4.h"
 #include "triangulation/facetpairing.h"
-#include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
+#include "../helpers.h"
+#include "../helpers/packet.h"
 #include "../generic/facehelper.h"
 #include "../docstrings/triangulation/dim4/triangulation4.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
@@ -48,6 +48,7 @@
 using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
 using regina::AbelianGroup;
+using regina::ByteSequence;
 using regina::Face;
 using regina::Isomorphism;
 using regina::MarkedAbelianGroup;
@@ -156,7 +157,7 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
         .def("boundaryComponents", &Triangulation<4>::boundaryComponents,
             pybind11::keep_alive<0, 1>(), rbase::boundaryComponents)
         .def("faces", (regina::python::facesFunc<Triangulation<4>>)(
-            &Triangulation<4>::faces),
+                &Triangulation<4>::faces),
             pybind11::keep_alive<0, 1>(), rbase::faces)
         .def("vertices", &Triangulation<4>::vertices,
             pybind11::keep_alive<0, 1>(), rbase::vertices)
@@ -173,7 +174,7 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference_internal,
             rbase::boundaryComponent)
         .def("face", (regina::python::faceFunc<Triangulation<4>>)(
-            &Triangulation<4>::face),
+                &Triangulation<4>::face),
             pybind11::return_value_policy::reference_internal, rbase::face)
         .def("vertex", &Triangulation<4>::vertex,
             pybind11::return_value_policy::reference_internal, rbase::vertex)
@@ -289,10 +290,16 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
         .def("simplifiedFundamentalGroup", // deprecated
             &Triangulation<4>::setGroupPresentation,
             rbase::simplifiedFundamentalGroup)
+        .def("cachedGroup", &Triangulation<4>::cachedGroup, rbase::cachedGroup)
         .def("homology",
             static_cast<AbelianGroup (Triangulation<4>::*)(int) const>(
                 &Triangulation<4>::homology),
             pybind11::arg("k") = 1, rbase::homology)
+        .def("knowsHomology",
+            static_cast<bool (Triangulation<4>::*)(int, bool) const>(
+                &Triangulation<4>::knowsHomology),
+            pybind11::arg("k") = 1, pybind11::arg("cachedOnly") = false,
+            rbase::knowsHomology)
         .def("markedHomology",
             static_cast<MarkedAbelianGroup (Triangulation<4>::*)(int) const>(
                 &Triangulation<4>::markedHomology),
@@ -338,14 +345,14 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::simplifyExhaustive)
         .def("retriangulate", [](const Triangulation<4>& tri, int height,
-                int threads, const std::function<bool(const std::string&,
+                int threads, const std::function<bool(const ByteSequence&,
                     Triangulation<4>&&)>& action) {
             if (threads == 1) {
                 return tri.retriangulate(height, 1, nullptr, action);
             } else {
                 GILCallbackManager manager;
                 return tri.retriangulate(height, threads, nullptr,
-                    [&](const std::string& sig, Triangulation<4>&& t) -> bool {
+                    [&](const ByteSequence& sig, Triangulation<4>&& t) -> bool {
                         GILCallbackManager<>::ScopedAcquire acquire(manager);
                         return action(sig, std::move(t));
                     });
@@ -450,11 +457,20 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
             overload_cast<const Triangulation<4>&>(
                 &Triangulation<4>::insertTriangulation),
             rbase::insertTriangulation)
-        .def("sig", &Triangulation<4>::sig<>, rbase::sig)
-        // Variants of isoSig() are handled through isosig_options() below.
-        .def_static("fromIsoSig", &Triangulation<4>::fromIsoSig,
+        // Variants of isoSig() are handled through add_isosig_variants() below.
+        // With fromSig(), the byte sequence variant _must_ come first.
+        // This is because pybind11 performs automatic conversion from bytes
+        // to std::string, and so if the string variant appears first then
+        // pybind11 will use it even with a pybind11::bytes argument.
+        .def_static("fromSig",
+            overload_cast<const ByteSequence&>(&Triangulation<4>::fromSig),
+            rbase::fromSig_2)
+        .def_static("fromSig",
+            overload_cast<const std::string&>(&Triangulation<4>::fromSig),
+            rbase::fromSig)
+        .def_static("fromIsoSig", // deprecated
+            overload_cast<const std::string&>(&Triangulation<4>::fromSig),
             rbase::fromIsoSig)
-        .def_static("fromSig", &Triangulation<4>::fromSig, rbase::fromSig)
         .def_static("isoSigComponentSize",
             &Triangulation<4>::isoSigComponentSize, rbase::isoSigComponentSize)
         .def("source", &Triangulation<4>::source,
@@ -578,25 +594,25 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
-    regina::python::isosig_options<4>(c);
-    regina::python::add_output(c);
+    regina::python::add_isosig_variants<4>(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    regina::python::addListView<decltype(Triangulation<4>().vertices())>(
+    regina::python::addStdView<decltype(Triangulation<4>().vertices())>(
         internal, "Triangulation4_vertices");
-    regina::python::addListView<decltype(Triangulation<4>().edges())>(
+    regina::python::addStdView<decltype(Triangulation<4>().edges())>(
         internal, "Triangulation4_edges");
-    regina::python::addListView<decltype(Triangulation<4>().triangles())>(
+    regina::python::addStdView<decltype(Triangulation<4>().triangles())>(
         internal, "Triangulation4_triangles");
-    regina::python::addListView<decltype(Triangulation<4>().tetrahedra())>(
+    regina::python::addStdView<decltype(Triangulation<4>().tetrahedra())>(
         internal, "Triangulation4_tetrahedra");
-    regina::python::addListView<decltype(Triangulation<4>().pentachora())>(
+    regina::python::addStdView<decltype(Triangulation<4>().pentachora())>(
         internal, "Triangulation4_pentachora");
-    regina::python::addListView<decltype(Triangulation<4>().components())>(
+    regina::python::addStdView<decltype(Triangulation<4>().components())>(
         internal, "Triangulation4_components");
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(Triangulation<4>().boundaryComponents())>(
         internal, "Triangulation4_boundaryComponents");
 
@@ -622,7 +638,18 @@ void addTriangulation4(pybind11::module_& m, pybind11::module_& internal) {
     addIsoSigClassic<4>(m, "IsoSigClassic4");
     addIsoSigEdgeDegrees<4>(m, "IsoSigEdgeDegrees4");
     addIsoSigRidgeDegrees<4>(m, "IsoSigRidgeDegrees4");
-    addIsoSigPrintable<4, true>(m, "IsoSigPrintable4");
-    addIsoSigPrintable<4, false>(m, "IsoSigPrintableLockFree4");
+    addIsoSigData<1, 4>(m, "IsoSigData1_4");
+    addIsoSigData<2, 4>(m, "IsoSigData2_4");
 }
 
+// Instantiate templates for isomorphism signature encodings:
+template void regina::python::add_isosig_encoding_functions<1, 4>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<2, 4>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<1, 4>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 4>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 4>(
+    pybind11::class_<regina::IsoSigBinary>&);

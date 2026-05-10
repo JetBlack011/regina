@@ -40,6 +40,8 @@
 #include "regina-core.h"
 #include <cstddef> // for size_t
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -500,7 +502,7 @@ class NormalEncoding {
         /**
          * Returns the number of coordinates stored for each tetrahedron.
          *
-         * \return The number of coordinates per tetrahedron.
+         * \return the number of coordinates per tetrahedron.
          */
         constexpr int block() const {
             return flags_ & SIZE_MASK;
@@ -803,6 +805,8 @@ class NormalInfo {
                     return "Unknown";
             }
         }
+
+        NormalInfo() = delete;
 };
 
 } // namespace regina

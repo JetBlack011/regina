@@ -32,6 +32,7 @@
 #include <pybind11/stl.h>
 #include "link/spatiallink.h"
 #include "../helpers.h"
+#include "../helpers/packet.h"
 #include "../docstrings/link/spatiallink.h"
 
 using pybind11::overload_cast;
@@ -81,11 +82,11 @@ void addSpatialLink(pybind11::module_& m, pybind11::module_& internal) {
         .def_static("fromKnotPlot", &SpatialLink::fromKnotPlot,
             rdoc::fromKnotPlot)
     ;
-    regina::python::add_output(l);
+    regina::python::add_output_rich(l);
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
-    regina::python::addListView<decltype(SpatialLink().components())>(internal,
+    regina::python::addStdView<decltype(SpatialLink().components())>(internal,
         "SpatialLink_components");
 
     auto wrap = regina::python::add_packet_wrapper<SpatialLink>(m,

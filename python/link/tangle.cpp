@@ -139,10 +139,10 @@ void addTangle(pybind11::module_& m) {
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 
-    // No need to register the ListView class for crossings(), since
+    // No need to register the view class for crossings(), since
     // this is the same class used by Link.
 
     regina::python::add_global_swap<Tangle>(m, rdoc::global_swap);

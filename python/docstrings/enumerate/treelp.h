@@ -16,18 +16,6 @@ static const char *LPConstraintType =
 R"doc(Indicates whether a linear constraint describes an equality or an
 inequality. This is used with Regina's linear programming machinery.)doc";
 
-namespace LPConstraintType_ {
-
-// Docstring regina::python::doc::LPConstraintType_::Positive
-static const char *Positive =
-R"doc(Indicates a constraint that requires some linear function to be
-strictly positive.)doc";
-
-// Docstring regina::python::doc::LPConstraintType_::Zero
-static const char *Zero = R"doc(Indicates a constraint that requires some linear function to be zero.)doc";
-
-}
-
 // Docstring regina::python::doc::LPData
 static const char *LPData =
 R"doc(Stores an intermediate tableaux for the dual simplex method, and
@@ -91,7 +79,7 @@ The rules are as follows:
 
 Like LPInitialTableaux, this class can enforce additional linear
 constraints (such as positive Euler characteristic) through the
-template parameter LPConstraint. If there are no such constraints,
+template parameter Constraint. If there are no such constraints,
 simply use the template parameter LPConstraintNone.
 
 In the context of normal surfaces (not angle structures): Although the
@@ -116,21 +104,16 @@ following effects, all of which may alter the tableaux:
   be kept and which will be deactivated: this will depend on the
   layout of the tableaux when constrainOct() is called.
 
-* If you are imposing additional constraints through the
-  *LPConstraint* template parameter, the corresponding linear
-  constraint functions may change their values (since the coefficients
-  they use for octagon types need not be related to the coefficients
-  for the two corresponding quadrilateral columns). Any such changes,
-  if necessary, are encoded by the constant
-  Constraint::octAdjustment.
+* If you are imposing additional constraints through the LPConstraint
+  template parameter, the corresponding linear constraint functions
+  may change their values (since the coefficients they use for octagon
+  types need not be related to the coefficients for the two
+  corresponding quadrilateral columns). Any such changes, if
+  necessary, are encoded by the constant Constraint::octAdjustment.
 
 This class has been optimised to ensure that you only have one octagon
 type declared at any given time (which is consistent with the
 constraints of almost normal surface theory).
-
-All tableaux elements are of the integer class *IntType*, which is
-supplied as a template argument. This same integer class will be used
-as a template argument for *LPConstraint*.
 
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. However, due to the unusual create-reserve-
@@ -139,22 +122,35 @@ construction or copy assignment). Because of the move semantics, this
 class avoids deep copies, even when passing or returning objects by
 value.
 
-Precondition:
-    The template parameter LPConstraint must be one of the subclasses
-    of LPConstraintBase. See the LPConstraintBase class notes for
-    further details.
-
 Python:
     This is a heavily templated class; nevertheless, many variants are
     now made available to Python users. Each class name is of the form
-    LPData_*LPConstraint*, where the suffix *LPConstraint* is an
-    abbreviated version of the *LPConstraint* template parameter; this
+    LPData_*Constraint*, where the suffix *Constraint* is an
+    abbreviated version of the *Constraint* template parameter; this
     suffix is omitted entirely for the common case LPConstraintNone.
     An example of such a Python class name is
     ``LPData_EulerPositive``. You are encouraged to look through the
     Regina namespace to see which constraint classes are supported
     under Python. In all cases, the IntType parameter is taken to be
     regina::Integer.
+
+Template parameter ``Constraint``:
+    a specification of any extra linear constraints that should be
+    enforced, or LPConstraintNone if there are none. See the notes
+    above for details.
+
+Template parameter ``IntType``:
+    the integer type to use throughout this class, including for all
+    tableaux elements as well as the matrix of row operations that we
+    apply to the original starting tableaux. The only place this
+    integer type is _not_ used is for intermediate calculations when
+    finding an initial basis using Gauss-Jordan elimination (which
+    always uses arbitrary-precision integers). If you are using a
+    fixed-precision integer type here (such as NativeInteger), be
+    aware that there will be no testing for overflow: it is your
+    responsibility to prove in advance that overflow will never occur
+    as you operate on the tableaux via routines such as
+    constraintZero(), constraintPositive(), and constraintOct().
 
 .. warning::
     The API for this class or function has not yet been finalised.
@@ -195,13 +191,14 @@ class constructor) are as follows:
 There is also optional support for adding extra linear constraints
 (such as a constraint on Euler characteristic for normal surfaces).
 These extra constraints are supplied by the template parameter
-*LPConstraint*, and will generate Constraint::nConstraints
-additional rows and columns (used by the additional variables that
-evaluate the corresponding linear functions). If there are no
+*Constraint*, and will generate additional rows and columns (one for
+each element of the array ``Constraint::constraints``). These
+additional rows and columns will be used by the additional variables
+that evaluate the corresponding linear functions. If there are no
 additional constraints, simply use the template parameter
 LPConstraintNone.
 
-For some *LPConstraint* template arguments, Regina may discover at
+For some *Constraint* template arguments, Regina may discover at
 runtime that it is impossible to add the corresponding extra linear
 constraints (e.g., the constraints might require some preconditions on
 the underlying triangulation that are not met). In this case, the
@@ -221,11 +218,11 @@ quad normal matching equations (if LPSystem::standard() is ``True``),
 the quad normal matching equations (if LPSystem::quad() is ``True``),
 or the homogeneous angle equations (if LPSystem::angles() is true). If
 you need to add extra matching equations beyond these, use the
-LPConstraint template argument as outlined above. If you need to
-support more exotic vector encodings (e.g., for octagonal almost
-normal surfaces), you will need to find a way to represent it using
-one of these three broad classes; see the LPData class notes for how
-this is done with octagons.
+Constraint template argument as outlined above. If you need to support
+more exotic vector encodings (e.g., for octagonal almost normal
+surfaces), you will need to find a way to represent it using one of
+these three broad classes; see the LPData class notes for how this is
+done with octagons.
 
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
@@ -239,18 +236,13 @@ possible, even when passing or returning objects by value.
     equation matrices, you may need to change the implementation
     accordingly.
 
-Precondition:
-    The template parameter LPConstraint must be one of the subclasses
-    of LPConstraintBase. See the LPConstraintBase class notes for
-    further details.
-
 Python:
     This is a heavily templated class; nevertheless, many variants are
     now made available to Python users. Each class name is of the form
-    LPInitialTableaux_*LPConstraint*, where the suffix *LPConstraint*
-    is an abbreviated version of the *LPConstraint* template
-    parameter; this suffix is omitted entirely for the common case
-    LPConstraintNone. An example of such a Python class name is
+    LPInitialTableaux_*Constraint*, where the suffix *Constraint* is
+    an abbreviated version of the Constraint template parameter; this
+    suffix is omitted entirely for the common case LPConstraintNone.
+    An example of such a Python class name is
     ``LPInitialTableaux_NonSpun``. You are encouraged to look through
     the Regina namespace to see which constraint classes are supported
     under Python.
@@ -352,6 +344,25 @@ These objects are small enough to pass by value and swap with
 std::swap(), with no need for any specialised move operations or swap
 functions.)doc";
 
+namespace LPConstraintType_ {
+
+// Docstring regina::python::doc::LPConstraintType_::Positive
+static const char *Positive =
+R"doc(Indicates a constraint that requires some linear function to be
+strictly positive.
+
+A constraint of this type would typically be enforced by calling
+LPData::constrainPositive().)doc";
+
+// Docstring regina::python::doc::LPConstraintType_::Zero
+static const char *Zero =
+R"doc(Indicates a constraint that requires some linear function to be zero.
+
+A constraint of this type would typically be enforced by calling
+LPData::constrainZero().)doc";
+
+}
+
 namespace LPData_ {
 
 // Docstring regina::python::doc::LPData_::__default
@@ -363,9 +374,9 @@ anything else with this tableaux.)doc";
 static const char *columns =
 R"doc(Returns the number of columns in this tableaux.
 
-Note that, if we are imposing extra constraints through the template
-parameter LPConstraint, then there will be extra variables to enforce
-these, and so the number of columns will be larger than in the
+Note that, if we are imposing extra constraints through the
+LPConstraint template parameter, then there will be extra variables to
+enforce these, and so the number of columns will be larger than in the
 original matching equation matrix.
 
 Returns:
@@ -482,18 +493,17 @@ Returns:
 static const char *extractSolution =
 R"doc(Extracts the values of the individual variables from the current
 basis, with some modifications (as described below). The values of the
-variables will be returned in vector form.
+variables will be returned in vector form, using type *Ray*.
 
 The modifications are as follows:
 
 * We extract variables that correspond to the original matching
   equations obtained from the underlying triangulation, _not_ the
-  current tableaux and _not_ even the original starting tableaux
-  stored in origTableaux_. In other words, when we fill the resulting
-  vector, we undo the column permutation described by
-  LPInitialTableaux::columnPerm(), and we undo any changes of variable
-  that were caused by calls to constrainPositive() and/or
-  constrainOct().
+  current tableaux and _not_ even the original starting tableaux. In
+  other words, when we fill the resulting vector, we undo the column
+  permutation described by LPInitialTableaux::columnPerm(), and we
+  undo any changes of variable that were caused by calls to
+  constrainPositive() and/or constrainOct().
 
 * To ensure that the variables are all integers, we scale the
   resulting vector by the smallest positive rational multiple for
@@ -507,18 +517,20 @@ Precondition:
     No individual coordinate column has had more than one call to
     either of constrainPositive() or constrainOct() (otherwise the
     coordinate will not be correctly reconstructed). Any additional
-    columns arising from LPConstraint are exempt from this
-    requirement.
-
-Precondition:
-    The precision of integers in *Ray* is at least as large as the
-    precision of *IntType* (as used by LPData).
+    columns arising from the LPConstraint template parameter are
+    exempt from this requirement.
 
 Python:
     The type vector should be passed as a Python list of integers (for
     example, in the enumeration of normal surfaces, there would be one
     integer per tetrahedron, each equal to 0, 1, 2 or 3). The template
     parameter *Ray* is taken to be Vector<Integer>.
+
+Template parameter ``Ray``:
+    the vector type to use to return the extracted values. The
+    ``std::common_type_t`` constraint on *Ray* ensures that no
+    information will be lost (e.g., through overflow) when converting
+    integers to the element type for *Ray*.
 
 Parameter ``type``:
     the type vector corresponding to the current state of this
@@ -540,9 +552,9 @@ Returns:
 static const char *global_swap =
 R"doc(Swaps the contents of the given tableaux.
 
-This global routine simply calls LPData<LPConstraint,
-IntType>::swap(); it is provided so that LPData<LPConstraint, IntType>
-meets the C++ Swappable requirements.
+This global routine simply calls LPData<Constraint, IntType>::swap();
+it is provided so that LPData<Constraint, IntType> meets the C++
+Swappable requirements.
 
 Parameter ``a``:
     the first tableaux whose contents should be swapped.
@@ -569,7 +581,7 @@ R"doc(Initialises this tableaux by beginning at the original starting
 tableaux and working our way to any feasible basis.
 
 This routine also explicitly enforces the additional constraints from
-the template parameter LPConstraint (i.e., this routine is responsible
+the LPConstraint template parameter (i.e., this routine is responsible
 for forcing the corresponding linear function(s) to be zero or
 strictly positive as appropriate).
 
@@ -660,11 +672,7 @@ Parameter ``other``:
 namespace LPInitialTableaux_ {
 
 // Docstring regina::python::doc::LPInitialTableaux_::__copy
-static const char *__copy =
-R"doc(Creates a new copy of the given matrix.
-
-Parameter ``src``:
-    the matrix to copy.)doc";
+static const char *__copy = R"doc(Creates a new copy of the given matrix.)doc";
 
 // Docstring regina::python::doc::LPInitialTableaux_::__init
 static const char *__init =
@@ -681,15 +689,15 @@ Exception ``InvalidArgument``:
     It was not possible to add the extra constraints from the
     LPConstraint template argument, due to an error which should have
     been preventable with the right checks in advance. Such exceptions
-    are generated by the *LPConstraint* class, and so you should
-    consult the class documentation for your chosen *LPConstraint*
-    template argument to see if this is a possibility.
+    are generated by the *Constraint* class, and so you should consult
+    the class documentation for your chosen *Constraint* template
+    argument to see if this is a possibility.
 
 Exception ``InvalidArgument``:
     It was not possible to add the extra constraints from the
     LPConstraint template argument, due to an error that was
     "genuinely" unforseeable. Again, such exceptions are generated by
-    your chosen *LPConstraint* class, and you should consult its
+    your chosen *Constraint* class, and you should consult its
     documentation to see if this is a possibility.
 
 Parameter ``tri``:
@@ -719,8 +727,8 @@ The permutation is returned as an array of columns() integers, such
 that column *i* of this adjusted matrix corresponds to column
 ``columnPerm()[i]`` of the original matrix.
 
-If you are imposing additional constraints through the template
-parameter LPConstraint, then the corresponding extra variables will be
+If you are imposing additional constraints through the LPConstraint
+template parameter, then the corresponding extra variables will be
 included in the permutation; however, these are never moved and will
 always remain the rightmost variables in this system (i.e., the
 columns of highest index).
@@ -766,9 +774,9 @@ Returns:
 static const char *columns =
 R"doc(Returns the number of columns in this matrix.
 
-Note that, if we are imposing extra constraints through the template
-parameter LPConstraint, then there will be extra variables to enforce
-these, and so the number of columns will be larger than in the
+Note that, if we are imposing extra constraints through the
+LPConstraint template parameter, then there will be extra variables to
+enforce these, and so the number of columns will be larger than in the
 original matching equation matrix.
 
 Returns:
@@ -848,7 +856,7 @@ quadrilaterals within the same tetrahedron. See the LPData class notes
 for details on how this works.
 
 In some settings where we are using additional constraints through the
-template parameter LPConstraint, these extra constraints behave
+LPConstraint template parameter, these extra constraints behave
 differently in the presence of octagons (i.e., the coefficient of the
 octagon type is not just the sum of coefficients of the two
 constituent quadrilateral types). This routine effectively allows us
@@ -891,10 +899,10 @@ Returns:
 static const char *rank =
 R"doc(Returns the rank of this matrix.
 
-Note that, if we are imposing extra constraints through the template
-parameter LPConstraint, then there will be extra variables to enforce
-these, and so the rank will be larger than the rank of the original
-matching equation matrix.
+Note that, if we are imposing extra constraints through the
+LPConstraint template parameter, then there will be extra variables to
+enforce these, and so the rank will be larger than the rank of the
+original matching equation matrix.
 
 Returns:
     the matrix rank.)doc";

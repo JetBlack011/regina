@@ -35,16 +35,26 @@
 #include "triangulation/detail/triangulation-impl.h"
 #include "triangulation/generic.h"
 
-namespace regina::detail {
+namespace regina {
 
-template std::string TriangulationBase<8>::isoSigFrom
-    <IsoSigPrintable<8>>(size_t, const Perm<9>&, Isomorphism<8>*) const;
-template std::string TriangulationBase<8>::isoSig<
-    IsoSigClassic<8>, IsoSigPrintable<8>>() const;
+template std::string IsoSigBinary::asString<8>(const ByteSequence&);
+
+namespace detail {
+
+template std::string
+    TriangulationBase<8>::isoSig<IsoSigPrintable, IsoSigClassic<8>>() const;
 template std::pair<std::string, Isomorphism<8>>
-    TriangulationBase<8>::isoSigDetail<
-    IsoSigClassic<8>, IsoSigPrintable<8>>() const;
-template Triangulation<8> TriangulationBase<8>::fromIsoSig(const std::string&);
+    TriangulationBase<8>::isoSigDetail<IsoSigPrintable, IsoSigClassic<8>>()
+    const;
+
+template std::string
+    TriangulationBase<8>::neoSig<IsoSigPrintable,
+    IsoSigRidgeDegrees<8>>(bool) const;
+template std::pair<std::string, Isomorphism<8>>
+    TriangulationBase<8>::neoSigDetail<IsoSigPrintable,
+    IsoSigRidgeDegrees<8>>(bool) const;
+
+template Triangulation<8> TriangulationBase<8>::fromSig(const std::string&);
 template size_t TriangulationBase<8>::isoSigComponentSize(const std::string&);
 
 template AbelianGroup TriangulationBase<8>::homology<1>() const;
@@ -110,4 +120,4 @@ template bool TriangulationBase<8>::makeIdeal();
 template std::string TriangulationBase<8>::source(Language) const;
 template void TriangulationBase<8>::writeDot(std::ostream&, bool) const;
 
-} // namespace regina::detail
+} } // namespace regina::detail

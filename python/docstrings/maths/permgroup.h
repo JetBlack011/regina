@@ -43,14 +43,13 @@ possible.
 
 Python:
     Python does not support templates. In Python, the "vanilla" non-
-    cached variants ``Perm<n>`` are available under the names
-    PermGroup2, PermGroup3, ..., PermGroup16, and the cached variants
-    ``Perm<n, true>`` are available under the names PermGroup2_Cached,
-    PermGroup3_Cached, ..., PermGroup16_Cached.
+    cached variants ``PermGroup<n>`` are available under the names
+    PermGroup2, PermGroup3, …, and the cached variants ``Perm<n,
+    true>`` are available under the names PermGroup2_Cached,
+    PermGroup3_Cached, ….
 
 Template parameter ``n``:
-    the number of objects being permuted. This must be between 2 and
-    16 inclusive.
+    the number of objects being permuted.
 
 Template parameter ``cached``:
     ``True`` if we should use precomputation-assisted routines such as
@@ -142,8 +141,8 @@ the given membership test.
 Specifically, this generates the subgroup of all permutations *p* in
 *parent* for which ``test(p, args...)`` returns ``True``.
 
-The argument *test* should be a function or some other callable
-object. It must return a boolean, and its first argument should be a
+The argument *test* should be a function or some other callable type.
+It must return a boolean, and its first argument should be a
 permutation (either by value as type ``Perm<n>``, or by const
 reference as type ``const Perm<n>&``). If there are any additional
 arguments supplied in the list *args*, these will be forwarded through
@@ -171,7 +170,7 @@ Parameter ``parent``:
     the "starting" group of all permutations under consideration.
 
 Parameter ``test``:
-    a function (or other callable object) that determines which
+    a function (or other callable type) that determines which
     permutations in *parent* become members of this subgroup.
 
 Parameter ``args``:

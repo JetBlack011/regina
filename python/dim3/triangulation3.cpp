@@ -31,7 +31,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
-#include "../helpers.h"
 #include "algebra/grouppresentation.h"
 #include "angle/anglestructure.h"
 #include "link/link.h"
@@ -41,8 +40,9 @@
 #include "surface/normalsurface.h"
 #include "triangulation/example3.h"
 #include "triangulation/facetpairing3.h"
-#include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
+#include "../helpers.h"
+#include "../helpers/packet.h"
 #include "../generic/facehelper.h"
 #include "../docstrings/triangulation/dim3/triangulation3.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
@@ -52,6 +52,7 @@
 using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
 using regina::AbelianGroup;
+using regina::ByteSequence;
 using regina::Example;
 using regina::Face;
 using regina::Isomorphism;
@@ -218,7 +219,7 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
         .def("boundaryComponents", &Triangulation<3>::boundaryComponents,
             pybind11::keep_alive<0, 1>(), rbase::boundaryComponents)
         .def("faces", (regina::python::facesFunc<Triangulation<3>>)(
-            &Triangulation<3>::faces),
+                &Triangulation<3>::faces),
             pybind11::keep_alive<0, 1>(), rbase::faces)
         .def("vertices", &Triangulation<3>::vertices,
             pybind11::keep_alive<0, 1>(), rbase::vertices)
@@ -233,7 +234,7 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference_internal,
             rbase::boundaryComponent)
         .def("face", (regina::python::faceFunc<Triangulation<3>>)(
-            &Triangulation<3>::face),
+                &Triangulation<3>::face),
             pybind11::return_value_policy::reference_internal, rbase::face)
         .def("vertex", &Triangulation<3>::vertex,
             pybind11::return_value_policy::reference_internal, rbase::vertex)
@@ -348,18 +349,28 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
         .def("simplifiedFundamentalGroup", // deprecated
             &Triangulation<3>::setGroupPresentation,
             rbase::simplifiedFundamentalGroup)
+        .def("cachedGroup", &Triangulation<3>::cachedGroup, rbase::cachedGroup)
         .def("homology",
             static_cast<AbelianGroup (Triangulation<3>::*)(int) const>(
                 &Triangulation<3>::homology),
             pybind11::arg("k") = 1, rbase::homology)
+        .def("knowsHomology",
+            static_cast<bool (Triangulation<3>::*)(int, bool) const>(
+                &Triangulation<3>::knowsHomology),
+            pybind11::arg("k") = 1, pybind11::arg("cachedOnly") = false,
+            rbase::knowsHomology)
         .def("homologyRel", &Triangulation<3>::homologyRel,
             pybind11::return_value_policy::reference_internal,
             rdoc::homologyRel)
+        .def("knowsHomologyRel", &Triangulation<3>::knowsHomologyRel,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsHomologyRel)
         .def("homologyBdry", &Triangulation<3>::homologyBdry,
             pybind11::return_value_policy::reference_internal,
             rdoc::homologyBdry)
         .def("homologyH2Z2", &Triangulation<3>::homologyH2Z2,
             rdoc::homologyH2Z2)
+        .def("knowsHomologyH2Z2", &Triangulation<3>::knowsHomologyH2Z2,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsHomologyH2Z2)
         .def("markedHomology",
             static_cast<MarkedAbelianGroup (Triangulation<3>::*)(int) const>(
                 &Triangulation<3>::markedHomology),
@@ -404,11 +415,11 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
         .def("isZeroEfficient", &Triangulation<3>::isZeroEfficient,
             rdoc::isZeroEfficient)
         .def("knowsZeroEfficient", &Triangulation<3>::knowsZeroEfficient,
-            rdoc::knowsZeroEfficient)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsZeroEfficient)
         .def("isOneEfficient", &Triangulation<3>::isOneEfficient,
             rdoc::isOneEfficient)
         .def("knowsOneEfficient", &Triangulation<3>::knowsOneEfficient,
-            rdoc::knowsOneEfficient)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsOneEfficient)
         .def("hasSplittingSurface", &Triangulation<3>::hasSplittingSurface,
             rdoc::hasSplittingSurface)
         .def("nonTrivialSphereOrDisc",
@@ -426,6 +437,7 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
             rdoc::hasStrictAngleStructure)
         .def("knowsStrictAngleStructure",
             &Triangulation<3>::knowsStrictAngleStructure,
+            pybind11::arg("cachedOnly") = false,
             rdoc::knowsStrictAngleStructure)
         .def("generalAngleStructure",
             &Triangulation<3>::generalAngleStructure,
@@ -456,14 +468,14 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::simplifyExhaustive)
         .def("retriangulate", [](const Triangulation<3>& tri, int height,
-                int threads, const std::function<bool(const std::string&,
+                int threads, const std::function<bool(const ByteSequence&,
                     Triangulation<3>&&)>& action) {
             if (threads == 1) {
                 return tri.retriangulate(height, 1, nullptr, action);
             } else {
                 GILCallbackManager manager;
                 return tri.retriangulate(height, threads, nullptr,
-                    [&](const std::string& sig, Triangulation<3>&& t) -> bool {
+                    [&](const ByteSequence& sig, Triangulation<3>&& t) -> bool {
                         GILCallbackManager<>::ScopedAcquire acquire(manager);
                         return action(sig, std::move(t));
                     });
@@ -599,13 +611,15 @@ void addTriangulation3(pybind11::module_& m, pybind11::module_& internal) {
             rbase::triangulateComponents)
         .def("summands", &Triangulation<3>::summands, rdoc::summands)
         .def("isSphere", &Triangulation<3>::isSphere, rdoc::isSphere)
-        .def("knowsSphere", &Triangulation<3>::knowsSphere, rdoc::knowsSphere)
+        .def("knowsSphere", &Triangulation<3>::knowsSphere,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsSphere)
         .def("isBall", &Triangulation<3>::isBall, rdoc::isBall)
-        .def("knowsBall", &Triangulation<3>::knowsBall, rdoc::knowsBall)
+        .def("knowsBall", &Triangulation<3>::knowsBall,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsBall)
         .def("isSolidTorus", &Triangulation<3>::isSolidTorus,
             rdoc::isSolidTorus)
         .def("knowsSolidTorus", &Triangulation<3>::knowsSolidTorus,
-            rdoc::knowsSolidTorus)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsSolidTorus)
         .def("recogniseHandlebody", &Triangulation<3>::recogniseHandlebody,
             rdoc::recogniseHandlebody)
         .def("isHandlebody", [](const Triangulation<3>&) -> ssize_t {
@@ -625,22 +639,24 @@ instead, which does exactly what Triangulation3.isHandlebody() used to
 do in Regina 7.1.  The name isHandlebody() has _not_ been kept as an
 alias, to avoid people misinterpreting the return value as a boolean.)doc")
         .def("knowsHandlebody", &Triangulation<3>::knowsHandlebody,
-            rdoc::knowsHandlebody)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsHandlebody)
         .def("isTxI", &Triangulation<3>::isTxI, rdoc::isTxI)
-        .def("knowsTxI", &Triangulation<3>::knowsTxI, rdoc::knowsTxI)
+        .def("knowsTxI", &Triangulation<3>::knowsTxI,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsTxI)
         .def("isIrreducible", &Triangulation<3>::isIrreducible,
             rdoc::isIrreducible)
         .def("knowsIrreducible", &Triangulation<3>::knowsIrreducible,
-            rdoc::knowsIrreducible)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsIrreducible)
         .def("hasCompressingDisc", &Triangulation<3>::hasCompressingDisc,
             rdoc::hasCompressingDisc)
         .def("knowsCompressingDisc", &Triangulation<3>::knowsCompressingDisc,
-            rdoc::knowsCompressingDisc)
+            pybind11::arg("cachedOnly") = false, rdoc::knowsCompressingDisc)
         .def("hasSimpleCompressingDisc",
             &Triangulation<3>::hasSimpleCompressingDisc,
             rdoc::hasSimpleCompressingDisc)
         .def("isHaken", &Triangulation<3>::isHaken, rdoc::isHaken)
-        .def("knowsHaken", &Triangulation<3>::knowsHaken, rdoc::knowsHaken)
+        .def("knowsHaken", &Triangulation<3>::knowsHaken,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsHaken)
         .def("niceTreeDecomposition", &Triangulation<3>::niceTreeDecomposition,
             pybind11::return_value_policy::reference_internal,
             rdoc::niceTreeDecomposition)
@@ -708,15 +724,24 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
             rbase::insertTriangulation)
         .def("dehydrate", &Triangulation<3>::dehydrate, rdoc::dehydrate)
         .def_static("rehydrate", &Triangulation<3>::rehydrate, rdoc::rehydrate)
-        .def("sig", &Triangulation<3>::sig<>, rbase::sig)
-        // Variants of isoSig() are handled through isosig_options() below.
         .def_static("fromGluings", [](size_t size, const std::vector<
                 std::tuple<size_t, int, size_t, regina::Perm<4>>>& g) {
             return Triangulation<3>::fromGluings(size, g.begin(), g.end());
         }, pybind11::arg("size"), pybind11::arg("gluings"), rbase::fromGluings)
-        .def_static("fromIsoSig", &Triangulation<3>::fromIsoSig,
+        // Variants of isoSig() are handled through add_isosig_variants() below.
+        // With fromSig(), the byte sequence variant _must_ come first.
+        // This is because pybind11 performs automatic conversion from bytes
+        // to std::string, and so if the string variant appears first then
+        // pybind11 will use it even with a pybind11::bytes argument.
+        .def_static("fromSig",
+            overload_cast<const ByteSequence&>(&Triangulation<3>::fromSig),
+            rbase::fromSig_2)
+        .def_static("fromSig",
+            overload_cast<const std::string&>(&Triangulation<3>::fromSig),
+            rbase::fromSig)
+        .def_static("fromIsoSig", // deprecated
+            overload_cast<const std::string&>(&Triangulation<3>::fromSig),
             rbase::fromIsoSig)
-        .def_static("fromSig", &Triangulation<3>::fromSig, rbase::fromSig)
         .def_static("isoSigComponentSize",
             &Triangulation<3>::isoSigComponentSize, rbase::isoSigComponentSize)
         .def("source", &Triangulation<3>::source,
@@ -881,23 +906,23 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
-    regina::python::isosig_options<3>(c);
-    regina::python::add_output(c);
+    regina::python::add_isosig_variants<3>(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    regina::python::addListView<decltype(Triangulation<3>().vertices())>(
+    regina::python::addStdView<decltype(Triangulation<3>().vertices())>(
         internal, "Triangulation3_vertices");
-    regina::python::addListView<decltype(Triangulation<3>().edges())>(
+    regina::python::addStdView<decltype(Triangulation<3>().edges())>(
         internal, "Triangulation3_edges");
-    regina::python::addListView<decltype(Triangulation<3>().triangles())>(
+    regina::python::addStdView<decltype(Triangulation<3>().triangles())>(
         internal, "Triangulation3_triangles");
-    regina::python::addListView<decltype(Triangulation<3>().tetrahedra())>(
+    regina::python::addStdView<decltype(Triangulation<3>().tetrahedra())>(
         internal, "Triangulation3_tetrahedra");
-    regina::python::addListView<decltype(Triangulation<3>().components())>(
+    regina::python::addStdView<decltype(Triangulation<3>().components())>(
         internal, "Triangulation3_components");
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(Triangulation<3>().boundaryComponents())>(
         internal, "Triangulation3_boundaryComponents");
 
@@ -937,7 +962,18 @@ alias, to avoid people misinterpreting the return value as a boolean.)doc")
     addIsoSigEdgeDegrees<3>(m, "IsoSigEdgeDegrees3");
     // IsoSigEdgeDegrees<3> and IsoSigRidgeDegrees<3> are the same type.
     m.attr("IsoSigRidgeDegrees3") = m.attr("IsoSigEdgeDegrees3");
-    addIsoSigPrintable<3, true>(m, "IsoSigPrintable3");
-    addIsoSigPrintable<3, false>(m, "IsoSigPrintableLockFree3");
+    addIsoSigData<1, 3>(m, "IsoSigData1_3");
+    addIsoSigData<2, 3>(m, "IsoSigData2_3");
 }
 
+// Instantiate templates for isomorphism signature encodings:
+template void regina::python::add_isosig_encoding_functions<1, 3>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<2, 3>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<1, 3>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 3>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 3>(
+    pybind11::class_<regina::IsoSigBinary>&);

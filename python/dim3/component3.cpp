@@ -44,16 +44,19 @@ void addComponent3(pybind11::module_& m, pybind11::module_& internal) {
 
     auto c = pybind11::class_<Component<3>>(m, "Component3", rdoc_scope)
         .def("index", &Component<3>::index, rbase::index)
+        .def("triangulation", &Component<3>::triangulation,
+            rbase::triangulation)
         .def("size", &Component<3>::size, rbase::size)
         .def("countTetrahedra", &Component<3>::countTetrahedra,
             rbase::countTetrahedra)
-        .def("countFaces", &regina::python::countFaces<Component<3>, 3, 3>,
-            pybind11::arg("subdim"), rdoc::countFaces)
+        .def("countFaces", (regina::python::countFacesFunc<Component<3>>)(
+            &Component<3>::countFaces), rdoc::countFaces)
         .def("countTriangles", &Component<3>::countTriangles,
             rbase::countTriangles)
         .def("countEdges", &Component<3>::countEdges, rbase::countEdges)
         .def("countVertices", &Component<3>::countVertices,
             rbase::countVertices)
+        .def("countFacets", &Component<3>::countFacets, rbase::countFacets)
         .def("countBoundaryComponents", &Component<3>::countBoundaryComponents,
             rbase::countBoundaryComponents)
         .def("simplices", &Component<3>::simplices, rbase::simplices)
@@ -62,15 +65,19 @@ void addComponent3(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::simplex)
         .def("tetrahedron", &Component<3>::tetrahedron,
             pybind11::return_value_policy::reference, rbase::tetrahedron)
-        .def("faces", &regina::python::faces<Component<3>, 3>,
+        .def("hasLocks", &Component<3>::hasLocks, rbase::hasLocks)
+        .def("faces",
+            (regina::python::facesFunc<Component<3>>)(&Component<3>::faces),
             pybind11::arg("subdim"), rdoc::faces)
         .def("vertices", &Component<3>::vertices, rbase::vertices)
         .def("edges", &Component<3>::edges, rbase::edges)
         .def("triangles", &Component<3>::triangles, rbase::triangles)
         .def("boundaryComponents", &Component<3>::boundaryComponents,
             rbase::boundaryComponents)
-        .def("face", &regina::python::face<Component<3>, 3, size_t>,
-            pybind11::arg("subdim"), pybind11::arg("index"), rdoc::face)
+        .def("face",
+            (regina::python::faceFunc<Component<3>>)(&Component<3>::face),
+            pybind11::arg("subdim"), pybind11::arg("index"),
+            pybind11::return_value_policy::reference, rdoc::face)
         .def("triangle", &Component<3>::triangle,
             pybind11::return_value_policy::reference, rbase::triangle)
         .def("edge", &Component<3>::edge,
@@ -93,17 +100,17 @@ void addComponent3(pybind11::module_& m, pybind11::module_& internal) {
             rdoc::countBoundaryTriangles)
         .def_readonly_static("dimension", &Component<3>::dimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
     // No need for lower-dimensional faces here, since these reuse the same
-    // ListView classes as Triangulation2.
-    regina::python::addListView<
+    // view classes as Triangulation2.
+    regina::python::addStdView<
         decltype(std::declval<Component<3>>().tetrahedra())>(internal,
         "Component3_simplices");
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Component<3>>().boundaryComponents())>(internal,
         "Component3_boundaryComponents");
 }

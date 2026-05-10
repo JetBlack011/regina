@@ -47,14 +47,14 @@
 #include <iostream>
 #include <limits>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
-template <typename Iterator>
+template <std::random_access_iterator Iterator>
+requires SignedCppInteger<std::iter_value_t<Iterator>>
 Link Link::fromDT(Iterator begin, Iterator end) {
-    using InputInt = typename std::iterator_traits<Iterator>::value_type;
-    static_assert(std::is_integral_v<InputInt> &&
-        ! std::is_unsigned_v<InputInt>, "fromDT(): the iterator type "
-        "needs to dereference to give a native signed C++ integer type.");
+    using InputInt = std::iter_value_t<Iterator>;
 
     // Extract the number of crossings.
     size_t n = end - begin;

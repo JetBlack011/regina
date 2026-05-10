@@ -45,15 +45,17 @@
 #include "core/output.h"
 #include "utilities/exception.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class Link;
 class ModelLinkGraph;
-template <int dim> class FacetPairing;
-template <int dim> struct FacetSpec;
-template <int dim> class Isomorphism;
-template <int dim> class Triangulation;
-template <int n> class Perm;
+template <int dim> requires (supportedDim(dim)) class FacetPairing;
+template <int dim> requires (supportedDim(dim)) struct FacetSpec;
+template <int dim> requires (supportedDim(dim)) class Isomorphism;
+template <int dim> requires (supportedDim(dim)) class Triangulation;
+template <int n> requires (2 <= n && n <= maxPermDegree()) class Perm;
 
 /**
  * A cut that separates a triangulation, facet pairing or link diagram into
@@ -164,8 +166,8 @@ class Cut : public ShortOutput<Cut> {
          * \param end a past-the-end iterator indicating the end of the
          * 0-1 sequence of sides.
          */
-        template <RandomAccessIteratorFor<int> iterator>
-        Cut(iterator begin, iterator end);
+        template <RandomAccessIteratorFor<int> Iterator>
+        Cut(Iterator begin, Iterator end);
 
         /**
          * Destroys this cut.
@@ -252,7 +254,7 @@ class Cut : public ShortOutput<Cut> {
          * \param tri the triangulation under consideration.
          * \return the weight of this cut with respect to \a tri.
          */
-        template <int dim>
+        template <int dim> requires (supportedDim(dim))
         size_t weight(const Triangulation<dim>& tri) const;
 
         /**
@@ -274,7 +276,7 @@ class Cut : public ShortOutput<Cut> {
          * \param pairing the facet pairing under consideration.
          * \return the weight of this cut with respect to \a pairing.
          */
-        template <int dim>
+        template <int dim> requires (supportedDim(dim))
         size_t weight(const FacetPairing<dim>& pairing) const;
 
         /**
@@ -386,7 +388,7 @@ class Cut : public ShortOutput<Cut> {
          * \return the two resulting triangulations, one for each side
          * of the partition.
          */
-        template <int dim>
+        template <int dim> requires (supportedDim(dim))
         std::pair<Triangulation<dim>, Triangulation<dim>> operator() (
             const Triangulation<dim>& tri) const;
 
@@ -420,7 +422,7 @@ class Cut : public ShortOutput<Cut> {
          * \return the two resulting facet pairings, one for each side
          * of the partition.
          */
-        template <int dim>
+        template <int dim> requires (supportedDim(dim))
         std::pair<FacetPairing<dim>, FacetPairing<dim>> operator() (
             const FacetPairing<dim>& pairing) const;
 
@@ -453,7 +455,7 @@ class Cut : public ShortOutput<Cut> {
          *
          * \return the two inclusion maps corresponding to this partition.
          */
-        template <int dim>
+        template <int dim> requires (supportedDim(dim))
         std::pair<Isomorphism<dim>, Isomorphism<dim>> inclusion() const;
 
         /**
@@ -549,8 +551,8 @@ inline Cut::Cut(Cut&& src) noexcept : size_(src.size_), side_(src.side_) {
     src.side_ = nullptr;
 }
 
-template <RandomAccessIteratorFor<int> iterator>
-Cut::Cut(iterator begin, iterator end) : size_(end - begin) {
+template <RandomAccessIteratorFor<int> Iterator>
+Cut::Cut(Iterator begin, Iterator end) : size_(end - begin) {
     side_ = new int[size_];
 
     int* out = side_;
@@ -585,7 +587,7 @@ inline void Cut::set(size_t node, int newSide) {
     side_[node] = newSide;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 size_t Cut::weight(const Triangulation<dim>& tri) const {
     if (tri.size() != size_)
         throw InvalidArgument("Cut::weight() requires a triangulation "
@@ -605,7 +607,7 @@ size_t Cut::weight(const Triangulation<dim>& tri) const {
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 size_t Cut::weight(const FacetPairing<dim>& pairing) const {
     if (pairing.size() != size_)
         throw InvalidArgument("Cut::weight() requires a facet pairing "
@@ -655,7 +657,7 @@ inline bool Cut::operator == (const Cut& rhs) const {
     return size_ == rhs.size_ && std::equal(side_, side_ + size_, rhs.side_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::pair<Triangulation<dim>, Triangulation<dim>> Cut::operator() (
         const Triangulation<dim>& tri) const {
     if (tri.size() != size_)
@@ -704,7 +706,7 @@ std::pair<Triangulation<dim>, Triangulation<dim>> Cut::operator() (
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::pair<FacetPairing<dim>, FacetPairing<dim>> Cut::operator() (
         const FacetPairing<dim>& pairing) const {
     if (pairing.size() != size_)
@@ -750,7 +752,7 @@ std::pair<FacetPairing<dim>, FacetPairing<dim>> Cut::operator() (
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::pair<Isomorphism<dim>, Isomorphism<dim>> Cut::inclusion() const {
     size_t part[2] { 0, 0 };
     for (size_t i = 0; i < size_; ++i)

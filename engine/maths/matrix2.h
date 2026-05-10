@@ -28,6 +28,10 @@
  *                                                                        *
  **************************************************************************/
 
+/*! \file maths/matrix2.h
+ *  \brief Deals with 2x2 integer matrices.
+ */
+
 #ifndef __REGINA_MATRIX2_H
 #ifndef __DOXYGEN
 #define __REGINA_MATRIX2_H
@@ -38,9 +42,7 @@
 #include "regina-core.h"
 #include "maths/ring.h"
 
-/*! \file maths/matrix2.h
- *  \brief Deals with 2x2 integer matrices.
- */
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -381,6 +383,7 @@ struct RingTraits<Matrix2> {
     static constexpr bool commutative = false;
     static constexpr bool zeroInitialised = true;
     static constexpr bool zeroDivisors = true;
+    static constexpr bool inverses = false;
 };
 #endif // __DOXYGEN
 

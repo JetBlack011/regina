@@ -174,6 +174,44 @@ functions.)doc";
 
 namespace Crossing_ {
 
+// Docstring regina::python::doc::Crossing_::chordIndex
+static const char *chordIndex =
+R"doc(Returns the chord index of this crossing in a knot diagram.
+
+The _chord index_ examines all of the other crossings that are passed
+when traversing the knot between the upper and lower strands of this
+crossing, not counting this crossing itself. For each other crossing
+that we pass:
+
+* we add ``+1`` each time we pass a positive crossing on the upper
+  strand, or a negative crossing on the lower strand;
+
+* we add ``-1`` each time we pass a positive crossing on the lower
+  strand, or a negative crossing on the upper strand.
+
+We then take the absolute value of the resulting sum (which means we
+get the same result regardless of whether we walked from the upper
+strand to the lower strand of this crossing, or from the lower strand
+to the upper strand).
+
+The chord index is only interesting for virtual knots. In a classical
+knot diagram, every crossing will have chord index zero. Note also
+that the _parity_ of a crossing (in the sense used by
+Link::oddWrithe()) is precisely the parity of its chord index.
+
+Precondition:
+    The link containing this crossing has exactly one component (i.e.,
+    it is a knot).
+
+Exception ``FailedPrecondition``:
+    The link containing this crossing was found to have multiple
+    components. This is not explicitly tested, but it will be noticed
+    if the upper and lower strands of this crossing belong to
+    different link components.
+
+Returns:
+    the chord index of this crossing.)doc";
+
 // Docstring regina::python::doc::Crossing_::index
 static const char *index =
 R"doc(Returns the index of this crossing within the overall link. If the
@@ -399,7 +437,8 @@ string as a link.
 At present, Regina understands the following types of strings (and
 attempts to parse them in the following order):
 
-* knot/link signatures, as used by fromSig();
+* knot/link signatures (both first and second generation), as used by
+  fromSig();
 
 * oriented Gauss codes, as used by fromOrientedGauss();
 
@@ -849,11 +888,11 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Each element of the list will be a starting
-strand for some component; more precisely, iterating through this list
-is equivalent to calling ``component(0)``, ``component(1)``, ...,
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Each element of the list will be a starting strand for
+some component; more precisely, iterating through this list is
+equivalent to calling ``component(0)``, ``component(1)``, ...,
 ``component(countComponents()-1)`` in turn. As an example, your code
 might look like:
 
@@ -1025,10 +1064,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (Crossing* c : link.crossings()) { ... }
@@ -1072,7 +1111,7 @@ crossing) components entirely.
     the array will be converted into a Python list.)
 
 Returns:
-    A pair containing (i) the array as described above; and (ii) the
+    a pair containing (i) the array as described above; and (ii) the
     total number of non-trivial diagram components (so again, ignoring
     zero-crossing components). Note that this latter number may be
     different from countDiagramComponents(), which counts _all_
@@ -1417,12 +1456,6 @@ Thistlethwaite notation. Regina does understand alphabetic Dowker-
 Thistlethwaite notation, but for this you will need to use the string-
 based variant of fromDT().
 
-Precondition:
-    *Iterator* is a random access iterator type, and dereferencing
-    such an iterator produces a native C++ integer. (The specific
-    native C++ integer type being used will be deduced from the type
-    *Iterator*.)
-
 .. warning::
     In general, Dowker-Thistlethwaite notation does not contain enough
     information to uniquely reconstruct a classical knot. For prime
@@ -1463,32 +1496,33 @@ at runtime (which makes it accessible to Python, amongst other
 things).
 
 For the purposes of this routine, we number the crossings 1, 2, ...,
-*n*. The information that you must pass to this routine is the
-following:
+*n*. The information that you pass to this routine is encoded in two
+sequences:
 
-* The first iterator range (*beginSigns*, *endSigns*) encodes the
-  signs of crossings 1, ..., *n* in order. Each iterator in this range
-  must dereference to either +1 or -1.
+* The first sequence, defined by the iterator range (*beginSigns*,
+  *endSigns*), encodes the signs of crossings ``1,...,n`` in order.
+  Each element of this sequence must be ±1.
 
-* The second iterator range (*beginComponents*, *endComponents*)
-  identifies the individual components of the link. Each iterator in
-  this range must dereference to a container that has a size()
-  function and supports range-based ``for`` loops (so standard C++
-  container classes such as std::vector<int> and std::list<int> are
-  fine).
-
-* The container for each component must be filled with integers, which
-  identify the crossings you visit in order when traversing the
-  component. A positive entry *i* indicates that you pass over
-  crossing *i*, and a negative entry -*i* indicates that you pass
+* The second sequence, defined by the iterator range
+  (*beginComponents*, *endComponents*), encodes the individual
+  components of the link. This is actually a sequence of sequences:
+  each link component is defined by an "inner" sequence of integers,
+  listing the crossings that you visit in order when traversing the
+  component. A positive integer *i* indicates that you pass over
+  crossing *i*, and a negative integer -*i* indicates that you pass
   under crossing *i*.
 
-* To encode a component with no crossings, you may use either an empty
-  container or a container containing the single integer 0.
+* To encode a component with no crossings, your inner sequence may be
+  empty, or may contain the single integer 0 (either is fine).
 
-Be aware that, once the link has been constructed, the crossings 1,
-..., *n* will have been reindexed as 0, ..., *n*-1 (since every Link
-object numbers its crossings starting from 0).
+This routine does not insist on any specific types for the sequences,
+as long as all sequences support iteration (this includes the outer
+sequences for signs and components, as well as the inner sequences of
+crossings for each individual component).
+
+Be aware that, once the link has been constructed, the crossings
+``1,...,n`` will have been reindexed as ``0,...,n-1`` (since every
+Link object numbers its crossings starting from 0).
 
 As an example, Python users can construct the left-hand trefoil and
 the Hopf link as follows:
@@ -1502,27 +1536,27 @@ Exception ``InvalidArgument``:
     A link could not be reconstructed from the given data.
 
 Python:
-    The signs should be passed as a single Python list of integers
-    (not an iterator pair). Likewise, the components should be passed
-    as a Python list of lists of integers (not an iterator pair). In
-    the case of a knot (which has only one component), you are welcome
-    to replace the list of lists ``[[...]]`` with a single list
-    ``[...]``; however, be aware that a single empty list ``[ ]`` will
-    be interpreted as an empty link (not a zero-crossing unknot).
+    The sequence of signs should be passed as a single Python list of
+    integers (not an iterator pair). Likewise, the sequence of
+    components should be passed as a Python list of lists of integers
+    (not an iterator pair). In the case of a knot (which has only one
+    component), you are welcome to replace the list of lists
+    ``[[...]]`` with a single list ``[...]``; however, be aware that a
+    single empty list ``[ ]`` will be interpreted as an empty link
+    (not a zero-crossing unknot).
 
 Parameter ``beginSigns``:
-    the beginning of the list of crossing signs.
+    the beginning of the sequence of crossing signs.
 
 Parameter ``endSigns``:
-    a past-the-end iterator indicating the end of the list of crossing
-    signs.
+    a past-the-end iterator indicating the end of the sequence of
+    crossing signs.
 
 Parameter ``beginComponents``:
-    the beginning of the list of containers describing each link
-    component.
+    the beginning of the sequence of link components.
 
 Parameter ``endComponents``:
-    a past-the-end iterator indicating the end of the list of link
+    a past-the-end iterator indicating the end of the sequence of link
     components.
 
 Returns:
@@ -1612,12 +1646,6 @@ instead of taking a human-readable string, takes a machine-readable
 sequence of integers. This sequence is given by passing a pair of
 begin/end iterators.
 
-Precondition:
-    *Iterator* is a random access iterator type, and dereferencing
-    such an iterator produces a native C++ integer. (The specific
-    native C++ integer type being used will be deduced from the type
-    *Iterator*.)
-
 .. warning::
     In general, the classical Gauss code does not contain enough
     information to uniquely reconstruct a classical knot. For prime
@@ -1705,11 +1733,6 @@ instead of taking a human-readable string, takes a machine-readable
 sequence of integers. This sequence is given by passing a pair of
 begin/end iterators.
 
-Precondition:
-    *Iterator* is a forward iterator type, and dereferencing such an
-    iterator produces a native C++ integer. (The specific native C++
-    integer type being used will be deduced from the type *Iterator*.)
-
 Exception ``InvalidArgument``:
     The given sequence was not a valid encoding of a classical or
     virtual link in Jenkins' format.
@@ -1731,19 +1754,16 @@ Returns:
 
 // Docstring regina::python::doc::Link_::fromKnotSig
 static const char *fromKnotSig =
-R"doc(Alias for fromSig(), to recover a classical or virtual link diagram
-from its knot/link signature.
+R"doc(Deprecated alias for fromSig(), to recover a classical or virtual link
+diagram from a string-based knot/link signature.
 
-This alias fromKnotSig() has been kept to reflect the fact that, in
-older versions of Regina, these signatures were only available for
-single-component knots; moreover the old name "knot signatures" can
-still be found in the literature. While this routine is not
-deprecated, it is recommended to use fromSig() in new code.
+.. deprecated::
+    You should call this as fromSig() instead.
 
 See fromSig() for further details.
 
 Exception ``InvalidArgument``:
-    The given string was not a valid knot/link signature.
+    The given string was not a valid string-based knot/link signature.
 
 Parameter ``sig``:
     the signature of the link diagram to construct. Note that
@@ -1968,15 +1988,11 @@ of taking a human-readable string, takes a machine-readable sequence
 of 4-tuples of integers. This sequence is given by passing a pair of
 begin/end iterators.
 
-Precondition:
-    *Iterator* is a random access iterator type.
-
-Precondition:
-    If *it* is such an iterator, then ``(*it)[0]``, ``(*it)[1]``,
-    ``(*it)[2]`` and ``(*it)[3]`` will give the elements of the
-    corresponding 4-tuple, which can then be treated as native C++
-    integers. (The specific native C++ integer type being used will be
-    deduced from the type *Iterator*.)
+For each individual 4-tuple *t*, the elements of *t* will be accessed
+via the subscript operator; that is, ``t[0], ..., t[3]``. This means
+you have many choices for your tuple type: valid examples include
+``std::array<long, 4>``, ``std::vector<int>``, Regina's own
+``FixedArray<long>``, or a C-style array ``int[4]``.
 
 .. warning::
     If the link contains any components that sit completely above all
@@ -2009,22 +2025,61 @@ Returns:
 
 // Docstring regina::python::doc::Link_::fromSig
 static const char *fromSig =
-R"doc(Recovers a classical or virtual link diagram from its knot/link
-signature. See sig() for more information on these signatures.
+R"doc(Recovers a classical or virtual link diagram from a string-based
+knot/link signature. This may be either a first-generation signature
+(computed via ``knotSig()``), or a second-generation signature
+(computed via ``neoSig()``).
 
-Calling sig() followed by fromSig() is not guaranteed to produce an
-_identical_ link diagram to the original, but it is guaranteed to
-produce one that is related by zero or more applications of
-relabelling, and (according to the arguments that were passed to
-sig()) reflection of the diagram, rotation of the diagram, and/or
-reversal of individual link components.
+See sig() for further details on knot/link signatures in general.
+
+There is also a variant of fromSig() that takes a byte sequence, and
+which can work with binary second-generation signatures.
+
+Computing a signature and then calling fromSig() on the result is not
+guaranteed to produce an _identical_ link diagram to the original, but
+it _is_ guaranteed to produce one that is related by zero or more
+applications of relabelling, and (according to the arguments that were
+passed to the signature function) reflection of the diagram, rotation
+of the diagram, and/or reversal of individual link components.
 
 Exception ``InvalidArgument``:
-    The given string was not a valid knot/link signature.
+    The given string was not a valid string-based knot/link signature.
 
 Parameter ``sig``:
     the signature of the link diagram to construct. Note that
     signatures are case-sensitive.
+
+Returns:
+    the reconstructed link diagram.)doc";
+
+// Docstring regina::python::doc::Link_::fromSig_2
+static const char *fromSig_2 =
+R"doc(Recovers a classical or virtual link diagram from a binary second-
+generation knot/link signature. This signature would typically have
+been computed via ``neoSig<LinkSigBinary>()``.
+
+See sig() for further details on knot/link signatures in general.
+
+There is also a variant of fromSig() that takes a string, and which
+can work with both first-generation and string-based second-generation
+signatures.
+
+Computing a signature and then calling fromSig() on the result is not
+guaranteed to produce an _identical_ link diagram to the original, but
+it _is_ guaranteed to produce one that is related by zero or more
+applications of relabelling, and (according to the arguments that were
+passed to the signature function) reflection of the diagram, rotation
+of the diagram, and/or reversal of individual link components.
+
+Python:
+    You should pass the signature as a Python ``bytes`` object.
+
+Exception ``InvalidArgument``:
+    The given byte sequence was not a valid binary second-generation
+    knot/link signature.
+
+Parameter ``sig``:
+    the signature of the link diagram to construct.
 
 Returns:
     the reconstructed link diagram.)doc";
@@ -3473,16 +3528,24 @@ Returns:
 
 // Docstring regina::python::doc::Link_::knotSig
 static const char *knotSig =
-R"doc(Alias for sig(), which constructs the signature for this knot or link
-diagram.
+R"doc(Constructs the first-generation signature for this knot or link
+diagram. This is identical to calling ``sig<1>()``.
 
-This alias knotSig() has been kept to reflect the fact that, in older
-versions of Regina, these signatures were only available for single-
-component knots; moreover the old name "knot signatures" can still be
-found in the literature. While this routine is not deprecated, it is
-recommended to use sig() in new code.
+First-generation signatures were used in Regina ≤ 7.x. The name
+knotSig() reflects the original implementation in Regina 5.1, which
+was for knots only; however, first-generation signatures do also
+support multiple-component links (this was introduced in Regina 7.4).
 
-See sig() for further details.
+For new code, it is strongly recommended to use second-generation
+signatures, as returned by neoSig(). Second-generation signatures are
+significantly shorter, and support both printable and binary
+encodings.
+
+See sig() for further details on knot/link signatures in general.
+
+Note that, unlike the other link signature functions, knotSig() does
+not take a template parameter for the encoding. This is because first-
+generation signatures only support the encoding LinkSigPrintable.
 
 Exception ``NotImplemented``:
     This link diagram has 64 or more link components.
@@ -3506,72 +3569,112 @@ Parameter ``allowRotation``:
     symmetry).
 
 Returns:
-    the signature for this link diagram.)doc";
+    the first-generation signature for this link diagram.)doc";
 
 // Docstring regina::python::doc::Link_::knowsAlexander
 static const char *knowsAlexander =
-R"doc(Is the Alexander polynomial of this knot already known? See
-alexander() for further details.
+R"doc(Is the Alexander polynomial of this knot already known (or trivial to
+determine)? See alexander() for further details.
 
 If this property is already known, future calls to alexander() will be
 very fast (simply returning the precalculated value).
 
-At present, Regina only computes Alexander polynomials for classical
-knots. If this link is empty, has multiple components, or uses a
-virtual diagram, then this routine is still safe to call, and will
-simply return ``False``.
+Note that alexander() requires a classical knot as a precondition.
+Therefore, if this link diagram is virtual, empty, or has multiple
+components, then knowsAlexander() will simply return ``False``.
+
+Parameter ``cachedOnly``:
+    if ``True``, this routine will only identify whether the property
+    is already cached, and will not attempt to compute it even if the
+    computation will be trivial. Currently this argument is ignored
+    since this routine does not look for shortcuts that make Alexander
+    polynomials trivial to compute; however, it is provided for
+    compatibility with other ``knows...()`` routines.
 
 Returns:
-    ``True`` if and only if this property is already known.)doc";
+    ``True`` if and only if this property is already known or trivial
+    to calculate, _and_ the preconditions for alexander() are
+    satisfied.)doc";
 
 // Docstring regina::python::doc::Link_::knowsArrow
 static const char *knowsArrow =
-R"doc(Is the normalised arrow polynomial of this link already known? See
-arrow() for further details.
+R"doc(Is the normalised arrow polynomial of this link already known (or
+trivial to determine)? See arrow() for further details.
 
 If this property is already known, future calls to arrow() will be
 very fast (simply returning the precalculated value).
 
+Parameter ``cachedOnly``:
+    if ``True``, this routine will only identify whether the property
+    is already cached, and will not attempt to compute it even if the
+    computation will be trivial. Currently this argument is ignored
+    since this routine does not look for shortcuts that make arrow
+    polynomials trivial to compute; however, it is provided for
+    compatibility with other ``knows...()`` routines.
+
 Returns:
-    ``True`` if and only if this property is already known.)doc";
+    ``True`` if and only if this property is already known or trivial
+    to calculate.)doc";
 
 // Docstring regina::python::doc::Link_::knowsBracket
 static const char *knowsBracket =
-R"doc(Is the Kauffman bracket polynomial of this link diagram already known?
-See bracket() for further details.
+R"doc(Is the Kauffman bracket polynomial of this link diagram already known
+(or trivial to determine)? See bracket() for further details.
 
 If this property is already known, future calls to bracket() will be
 very fast (simply returning the precalculated value).
 
+Parameter ``cachedOnly``:
+    if ``True``, this routine will only identify whether the property
+    is already cached, and will not attempt to compute it even if the
+    computation will be trivial.
+
 Returns:
-    ``True`` if and only if this property is already known.)doc";
+    ``True`` if and only if this property is already known or trivial
+    to calculate.)doc";
 
 // Docstring regina::python::doc::Link_::knowsHomfly
 static const char *knowsHomfly =
-R"doc(Is the HOMFLY-PT polynomial of this link already known? See homflyAZ()
-and homflyLM() for further details.
+R"doc(Is the HOMFLY-PT polynomial of this link already known (or trivial to
+determine)? See homflyAZ() and homflyLM() for further details.
 
 If this property is already known, future calls to homfly(),
 homflyAZ() and homflyLM() will all be very fast (simply returning the
 precalculated values).
 
-At present, Regina only computes HOMFLY-PT polynomials for classical
-links. If this is a virtual (not classical) link diagram, then this
-routine is still safe to call, and will simply return ``False``.
+Note that homflyAZ() and homflyLM() require a classical link diagram
+as a precondition. Therefore, if this link diagram is virtual (not
+classical), then knowsHomfly() will simply return ``False``.
+
+Parameter ``cachedOnly``:
+    if ``True``, this routine will only identify whether the property
+    is already cached, and will not attempt to compute it even if the
+    computation will be trivial. Currently this argument is ignored
+    since this routine does not look for shortcuts that make HOMFLY-PT
+    polynomials trivial to compute; however, it is provided for
+    compatibility with other ``knows...()`` routines.
 
 Returns:
-    ``True`` if and only if this property is already known.)doc";
+    ``True`` if and only if this property is already known or trivial
+    to calculate, _and_ the preconditions for homflyAZ() and
+    homflyLM() are satisfied.)doc";
 
 // Docstring regina::python::doc::Link_::knowsJones
 static const char *knowsJones =
-R"doc(Is the Jones polynomial of this link already known? See jones() for
-further details.
+R"doc(Is the Jones polynomial of this link already known (or trivial to
+determine)? See jones() for further details.
 
 If this property is already known, future calls to jones() will be
 very fast (simply returning the precalculated value).
 
+Parameter ``cachedOnly``:
+    if ``True``, this routine will only identify whether the property
+    is already cached, and will not attempt to compute it even if the
+    computation will be trivial.
+
 Returns:
-    ``True`` if and only if this property is already known.)doc";
+    ``True`` if and only if this property is already known or trivial
+    to calculate.)doc";
 
 // Docstring regina::python::doc::Link_::linking
 static const char *linking =
@@ -3766,6 +3869,61 @@ Precondition:
 
 Parameter ``dest``:
     the link into which the contents of this link should be moved.)doc";
+
+// Docstring regina::python::doc::Link_::neoSig
+static const char *neoSig =
+R"doc(Constructs the second-generation signature for this knot or link
+diagram. This is identical to calling ``sig<2, Encoding>()``.
+
+Second-generation signatures were introduced in Regina 8.0. They are
+significantly shorter than the first-generation signatures from Regina
+≤ 7.x, and they support both printable and binary encodings. It is
+strongly recommended to use second-generation signatures in new code.
+
+See sig() for further details on knot/link signatures in general.
+
+Exception ``NotImplemented``:
+    This link diagram has 64 or more link components.
+
+Python:
+    You can pass the optional template argument for the encoding as an
+    additional runtime argument: ``neoSig(allowReflection,
+    allowReversal, allowRotation, Encoding)``. So, for example, to use
+    a binary encoding you can call ``neoSig(True, True, True,
+    LinkSigBinary)``. When generating binary signatures (via
+    ``LinkSigBinary``), the return value will be a Python ``bytes``
+    object (not a ByteSequence).
+
+Template parameter ``Encoding``:
+    indicates how the combinatorial link data should be encoded in
+    signature form. The default *LinkSigPrintable* encodes the
+    combinatorial data as a printable ASCII ``std::string``, and
+    should be suitable for most users. If you need to conserve memory,
+    you may wish to use *LinkSigBinary* instead; this packs the data
+    into a ByteSequence, which is typically smaller but unprintable.
+
+Parameter ``allowReflection``:
+    ``True`` if reflecting the entire link diagram should preserve the
+    signature, or ``False`` if the signature should distinguish
+    between a diagram and its reflection (unless of course there is a
+    symmetry).
+
+Parameter ``allowReversal``:
+    ``True`` if reversing some or all link components should preserve
+    the signature, or ``False`` if the signature should distinguish
+    between different orientations (again, unless of course there are
+    symmetries).
+
+Parameter ``allowRotation``:
+    ``True`` if rotating the entire link diagram should preserve the
+    signature, or ``False`` if the signature should distinguish
+    between a diagram and its rotation (again, unless there is a
+    symmetry).
+
+Returns:
+    the second-generation signature for this link diagram. This will
+    be of type ``std::string`` for a string-based encoding (the
+    default), or ByteSequence for a binary encoding.)doc";
 
 // Docstring regina::python::doc::Link_::niceTreeDecomposition
 static const char *niceTreeDecomposition =
@@ -3994,6 +4152,59 @@ Parameter ``framing``:
 
 Returns:
     *k* parallel copies of this link.)doc";
+
+// Docstring regina::python::doc::Link_::parityProjection
+static const char *parityProjection =
+R"doc(Returns the parity projection of this knot.
+
+This is an operation on virtual knots, which removes all crossings
+whose chord index fails a given parity condition. The parity condition
+is determined by the argument *modBase:*
+
+* If ``modBase = 0``, then we remove all crossings with non-zero chord
+  index.
+
+* If ``modBase > 0``, then we remove all crossings whose chord index
+  is not a multiple of *modBase*.
+
+A common setting (and the default here) is ``modBase = 2``, where we
+remove all odd crossings and keep all even crossings. Here we use
+_odd_ and _even_ in the same sense as oddWrithe(): a crossing *c* is
+_odd_ if, when traversing the knot, we pass through an odd number of
+crossings between the over-strand and the under-strand of *c*.
+
+By _removing_ a crossing *c*, we mean the same operation as calling
+`makeVirtual(c)`: the incoming and outgoing upper strands of *c* will
+be merged into one, and the incoming and outgoing lower strands of *c*
+will be merged into one. It is possible that _all_ of the crossings in
+the diagram will be removed, in which case the result will be a
+0-crossing unknot.
+
+Parity projection cannot work with multiple-component links. If this
+link has more than one component, then this routine will throw an
+exception.
+
+Parity projection is only interesting for virtual knots. In a
+classical knot diagram, chord indices are always zero, and so the
+parity projection will always return an identical copy of the original
+knot diagram.
+
+This knot diagram will not be modified. Instead, this routine will
+return a new diagram with the relevant crossings removed.
+
+Precondition:
+    This link has at most one component (i.e., it is either a knot or
+    the empty link).
+
+Exception ``FailedPrecondition``:
+    This link has multiple components.
+
+Parameter ``modBase``:
+    the modular base that determines the exact parity condition to
+    test, as described above.
+
+Returns:
+    the resulting parity projection of this knot.)doc";
 
 // Docstring regina::python::doc::Link_::pd
 static const char *pd =
@@ -5030,17 +5241,18 @@ could easily produce virtual diagrams with positive virtual genus.
 
 For every link diagram that this routine encounters (including this
 starting diagram), this routine will call *action* (which must be a
-function or some other callable object).
+function or some other callable type).
 
 * *action* must take the following initial argument(s). Either (a) the
   first argument must be a link (the precise type is discussed below),
   representing the link diagram that has been found; or else (b) the
-  first two arguments must be of types const std::string& followed by
-  a link, representing both the link diagram and its signature (as
-  returned by sig()). The second form is offered in order to avoid
+  first two arguments must be of types ``const ByteSequence&``
+  followed by a link, representing both the link diagram and its
+  second-generation signature in binary form, as returned by
+  ``neoSig<LinkSigBinary>()``. This second form may help avoid
   unnecessarily recomputation within the *action* function. If there
-  are any additional arguments supplied in the list *args*, then these
-  will be passed as subsequent arguments to *action*.
+  are additional arguments supplied in the list *args*, these will be
+  passed as subsequent arguments to *action*.
 
 * The link argument will be passed as an rvalue; a typical action
   could (for example) take it by const reference and query it, or take
@@ -5117,10 +5329,11 @@ Python:
     This function is available in Python, and the *action* argument
     may be a pure Python function. However, its form is more
     restricted: the arguments *tracker* and *args* are removed, so you
-    simply call it as rewrite(height, threads, action). Moreover,
-    *action* must take exactly two arguments (const std::string&,
-    Link&&) representing the signature and the link diagram, as
-    described in option (b) above.
+    simply call it as ``rewrite(height, threads, action)``. Moreover,
+    *action* must take exactly two arguments ``(bytes, Link&&)``
+    representing the signature and the link diagram, as described in
+    option (b) above; the signature will be passed as a Python
+    ``bytes`` object.
 
 Parameter ``height``:
     the maximum number of _additional_ crossings to allow beyond the
@@ -5136,8 +5349,8 @@ Parameter ``tracker``:
     ``None`` if no progress reporting is required.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each link
-    diagram that is found.
+    a function (or other callable type) to call for each link diagram
+    that is found.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -5186,10 +5399,10 @@ Python:
     This function is available in Python, and the *action* argument
     may be a pure Python function. However, its form is more
     restricted: the arguments *tracker* and *args* are removed, so you
-    simply call it as rewriteVirtual(height, threads, action).
-    Moreover, *action* must take exactly two arguments (const
-    std::string&, Link&&) representing the signature and the link
-    diagram, as described in option (b) above.
+    simply call it as ``rewriteVirtual(height, threads, action)``.
+    Moreover, *action* must take exactly two arguments ``(bytes,
+    Link&&)`` representing the signature and the link diagram, as
+    described in option (b) in the rewrite() documentation.
 
 Parameter ``height``:
     the maximum number of _additional_ crossings to allow beyond the
@@ -5205,8 +5418,8 @@ Parameter ``tracker``:
     ``None`` if no progress reporting is required.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each link
-    diagram that is found.
+    a function (or other callable type) to call for each link diagram
+    that is found.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -5270,8 +5483,15 @@ Returns:
 static const char *sig =
 R"doc(Constructs the _signature_ for this knot or link diagram.
 
-A _signature_ is a compact text representation of a link diagram that
-uniquely determines the diagram up to any combination of:
+Most users will not need to use this routine, which is extremely
+customisable; instead just call knotSig() for a first-generation
+signature (if you need backward compatibility), or neoSig() for a
+second-generation signature (if you want better performance). Read on
+for the full details.
+
+A _signature_ is a compact representation of a link diagram, typically
+(but not necessarily) in a readable text form, that uniquely
+determines the diagram up to any combination of:
 
 * relabelling;
 
@@ -5283,42 +5503,92 @@ uniquely determines the diagram up to any combination of:
 * (optionally) rotating the entire diagram, which preserves the sign
   of every crossing but switches the upper and lower strands.
 
-Signatures are now supported for all link diagrams with fewer than 64
-link components. Specifically:
-
-* Regina 7.3 and earlier only offered signatures for knots. As of
-  Regina 7.4, signatures are now supported for arbitrary link diagrams
-  (but see the next point), and for knots the new signatures are
-  identical to the old.
-
-* The implementation uses bitmasks, and a side-effect of this is that
-  it can only support fewer than 64 link components. However, since
-  the running time is exponential in the number of components (if we
-  allow reversal, which is the default) then it would be completely
-  infeasible to use this routine in practice with _more_ components
-  than this. If there are 64 or more link components then this routine
-  will throw an exception.
-
-The signature is constructed entirely of printable characters, and has
-length proportional to ``n log n``, where *n* is the number of
-crossings.
-
-The routine fromSig() can be used to recover a link diagram from its
-signature. The resulting diagram might not be identical to the
-original, but it will be related by zero or more applications of
-relabelling, and (according to the arguments) reflection of the
-diagram, rotation of the diagram, and/or reversal of individual link
+Signatures are supported for all link diagrams with fewer than 64 link
 components.
 
-The running time is quadratic in the number of crossings and (if we
-allow reversal, which is the default) exponential in the number of
-link components. For this reason, signatures should not be used for
-links with a large number of components.
+Regina supports _first-generation_ and _second-generation_ signatures:
 
-This routine runs in quadratic time.
+* First-generation signatures are the old knot/link signatures from
+  Regina ≤ 7.x, and are _not_ recommended for use in new code. They
+  encode a knot/link diagram as a printable ASCII string. You can
+  compute the first-generation signature by calling ``knotSig()``.
+  (Despite the legacy name, ``knotSig()`` does also support multiple-
+  component links.)
+
+* Second-generation signatures are significantly shorter, and support
+  both printable encodings (as an ASCII string) and binary encodings
+  (as a raw byte sequence, which is even shorter but unprintable).
+  These are better to use in new code, but be aware that they are only
+  supported in Regina ≥ 8.0. You can compute the second-generation
+  signature in string form by calling ``neoSig()``, or in binary form
+  by calling ``neoSig<LinkSigBinary>()``.
+
+* If you are not sure, just use the second-generation signature by
+  calling ``neoSig()``.
+
+* This routine ``sig()`` is a generic routine that allows you to
+  compute _either_ a first-generation or second-generation signature
+  by passing an appropriate template argument: ``sig<1>()`` or
+  ``sig<2>()``.
+
+Signatures can also use different _encodings_. The role of an encoding
+is to convert the combinatorial link data into its final signature
+form (e.g., a printable string, or a byte sequence); see the
+LinkSigEncoding concept for full details. Regina offers the following
+encodings:
+
+* The encoding LinkSigPrintable encodes the data as a ``std::string``
+  consisting entirely of printable characters in the 7-bit ASCII
+  range. This is the default encoding for both first-generation and
+  second-generation signatures.
+
+* The encoding LinkSigBinary encodes the data in binary, as a
+  ByteSequence. This is only available for second-generation
+  signatures. This binary encoding is typically shorter than the
+  printable string encoding, and is useful if memory usage needs to be
+  kept to a minimum.
+
+* Most users should only ever need the default encoding. To use a non-
+  default encoding, you should pass the encoding class as a template
+  argument to the relevant signature function (e.g., to neoSig(), or
+  to sig()).
+
+The routine fromSig() can be used to recover a link diagram from its
+signature (it supports both first-generation and second-generation
+signatures, and supports both string and binary encodings). The
+resulting diagram might not be identical to the original, but it will
+be related by zero or more applications of relabelling, and (according
+to the arguments) reflection of the diagram, rotation of the diagram,
+and/or reversal of individual link components.
+
+The size of a signature is proportional to ``n log n``, where *n* is
+the number of crossings in the link diagram.
+
+The running time to compute a signature is quadratic in the number of
+crossings and (if we allow reversal, which is the default) exponential
+in the number of link components. For this reason, signatures should
+not be used for links with a large number of components.
 
 Exception ``NotImplemented``:
     This link diagram has 64 or more link components.
+
+Python:
+    Python does not support C++ templates. Instead, you should pass
+    the template arguments at runtime, using the argument order
+    ``sig(generation, allowReflection, allowReversal, allowRotation,
+    Encoding)``. So, for example, to generate a string-based second-
+    generation signature, you can call ``sig(2)``, or to disallow
+    reversal, ``sig(2, True, False, True)``. For a binary signature,
+    you can call ``sig(2, True, True, True, LinkSigBinary)``. When
+    generating binary signatures (via ``LinkSigBinary``), the return
+    value will be a Python ``bytes`` object (not a ByteSequence).
+
+Template parameter ``generation``:
+    either 1 or 2, indicating whether to generate a first-generation
+    or second-generation signature.
+
+Template parameter ``Encoding``:
+    indicates the encoding to use, as discussed in detail above.
 
 Parameter ``allowReflection``:
     ``True`` if reflecting the entire link diagram should preserve the
@@ -5339,7 +5609,9 @@ Parameter ``allowRotation``:
     symmetry).
 
 Returns:
-    the signature for this link diagram.)doc";
+    the signature for this link diagram. This will be of type
+    ``std::string`` for string-based encodings, or ByteSequence for
+    binary encodings.)doc";
 
 // Docstring regina::python::doc::Link_::signedGauss
 static const char *signedGauss =
@@ -5847,7 +6119,7 @@ Parameter ``crossing``:
     details on exactly how this will be interpreted.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR1_2
@@ -5880,7 +6152,7 @@ Parameter ``sign``:
     the twist; this must be +1 or -1.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR2
@@ -5904,7 +6176,7 @@ Parameter ``arc``:
     will be interpreted.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR2_2
@@ -5928,7 +6200,7 @@ Parameter ``crossing``:
     how this will be interpreted.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR2_3
@@ -5975,7 +6247,7 @@ Parameter ``lowerSide``:
     the new overlap should take place on the right of *lowerArc*.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR2Virtual
@@ -6021,7 +6293,7 @@ Parameter ``lowerSide``:
     the new overlap should take place on the right of *lowerArc*.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR2Virtual_2
@@ -6059,7 +6331,7 @@ Parameter ``firstStrand``:
     second.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR3
@@ -6088,7 +6360,7 @@ Parameter ``side``:
     1 if the third crossing is located on the right of the arc.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::withR3_2
@@ -6118,7 +6390,7 @@ Parameter ``side``:
     the uppermost arc.
 
 Returns:
-    The new link diagram obtained by performing the requested move, or
+    the new link diagram obtained by performing the requested move, or
     no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Link_::writhe
@@ -6338,6 +6610,13 @@ Precondition:
 
 Returns:
     the crossing reference that precedes this.)doc";
+
+// Docstring regina::python::doc::StrandRef_::reset
+static const char *reset =
+R"doc(Converts this into a null reference.
+
+The pointer returned by crossing() will be ``None``, and the integer
+returned by strand() will be 0.)doc";
 
 // Docstring regina::python::doc::StrandRef_::strand
 static const char *strand =

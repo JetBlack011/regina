@@ -89,7 +89,7 @@ void addModelLinkGraph(pybind11::module_& m, pybind11::module_& internal) {
         .def("bigons", &ModelLinkGraphNode::bigons, rdoc::bigons)
         .def("triangles", &ModelLinkGraphNode::triangles, rdoc::triangles)
     ;
-    regina::python::add_output(n);
+    regina::python::add_output_rich(n);
     regina::python::add_eq_operators(n);
 
     RDOC_SCOPE_SWITCH(ModelLinkGraph)
@@ -157,13 +157,13 @@ void addModelLinkGraph(pybind11::module_& m, pybind11::module_& internal) {
             rdoc::generateAllEmbeddings)
         .def("randomise", &ModelLinkGraph::randomise, rdoc::randomise)
     ;
-    regina::python::add_output(g);
+    regina::python::add_output_rich(g);
     regina::python::add_tight_encoding(g);
     regina::python::add_eq_operators(g, rdoc::__eq);
 
     regina::python::add_global_swap<ModelLinkGraph>(m, rdoc::global_swap);
 
-    regina::python::addListView<decltype(ModelLinkGraph().nodes())>(internal,
+    regina::python::addStdView<decltype(ModelLinkGraph().nodes())>(internal,
         "ModelLinkGraph_nodes");
 
     RDOC_SCOPE_SWITCH(ModelLinkGraphCells)
@@ -183,10 +183,10 @@ void addModelLinkGraph(pybind11::module_& m, pybind11::module_& internal) {
         .def("cell", &ModelLinkGraphCells::cell, rdoc::cell)
         .def("cellPos", &ModelLinkGraphCells::cellPos, rdoc::cellPos)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 
-    regina::python::addListView<decltype(ModelLinkGraph().cells().arcs(0))>(
+    regina::python::addStdView<decltype(ModelLinkGraph().cells().arcs(0))>(
         internal, "ModelLinkGraphCells_arcs");
 
     RDOC_SCOPE_END

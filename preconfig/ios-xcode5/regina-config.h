@@ -1,19 +1,19 @@
 /* Define if both int128_t and uint128_t types are available.
    This macro is for internal use only; end users should use the macro
-   INT128_AVAILABLE and the type aliases from IntOfSize<16>, all of which
-   are found in utilities/intutils.h. */
+   INT128_AVAILABLE and the type aliases Int128 and UInt128, all of which
+   are available through regina-core.h. */
 /* #undef INTERNAL_INT128_T_FOUND */
 
 /* Define if both __int128 and __uint128 types are available.
    This macro is for internal use only; end users should use the macro
-   INT128_AVAILABLE and the type aliases from IntOfSize<16>, all of which
-   are found in utilities/intutils.h. */
+   INT128_AVAILABLE and the type aliases Int128 and UInt128, all of which
+   are available through regina-core.h. */
 /* #undef INTERNAL___INT128_FOUND */
 
 /* Define if both __int128_t and __uint128_t types are available.
    This macro is for internal use only; end users should use the macro
-   INT128_AVAILABLE and the type aliases from IntOfSize<16>, all of which
-   are found in utilities/intutils.h. */
+   INT128_AVAILABLE and the type aliases Int128 and UInt128, all of which
+   are available through regina-core.h. */
 #if __LP64__
 #define INTERNAL___INT128_T_FOUND
 #endif
@@ -23,9 +23,6 @@
 
 /* Define if 64-bit integer literals are available using the LL suffix */
 #define NUMERIC_64_LL_FOUND
-
-/* Define if std::lexicographical_compare_three_way is available */
-#define LEXCMP_FOUND
 
 /* Define if we are supporting triangulations of dimensions 9-15. */
 /* #undef REGINA_HIGHDIM */
@@ -102,23 +99,23 @@
 #define REGINA_DB_EXT "tdb"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "Regina 7.4.1"
+#define PACKAGE_STRING "Regina 8.0"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "7.4.1"
+#define PACKAGE_VERSION "8.0"
 
 /* Major version number of the package. */
-#define PACKAGE_VERSION_MAJOR 7
+#define PACKAGE_VERSION_MAJOR 8
 
 /* Minor version number of the package. */
-#define PACKAGE_VERSION_MINOR 4
+#define PACKAGE_VERSION_MINOR 0
 
 /* Optional additional information about this specific build.
    This will always be defined, but it may be the empty string. */
 #define BUILD_INFO "Development build"
 
 /* A nicely formatted combination of PACKAGE_STRING and BUILD_INFO. */
-#define PACKAGE_BUILD_STRING "Regina 7.4.1 (Development build)"
+#define PACKAGE_BUILD_STRING "Regina 8.0 (Development build)"
 
 /* Define to the version of SnapPy that is bundled with Regina. */
 #define SNAPPY_VERSION "3.0.3"

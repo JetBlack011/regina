@@ -45,6 +45,8 @@
 #include "maths/matrix.h"
 #include "maths/vector.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class HomMarkedAbelianGroup;
@@ -1214,7 +1216,7 @@ inline size_t MarkedAbelianGroup::rank() const {
 }
 
 inline AbelianGroup MarkedAbelianGroup::unmarked() const {
-    return AbelianGroup(snfFreeRank_, invFac_);
+    return AbelianGroup(snfFreeRank_, invFac_.begin(), invFac_.end());
 }
 
 inline size_t MarkedAbelianGroup::snfRank() const {

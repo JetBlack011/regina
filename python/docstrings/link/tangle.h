@@ -334,10 +334,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (Crossing* c : tangle.crossings()) { ... }
@@ -982,7 +982,7 @@ Parameter ``crossing``:
     details on exactly how this will be interpreted.
 
 Returns:
-    The new tangle diagram obtained by performing the requested move,
+    the new tangle diagram obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Tangle_::withR2
@@ -1010,7 +1010,7 @@ Parameter ``arc``:
     this will be interpretered.
 
 Returns:
-    The new tangle diagram obtained by performing the requested move,
+    the new tangle diagram obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 // Docstring regina::python::doc::Tangle_::withR2_2
@@ -1038,7 +1038,7 @@ Parameter ``crossing``:
     exactly how this will be interpreted.
 
 Returns:
-    The new tangle diagram obtained by performing the requested move,
+    the new tangle diagram obtained by performing the requested move,
     or no value if the requested move cannot be performed.)doc";
 
 }

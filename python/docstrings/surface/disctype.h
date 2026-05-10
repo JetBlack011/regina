@@ -14,7 +14,8 @@ namespace regina::python::doc {
 // Docstring regina::python::doc::DiscType
 static const char *DiscType =
 R"doc(Identifies a single normal or almost normal disc type within a
-triangulation.
+triangulation, where the numbering scheme for disc types is left up to
+the user.
 
 A disc type is identified by a tetrahedron index (the data member
 *tetIndex*), and a disc type within that tetrahedron (the data member
@@ -66,7 +67,7 @@ Python:
     other comparison operators that it generates _are_ available.
 
 Returns:
-    The result of the comparison between this and the given disc type.)doc";
+    the result of the comparison between this and the given disc type.)doc";
 
 // Docstring regina::python::doc::DiscType_::__copy
 static const char *__copy = R"doc(Creates a copy of the given disc type.)doc";

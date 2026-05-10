@@ -53,6 +53,8 @@
 #include "surface/normalcoords.h"
 #include "utilities/exception.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class NormalSurfaces;
@@ -484,12 +486,23 @@ class NormalSurfaces :
          * constants.  These preconditions will be checked, and if any of them
          * fails then this constructor will throw an exception (see below).
          *
+         * Some transformations are not always possible to perform, even when
+         * their preconditions are satisfied; again these scenarios are
+         * documented alongside the various NormalTransform enumeration
+         * constants.  If the transformation fails then, as before, this
+         * constructor will throw an exception (see below).
+         *
          * Unlike the old conversion and filter functions, this constructor
          * will _not_ insert the new normal surface list into the packet tree.
          *
          * \exception FailedPrecondition The preconditions for the given
          * transformation were not met.  See each NormalTransform enum
          * constant for the corresponding set of preconditions.
+         *
+         * \exception UnsolvedCase The transformation could not be performed
+         * (even though the preconditions were met).  Again, see each
+         * NormalTransform enum constant for details of whether this could
+         * happen, and if so, what it means.
          *
          * \param src the normal surface list that we wish to transform;
          * this will not be modified.
@@ -707,7 +720,7 @@ class NormalSurfaces :
          * Returns a C++ iterator at the beginning of this list of surfaces.
          *
          * These begin() and end() functions allow you to iterate through all
-         * surfaces in this list using a range-based \c for loop:
+         * surfaces in this list using a range-based `for` loop:
          *
          * \code{.cpp}
          * NormalSurfaces list(...);
@@ -717,7 +730,7 @@ class NormalSurfaces :
          * The type that is returned will be a lightweight iterator type,
          * guaranteed to satisfy the C++ LegacyRandomAccessIterator requirement.
          * The precise C++ type of the iterator is subject to change, so
-         * C++ users should use \c auto (just like this declaration does).
+         * C++ users should use `auto` (just like this declaration does).
          *
          * \nopython For Python users, NormalSurfaces implements the Python
          * iterable interface.  You can iterate over the normal surfaces in
@@ -731,7 +744,7 @@ class NormalSurfaces :
          * Returns a C++ iterator beyond the end of this list of surfaces.
          *
          * These begin() and end() routines allow you to iterate through all
-         * surfaces in this list using a range-based \c for loop.
+         * surfaces in this list using a range-based `for` loop.
          * See the begin() documentation for further details.
          *
          * \nopython For Python users, NormalSurfaces implements the Python
@@ -758,7 +771,7 @@ class NormalSurfaces :
          * \nocpp For C++ users, NormalSurfaces provides the usual begin()
          * and end() functions instead.  In particular, you can iterate over
          * the normal surfaces in this list in the usual way using a
-         * range-based \c for loop.
+         * range-based `for` loop.
          *
          * \return an iterator over the normal surfaces in this list.
          */
@@ -828,12 +841,12 @@ class NormalSurfaces :
          * \python This is available in Python, and \a comp may be
          * a pure Python function.
          *
-         * \param comp a binary function (or other callable object) that
+         * \param comp a binary function (or other callable type) that
          * accepts two const NormalSurface references, and returns \c true
          * if and only if the first surface should appear before the second
          * in the sorted list.
          */
-        template <typename Comparison>
+        template <StrictWeakOrder<const NormalSurface&> Comparison>
         void sort(Comparison&& comp);
 
         /**
@@ -889,6 +902,19 @@ class NormalSurfaces :
          * routines.  Any user strings such as surface names will be written
          * in UTF-8.
          *
+         * \warning Depending upon the chosen export fields, this routine
+         * might need to explicitly build all of the normal discs in each
+         * surface.  If some surface has extremely large normal coordinates,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
+         *
          * \param filename the name of the CSV file to export to.
          * \param additionalFields a bitwise OR combination of constants from
          * regina::SurfaceExport indicating which additional properties of
@@ -928,6 +954,19 @@ class NormalSurfaces :
          * simply passes it through unchanged to low-level C/C++ file I/O
          * routines.  Any user strings such as surface names will be written
          * in UTF-8.
+         *
+         * \warning Depending upon the chosen export fields, this routine
+         * might need to explicitly build all of the normal discs in each
+         * surface.  If some surface has extremely large normal coordinates,
+         * this could lead to performance problems.  In extreme cases, this
+         * routine will throw an exception (see below).
+         *
+         * \exception UnsolvedCase This algorithm has encountered an
+         * impossible memory requirement, due to the need to store more items
+         * than can fit into a native C++ \c size_t.  This is rarely seen in
+         * practice: on a typical 64-bit machine, this would mean that the
+         * algorithm has encountered a normal surface with some coordinate
+         * at least `2^64`.
          *
          * \param filename the name of the CSV file to export to.
          * \param additionalFields a bitwise OR combination of constants from
@@ -1131,26 +1170,6 @@ class NormalSurfaces :
             ProgressTracker* tracker = nullptr);
 
         /**
-         * Implements buildStandardFromReduced() using the specified bitmask
-         * type to store zero sets.  See buildStandardFromReduced() for further
-         * information on this routine, including important preconditions.
-         *
-         * The routine buildStandardFromReduced() simply chooses an appropriate
-         * bitmask type and then calls this routine, which does the real work.
-         *
-         * \pre The template argument \a BitmaskType can support
-         * bitmasks of size 7 \a n (if we are using normal surfaces) or size
-         * 10 \a n (if we are using almost normal surfaces), where \a n is
-         * the number of tetrahedra in the underlying triangulation.
-         * \pre The underlying triangulation (in addition to the other
-         * preconditions) is non-empty.
-         */
-        template <ReginaBitmask BitmaskType>
-        void buildStandardFromReducedUsing(
-            const std::vector<NormalSurface>& reducedList,
-            ProgressTracker* tracker);
-
-        /**
          * Converts a set of embedded vertex normal surfaces in
          * (standard normal or almost normal) space to a set of embedded
          * vertex normal surfaces in (quad or quad-oct) space.
@@ -1310,7 +1329,7 @@ class NormalSurfaces :
                  * (i.e., will not overflow) for the enumeration problem
                  * under consideration.
                  */
-                template <typename Integer>
+                template <ReginaInteger IntType>
                 void fillVertexTreeWith();
 
                 /**
@@ -1384,7 +1403,6 @@ class NormalSurfaces :
 
     friend class XMLNormalSurfacesReader;
     friend class XMLLegacyNormalSurfacesReader;
-    friend class XMLWriter<NormalSurfaces>;
 };
 
 /**
@@ -1569,7 +1587,7 @@ inline bool NormalSurfaces::allowsNonCompact() const {
     return NormalEncoding(coords_).couldBeNonCompact();
 }
 
-template <typename Comparison>
+template <StrictWeakOrder<const NormalSurface&> Comparison>
 inline void NormalSurfaces::sort(Comparison&& comp) {
     PacketChangeSpan span(*this);
     std::stable_sort(surfaces_.begin(), surfaces_.end(), comp);

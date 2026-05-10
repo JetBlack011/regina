@@ -32,16 +32,17 @@
 #include "triangulation/generic.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
+#include "../docstrings/triangulation/facenumbering.h"
 #include "../docstrings/triangulation/alias/facenumber.h"
 #include "../docstrings/triangulation/generic/face.h"
 #include "../docstrings/triangulation/generic/faceembedding.h"
 #include "../docstrings/triangulation/detail/face.h"
-#include "../docstrings/triangulation/detail/facenumbering.h"
 
 using regina::Face;
 using regina::FaceEmbedding;
 
 template <int dim, int subdim>
+requires (regina::supportedDim(dim) && subdim >= 0 && subdim < dim)
 void addFace(pybind11::module_& m, pybind11::module_& internal,
         const char* name, const char* embName) {
     RDOC_SCOPE_BEGIN(FaceEmbedding)
@@ -70,13 +71,13 @@ void addFace(pybind11::module_& m, pybind11::module_& internal,
     else if constexpr (subdim == 4)
         e.def("pentachoron", &FaceEmbedding<dim, subdim>::pentachoron,
             rbase2::pentachoron);
-    regina::python::add_output(e);
+    regina::python::add_output_rich(e);
     regina::python::add_eq_operators(e, rbase::__eq);
 
     // We use the global scope here because all of Face's members are
     // inherited, and so Face's own docstring namespace does not exist.
     RDOC_SCOPE_SWITCH_MAIN
-    RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
+    RDOC_SCOPE_BASE_2(detail::FaceBase, FaceNumbering)
 
     auto c = pybind11::class_<regina::Face<dim, subdim>>(m, name, rdoc::Face)
         .def("isValid", &Face<dim, subdim>::isValid, rbase::isValid)
@@ -105,6 +106,10 @@ void addFace(pybind11::module_& m, pybind11::module_& internal,
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
         .def("isBoundary", &Face<dim, subdim>::isBoundary, rbase::isBoundary)
         .def_static("ordering", &Face<dim, subdim>::ordering, rbase2::ordering)
+        .def_static("faceNumber",
+            pybind11::overload_cast<regina::Perm<dim+1>>(
+                &Face<dim, subdim>::faceNumber),
+            rbase2::faceNumber)
         .def_static("containsVertex", &Face<dim, subdim>::containsVertex,
             rbase2::containsVertex)
         .def_readonly_static("nFaces", &Face<dim, subdim>::nFaces)
@@ -112,25 +117,20 @@ void addFace(pybind11::module_& m, pybind11::module_& internal,
         .def_readonly_static("oppositeDim", &Face<dim, subdim>::oppositeDim)
         .def_readonly_static("dimension", &Face<dim, subdim>::dimension)
         .def_readonly_static("subdimension", &Face<dim, subdim>::subdimension)
+        .def_readonly_static("hasNumberingTables",
+            &Face<dim, subdim>::hasNumberingTables)
     ;
     if constexpr (subdim == 1) {
         c.def_static("faceNumber",
-            pybind11::overload_cast<regina::Perm<dim+1>>(
-                &Face<dim, subdim>::faceNumber),
-            rbase2::faceNumber);
-        c.def_static("faceNumber",
             pybind11::overload_cast<int, int>(&Face<dim, subdim>::faceNumber),
-            rbase2::faceNumber);
-    } else {
-        c.def_static("faceNumber", &Face<dim, subdim>::faceNumber,
-            rbase2::faceNumber);
+            rbase2::faceNumber_2);
     }
     if constexpr (subdim > 0) {
-        c.def("face", &regina::python::face<Face<dim, subdim>, subdim, int>,
+        c.def("face", &regina::python::face<dim, subdim>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::face);
         c.def("faceMapping",
-            &regina::python::faceMapping<Face<dim, subdim>, subdim, dim + 1>,
+            &regina::python::faceMapping<dim, subdim>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping);
     }
@@ -184,18 +184,18 @@ void addFace(pybind11::module_& m, pybind11::module_& internal,
         c.def("inMaximalForest", &Face<dim, subdim>::inMaximalForest,
             rbase::inMaximalForest);
     }
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Face<dim, subdim>>().embeddings())>(internal,
         (std::string(name) + "_embeddings").c_str());
-    // The name we give to the next ListView class is not in the typical form
+    // The name we give to the next view class is not in the typical form
     // Triangulation<dim>_faces<subdim>; however, this is an internal class,
     // and the name we do use is easy to build from what we already know.
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(regina::Triangulation<dim>().template faces<subdim>())>(
         internal, (std::string(name) + "_faces").c_str());
 }

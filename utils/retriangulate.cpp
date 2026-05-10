@@ -49,65 +49,53 @@ enum {
     FLAVOUR_KNOT = 100
 } flavour = FLAVOUR_NONE;
 bool showAll = false;
-bool internalSig = false;
+int sigGen = 2;
 bool virtualMoves = false;
 bool classicalMoves = false;
 
-template <int dim>
+template <int dim> requires (dim == 3 || dim == 4)
 void process(const regina::Triangulation<dim>& tri) {
+    using Signature = regina::ByteSequence;
+
     size_t nSolns = 0;
     bool nonMinimal = false;
     std::string simpler;
 
+    // Note: the code here is specifically tuned to the IsoSigBinary encoding
+    // (which is used by retriangulate()), since it uses
+    // IsoSigBinary::asString() when writing signatures to output.
+    // If we ever change RetriangulateParams<...> to use a different internal
+    // signature encoding, we will need to update this code also.
+
     tri.retriangulate(height, threads, nullptr /* tracker */,
         [&nSolns, &nonMinimal, &simpler, &tri](
-                const std::string& sig, const regina::Triangulation<dim>& t) {
+                const Signature& sig, const regina::Triangulation<dim>& t) {
             if (t.size() > tri.size()) {
                 if (showAll) {
-                    if (internalSig) {
-                        std::lock_guard<std::mutex> lock(mutex);
-                        std::cout << sig << std::endl;
-                        ++nSolns;
-                    } else {
-                        // Recompute the signature using IsoSigClassic.
-                        std::string classic = t.isoSig();
+                    std::string outputSig = (sigGen == 1 ? t.isoSig() :
+                        regina::IsoSigBinary::asString<dim>(sig));
 
-                        std::lock_guard<std::mutex> lock(mutex);
-                        std::cout << classic << std::endl;
-                        ++nSolns;
-                    }
+                    std::lock_guard<std::mutex> lock(mutex);
+                    std::cout << sig << std::endl;
+                    ++nSolns;
                 }
                 return false;
             }
 
-            if (internalSig) {
-                std::lock_guard<std::mutex> lock(mutex);
-                std::cout << sig << std::endl;
+            std::string outputSig = (sigGen == 1 ? t.isoSig() :
+                regina::IsoSigBinary::asString<dim>(sig));
 
-                if (t.size() < tri.size()) {
-                    nonMinimal = true;
-                    simpler = sig;
-                    return true;
-                }
+            std::lock_guard<std::mutex> lock(mutex);
+            std::cout << outputSig << std::endl;
 
-                ++nSolns;
-                return false;
-            } else {
-                // Recompute the signature using IsoSigClassic.
-                std::string classic = t.isoSig();
-
-                std::lock_guard<std::mutex> lock(mutex);
-                std::cout << classic << std::endl;
-
-                if (t.size() < tri.size()) {
-                    nonMinimal = true;
-                    simpler = std::move(classic);
-                    return true;
-                }
-
-                ++nSolns;
-                return false;
+            if (t.size() < tri.size()) {
+                nonMinimal = true;
+                simpler = std::move(outputSig);
+                return true;
             }
+
+            ++nSolns;
+            return false;
         });
 
     if (nonMinimal) {
@@ -118,28 +106,42 @@ void process(const regina::Triangulation<dim>& tri) {
 }
 
 void process(const regina::Link& link) {
+    using Signature = regina::ByteSequence;
+
     size_t nSolns = 0;
     bool nonMinimal = false;
     std::string simpler;
 
-    std::function<bool(const std::string&, const regina::Link&)> action =
+    // Note: the code here is specifically tuned to the LinkSigBinary encoding
+    // (which is used by rewrite() and rewriteVirtual()), since it uses
+    // LinkSigBinary::asString() when writing signatures to output.
+    // If we ever change RetriangulateParams<Link> to use a different internal
+    // signature encoding, we will need to update this code also.
+
+    std::function<bool(const Signature&, const regina::Link&)> action =
             [&nSolns, &nonMinimal, &simpler, &link](
-            const std::string& sig, const regina::Link& k) {
+            const Signature& sig, const regina::Link& k) {
         if (k.size() > link.size()) {
             if (showAll) {
+                std::string outputSig = (sigGen == 1 ? k.knotSig() :
+                    regina::LinkSigBinary::asString(sig));
+
                 std::lock_guard<std::mutex> lock(mutex);
-                std::cout << sig << std::endl;
+                std::cout << outputSig << std::endl;
                 ++nSolns;
             }
             return false;
         }
 
+        std::string outputSig = (sigGen == 1 ? k.knotSig() :
+            regina::LinkSigBinary::asString(sig));
+
         std::lock_guard<std::mutex> lock(mutex);
-        std::cout << sig << std::endl;
+        std::cout << outputSig << std::endl;
 
         if (k.size() < link.size()) {
             nonMinimal = true;
-            simpler = sig;
+            simpler = std::move(outputSig);
             return true;
         }
 
@@ -168,7 +170,9 @@ R"help(Usage: retriangulate <isosig>
   -4, --dim4                  Input is a 4-manifold signature
   -k, --knot                  Input is a knot/link signature
   -l, --all                   Output larger triangulations/links also
-  -a, --anysig                Output does not need to use classic signature(s)
+  -g, --gen=<gen_number>      Output first-generation signatures (--gen=1) or
+                              second-generation signatures (--gen=2, default)
+  -a, --anysig                Legacy alias for --gen=2 (default)
   -c, --classical             Never allow virtual type II moves (default for
                               classical link diagrams)
   -V, --virtual               Always allow virtual type II moves (default for
@@ -180,7 +184,7 @@ R"help(Usage: retriangulate <isosig>
 
 int main(int argc, char* argv[]) {
     // Parse the command-line arguments.
-    const char* shortOpt = ":h:t:34klacVv";
+    const char* shortOpt = ":h:t:g:34klacVv";
     struct option longOpt[] = {
         { "height", required_argument, nullptr, 'h' },
         { "threads", required_argument, nullptr, 't' },
@@ -188,6 +192,7 @@ int main(int argc, char* argv[]) {
         { "dim4", no_argument, nullptr, '4' },
         { "knot", no_argument, nullptr, 'k' },
         { "all", no_argument, nullptr, 'l' },
+        { "gen", required_argument, nullptr, 'g' },
         { "anysig", no_argument, nullptr, 'a' },
         { "classical", no_argument, nullptr, 'c' },
         { "virtual", no_argument, nullptr, 'V' },
@@ -248,8 +253,17 @@ int main(int argc, char* argv[]) {
             case 'l':
                 showAll = true;
                 break;
+            case 'g':
+                sigGen = strtol(optarg, &endptr, 10);
+                if (*endptr != 0 || ! (sigGen == 1 || sigGen != 2)) {
+                    std::cerr << "The signature generation must be 1 or 2.\n\n";
+                    help();
+                    return 1;
+                }
+                break;
             case 'a':
-                internalSig = true;
+                // Second-generation signatures are already the default.
+                // sigGen = 2;
                 break;
             case 'c':
                 classicalMoves = true;
@@ -353,7 +367,7 @@ int main(int argc, char* argv[]) {
         switch (flavour) {
             case FLAVOUR_DIM3: {
                 try {
-                    process(regina::Triangulation<3>::fromIsoSig(sig));
+                    process(regina::Triangulation<3>::fromSig(sig));
                 } catch (const regina::InvalidArgument&) {
                     std::cerr << "I could not interpret the given "
                         "3-manifold isomorphism signature.\n";
@@ -363,7 +377,7 @@ int main(int argc, char* argv[]) {
             }
             case FLAVOUR_DIM4: {
                 try {
-                    process(regina::Triangulation<4>::fromIsoSig(sig));
+                    process(regina::Triangulation<4>::fromSig(sig));
                 } catch (const regina::InvalidArgument&) {
                     std::cerr << "I could not interpret the given "
                         "4-manifold isomorphism signature.\n";

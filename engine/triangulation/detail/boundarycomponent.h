@@ -37,19 +37,22 @@
  *  \brief Implementation details for boundary components of triangulations.
  */
 
+#include <ranges>
 #include <tuple>
 #include <vector>
 #include "regina-core.h"
 #include "core/output.h"
 #include "triangulation/detail/strings.h"
 #include "triangulation/forward.h"
-#include "utilities/listview.h"
+#include "utilities/exception.h"
 #include "utilities/markedvector.h"
 #include "utilities/typeutils.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina::detail {
 
-template <int> class TriangulationBase;
+template <int dim> requires (supportedDim(dim)) class TriangulationBase;
 
 /**
  * Helper class that provides core functionality for a boundary component
@@ -70,11 +73,10 @@ template <int> class TriangulationBase;
  * class BoundaryComponent<dim> is.
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \ingroup detail
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class BoundaryComponentBase :
         public ShortOutput<BoundaryComponentBase<dim>>, public MarkedElement {
     public:
@@ -162,7 +164,8 @@ class BoundaryComponentBase :
         bool orientable_;
             /**< Is this boundary component orientable? */
 
-        EnableIf<canBuild, Triangulation<dim-1>*, nullptr> boundary_;
+        EnableIf<canBuild, typename TriangulationTraits<dim>::Lower*, nullptr>
+                boundary_;
             /**< A full triangulation of the boundary component.
                  This may be pre-computed when the triangulation skeleton
                  is constructed, or it may be \c null in which case it
@@ -225,34 +228,67 @@ class BoundaryComponentBase :
         /**
          * Returns the number of <i>subdim</i>-faces in this boundary component.
          *
-         * \python Python does not support templates.  Instead,
-         * Python users should call this function in the form
-         * `countFaces(subdim)`; that is, the template parameter
-         * \a subdim becomes the first argument of the function.
+         * This is the fastest way to count faces if you know \a subdim
+         * at compile time.
+         *
+         * \nopython Instead use the variant `countFaces(subdim)`.
          *
          * \tparam subdim the dimension of the faces to query.  If \a dim is
          * one of Regina's \ref stddim "standard dimensions", then \a subdim
-         * must be between 0 and <i>dim</i>-1 inclusive.  Otherwise, the only
-         * allowable values of \a subdim are the facet dimension (<i>dim</i>-1)
-         * and the ridge dimension (<i>dim</i>-2).
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable values of \a subdim are the facet dimension (`dim-1`)
+         * and the ridge dimension (`dim-2`).
          *
          * \return the number of <i>subdim</i>-faces.
          */
         template <int subdim>
+        requires (subdim < dim && subdim >= (standardDim(dim) ? 0 : dim - 2))
         size_t countFaces() const {
             if constexpr (allFaces) {
-                static_assert(subdim >= 0 && subdim < dim,
-                    "BoundaryComponent::countFaces() cannot be used with "
-                    "this (dim, subdim) combination.");
                 return std::get<tupleIndex(subdim)>(faces_).size();
             } else {
-                if constexpr (subdim == dim - 2) {
+                if constexpr (subdim == dim - 2)
                     return nRidges_.value;
-                } else {
-                    static_assert(subdim == dim - 1,
-                        "BoundaryComponent::countFaces() cannot be used with "
-                        "this (dim, subdim) combination.");
+                else
                     return std::get<tupleIndex(subdim)>(faces_).size();
+            }
+        }
+
+        /**
+         * Returns the number of <i>subdim</i>-faces in this boundary component,
+         * where the face dimension does not need to be known until runtime.
+         *
+         * For C++ programmers who know \a subdim at compile time, you are
+         * better off using the template function `countFaces<subdim>()`
+         * instead, which is (slightly) faster.
+         *
+         * \exception InvalidArgument The face dimension \a subdim is outside
+         * the supported range.
+         *
+         * \param subdim the dimension of the faces to query.  If \a dim is
+         * one of Regina's \ref stddim "standard dimensions", then \a subdim
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable values of \a subdim are the facet dimension (`dim-1`)
+         * and the ridge dimension (`dim-2`).
+         * \return the number of <i>subdim</i>-faces.
+         */
+        size_t countFaces(int subdim) const {
+            if constexpr (allFaces) {
+                if (subdim < 0 || subdim >= dim)
+                    throw InvalidArgument(
+                        "countFaces(): unsupported face dimension");
+                return select_constexpr<0, dim, size_t>(subdim, [this](auto k) {
+                    return std::get<tupleIndex(k)>(faces_).size();
+                });
+            } else {
+                switch (subdim) {
+                    case dim - 2:
+                        return nRidges_.value;
+                    case dim - 1:
+                        return std::get<tupleIndex(dim - 1)>(faces_).size();
+                    default:
+                        throw InvalidArgument(
+                            "countFaces(): unsupported face dimension");
                 }
             }
         }
@@ -260,71 +296,50 @@ class BoundaryComponentBase :
         /**
          * A dimension-specific alias for countFaces<0>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See countFaces() for further information.
          */
-        size_t countVertices() const {
-            static_assert(standardDim(dim), "countVertices() is only available "
-                "for boundary components in standard dimensions.");
+        size_t countVertices() const
+                requires (standardDim(dim)) {
             return countFaces<0>();
         }
 
         /**
          * A dimension-specific alias for countFaces<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See countFaces() for further information.
          */
-        size_t countEdges() const {
-            static_assert(standardDim(dim), "countEdges() is only available "
-                "for boundary components in standard dimensions.");
+        size_t countEdges() const
+                requires (standardDim(dim)) {
             return countFaces<1>();
         }
 
         /**
          * A dimension-specific alias for countFaces<2>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See countFaces() for further information.
          */
-        size_t countTriangles() const {
-            static_assert(standardDim(dim) && dim >= 3,
-                "countTriangles() is only available "
-                "for boundary components in standard dimensions dim >= 3.");
+        size_t countTriangles() const
+                requires (standardDim(dim) && dim > 2) {
             return countFaces<2>();
         }
 
         /**
          * A dimension-specific alias for countFaces<3>().
          *
-         * This alias is only available for dimensions \a dim = 4 and 5.
-         *
          * See countFaces() for further information.
          */
-        size_t countTetrahedra() const {
-            static_assert((standardDim(dim) && dim >= 4) || dim == 5,
-                "countTetrahedra() is only available for boundary components "
-                "in dimensions dim = 4 or 5.");
+        size_t countTetrahedra() const
+                requires (dim == 4 || dim == 5) {
             return countFaces<3>();
         }
 
         /**
          * A dimension-specific alias for countFaces<4>().
          *
-         * This alias is only available for dimensions \a dim = 5 and 6.
-         *
          * See countFaces() for further information.
          */
-        size_t countPentachora() const {
-            static_assert(dim == 5 || dim == 6, "countPentachora() is only "
-                "available for boundary components in dimensions "
-                "dim = 5 or 6.");
+        size_t countPentachora() const
+                requires (dim == 5 || dim == 6) {
             return countFaces<4>();
         }
 
@@ -334,12 +349,12 @@ class BoundaryComponentBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Face<dim, dim-1>* f : bc.facets()) { ... }
@@ -356,21 +371,22 @@ class BoundaryComponentBase :
          * \return access to the list of all (<i>dim</i>-1)-faces.
          */
         auto facets() const {
-            return ListView(std::get<tupleIndex(dim-1)>(faces_));
+            return std::views::all(std::get<tupleIndex(dim-1)>(faces_));
         }
 
         /**
          * Returns an object that allows iteration through and random access
-         * to all <i>subdim</i>-faces in this boundary component.
+         * to all <i>subdim</i>-faces in this boundary component, in a way
+         * that is optimised for C++ programmers.
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Face<dim, subdim>* f : bc.faces<subdim>()) { ... }
@@ -384,93 +400,115 @@ class BoundaryComponentBase :
          * Therefore it is best to treat this object as temporary only,
          * and to call faces() again each time you need it.
          *
-         * \python Python does not support templates.  Instead,
-         * Python users should call this function in the form
-         * `faces(subdim)`.
+         * \nopython Instead use the variant `faces(subdim)`.
          *
          * \tparam subdim the dimension of the faces to query.  If \a dim is
          * one of Regina's \ref stddim "standard dimensions", then \a subdim
-         * must be between 0 and <i>dim</i>-1 inclusive.  Otherwise, the only
-         * allowable value of \a subdim is the facet dimension (<i>dim</i>-1).
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable value of \a subdim is the facet dimension (`dim-1`).
          *
          * \return access to the list of all <i>subdim</i>-faces.
          */
         template <int subdim>
+        requires (subdim == dim - 1 ||
+            (standardDim(dim) && subdim >= 0 && subdim < dim))
         auto faces() const {
-            static_assert(tupleIndex(subdim) >= 0,
-                "BoundaryComponent::faces() cannot be used with this "
-                "(dim, subdim) combination.");
-            return ListView(std::get<tupleIndex(subdim)>(faces_));
+            return std::views::all(std::get<tupleIndex(subdim)>(faces_));
+        }
+
+        /**
+         * Returns an object that allows iteration through and random access
+         * to all <i>subdim</i>-faces in this boundary component, in a way
+         * that is optimised for Python programmers.
+         *
+         * C++ users should not use this routine.  The return type must be fixed
+         * at compile time, and so it is typically a `std::variant` that can
+         * hold any of the lightweight view types returned from the templated
+         * `faces<subdim>()` function.  This means that the return value will
+         * still need compile-time knowledge of \a subdim to extract and
+         * use the appropriate face objects.  However, once you know \a subdim
+         * at compile time, you are much better off using the (simpler and
+         * faster) routine `faces<subdim>()` instead.
+         *
+         * For Python users, this routine is much more useful: the return type
+         * can be chosen at runtime, and so this routine returns a single
+         * lightweight view granting access to all of the <i>subdim</i>-faces
+         * of the boundary component, which you can use immediately.
+         *
+         * \exception InvalidArgument The face dimension \a subdim is outside
+         * the supported range, as described below.
+         *
+         * \param subdim the dimension of the faces to query.  If \a dim is
+         * one of Regina's \ref stddim "standard dimensions", then \a subdim
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable value of \a subdim is the facet dimension (`dim-1`).
+         * \return access to the list of all <i>subdim</i>-faces.
+         */
+        auto faces(int subdim) const {
+            if constexpr (allFaces) {
+                if (subdim < 0 || subdim >= dim)
+                    throw InvalidArgument(
+                        "faces(): unsupported face dimension");
+                return select_constexpr_as_variant<0, dim>(subdim,
+                        [this](auto k) {
+                    return std::views::all(std::get<tupleIndex(k)>(faces_));
+                });
+            } else {
+                if (subdim != dim - 1)
+                    throw InvalidArgument(
+                        "faces(): unsupported face dimension");
+                return std::views::all(std::get<tupleIndex(dim-1)>(faces_));
+            }
         }
 
         /**
          * A dimension-specific alias for faces<0>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See faces() for further information.
          */
-        auto vertices() const {
-            static_assert(standardDim(dim), "vertices() is only available "
-                "for boundary components in standard dimensions.");
-            return ListView(std::get<tupleIndex(0)>(faces_));
+        auto vertices() const
+                requires (standardDim(dim)) {
+            return std::views::all(std::get<tupleIndex(0)>(faces_));
         }
 
         /**
          * A dimension-specific alias for faces<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See faces() for further information.
          */
-        auto edges() const {
-            static_assert(standardDim(dim), "edges() is only available "
-                "for boundary components in standard dimensions.");
-            return ListView(std::get<tupleIndex(1)>(faces_));
+        auto edges() const
+                requires (standardDim(dim)) {
+            return std::views::all(std::get<tupleIndex(1)>(faces_));
         }
 
         /**
          * A dimension-specific alias for faces<2>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See faces() for further information.
          */
-        auto triangles() const {
-            static_assert(standardDim(dim) && dim >= 3,
-                "triangles() is only available "
-                "for boundary components in standard dimensions dim >= 3.");
-            return ListView(std::get<tupleIndex(2)>(faces_));
+        auto triangles() const
+                requires (standardDim(dim) && dim > 2) {
+            return std::views::all(std::get<tupleIndex(2)>(faces_));
         }
 
         /**
          * A dimension-specific alias for faces<3>().
          *
-         * This alias is only available for dimension \a dim = 4.
-         *
          * See faces() for further information.
          */
-        auto tetrahedra() const {
-            static_assert(standardDim(dim) && dim >= 4,
-                "tetrahedra() is only available for "
-                "boundary components in dimension dim = 4.");
-            return ListView(std::get<tupleIndex(3)>(faces_));
+        auto tetrahedra() const
+                requires (standardDim(dim) && dim > 3) {
+            return std::views::all(std::get<tupleIndex(3)>(faces_));
         }
 
         /**
          * A dimension-specific alias for faces<4>().
          *
-         * This alias is only available for dimension \a dim = 5.
-         *
          * See faces() for further information.
          */
-        auto pentachora() const {
-            static_assert(dim == 5, "pentachora() is only available for "
-                "boundary components in dimension dim = 5.");
-            return ListView(std::get<tupleIndex(4)>(faces_));
+        auto pentachora() const
+                requires (dim == 5) {
+            return std::views::all(std::get<tupleIndex(4)>(faces_));
         }
 
         /**
@@ -494,7 +532,8 @@ class BoundaryComponentBase :
         }
 
         /**
-         * Returns the requested <i>subdim</i>-face in this boundary component.
+         * Returns the requested <i>subdim</i>-face in this boundary component,
+         * in a way that is optimised for C++ programmers.
          *
          * Note that the index of a face in the boundary component need
          * not be the index of the same face in the overall triangulation.
@@ -504,95 +543,128 @@ class BoundaryComponentBase :
          * index of the corresponding <i>subdim</i>-face in the
          * (<i>dim</i>-1)-manifold triangulation returned by build().
          *
-         * \python Python does not support templates.  Instead,
-         * Python users should call this function in the form
-         * `face(subdim, index)`; that is, the template parameter
-         * \a subdim becomes the first argument of the function.
+         * \nopython Instead use the variant `face(subdim, index)`.
          *
          * \tparam subdim the dimension of the faces to query.  If \a dim is
          * one of Regina's \ref stddim "standard dimensions", then \a subdim
-         * must be between 0 and <i>dim</i>-1 inclusive.  Otherwise, the only
-         * allowable value of \a subdim is the facet dimension (<i>dim</i>-1).
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable value of \a subdim is the facet dimension (`dim-1`).
          *
          * \param index the index of the desired face, ranging from 0 to
          * countFaces<subdim>()-1 inclusive.
          * \return the requested face.
          */
         template <int subdim>
+        requires (subdim == dim - 1 ||
+            (standardDim(dim) && subdim >= 0 && subdim < dim))
         Face<dim, subdim>* face(size_t index) const {
-            static_assert(tupleIndex(subdim) >= 0,
-                "BoundaryComponent::face() cannot be used with this "
-                "(dim, subdim) combination.");
             return std::get<tupleIndex(subdim)>(faces_)[index];
+        }
+
+        /**
+         * Returns the requested <i>subdim</i>-face in this boundary component,
+         * in a way that is optimised for Python programmers.
+         *
+         * C++ users should not use this routine.  The return type must be
+         * fixed at compile time, and so it is typically a `std::variant` that
+         * could store a pointer to any class `Face<dim, ...>`.  This means you
+         * cannot access the face directly: you will still need some kind of
+         * compile-time knowledge of \a subdim before you can extract and use
+         * an appropriate `Face<dim, subdim>` object from \a v.  However, once
+         * you know \a subdim at compile time, you are better off using the
+         * (simpler and faster) routine `face<subdim>()` instead.
+         *
+         * For Python users, this routine is much more useful: the return type
+         * can be chosen at runtime, and so this routine simply returns a
+         * `Face<dim, subdim>` object of the appropriate face dimension that
+         * you can use immediately.
+         *
+         * The specific return type for C++ programmers will be
+         * `std::variant<Face<dim, 0>*, ..., Face<dim, dim-1>*>` if \a dim is
+         * one of Regina's \ref stddim "standard dimensions", or just
+         * `Face<dim, dim-1>*` if not.
+         *
+         * Note that the index of a face in the boundary component need
+         * not be the index of the same face in the overall triangulation.
+         * However, if this is a real boundary component (i.e., it is built
+         * from one or more (<i>dim</i>-1)-faces), then the index of each
+         * <i>subdim</i>-face in this boundary component will match the
+         * index of the corresponding <i>subdim</i>-face in the
+         * (<i>dim</i>-1)-manifold triangulation returned by build().
+         *
+         * \exception InvalidArgument The face dimension \a subdim is outside
+         * the supported range, as described below.
+         *
+         * \param subdim the dimension of the faces to query.  If \a dim is
+         * one of Regina's \ref stddim "standard dimensions", then \a subdim
+         * must be between 0 and `dim-1` inclusive.  Otherwise, the only
+         * allowable value of \a subdim is the facet dimension (`dim-1`).
+         * \param index the index of the desired face, ranging from 0 to
+         * `countFaces(subdim)-1` inclusive.
+         * \return the requested face.
+         */
+        auto face(int subdim, size_t index) const {
+            if constexpr (allFaces) {
+                if (subdim < 0 || subdim >= dim)
+                    throw InvalidArgument("face(): unsupported face dimension");
+                return select_constexpr_as_variant<0, dim>(subdim,
+                        [this, index](auto k) {
+                    return std::get<tupleIndex(k)>(faces_)[index];
+                });
+            } else {
+                if (subdim != dim - 1)
+                    throw InvalidArgument("face(): unsupported face dimension");
+                return std::get<tupleIndex(dim-1)>(faces_)[index];
+            }
         }
 
         /**
          * A dimension-specific alias for face<0>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See face() for further information.
          */
-        Face<dim, 0>* vertex(size_t index) const {
-            static_assert(standardDim(dim), "vertex() is only available "
-                "for boundary components in standard dimensions.");
+        TriangulationTraits<dim>::Vertex* vertex(size_t index) const
+                requires (standardDim(dim)) {
             return std::get<tupleIndex(0)>(faces_)[index];
         }
 
         /**
          * A dimension-specific alias for face<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See face() for further information.
          */
-        Face<dim, 1>* edge(size_t index) const {
-            static_assert(standardDim(dim), "edge() is only available "
-                "for boundary components in standard dimensions.");
+        TriangulationTraits<dim>::Edge* edge(size_t index) const
+                requires (standardDim(dim)) {
             return std::get<tupleIndex(1)>(faces_)[index];
         }
 
         /**
          * A dimension-specific alias for face<2>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See face() for further information.
          */
-        Face<dim, 2>* triangle(size_t index) const {
-            static_assert(standardDim(dim) && dim >= 3,
-                "triangle() is only available "
-                "for boundary components in standard dimensions dim >= 3.");
+        TriangulationTraits<dim>::Triangle* triangle(size_t index) const
+                requires (standardDim(dim) && dim > 2) {
             return std::get<tupleIndex(2)>(faces_)[index];
         }
 
         /**
          * A dimension-specific alias for face<3>().
          *
-         * This alias is only available for dimension \a dim = 4.
-         *
          * See face() for further information.
          */
-        Face<dim, 3>* tetrahedron(size_t index) const {
-            static_assert(standardDim(dim) && dim >= 4,
-                "tetrahedron() is only available for "
-                "boundary components in dimension dim = 4.");
+        TriangulationTraits<dim>::Tetrahedron* tetrahedron(size_t index) const
+                requires (dim == 4) {
             return std::get<tupleIndex(3)>(faces_)[index];
         }
 
         /**
          * A dimension-specific alias for face<4>().
          *
-         * This alias is only available for dimension \a dim = 5.
-         *
          * See face() for further information.
          */
-        Face<dim, 4>* pentachoron(size_t index) const {
-            static_assert(dim == 5, "pentachoron() is only available for "
-                "boundary components in dimension dim = 5.");
+        TriangulationTraits<dim>::Pentachoron* pentachoron(size_t index) const
+                requires (dim == 5) {
             return std::get<tupleIndex(4)>(faces_)[index];
         }
 
@@ -663,8 +735,6 @@ class BoundaryComponentBase :
          * <i>dim</i>-manifold anyway, and so if you do have pinched faces
          * then you almost certainly have bigger problems to deal with.
          *
-         * \pre \a dim is one of Regina's \ref stddim "standard dimensions".
-         *
          * \warning If this boundary component itself forms an ideal
          * (<i>dim</i>-1)-dimensional triangulation, then again this result
          * is well-defined but topologically meaningless (since it is
@@ -676,10 +746,8 @@ class BoundaryComponentBase :
          *
          * \return the Euler characteristic of this boundary component.
          */
-        long eulerChar() const {
-            static_assert(allFaces,
-                "BoundaryComponent<dim>::eulerChar() can only be used "
-                "when dim is one of Regina's standard dimensions.");
+        long eulerChar() const requires (standardDim(dim)) {
+            static_assert(allFaces); // just to be sure
             if constexpr (dim == 2) {
                 // There is only one possible answer here.
                 return 0;
@@ -846,12 +914,8 @@ class BoundaryComponentBase :
          *
          * \return the triangulation of this boundary component.
          */
-        const Triangulation<dim-1>& build() const {
-            // Make sure we do not try to instantiate Triangulation<1>.
-            static_assert(canBuild,
-                "BoundaryComponent<dim>::build() can only "
-                "be used with dimensions dim > 2.");
-
+        const TriangulationTraits<dim>::Lower& build() const
+                requires (dim > 2) {
             if (boundary_.value)
                 return *boundary_.value; // Already cached or pre-computed.
             if constexpr (allowVertex) {
@@ -932,14 +996,13 @@ class BoundaryComponentBase :
          * \param face the face to append to the list.
          */
         template <int subdim>
+        requires (subdim < dim && subdim >= (standardDim(dim) ? 0 : dim - 2))
         void push_back(Face<dim, subdim>* face) {
             if constexpr ((! allFaces) && subdim == dim - 2) {
                 // We don't store (dim-2)-faces, but we do count them.
                 ++nRidges_.value;
             } else {
-                static_assert(tupleIndex(subdim) >= 0,
-                    "BoundaryComponentBase::push_back() does not support "
-                    "this (dim, subdim) combination.");
+                static_assert(tupleIndex(subdim) >= 0); // just to be sure
                 std::get<tupleIndex(subdim)>(faces_).push_back(face);
             }
         }
@@ -948,12 +1011,12 @@ class BoundaryComponentBase :
          * Builds a new triangulation of this boundary component,
          * assuming this is a real boundary component.
          *
-         * \pre The dimension \a dim is greater than 2.
          * \pre The number of (dim-1)-faces is strictly positive.
          *
          * \return the newly created boundary triangulation.
          */
-        Triangulation<dim-1>* buildRealBoundary() const;
+        TriangulationTraits<dim>::Lower* buildRealBoundary() const
+            requires (dim > 2);
 
         /**
          * Reorders and relabels all <i>subdim</i>-faces of the given
@@ -985,7 +1048,8 @@ class BoundaryComponentBase :
          * \a subdim can be deduced automatically from inside std::apply().
          */
         template <int subdim>
-        void reorderAndRelabelFaces(Triangulation<dim - 1>* tri,
+        requires (dim > 2 && subdim >= 0 && subdim < dim)
+        void reorderAndRelabelFaces(TriangulationTraits<dim>::Lower* tri,
                 const std::vector<Face<dim, subdim>*>& reference) const;
 
     friend class Triangulation<dim>;

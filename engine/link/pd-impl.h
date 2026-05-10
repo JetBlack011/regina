@@ -44,15 +44,16 @@
 #include <algorithm>
 #include "utilities/fixedarray.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
-template <typename Iterator>
+template <std::random_access_iterator Iterator>
+requires requires(Iterator it, int index) {
+    { +(*it)[index] } -> CppInteger;
+}
 Link Link::fromPD(Iterator begin, Iterator end) {
-    using InputInt = std::remove_cv_t<std::remove_reference_t<
-        decltype((*begin)[0])>>;
-    static_assert(std::is_integral_v<InputInt> &&
-        ! std::is_unsigned_v<InputInt>, "fromPD(): the iterator type "
-        "needs to refer to a native signed C++ integer type.");
+    using InputInt = std::remove_cvref_t<decltype((*begin)[0])>;
 
     // Extract the number of crossings.
     size_t n = end - begin;

@@ -60,6 +60,8 @@
 // NOTE: More #includes for faces, components and boundary components
 // follow after the class declarations.
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class AngleStructure;
@@ -68,7 +70,7 @@ class Link;
 class NormalSurface;
 class SnapPeaTriangulation;
 
-template <int> class XMLTriangulationReader;
+template <int dim> requires (supportedDim(dim)) class XMLTriangulationReader;
 
 #ifdef __DOCSTRINGS
 // Declare SnapPy types that appear in the Python-only functions below,
@@ -132,8 +134,6 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
                      with respect to the boundary. */
             std::optional<AbelianGroup> H1Bdry_;
                 /**< First homology group of the boundary. */
-            std::optional<AbelianGroup> H2_;
-                /**< Second homology group of the triangulation. */
 
             std::optional<bool> twoSphereBoundaryComponents_;
                 /**< Does the triangulation contain any 2-sphere boundary
@@ -308,7 +308,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * At present, Regina understands the following types of strings
          * (and attempts to parse them in the following order):
          *
-         * - isomorphism signatures (see fromIsoSig());
+         * - isomorphism signatures (see fromSig());
          * - dehydration strings (see rehydrate());
          * - the filename or contents of a SnapPea data file (see
          *   fromSnapPea()).
@@ -460,7 +460,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          *
          * See newSimplices() for further information.
          */
-        template <int k>
+        template <int k> requires (k >= 0)
         std::array<Tetrahedron<3>*, k> newTetrahedra();
         /**
          * A dimension-specific alias for newSimplices().
@@ -769,6 +769,30 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          */
         const AbelianGroup& homologyRel() const;
         /**
+         * Is the relative first homology group with respect to the boundary
+         * already known (or trivial to determine)?  See homologyRel() for
+         * further details.
+         *
+         * If this returns `true` then future calls to homologyRel() will be
+         * very fast.
+         *
+         * Note that homologyRel() requires a valid triangulation as a
+         * precondition.  Therefore, if this triangulation is _not_ valid,
+         * knowsHomologyRel() will return `false`.
+         *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make relative homology trivial to compute;
+         * however, it is provided for compatibility with other `knows...()`
+         * routines.
+         * \return \c true if and only if this property is already known
+         * or trivial to calculate, _and_ the preconditions for homologyRel()
+         * are satisfied.
+         */
+        bool knowsHomologyRel(bool cachedOnly = false) const;
+        /**
          * Returns the first homology group of the
          * boundary for this triangulation.
          * Note that ideal vertices are considered part of the boundary.
@@ -779,9 +803,8 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * Instead, homologyBdry() should be called again; this will be
          * instantaneous if the group has already been calculated.
          *
-         * This routine is fairly fast, since it deduces the homology of
-         * each boundary component through knowing what kind of surface
-         * it is.
+         * This routine is always fast, since it deduces the homology of each
+         * boundary component through knowing what kind of surface it is.
          *
          * \pre This triangulation is valid.
          *
@@ -791,26 +814,50 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          */
         const AbelianGroup& homologyBdry() const;
         /**
-         * Returns the second homology group with coefficients in Z_2
-         * for this triangulation.
-         * If this triangulation contains any ideal vertices,
-         * the homology group will be
-         * calculated as if each such vertex had been truncated.
-         * The algorithm used calculates the relative first homology group
-         * with respect to the boundary and uses homology and cohomology
+         * Returns the second homology group with coefficients in `Z_2` for
+         * this triangulation.  If this triangulation contains any ideal
+         * vertices, the homology group will be calculated as if each such
+         * vertex had been truncated.
+         *
+         * The underlying algorithm calculates the relative first homology
+         * group with respect to the boundary, and uses homology and cohomology
          * theorems to deduce the second homology group.
          *
          * This group will simply be the direct sum of several copies of
-         * Z_2, so the number of Z_2 terms is returned.
+         * `Z_2`, so the number of `Z_2` terms is returned.
          *
          * \pre This triangulation is valid.
          *
          * \exception FailedPrecondition This triangulation is invalid.
          *
-         * \return the number of Z_2 terms in the second homology group
-         * with coefficients in Z_2.
+         * \return the number of `Z_2` terms in the second homology group
+         * with coefficients in `Z_2`.
          */
-        unsigned long homologyH2Z2() const;
+        size_t homologyH2Z2() const;
+        /**
+         * Is the second homology group with coefficients in `Z_2` already
+         * known (or trivial to determine)?  See homologyH2Z2() for further
+         * details.
+         *
+         * If this returns `true` then future calls to homologyH2Z2() will be
+         * very fast.
+         *
+         * Note that homologyH2Z2() requires a valid triangulation as a
+         * precondition.  Therefore, if this triangulation is _not_ valid,
+         * knowsHomologyH2Z2() will return `false`.
+         *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make second homology with `Z_2` coefficients
+         * trivial to compute; however, it is provided for compatibility with
+         * other `knows...()` routines.
+         * \return \c true if and only if this property is already known
+         * or trivial to calculate, _and_ the preconditions for homologyH2Z2()
+         * are satisfied.
+         */
+        bool knowsHomologyH2Z2(bool cachedOnly = false) const;
         /**
          * Computes the given Turaev-Viro state sum invariant of this
          * 3-manifold using exact arithmetic.
@@ -1085,7 +1132,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre This triangulation has precisely one vertex, and its
          * (unique) boundary component is formed from two triangles.
          *
-         * \warning This routine may modify the triangluation, as
+         * \warning This routine may modify the triangulation, as
          * explained above, which will have the side-effect of
          * invalidating any existing Vertex, Edge or Triangle references.
          *
@@ -1153,7 +1200,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre This triangulation has precisely one vertex, and its
          * (unique) boundary component is formed from two triangles.
          *
-         * \warning This routine may modify the triangluation, as
+         * \warning This routine may modify the triangulation, as
          * explained above, which will have the side-effect of
          * invalidating any existing Vertex, Edge or Triangle references.
          *
@@ -1221,7 +1268,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre This triangulation has precisely one vertex, and its
          * (unique) boundary component is formed from two triangles.
          *
-         * \warning This routine may modify the triangluation, as
+         * \warning This routine may modify the triangulation, as
          * explained above, which will have the side-effect of
          * invalidating any existing Vertex, Edge or Triangle references.
          *
@@ -1267,8 +1314,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * change the topology of the surface, and in some pathological
          * cases could even reduce it to the empty surface.
          *
-         * \tparam subdim the dimension of the face to link; this must be
-         * between 0 and 2 inclusive.
+         * \tparam subdim the dimension of the face to link.
          *
          * \pre The given face is a face of this triangulation.
          *
@@ -1276,7 +1322,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * normal surface, and \a thin is \c true if and only if this link
          * is thin (i.e., no additional normalisation steps were required).
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < 3)
         std::pair<NormalSurface, bool> linkingSurface(
             const Face<3, subdim>& face) const;
 
@@ -1286,24 +1332,31 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * discs are vertex linking, and if it has no 2-sphere boundary
          * components.
          *
-         * \return \c true if and only if this triangulation is
-         * 0-efficient.
+         * \return \c true if and only if this triangulation is 0-efficient.
          */
         bool isZeroEfficient() const;
         /**
-         * Is it already known whether or not this triangulation is
-         * 0-efficient?  See isZeroEfficient() for further details.
+         * Is it already known (or trivial to determine) whether or not this
+         * triangulation is 0-efficient?  See isZeroEfficient() for further
+         * details.
          *
-         * If this property is already known, future calls to isZeroEfficient()
-         * will be very fast (simply returning the precalculated value).
+         * If this property is indeed already known, future calls to
+         * isZeroEfficient() will be very fast (simply returning the
+         * precalculated value).
          *
          * \warning This routine does not actually tell you _whether_
          * this triangulation is 0-efficient; it merely tells you whether
          * the answer has already been computed.
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make 0-efficiency trivial to compute; however,
+         * it is provided for compatibility with other `knows...()` routines.
          * \return \c true if and only if this property is already known.
          */
-        bool knowsZeroEfficient() const;
+        bool knowsZeroEfficient(bool cachedOnly = false) const;
         /**
          * Determines if this triangulation is 1-efficient.
          *
@@ -1329,25 +1382,31 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          */
         bool isOneEfficient() const;
         /**
-         * Is it already known whether or not this triangulation is
-         * 1-efficient?  See isOneEfficient() for further details.
+         * Is it already known (or trivial to determine) whether or not this
+         * triangulation is 1-efficient?  See isOneEfficient() for further
+         * details.
          *
-         * If this property is already known, future calls to isOneEfficient()
-         * will be very fast (simply returning the precalculated value).
+         * If this property is indeed already known, future calls to
+         * isOneEfficient() will be very fast (simply returning the
+         * precalculated value).
          *
-         * \pre This is a valid ideal triangulation in which the link of every
-         * vertex is a torus or Klein bottle.
+         * Note that isOneEfficient() requires a valid ideal triangulation
+         * with only torus and/or Klein bottle vertex links as a precondition.
+         * Therefore, if this triangulation does _not_ satisfy those conditions,
+         * knowsOneEfficient() will return `false`.
          *
          * \warning This routine does not actually tell you _whether_
          * this triangulation is 1-efficient; it merely tells you whether
          * the answer has already been computed.
          *
-         * \exception FailedPrecondition This triangulation is invalid, empty,
-         * and/or has some vertex whose link is not a torus or Klein bottle.
-         *
-         * \return \c true if and only if this property is already known.
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * \return \c true if and only if this property is already known
+         * or trivial to calculate, _and_ the preconditions for isOneEfficient()
+         * are satisfied.
          */
-        bool knowsOneEfficient() const;
+        bool knowsOneEfficient(bool cachedOnly = false) const;
         /**
          * Determines whether this triangulation has a normal splitting
          * surface.  See NormalSurface::isSplitting() for details
@@ -1472,10 +1531,13 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * tells you whether the answer has already been computed (or is
          * very easily computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
          * or trivial to calculate.
          */
-        bool knowsStrictAngleStructure() const;
+        bool knowsStrictAngleStructure(bool cachedOnly = false) const;
         /**
          * Returns a generalised angle structure on this triangulation,
          * if one exists.  A _generalised_ angle structure must satisfy the
@@ -1810,18 +1872,17 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          *
          * For every such triangulation (including this starting
          * triangulation), this routine will call \a action (which must
-         * be a function or some other callable object).
+         * be a function or some other callable type).
          *
          * - \a action must take the following initial argument(s).
          *   Either (a) the first argument must be a triangulation (the precise
-         *   type is discussed below), representing the triangluation that has
+         *   type is discussed below), representing the triangulation that has
          *   been found; or else (b) the first two arguments must be of types
-         *   const std::string& followed by a triangulation, representing both
-         *   the triangulation and _an_ isomorphism signature.
-         *   The second form is offered in order to avoid unnecessary
-         *   recomputation within the \a action function; however, note that
-         *   the signature might not be of the IsoSigClassic type (i.e., it
-         *   might not match the output from the default version of isoSig()).
+         *   `const ByteSequence&` followed by a triangulation, representing
+         *   both the triangulation and its second-generation isomorphism
+         *   signature.  The signature will be a byte sequence as returned by
+         *   `neoSig<IsoSigBinary>()`; this second form may help avoid
+         *   unnecessary recomputation within the \a action function.
          *   If there are any additional arguments supplied in the list \a args,
          *   then these will be passed as subsequent arguments to \a action.
          *
@@ -1890,13 +1951,14 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          *
          * \apinotfinal
          *
-         * \python This function is available in Python, and the
-         * \a action argument may be a pure Python function.  However, its
-         * form is more restricted: the arguments \a tracker and \a args are
-         * removed, so you call it as retriangulate(height, threads, action).
+         * \python This function is available in Python, and the \a action
+         * argument may be a pure Python function.  However, its form is more
+         * restricted: the arguments \a tracker and \a args are removed,
+         * so you call it as `retriangulate(height, threads, action)`.
          * Moreover, \a action must take exactly two arguments
-         * (const std::string&, Triangulation<3>&&) representing a signature
-         * and the triangulation, as described in option (b) above.
+         * `(bytes, Triangulation<3>&&)` representing a signature and the
+         * triangulation, as described in option (b) above; the signature will
+         * be passed as a Python `bytes` object.
          *
          * \param height the maximum number of _additional_ tetrahedra to
          * allow beyond the number of tetrahedra originally present in the
@@ -1905,7 +1967,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * 1 or smaller then the routine will run single-threaded.
          * \param tracker a progress tracker through which progress will
          * be reported, or \c null if no progress reporting is required.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each triangulation that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial triangulation argument(s).
@@ -1914,6 +1976,10 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * completion.
          */
         template <typename Action, typename... Args>
+        requires
+            TerminatingCallback<Action, Triangulation<3>&&, Args...> ||
+            TerminatingCallback<Action, const ByteSequence&, Triangulation<3>&&,
+                Args...>
         bool retriangulate(int height, int threads,
             ProgressTrackerOpen* tracker,
             Action&& action, Args&&... args) const;
@@ -2716,7 +2782,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \param axis indicates which axis of the enclosing octahedron the
          * four new tetrahedra should meet along; this must be 0 or 1.  See
          * move44() for details on exactly what this means.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<3>> with44(Edge<3>* e, int axis) const;
@@ -2737,7 +2803,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \param edgeEnd indicates at which end of the edge \a e the move
          * does _not_ involve the adjacent tetrahedron; this should be 0 or 1.
          * See move21() for details on exactly what this means.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<3>> with21(Edge<3>* e, int edgeEnd) const;
@@ -2762,7 +2828,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \param e1 another embedding of the edge \a e.
          * \param t1 indicates the other triangle about which to perform the
          * move, with respect to the edge embedding \a e1; this must be 2 or 3.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          *
          * \author Alex He
@@ -2789,7 +2855,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * to perform the move.
          * \param t1 the number assigned to the other triangle about which
          * to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          *
          * \author Alex He
@@ -2816,7 +2882,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \param t1 the other triangle about which to perform the move.
          * \param e1 the edge at which \a t1 meets the other triangle \a t0;
          * this must be 0, 1 or 2.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          *
          * \author Alex He
@@ -2837,7 +2903,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre The given triangle is a triangle of this triangulation.
          *
          * \param t the triangle about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<3>> withOpenBook(Triangle<3>* t) const;
@@ -2855,7 +2921,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre The given edge is an edge of this triangulation.
          *
          * \param e the edge about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<3>> withCloseBook(Edge<3>* e) const;
@@ -2873,7 +2939,7 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \pre The given edge is an edge of this triangulation.
          *
          * \param e the edge to collapse.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<3>> withCollapseEdge(Edge<3>* e) const;
@@ -3331,10 +3397,13 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * this triangulation forms a 3-sphere; it merely tells you whether
          * the answer has already been computed (or is very easily computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
          * or trivial to calculate.
          */
-        bool knowsSphere() const;
+        bool knowsSphere(bool cachedOnly = false) const;
         /**
          * Determines whether this is a triangulation of a 3-dimensional ball.
          *
@@ -3374,10 +3443,13 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * this triangulation forms a ball; it merely tells you whether
          * the answer has already been computed (or is very easily computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
          * or trivial to calculate.
          */
-        bool knowsBall() const;
+        bool knowsBall(bool cachedOnly = false) const;
         /**
          * Determines whether this is a triangulation of the solid
          * torus; that is, the unknot complement.  This routine can be
@@ -3418,10 +3490,13 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * this triangulation forms a solid torus; it merely tells you whether
          * the answer has already been computed (or is very easily computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
          * or trivial to calculate.
          */
-        bool knowsSolidTorus() const;
+        bool knowsSolidTorus(bool cachedOnly = false) const;
 
         /**
          * Determines whether this is a triangulation of an orientable
@@ -3467,12 +3542,15 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * whether the answer has already been computed (or is very easily
          * computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known or
          * trivial to calculate.
          *
          * \author Alex He
          */
-        bool knowsHandlebody() const;
+        bool knowsHandlebody(bool cachedOnly = false) const;
 
         /**
          * Determines whether or not the underlying 3-manifold is
@@ -3517,10 +3595,13 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * it merely tells you whether the answer has already been computed
          * (or is very easily computed).
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
          * or trivial to calculate.
          */
-        bool knowsTxI() const;
+        bool knowsTxI(bool cachedOnly = false) const;
 
         /**
          * Determines whether the underlying 3-manifold (which must be
@@ -3536,7 +3617,10 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * \warning The algorithms used in this routine rely on normal
          * surface theory and might be slow for larger triangulations.
          *
-         * \pre This triangulation is valid, closed, orientable and connected.
+         * \pre This triangulation is valid, closed, orientable, and connected.
+         *
+         * \exception FailedPrecondition This triangulation is not valid,
+         * closed, orientable, and connected.
          *
          * \return \c true if and only if the underlying 3-manifold is
          * irreducible.
@@ -3551,16 +3635,26 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * isIrreducible() will be very fast (simply returning the
          * precalculated value).
          *
+         * Note that isIrreducible() requires a valid, closed, orientable and
+         * connected triangulation as a precondition.  Therefore, if this
+         * triangulation is _not_ valid, closed, orientable and connected,
+         * then knowsIrreducible() will return `false`.
+         *
          * \warning This routine does not actually tell you _whether_
          * the underlying 3-manifold is irreducible; it merely tells you whether
          * the answer has already been computed (or is very easily computed).
          *
-         * \pre This triangulation is valid, closed, orientable and connected.
-         *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make irreducibility trivial to compute; however,
+         * it is provided for compatibility with other `knows...()` routines.
          * \return \c true if and only if this property is already known
-         * or trivial to calculate.
+         * or trivial to calculate, _and_ the preconditions for isIrreducible()
+         * are satisfied.
          */
-        bool knowsIrreducible() const;
+        bool knowsIrreducible(bool cachedOnly = false) const;
 
         /**
          * Searches for a compressing disc within the underlying
@@ -3597,8 +3691,14 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * If this triangulation has no boundary components, this
          * routine will simply return \c false.
          *
-         * \pre This triangulation is valid and is not ideal.
-         * \pre The underlying 3-manifold is irreducible.
+         * \pre This triangulation is valid and is not ideal.  This precondition
+         * is easy to check, and so it will be tested (and an exception will be
+         * thrown if it fails).
+         *
+         * \pre The underlying 3-manifold is irreducible.  This precondition
+         * is _not_ easy to check, and so it will not be tested.  It is the
+         * responsibility of the programmer to ensure that it holds before
+         * this routine is called.
          *
          * \warning This routine can be infeasibly slow for large
          * triangulations (particularly those that are non-orientable
@@ -3607,6 +3707,16 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * perform "large" operations on these surfaces such as cutting along
          * them.  See hasSimpleCompressingDisc() for a "heuristic shortcut"
          * that is faster but might not give a definitive answer.
+         *
+         * \exception FailedPrecondition This triangulation is invalid
+         * and/or ideal.
+         *
+         * \exception UnsolvedCase Within the normal surface machinery this
+         * algorithm has encountered an impossible memory requirement, due to
+         * the need to store more items than can fit into a native C++
+         * \c size_t.  This is rarely seen in practice: on a typical 64-bit
+         * machine, this would mean that the algorithm has encountered a
+         * normal surface with some coordinate at least `2^64`.
          *
          * \return \c true if the underlying 3-manifold contains a
          * compressing disc, or \c false if it does not.
@@ -3630,18 +3740,29 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * Otherwise a call to hasCompressingDisc() may potentially require more
          * significant work, and so this routine will return \c false.
          *
+         * Note that hasCompressingDisc() requires a valid, non-ideal
+         * triangulation of an irreducible 3-manifold as a precondition.
+         * This routine will test the valid and non-ideal conditions, and will
+         * return `false` if they fail.  Irreducibility is more expensive to
+         * test, and so it remains a precondition of knowsCompressingDisc()
+         * also.  It is the responsibility of the programmer to ensure that the
+         * underlying 3-manifold is irreducible before this routine is called.
+         *
          * \warning This routine does not actually tell you _whether_
          * the underlying 3-manifold has a compressing disc; it merely tells
          * you whether the answer has already been computed (or is very
          * easily computed).
          *
-         * \pre This triangulation is valid and is not ideal.
          * \pre The underlying 3-manifold is irreducible.
          *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
          * \return \c true if and only if this property is already known
-         * or trivial to calculate.
+         * or trivial to calculate, _and_ this triangulation is valid and
+         * non-ideal.
          */
-        bool knowsCompressingDisc() const;
+        bool knowsCompressingDisc(bool cachedOnly = false) const;
 
         /**
          * Determines whether the underlying 3-manifold (which
@@ -3651,11 +3772,22 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          *
          * Currently Hakenness testing is available only for irreducible
          * manifolds.  This routine will first test whether the manifold is
-         * irreducible and, if it is not, will return \c false immediately.
+         * irreducible and, if it is not, will return \c false without any
+         * further computation.
          *
-         * \pre This triangulation is valid, closed, orientable and connected.
+         * \pre This triangulation is valid, closed, orientable, and connected.
          *
          * \warning This routine could be very slow for larger triangulations.
+         *
+         * \exception FailedPrecondition This triangulation is not valid,
+         * closed, orientable, and connected.
+         *
+         * \exception UnsolvedCase Within the normal surface machinery this
+         * algorithm has encountered an impossible memory requirement, due to
+         * the need to store more items than can fit into a native C++
+         * \c size_t.  This is rarely seen in practice: on a typical 64-bit
+         * machine, this would mean that the algorithm has encountered a
+         * normal surface with some coordinate at least `2^64`.
          *
          * \return \c true if and only if the underlying 3-manifold is
          * irreducible and Haken.
@@ -3669,16 +3801,26 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
          * isHaken() will be very fast (simply returning the
          * precalculated value).
          *
+         * Note that isHaken() requires a valid, closed, orientable and
+         * connected triangulation as a precondition.  Therefore, if this
+         * triangulation is _not_ valid, closed, orientable and connected,
+         * then knowsHaken() will return `false`.
+         *
          * \warning This routine does not actually tell you _whether_
          * the underlying 3-manifold is Haken; it merely tells you whether
          * the answer has already been computed (or is very easily computed).
          *
-         * \pre This triangulation is valid, closed, orientable and connected.
-         *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make Hakenness trivial to compute; however, it is
+         * provided for compatibility with other `knows...()` routines.
          * \return \c true if and only if this property is already known
-         * or trivial to calculate.
+         * or trivial to calculate, _and_ the preconditions for isHaken()
+         * are satisfied.
          */
-        bool knowsHaken() const;
+        bool knowsHaken(bool cachedOnly = false) const;
 
         /**
          * Searches for a "simple" compressing disc inside this
@@ -4951,7 +5093,6 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
     friend class regina::detail::TriangulationBase<3>;
     friend class PacketData<Triangulation<3>>;
     friend class regina::XMLTriangulationReader<3>;
-    friend class regina::XMLWriter<Triangulation<3>>;
 };
 
 /**
@@ -4959,16 +5100,17 @@ class Triangulation<3> : public detail::TriangulationBase<3> {
  * the packet to hold either a Triangulation<3> or a SnapPeaTriangulation.
  *
  * The behaviour of this routine is analogous to
- * static_cast<Triangulation<3&>>() and
- * regina::static_packet_cast<Triangulation<3>>().  It is provided because
+ * `static_cast<Triangulation<3&>>()` and
+ * `regina::static_packet_cast<Triangulation<3>>()`.  It is provided because
  * these other routines cannot simultaneously support packets that hold a
  * Triangulation<3> and packets that hold a SnapPeaTriangulation - these
  * two cases use separate (and unrelated) paths through the class hierarchy to
  * get from Packet to Triangulation<3>.
  *
- * In particular, attempting to use regina::static_packet_cast<Triangulation<3>>
- * with a packet holding a SnapPea triangulation is not allowed, and will result
- * in undefined behaviour.  In contrast, calling
+ * In particular, attempting to use
+ * `regina::static_packet_cast<Triangulation<3>>`
+ * with a packet holding a SnapPea triangulation is not allowed, and will
+ * result in undefined behaviour.  In contrast, calling
  * regina::static_triangulation3_cast on such a packet is allowed and
  * will return the expected Triangulation<3> reference.
  *
@@ -4986,16 +5128,17 @@ Triangulation<3>& static_triangulation3_cast(Packet& p);
  * the packet to hold either a Triangulation<3> or a SnapPeaTriangulation.
  *
  * The behaviour of this routine is analogous to
- * static_cast<const Triangulation<3>&>() and
- * regina::static_packet_cast<Triangulation<3>>().  It is provided because
+ * `static_cast<const Triangulation<3>&>()` and
+ * `regina::static_packet_cast<Triangulation<3>>()`.  It is provided because
  * these other routines cannot simultaneously support packets that hold a
  * Triangulation<3> and packets that hold a SnapPeaTriangulation - these
  * two cases use separate (and unrelated) paths through the class hierarchy to
  * get from Packet to Triangulation<3>.
  *
- * In particular, attempting to use regina::static_packet_cast<Triangulation<3>>
- * with a packet holding a SnapPea triangulation is not allowed, and will result
- * in undefined behaviour.  In contrast, calling
+ * In particular, attempting to use
+ * `regina::static_packet_cast<Triangulation<3>>`
+ * with a packet holding a SnapPea triangulation is not allowed, and will
+ * result in undefined behaviour.  In contrast, calling
  * regina::static_triangulation3_cast on such a packet is allowed and
  * will return the expected Triangulation<3> reference.
  *
@@ -5089,6 +5232,34 @@ inline Triangulation<3>::~Triangulation() {
 #include "triangulation/dim3/component3.h"
 namespace regina {
 
+#ifndef __APIDOCS
+namespace detail {
+    template <>
+    struct RetriangulateParams<Triangulation<3>> {
+        using Signature = ByteSequence;
+
+        static Signature sig(const Triangulation<3>& tri) {
+            // Choose a fast and small signature type.
+            return tri.neoSig<IsoSigBinary>();
+        }
+
+        static Signature rigidSig(const Triangulation<3>& tri) {
+            // Currently rigidity is not supported for triangulations.
+            return tri.neoSig<IsoSigBinary>();
+        }
+
+        static constexpr const char* progressStage = "Exploring triangulations";
+
+        using PropagationOptions = NoPropagationOptions;
+
+        template <TerminatingCallback<Triangulation<3>&&, const Signature&>
+            Action>
+        static void propagateFrom(const Signature& sig, size_t maxSize,
+                PropagationOptions options, Action&& candidateAction);
+    };
+} // namespace detail
+#endif // __APIDOCS
+
 // Inline functions for Triangulation<3>
 
 inline Triangulation<3>::Triangulation(const Triangulation& src) :
@@ -5103,7 +5274,7 @@ inline Tetrahedron<3>* Triangulation<3>::newTetrahedron(const std::string& desc)
     return newSimplex(desc);
 }
 
-template <int k>
+template <int k> requires (k >= 0)
 inline std::array<Tetrahedron<3>*, k> Triangulation<3>::newTetrahedra() {
     return newSimplices<k>();
 }
@@ -5219,33 +5390,30 @@ inline void Triangulation<3>::reorderTetrahedraBFS(bool reverse) {
     reorderBFS(reverse);
 }
 
-inline bool Triangulation<3>::knowsZeroEfficient() const {
+inline bool Triangulation<3>::knowsZeroEfficient(bool) const {
     return prop_.zeroEfficient_.has_value();
 }
 
-inline bool Triangulation<3>::knowsOneEfficient() const {
-    // Check the preconditions before examining the cached value, since it's
-    // possible the 1-efficiency value was cached from a newer calculation
-    // engine that supports 1-efficiency testing in more settings.
-    if (! isValid()) {
-        throw FailedPrecondition(
-            "1-efficiency testing requires a valid triangulation");
-    }
-    if (! isIdeal()) {
-        // The empty triangulation is eliminated here.
-        throw FailedPrecondition(
-            "1-efficiency testing requires an ideal triangulation");
-    }
-    for (auto v : vertices()) {
+inline bool Triangulation<3>::knowsOneEfficient(bool cachedOnly) const {
+    // The preconditions are non-trivial; avoid checking them if we can.
+    if (cachedOnly && ! prop_.oneEfficient_.has_value())
+        return false;
+
+    // Check the preconditions now, before going further.
+    if (! (isValid() && isIdeal()))
+        return false; // failed precondition
+    for (auto v : vertices())
         if (v->linkType() != Vertex<3>::Link::Torus &&
                 v->linkType() != Vertex<3>::Link::KleinBottle)
-            throw FailedPrecondition(
-                "1-efficiency testing requires a triangulation whose "
-                "vertex links are all tori and/or Klein bottles");
-    }
+            return false; // failed precondition
 
     if (prop_.oneEfficient_.has_value())
         return true;
+
+    // 1-efficiency is not yet cached.
+    // This means that cachedOnly is false (otherwise we would have returned
+    // at the very beginning of this routine).
+    // Look for ways in which the 1-efficiency computation might be trivial.
 
     // We might already know the answer from the 0-efficiency property,
     // since for the settings in which we are able to test 1-efficiency,
@@ -5279,10 +5447,20 @@ inline const AngleStructure& Triangulation<3>::generalAngleStructure() const {
         throw NoSolution();
 }
 
-inline unsigned long Triangulation<3>::homologyH2Z2() const {
+inline bool Triangulation<3>::knowsHomologyRel(bool) const {
+    return prop_.H1Rel_.has_value() && isValid();
+}
+
+inline size_t Triangulation<3>::homologyH2Z2() const {
     // The call to homologyRel() will test the validity precondition.
     const AbelianGroup& h1Rel = homologyRel();
     return h1Rel.rank() + h1Rel.torsionRank(2);
+}
+
+inline bool Triangulation<3>::knowsHomologyH2Z2(bool) const {
+    // This property is trivially deduced from H1Rel, and so instead of
+    // caching H2Z2 separately, we share the cache for H1Rel instead.
+    return prop_.H1Rel_.has_value() && isValid();
 }
 
 inline const Triangulation<3>::TuraevViroSet&
@@ -5295,6 +5473,10 @@ inline bool Triangulation<3>::intelligentSimplify() {
 }
 
 template <typename Action, typename... Args>
+requires
+    TerminatingCallback<Action, Triangulation<3>&&, Args...> ||
+    TerminatingCallback<Action, const ByteSequence&, Triangulation<3>&&,
+        Args...>
 inline bool Triangulation<3>::retriangulate(int height, int threads,
         ProgressTrackerOpen* tracker, Action&& action, Args&&... args) const {
     if (countComponents() > 1) {
@@ -5304,24 +5486,19 @@ inline bool Triangulation<3>::retriangulate(int height, int threads,
             "retriangulate() requires a connected triangulation");
     }
 
-    // Use RetriangulateActionTraits to deduce whether the given action
-    // takes a triangulation or both an isomorphism signature and triangulation
-    // as its initial argument(s).
-    using Traits =
-        regina::detail::RetriangulateActionTraits<Triangulation<3>, Action>;
-    static_assert(Traits::valid,
-        "The action that is passed to retriangulate() does not take the correct initial argument type(s).");
-    if constexpr (Traits::withSig) {
-        return regina::detail::retriangulateInternal<Triangulation<3>, true>(
-            *this, false /* rigid */, height, threads, tracker,
-            [&](const std::string& sig, Triangulation<3>&& obj) {
-                return action(sig, std::move(obj), std::forward<Args>(args)...);
-            });
-    } else {
+    if constexpr (TerminatingCallback<Action, Triangulation<3>&&, Args...>) {
+        // Action takes just a triangulation.
         return regina::detail::retriangulateInternal<Triangulation<3>, false>(
             *this, false /* rigid */, height, threads, tracker,
             [&](Triangulation<3>&& obj) {
                 return action(std::move(obj), std::forward<Args>(args)...);
+            });
+    } else {
+        // Action takes both an isomorphism signature and a triangulation.
+        return regina::detail::retriangulateInternal<Triangulation<3>, true>(
+            *this, false /* rigid */, height, threads, tracker,
+            [&](const ByteSequence& sig, Triangulation<3>&& obj) {
+                return action(sig, std::move(obj), std::forward<Args>(args)...);
             });
     }
 }
@@ -5546,6 +5723,16 @@ inline void Triangulation<3>::puncture(Tetrahedron<3>* tet) {
         puncture(tet->triangle(0));
     else
         puncture(); // use the default location
+}
+
+inline bool Triangulation<3>::knowsIrreducible(bool) const {
+    return prop_.irreducible_.has_value() &&
+        isValid() && isOrientable() && isClosed() && isConnected();
+}
+
+inline bool Triangulation<3>::knowsHaken(bool) const {
+    return prop_.haken_.has_value() &&
+        isValid() && isOrientable() && isClosed() && isConnected();
 }
 
 inline const TreeDecomposition& Triangulation<3>::niceTreeDecomposition()

@@ -73,7 +73,7 @@ void addPentachoron4(pybind11::module_& m) {
             rbase::triangulation)
         .def("component", &Pentachoron<4>::component,
             pybind11::return_value_policy::reference, rbase::component)
-        .def("face", &regina::python::face<Pentachoron<4>, 4, int>,
+        .def("face", &regina::python::face<4, 4>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::face)
         .def("vertex", &Pentachoron<4>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
@@ -87,7 +87,7 @@ void addPentachoron4(pybind11::module_& m) {
             pybind11::return_value_policy::reference, rbase::triangle)
         .def("tetrahedron", &Pentachoron<4>::tetrahedron,
             pybind11::return_value_policy::reference, rbase::tetrahedron)
-        .def("faceMapping", &regina::python::faceMapping<Pentachoron<4>, 4>,
+        .def("faceMapping", &regina::python::faceMapping<4, 4>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::faceMapping)
         .def("vertexMapping", &Pentachoron<4>::vertexMapping,
             rbase::vertexMapping)
@@ -102,7 +102,7 @@ void addPentachoron4(pybind11::module_& m) {
         .def_readonly_static("dimension", &Pentachoron<4>::dimension)
         .def_readonly_static("subdimension", &Pentachoron<4>::subdimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END

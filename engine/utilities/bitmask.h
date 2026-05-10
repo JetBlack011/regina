@@ -38,13 +38,15 @@
 #endif
 
 #include <algorithm>
+#include <bit>
 #include <iostream>
 
 #include "regina-core.h"
-#include "regina-config.h"
 #include "concepts/core.h"
 #include "concepts/iterator.h"
 #include "utilities/bitmanip.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -131,8 +133,7 @@ class Bitmask {
          * Creates a new bitmask of the given length with all bits set to
          * \c false.
          *
-         * \param length the number of bits stored in this bitmask; this must
-         * be at least one.
+         * \param length the number of bits stored in this bitmask.
          */
         Bitmask(size_t length);
 
@@ -226,8 +227,8 @@ class Bitmask {
          * \param value the value that will be assigned to each of the
          * corresponding bits.
          */
-        template <InputIteratorFor<size_t> iterator>
-        void set(iterator indexBegin, iterator indexEnd, bool value) {
+        template <InputIteratorFor<size_t> Iterator>
+        void set(Iterator indexBegin, Iterator indexEnd, bool value) {
             Piece* base = mask;
             size_t offset = 0;
             size_t diff;
@@ -264,8 +265,7 @@ class Bitmask {
          * This routine can be used to change the length (number of
          * bits) of the bitmask if desired.
          *
-         * \param length the number of bits to store in this bitmask; this
-         * must be at least one.
+         * \param length the number of bits to store in this bitmask.
          */
         void reset(size_t length);
 
@@ -398,21 +398,44 @@ class Bitmask {
         bool operator == (const Bitmask& other) const;
 
         /**
-         * Determines whether this bitmask appears strictly before the given
-         * bitmask when bitmasks are sorted in lexicographical order.
-         * Here the bit at index 0 is least significant, and the bit at
-         * index \a length-1 is most significant.
+         * Deprecated routine that determines whether this bitmask appears
+         * strictly before the given bitmask when bitmasks are sorted in
+         * "reverse lexicographical" order.  Here the bit at index 0 is least
+         * significant, and the bit at index \a length-1 is most significant.
+         *
+         * \deprecated Instead use `numericalComp(other)`, which has a clearer
+         * name and which returns a three-way comparison.
+         *
+         * \pre This and the given bitmask have the same length.
+         *
+         * \param other the bitmask to compare against this.
+         * \return \c true if and only if this is "reverse lexicographically"
+         * strictly smaller than the given bitmask.
+         */
+        [[deprecated]] bool lessThan(const Bitmask& other) const;
+
+        /**
+         * Compares this against the given bitmask numerically, treating the
+         * bitmask as an unsigned integer written in binary.  This is
+         * essentially a "reverse lexicographical" ordering: the bit at index 0
+         * is least significant, and the bit at index \a length-1 is most
+         * significant.
          *
          * \pre This and the given bitmask have the same length.
          *
          * \warning We do not use \< for this ordering, since the comparison
          * operators (`<`, `≤`, `>`, `≥`) work with the subset relation instead.
          *
+         * \python Since Python does not support `std::strong_ordering`, this
+         * routine is called `numericalLessThan()` instead, and it returns a
+         * boolean according to whether the comparison orders this bitmask
+         * before \a other.
+         *
          * \param other the bitmask to compare against this.
-         * \return \c true if and only if this is lexicographically
-         * strictly smaller than the given bitmask.
+         * \return the result of the numerical comparison between this and
+         * the given bitmask.
          */
-        bool lessThan(const Bitmask& other) const;
+        std::strong_ordering numericalComp(const Bitmask& other) const;
 
         /**
          * Compares two bitmasks under the subset relation.
@@ -434,7 +457,7 @@ class Bitmask {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the bitmask to compare against this.
-         * \return The result of the subset comparison between this and the
+         * \return the result of the subset comparison between this and the
          * given bitmask.
          */
         std::partial_ordering operator <=> (const Bitmask& rhs) const;
@@ -736,8 +759,8 @@ class Bitmask1 {
          * \param value the value that will be assigned to each of the
          * corresponding bits.
          */
-        template <InputIteratorFor<size_t> iterator>
-        void set(iterator indexBegin, iterator indexEnd, bool value) {
+        template <InputIteratorFor<size_t> Iterator>
+        void set(Iterator indexBegin, Iterator indexEnd, bool value) {
             for ( ; indexBegin != indexEnd; ++indexBegin) {
                 mask |= (T(1) << *indexBegin);
                 if (! value)
@@ -816,20 +839,43 @@ class Bitmask1 {
         bool operator == (const Bitmask1&) const = default;
 
         /**
-         * Determines whether this bitmask appears strictly before the given
-         * bitmask when bitmasks are sorted in lexicographical order.
-         * Here the bit at index 0 is least significant, and the bit at
-         * index \a length-1 is most significant.
+         * Deprecated routine that determines whether this bitmask appears
+         * strictly before the given bitmask when bitmasks are sorted in
+         * "reverse lexicographical" order.  Here the bit at index 0 is least
+         * significant, and the bit at index `length-1` is most significant.
+         *
+         * \deprecated Instead use `numericalComp(other)`, which has a clearer
+         * name and which returns a three-way comparison.
+         *
+         * \param other the bitmask to compare against this.
+         * \return \c true if and only if this is "reverse lexicographically"
+         * strictly smaller than the given bitmask.
+         */
+        [[deprecated]] inline bool lessThan(const Bitmask1& other) const {
+            return (mask < other.mask);
+        }
+
+        /**
+         * Compares this against the given bitmask numerically, treating the
+         * bitmask as an unsigned integer written in binary.  This is
+         * essentially a "reverse lexicographical" ordering: the bit at index 0
+         * is least significant, and the bit at index \a length-1 is most
+         * significant.
          *
          * \warning We do not use \< for this ordering, since the comparison
          * operators (`<`, `≤`, `>`, `≥`) work with the subset relation instead.
          *
+         * \python Since Python does not support `std::strong_ordering`, this
+         * routine is called `numericalLessThan()` instead, and it returns a
+         * boolean according to whether the comparison orders this bitmask
+         * before \a other.
+         *
          * \param other the bitmask to compare against this.
-         * \return \c true if and only if this is lexicographically
-         * strictly smaller than the given bitmask.
+         * \return the result of the numerical comparison between this and
+         * the given bitmask.
          */
-        inline bool lessThan(const Bitmask1& other) const {
-            return (mask < other.mask);
+        inline std::strong_ordering numericalComp(const Bitmask1& other) const {
+            return mask <=> other.mask;
         }
 
         /**
@@ -850,7 +896,7 @@ class Bitmask1 {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the bitmask to compare against this.
-         * \return The result of the subset comparison between this and the
+         * \return the result of the subset comparison between this and the
          * given bitmask.
          */
         inline std::partial_ordering operator <=> (const Bitmask1& rhs)
@@ -1161,8 +1207,8 @@ class Bitmask2 {
          * \param value the value that will be assigned to each of the
          * corresponding bits.
          */
-        template <InputIteratorFor<size_t> iterator>
-        void set(iterator indexBegin, iterator indexEnd, bool value) {
+        template <InputIteratorFor<size_t> Iterator>
+        void set(Iterator indexBegin, Iterator indexEnd, bool value) {
             // First deal with the bits stored in low.
             for ( ; indexBegin != indexEnd && *indexBegin < 8 * sizeof(T);
                     ++indexBegin) {
@@ -1256,21 +1302,46 @@ class Bitmask2 {
         bool operator == (const Bitmask2& other) const = default;
 
         /**
-         * Determines whether this bitmask appears strictly before the given
-         * bitmask when bitmasks are sorted in lexicographical order.
-         * Here the bit at index 0 is least significant, and the bit at
-         * index \a length-1 is most significant.
+         * Deprecated routine that determines whether this bitmask appears
+         * strictly before the given bitmask when bitmasks are sorted in
+         * "reverse lexicographical" order.  Here the bit at index 0 is least
+         * significant, and the bit at index `length-1` is most significant.
+         *
+         * \deprecated Instead use `numericalComp(other)`, which has a clearer
+         * name and which returns a three-way comparison.
+         *
+         * \param other the bitmask to compare against this.
+         * \return \c true if and only if this is "reverse lexicographically"
+         * strictly smaller than the given bitmask.
+         */
+        [[deprecated]] inline bool lessThan(const Bitmask2& other) const {
+            return (high < other.high ||
+                (high == other.high && low < other.low));
+        }
+
+        /**
+         * Compares this against the given bitmask numerically, treating the
+         * bitmask as an unsigned integer written in binary.  This is
+         * essentially a "reverse lexicographical" ordering: the bit at index 0
+         * is least significant, and the bit at index \a length-1 is most
+         * significant.
          *
          * \warning We do not use \< for this ordering, since the comparison
          * operators (`<`, `≤`, `>`, `≥`) work with the subset relation instead.
          *
+         * \python Since Python does not support `std::strong_ordering`, this
+         * routine is called `numericalLessThan()` instead, and it returns a
+         * boolean according to whether the comparison orders this bitmask
+         * before \a other.
+         *
          * \param other the bitmask to compare against this.
-         * \return \c true if and only if this is lexicographically
-         * strictly smaller than the given bitmask.
+         * \return the result of the numerical comparison between this and
+         * the given bitmask.
          */
-        inline bool lessThan(const Bitmask2& other) const {
-            return (high < other.high ||
-                (high == other.high && low < other.low));
+        inline std::strong_ordering numericalComp(const Bitmask2& other) const {
+            if (auto c = high <=> other.high; c != 0)
+                return c;
+            return low <=> other.low;
         }
 
         /**
@@ -1291,7 +1362,7 @@ class Bitmask2 {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the bitmask to compare against this.
-         * \return The result of the subset comparison between this and the
+         * \return the result of the subset comparison between this and the
          * given bitmask.
          */
         std::partial_ordering operator <=> (const Bitmask2& rhs) const {
@@ -1415,13 +1486,72 @@ class Bitmask2 {
 #endif
 };
 
+/**
+ * Performs some action using an optimised bitmask type that can hold the
+ * given number of bits.
+ *
+ * The reason for using this routine (as opposed to just performing your
+ * action using the general Bitmask type) is that, if \a bits is small, this
+ * routine will use one of the optimised bitmask types Bitmask1 or Bitmask2.
+ *
+ * The action should be a templated callable type (e.g., a generic lambda),
+ * whose template type parameter adheres to the concept ReginaBitmask.
+ * The first argument passed to \a action will be the given number of bits;
+ * any arguments supplied via \a args will be forwarded through as additional
+ * arguments to \a action.  Any return value from \a action will be ignored.
+ *
+ * As an example:
+ *
+ * \code
+ * usingBitmaskFor(bits, []<ReginaBitmask BitmaskType>(size_t bits) {
+ *     BitmaskType bitmask(bits);
+ *     ...
+ * });
+ * \endcode
+ *
+ * \nopython
+ *
+ * \param bits the number of bits that the chosen bitmask type must support.
+ * \param action the action to perform using the best possible bitmask type.
+ * \param args any arguments that should be forwarded to \a action.
+ *
+ * \ingroup utilities
+ */
+template <typename Action, typename... Args>
+void usingBitmaskFor(size_t bits, Action&& action, Args&&... args) {
+    // Note: The C++ standard says (long long) must be at least 64-bit.
+    if (bits <= 8 * sizeof(unsigned))
+        action.template operator()<Bitmask1<unsigned>>(
+            bits, std::forward<Args>(args)...);
+    else if (bits <= 8 * sizeof(unsigned long))
+        action.template operator()<Bitmask1<unsigned long>>(
+            bits, std::forward<Args>(args)...);
+    else if (bits <= 8 * sizeof(unsigned long long))
+        action.template operator()<Bitmask1<unsigned long long>>(
+            bits, std::forward<Args>(args)...);
+#ifdef INT128_AVAILABLE
+    else if (bits <= 8 * sizeof(regina::UInt128))
+        action.template operator()<Bitmask1<regina::UInt128>>(
+            bits, std::forward<Args>(args)...);
+    else if (bits <= 16 * sizeof(regina::UInt128))
+        action.template operator()<Bitmask2<regina::UInt128>>(
+            bits, std::forward<Args>(args)...);
+#else
+    else if (bits <= 16 * sizeof(unsigned long long))
+        action.template operator()<Bitmask2<unsigned long long>>(
+            bits, std::forward<Args>(args)...);
+#endif
+    else
+        action.template operator()<Bitmask>(bits, std::forward<Args>(args)...);
+}
+
 // Inline functions for Bitmask
 
 inline Bitmask::Bitmask() : pieces(0), mask(nullptr) {
 }
 
 inline Bitmask::Bitmask(size_t length) :
-        pieces((length - 1) / (8 * sizeof(Piece)) + 1),
+        pieces(length > 0 ? (length - 1) / (8 * sizeof(Piece)) + 1 : 0),
         mask(new Piece[pieces]) {
     std::fill(mask, mask + pieces, 0);
 }
@@ -1447,7 +1577,7 @@ inline void Bitmask::reset() {
 inline void Bitmask::reset(size_t length) {
     delete[] mask;
 
-    pieces = (length - 1) / (8 * sizeof(Piece)) + 1;
+    pieces = (length > 0 ? (length - 1) / (8 * sizeof(Piece)) + 1 : 0);
     mask = new Piece[pieces];
 
     std::fill(mask, mask + pieces, 0);
@@ -1550,6 +1680,13 @@ inline bool Bitmask::lessThan(const Bitmask& other) const {
     return false;
 }
 
+inline std::strong_ordering Bitmask::numericalComp(const Bitmask& other) const {
+    for (ssize_t i = pieces - 1; i >= 0; --i)
+        if (auto c = mask[i] <=> other.mask[i]; c != 0)
+            return c;
+    return std::strong_ordering::equal;
+}
+
 inline std::partial_ordering Bitmask::operator <=> (const Bitmask& rhs) const {
     auto ans = std::partial_ordering::equivalent;
 
@@ -1593,7 +1730,7 @@ inline bool Bitmask::containsIntn(const Bitmask& x, const Bitmask& y) const {
 inline size_t Bitmask::bits() const {
     size_t ans = 0;
     for (size_t i = 0; i < pieces; ++i)
-        ans += BitManipulator<Piece>::bits(mask[i]);
+        ans += std::popcount(mask[i]);
     return ans;
 }
 
@@ -1616,7 +1753,7 @@ inline ssize_t Bitmask::lastBit() const {
 inline bool Bitmask::atMostOneBit() const {
     unsigned bits = 0;
     for (size_t i = 0; i < pieces; ++i) {
-        bits += BitManipulator<Piece>::bits(mask[i]);
+        bits += std::popcount(mask[i]);
         if (bits > 1)
             return false;
     }

@@ -40,6 +40,8 @@
 #include <cstdint>
 #include "utilities/exception.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -107,7 +109,7 @@ namespace detail {
  * End users should call binomSmall() instead of referring to this array
  * directly.
  *
- * \ingroup maths
+ * \ingroup detail
  */
 inline constexpr int binomSmall_[17][17] = {
     {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},

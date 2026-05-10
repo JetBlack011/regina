@@ -38,10 +38,13 @@
 #endif
 
 #include "regina-core.h"
+#include "concepts/core.h"
 #include "maths/forward.h"
 #include "triangulation/dim3.h"
 #include <complex>
 #include <functional>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 // Forward declaration of SnapPea structures.
 namespace regina::snappea {
@@ -71,6 +74,8 @@ class XMLLegacySnapPeaReader;
  *
  * Details of the error can be accessed through the inherited member
  * function what().
+ *
+ * \python This uses Python's `RuntimeError` as its base class.
  *
  * \ingroup snappea
  */
@@ -112,6 +117,8 @@ class SnapPeaFatalError : public std::runtime_error {
  * description so they can be created without allocating further resources).
  *
  * Details of the error can be accessed through the member function what().
+ *
+ * \python This uses Python's `RuntimeError` as its base class.
  *
  * \ingroup snappea
  */
@@ -386,10 +393,10 @@ class Cusp : public ShortOutput<Cusp> {
  *
  * Regina uses the variant of the SnapPea kernel that is shipped with
  * SnapPy (standard precision), as well as some additional code
- * written explicitly for SnapPy.  The header regina-config.h includes a
- * macro SNAPPY_VERSION that gives the exact version of SnapPy that is
- * bundled into Regina, and you can query this at runtime by calling
- * Regina's function regina::versionSnapPy().
+ * written explicitly for SnapPy.  The header `regina-config.h` (included via
+ * `regina-core.h`) defines a macro `SNAPPY_VERSION` that gives the exact
+ * version of SnapPy that is bundled into Regina, and you can query this at
+ * runtime by calling Regina's function regina::versionSnapPy().
  *
  * Since Regina 7.0, SnapPeaTriangulation is no longer a "packet type" that can
  * be inserted directly into the packet tree.  Instead a SnapPeaTriangulation
@@ -968,7 +975,7 @@ class SnapPeaTriangulation :
          * \param tri the Regina triangulation to clone.
          * \param ignored a legacy parameter that is now ignored.
          * (This argument was once required if you wanted to pass a
-         * closed triangluation to SnapPea.)
+         * closed triangulation to SnapPea.)
          */
         SnapPeaTriangulation(const Triangulation<3>& tri, bool ignored = false);
 
@@ -1468,13 +1475,12 @@ class SnapPeaTriangulation :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  The elements of the list will be
-         * read-only objects of type Cusp.  For example, your code might look
-         * like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  The elements of the list will be read-only objects of
+         * type Cusp.  For example, your code might look like:
          *
          * \code{.cpp}
          * for (const Cusp& c : tri->cusps()) { ... }
@@ -1875,7 +1881,7 @@ class SnapPeaTriangulation :
          * produced but is also much faster for larger \a k.
          *
          * For each cover that is produced, this routine will call \a action
-         * (which must be a function or some other callable object).
+         * (which must be a function or some other callable type).
          *
          * - The first argument to \a action must be a SnapPea triangulation;
          *   this will be the newly produced cover.  This argument will be
@@ -1896,7 +1902,8 @@ class SnapPeaTriangulation :
          * - If there are any additional arguments supplied in the list \a args,
          *   then these will be passed as subsequent arguments to \a action.
          *
-         * - \a action must return \c void.
+         * - The return value of \a action will be ignored; typically it would
+         *   return \c void.
          *
          * - \a action must not make changes to this original triangulation
          *   (i.e., the SnapPeaTriangulation upon which enumerateCovers()
@@ -1940,13 +1947,14 @@ class SnapPeaTriangulation :
          * be a positive integer.
          * \param type indicates whether to enumerate all covers (up to
          * equivalence) or only cyclic covers.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each cover that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial triangulation and type arguments.
          * \return the total number of covers found.
          */
         template <typename Action, typename... Args>
+        requires VoidCallback<Action, SnapPeaTriangulation&&, Cover, Args...>
         size_t enumerateCovers(int sheets, CoverEnumeration type,
             Action&& action, Args&&... args) const;
 
@@ -2282,6 +2290,14 @@ class SnapPeaTriangulation :
          */
         void writeTextLong(std::ostream& out) const;
 
+        // We inherit from both Output<SnapPeaTriangulation> and
+        // Output<Triangulation<3>>.  We need to resolve the ambiguous
+        // string output functions.
+
+        using Output<SnapPeaTriangulation>::str;
+        using Output<SnapPeaTriangulation>::utf8;
+        using Output<SnapPeaTriangulation>::detail;
+
         /*@}*/
 
     private:
@@ -2582,7 +2598,7 @@ inline const Cusp& SnapPeaTriangulation::cusp(unsigned whichCusp) const {
 }
 
 inline auto SnapPeaTriangulation::cusps() const {
-    return ListView(cusp_, countBoundaryComponents());
+    return std::views::counted(cusp_, countBoundaryComponents());
 }
 
 inline SnapPeaTriangulation SnapPeaTriangulation::protoCanonize() const {
@@ -2598,6 +2614,8 @@ inline void SnapPeaTriangulation::randomize() {
 }
 
 template <typename Action, typename... Args>
+requires VoidCallback<Action, SnapPeaTriangulation&&,
+    SnapPeaTriangulation::Cover, Args...>
 inline size_t SnapPeaTriangulation::enumerateCovers(int sheets,
         CoverEnumeration type, Action&& action, Args&&... args) const {
     return enumerateCoversInternal(sheets, type,

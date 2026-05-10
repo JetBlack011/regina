@@ -41,6 +41,7 @@
 #include "snappea/snappeatriangulation.h"
 #include "../helpers.h"
 #include "../helpers/exception.h"
+#include "../helpers/packet.h"
 #include "../docstrings/snappea/snappeatriangulation.h"
 #include "../docstrings/triangulation/detail/triangulation.h" // for global_swap
 
@@ -53,9 +54,9 @@ void addSnapPeaTriangulation(pybind11::module_& m, pybind11::module_& internal) 
     RDOC_SCOPE_BEGIN_MAIN
 
     regina::python::registerReginaException<regina::SnapPeaFatalError>(m,
-        "SnapPeaFatalError", rdoc::SnapPeaFatalError);
+        "SnapPeaFatalError", rdoc::SnapPeaFatalError, PyExc_RuntimeError);
     regina::python::registerReginaException<regina::SnapPeaMemoryFull>(m,
-        "SnapPeaMemoryFull", rdoc::SnapPeaMemoryFull);
+        "SnapPeaMemoryFull", rdoc::SnapPeaMemoryFull, PyExc_RuntimeError);
 
     RDOC_SCOPE_SWITCH(Cusp)
 
@@ -67,7 +68,7 @@ void addSnapPeaTriangulation(pybind11::module_& m, pybind11::module_& internal) 
         .def("m", &Cusp::m, rdoc::m)
         .def("l", &Cusp::l, rdoc::l)
     ;
-    regina::python::add_output(c1);
+    regina::python::add_output_rich(c1);
     regina::python::add_eq_operators(c1, rdoc::__eq);
 
     RDOC_SCOPE_SWITCH(SnapPeaTriangulation)
@@ -182,11 +183,11 @@ void addSnapPeaTriangulation(pybind11::module_& m, pybind11::module_& internal) 
     ;
     // SnapPeaTriangulation overrides the output routines; make sure we do not
     // get left with the inherited versions from Triangulation<3>.
-    regina::python::add_output(c2);
+    regina::python::add_output_rich(c2);
     regina::python::add_packet_data(c2);
     regina::python::packet_eq_operators(c2, rdoc::__eq);
 
-    regina::python::addListView<decltype(SnapPeaTriangulation().cusps())>(
+    regina::python::addStdView<decltype(SnapPeaTriangulation().cusps())>(
         internal, "SnapPea_cusps");
 
     auto wrap = regina::python::add_packet_wrapper<SnapPeaTriangulation>(

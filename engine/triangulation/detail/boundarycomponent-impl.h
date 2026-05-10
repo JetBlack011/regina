@@ -53,6 +53,8 @@
 #include "triangulation/generic/boundarycomponent.h"
 #include "utilities/fixedarray.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina::detail {
 
 /**
@@ -70,6 +72,7 @@ namespace regina::detail {
  * _not_ the index of \a f in the boundary component's facet list.
  */
 template <int dim, int subdim>
+requires (dim > 2 && subdim >= 0 && subdim < dim)
 class BoundaryFaceReorderIterator {
     private:
         using InternalIterator =
@@ -109,6 +112,7 @@ class BoundaryFaceReorderIterator {
 #ifndef __APIDOCS
 } namespace std {
     template <int dim, int subdim>
+    requires (dim > 2 && subdim >= 0 && subdim < dim)
     struct iterator_traits<regina::detail::BoundaryFaceReorderIterator<
             dim, subdim>> {
         using value_type = regina::Face<dim - 1, subdim>*;
@@ -120,14 +124,16 @@ class BoundaryFaceReorderIterator {
 } namespace regina::detail {
 #endif
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 BoundaryComponentBase<dim>::~BoundaryComponentBase() {
     if constexpr (canBuild)
         delete boundary_.value;
 }
 
-template <int dim>
-Triangulation<dim-1>* BoundaryComponentBase<dim>::buildRealBoundary() const {
+template <int dim> requires (supportedDim(dim))
+TriangulationTraits<dim>::Lower* BoundaryComponentBase<dim>::buildRealBoundary()
+        const
+        requires (dim > 2) {
     // From the precondition, there is a positive number of (dim-1)-faces.
     const auto& allFacets = std::get<tupleIndex(dim-1)>(faces_);
 
@@ -231,10 +237,10 @@ Triangulation<dim-1>* BoundaryComponentBase<dim>::buildRealBoundary() const {
     return ans;
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (dim > 2 && subdim >= 0 && subdim < dim)
 void BoundaryComponentBase<dim>::reorderAndRelabelFaces(
-        Triangulation<dim - 1>* tri,
+        TriangulationTraits<dim>::Lower* tri,
         const std::vector<Face<dim, subdim>*>& reference) const {
     if constexpr (subdim == dim - 1) {
         // The (dim-1) faces are already in perfect correspondence.

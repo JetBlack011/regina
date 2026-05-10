@@ -35,8 +35,7 @@ Python:
     Component<dim> is.
 
 Template parameter ``dim``:
-    the dimension of the underlying triangulation. This must be
-    between 2 and 15 inclusive.)doc";
+    the dimension of the underlying triangulation.)doc";
 
 }
 
@@ -65,10 +64,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (BoundaryComponent<dim>* bc : comp.boundaryComponents()) { ... }
@@ -108,17 +107,22 @@ Returns:
 constexpr const char *countEdges =
 R"doc(A dimension-specific alias for countFaces<1>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See countFaces() for further information.)doc";
+
+// Docstring regina::python::doc::detail::ComponentBase_::countFacets
+constexpr const char *countFacets =
+R"doc(Returns the number of `(dim-1)`-faces in this component.
+
+This is available (and constant time) for components in all
+dimensions, even though the list of `(dim-1)`-faces is only stored for
+components in Regina's standard dimensions.
+
+Returns:
+    the number of `(dim-1)`-faces.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::countPentachora
 constexpr const char *countPentachora =
 R"doc(A dimension-specific alias for countFaces<4>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 4.
 
 See countFaces() for further information.)doc";
 
@@ -126,17 +130,11 @@ See countFaces() for further information.)doc";
 constexpr const char *countTetrahedra =
 R"doc(A dimension-specific alias for countFaces<3>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
-
 See countFaces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::countTriangles
 constexpr const char *countTriangles =
 R"doc(A dimension-specific alias for countFaces<2>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See countFaces() for further information.)doc";
 
@@ -144,26 +142,17 @@ See countFaces() for further information.)doc";
 constexpr const char *countVertices =
 R"doc(A dimension-specific alias for countFaces<0>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See countFaces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::edge
 constexpr const char *edge =
 R"doc(A dimension-specific alias for face<1>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::edges
 constexpr const char *edges =
 R"doc(A dimension-specific alias for faces<1>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See faces() for further information.)doc";
 
@@ -177,6 +166,21 @@ to an adjacent simplex.
 
 Returns:
     ``True`` if and only if this component has boundary facet(s).)doc";
+
+// Docstring regina::python::doc::detail::ComponentBase_::hasLocks
+constexpr const char *hasLocks =
+R"doc(Identifies whether any top-dimensional simplices in this component
+and/or any of their facets are locked.
+
+In short, locking a top-dimensional simplex and/or some of its facets
+means that that the simplex and/or facets must not be changed. See
+Simplex<dim>::lock() and Simplex<dim>::lockFacet() for full details on
+how locks work and what their implications are.
+
+Returns:
+    ``True`` if and only if there is at least one locked top-
+    dimensional simplex or at least one locked facet of a top-
+    dimensional simplex within this component.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::index
 constexpr const char *index =
@@ -215,17 +219,11 @@ constexpr const char *pentachora =
 R"doc(A dimension-specific alias for faces<4>(), or an alias for simplices()
 in dimension *dim* = 4.
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 4.
-
 See faces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::pentachoron
 constexpr const char *pentachoron =
 R"doc(A dimension-specific alias for face<4>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 4.
 
 See face() for further information.)doc";
 
@@ -253,10 +251,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (Simplex<dim>* s : comp.simplices()) { ... }
@@ -277,15 +275,12 @@ constexpr const char *size =
 R"doc(Returns the number of top-dimensional simplices in this component.
 
 Returns:
-    The number of top-dimensional simplices.)doc";
+    the number of top-dimensional simplices.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::tetrahedra
 constexpr const char *tetrahedra =
 R"doc(A dimension-specific alias for faces<3>(), or an alias for simplices()
 in dimension *dim* = 3.
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
 
 See faces() for further information.)doc";
 
@@ -293,17 +288,11 @@ See faces() for further information.)doc";
 constexpr const char *tetrahedron =
 R"doc(A dimension-specific alias for face<3>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::triangle
 constexpr const char *triangle =
 R"doc(A dimension-specific alias for face<2>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See face() for further information.)doc";
 
@@ -312,26 +301,24 @@ constexpr const char *triangles =
 R"doc(A dimension-specific alias for faces<2>(), or an alias for simplices()
 in dimension *dim* = 2.
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See faces() for further information.)doc";
+
+// Docstring regina::python::doc::detail::ComponentBase_::triangulation
+constexpr const char *triangulation =
+R"doc(Returns the triangulation to which this component belongs.
+
+Returns:
+    a reference to the triangulation containing this component.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::vertex
 constexpr const char *vertex =
 R"doc(A dimension-specific alias for face<0>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::ComponentBase_::vertices
 constexpr const char *vertices =
 R"doc(A dimension-specific alias for faces<0>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See faces() for further information.)doc";
 

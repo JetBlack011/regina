@@ -31,12 +31,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
-#include "../helpers.h"
 #include "triangulation/facetpairing.h"
 #include "triangulation/generic.h"
-#include "triangulation/isosigtype.h"
 #include "triangulation/detail/isosig-impl.h"
 #include "utilities/typeutils.h"
+#include "../helpers.h"
+#include "../helpers/packet.h"
 #include "../generic/facehelper.h"
 #include "../docstrings/triangulation/generic/triangulation.h"
 #include "../docstrings/triangulation/detail/triangulation.h"
@@ -45,13 +45,14 @@
 
 using pybind11::overload_cast;
 using regina::AbelianGroup;
+using regina::ByteSequence;
 using regina::Face;
 using regina::Isomorphism;
 using regina::MarkedAbelianGroup;
 using regina::MatrixInt;
 using regina::Triangulation;
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
         const char* name) {
     RDOC_SCOPE_BEGIN(Triangulation)
@@ -108,7 +109,8 @@ void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
             rbase::countBoundaryComponents)
         .def("countFaces",
             static_cast<regina::python::countFacesFunc<Triangulation<dim>>>(
-            &Triangulation<dim>::countFaces), rbase::countFaces)
+                &Triangulation<dim>::countFaces),
+            rbase::countFaces)
         .def("fVector", &Triangulation<dim>::fVector, rbase::fVector)
         .def("components", &Triangulation<dim>::components,
             pybind11::keep_alive<0, 1>(), rbase::components)
@@ -124,7 +126,7 @@ void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
             pybind11::return_value_policy::reference_internal,
             rbase::boundaryComponent)
         .def("face", static_cast<regina::python::faceFunc<Triangulation<dim>>>(
-            &Triangulation<dim>::face),
+                &Triangulation<dim>::face),
             pybind11::return_value_policy::reference_internal, rbase::face)
         .def("countVertices", &Triangulation<dim>::countVertices,
             rbase::countVertices)
@@ -210,10 +212,17 @@ void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
         .def("simplifiedFundamentalGroup", // deprecated
             &Triangulation<dim>::setGroupPresentation,
             rbase::simplifiedFundamentalGroup)
+        .def("cachedGroup", &Triangulation<dim>::cachedGroup,
+            rbase::cachedGroup)
         .def("homology",
             static_cast<AbelianGroup (Triangulation<dim>::*)(int) const>(
                 &Triangulation<dim>::homology),
             pybind11::arg("k") = 1, rbase::homology)
+        .def("knowsHomology",
+            static_cast<bool (Triangulation<dim>::*)(int, bool) const>(
+                &Triangulation<dim>::knowsHomology),
+            pybind11::arg("k") = 1, pybind11::arg("cachedOnly") = false,
+            rbase::knowsHomology)
         .def("markedHomology",
             static_cast<MarkedAbelianGroup (Triangulation<dim>::*)(int) const>(
                 &Triangulation<dim>::markedHomology),
@@ -284,11 +293,20 @@ void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
             overload_cast<const Triangulation<dim>&>(
                 &Triangulation<dim>::insertTriangulation),
             rbase::insertTriangulation)
-        .def("sig", &Triangulation<dim>::template sig<>, rbase::sig)
-        // Variants of isoSig() are handled through isosig_options() below.
-        .def_static("fromIsoSig", &Triangulation<dim>::fromIsoSig,
+        // Variants of isoSig() are handled through add_isosig_variants() below.
+        // With fromSig(), the byte sequence variant _must_ come first.
+        // This is because pybind11 performs automatic conversion from bytes
+        // to std::string, and so if the string variant appears first then
+        // pybind11 will use it even with a pybind11::bytes argument.
+        .def_static("fromSig",
+            overload_cast<const ByteSequence&>(&Triangulation<dim>::fromSig),
+            rbase::fromSig_2)
+        .def_static("fromSig",
+            overload_cast<const std::string&>(&Triangulation<dim>::fromSig),
+            rbase::fromSig)
+        .def_static("fromIsoSig", // deprecated
+            overload_cast<const std::string&>(&Triangulation<dim>::fromSig),
             rbase::fromIsoSig)
-        .def_static("fromSig", &Triangulation<dim>::fromSig, rbase::fromSig)
         .def_static("isoSigComponentSize",
             &Triangulation<dim>::isoSigComponentSize,
             rbase::isoSigComponentSize)
@@ -386,19 +404,19 @@ void addTriangulation(pybind11::module_& m, pybind11::module_& internal,
         #pragma GCC diagnostic pop
         #endif
     });
-    regina::python::isosig_options<dim>(c);
-    regina::python::add_output(c);
+    regina::python::add_isosig_variants<dim>(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::packet_eq_operators(c, rbase::__eq);
     regina::python::add_packet_data(c);
 
-    // The ListView classes for faces<subdim>() where subdim < dim are wrapped
+    // The view classes for faces<subdim>() where subdim < dim are wrapped
     // in face-bindings.h, since this needs to be done for each subdimension.
-    regina::python::addListView<decltype(Triangulation<dim>().simplices())>(
+    regina::python::addStdView<decltype(Triangulation<dim>().simplices())>(
         internal, (std::string(name) + "_simplices").c_str());
-    regina::python::addListView<decltype(Triangulation<dim>().components())>(
+    regina::python::addStdView<decltype(Triangulation<dim>().components())>(
         internal, (std::string(name) + "_components").c_str());
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(Triangulation<dim>().boundaryComponents())>(internal,
         (std::string(name) + "_boundaryComponents").c_str());
 

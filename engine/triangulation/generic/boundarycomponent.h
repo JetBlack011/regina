@@ -43,6 +43,8 @@
 
 #include "triangulation/detail/boundarycomponent.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -113,13 +115,12 @@ namespace regina {
  * (e.g., BoundaryComponent2 and BoundaryComponent3 for dimensions 2 and 3).
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \headerfile triangulation/generic.h
  *
  * \ingroup generic
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class BoundaryComponent : public detail::BoundaryComponentBase<dim> {
     private:
         /**

@@ -40,15 +40,17 @@
 #include "regina-core.h"
 #include "maths/perm.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
-    template <int> class Perm;
+    template <int n> requires (2 <= n && n <= maxPermDegree()) class Perm;
 }
 
 namespace regina::alias {
 
 /**
  * Helper class that provides dimension-specific aliases for both const and
- * non-const versions of simpImage(size_t) and facetPerm(size_t), where
+ * non-const versions of `simpImage(size_t)` and `facetPerm(size_t)`, where
  * reasonable, for isomorphisms in dimension \a dim.
  *
  * This is inherited by the class \a Derived, which must provide functions
@@ -63,13 +65,13 @@ namespace regina::alias {
  *
  * \ingroup alias
  */
-template <typename Derived, int dim>
+template <typename Derived, int dim> requires (supportedDim(dim))
 class IsomorphismImage {
 };
 
 /**
  * Helper class that provides dimension-specific aliases for both const and
- * non-const versions of simpImage(size_t) and facetPerm(size_t).
+ * non-const versions of `simpImage(size_t)` and `facetPerm(size_t)`.
  *
  * This is inherited by the class \a Derived, which must provide functions
  * of the form
@@ -149,7 +151,7 @@ class IsomorphismImage<Derived, 2> {
 
 /**
  * Helper class that provides dimension-specific aliases for both const and
- * non-const versions of simpImage(size_t) and facetPerm(size_t).
+ * non-const versions of `simpImage(size_t)` and `facetPerm(size_t)`.
  *
  * This is inherited by the class \a Derived, which must provide functions
  * of the form
@@ -229,7 +231,7 @@ class IsomorphismImage<Derived, 3> {
 
 /**
  * Helper class that provides dimension-specific aliases for both const and
- * non-const versions of simpImage(size_t).
+ * non-const versions of `simpImage(size_t)`.
  *
  * This is inherited by the class \a Derived, which must provide functions
  * of the form

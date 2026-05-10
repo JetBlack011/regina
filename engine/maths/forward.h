@@ -40,6 +40,9 @@
 
 #include "concepts/core.h"
 #include "concepts/io.h"
+#include "utilities/intutils.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -47,11 +50,13 @@ template <bool> class IntegerBase;
 using Integer = IntegerBase<false>;
 using LargeInteger = IntegerBase<true>;
 
-template <int> class NativeInteger;
+template <int bytes>
+requires (supportsNativeIntegerSize(bytes))
+class NativeInteger;
 
 template <RingLike> struct RingTraits;
 
-template <RingLike T>
+template <Ring T>
 requires Writeable<T> && IntegerCompatible<T>
 class Vector;
 

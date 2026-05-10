@@ -67,6 +67,7 @@ void addIsomorphism4(pybind11::module_& m) {
         }, rdoc::setFacetPerm)
         .def("__getitem__", &Isomorphism<4>::operator[], rdoc::__array)
         .def("isIdentity", &Isomorphism<4>::isIdentity, rdoc::isIdentity)
+        .def("isEven", &Isomorphism<4>::isEven, rdoc::isEven)
         .def("__call__", overload_cast<const regina::Triangulation<4>&>(
             &Isomorphism<4>::operator(), pybind11::const_), rdoc::__call)
         .def("__call__", overload_cast<const regina::FacetSpec<4>&>(
@@ -90,7 +91,7 @@ void addIsomorphism4(pybind11::module_& m) {
             rdoc::random)
         .def_static("identity", &Isomorphism<4>::identity, rdoc::identity)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 

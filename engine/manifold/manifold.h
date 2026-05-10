@@ -42,6 +42,8 @@
 #include "triangulation/forward.h"
 #include "utilities/exception.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class AbelianGroup;
@@ -196,7 +198,7 @@ class Manifold : public Output<Manifold> {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the 3-manifold representation to compare this with.
-         * \return A result that indicates how this and the given 3-manifold
+         * \return a result that indicates how this and the given 3-manifold
          * representation should be ordered with respect to each other.
          */
         std::weak_ordering operator <=> (const Manifold& rhs) const;

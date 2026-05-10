@@ -28,20 +28,22 @@
  *                                                                        *
  **************************************************************************/
 
+/*! \file maths/primes.h
+ *  \brief Support for finding primes and factorising integers.
+ */
+
 #ifndef __REGINA_PRIMES_H
 #ifndef __DOXYGEN
 #define __REGINA_PRIMES_H
 #endif
-
-/*! \file maths/primes.h
- *  \brief Support for finding primes and factorising integers.
- */
 
 #include "regina-core.h"
 #include "maths/integer.h"
 #include <thread>
 #include <vector>
 #include <mutex>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -175,12 +177,12 @@ class Primes {
          *
          * \todo \opt Add a version that does not return the factors by value.
          *
-         * \python In addition to this routine, the routine
-         * primeDecompInt() is also available.  The routine
-         * primeDecompInt() behaves identically to this routine except
-         * that the (i) return values are of ordinary integer type, not
-         * Integer; (ii) the input value \a n must lie within
-         * the C++ long integer range (otherwise the behaviour is undefined).
+         * \python There are two versions of this routine.  One is exactly as
+         * described here.  The second allows you to pass \a n as a native
+         * C++ long integer, in which case the prime factors that are returned
+         * will be of ordinary integer type (not Integer).  This second version
+         * used to be called `primeDecompInt()`; that alternate name is
+         * now deprecated, and you can just use `primeDecomp()` instead.
          *
          * \param n the integer to factorise.
          * \return the list of prime factors as described above.
@@ -228,12 +230,12 @@ class Primes {
          *
          * \todo \opt Add a version that does not return the factors by value.
          *
-         * \python In addition to this routine, the routine
-         * primePowerDecompInt() is also available.  The routine
-         * primePowerDecompInt() behaves identically to this routine except
-         * that the (i) return values are of ordinary integer type, not
-         * Integer; (ii) the input value \a n must lie within
-         * the C++ long integer range (otherwise the behaviour is undefined).
+         * \python There are two versions of this routine.  One is exactly as
+         * described here.  The second allows you to pass \a n as a native
+         * C++ long integer, in which case the prime factors that are returned
+         * will be of ordinary integer type (not Integer).  This second version
+         * used to be called `primePowerDecompInt()`; that alternate name is
+         * now deprecated, and you can just use `primePowerDecomp()` instead.
          *
          * \param n the integer to factorise.
          * \return the list of prime power factors as described above.

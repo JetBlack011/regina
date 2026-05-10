@@ -9,7 +9,6 @@ SET ( FILES
   face6.cpp
   face7.cpp
   face8.cpp
-  facehelper.cpp
   facenumbering.cpp
   facetpairing2.cpp
   facetpairing4.cpp
@@ -22,6 +21,7 @@ SET ( FILES
   isomorphism6.cpp
   isomorphism7.cpp
   isomorphism8.cpp
+  isosig.cpp
   pygeneric.cpp
   triangulation5.cpp
   triangulation6.cpp

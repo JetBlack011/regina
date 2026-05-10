@@ -45,35 +45,48 @@
 #include "surface/normalsurface.h"
 #include "triangulation/dim3.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 template <typename> class DiscSpecIterator;
 
 /**
- * Specifies a single normal disc in a normal surface.
+ * Specifies a single normal or almost normal disc within a normal or
+ * almost normal surface.
  *
- * There are 10 disc types.  Types 0-3 represent triangles 0-3,
- * types 4-6 represent quads 0-2 and types 7-9 represent
- * octagons 0-2.
+ * There are 10 disc _types_ within each tetrahedron.  In contrast to the
+ * flexibility offered by DiscType, here in DiscSpec we insist on a fixed
+ * numbering scheme:
  *
- * Discs of a specific type are assigned numbers from 0 upwards.
- * Triangular discs are numbered outwards from the vertex they surround.
- * Quad discs and octagonal discs are numbered outwards away from vertex 0
- * of the tetrahedron.
+ * - disc types 0-3 represent triangle types 0-3 respectively;
+ * - disc types 4-6 represent quadrilateral types 0-2 respectively;
+ * - disc types 7-9 represent octagon types 0-2 respectively.
  *
- * Note that, unlike DiscType in which the meaning of DiscType::type is
- * flexible, the meaning of DiscSpec::type is fixed as described above.
+ * For each disc type within each tetrahedron, the individual discs are
+ * numbered from 0 upwards:
+ *
+ * - triangular discs are numbered outwards from the vertex they surround;
+ * - quadrilateral and octagonal discs are numbered outwards away from
+ *   vertex 0 of the tetrahedron.
+ *
+ * A major limitation of DiscSpec is that, unlike the NormalSurface class,
+ * it does _not_ use arbitrary precision integers: instead the number of discs
+ * of each type within each tetrahedron is assumed to fit inside a native
+ * \c size_t.  This is because the purpose of this class is to support
+ * algorithms that iterate through all discs in a surface (e.g., naïve
+ * orientability or two-sidedness testing, or triangulation of normal
+ * hypersurfaces).  In such applications, if you have more discs than can fit
+ * inside a \c size_t then your algorithm has no chance of finishing within
+ * any practical time or memory bounds.
+ *
+ * This class can only be used with _embedded_ normal surfaces.
  *
  * These objects are small enough to pass by value and swap with std::swap(),
  * with no need for any specialised move operations or swap functions.
  *
- * \warning This class converts the indices of normal discs of a
- * given type from LargeInteger to `unsigned long`.  See the
- * precondition below.
- *
- * \pre The number of normal discs of a particular type
- * in a particular tetrahedron can be represented by a long integer.
- * \pre This class should only be used with \a embedded normal surfaces.
+ * \pre The number of normal discs of a particular type in a particular
+ * tetrahedron can be represented by a native \c size_t.
  *
  * \ingroup surface
  */
@@ -84,7 +97,7 @@ struct DiscSpec {
     int type;
         /**< The disc type; this is between 0 and 9 inclusive, as described
              in the \a DiscSpec class notes. */
-    unsigned long number;
+    size_t number;
         /**< Specifies which disc of the particular type in the
              particular tetrahedron is being referred to; discs
              are numbered as described in the \a DiscSpec class notes. */
@@ -93,6 +106,7 @@ struct DiscSpec {
      * Creates a new uninitialised disc specifier.
      */
     DiscSpec() = default;
+
     /**
      * Creates a new disc specifier containing the given values.
      *
@@ -104,9 +118,12 @@ struct DiscSpec {
      * particular tetrahedron is being referred to; discs are numbered
      * as described in the \a DiscSpec class notes.
      */
-    DiscSpec(size_t newTetIndex, int newType, unsigned long newNumber);
+    DiscSpec(size_t newTetIndex, int newType, size_t newNumber) :
+            tetIndex(newTetIndex), type(newType), number(newNumber) {
+    }
+
     /**
-     * Creates a new disc specifier that is a clone of the given specifier.
+     * Creates a new clone of the given disc specifier.
      */
     DiscSpec(const DiscSpec&) = default;
 
@@ -116,6 +133,7 @@ struct DiscSpec {
      * \return a reference to this disc specifier.
      */
     DiscSpec& operator = (const DiscSpec&) = default;
+
     /**
      * Determines if this and the given disc specifier contain identical
      * information.
@@ -139,7 +157,9 @@ struct DiscSpec {
  *
  * \ingroup surface
  */
-std::ostream& operator << (std::ostream& out, const DiscSpec& spec);
+inline std::ostream& operator << (std::ostream& out, const DiscSpec& spec) {
+    return out << spec.tetIndex << ':' << spec.type << " #" << spec.number;
+}
 
 /**
  * Determines whether or not normal discs of the given type are
@@ -186,20 +206,14 @@ bool discOrientationFollowsEdge(int discType, int vertex,
  * querying them is fast regardless of the underlying normal surface
  * coordinate system used.
  *
+ * This class can only be used with _embedded_ normal surfaces.
+ *
  * These objects are small enough to pass by value and swap with std::swap(),
  * with no need for any specialised move operations or swap functions.
  *
- * \warning This class converts the number of normal discs of a
- * given type from LargeInteger to `unsigned long`.  See the
- * precondition below.
- *
- * \pre The number of normal discs of a particular type
- * in a particular tetrahedron can be represented by a long integer.
- * \pre This class should only be used with \a embedded normal surfaces.
- *
- * \todo \problong Have some error flag so we can barf politely if the number
- * of normal discs of a given type does not fit into an `unsigned long`.
- * See how this affects DiscSetTetData also.
+ * \warning This class converts the number of normal discs of a given type from
+ * LargeInteger to `size_t`.  If there are so many normal discs that this is
+ * impossible, the class constructor will throw an exception.
  *
  * \ingroup surface
  */
@@ -215,21 +229,25 @@ class DiscSetTet {
         using Data = std::nullptr_t;
 
     protected:
-        unsigned long discs_[10];
+        size_t discs_[10];
             /**< The number of discs of each type. */
 
     public:
         /**
          * Creates a new set of normal discs corresponding to the discs
-         * of the given normal surface that lie within the given
-         * tetrahedron.
+         * of the given normal surface that lie within the given tetrahedron.
+         *
+         * \pre The given surface is embedded.
+         *
+         * \exception IntegerOverflow The given surface has normal coordinates
+         * that are so large that the number of discs of some type cannot fit
+         * into a native C++ \c size_t.
          *
          * \param surface the normal surface whose discs we shall use.
          * \param tetIndex the index in the triangulation of the
          * tetrahedron that our discs must lie in; this must be between
-         * 0 and `tri.size()-1` inclusive, where
-         * `tri` is the triangulation containing the given normal
-         * surface.
+         * 0 and `tri.size()-1` inclusive, where `tri` is the triangulation
+         * containing the given normal surface.
          */
         DiscSetTet(const NormalSurface& surface, size_t tetIndex);
         /**
@@ -247,11 +265,9 @@ class DiscSetTet {
          * \param oct1 the number of octahedral discs of type 1.
          * \param oct2 the number of octahedral discs of type 2.
          */
-        DiscSetTet(unsigned long tri0, unsigned long tri1,
-            unsigned long tri2, unsigned long tri3,
-            unsigned long quad0, unsigned long quad1, unsigned long quad2,
-            unsigned long oct0 = 0, unsigned long oct1 = 0,
-            unsigned long oct2 = 0);
+        DiscSetTet(size_t tri0, size_t tri1, size_t tri2, size_t tri3,
+            size_t quad0, size_t quad1, size_t quad2,
+            size_t oct0 = 0, size_t oct1 = 0, size_t oct2 = 0);
 
         /**
          * Creates a new copy of the given set of normal discs.
@@ -291,7 +307,7 @@ class DiscSetTet {
          * \return the number of discs of the given type inside this
          * tetrahedron.
          */
-        unsigned long nDiscs(int type) const;
+        size_t nDiscs(int type) const;
 
         /**
          * Determines which normal arc of a given type on a given face
@@ -317,15 +333,14 @@ class DiscSetTet {
          * together define the arc type) are numbered starting at 0 from the
          * tetrahedron vertex outwards.
          */
-        unsigned long arcFromDisc(int arcFace, int arcVertex,
-            int discType, unsigned long discNumber) const;
+        size_t arcFromDisc(int arcFace, int arcVertex,
+            int discType, size_t discNumber) const;
         /**
          * Determines which normal disc in this tetrahedron meets 
          * the given normal arc on the given face.
          *
-         * \pre The given normal arc
-         * actually exists in the normal surface with which this
-         * \a DiscSetTet object was created.
+         * \pre The given normal arc actually exists in the normal surface
+         * with which this \a DiscSetTet object was created.
          *
          * \param arcFace the face of this tetrahedron containing the
          * normal arc (between 0 and 3 inclusive).
@@ -344,26 +359,24 @@ class DiscSetTet {
          * meets the given normal arc (between 0 and `nDiscs(discType)-1`
          * inclusive).
          */
-        std::pair<int, unsigned long> discFromArc(int arcFace, int arcVertex,
-            unsigned long arcNumber) const;
+        std::pair<int, size_t> discFromArc(int arcFace, int arcVertex,
+            size_t arcNumber) const;
 };
 
 /**
  * Stores data of type \c T for every normal disc inside a single
  * tetrahedron.
  *
+ * This class can only be used with _embedded_ normal surfaces.
+ *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
  * even when passing or returning objects by value.
  *
- * \warning This class converts the number of normal discs of a
- * given type from LargeInteger to `unsigned long`.  See the
- * precondition below.
+ * \warning This class converts the number of normal discs of a given type from
+ * LargeInteger to `size_t`.  If there are so many normal discs that this is
+ * impossible, the class constructor will throw an exception.
  *
- * \pre The number of normal discs of a particular type
- * in a particular tetrahedron can be represented by a long integer.
- * \pre This class should only be used with \a embedded
- * normal surfaces.
  * \pre Type T has a default constructor and an
  * assignment operator.  That is, if \c a and \c b are of type T, then
  * \c a can be declared with no parameters and can then receive the
@@ -391,6 +404,12 @@ class DiscSetTetData : public DiscSetTet {
          * normal surface that lie within the given tetrahedron.  The data for
          * each disc will be initialised using its default constructor.
          *
+         * \pre The given surface is embedded.
+         *
+         * \exception IntegerOverflow The given surface has normal coordinates
+         * that are so large that the number of discs of some type cannot fit
+         * into a native C++ \c size_t.
+         *
          * \param surface the normal surface whose discs we shall use.
          * \param tetIndex the index in the triangulation of the
          * tetrahedron that our discs must lie in; this must be between
@@ -409,6 +428,12 @@ class DiscSetTetData : public DiscSetTet {
          * Creates a new disc set corresponding to the discs of the
          * given normal surface that lie within the given tetrahedron.
          * The data for each disc will be initialised to the given value.
+         *
+         * \pre The given surface is embedded.
+         *
+         * \exception IntegerOverflow The given surface has normal coordinates
+         * that are so large that the number of discs of some type cannot fit
+         * into a native C++ \c size_t.
          *
          * \param surface the normal surface whose discs we shall use.
          * \param tetIndex the index in the triangulation of the
@@ -445,11 +470,9 @@ class DiscSetTetData : public DiscSetTet {
          * \param oct1 the number of octahedral discs of type 1.
          * \param oct2 the number of octahedral discs of type 2.
          */
-        DiscSetTetData(unsigned long tri0, unsigned long tri1,
-                unsigned long tri2, unsigned long tri3,
-                unsigned long quad0, unsigned long quad1, unsigned long quad2,
-                unsigned long oct0 = 0, unsigned long oct1 = 0,
-                unsigned long oct2 = 0) :
+        DiscSetTetData(size_t tri0, size_t tri1, size_t tri2, size_t tri3,
+                size_t quad0, size_t quad1, size_t quad2,
+                size_t oct0 = 0, size_t oct1 = 0, size_t oct2 = 0) :
                 DiscSetTet(tri0, tri1, tri2, tri3, quad0, quad1, quad2,
                     oct0, oct1, oct2) {
             for (int i=0; i<10; i++)
@@ -605,7 +628,7 @@ class DiscSetTetData : public DiscSetTet {
          * \return a reference to the data corresponding to the given
          * normal disc.
          */
-        T& data(int discType, unsigned long discNumber) {
+        T& data(int discType, size_t discNumber) {
             // assert(0 <= discType && discType < 10);
             // assert(discNumber < discs_[discType]);
             return data_[discType][discNumber];
@@ -637,6 +660,8 @@ void swap(DiscSetTetData<T>& a, DiscSetTetData<T>& b) noexcept {
  * End users should not refer to this class directly; instead use one of
  * the type aliases DiscSetSurfaceData<T> or DiscSetSurface.
  *
+ * This class can only be used with _embedded_ normal surfaces.
+ *
  * This class implements C++ move semantics and adheres to the C++ Swappable
  * requirement.  It is designed to avoid deep copies wherever possible,
  * even when passing or returning objects by value.
@@ -646,13 +671,9 @@ void swap(DiscSetTetData<T>& a, DiscSetTetData<T>& b) noexcept {
  * (2) a class of the form DiscSetTetData<T>, in which case there will
  * be data of type \a T stored alongside each normal disc.
  *
- * \warning This class converts the number of normal discs of a
- * given type from LargeInteger to `unsigned long`.  See the
- * precondition below.
- *
- * \pre The number of normal discs of a particular type
- * in a particular tetrahedron can be represented by a long integer.
- * \pre This class should only be used with \a embedded normal surfaces.
+ * \warning This class converts the number of normal discs of a given type from
+ * LargeInteger to `size_t`.  If there are so many normal discs that this is
+ * impossible, the class constructor will throw an exception.
  *
  * \python The only instance of this class that is available
  * through python is DiscSetSurface (i.e., the "vanilla" case where
@@ -681,6 +702,12 @@ class DiscSetSurfaceDataImpl {
          * (using Regina's snapshotting machinery, which only takes a
          * deep copy when absolutely necessary).
          *
+         * \pre The given surface is embedded.
+         *
+         * \exception IntegerOverflow The given surface has normal coordinates
+         * that are so large that the number of discs of some type cannot fit
+         * into a native C++ \c size_t.
+         *
          * \param surface the normal surface whose discs we shall use.
          */
         DiscSetSurfaceDataImpl(const NormalSurface& surface) :
@@ -707,9 +734,15 @@ class DiscSetSurfaceDataImpl {
          * \pre The template argument TetData is a class of the form
          * DiscSetTetData<T>, not DiscSetTet.
          *
+         * \pre The given surface is embedded.
+         *
          * \nopython In Python, the template argument TetData is always
          * DiscSetTet, which does not store any additional data alongside
          * each normal disc.
+         *
+         * \exception IntegerOverflow The given surface has normal coordinates
+         * that are so large that the number of discs of some type cannot fit
+         * into a native C++ \c size_t.
          *
          * \param surface the normal surface whose discs we shall use.
          * \param initValue the value with which to initialise the data
@@ -900,7 +933,7 @@ class DiscSetSurfaceDataImpl {
          * \return the number of discs of the given type inside the
          * given tetrahedron.
          */
-        unsigned long nDiscs(size_t tetIndex, int type) const {
+        size_t nDiscs(size_t tetIndex, int type) const {
             return discSets[tetIndex]->nDiscs(type);
         }
 
@@ -968,7 +1001,7 @@ class DiscSetSurfaceDataImpl {
             ans.tetIndex = tet->adjacentTetrahedron(arcFace)->index();
             Perm<4> adjArc = tet->adjacentGluing(arcFace) * arc;
 
-            unsigned long arcNumber = discSets[disc.tetIndex]->arcFromDisc(
+            size_t arcNumber = discSets[disc.tetIndex]->arcFromDisc(
                 arcFace, arc[0], disc.type, disc.number);
             std::tie(ans.type, ans.number) = discSets[ans.tetIndex]->
                 discFromArc(adjArc[3], adjArc[0], arcNumber);
@@ -981,7 +1014,7 @@ class DiscSetSurfaceDataImpl {
          * normal discs in the underlying normal surface.
          *
          * These begin() and end() routines allow you to iterate through
-         * all normal discs using a range-based \c for loop:
+         * all normal discs using a range-based `for` loop:
          *
          * \code{.cpp}
          * for (const DiscSpec& s : surfaceData) { ... }
@@ -1003,7 +1036,7 @@ class DiscSetSurfaceDataImpl {
          * normal discs in the underlying normal surface.
          *
          * These begin() and end() routines allow you to iterate through
-         * all normal discs using a range-based \c for loop.
+         * all normal discs using a range-based `for` loop.
          * See the begin() documentation for further details.
          *
          * \nopython For Python users, this class implements the Python iterable
@@ -1036,7 +1069,7 @@ class DiscSetSurfaceDataImpl {
          * \nocpp For C++ users, this class provides the usual begin() and
          * end() functions instead.  In particular, you can iterate over
          * all normal discs in the underlying normal surface in the usual way
-         * using a range-based \c for loop.
+         * using a range-based `for` loop.
          *
          * \return an iterator over all normal discs.
          */
@@ -1064,6 +1097,8 @@ void swap(DiscSetSurfaceDataImpl<T>& a, DiscSetSurfaceDataImpl<T>& b) noexcept {
  * A structure that stores data of type \a T alongside every normal disc
  * within a particular normal surface.
  *
+ * This structure can only be used with _embedded_ normal surfaces.
+ *
  * \nopython
  *
  * \ingroup surface
@@ -1078,6 +1113,8 @@ using DiscSetSurfaceData = DiscSetSurfaceDataImpl<DiscSetTetData<T>>;
  * This structure can be used for iterating through disc types, and for
  * moving between adjacent disc types within a surface.
  *
+ * This structure can only be used with _embedded_ normal surfaces.
+ *
  * \ingroup surface
  */
 using DiscSetSurface = DiscSetSurfaceDataImpl<DiscSetTet>;
@@ -1088,20 +1125,13 @@ using DiscSetSurface = DiscSetSurfaceDataImpl<DiscSetTet>;
  *
  * This class is designed to work alongside DiscSetSurfaceDataImpl<TetData>.
  * Typically you would not need to specify the template argument \a TetData;
- * for copy initialisation you can use the \c auto type, and when constructing
+ * for copy initialisation you can use the `auto` type, and when constructing
  * from a DiscSetSurfaceData<T> the template argument can be automatically
  * deduced.
  *
  * As of Regina 7.3.1, this class no longer provides the iterator type aliases
  * \a value_type, \a iterator_category, \a difference_type, \a pointer and
  * \a reference. Instead you can access these through `std::iterator_traits`.
- *
- * \warning This class converts the indices of normal discs of a
- * given type from LargeInteger to `unsigned long`.  See the
- * precondition below.
- *
- * \pre The number of normal discs of a particular type
- * in a particular tetrahedron can be represented by a long integer.
  *
  * \python The only instance of this class that is available
  * through python is the iterator for DiscSetSurface (i.e., the "vanilla"
@@ -1271,9 +1301,8 @@ class DiscSpecIterator {
          * not a virtual disc (in which the disc number exceeds the
          * number of discs of the corresponding type).
          *
-         * \pre This iterator is not yet past-the-end
-         * (although it may be in the middle of an increment operation
-         * that will put it past-the-end).
+         * \pre This iterator is not yet past-the-end (although it may be in
+         * the middle of an increment operation that will put it past-the-end).
          */
         void makeValid() {
             if (current.tetIndex == internalDiscSet->nTets())
@@ -1300,30 +1329,18 @@ class DiscSpecIterator {
     struct iterator_traits<regina::DiscSpecIterator<TetData>> {
         using value_type = regina::DiscSpec;
         using iterator_category = std::forward_iterator_tag;
-        using difference_type = long;
+        using difference_type = ptrdiff_t;
         using pointer = const value_type*;
         using reference = const value_type&;
     };
 } namespace regina {
 #endif
 
-// Inline functions for DiscSpec
-
-inline DiscSpec::DiscSpec(size_t newTetIndex, int newType,
-        unsigned long newNumber) : tetIndex(newTetIndex), type(newType),
-        number(newNumber) {
-}
-
-inline std::ostream& operator << (std::ostream& out, const DiscSpec& spec) {
-    return out << spec.tetIndex << ':' << spec.type << " #" << spec.number;
-}
-
 // Inline functions for DiscSetTet
 
-inline DiscSetTet::DiscSetTet(unsigned long tri0, unsigned long tri1,
-        unsigned long tri2, unsigned long tri3,
-        unsigned long quad0, unsigned long quad1, unsigned long quad2,
-        unsigned long oct0, unsigned long oct1, unsigned long oct2) :
+inline DiscSetTet::DiscSetTet(size_t tri0, size_t tri1, size_t tri2,
+        size_t tri3, size_t quad0, size_t quad1, size_t quad2,
+        size_t oct0, size_t oct1, size_t oct2) :
         discs_{ tri0, tri1, tri2, tri3, quad0, quad1, quad2, oct0, oct1, oct2 } {
 }
 
@@ -1331,7 +1348,7 @@ inline bool DiscSetTet::operator == (const DiscSetTet& other) const {
     return std::equal(discs_, discs_ + 10, other.discs_);
 }
 
-inline unsigned long DiscSetTet::nDiscs(int type) const {
+inline size_t DiscSetTet::nDiscs(int type) const {
     return discs_[type];
 }
 

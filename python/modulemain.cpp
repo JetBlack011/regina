@@ -254,11 +254,17 @@ a new Python session.)doc");
 #elif REGINA_PYBIND11_VERSION == 2
     pybind11::enum_<EqualityType>(m, "EqualityType", rdoc_scope)
 #endif
-        .value("BY_VALUE", EqualityType::BY_VALUE, rdoc::BY_VALUE)
-        .value("BY_REFERENCE", EqualityType::BY_REFERENCE, rdoc::BY_REFERENCE)
-        .value("NEVER_INSTANTIATED", EqualityType::NEVER_INSTANTIATED,
+        .value("ByValue", EqualityType::ByValue, rdoc::ByValue)
+        .value("ByReference", EqualityType::ByReference, rdoc::ByReference)
+        .value("NeverInstantiated", EqualityType::NeverInstantiated,
+            rdoc::NeverInstantiated)
+        .value("Disabled", EqualityType::Disabled, rdoc::Disabled)
+        // The following values are all deprecated:
+        .value("BY_VALUE", EqualityType::ByValue, rdoc::BY_VALUE)
+        .value("BY_REFERENCE", EqualityType::ByReference, rdoc::BY_REFERENCE)
+        .value("NEVER_INSTANTIATED", EqualityType::NeverInstantiated,
             rdoc::NEVER_INSTANTIATED)
-        .value("DISABLED", EqualityType::DISABLED, rdoc::DISABLED)
+        .value("DISABLED", EqualityType::Disabled, rdoc::DISABLED)
 #if REGINA_PYBIND11_VERSION == 3
         .finalize()
 #endif
@@ -269,8 +275,10 @@ a new Python session.)doc");
     RDOC_SCOPE_SWITCH_MAIN
 
     // From regina-core.h:
+    m.def("supportedDim", regina::supportedDim, rdoc::supportedDim);
     m.def("standardDim", regina::standardDim, rdoc::standardDim);
     m.def("maxDim", regina::maxDim, rdoc::maxDim);
+    m.def("maxPermDegree", regina::maxPermDegree, rdoc::maxPermDegree);
 
     // From core/engine.h:
     m.def("versionString", regina::versionString, rdoc::versionString);

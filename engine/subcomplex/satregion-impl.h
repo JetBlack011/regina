@@ -41,9 +41,13 @@
 
 #include "subcomplex/satregion.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 template <typename Action, typename... Args>
+requires TerminatingCallback<Action, std::unique_ptr<SatRegion>,
+    SatBlock::TetList&, Args...>
 bool SatRegion::find(const Triangulation<3>& tri, bool mustBeComplete,
         Action&& action, Args&&... args) {
     initStarters();

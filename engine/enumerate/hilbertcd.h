@@ -47,6 +47,8 @@
 #include <list>
 #include <vector>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class ValidityConstraints;
@@ -104,12 +106,13 @@ class HilbertCD {
          * addition, _invalidity_ is.
          *
          * For each of the resulting basis elements, this routine will call
-         * \a action (which must be a function or some other callable object).
-         * This action should return \c void, and must take exactly one
-         * argument, which will be the basis element stored using type \a Ray.
-         * The argument will be passed as an rvalue; a typical \a action
-         * would take it as an rvalue reference (`Ray&&`) and move its
-         * contents into some other more permanent storage.
+         * \a action (which must be a function or some other callable type).
+         * This action must take exactly one argument: the basis element stored
+         * using type \a Ray.  The argument will be passed as an rvalue;
+         * a typical \a action would take it as an rvalue reference (`Ray&&`)
+         * and move its contents into some other more permanent storage.
+         * The return value of \a action will be ignored (a typical \a action
+         * would return \c void).
          *
          * \warning For normal surface theory, the Contejean-Devie algorithm is
          * extremely slow, even when modified to incorporate admissibility
@@ -124,7 +127,7 @@ class HilbertCD {
          * and it returns a Python list containing all Hilbert basis elements.
          * In both versions, the template argument \a Ray is fixed as VectorInt.
          *
-         * \param action a function (or other callable object) that will be
+         * \param action a function (or other callable type) that will be
          * called for each basis element.  This function must take a single
          * argument, which will be passed as an rvalue of type Ray.
          * \param subspace a matrix defining the linear subspace to intersect
@@ -135,7 +138,8 @@ class HilbertCD {
          * \param constraints a set of validity constraints as described above,
          * or ValidityConstraints::none if none should be imposed.
          */
-        template <ArbitraryPrecisionIntegerVector Ray, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray,
+            VoidCallback<Ray&&> Action>
         static void enumerate(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints);
 
@@ -163,7 +167,10 @@ class HilbertCD {
              * \param dim the total dimension of the space (and
              * therefore the toatl length of this vector).
              */
-            inline VecSpec(size_t dim);
+            inline VecSpec(size_t dim) : Vector<IntegerType>(dim), mask_(dim) {
+                // All vector elements are initialised to zero thanks to the
+                // default constructors in Regina's integer classes.
+            }
 
             /**
              * Creates a new clone of the given vector.
@@ -175,33 +182,7 @@ class HilbertCD {
              */
             VecSpec& operator = (const VecSpec&) = default;
         };
-        /**
-         * Identical to the public routine enumerate(),
-         * except that there is an extra template parameter \a BitmaskType
-         * to indicate what bitmask type we should use to assign flags to
-         * individual coordinate positions.
-         *
-         * All arguments to this function are identical to those for the
-         * public routine enumerate().
-         *
-         * \pre The type \a BitmaskType can handle at least \a n bits,
-         * where \a n is the dimension of the Euclidean space (i.e., the
-         * number of columns in \a subspace).
-         */
-        template <ArbitraryPrecisionIntegerVector Ray,
-            ReginaBitmask BitmaskType, typename Action>
-        static void enumerateUsingBitmask(Action&& action,
-            const MatrixInt& subspace, const ValidityConstraints& constraints);
 };
-
-// Inline functions for HilbertCD::VecSpec
-
-template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
-inline HilbertCD::VecSpec<IntegerType, BitmaskType>::VecSpec(size_t dim) :
-        Vector<IntegerType>(dim), mask_(dim) {
-    // All vector elements are initialised to zero thanks to the default
-    // constructors in Regina's integer classes.
-}
 
 } // namespace regina
 

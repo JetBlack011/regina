@@ -39,10 +39,11 @@
 #endif
 
 #include "regina-core.h"
-#include "regina-config.h"
 #include <iostream>
 #include <string>
 #include <iconv.h>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 /**
  * Various classes and routines for working with internationalisation and

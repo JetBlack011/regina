@@ -37,15 +37,17 @@
 #define __REGINA_CONCEPTS_CORE_H
 #endif
 
-#include <concepts>
-#include "utilities/intutils.h"
+#include "utilities/intutils.h" // provides concepts for integer types
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
-template <bool> class IntegerBase;
-template <int> class NativeInteger;
-// More forward declarations appear later, once we have the concepts necessary
-// to make them.
+class Bitmask;
+template <UnsignedCppInteger> class Bitmask1;
+template <UnsignedCppInteger, UnsignedCppInteger> class Bitmask2;
+template <UnsignedCppInteger> class Qitmask1;
+template <UnsignedCppInteger, UnsignedCppInteger> class Qitmask2;
 
 /**
  * \defgroup concepts Concepts
@@ -53,7 +55,7 @@ template <int> class NativeInteger;
  */
 
 /**
- * Indicates that a variable of type \a Source can be assigned to a variablei
+ * Indicates that a variable of type \a Source can be assigned to a variable
  * of type \a Target.  This is identical to `std::assignable_from`, but with
  * the arguments in the opposite order.
  *
@@ -75,95 +77,17 @@ template <typename Source, typename Target>
 concept CanConstruct = std::constructible_from<Target, Source>;
 
 /**
- * One of the standard non-boolean C++ integer types, without making any
- * special accommodations for 128-bit integer compiler extensions.
+ * Indicates that types \a T and \a U are identical, after removing references
+ * and const/volatile qualifiers.
  *
- * This concept is exactly like `std::integral` but with `bool` excluded.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept StandardCppInteger = std::integral<T> && ! std::same_as<T, bool>;
-
-/**
- * A native non-boolean C++ integer type, allowing for 128-bit integers also
- * if these are supported by the compiler.
- *
- * See the constant regina::is_cpp_integer_v for further details.
+ * So, for example, `std::same_as<const int&, int>` is `false`, but
+ * `SameModCVRef<const int&, int>` is `true`.
  *
  * \ingroup concepts
  */
-template <typename T>
-concept CppInteger = is_cpp_integer_v<T>;
-
-/**
- * A signed native non-boolean C++ integer type, allowing for 128-bit integers
- * also if these are supported by the compiler.
- *
- * See the constant regina::is_signed_cpp_integer_v for further details.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept SignedCppInteger = is_signed_cpp_integer_v<T>;
-
-/**
- * An unsigned native non-boolean C++ integer type, allowing for 128-bit
- * integers also if these are supported by the compiler.
- *
- * See the constant regina::is_unsigned_cpp_integer_v for further details.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept UnsignedCppInteger = is_unsigned_cpp_integer_v<T>;
-
-/**
- * One of Regina's arbitrary precision integer types (Integer or LargeInteger).
- *
- * \ingroup concepts
- */
-template <typename T>
-concept ArbitraryPrecisionInteger =
-    std::is_same_v<IntegerBase<true>, T> ||
-    std::is_same_v<IntegerBase<false>, T>;
-
-/**
- * One of Regina's own integer types (Integer, LargeInteger, or NativeInteger).
- *
- * An important feature of all of Regina's integer types is that their default
- * constructors initialise the integers to zero.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept ReginaInteger =
-    ArbitraryPrecisionInteger<T> ||
-    requires(T x) { { NativeInteger(x) } -> std::same_as<T>; };
-
-/**
- * A type that supports very basic interoperability with integer values,
- * via construction, assignment, and equality/inequality testing.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept IntegerCompatible =
-    std::constructible_from<T, int> &&
-    std::assignable_from<T&, int> &&
-    std::equality_comparable_with<T, int>;
-
-/**
- * A type that supports interoperability with integer values via construction,
- * assignment, equality/inequality testing, and comparisons.  The comparisons
- * must yield a total order.
- *
- * \ingroup concepts
- */
-template <typename T>
-concept IntegerComparable =
-    IntegerCompatible<T> &&
-    std::totally_ordered_with<T, int>;
+template <typename T, typename U>
+concept SameModCVRef =
+    std::same_as<std::remove_cvref_t<T>, std::remove_cvref_t<U>>;
 
 /**
  * A type that has the necessary operations to behave like a mathematical ring.
@@ -223,6 +147,17 @@ template <typename T>
 concept IntegralDomain = Domain<T> && RingTraits<T>::commutative;
 
 /**
+ * A mathematical field.
+ *
+ * The property of being a field is self-identified through the various
+ * constants in the specialisation `RingTraits<T>`.
+ *
+ * \ingroup concepts
+ */
+template <typename T>
+concept Field = IntegralDomain<T> && RingTraits<T>::inverses;
+
+/**
  * A type suitable to use for coefficients in Regina's polynomial-like classes.
  *
  * This concept is tailored to Regina's own requirements, and so is stricter
@@ -237,11 +172,6 @@ template <typename T>
 concept CoefficientDomain =
     Domain<T> && IntegerComparable<T> && RingTraits<T>::zeroInitialised;
 
-// Forward declarations that require the concept UnsignedCppInteger:
-class Bitmask;
-template <UnsignedCppInteger> class Bitmask1;
-template <UnsignedCppInteger, UnsignedCppInteger> class Bitmask2;
-
 /**
  * One of Regina's own bitmask types.
  *
@@ -252,6 +182,61 @@ concept ReginaBitmask =
     std::same_as<T, Bitmask> ||
     requires(T x) { { Bitmask1(x) } -> std::same_as<T>; } ||
     requires(T x) { { Bitmask2(x) } -> std::same_as<T>; };
+
+/**
+ * One of Regina's own qitmask types.
+ *
+ * \ingroup concepts
+ */
+template <typename T>
+concept ReginaQitmask =
+    requires(T x) { { Qitmask1(x) } -> std::same_as<T>; } ||
+    requires(T x) { { Qitmask2(x) } -> std::same_as<T>; };
+
+/**
+ * A callable type that acts as a strict weak order on the given argument type.
+ * Such an object could (for example) be used for comparisons during a sorting
+ * operation.
+ *
+ * This concept is identical to the standard C++ concept
+ * `std::strict_weak_order<T, Arg, Arg>`.  It is provided here for convenience
+ * so that the argument type does not need to be repeated.
+ *
+ * \ingroup concepts
+ */
+template <typename T, typename Arg>
+concept StrictWeakOrder = std::strict_weak_order<T, Arg, Arg>;
+
+/**
+ * A callable type that takes the given argument types, and whose return value
+ * is ignored.  Such objects are often passed into Regina's enumeration
+ * routines (e.g., the various triangulation and link census generation
+ * routines).
+ *
+ * Typically the return type for such a callback would be `void` (since Regina
+ * will ignore it), though this is not enforced.
+ *
+ * \ingroup concepts
+ */
+template <typename T, typename... Args>
+concept VoidCallback = std::invocable<T, Args...>;
+
+/**
+ * A callable type that takes the given argument types, with a boolean return
+ * value indicating whether the current operation should terminate.
+ * Such objects are often passed into Regina's enumeration and/or exploration
+ * routines (e.g., for enumerating normal surfaces, or exploring nearby
+ * retriangulations).
+ *
+ * The return type for such a callback must be convertible to `bool`.
+ * A return value of `false` (no, do not terminate) would typically indicate
+ * that the current operation should continue, and `true` (yes, terminate)
+ * would typically indicate that it the operation should stop.
+ *
+ * \ingroup concepts
+ */
+template <typename T, typename... Args>
+concept TerminatingCallback = std::predicate<T, Args...>;
 
 } // namespace regina
 

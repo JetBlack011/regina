@@ -72,7 +72,7 @@ void addTriangle2(pybind11::module_& m) {
         .def("triangulation", &Triangle<2>::triangulation, rbase::triangulation)
         .def("component", &Triangle<2>::component,
             pybind11::return_value_policy::reference, rbase::component)
-        .def("face", &regina::python::face<Triangle<2>, 2, int>,
+        .def("face", &regina::python::face<2, 2>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::face)
         .def("vertex", &Triangle<2>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
@@ -82,7 +82,7 @@ void addTriangle2(pybind11::module_& m) {
         .def("edge",
             overload_cast<int, int>(&Triangle<2>::edge, pybind11::const_),
             pybind11::return_value_policy::reference, rbase::edge_2)
-        .def("faceMapping", &regina::python::faceMapping<Triangle<2>, 2>,
+        .def("faceMapping", &regina::python::faceMapping<2, 2>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::faceMapping)
         .def("vertexMapping", &Triangle<2>::vertexMapping, rbase::vertexMapping)
         .def("edgeMapping", &Triangle<2>::edgeMapping, rbase::edgeMapping)
@@ -92,7 +92,7 @@ void addTriangle2(pybind11::module_& m) {
         .def_readonly_static("dimension", &Triangle<2>::dimension)
         .def_readonly_static("subdimension", &Triangle<2>::subdimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END

@@ -41,13 +41,14 @@
 #define __REGINA_TRIANGULATION_H
 #endif
 
-#include "regina-config.h" // for REGINA_HIGHDIM
 #include "packet/packet.h"
 #include "triangulation/forward.h"
 #include "utilities/markedvector.h"
 #include "utilities/xmlutils.h"
 #include <type_traits>
 #include "triangulation/detail/triangulation.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -58,7 +59,7 @@ namespace regina {
 
 /**
  * A <i>dim</i>-dimensional triangulation, built by gluing together
- * <i>dim</i>-dimensional simplices along their (<i>dim</i>-1)-dimensional
+ * <i>dim</i>-dimensional simplices along their `(dim-1)`-dimensional
  * facets.  Typically (but not necessarily) such triangulations are used
  * to represent <i>dim</i>-manifolds.
  *
@@ -69,15 +70,15 @@ namespace regina {
  *
  * - The only identifications that the user can explicitly specify are
  *   gluings between <i>dim</i>-dimensional simplices along their
- *   (<i>dim</i>-1)-dimensional facets.  All other identifications between
+ *   `(dim-1)`-dimensional facets.  All other identifications between
  *   <i>k</i>-faces (for any \a k) are simply consequences of these
- *   (<i>dim</i>-1)-dimensional gluings.  In contrast, a simplicial complex
+ *   `(dim-1)`-dimensional gluings.  In contrast, a simplicial complex
  *   allows explicit gluings between faces of any dimension.
  *
- * - There is no requirement for a <i>k</i>-face to have (<i>k</i>+1) distinct
+ * - There is no requirement for a <i>k</i>-face to have `(k+1)` distinct
  *   vertices (so, for example, edges may be loops).  Many distinct
  *   <i>k</i>-faces of a top-dimensional simplex may be identified together
- *   as a consequence of the (<i>dim</i>-1)-dimensional gluings, and indeed
+ *   as a consequence of the `(dim-1)`-dimensional gluings, and indeed
  *   we are even allowed to glue together two distinct facets of the same
  *   <i>dim</i>-simplex.  In contrast, a simplicial complex does not allow
  *   any of these situations.
@@ -89,9 +90,9 @@ namespace regina {
  * for sufficiently large \a dim).
  *
  * You can construct a triangulation from scratch using routines such as
- * newSimplex() and Simplex<dim>::join().  There are also routines for
- * exporting and importing triangulations in bulk, such as isoSig() and
- * fromIsoSig() (which use _isomorphism signatures_), or source() and
+ * `newSimplex()` and `Simplex<dim>::join()`.  There are also routines for
+ * exporting and importing triangulations in bulk, such as neoSig(), isoSig(),
+ * and fromSig() (which use _isomorphism signatures_), or source() and
  * fromGluings() (which use C++ or Python code).
  *
  * ### Skeleta and components
@@ -99,11 +100,11 @@ namespace regina {
  * In additional to top-dimensional simplices, this class also tracks:
  *
  * - connected components of the triangulation, as represented by the
- *   class Component<dim>;
+ *   class `Component<dim>`;
  * - boundary components of the triangulation, as represented by the
- *   class BoundaryComponent<dim>;
+ *   class `BoundaryComponent<dim>`;
  * - lower-dimensional faces of the triangulation, as represented by the
- *   classes Face<dim, subdim> for \a subdim = 0,...,(<i>dim</i>-1).
+ *   classes `Face<dim, subdim>` for `subdim = 0,...,(dim-1)`.
  *
  * Such objects are temporary: whenever the triangulation changes, they will
  * be deleted and rebuilt, and any pointers to them will become invalid.
@@ -149,23 +150,16 @@ namespace regina {
  * (e.g., Triangulation2 and Triangulation3 for dimensions 2 and 3).
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \headerfile triangulation/generic.h
  *
  * \ingroup generic
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class Triangulation : public detail::TriangulationBase<dim> {
     static_assert(! standardDim(dim),
         "The generic implementation of Triangulation<dim> "
         "should not be used for Regina's standard dimensions.");
-#ifndef REGINA_HIGHDIM
-    static_assert(dim <= 8,
-        "This build has been configured without REGINA_HIGHDIM. "
-        "The Triangulation class should only be instantiated for "
-        "dimensions dim <= 8.");
-#endif
 
     protected:
         using detail::TriangulationBase<dim>::simplices_;
@@ -369,7 +363,7 @@ class Triangulation : public detail::TriangulationBase<dim> {
  * increasing degree.  This can (for instance) be used with std::sort().
  *
  * The template argument \a dim refers to the dimension of the overall
- * triangluation(s) with which you are working.  The template argument
+ * triangulation(s) with which you are working.  The template argument
  * \a subdim refers to the dimension of the faces that you are sorting.
  * So, for instance, to sort edges of a 3-manifold triangulation by
  * increasing edge degree, you would use DegreeLessThan<3, 1>.
@@ -382,18 +376,13 @@ class Triangulation : public detail::TriangulationBase<dim> {
  *
  * \deprecated This comparison is a one-liner.  Just use a lambda instead.
  *
- * \pre \a dim is one of Regina's \ref stddim "standard dimensions".
- * \pre \a subdim is between 0 and <i>dim</i>-1 inclusive.
- *
  * \nopython
  *
  * \ingroup generic
  */
 template <int dim, int subdim>
+requires (standardDim(dim) && subdim >= 0 && subdim < dim)
 class [[deprecated]] DegreeLessThan {
-    static_assert(standardDim(dim),
-        "DegreeLessThan is only available for Regina's standard dimensions.");
-
     private:
         const Triangulation<dim>& tri_;
             /**< The triangulation with which we are working. */
@@ -441,7 +430,7 @@ class [[deprecated]] DegreeLessThan {
  * decreasing degree.  This can (for instance) be used with std::sort().
  *
  * The template argument \a dim refers to the dimension of the overall
- * triangluation(s) with which you are working.  The template argument
+ * triangulation(s) with which you are working.  The template argument
  * \a subdim refers to the dimension of the faces that you are sorting.
  * So, for instance, to sort edges of a 3-manifold triangulation by
  * decreasing edge degree, you would use DegreeGreaterThan<3, 1>.
@@ -456,16 +445,11 @@ class [[deprecated]] DegreeLessThan {
  *
  * \nopython
  *
- * \pre \a dim is one of Regina's \ref stddim "standard dimensions".
- * \pre \a subdim is between 0 and <i>dim</i>-1 inclusive.
- *
  * \ingroup generic
  */
 template <int dim, int subdim>
+requires (standardDim(dim) && subdim >= 0 && subdim < dim)
 class [[deprecated]] DegreeGreaterThan {
-    static_assert(standardDim(dim),
-        "DegreeGreaterThan is only available for Regina's standard dimensions.");
-
     private:
         const Triangulation<dim>& tri_;
             /**< The triangulation with which we are working. */
@@ -510,29 +494,29 @@ class [[deprecated]] DegreeGreaterThan {
 
 // Inline functions for Triangulation
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Triangulation<dim>::Triangulation() : detail::TriangulationBase<dim>() {
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Triangulation<dim>::Triangulation(const Triangulation& src,
         bool cloneProps, bool cloneLocks) :
         detail::TriangulationBase<dim>(src, cloneProps, cloneLocks) {
     // All properties to clone are held by TriangulationBase.
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Triangulation<dim>::~Triangulation() {
     Snapshottable<Triangulation<dim>>::takeSnapshot();
     clearAllProperties();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void Triangulation<dim>::clearAllProperties() {
     detail::TriangulationBase<dim>::clearBaseProperties();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void Triangulation<dim>::swap(Triangulation<dim>& other) {
     if (&other == this)
         return;

@@ -28,17 +28,19 @@
  *                                                                        *
  **************************************************************************/
 
+/*! \file maths/rational.h
+ *  \brief Deals with artibrary precision rational numbers.
+ */
+
 #ifndef __REGINA_RATIONAL_H
 #ifndef __DOXYGEN
 #define __REGINA_RATIONAL_H
 #endif
 
-/*! \file maths/rational.h
- *  \brief Deals with artibrary precision rational numbers.
- */
-
 #include "regina-core.h"
 #include "maths/integer.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -365,7 +367,7 @@ class Rational {
          * \python This spaceship operator `x <=> y` is not available, but the
          * other comparison operators that it generates _are_ available.
          *
-         * \return The result of the numerical comparison between this
+         * \return the result of the numerical comparison between this
          * and the given rational.
          */
         std::strong_ordering operator <=> (const Rational&) const;
@@ -478,6 +480,7 @@ struct RingTraits<Rational> {
     static constexpr bool commutative = true;
     static constexpr bool zeroInitialised = true;
     static constexpr bool zeroDivisors = false;
+    static constexpr bool inverses = true;
 };
 #endif // __DOXYGEN
 
@@ -499,11 +502,13 @@ template <bool withInfinity>
 inline Rational::Rational(const IntegerBase<withInfinity>& value) :
         flavour(Flavour::Normal) {
     mpq_init(data);
-    if (value.isInfinite())
+    if (value.isInfinite()) {
         flavour = Flavour::Infinity;
-    else if (value.isNative())
-        mpq_set_si(data, value.longValue(), 1);
-    else
+    } else if (value.isNative()) {
+        // Note: unsafeValue<long>() will succeed, since value holds a native
+        // integer representation.
+        mpq_set_si(data, value.template unsafeValue<long>(), 1);
+    } else
         mpq_set_z(data, value.rawData());
 }
 inline Rational::Rational(long value) : flavour(Flavour::Normal) {
@@ -521,9 +526,13 @@ Rational::Rational(const IntegerBase<withInfinity>& num,
             flavour = Flavour::Infinity;
     } else {
         flavour = Flavour::Normal;
-        if (num.isNative() && den.isNative())
-            mpq_set_si(data, num.longValue(), den.longValue());
-        else if (num.isNative()) {
+        if (num.isNative() && den.isNative()) {
+            // Note: these calls to unsafeValue<long>() will succeed, since
+            // both num and den hold native integer representations.
+            mpq_set_si(data,
+                num.template unsafeValue<long>(),
+                den.template unsafeValue<long>());
+        } else if (num.isNative()) {
             // Avoid bloating num with a GMP representation.
             IntegerBase<withInfinity> tmp(num);
             mpz_set(mpq_numref(data), tmp.rawData());
@@ -559,7 +568,9 @@ inline Rational& Rational::operator = (const IntegerBase<withInfinity>& value) {
         flavour = Flavour::Infinity;
     else if (value.isNative()) {
         flavour = Flavour::Normal;
-        mpq_set_si(data, value.longValue(), 1);
+        // Note: unsafeValue<long>() will succeed, since value holds a native
+        // integer representation.
+        mpq_set_si(data, value.template unsafeValue<long>(), 1);
     } else {
         flavour = Flavour::Normal;
         mpq_set_z(data, value.rawData());

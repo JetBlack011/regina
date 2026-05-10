@@ -28,14 +28,14 @@
  *                                                                        *
  **************************************************************************/
 
+/*! \file maths/polynomial.h
+ *  \brief Implements single variable polynomials over arbitrary rings.
+ */
+
 #ifndef __REGINA_POLYNOMIAL_H
 #ifndef __DOXYGEN
 #define __REGINA_POLYNOMIAL_H
 #endif
-
-/*! \file maths/polynomial.h
- *  \brief Implements single variable polynomials over arbitrary rings.
- */
 
 #include "regina-core.h"
 #include "utilities/stringutils.h"
@@ -43,6 +43,8 @@
 #include "core/output.h"
 #include <iostream>
 #include <iterator>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -127,8 +129,6 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          *
          * This constructor induces a deep copy of \a value.
          *
-         * \pre Objects of type \a T can be assigned values of type \a U.
-         *
          * \nopython Python only supports polynomials with one type of
          * coefficient (the case where \a T is Rational).  Therefore
          * Python users can use the non-templated copy constructor.
@@ -136,6 +136,7 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          * \param value the polynomial to clone.
          */
         template <CoefficientDomain U>
+        requires std::assignable_from<T&, U>
         Polynomial(const Polynomial<U>& value);
 
         /**
@@ -169,8 +170,8 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          * \param end a past-the-end iterator indicating the end of the
          * sequence of coefficients.
          */
-        template <RandomAccessIteratorFor<T> iterator>
-        Polynomial(iterator begin, iterator end);
+        template <RandomAccessIteratorFor<T> Iterator>
+        Polynomial(Iterator begin, Iterator end);
 
         /**
          * Creates a new polynomial from a hard-coded sequence of coefficients.
@@ -240,8 +241,8 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          * \param end a past-the-end iterator indicating the end of the
          * sequence of coefficients.
          */
-        template <RandomAccessIteratorFor<T> iterator>
-        void init(iterator begin, iterator end);
+        template <RandomAccessIteratorFor<T> Iterator>
+        void init(Iterator begin, Iterator end);
 
         /**
          * Returns the degree of this polynomial.
@@ -363,6 +364,7 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          * \return a reference to this polynomial.
          */
         template <CoefficientDomain U>
+        requires std::assignable_from<T&, U>
         Polynomial& operator = (const Polynomial<U>& value);
 
         /**
@@ -544,9 +546,6 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          *
          * As a special case, gcd(0,0) is considered to be zero.
          *
-         * \pre The coefficient type \a T represents a field.  In particular,
-         * Rational is supported but Integer is not.
-         *
          * \param other the polynomial whose greatest common divisor with this
          * polynomial we should compute.
          * \param gcd a polynomial whose contents will be destroyed and
@@ -557,6 +556,7 @@ class Polynomial : public ShortOutput<Polynomial<T>, true> {
          * replaced with \a v, as described above.
          */
         template <CoefficientDomain U>
+        requires Field<T> && std::assignable_from<T&, U>
         void gcdWithCoeffs(const Polynomial<U>& other,
             Polynomial& gcd, Polynomial& u, Polynomial& v) const;
 
@@ -914,6 +914,7 @@ struct RingTraits<Polynomial<T>> {
     static constexpr bool commutative = RingTraits<T>::commutative;
     static constexpr bool zeroInitialised = true;
     static constexpr bool zeroDivisors = false; // since T is a domain
+    static constexpr bool inverses = false;
 };
 #endif // __DOXYGEN
 
@@ -931,8 +932,8 @@ inline Polynomial<T>::Polynomial(size_t degree) :
 }
 
 template <CoefficientDomain T>
-template <RandomAccessIteratorFor<T> iterator>
-inline Polynomial<T>::Polynomial(iterator begin, iterator end) :
+template <RandomAccessIteratorFor<T> Iterator>
+inline Polynomial<T>::Polynomial(Iterator begin, Iterator end) :
         coeff_(nullptr) {
     init(begin, end);
 }
@@ -953,6 +954,7 @@ inline Polynomial<T>::Polynomial(const Polynomial<T>& value) :
 
 template <CoefficientDomain T>
 template <CoefficientDomain U>
+requires std::assignable_from<T&, U>
 inline Polynomial<T>::Polynomial(const Polynomial<U>& value) :
         degree_(value.degree()), coeff_(new T[value.degree() + 1]) {
     // std::cerr << "Polynomial: deep copy (init)" << std::endl;
@@ -993,8 +995,8 @@ inline void Polynomial<T>::init(size_t degree) {
 }
 
 template <CoefficientDomain T>
-template <RandomAccessIteratorFor<T> iterator>
-void Polynomial<T>::init(iterator begin, iterator end) {
+template <RandomAccessIteratorFor<T> Iterator>
+void Polynomial<T>::init(Iterator begin, Iterator end) {
     delete[] coeff_;
 
     if (begin == end) {
@@ -1096,6 +1098,7 @@ Polynomial<T>& Polynomial<T>::operator = (const Polynomial<T>& value) {
 // issue is that the return type "looks" different due to the explicit <T>.
 template <CoefficientDomain T>
 template <CoefficientDomain U>
+requires std::assignable_from<T&, U>
 Polynomial<T>& Polynomial<T>::operator = (const Polynomial<U>& value) {
     // This works even if &value == this, since we don't reallocate if
     // the degrees are equal.
@@ -1318,8 +1321,8 @@ std::pair<Polynomial<T>, Polynomial<T>> Polynomial<T>::divisionAlg(
     //
     // We initialise the remainer to be a copy of this.
 
-    std::pair<Polynomial<T>, Polynomial<T>> ans(
-        degree_ - divisor.degree_, *this);
+    std::pair<Polynomial<T>, Polynomial<T>> ans({}, *this);
+    ans.first.initExp(degree_ - divisor.degree_);
 
     for (size_t i = degree_; i >= divisor.degree_; --i) {
         ans.first.coeff_[i - divisor.degree_] = ans.second.coeff_[i];
@@ -1341,6 +1344,7 @@ std::pair<Polynomial<T>, Polynomial<T>> Polynomial<T>::divisionAlg(
 
 template <CoefficientDomain T>
 template <CoefficientDomain U>
+requires Field<T> && std::assignable_from<T&, U>
 void Polynomial<T>::gcdWithCoeffs(const Polynomial<U>& other,
         Polynomial<T>& gcd, Polynomial<T>& u, Polynomial<T>& v) const {
     // Special-case situations where one or both polynomials are zero.
@@ -1479,11 +1483,6 @@ void Polynomial<T>::writeTextShort(std::ostream& out, bool utf8,
 
 template <CoefficientDomain T>
 inline std::string Polynomial<T>::str(const char* variable) const {
-    // Make sure that python will be able to find the inherited str().
-    static_assert(std::is_same_v<typename OutputBase<Polynomial<T>>::type,
-        Output<Polynomial<T>, true>>,
-        "Polynomial<T> is not identified as being inherited from Output<...>");
-
     std::ostringstream out;
     writeTextShort(out, false, variable);
     return out.str();

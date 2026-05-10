@@ -37,17 +37,19 @@
  *  \brief Implementation details for connected components of triangulations.
  */
 
+#include <ranges>
 #include <vector>
 #include "regina-core.h"
 #include "core/output.h"
 #include "triangulation/forward.h"
 #include "triangulation/detail/strings.h"
-#include "utilities/listview.h"
 #include "utilities/markedvector.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina::detail {
 
-template <int> class TriangulationBase;
+template <int dim> requires (supportedDim(dim)) class TriangulationBase;
 
 /**
  * Helper class that provides core functionality for a connected component
@@ -68,11 +70,10 @@ template <int> class TriangulationBase;
  * class Component<dim> is.
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \ingroup detail
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class ComponentBase :
         public ShortOutput<ComponentBase<dim>>,
         public MarkedElement {
@@ -108,10 +109,17 @@ class ComponentBase :
         size_t index() const;
 
         /**
+         * Returns the triangulation to which this component belongs.
+         *
+         * \return a reference to the triangulation containing this component.
+         */
+        Triangulation<dim>& triangulation() const;
+
+        /**
          * Returns the number of top-dimensional simplices in this
          * component.
          *
-         * \return The number of top-dimensional simplices.
+         * \return the number of top-dimensional simplices.
          */
         size_t size() const;
         /**
@@ -120,12 +128,12 @@ class ComponentBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Simplex<dim>* s : comp.simplices()) { ... }
@@ -156,54 +164,70 @@ class ComponentBase :
         Simplex<dim>* simplex(size_t index) const;
 
         /**
-         * A dimension-specific alias for countFaces<0>().
+         * Identifies whether any top-dimensional simplices in this component
+         * and/or any of their facets are locked.
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
+         * In short, locking a top-dimensional simplex and/or some of its
+         * facets means that that the simplex and/or facets must not be
+         * changed.  See Simplex<dim>::lock() and Simplex<dim>::lockFacet()
+         * for full details on how locks work and what their implications are.
+         *
+         * \return \c true if and only if there is at least one locked
+         * top-dimensional simplex or at least one locked facet of a
+         * top-dimensional simplex within this component.
+         */
+        bool hasLocks() const;
+
+        /**
+         * A dimension-specific alias for countFaces<0>().
          *
          * See countFaces() for further information.
          */
-        size_t countVertices() const;
+        size_t countVertices() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for countFaces<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See countFaces() for further information.
          */
-        size_t countEdges() const;
+        size_t countEdges() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for countFaces<2>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See countFaces() for further information.
          */
-        size_t countTriangles() const;
+        size_t countTriangles() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for countFaces<3>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See countFaces() for further information.
          */
-        size_t countTetrahedra() const;
+        size_t countTetrahedra() const
+            requires (standardDim(dim) && dim >= 3);
 
         /**
          * A dimension-specific alias for countFaces<4>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 4.
-         *
          * See countFaces() for further information.
          */
-        size_t countPentachora() const;
+        size_t countPentachora() const
+            requires (standardDim(dim) && dim >= 4);
+
+        /**
+         * Returns the number of `(dim-1)`-faces in this component.
+         *
+         * This is available (and constant time) for components in all
+         * dimensions, even though the list of `(dim-1)`-faces is only
+         * stored for components in Regina's standard dimensions.
+         *
+         * \return the number of `(dim-1)`-faces.
+         */
+        size_t countFacets() const;
 
         /**
          * Returns the number of boundary components in this component.
@@ -215,55 +239,45 @@ class ComponentBase :
         /**
          * A dimension-specific alias for faces<0>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See faces() for further information.
          */
-        auto vertices() const;
+        auto vertices() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for faces<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See faces() for further information.
          */
-        auto edges() const;
+        auto edges() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for faces<2>(), or an alias for
          * simplices() in dimension \a dim = 2.
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See faces() for further information.
          */
-        auto triangles() const;
+        auto triangles() const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for faces<3>(), or an alias for
          * simplices() in dimension \a dim = 3.
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See faces() for further information.
          */
-        auto tetrahedra() const;
+        auto tetrahedra() const
+            requires (standardDim(dim) && dim >= 3);
 
         /**
          * A dimension-specific alias for faces<4>(), or an alias for
          * simplices() in dimension \a dim = 4.
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 4.
-         *
          * See faces() for further information.
          */
-        auto pentachora() const;
+        auto pentachora() const
+            requires (standardDim(dim) && dim >= 4);
 
         /**
          * Returns an object that allows iteration through and random access
@@ -271,12 +285,12 @@ class ComponentBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (BoundaryComponent<dim>* bc : comp.boundaryComponents()) { ... }
@@ -297,52 +311,42 @@ class ComponentBase :
         /**
          * A dimension-specific alias for face<0>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See face() for further information.
          */
-        Face<dim, 0>* vertex(size_t index) const;
+        TriangulationTraits<dim>::Vertex* vertex(size_t index) const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for face<1>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See face() for further information.
          */
-        Face<dim, 1>* edge(size_t index) const;
+        TriangulationTraits<dim>::Edge* edge(size_t index) const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for face<2>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
-         *
          * See face() for further information.
          */
-        Face<dim, 2>* triangle(size_t index) const;
+        TriangulationTraits<dim>::Triangle* triangle(size_t index) const
+            requires (standardDim(dim));
 
         /**
          * A dimension-specific alias for face<3>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 3.
-         *
          * See face() for further information.
          */
-        Face<dim, 3>* tetrahedron(size_t index) const;
+        TriangulationTraits<dim>::Tetrahedron* tetrahedron(size_t index) const
+            requires (standardDim(dim) && dim >= 3);
 
         /**
          * A dimension-specific alias for face<4>().
          *
-         * This alias is available only when \a dim is one of Regina's
-         * \ref stddim "standard dimensions" and \a dim ≥ 4.
-         *
          * See face() for further information.
          */
-        Face<dim, 4>* pentachoron(size_t index) const;
+        TriangulationTraits<dim>::Pentachoron* pentachoron(size_t index) const
+            requires (standardDim(dim) && dim >= 4);
 
         /**
          * Returns the boundary component at the given index in this component.
@@ -432,142 +436,152 @@ class ComponentBase :
 
 // Inline functions for ComponentBase
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline ComponentBase<dim>::ComponentBase() :
         valid_(true), boundaryFacets_(0), orientable_(true) {
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t ComponentBase<dim>::index() const {
     return markedIndex();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
+inline Triangulation<dim>& ComponentBase<dim>::triangulation() const {
+    // This is a connected component, so simplices_ must be non-empty.
+    return simplices_.front()->triangulation();
+}
+
+template <int dim> requires (supportedDim(dim))
 inline size_t ComponentBase<dim>::size() const {
     return simplices_.size();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto ComponentBase<dim>::simplices() const {
-    return ListView(simplices_);
+    return std::views::all(simplices_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Simplex<dim>* ComponentBase<dim>::simplex(size_t index) const {
     return simplices_[index];
 }
 
-template <int dim>
-inline size_t ComponentBase<dim>::countVertices() const {
-    static_assert(standardDim(dim), "countVertices() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline bool ComponentBase<dim>::hasLocks() const {
+    for (auto s : simplices_)
+        if (s->lockMask())
+            return true;
+    return false;
+}
+
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countVertices() const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template countFaces<0>();
 }
 
-template <int dim>
-inline size_t ComponentBase<dim>::countEdges() const {
-    static_assert(standardDim(dim), "countEdges() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countEdges() const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template countFaces<1>();
 }
 
-template <int dim>
-inline size_t ComponentBase<dim>::countTriangles() const {
-    static_assert(standardDim(dim), "countTriangles() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countTriangles() const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template countFaces<2>();
 }
 
-template <int dim>
-inline size_t ComponentBase<dim>::countTetrahedra() const {
-    static_assert(standardDim(dim) && dim >= 3,
-        "countTetrahedra() is only available for components in "
-        "standard dimensions dim >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countTetrahedra() const
+        requires (standardDim(dim) && dim >= 3) {
     return static_cast<const Component<dim>*>(this)->template countFaces<3>();
 }
 
-template <int dim>
-inline size_t ComponentBase<dim>::countPentachora() const {
-    static_assert(standardDim(dim) && dim >= 4,
-        "countPentachora() is only available for components in "
-        "standard dimensions dim >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countPentachora() const
+        requires (standardDim(dim) && dim >= 4) {
     return static_cast<const Component<dim>*>(this)->template countFaces<4>();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
+inline size_t ComponentBase<dim>::countFacets() const {
+    if constexpr (standardDim(dim)) {
+        return static_cast<const Component<dim>*>(this)->
+            template countFaces<dim - 1>();
+    } else {
+        return ((dim + 1) * simplices_.size() + boundaryFacets_) / 2;
+    }
+}
+
+template <int dim> requires (supportedDim(dim))
 inline size_t ComponentBase<dim>::countBoundaryComponents() const {
     return boundaryComponents_.size();
 }
 
-template <int dim>
-inline auto ComponentBase<dim>::vertices() const {
-    static_assert(standardDim(dim), "vertices() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline auto ComponentBase<dim>::vertices() const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template faces<0>();
 }
 
-template <int dim>
-inline auto ComponentBase<dim>::edges() const {
-    static_assert(standardDim(dim), "edges() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline auto ComponentBase<dim>::edges() const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template faces<1>();
 }
 
-template <int dim>
-inline auto ComponentBase<dim>::triangles() const {
-    static_assert(standardDim(dim), "triangles() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline auto ComponentBase<dim>::triangles() const
+        requires (standardDim(dim)) {
     if constexpr (dim == 2)
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     else
         return static_cast<const Component<dim>*>(this)->template faces<2>();
 }
 
-template <int dim>
-inline auto ComponentBase<dim>::tetrahedra() const {
-    static_assert(standardDim(dim) && dim >= 3,
-        "tetrahedra() is only available for components in "
-        "standard dimensions dim >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline auto ComponentBase<dim>::tetrahedra() const
+        requires (standardDim(dim) && dim >= 3) {
     if constexpr (dim == 3)
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     else
         return static_cast<const Component<dim>*>(this)->template faces<3>();
 }
 
-template <int dim>
-inline auto ComponentBase<dim>::pentachora() const {
-    static_assert(standardDim(dim) && dim >= 4,
-        "pentachora() is only available for components in "
-        "standard dimensions dim >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline auto ComponentBase<dim>::pentachora() const
+        requires (standardDim(dim) && dim >= 4) {
     if constexpr (dim == 4)
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     else
         return static_cast<const Component<dim>*>(this)->template faces<4>();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto ComponentBase<dim>::boundaryComponents() const {
-    return ListView(boundaryComponents_);
+    return std::views::all(boundaryComponents_);
 }
 
-template <int dim>
-inline Face<dim, 0>* ComponentBase<dim>::vertex(size_t index) const {
-    static_assert(standardDim(dim), "vertex() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline TriangulationTraits<dim>::Vertex* ComponentBase<dim>::vertex(
+        size_t index) const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template face<0>(index);
 }
 
-template <int dim>
-inline Face<dim, 1>* ComponentBase<dim>::edge(size_t index) const {
-    static_assert(standardDim(dim), "edge() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline TriangulationTraits<dim>::Edge* ComponentBase<dim>::edge(
+        size_t index) const
+        requires (standardDim(dim)) {
     return static_cast<const Component<dim>*>(this)->template face<1>(index);
 }
 
-template <int dim>
-inline Face<dim, 2>* ComponentBase<dim>::triangle(size_t index) const {
-    static_assert(standardDim(dim), "triangle() is only available "
-        "for components in standard dimensions.");
+template <int dim> requires (supportedDim(dim))
+inline TriangulationTraits<dim>::Triangle* ComponentBase<dim>::triangle(
+        size_t index) const
+        requires (standardDim(dim)) {
     if constexpr (dim == 2)
         return simplices_[index];
     else
@@ -575,11 +589,10 @@ inline Face<dim, 2>* ComponentBase<dim>::triangle(size_t index) const {
             template face<2>(index);
 }
 
-template <int dim>
-inline Face<dim, 3>* ComponentBase<dim>::tetrahedron(size_t index) const {
-    static_assert(standardDim(dim) && dim >= 3,
-        "tetrahedron() is only available for components in "
-        "standard dimensions dim >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline TriangulationTraits<dim>::Tetrahedron* ComponentBase<dim>::tetrahedron(
+        size_t index) const
+        requires (standardDim(dim) && dim >= 3) {
     if constexpr (dim == 3)
         return simplices_[index];
     else
@@ -587,11 +600,10 @@ inline Face<dim, 3>* ComponentBase<dim>::tetrahedron(size_t index) const {
             template face<3>(index);
 }
 
-template <int dim>
-inline Face<dim, 4>* ComponentBase<dim>::pentachoron(size_t index) const {
-    static_assert(standardDim(dim) && dim >= 4,
-        "pentachoron() is only available for components in "
-        "standard dimensions dim >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline TriangulationTraits<dim>::Pentachoron* ComponentBase<dim>::pentachoron(
+        size_t index) const
+        requires (standardDim(dim) && dim >= 4) {
     if constexpr (dim == 4)
         return simplices_[index];
     else
@@ -599,33 +611,33 @@ inline Face<dim, 4>* ComponentBase<dim>::pentachoron(size_t index) const {
             template face<4>(index);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline BoundaryComponent<dim>* ComponentBase<dim>::boundaryComponent(
         size_t index) const {
     return boundaryComponents_[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool ComponentBase<dim>::isValid() const {
     return valid_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool ComponentBase<dim>::isOrientable() const {
     return orientable_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool ComponentBase<dim>::hasBoundaryFacets() const {
     return boundaryFacets_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t ComponentBase<dim>::countBoundaryFacets() const {
     return boundaryFacets_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void ComponentBase<dim>::writeTextShort(std::ostream& out) const {
     if (simplices_.size() == 1)
         out << "Component with 1 " << Strings<dim>::simplex;

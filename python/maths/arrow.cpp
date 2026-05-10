@@ -41,11 +41,9 @@ using regina::Integer;
 using regina::Laurent;
 
 namespace {
-    // PythonType should be pybind11::list, pybind11::tuple, or pybind11::args.
-    //
     // Only nElements will be extracted from arg.  Typically nElements would be
     // arg.size(); it may be smaller but it must not be larger.
-    template <typename PythonType>
+    template <regina::python::PythonSequence PythonType>
     Arrow::DiagramSequence sequenceArg(PythonType arg, size_t nElements) {
         Arrow::DiagramSequence seq(nElements);
         auto it = arg.begin();
@@ -147,7 +145,7 @@ void addArrow(pybind11::module_& m) {
         .def(pybind11::self * pybind11::self, rdoc_global::__mul_5)
         .def(- pybind11::self, rdoc_global::__sub)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_tight_encoding(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
     regina::python::add_cmp_operators(c, rdoc::__cmp);

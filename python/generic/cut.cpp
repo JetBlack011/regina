@@ -31,7 +31,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
-#include "regina-config.h" // for REGINA_HIGHDIM
 #include "link/link.h"
 #include "link/modellinkgraph.h"
 #include "triangulation/cut.h"
@@ -55,7 +54,7 @@ void addCut(pybind11::module_& m) {
         .def(pybind11::init<size_t>(), rdoc::__init)
         .def(pybind11::init<size_t, size_t>(), rdoc::__init_2)
         .def(pybind11::init<const Cut&>(), rdoc::__copy)
-        .def(pybind11::init([](const std::vector<int> sides) {
+        .def(pybind11::init([](const std::vector<int>& sides) {
             return new Cut(sides.begin(), sides.end());
         }), pybind11::arg("sides"), rdoc::__init_3)
         .def("side", &Cut::side, rdoc::side)
@@ -229,7 +228,7 @@ void addCut(pybind11::module_& m) {
         .def("inc", &Cut::inc, rdoc::inc)
         .def("incFixedSizes", &Cut::incFixedSizes, rdoc::incFixedSizes)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Cut>(m, rdoc::global_swap);

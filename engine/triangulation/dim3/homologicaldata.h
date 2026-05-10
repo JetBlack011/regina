@@ -47,6 +47,8 @@
 #include <cstddef>
 #include <optional>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -675,7 +677,7 @@ public:
      * Returns the isomorphism from dualHomology(1) to homology(1)
      * given by a cellular approximation to the identity map on the manifold.
      *
-     * \return The isomorphism from dualHomology(1) to homology(1)
+     * \return the isomorphism from dualHomology(1) to homology(1)
      * computed via a cellular approximation of the identity map from
      * the first 1-skeleton to the second.
      */

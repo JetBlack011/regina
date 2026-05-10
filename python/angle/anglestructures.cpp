@@ -34,6 +34,7 @@
 #include "progress/progresstracker.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
+#include "../helpers/packet.h"
 #include "../docstrings/angle/anglestructures.h"
 
 using namespace regina::python;
@@ -78,13 +79,17 @@ void addAngleStructures(pybind11::module_& m) {
         }, pybind11::keep_alive<0, 1>(), // iterator keeps list alive
             rdoc::__iter__)
         .def("spansStrict", &AngleStructures::spansStrict, rdoc::spansStrict)
+        .def("knowsSpansStrict", &AngleStructures::knowsSpansStrict,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsSpansStrict)
         .def("spansTaut", &AngleStructures::spansTaut, rdoc::spansTaut)
+        .def("knowsSpansTaut", &AngleStructures::knowsSpansTaut,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsSpansTaut)
         .def("sort", &AngleStructures::sort<const std::function<
             bool(const regina::AngleStructure&,
                 const regina::AngleStructure&)>&>,
             rdoc::sort)
     ;
-    regina::python::add_output(l);
+    regina::python::add_output_rich(l);
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 

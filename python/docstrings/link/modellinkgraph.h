@@ -54,11 +54,6 @@ Currently this class does not support circular graph components
 (which, in a link diagram, would correspond to zero-crossing unknot
 components of the link).
 
-For Boost users: if you wish to study the underlying graph of an
-existing link, you do not need to create a ModelLinkGraph - instead
-you can include link/graph.h and then use Link directly as a directed
-graph type with the Boost Graph Library.
-
 This class implements C++ move semantics and adheres to the C++
 Swappable requirement. It is designed to avoid deep copies wherever
 possible, even when passing or returning objects by value.)doc";
@@ -419,10 +414,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. The elements of the list will be read-only
-objects of type ModelLinkGraphArc, and so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. The elements of the list will be read-only objects of
+type ModelLinkGraphArc, and so your code might look like:
 
 ```
 for (const ModelLinkGraphArc& a : cells.arcs(cell)) { ... }
@@ -613,7 +608,7 @@ loops, each bounding its own 1-gon (which models a 1-crossing unknot
 component of a link diagram).
 
 Returns:
-    The number of incident embedded bigons, which will be between 0
+    the number of incident embedded bigons, which will be between 0
     and 4 inclusive.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphNode_::index
@@ -646,7 +641,7 @@ Regarding loops versus 1-gons:
   ``0 ≤ monogons() ≤ loops() ≤ 2``.
 
 Returns:
-    The number of incident loops, which will be between 0 and 2
+    the number of incident loops, which will be between 0 and 2
     inclusive.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphNode_::monogons
@@ -667,7 +662,7 @@ Regarding loops versus 1-gons:
   ``0 ≤ monogons() ≤ loops() ≤ 2``.
 
 Returns:
-    The number of incident 1-gons, which will be between 0 and 2
+    the number of incident 1-gons, which will be between 0 and 2
     inclusive.)doc";
 
 // Docstring regina::python::doc::ModelLinkGraphNode_::triangles
@@ -681,7 +676,7 @@ would imply that the underlying graph contains a loop bounding a 1-gon
 (which models a trivial twist in a link diagram).
 
 Returns:
-    The number of incident embedded triangles, which will be between 0
+    the number of incident embedded triangles, which will be between 0
     and 4 inclusive.)doc";
 
 }
@@ -1331,7 +1326,7 @@ precisely those graphs described by OEIS sequence A292206. If
 more) the output set should be smaller.
 
 For each graph that is generated, this routine will call *action*
-(which must be a function or some other callable object).
+(which must be a function or some other callable type).
 
 * The first argument passed to *action* will be the graph that was
   generated (of type ModelLinkGraph). This will be passed as an
@@ -1342,7 +1337,8 @@ For each graph that is generated, this routine will call *action*
 * If there are any additional arguments supplied in the list *args*,
   then these will be passed as subsequent arguments to *action*.
 
-* *action* must return ``void``.
+* The return value of *action* will be ignored; typically it would
+  return ``void``.
 
 .. warning::
     The API for this class or function has not yet been finalised.
@@ -1383,8 +1379,8 @@ Parameter ``constraints``:
     produced.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each graph that
-    is generated.
+    a function (or other callable type) to call for each graph that is
+    generated.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -1411,7 +1407,7 @@ correspond to node *k* of this graph. If this graph is non-planar,
 then the resulting link diagrams will all be virtual.
 
 For each link diagram that is generated, this routine will call
-*action* (which must be a function or some other callable object).
+*action* (which must be a function or some other callable type).
 
 * The first argument passed to *action* will be the link diagram that
   was generated (of type Link). This will be passed as an rvalue; a
@@ -1422,7 +1418,8 @@ For each link diagram that is generated, this routine will call
 * If there are any additional arguments supplied in the list *args*,
   then these will be passed as subsequent arguments to *action*.
 
-* *action* must return ``void``.
+* The return value of *action* will be ignored; typically it would
+  return ``void``.
 
 .. warning::
     The API for this class or function has not yet been finalised.
@@ -1440,8 +1437,8 @@ Python:
     one argument (the link diagram).
 
 Parameter ``action``:
-    a function (or other callable object) to call for each link
-    diagram that is generated.
+    a function (or other callable type) to call for each link diagram
+    that is generated.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -1505,7 +1502,7 @@ correspond to node *k* of this graph. If this graph is non-planar,
 then the resulting link diagrams will all be virtual.
 
 For each link diagram that is generated, this routine will call
-*action* (which must be a function or some other callable object).
+*action* (which must be a function or some other callable type).
 
 * The first argument passed to *action* will be the link diagram that
   was generated (of type Link). This will be passed as an rvalue; a
@@ -1516,7 +1513,8 @@ For each link diagram that is generated, this routine will call
 * If there are any additional arguments supplied in the list *args*,
   then these will be passed as subsequent arguments to *action*.
 
-* *action* must return ``void``.
+* The return value of *action* will be ignored; typically it would
+  return ``void``.
 
 .. warning::
     The API for this class or function has not yet been finalised.
@@ -1542,8 +1540,8 @@ Exception ``FailedPrecondition``:
     There is a 1-gon in the cell decomposition induced by this graph.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each link
-    diagram that is generated.
+    a function (or other callable type) to call for each link diagram
+    that is generated.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,
@@ -1681,10 +1679,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (ModelLinkGraphNode* n : graph.nodes()) { ... }

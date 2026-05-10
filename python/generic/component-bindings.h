@@ -37,7 +37,7 @@
 
 using regina::Component;
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 void addComponent(pybind11::module_& m, pybind11::module_& internal,
         const char* name) {
     // We use the global scope here because all of Component's members are
@@ -47,13 +47,17 @@ void addComponent(pybind11::module_& m, pybind11::module_& internal,
 
     auto c = pybind11::class_<Component<dim>>(m, name, rdoc::Component)
         .def("index", &Component<dim>::index, rbase::index)
+        .def("triangulation", &Component<dim>::triangulation,
+            rbase::triangulation)
         .def("size", &Component<dim>::size, rbase::size)
+        .def("countFacets", &Component<dim>::countFacets, rbase::countFacets)
         .def("countBoundaryComponents",
             &Component<dim>::countBoundaryComponents,
             rbase::countBoundaryComponents)
         .def("simplices", &Component<dim>::simplices, rbase::simplices)
         .def("simplex", &Component<dim>::simplex,
             pybind11::return_value_policy::reference, rbase::simplex)
+        .def("hasLocks", &Component<dim>::hasLocks, rbase::hasLocks)
         .def("boundaryComponents", &Component<dim>::boundaryComponents,
             rbase::boundaryComponents)
         .def("boundaryComponent", &Component<dim>::boundaryComponent,
@@ -66,13 +70,13 @@ void addComponent(pybind11::module_& m, pybind11::module_& internal,
             rbase::countBoundaryFacets)
         .def_readonly_static("dimension", &Component<dim>::dimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Component<dim>>().simplices())>(internal,
         (std::string(name) + "_simplices").c_str());
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Component<dim>>().boundaryComponents())>(internal,
         (std::string(name) + "_boundaryComponents").c_str());
 

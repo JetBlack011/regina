@@ -38,8 +38,11 @@
 #define __REGINA_SNAPSHOT_H
 #endif
 
+#include "regina-core.h"
 #include <atomic>
 #include <exception>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -198,7 +201,7 @@ class SnapshotWriteError : public std::exception {
  * This Snapshot class itself should remain forever behind the scenes:
  * end users cannot access it and should not know about it.
  * Images should always work through their base class Snapshottable<T>,
- * and viewers shoudl always work through SnapshotRef<T>.
+ * and viewers should always work through SnapshotRef<T>.
  *
  * \nopython
  *

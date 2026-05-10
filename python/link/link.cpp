@@ -40,10 +40,13 @@
 #include "maths/laurent2.h"
 #include "triangulation/dim3.h"
 #include "../helpers.h"
+#include "../helpers/bytesequence.h"
+#include "../helpers/packet.h"
 #include "../docstrings/link/link.h"
 
 using pybind11::overload_cast;
 using regina::python::GILCallbackManager;
+using regina::ByteSequence;
 using regina::Crossing;
 using regina::Framing;
 using regina::ProgressTracker;
@@ -91,6 +94,7 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
         .def("next", &StrandRef::next, rdoc::next)
         .def("prev", &StrandRef::prev, rdoc::prev)
         .def("jump", &StrandRef::jump, rdoc::jump)
+        .def("reset", &StrandRef::reset, rdoc::reset)
         .def("__bool__", &StrandRef::operator bool, rdoc::__as_bool)
     ;
     regina::python::add_output_ostream(s);
@@ -108,8 +112,9 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
         .def("strand", &Crossing::strand, rdoc::strand)
         .def("next", &Crossing::next, rdoc::next)
         .def("prev", &Crossing::prev, rdoc::prev)
+        .def("chordIndex", &Crossing::chordIndex, rdoc::chordIndex)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_SWITCH(Link)
@@ -231,8 +236,19 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
             auto begin = std::addressof(c);
             return Link::fromData(s.begin(), s.end(), begin, begin + 1);
         }, pybind11::arg("signs"), pybind11::arg("component"), rdoc::fromData)
-        .def_static("fromKnotSig", &Link::fromKnotSig, rdoc::fromKnotSig)
-        .def_static("fromSig", &Link::fromSig, rdoc::fromSig)
+        // With fromSig(), the byte sequence variant _must_ come first.
+        // This is because pybind11 performs automatic conversion from bytes
+        // to std::string, and so if the string variant appears first then
+        // pybind11 will use it even with a pybind11::bytes argument.
+        .def_static("fromSig",
+            overload_cast<const ByteSequence&>(&Link::fromSig),
+            rdoc::fromSig_2)
+        .def_static("fromSig",
+            overload_cast<const std::string&>(&Link::fromSig),
+            rdoc::fromSig)
+        .def_static("fromKnotSig", // deprecated
+            overload_cast<const std::string&>(&Link::fromSig),
+            rdoc::fromKnotSig)
         .def("swap", &Link::swap, rdoc::swap)
         .def("insertLink", overload_cast<const Link&>(&Link::insertLink),
             rdoc::insertLink)
@@ -274,6 +290,8 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
         .def("parallel", &Link::parallel,
             pybind11::arg(), pybind11::arg("framing") = Framing::Seifert,
             rdoc::parallel)
+        .def("parityProjection", &Link::parityProjection,
+            pybind11::arg("modBase") = 2, rdoc::parityProjection)
         .def("isConnected", &Link::isConnected, rdoc::isConnected)
         .def("connected", &Link::connected, rdoc::connected)
         .def("diagramComponents", &Link::diagramComponents,
@@ -348,12 +366,17 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::arrow)
         .def("affineIndex", &Link::affineIndex, rdoc::affineIndex)
-        .def("knowsAlexander", &Link::knowsAlexander, rdoc::knowsAlexander)
-        .def("knowsBracket", &Link::knowsBracket, rdoc::knowsBracket)
-        .def("knowsJones", &Link::knowsJones, rdoc::knowsJones)
-        .def("knowsHomfly", &Link::knowsHomfly, rdoc::knowsHomfly)
+        .def("knowsAlexander", &Link::knowsAlexander,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsAlexander)
+        .def("knowsBracket", &Link::knowsBracket,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsBracket)
+        .def("knowsJones", &Link::knowsJones,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsJones)
+        .def("knowsHomfly", &Link::knowsHomfly,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsHomfly)
         .def_static("homflyAZtoLM", &Link::homflyAZtoLM, rdoc::homflyAZtoLM)
-        .def("knowsArrow", &Link::knowsArrow, rdoc::knowsArrow)
+        .def("knowsArrow", &Link::knowsArrow,
+            pybind11::arg("cachedOnly") = false, rdoc::knowsArrow)
         .def("group", &Link::group,
             pybind11::arg("simplify") = true, rdoc::group)
         .def("groups", &Link::groups,
@@ -400,16 +423,99 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
             overload_cast<>(&Link::pd, pybind11::const_), rdoc::pd)
         .def("pdAmbiguous", &Link::pdAmbiguous, rdoc::pdAmbiguous)
         .def("pace", &Link::pace, rdoc::pace)
+
+        // In the signature functions below:
+        // - For functions that take an optional encoding, we bind the variants
+        //   with vs without encoding arguments separately.  This seems easier
+        //   than trying to jump through the hoops of converting a C++ type
+        //   to a python object to use as a default argument.
+        // - For variants that support both string-based and binary encodings,
+        //   we use pybind11::cast() on the return values since different
+        //   encodings give different return types.
         .def("knotSig", &Link::knotSig,
             pybind11::arg("allowReflection") = true,
             pybind11::arg("allowReversal") = true,
             pybind11::arg("allowRotation") = true,
             rdoc::knotSig)
-        .def("sig", &Link::sig,
+
+        .def("neoSig", [](const Link& link, bool allowReflection,
+                bool allowReversal, bool allowRotation) {
+            return pybind11::cast(link.neoSig(allowReflection, allowReversal,
+                allowRotation));
+        }, pybind11::arg("allowReflection") = true,
+            pybind11::arg("allowReversal") = true,
+            pybind11::arg("allowRotation") = true,
+            rdoc::neoSig)
+        .def("neoSig", [](const Link& link, bool allowReflection,
+                bool allowReversal, bool allowRotation,
+                pybind11::type encoding) {
+            using pytype = pybind11::type;
+            if (encoding.is(pytype::of<regina::LinkSigPrintable>())) {
+                return pybind11::cast(link.neoSig<regina::LinkSigPrintable>(
+                    allowReflection, allowReversal, allowRotation));
+            } else if (encoding.is(pytype::of<regina::LinkSigBinary>())) {
+                return pybind11::cast(link.neoSig<regina::LinkSigBinary>(
+                    allowReflection, allowReversal, allowRotation));
+            } else {
+                throw regina::InvalidArgument("Not a supported "
+                    "second-generation knot/link signature encoding");
+            }
+        },
+            pybind11::arg("allowReflection") = true,
+            pybind11::arg("allowReversal") = true,
+            pybind11::arg("allowRotation") = true,
+            pybind11::arg("encoding"),
+            rdoc::neoSig)
+        .def("sig", [](const Link& link, int generation,
+                bool allowReflection, bool allowReversal, bool allowRotation) {
+            if (generation == 1) {
+                return pybind11::cast(link.sig<1>(allowReflection,
+                    allowReversal, allowRotation));
+            } else if (generation == 2) {
+                return pybind11::cast(link.sig<2>(allowReflection,
+                    allowReversal, allowRotation));
+            } else
+                throw regina::InvalidArgument(
+                    "Not a supported generation of knot/link signature");
+        }, pybind11::arg("generation"),
             pybind11::arg("allowReflection") = true,
             pybind11::arg("allowReversal") = true,
             pybind11::arg("allowRotation") = true,
             rdoc::sig)
+        .def("sig", [](const Link& link, int generation,
+                bool allowReflection, bool allowReversal, bool allowRotation,
+                pybind11::type encoding) {
+            using pytype = pybind11::type;
+            if (generation == 1) {
+                if (encoding.is(pytype::of<regina::LinkSigPrintable>())) {
+                    return pybind11::cast(link.sig<1, regina::LinkSigPrintable>(
+                        allowReflection, allowReversal, allowRotation));
+                } else {
+                    throw regina::InvalidArgument("Not a supported "
+                        "first-generation knot/link signature encoding");
+                }
+            } else if (generation == 2) {
+                if (encoding.is(pytype::of<regina::LinkSigPrintable>())) {
+                    return pybind11::cast(link.sig<2, regina::LinkSigPrintable>(
+                        allowReflection, allowReversal, allowRotation));
+                } else if (encoding.is(pytype::of<regina::LinkSigBinary>())) {
+                    return pybind11::cast(link.sig<2, regina::LinkSigBinary>(
+                        allowReflection, allowReversal, allowRotation));
+                } else {
+                    throw regina::InvalidArgument("Not a supported "
+                        "second-generation knot/link signature encoding");
+                }
+            } else
+                throw regina::InvalidArgument(
+                    "Not a supported generation of knot/link signature");
+        },
+            pybind11::arg("generation"),
+            pybind11::arg("allowReflection") = true,
+            pybind11::arg("allowReversal") = true,
+            pybind11::arg("allowRotation") = true,
+            pybind11::arg("encoding"),
+            rdoc::sig)
+
         .def("source", &Link::source,
             // The default should be Language::Current, but in C++ that
             // evaluates to Language::Cxx.  We need it to evaluate to
@@ -511,15 +617,15 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::simplifyExhaustive)
         .def("rewrite", [](const Link& link, int height, int threads,
-                const std::function<bool(const std::string&, Link&&)>& action) {
+                const std::function<bool(const ByteSequence&, Link&&)>& act) {
             if (threads == 1) {
-                return link.rewrite(height, 1, nullptr, action);
+                return link.rewrite(height, 1, nullptr, act);
             } else {
                 GILCallbackManager manager;
                 return link.rewrite(height, threads, nullptr,
-                    [&](const std::string& sig, Link&& link) -> bool {
+                    [&](const ByteSequence& sig, Link&& link) -> bool {
                         GILCallbackManager<>::ScopedAcquire acquire(manager);
-                        return action(sig, std::move(link));
+                        return act(sig, std::move(link));
                     });
             }
         }, pybind11::arg("height"),
@@ -527,15 +633,15 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::arg("action"),
             rdoc::rewrite)
         .def("rewriteVirtual", [](const Link& link, int height, int threads,
-                const std::function<bool(const std::string&, Link&&)>& action) {
+                const std::function<bool(const ByteSequence&, Link&&)>& act) {
             if (threads == 1) {
-                return link.rewriteVirtual(height, 1, nullptr, action);
+                return link.rewriteVirtual(height, 1, nullptr, act);
             } else {
                 GILCallbackManager manager;
                 return link.rewriteVirtual(height, threads, nullptr,
-                    [&](const std::string& sig, Link&& link) -> bool {
+                    [&](const ByteSequence& sig, Link&& link) -> bool {
                         GILCallbackManager<>::ScopedAcquire acquire(manager);
-                        return action(sig, std::move(link));
+                        return act(sig, std::move(link));
                     });
             }
         }, pybind11::arg("height"),
@@ -615,14 +721,14 @@ void addLink(pybind11::module_& m, pybind11::module_& internal) {
     #if defined(__GNUC__)
     #pragma GCC diagnostic pop
     #endif
-    regina::python::add_output(l);
+    regina::python::add_output_rich(l);
     regina::python::add_tight_encoding(l);
     regina::python::packet_eq_operators(l, rdoc::__eq);
     regina::python::add_packet_data(l);
 
-    regina::python::addListView<decltype(Link().crossings())>(internal,
+    regina::python::addStdView<decltype(Link().crossings())>(internal,
         "Link_crossings");
-    regina::python::addListView<decltype(Link().components())>(internal,
+    regina::python::addStdView<decltype(Link().components())>(internal,
         "Link_components");
 
     auto wrap = regina::python::add_packet_wrapper<Link>(m, "PacketOfLink");

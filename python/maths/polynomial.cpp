@@ -39,7 +39,7 @@
 using pybind11::overload_cast;
 using regina::Polynomial;
 
-template <typename T>
+template <regina::CoefficientDomain T>
 void addPolynomialOver(pybind11::module_& m, const char* className) {
     RDOC_SCOPE_BEGIN(Polynomial)
 
@@ -101,10 +101,12 @@ void addPolynomialOver(pybind11::module_& m, const char* className) {
         .def("divisionAlg", overload_cast<const Polynomial<T>&>(
             &Polynomial<T>::divisionAlg, pybind11::const_),
             rdoc::divisionAlg)
-        .def("gcdWithCoeffs", &Polynomial<T>::template gcdWithCoeffs<T>,
-            rdoc::gcdWithCoeffs)
     ;
-    regina::python::add_output(c);
+    if constexpr (regina::Field<T>) {
+        c.def("gcdWithCoeffs", &Polynomial<T>::template gcdWithCoeffs<T>,
+            rdoc::gcdWithCoeffs);
+    }
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c, rdoc::__eq);
 
     regina::python::add_global_swap<Polynomial<T>>(m, rdoc::global_swap);

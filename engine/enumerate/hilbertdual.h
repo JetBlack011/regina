@@ -45,6 +45,8 @@
 #include <list>
 #include <vector>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 #ifndef __DOXYGEN
     // Optimisations:
 
@@ -134,12 +136,13 @@ class HilbertDual {
          * called after this routine returns.
          *
          * For each of the resulting basis elements, this routine will call
-         * \a action (which must be a function or some other callable object).
-         * This action should return \c void, and must take exactly one
-         * argument, which will be the basis element stored using type \a Ray.
-         * The argument will be passed as an rvalue; a typical \a action
-         * would take it as an rvalue reference (`Ray&&`) and move its
-         * contents into some other more permanent storage.
+         * \a action (which must be a function or some other callable type).
+         * This action must take exactly one argument: the basis element stored
+         * using type \a Ray.  The argument will be passed as an rvalue;
+         * a typical \a action would take it as an rvalue reference (`Ray&&`)
+         * and move its contents into some other more permanent storage.
+         * The return value of \a action will be ignored (a typical \a action
+         * would return \c void).
          *
          * \python There are two versions of this function available
          * in Python.  The first version is the same as the C++ function;
@@ -151,7 +154,7 @@ class HilbertDual {
          * The global interpreter lock will be released while this function
          * runs, so you can use it with Python-based multithreading.
          *
-         * \param action a function (or other callable object) that will be
+         * \param action a function (or other callable type) that will be
          * called for each basis element.  This function must take a single
          * argument, which will be passed as an rvalue of type Ray.
          * \param subspace a matrix defining the linear subspace to intersect
@@ -168,10 +171,11 @@ class HilbertDual {
          * The remaining rows will be sorted using the PosOrder class
          * before they are processed.
          */
-        template <ArbitraryPrecisionIntegerVector Ray, typename Action>
+        template <ArbitraryPrecisionIntegerVector Ray,
+            VoidCallback<Ray&&> Action>
         static void enumerate(Action&& action,
             const MatrixInt& subspace, const ValidityConstraints& constraints,
-            ProgressTracker* tracker = nullptr, unsigned initialRows = 0);
+            ProgressTracker* tracker = nullptr, size_t initialRows = 0);
 
         // Mark this class as non-constructible.
         HilbertDual() = delete;
@@ -252,8 +256,7 @@ class HilbertDual {
                  * \param row the row of the given matrix that stores
                  * the specific hyperplane in which we are interested.
                  */
-                inline void initNextHyp(const MatrixInt& subspace,
-                    unsigned row);
+                inline void initNextHyp(const MatrixInt& subspace, size_t row);
 
                 /**
                  * Sets this to the sum of the two given vectors.
@@ -333,24 +336,6 @@ class HilbertDual {
 
                 using Vector<IntegerType>::operator [];
         };
-
-        /**
-         * Identical to the public routine enumerate(),
-         * except that there is an extra template parameter \a BitmaskType.
-         * This describes what type should be used for bitmasks that
-         * represent zero/non-zero coordinates in a vector.
-         *
-         * All argument are identical to those for the public routine
-         * enumerate().
-         *
-         * \pre The type \a BitmaskType can handle at least \a n bits,
-         * where \a n is the number of coordinates in the underlying vectors.
-         */
-        template <ArbitraryPrecisionIntegerVector Ray,
-            ReginaBitmask BitmaskType, typename Action>
-        static void enumerateUsingBitmask(Action&& action,
-            const MatrixInt& subspace, const ValidityConstraints& constraints,
-            ProgressTracker* tracker, unsigned initialRows);
 
         /**
          * Test whether the vector \a vec can be reduced using
@@ -439,7 +424,7 @@ class HilbertDual {
         template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
         static void intersectHyperplane(
             std::vector<VecSpec<IntegerType, BitmaskType>*>& list,
-            const MatrixInt& subspace, unsigned row,
+            const MatrixInt& subspace, size_t row,
             const std::vector<BitmaskType>& constraintMasks);
 };
 
@@ -464,7 +449,7 @@ inline HilbertDual::VecSpec<IntegerType, BitmaskType>::VecSpec(
 
 template <ReginaInteger IntegerType, ReginaBitmask BitmaskType>
 inline void HilbertDual::VecSpec<IntegerType, BitmaskType>::initNextHyp(
-        const MatrixInt& subspace, unsigned row) {
+        const MatrixInt& subspace, size_t row) {
     nextHyp_ = 0;
 
     IntegerType tmp;
@@ -538,7 +523,7 @@ inline bool HilbertDual::VecSpec<IntegerType, BitmaskType>::dominatedBy(
     // Begin with simple tests that give us a fast way of saying no.
     if (! (mask_ <= other.mask_))
         return false;
-    for (unsigned i = 0; i < Vector<IntegerType>::size(); ++i)
+    for (size_t i = 0; i < Vector<IntegerType>::size(); ++i)
         if ((*this)[i] > other[i])
             return false;
     return true;

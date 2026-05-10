@@ -40,6 +40,8 @@
 #include "regina-core.h"
 #include "manifold.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -141,7 +143,7 @@ class LensSpace : public Manifold {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the other representation to compare this with.
-         * \return A result that indicates how this and the given lens space
+         * \return a result that indicates how this and the given lens space
          * representation should be ordered with respect to each other.
          */
         std::strong_ordering operator <=> (const LensSpace& rhs) const;
@@ -205,17 +207,9 @@ inline bool LensSpace::operator == (const LensSpace& compare) const {
 
 inline std::strong_ordering LensSpace::operator <=> (const LensSpace& rhs)
         const {
-    if (p_ < rhs.p_)
-        return std::strong_ordering::less;
-    if (p_ > rhs.p_)
-        return std::strong_ordering::greater;
-
-    if (q_ < rhs.q_)
-        return std::strong_ordering::less;
-    if (q_ > rhs.q_)
-        return std::strong_ordering::greater;
-
-    return std::strong_ordering::equal;
+    if (auto c = p_ <=> rhs.p_; c != 0)
+        return c;
+    return q_ <=> rhs.q_;
 }
 
 inline bool LensSpace::isHyperbolic() const {

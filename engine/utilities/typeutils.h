@@ -45,6 +45,8 @@
 #include <variant>
 #include "regina-core.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -78,12 +80,12 @@ struct EnableIf<false, T, defaultValue> {
 #endif // __DOXYGEN
 
 /**
- * Implements a compile-time \c for loop over a range of integers.
+ * Implements a compile-time `for` loop over a range of integers.
  *
  * This function will call \a action for each integer \a i in the range
- * <i>from</i>, ..., (<i>to</i>-1) inclusive.
+ * `from, ..., to-1` inclusive.
  *
- * The action should be a templated callable object (e.g., a generic lambda)
+ * The action should be a templated callable type (e.g., a generic lambda)
  * that takes a single argument whose type depends on the value of \a i.
  * Any return value will be ignored.  For each integer \a i, the argument will
  * be of type `std::integral_constant<int, i>`, which means that \a i
@@ -91,7 +93,7 @@ struct EnableIf<false, T, defaultValue> {
  *
  * If \a from is not less than \a to, then this routine safely does nothing.
  *
- * \param action the body of the \c for loop; that is, the action to
+ * \param action the body of the `for` loop; that is, the action to
  * perform for each integer \a i.  See above for the interface that
  * \a action should adhere to.
  *
@@ -106,12 +108,12 @@ constexpr void for_constexpr(Action&& action) {
 }
 
 /**
- * Implements a compile-time \c for loop over a given set of integers.
+ * Implements a compile-time `for` loop over a given set of integers.
  *
  * This function will call \a action for each integer \a i in the sequence
  * \a values.
  *
- * The action should be a templated callable object (e.g., a generic lambda)
+ * The action should be a templated callable type (e.g., a generic lambda)
  * that takes a single argument whose type depends on the value of \a i.
  * Any return value will be ignored.  For each integer \a i, the argument will
  * be of type `std::integral_constant<int, i>`, which means that \a i
@@ -122,7 +124,7 @@ constexpr void for_constexpr(Action&& action) {
  * and one that takes the list of values as a std::integer_sequence (which
  * allows you to reuse the list of values via a type alias).
  *
- * \param action the body of the \c for loop; that is, the action to
+ * \param action the body of the `for` loop; that is, the action to
  * perform for each integer \a i.  See above for the interface that
  * \a action should adhere to.
  *
@@ -134,12 +136,12 @@ constexpr void foreach_constexpr(Action&& action) {
 }
 
 /**
- * Implements a compile-time \c for loop over a given set of integers.
+ * Implements a compile-time `for` loop over a given set of integers.
  *
  * This function will call \a action for each integer \a i in the integer
  * sequence \a values.
  *
- * The action should be a templated callable object (e.g., a generic lambda)
+ * The action should be a templated callable type (e.g., a generic lambda)
  * that takes a single argument whose type depends on the value of \a i.
  * Any return value will be ignored.  For each integer \a i, the argument will
  * be of type `std::integral_constant<int, i>`, which means that \a i
@@ -150,7 +152,7 @@ constexpr void foreach_constexpr(Action&& action) {
  * and one that takes the list of values as a std::integer_sequence (which
  * allows you to reuse the list of values via a type alias).
  *
- * \param action the body of the \c for loop; that is, the action to
+ * \param action the body of the `for` loop; that is, the action to
  * perform for each integer \a i.  See above for the interface that
  * \a action should adhere to.
  *
@@ -163,43 +165,72 @@ constexpr void foreach_constexpr(std::integer_sequence<int, values...>,
 }
 
 /**
+ * Implements a compile-time "for-all" test over a range of integers.
+ *
+ * This function will call \a predicate for each integer \a i in the range
+ * `from, ..., to-1` inclusive, and will return `true` if and
+ * only if `predicate(i)` returns `true` for all \a i.
+ *
+ * The predicate should be a templated callable type (e.g., a generic lambda)
+ * that takes a single argument whose type depends on the value of \a i, and
+ * that returns a boolean.  For each integer \a i, the argument will be of
+ * type `std::integral_constant<int, i>`, which means that \a i is accessible
+ * as a compile-time constant.
+ *
+ * If \a from is not less than \a to, then this routine does nothing and
+ * vacuously returns `true`.
+ *
+ * \param predicate the test to perform for each integer \a i.  See above for
+ * the interface that \a predicate should adhere to.
+ *
+ * \ingroup utilities
+ */
+template <int from, int to, typename Predicate>
+constexpr bool forall_constexpr(Predicate&& predicate) {
+    if constexpr (from < to)
+        return predicate(std::integral_constant<int, from>()) &&
+            forall_constexpr<from + 1, to>(std::forward<Predicate>(predicate));
+    else
+        return true;
+}
+
+/**
  * Implements a compile-time selection, where the runtime argument must belong
  * to a compile-time range of integers, and the value of the argument
  * determines what is returned.
  *
- * The action should be a templated callable object (e.g., a generic lambda)
- * that takes a single argument.  If \a value is equal to the integer \a i,
- * for some \a i in the range <i>from</i>, ..., (<i>to</i>-1) inclusive,
- * then this function will return `action(i)`.  The argument \a i
- * will be passed using the type `std::integral_constant<int, i>`,
- * which means that the value of \a i will be accessible to \a action as a
- * compile-time constant.
+ * The return value is generated by \a function, which should be a templated
+ * callable type (e.g., a generic lambda) that takes a single argument.
+ * If \a value is equal to the integer \a i for some \a i in the range
+ * `from, ..., to-1` inclusive, then _this_ function will return `function(i)`.
+ * The argument \a i will be passed using the type
+ * `std::integral_constant<int, i>`, which means that the value of \a i will be
+ * accessible to \a function as a compile-time constant.
  *
  * \exception std::runtime_error The given runtime value is not within the
- * range <i>from</i>, ..., (<i>to</i>-1).
+ * range `from, ..., to-1`.
  *
- * \tparam Return the type to be returned from this function.
- * Typically this will be the same as the return type from \a action,
- * but it may differ (particuarly if the return type of \a action
- * depends upon its integer argument).
+ * \tparam Return the type to be returned.  Typically this will be the same as
+ * the return type from \a function, but it may differ (particuarly if the
+ * return type of \a function depends upon its integer argument).
  *
  * \param value the runtime value that determines the selection; that is, the
- * argument that will be passed to the given action as a compile-time constant.
- * \param action the action to perform for whichever integer \a i matches
- * the given runtime value.  See above for the interface that \a action
+ * argument that will be passed to \a function as a compile-time constant.
+ * \param function the function to compute for whichever integer \a i matches
+ * the given runtime value.  See above for the interface that \a function
  * should adhere to.
- * \return the value returned from \a action.
+ * \return the value returned from \a function.
  *
  * \ingroup utilities
  */
-template <int from, int to, typename Return, typename Action>
-constexpr Return select_constexpr(int value, Action&& action) {
+template <int from, int to, typename Return, typename Function>
+constexpr Return select_constexpr(int value, Function&& function) {
     if constexpr (from < to) {
         if (value == from)
-            return action(std::integral_constant<int, from>());
+            return function(std::integral_constant<int, from>());
         else
-            return select_constexpr<from + 1, to, Return, Action>(value,
-                std::forward<Action>(action));
+            return select_constexpr<from + 1, to, Return, Function>(value,
+                std::forward<Function>(function));
     } else
         throw std::runtime_error("select_constexpr(): value out of range");
 }
@@ -212,14 +243,16 @@ namespace detail {
  * Implementation details for select_constexpr_as_variant.
  * These declarations are used to pack together the correct std::variant
  * return type.
+ *
+ * \ingroup detail
  */
-template <int from, typename Action, int... arg /* 0,...,(to-from-1) */>
+template <int from, typename Function, int... arg /* 0,...,(to-from-1) */>
 auto seqToVariantHelper(std::integer_sequence<int, arg...>) ->
-    std::variant<decltype(std::declval<Action>()(
+    std::variant<decltype(std::declval<Function>()(
         std::integral_constant<int, arg + from>()))...>;
 
-template <int from, int to, typename Action>
-using SeqToVariant = decltype(seqToVariantHelper<from, Action>(
+template <int from, int to, typename Function>
+using SeqToVariant = decltype(seqToVariantHelper<from, Function>(
     std::make_integer_sequence<int, to - from>()));
 
 } // namespace detail
@@ -235,10 +268,9 @@ using SeqToVariant = decltype(seqToVariantHelper<from, Action>(
  * select_constexpr(), except that you do not need to explicitly give
  * the return type.  Instead, the return type will be
  * `std::variant<R(from), R(from+1), ..., R(to-1)>`, where each
- * `R(i)` denotes the type returned by the corresponding call to
- * `action(i)`.
+ * `R(i)` denotes the type returned by the corresponding call to `function(i)`.
  *
- * This is useful when the return _type_ from \a action (not just the
+ * This is useful when the return _type_ from \a function (not just the
  * return value) depends on \a i.  An example of this is
  * `Triangulation::face(subdim, index)`, whose return type
  * would normally be `Face<subdim>*`, except for the fact that
@@ -252,23 +284,23 @@ using SeqToVariant = decltype(seqToVariantHelper<from, Action>(
  * `R(from+1)`, ..., `R(to-1)` are different.
  *
  * \exception std::runtime_error The given runtime value is not within the
- * range <i>from</i>, ..., (<i>to</i>-1).
+ * range `from, ..., to-1`.
  *
  * \param value the runtime value that determines the selection; that is, the
- * argument that will be passed to the given action as a compile-time constant.
- * \param action the action to perform for whichever integer \a i matches
- * the given runtime value.  See above for the interface that \a action
+ * argument that will be passed to \a function as a compile-time constant.
+ * \param function the function to compute for whichever integer \a i matches
+ * the given runtime value.  See above for the interface that \a function
  * should adhere to.
- * \return the value returned from \a action, given as a variant that
+ * \return the value returned from \a function, given as a variant that
  * encapsulates all (\a to - \a from) possible return types.
  *
  * \ingroup utilities
  */
-template <int from, int to, typename Action>
-constexpr auto select_constexpr_as_variant(int value, Action&& action) {
+template <int from, int to, typename Function>
+constexpr auto select_constexpr_as_variant(int value, Function&& function) {
     return select_constexpr<from, to,
-        regina::detail::SeqToVariant<from, to, Action>, Action>(
-        value, std::forward<Action>(action));
+        regina::detail::SeqToVariant<from, to, Function>, Function>(
+        value, std::forward<Function>(function));
 }
 
 #ifndef __DOXYGEN
@@ -281,6 +313,8 @@ namespace detail {
  * cases, without ever instantiating an invalid std::tuple_element.
  *
  * See safe_tuple_element below for details.
+ *
+ * \ingroup detail
  */
 template <int pos, typename tuple, typename out_of_range,
     bool pos_in_range = (pos >= 0 && pos < std::tuple_size_v<tuple>)>
@@ -301,7 +335,7 @@ struct safe_tuple_element_impl<pos, tuple, out_of_range, false> {
 #endif
 
 /**
- * An alternative to std::tuple_element that gracefully handles an
+ * Deprecated alternative to std::tuple_element that gracefully handles an
  * out-of-range index.
  *
  * If \a pos is a valid index into the tuple type \a tuple, then this
@@ -312,6 +346,10 @@ struct safe_tuple_element_impl<pos, tuple, out_of_range, false> {
  * (i.e., this is really a drop-in replacement for the C++17 type alias
  * std::tuple_element_t, and not the C++11 structure std::tuple_element).
  *
+ * \deprecated This is deprecated and will be removed from Regina in the near
+ * future, since its only purpose is to support CallableArg (which is also
+ * deprecated).
+ *
  * \tparam pos an index, which may take any integer value.
  * \tparam tuple a std::tuple type (which is allowed to include \c const and/or
  * \c volatile modifiers).
@@ -319,12 +357,13 @@ struct safe_tuple_element_impl<pos, tuple, out_of_range, false> {
  * into \a tuple.
  */
 template <int pos, typename tuple, typename out_of_range = void>
-using safe_tuple_element = typename regina::detail::safe_tuple_element_impl<
+using safe_tuple_element [[deprecated]] =
+    typename regina::detail::safe_tuple_element_impl<
     pos, tuple, out_of_range>::type;
 
 /**
- * A traits class that deduces the type of the argument in a given position
- * for a callable object.  It can (amongst other things) work with
+ * Deprecated traits class that deduces the type of the argument in a given
+ * position for a callable type.  It can (amongst other things) work with
  * function pointers, function references, member function pointers,
  * std::function wrappers, and lambdas.
  *
@@ -339,17 +378,32 @@ using safe_tuple_element = typename regina::detail::safe_tuple_element_impl<
  * If \a Action does not take enough arguments for the given position \a pos,
  * then \a type will be \c void.
  *
- * \tparam Action the type of a callable object that takes at least
- * one argument.
+ * \deprecated This is deprecated and will be removed from Regina in the near
+ * future, since its implementation is drifting increasibly further away from
+ * modern C++ standards.
+ *
+ * \tparam Action a callable type that takes at least one argument.
  * \tparam pos the index of the argument being requested.  Positions are
  * numbered from 0 upwards.
  *
- * \ingroup detail
+ * \ingroup utilities
  */
 template <typename Action, int pos>
-struct CallableArg;
+struct [[deprecated]] CallableArg;
 
 #ifndef __DOXYGEN
+
+#if defined(__GNUC__)
+// These specialisations are causing noisy deprecation warnings under gcc.
+// Silence them, since the specialisations need to stay until CallableArg is
+// removed completely.
+#pragma GCC diagnostic push
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wdeprecated"
+#else
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#endif
 
 // Generic implementation which works for lambdas and classes with a
 // bracket operator.  For lambdas, this then falls through (via inheritance)
@@ -388,6 +442,10 @@ template <typename ReturnType, typename... Args, int pos>
 struct CallableArg<const std::function<ReturnType(Args...)>&, pos> {
     using type = safe_tuple_element<pos, std::tuple<Args...>>;
 };
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif // __DOXYGEN
 

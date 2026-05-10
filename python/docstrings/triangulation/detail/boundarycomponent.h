@@ -35,8 +35,7 @@ Python:
     BoundaryComponent<dim> is.
 
 Template parameter ``dim``:
-    the dimension of the underlying triangulation. This must be
-    between 2 and 15 inclusive.)doc";
+    the dimension of the underlying triangulation.)doc";
 
 }
 
@@ -98,26 +97,26 @@ Returns:
 constexpr const char *countEdges =
 R"doc(A dimension-specific alias for countFaces<1>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See countFaces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::countFaces
 constexpr const char *countFaces =
-R"doc(Returns the number of *subdim*-faces in this boundary component.
+R"doc(Returns the number of *subdim*-faces in this boundary component, where
+the face dimension does not need to be known until runtime.
 
-Python:
-    Python does not support templates. Instead, Python users should
-    call this function in the form ``countFaces(subdim)``; that is,
-    the template parameter *subdim* becomes the first argument of the
-    function.
+For C++ programmers who know *subdim* at compile time, you are better
+off using the template function ``countFaces<subdim>()`` instead,
+which is (slightly) faster.
 
-Template parameter ``subdim``:
+Exception ``InvalidArgument``:
+    The face dimension *subdim* is outside the supported range.
+
+Parameter ``subdim``:
     the dimension of the faces to query. If *dim* is one of Regina's
-    standard dimensions, then *subdim* must be between 0 and *dim*-1
+    standard dimensions, then *subdim* must be between 0 and ``dim-1``
     inclusive. Otherwise, the only allowable values of *subdim* are
-    the facet dimension (*dim*-1) and the ridge dimension (*dim*-2).
+    the facet dimension (``dim-1``) and the ridge dimension
+    (``dim-2``).
 
 Returns:
     the number of *subdim*-faces.)doc";
@@ -125,8 +124,6 @@ Returns:
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::countPentachora
 constexpr const char *countPentachora =
 R"doc(A dimension-specific alias for countFaces<4>().
-
-This alias is only available for dimensions *dim* = 5 and 6.
 
 See countFaces() for further information.)doc";
 
@@ -144,16 +141,11 @@ Returns:
 constexpr const char *countTetrahedra =
 R"doc(A dimension-specific alias for countFaces<3>().
 
-This alias is only available for dimensions *dim* = 4 and 5.
-
 See countFaces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::countTriangles
 constexpr const char *countTriangles =
 R"doc(A dimension-specific alias for countFaces<2>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
 
 See countFaces() for further information.)doc";
 
@@ -161,26 +153,17 @@ See countFaces() for further information.)doc";
 constexpr const char *countVertices =
 R"doc(A dimension-specific alias for countFaces<0>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See countFaces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::edge
 constexpr const char *edge =
 R"doc(A dimension-specific alias for face<1>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::edges
 constexpr const char *edges =
 R"doc(A dimension-specific alias for faces<1>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See faces() for further information.)doc";
 
@@ -207,9 +190,6 @@ boundary. Of course such a triangulation cannot represent a
 *dim*-manifold anyway, and so if you do have pinched faces then you
 almost certainly have bigger problems to deal with.
 
-Precondition:
-    *dim* is one of Regina's standard dimensions.
-
 .. warning::
     If this boundary component itself forms an ideal
     (*dim*-1)-dimensional triangulation, then again this result is
@@ -225,7 +205,27 @@ Returns:
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::face
 constexpr const char *face =
-R"doc(Returns the requested *subdim*-face in this boundary component.
+R"doc(Returns the requested *subdim*-face in this boundary component, in a
+way that is optimised for Python programmers.
+
+C++ users should not use this routine. The return type must be fixed
+at compile time, and so it is typically a ``std::variant`` that could
+store a pointer to any class ``Face<dim, ...>``. This means you cannot
+access the face directly: you will still need some kind of compile-
+time knowledge of *subdim* before you can extract and use an
+appropriate ``Face<dim, subdim>`` object from *v*. However, once you
+know *subdim* at compile time, you are better off using the (simpler
+and faster) routine ``face<subdim>()`` instead.
+
+For Python users, this routine is much more useful: the return type
+can be chosen at runtime, and so this routine simply returns a
+``Face<dim, subdim>`` object of the appropriate face dimension that
+you can use immediately.
+
+The specific return type for C++ programmers will be
+``std::variant<Face<dim, 0>*, ..., Face<dim, dim-1>*>`` if *dim* is
+one of Regina's standard dimensions, or just ``Face<dim, dim-1>*`` if
+not.
 
 Note that the index of a face in the boundary component need not be
 the index of the same face in the overall triangulation. However, if
@@ -235,21 +235,19 @@ boundary component will match the index of the corresponding
 *subdim*-face in the (*dim*-1)-manifold triangulation returned by
 build().
 
-Python:
-    Python does not support templates. Instead, Python users should
-    call this function in the form ``face(subdim, index)``; that is,
-    the template parameter *subdim* becomes the first argument of the
-    function.
+Exception ``InvalidArgument``:
+    The face dimension *subdim* is outside the supported range, as
+    described below.
 
-Template parameter ``subdim``:
+Parameter ``subdim``:
     the dimension of the faces to query. If *dim* is one of Regina's
-    standard dimensions, then *subdim* must be between 0 and *dim*-1
+    standard dimensions, then *subdim* must be between 0 and ``dim-1``
     inclusive. Otherwise, the only allowable value of *subdim* is the
-    facet dimension (*dim*-1).
+    facet dimension (``dim-1``).
 
 Parameter ``index``:
     the index of the desired face, ranging from 0 to
-    countFaces<subdim>()-1 inclusive.
+    ``countFaces(subdim)-1`` inclusive.
 
 Returns:
     the requested face.)doc";
@@ -257,37 +255,32 @@ Returns:
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::faces
 constexpr const char *faces =
 R"doc(Returns an object that allows iteration through and random access to
-all *subdim*-faces in this boundary component.
+all *subdim*-faces in this boundary component, in a way that is
+optimised for Python programmers.
 
-The object that is returned is lightweight, and can be happily copied
-by value. The C++ type of the object is subject to change, so C++
-users should use ``auto`` (just like this declaration does).
+C++ users should not use this routine. The return type must be fixed
+at compile time, and so it is typically a ``std::variant`` that can
+hold any of the lightweight view types returned from the templated
+``faces<subdim>()`` function. This means that the return value will
+still need compile-time knowledge of *subdim* to extract and use the
+appropriate face objects. However, once you know *subdim* at compile
+time, you are much better off using the (simpler and faster) routine
+``faces<subdim>()`` instead.
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+For Python users, this routine is much more useful: the return type
+can be chosen at runtime, and so this routine returns a single
+lightweight view granting access to all of the *subdim*-faces of the
+boundary component, which you can use immediately.
 
-```
-for (Face<dim, subdim>* f : bc.faces<subdim>()) { ... }
-```
+Exception ``InvalidArgument``:
+    The face dimension *subdim* is outside the supported range, as
+    described below.
 
-The object that is returned will remain valid only for as long as this
-boundary component object exists. In particular, the object will
-become invalid any time that the triangulation changes (since all
-boundary component objects will be destroyed and others rebuilt in
-their place). Therefore it is best to treat this object as temporary
-only, and to call faces() again each time you need it.
-
-Python:
-    Python does not support templates. Instead, Python users should
-    call this function in the form ``faces(subdim)``.
-
-Template parameter ``subdim``:
+Parameter ``subdim``:
     the dimension of the faces to query. If *dim* is one of Regina's
-    standard dimensions, then *subdim* must be between 0 and *dim*-1
+    standard dimensions, then *subdim* must be between 0 and ``dim-1``
     inclusive. Otherwise, the only allowable value of *subdim* is the
-    facet dimension (*dim*-1).
+    facet dimension (``dim-1``).
 
 Returns:
     access to the list of all *subdim*-faces.)doc";
@@ -321,10 +314,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. Note that the elements of the list will be
-pointers, so your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. Note that the elements of the view will be pointers, so
+your code might look like:
 
 ```
 for (Face<dim, dim-1>* f : bc.facets()) { ... }
@@ -438,15 +431,11 @@ Returns:
 constexpr const char *pentachora =
 R"doc(A dimension-specific alias for faces<4>().
 
-This alias is only available for dimension *dim* = 5.
-
 See faces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::pentachoron
 constexpr const char *pentachoron =
 R"doc(A dimension-specific alias for face<4>().
-
-This alias is only available for dimension *dim* = 5.
 
 See face() for further information.)doc";
 
@@ -465,15 +454,11 @@ Returns:
 constexpr const char *tetrahedra =
 R"doc(A dimension-specific alias for faces<3>().
 
-This alias is only available for dimension *dim* = 4.
-
 See faces() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::tetrahedron
 constexpr const char *tetrahedron =
 R"doc(A dimension-specific alias for face<3>().
-
-This alias is only available for dimension *dim* = 4.
 
 See face() for further information.)doc";
 
@@ -481,17 +466,11 @@ See face() for further information.)doc";
 constexpr const char *triangle =
 R"doc(A dimension-specific alias for face<2>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::triangles
 constexpr const char *triangles =
 R"doc(A dimension-specific alias for faces<2>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions and *dim* ≥ 3.
 
 See faces() for further information.)doc";
 
@@ -507,17 +486,11 @@ Returns:
 constexpr const char *vertex =
 R"doc(A dimension-specific alias for face<0>().
 
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
-
 See face() for further information.)doc";
 
 // Docstring regina::python::doc::detail::BoundaryComponentBase_::vertices
 constexpr const char *vertices =
 R"doc(A dimension-specific alias for faces<0>().
-
-This alias is available only when *dim* is one of Regina's standard
-dimensions.
 
 See faces() for further information.)doc";
 

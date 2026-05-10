@@ -45,8 +45,8 @@ namespace {
     // If this routine returns false, then we have good reason to
     // believe that t is not a 3-sphere, though we cannot be certain.
     //
-    // It is assumed that t is a homology sphere (and so, in particular,
-    // we do not bother computing homology).
+    // It is assumed that t is a connected homology sphere (and so,
+    // in particular, we do not bother computing homology).
     //
     // It is possible that this routine will retriangulate t.
     //
@@ -152,15 +152,13 @@ std::array<long, 3> Triangulation<3>::longitudeCuts() const {
     for (int j = 0; j < 3; ++j) {
         v[bc->edge(j)->index()] = 1;
 
-        // Fetch the number of times the longitude cuts this boundary
-        // edge, but be careful to detect overflow.
-        Integer tmp = a.snfRep(v)[0].abs();
-        tmp.tryReduce();
-        if (! tmp.isNative()) {
+        // Fetch the number of times the longitude cuts this boundary edge.
+        try {
+            longCuts[j] = a.snfRep(v)[0].abs().safeValue<long>();
+        } catch (const IntegerOverflow&) {
             // The result does not fit into a C/C++ long.
             throw UnsolvedCase("longitude() detected an integer overflow");
         }
-        longCuts[j] = tmp.longValue();
 
         v[bc->edge(j)->index()] = 0;
     }

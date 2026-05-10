@@ -42,7 +42,11 @@
 #include <compare>
 #include "concepts/core.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
+
+namespace detail {
 
 /**
  * Contains implementation details for BitManipulator where we optimise
@@ -50,17 +54,12 @@ namespace regina {
  *
  * End users should use the BitManipulator class, not this class.
  *
- * \pre Type \a T is an unsigned integral numeric type.
- *
  * \nopython Only the end-user class BitManipulator<unsigned long> is
  * available to Python users.
  *
- * \tparam T an unsigned integral numeric type, which we treat as a
- * sequence of \c true and/or \c false bits.
- *
- * \ingroup utilities
+ * \ingroup detail
  */
-template <typename T>
+template <UnsignedCppInteger T>
 class BitManipulatorByType {
     public:
         /**
@@ -91,6 +90,8 @@ class BitManipulatorByType {
                 return 0;
             return t | ((((t & -t) / (x & -x)) >> 1) - 1);
         }
+
+        BitManipulatorByType() = delete;
 };
 
 // Specialisations for individual types.
@@ -111,6 +112,8 @@ class BitManipulatorByType<unsigned char> {
                 return 0;
             return (t + 1) | (((~t & -~t) - 1) >> (__builtin_ctz(x) + 1));
         }
+
+        BitManipulatorByType() = delete;
 };
 
 template <>
@@ -126,6 +129,8 @@ class BitManipulatorByType<unsigned int> {
                 return 0;
             return (t + 1) | (((~t & -~t) - 1) >> (__builtin_ctz(x) + 1));
         }
+
+        BitManipulatorByType() = delete;
 };
 
 template <>
@@ -141,6 +146,8 @@ class BitManipulatorByType<unsigned long> {
                 return 0;
             return (t + 1) | (((~t & -~t) - 1) >> (__builtin_ctzl(x) + 1));
         }
+
+        BitManipulatorByType() = delete;
 };
 
 template <>
@@ -156,9 +163,13 @@ class BitManipulatorByType<unsigned long long> {
                 return 0;
             return (t + 1) | (((~t & -~t) - 1) >> (__builtin_ctzll(x) + 1));
         }
+
+        BitManipulatorByType() = delete;
 };
 #endif // __GNUC__
 #endif // __DOXYGEN__
+
+} // namespace detail
 
 /**
  * An optimised class for bitwise analysis and manipulation of native
@@ -168,22 +179,22 @@ class BitManipulatorByType<unsigned long long> {
  * \a T have template specialisations that are carefully optimised (precisely
  * what gets specialised depends upon properties of the compiler).
  *
- * \pre The size in bits of type \a T is a power of two.
- *
- * \python For Python users, the class BitManipulator represents the
- * C++ type BitManipulator<unsigned long>.  In particular, you should be aware
- * that BitManipulator is designed specifically to work with native C++ integer
+ * \python For Python users, the class BitManipulator represents the C++ type
+ * `BitManipulator<unsigned long>`.  In particular, you should be aware that
+ * BitManipulator is designed specifically to work with native C++ integer
  * types, and _cannot_ handle Python's arbitrary-precision integers.  It is
  * up to you to ensure that any Python integers that you pass into the
- * BitManipulator routines are small enough to fit inside a C++ unsigned long.
+ * BitManipulator routines are small enough to fit inside a C++ `unsigned long`.
+ *
+ * \tparam T the native unsigned C++ integer type to work with.  The number of
+ * bits in \a T must be a power of two (which is true in practice for all
+ * native integer types on all typical modern hardware).
+ *
+ * \ingroup utilities
  */
 template <UnsignedCppInteger T>
-class BitManipulator : public BitManipulatorByType<T> {
-    static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
-        sizeof(T) == 8 || sizeof(T) == 16 || sizeof(T) == 32 ||
-        sizeof(T) == 64 || sizeof(T) == 128,
-        "BitManipulator can only work with data types whose size is a "
-        "power of two.");
+requires (std::has_single_bit(sizeof(T)))
+class BitManipulator : public regina::detail::BitManipulatorByType<T> {
     public:
         /**
          * Returns the number of bits that are set to 1 in the given integer.
@@ -196,7 +207,20 @@ class BitManipulator : public BitManipulatorByType<T> {
          * \return the number of bits that are set.
          */
         inline static constexpr int bits(T x) {
+            // As I read the standard, std::popcount() should be defined for
+            // all C++ standard integer  types _and_ extended integer types
+            // (in particular, we should be fine to use this with 128-bit
+            // integers also).  However, in practice we find that gcc 14 does
+            // not support std::popcount(__uint128).  Therefore for now
+            // we will still treat 128-bit integers separately.
+            //
+            // TODO: Have some way to test at compile time whether
+            // std::popcount() is available for 128-bit integers.
             if constexpr (sizeof(T) > sizeof(unsigned long long)) {
+                // We assume this is the 128-bit case described above,
+                // and in particular we assume that std::popcount() _is_
+                // available for integers of half the size.
+                static_assert(sizeof(T) <= sizeof(unsigned long long) * 2);
                 using HalfSize = typename IntOfSize<sizeof(T) / 2>::utype;
                 return std::popcount(static_cast<HalfSize>(x)) +
                     std::popcount(static_cast<HalfSize>(x >> (4 * sizeof(T))));
@@ -299,7 +323,7 @@ class BitManipulator : public BitManipulatorByType<T> {
          *
          * \param x the first integer to examine.
          * \param y the second integer to examine.
-         * \return A three-way comparison result, indicating whether the bits
+         * \return a three-way comparison result, indicating whether the bits
          * of \a x are equal to, a strict subset of, a strict superset of,
          * or incomparable to the bits of \a y.  These outcomes are indicated
          * by the return values `equivalent`, `less`, `greater`, and
@@ -315,6 +339,8 @@ class BitManipulator : public BitManipulatorByType<T> {
             else
                 return std::partial_ordering::unordered;
         }
+
+        BitManipulator() = delete;
 };
 
 } // namespace regina

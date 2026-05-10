@@ -47,7 +47,10 @@ description so they can be created without allocating further
 resources).
 
 Details of the error can be accessed through the inherited member
-function what().)doc";
+function what().
+
+Python:
+    This uses Python's ``RuntimeError`` as its base class.)doc";
 
 // Docstring regina::python::doc::SnapPeaMemoryFull
 static const char *SnapPeaMemoryFull =
@@ -62,7 +65,10 @@ description so they can be created without allocating further
 resources).
 
 Details of the error can be accessed through the member function
-what().)doc";
+what().
+
+Python:
+    This uses Python's ``RuntimeError`` as its base class.)doc";
 
 // Docstring regina::python::doc::SnapPeaTriangulation
 static const char *SnapPeaTriangulation =
@@ -183,10 +189,10 @@ uses the SnapPea kernel could throw either of these exceptions.
 
 Regina uses the variant of the SnapPea kernel that is shipped with
 SnapPy (standard precision), as well as some additional code written
-explicitly for SnapPy. The header regina-config.h includes a macro
-SNAPPY_VERSION that gives the exact version of SnapPy that is bundled
-into Regina, and you can query this at runtime by calling Regina's
-function regina::versionSnapPy().
+explicitly for SnapPy. The header ``regina-config.h`` (included via
+``regina-core.h``) defines a macro ``SNAPPY_VERSION`` that gives the
+exact version of SnapPy that is bundled into Regina, and you can query
+this at runtime by calling Regina's function regina::versionSnapPy().
 
 Since Regina 7.0, SnapPeaTriangulation is no longer a "packet type"
 that can be inserted directly into the packet tree. Instead a
@@ -592,7 +598,7 @@ Parameter ``tri``:
 
 Parameter ``ignored``:
     a legacy parameter that is now ignored. (This argument was once
-    required if you wanted to pass a closed triangluation to SnapPea.))doc";
+    required if you wanted to pass a closed triangulation to SnapPea.))doc";
 
 // Docstring regina::python::doc::SnapPeaTriangulation_::__init_3
 static const char *__init_3 =
@@ -801,10 +807,10 @@ The object that is returned is lightweight, and can be happily copied
 by value. The C++ type of the object is subject to change, so C++
 users should use ``auto`` (just like this declaration does).
 
-The returned object is guaranteed to be an instance of ListView, which
-means it offers basic container-like functions and supports range-
-based ``for`` loops. The elements of the list will be read-only
-objects of type Cusp. For example, your code might look like:
+The returned object is guaranteed to be a lightweight view type from
+the ``std::ranges`` library, which means it supports range-based
+``for`` loops. The elements of the list will be read-only objects of
+type Cusp. For example, your code might look like:
 
 ```
 for (const Cusp& c : tri->cusps()) { ... }
@@ -883,7 +889,7 @@ limits the set of covers produced but is also much faster for larger
 *k*.
 
 For each cover that is produced, this routine will call *action*
-(which must be a function or some other callable object).
+(which must be a function or some other callable type).
 
 * The first argument to *action* must be a SnapPea triangulation; this
   will be the newly produced cover. This argument will be passed as an
@@ -902,7 +908,8 @@ For each cover that is produced, this routine will call *action*
 * If there are any additional arguments supplied in the list *args*,
   then these will be passed as subsequent arguments to *action*.
 
-* *action* must return ``void``.
+* The return value of *action* will be ignored; typically it would
+  return ``void``.
 
 * *action* must not make changes to this original triangulation (i.e.,
   the SnapPeaTriangulation upon which enumerateCovers() is being
@@ -958,8 +965,8 @@ Parameter ``type``:
     only cyclic covers.
 
 Parameter ``action``:
-    a function (or other callable object) to call for each cover that
-    is found.
+    a function (or other callable type) to call for each cover that is
+    found.
 
 Parameter ``args``:
     any additional arguments that should be passed to *action*,

@@ -42,6 +42,8 @@
 #include "utilities/sequence.h"
 #include <map>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -148,12 +150,12 @@ class Arrow : public ShortOutput<Arrow, true>, public TightEncodable<Arrow> {
          * \param end a past-the-end iterator indicating the end of the
          * collection of pairs.
          */
-        template <std::input_iterator iterator>
-        requires requires(iterator it) {
+        template <std::input_iterator Iterator>
+        requires requires(Iterator it) {
             { it->first } -> CanConstruct<DiagramSequence>;
             { it->second } -> CanConstruct<Laurent<Integer>>;
         }
-        Arrow(iterator begin, iterator end);
+        Arrow(Iterator begin, Iterator end);
 
         /**
          * Creates a new polynomial from a hard-coded collection of diagram
@@ -363,7 +365,7 @@ class Arrow : public ShortOutput<Arrow, true>, public TightEncodable<Arrow> {
          * other comparison operators that it generates _are_ available.
          *
          * \param rhs the polynomial to compare with this.
-         * \return The result of the comparison between this
+         * \return the result of the comparison between this
          * and the given polynomial.
          */
         std::strong_ordering operator <=> (const Arrow& rhs) const;
@@ -762,17 +764,18 @@ struct RingTraits<Arrow> {
     static constexpr bool commutative = true;
     static constexpr bool zeroInitialised = true;
     static constexpr bool zeroDivisors = false;
+    static constexpr bool inverses = false;
 };
 #endif // __DOXYGEN
 
 // Inline functions for Arrow
 
-template <std::input_iterator iterator>
-requires requires(iterator it) {
+template <std::input_iterator Iterator>
+requires requires(Iterator it) {
     { it->first } -> CanConstruct<Arrow::DiagramSequence>;
     { it->second } -> CanConstruct<Laurent<Integer>>;
 }
-inline Arrow::Arrow(iterator begin, iterator end) {
+inline Arrow::Arrow(Iterator begin, Iterator end) {
     for (auto it = begin; it != end; ++it) {
         DiagramSequence seq(it->first);
         Laurent<Integer> laurent(it->second);

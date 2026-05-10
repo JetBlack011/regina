@@ -46,10 +46,13 @@
 #endif
 
 #include "triangulation/generic/triangulation.h"
+#include "utilities/typeutils.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina::detail {
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::calculateSkeleton() {
     // Set this now so that any simplex query routines do not try to
     // recursively recompute the skeleton again.
@@ -135,9 +138,9 @@ void TriangulationBase<dim>::calculateSkeleton() {
 
     std::fill(nBoundaryFaces_.begin(), nBoundaryFaces_.end(), 0);
 
-    std::apply([this](auto&&... kFaces) {
-        (calculateFaces<subdimOf<decltype(kFaces)>()>(this), ...);
-    }, faces_);
+    for_constexpr<0, dim>([this](auto subdim) {
+        calculateFaces<subdim>();
+    });
 
     // -----------------------------------------------------------------
     // Real boundary components
@@ -146,14 +149,14 @@ void TriangulationBase<dim>::calculateSkeleton() {
     calculateRealBoundary();
 }
 
-template <int dim>
-template <int subdim>
-void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim < dim)
+void TriangulationBase<dim>::calculateFaces() {
     // Clear out all subdim-faces of all simplices.
     // These simplex-based arrays will be our markers for what faces
     // have or have not been seen yet.
     //
-    for (auto s : tri->simplices_)
+    for (auto s : simplices_)
         std::get<subdim>(s->faces_).fill(nullptr);
 
     if constexpr (subdim == dim - 1) {
@@ -168,7 +171,7 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
         // according to the truncated permutation labels that are displayed to
         // the user.  This means working through the faces of each simplex
         // in *reverse*.
-        for (auto s : tri->simplices_) {
+        for (auto s : simplices_) {
             for (facet = dim; facet >= 0; --facet) {
                 // Have we already checked out this facet from the other side?
                 if (std::get<dim-1>(s->faces_)[facet])
@@ -176,7 +179,7 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
 
                 // A new face!
                 f = new Face<dim, dim-1>(s->component_);
-                std::get<dim - 1>(tri->faces_).push_back(f);
+                std::get<dim - 1>(faces_).push_back(f);
                 auto map = Face<dim, dim-1>::ordering(facet);
 
                 adj = s->adjacentSimplex(facet);
@@ -225,14 +228,14 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
         int adjFace;
         Perm<dim+1> adjMap;
         int dir, exitFacet;
-        for (auto s : tri->simplices_) {
+        for (auto s : simplices_) {
             for (start = 0; start < FaceNumbering<dim, dim-2>::nFaces;
                     ++start) {
                 if (std::get<dim-2>(s->faces_)[start])
                     continue;
 
                 f = new Face<dim, dim-2>(s->component_);
-                std::get<dim - 2>(tri->faces_).push_back(f);
+                std::get<dim - 2>(faces_).push_back(f);
                 auto map = Face<dim, dim-2>::ordering(start);
                 if (map.sign() != s->orientation_)
                     map = map * Perm<dim + 1>(dim - 1, dim);
@@ -276,7 +279,7 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
                                             INVALID_IDENTIFICATION;
                                     else
                                         f->valid_.value = false;
-                                    tri->valid_ = s->component_->valid_ = false;
+                                    valid_ = s->component_->valid_ = false;
                                 }
                             }
                             break;
@@ -314,18 +317,18 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
         // be very large.
         // Each element in our queue is a pair (simplex, face).
         auto* queue = new std::pair<Simplex<dim>*, int>
-            [tri->size() * FaceNumbering<dim, subdim>::nFaces];
+            [size() * FaceNumbering<dim, subdim>::nFaces];
         unsigned queueStart, queueEnd;
         unsigned pos;
 
-        for (auto s : tri->simplices_) {
+        for (auto s : simplices_) {
             for (start = 0; start < FaceNumbering<dim, subdim>::nFaces;
                     ++start) {
                 if (std::get<subdim>(s->faces_)[start])
                     continue;
 
                 f = new Face<dim, subdim>(s->component_);
-                std::get<subdim>(tri->faces_).push_back(f);
+                std::get<subdim>(faces_).push_back(f);
                 auto map = Face<dim, subdim>::ordering(start);
                 if (map.sign() != s->orientation_)
                     map = map * Perm<dim + 1>(dim - 1, dim);
@@ -395,8 +398,7 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
                                                 INVALID_IDENTIFICATION;
                                         else
                                             f->valid_.value = false;
-                                        tri->valid_ =
-                                            s->component_->valid_ = false;
+                                        valid_ = s->component_->valid_ = false;
                                     }
 
                                     // Is the link non-orientable?
@@ -426,7 +428,7 @@ void TriangulationBase<dim>::calculateFaces(TriangulationBase<dim>* tri) {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::calculateRealBoundary() {
     // Are there any boundary facets at all?
     long nBdry = 2 * countFaces<dim-1>() - (dim+1) * simplices_.size();
@@ -478,10 +480,9 @@ void TriangulationBase<dim>::calculateRealBoundary() {
 
             // Run through all faces of dimensions 0,...,(dim-3) within facet,
             // and include them in this boundary component.
-            std::apply([this, label, facet](auto&&... kFaces) {
-                (calculateBoundaryFaces<subdimOf<decltype(kFaces)>()>(
-                    label, facet), ...);
-            }, faces_);
+            for_constexpr<0, dim - 2>([this, label, facet](auto subdim) {
+                calculateBoundaryFaces<subdim>(label, facet);
+            });
 
             // Finally we process the (dim-2)-faces, and also use these to
             // locate adjacent boundary facets.
@@ -551,52 +552,49 @@ void TriangulationBase<dim>::calculateRealBoundary() {
     delete[] orient;
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim <= dim - 3)
 void TriangulationBase<dim>::calculateBoundaryFaces(BoundaryComponent<dim>* bc,
         Face<dim, dim-1>* facet) {
-    // We do not process ridges (dim-2) or facets (dim-1).
-    if constexpr (subdim <= dim - 3) {
-        if constexpr (subdim == 0) {
-            // Treat vertices separately, since we can optimise the
-            // vertex number calculations in this case.
-            Simplex<dim>* simp = facet->front().simplex();
-            int facetNum = facet->front().face();
-            for (int i = 0; i <= dim; ++i)
-                if (i != facetNum) {
-                    Vertex<dim>* v = simp->vertex(i);
-                    // Note: in the case of (invalid) pinched faces,
-                    // v might already belong to some other boundary component.
-                    if (v->boundaryComponent_ != bc) {
-                        if (! v->boundaryComponent_)
-                            ++nBoundaryFaces_[0];
-                        v->boundaryComponent_ = bc;
-                        // If allFaces is false, then the boundary component
-                        // only wants to know about ridges and facets.
-                        if constexpr (BoundaryComponent<dim>::allFaces)
-                            bc->push_back(v);
-                    }
-                }
-        } else {
-            for (unsigned i = 0; i < binomSmall(dim, subdim + 1); ++i) {
-                Face<dim, subdim>* f = facet->template face<subdim>(i);
+    if constexpr (subdim == 0) {
+        // Treat vertices separately, since we can optimise the
+        // vertex number calculations in this case.
+        Simplex<dim>* simp = facet->front().simplex();
+        int facetNum = facet->front().face();
+        for (int i = 0; i <= dim; ++i)
+            if (i != facetNum) {
+                Vertex<dim>* v = simp->vertex(i);
                 // Note: in the case of (invalid) pinched faces,
-                // f might already belong to some other boundary component.
-                if (f->boundaryComponent_ != bc) {
-                    if (! f->boundaryComponent_)
-                        ++nBoundaryFaces_[subdim];
-                    f->boundaryComponent_ = bc;
-                    // If allFaces is false, then the boundary component only
-                    // wants to know about ridges and facets.
+                // v might already belong to some other boundary component.
+                if (v->boundaryComponent_ != bc) {
+                    if (! v->boundaryComponent_)
+                        ++nBoundaryFaces_[0];
+                    v->boundaryComponent_ = bc;
+                    // If allFaces is false, then the boundary component
+                    // only wants to know about ridges and facets.
                     if constexpr (BoundaryComponent<dim>::allFaces)
-                        bc->push_back(f);
+                        bc->push_back(v);
                 }
+            }
+    } else {
+        for (unsigned i = 0; i < binomSmall(dim, subdim + 1); ++i) {
+            Face<dim, subdim>* f = facet->template face<subdim>(i);
+            // Note: in the case of (invalid) pinched faces,
+            // f might already belong to some other boundary component.
+            if (f->boundaryComponent_ != bc) {
+                if (! f->boundaryComponent_)
+                    ++nBoundaryFaces_[subdim];
+                f->boundaryComponent_ = bc;
+                // If allFaces is false, then the boundary component only
+                // wants to know about ridges and facets.
+                if constexpr (BoundaryComponent<dim>::allFaces)
+                    bc->push_back(f);
             }
         }
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::clearBaseProperties() {
     // Delete the skeleton.
     if (calculatedSkeleton_) {
@@ -617,11 +615,12 @@ void TriangulationBase<dim>::clearBaseProperties() {
     // Clear properties.
     if (! topologyLocked()) {
         fundGroup_.reset();
-        H1_.reset();
+        for (auto& h : homology_)
+            h.reset();
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::swapBaseData(TriangulationBase<dim>& other) {
     Snapshottable<Triangulation<dim>>::swap(other);
 
@@ -644,10 +643,10 @@ void TriangulationBase<dim>::swapBaseData(TriangulationBase<dim>& other) {
     faces_.swap(other.faces_);
     nBoundaryFaces_.swap(other.nBoundaryFaces_);
     fundGroup_.swap(other.fundGroup_);
-    H1_.swap(other.H1_);
+    homology_.swap(other.homology_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 template <typename FaceList>
 void TriangulationBase<dim>::cloneFaces(const FaceList& srcFaces) {
     static constexpr int subdim =
@@ -676,7 +675,7 @@ void TriangulationBase<dim>::cloneFaces(const FaceList& srcFaces) {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::cloneSkeleton(const TriangulationBase<dim>& src) {
     // Boundary components:
     for (auto you : src.boundaryComponents_) {

@@ -60,14 +60,16 @@ namespace regina::python {
  * The extra string \a borDoc is the docstring that will be used for the
  * bitwise OR of two individual flags.
  *
- * The corresponding flags class is assumed to be regina::Flags<Enum>,
+ * The corresponding flags class is assumed to be `regina::Flags<Enum>`,
  * and will be given the Python class name `Flags_enumName`.
  *
- * This routine will define __str__ and __repr__ functions for the flags class,
- * so that users can easily see what value a combination of flags holds.  The
- * flag will be written in hexadecimal, using a minimum of \a hexWidth digits.
+ * This routine will define `__str__` and `__repr__` functions for the flags
+ * class, so that users can easily see what value a combination of flags holds.
+ * The flag will be written in hexadecimal, using a minimum of \a hexWidth
+ * digits.
  */
 template <typename Enum, int hexWidth = 4>
+requires (std::is_enum_v<Enum>)
 void add_flags(pybind11::module_& m, const std::string& enumName,
         std::initializer_list<std::tuple<const char*, Enum, const char*>>
             values,
@@ -104,8 +106,10 @@ void add_flags(pybind11::module_& m, const std::string& enumName,
         .def(pybind11::init<const Flags&>(), rdoc::__copy)
         .def("has", pybind11::overload_cast<const Flags&>(
             &Flags::has, pybind11::const_), rdoc::has_2)
-        .def("intValue", &Flags::intValue, rdoc::intValue)
-        .def_static("fromInt", &Flags::fromInt, rdoc::fromInt)
+        .def("baseValue", &Flags::baseValue, rdoc::baseValue)
+        .def("intValue", &Flags::baseValue, rdoc::intValue) // deprecated
+        .def_static("fromBase", &Flags::fromBase, rdoc::fromBase)
+        .def_static("fromInt", &Flags::fromBase, rdoc::fromInt) // deprecated
         .def("__bool__", &Flags::operator bool, rdoc::__as_bool)
         .def(pybind11::self |= pybind11::self, rdoc::__ior_2)
         .def(pybind11::self &= pybind11::self, rdoc::__iand_2)
@@ -124,7 +128,7 @@ void add_flags(pybind11::module_& m, const std::string& enumName,
         .def("__str__", [](Flags f) {
             std::ostringstream out;
             out << "0x" << std::hex << std::setw(hexWidth) << std::setfill('0')
-                << f.intValue();
+                << f.baseValue();
             return out.str();
         })
         .def("__repr__", [](Flags f) {
@@ -133,7 +137,7 @@ void add_flags(pybind11::module_& m, const std::string& enumName,
                 << pybind11::str(pybind11::type::handle_of<Flags>().attr(
                     "__name__")).cast<std::string_view>()
                 << ": 0x" << std::hex << std::setw(hexWidth)
-                << std::setfill('0') << f.intValue() << '>';
+                << std::setfill('0') << f.baseValue() << '>';
             return out.str();
         })
         ;

@@ -42,6 +42,8 @@
 #include "maths/rational.h"
 #include <complex>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
@@ -186,8 +188,8 @@ class Cyclotomic : public ShortOutput<Cyclotomic, true> {
          * \param end a past-the-end iterator indicating the end of the
          * sequence of coefficients.
          */
-        template <InputIteratorFor<Rational> iterator>
-        Cyclotomic(size_t field, iterator begin, iterator end);
+        template <InputIteratorFor<Rational> Iterator>
+        Cyclotomic(size_t field, Iterator begin, Iterator end);
         /**
          * Creates a new field element from a hard-coded sequence of
          * coefficients.  The coefficients should describe the field element's
@@ -875,8 +877,8 @@ inline Cyclotomic::Cyclotomic(size_t field, size_t degree, Rational* coeff) :
         field_(field), degree_(degree), coeff_(coeff) {
 }
 
-template <InputIteratorFor<Rational> iterator>
-inline Cyclotomic::Cyclotomic(size_t field, iterator begin, iterator end) :
+template <InputIteratorFor<Rational> Iterator>
+inline Cyclotomic::Cyclotomic(size_t field, Iterator begin, Iterator end) :
         field_(field), degree_(cyclotomic(field).degree()),
         coeff_(new Rational[degree_]) {
     // Rationals initialise to 0, so a shorter list of coefficients is ok.
@@ -1002,11 +1004,6 @@ inline Cyclotomic& Cyclotomic::operator /= (const Cyclotomic& other) {
 }
 
 inline std::string Cyclotomic::str(const char* variable) const {
-    // Make sure that python will be able to find the inherited str().
-    static_assert(std::is_same_v<typename OutputBase<Cyclotomic>::type,
-        Output<Cyclotomic, true>>,
-        "Cyclotomic is not identified as being inherited from Output<...>");
-
     std::ostringstream out;
     writeTextShort(out, false, variable);
     return out.str();

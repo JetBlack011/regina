@@ -50,7 +50,10 @@
 #include "utilities/typeutils.h"
 #include <algorithm>
 #include <deque>
+#include <ranges>
 #include <vector>
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -117,8 +120,12 @@ enum class TriangleType {
 
 namespace detail {
 
-template <int dim> class TriangulationBase;
-template <int dim, int subdim> class FaceBase;
+template <int dim> requires (supportedDim(dim)) class TriangulationBase;
+template <int dim> requires (supportedDim(dim)) class BoundaryComponentBase;
+
+template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+class FaceBase;
 
 /**
  * Helper class that provides core functionality for describing how a
@@ -135,21 +142,16 @@ template <int dim, int subdim> class FaceBase;
  * FaceEmbedding<dim, subdim> is.
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  * \tparam subdim the dimension of the faces of the underlying triangulation.
- * This must be between 0 and <i>dim</i>-1 inclusive.
  *
  * \ingroup detail
  */
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 class FaceEmbeddingBase :
         public ShortOutput<FaceEmbeddingBase<dim, subdim>>,
         public alias::SimplexVoid<FaceEmbeddingBase<dim, subdim>, dim>,
         public alias::FaceNumber<FaceEmbeddingBase<dim, subdim>, subdim> {
-    static_assert(dim >= 2, "FaceEmbedding requires dimension >= 2.");
-    static_assert(0 <= subdim && subdim < dim,
-        "FaceEmbedding requires 0 <= subdimension < dimension.");
-
     private:
         Simplex<dim>* simplex_;
             /**< The top-dimensional simplex in which the underlying
@@ -315,13 +317,13 @@ class FaceEmbeddingBase :
  * \nopython
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  * \tparam codim the codimension (not dimension!) of the faces under
- * consideration.  This must be between 1 and \a dim inclusive.
+ * consideration.
  *
  * \ingroup detail
  */
 template <int dim, int codim>
+requires (supportedDim(dim) && 1 <= codim && codim <= dim)
 struct FaceEmbeddingsList {
     /**
      * For most face types, we store the embeddings in an ordinary vector.
@@ -330,6 +332,7 @@ struct FaceEmbeddingsList {
 };
 
 template <int dim>
+requires (supportedDim(dim))
 struct FaceEmbeddingsList<dim, 2> {
     /**
      * For codimension 2 faces, we store the embeddings in a deque.  This is
@@ -341,6 +344,7 @@ struct FaceEmbeddingsList<dim, 2> {
 };
 
 template <int dim>
+requires (supportedDim(dim))
 struct FaceEmbeddingsList<dim, 1> {
     /**
      * For codimension 1 faces, there are always either one or two embeddings.
@@ -369,19 +373,16 @@ struct FaceEmbeddingsList<dim, 1> {
  * Face<dim, subdim> is.
  *
  * \tparam dim the dimension of the underlying triangulation.
- * This must be between 2 and 15 inclusive.
  * \tparam subdim the dimension of the faces that this class represents.
- * This must be between 0 and <i>dim</i>-1 inclusive.
  *
  * \ingroup detail
  */
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 class FaceBase :
         public FaceNumbering<dim, subdim>,
         public MarkedElement,
         public ShortOutput<Face<dim, subdim>> {
-    static_assert(dim >= 2, "Face requires dimension >= 2.");
-
     public:
         static constexpr int dimension = dim;
             /**< A compile-time constant that gives the dimension of the
@@ -520,11 +521,11 @@ class FaceBase :
         size_t degree() const;
         /**
          * Returns one of the ways in which this face appears within a
-         * top-dimensional simplex of the underlying triangluation.
+         * top-dimensional simplex of the underlying triangulation.
          *
          * For convenience, you can also use begin() and end() to iterate
          * through all such appearances, or equivalently you can iterate
-         * over the lightweight object returned by embeddings().
+         * over the lightweight view returned by embeddings().
          *
          * In most cases, the ordering of appearances is arbitrary.
          * The exception is for codimension 2, where these appearances
@@ -540,17 +541,17 @@ class FaceBase :
         /**
          * Returns an object that allows iteration through and random access
          * to all of the ways in which this face appears within a
-         * top-dimensional simplex of the underlying triangluation.
+         * top-dimensional simplex of the underlying triangulation.
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  The elements of the list will be
-         * read-only objects of type FaceEmbedding<dim, subdim>.  For
-         * example, your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  The elements of the list will be read-only objects of
+         * type `FaceEmbedding<dim, subdim>`.  For example, your code might
+         * look like:
          *
          * \code{.cpp}
          * Face<dim, subdim>* face = ...;
@@ -601,7 +602,7 @@ class FaceBase :
          * The type that is returned will be a lightweight iterator type,
          * guaranteed to satisfy the C++ LegacyRandomAccessIterator requirement.
          * The precise C++ type of the iterator is subject to change, so
-         * C++ users should use \c auto (just like this declaration does).
+         * C++ users should use `auto` (just like this declaration does).
          *
          * Iterating from begin() to end() (that is, iterating directly over a
          * face) is equivalent to iterating over embeddings().  Iterating
@@ -645,7 +646,7 @@ class FaceBase :
          * The type that is returned will be a lightweight iterator type,
          * guaranteed to satisfy the C++ LegacyRandomAccessIterator requirement.
          * The precise C++ type of the iterator is subject to change, so
-         * C++ users should use \c auto (just like this declaration does).
+         * C++ users should use `auto` (just like this declaration does).
          *
          * \nopython For Python users, Face implements the Python iterable
          * interface.  You can iterate over this face in the same way that
@@ -700,7 +701,7 @@ class FaceBase :
 
         /**
          * Returns the first appearance of this face within a top-dimensional
-         * simplex of the underlying triangluation.
+         * simplex of the underlying triangulation.
          *
          * This is equivalent to calling `*begin()`, or
          * `embedding(0)`.
@@ -718,7 +719,7 @@ class FaceBase :
         const FaceEmbedding<dim, subdim>& front() const;
         /**
          * Returns the last appearance of this face within a top-dimensional
-         * simplex of the underlying triangluation.
+         * simplex of the underlying triangulation.
          *
          * This is equivalent to calling `embedding(degree()-1)`.
          *
@@ -761,12 +762,10 @@ class FaceBase :
          * If the skeleton has already been computed, then this routine is
          * very fast (since it just returns a precomputed answer).
          *
-         * \pre The facial dimension \a subdim is precisely <i>dim</i>-1.
-         *
          * \return \c true if and only if this (<i>dim</i>-1)-face represents
          * a dual edge in the maximal forest.
          */
-        bool inMaximalForest() const;
+        bool inMaximalForest() const requires (subdim == dim - 1);
 
         /**
          * Determines if the link of this face is orientable.
@@ -845,16 +844,14 @@ class FaceBase :
          * See isValid() for a full discussion of what it means for a
          * face to be valid.
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".  Any attempt to use this routine
-         * in higher dimensions \a dim will result in a compile-time error.
-         * This is because testing for bad links in higher dimensions can
-         * require solutions to problems that are proven to be undecidable.
+         * This routine is only available when \a dim is one of Regina's
+         * \ref stddim "standard dimensions", because testing for bad links in
+         * higher dimensions can require solutions to undecidable problems.
          *
          * \return \c true if the link of this face is not appropriate (thereby
          * making the face invalid), or \c false if the link is appropriate.
          */
-        bool hasBadLink() const;
+        bool hasBadLink() const requires (standardDim(dim));
 
         /**
          * Returns the <i>lowerdim</i>-face of the underlying triangulation
@@ -883,60 +880,54 @@ class FaceBase :
          * \a lowerdim becomes the first argument of the function.
          *
          * \tparam lowerdim the dimension of subface to examine.
-         * This must be between 0 and (\a subdim - 1) inclusive.
          *
          * \param face the <i>lowerdim</i>-face of this <i>subdim</i>-face to
          * examine.  This should be between 0 and
          * (<i>subdim</i>+1 choose <i>lowerdim</i>+1)-1 inclusive.
          * \return the corresponding <i>lowerdim</i>-face of the triangulation.
          */
-        template <int lowerdim>
+        template <int lowerdim> requires (lowerdim >= 0 && lowerdim < subdim)
         Face<dim, lowerdim>* face(int face) const;
 
         /**
          * A dimension-specific alias for face<0>().
          *
-         * This alias is available for all facial dimensions \a subdim.
-         *
          * See face() for further information.
          */
-        Face<dim, 0>* vertex(int i) const;
+        TriangulationTraits<dim>::Vertex* vertex(int i) const
+            requires (subdim > 0);
 
         /**
          * A dimension-specific alias for face<1>().
          *
-         * This alias is available for all facial dimensions \a subdim.
-         *
          * See face() for further information.
          */
-        Face<dim, 1>* edge(int i) const;
+        TriangulationTraits<dim>::Edge* edge(int i) const
+            requires (subdim > 1);
 
         /**
          * A dimension-specific alias for face<2>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 3.
-         *
          * See face() for further information.
          */
-        Face<dim, 2>* triangle(int i) const;
+        TriangulationTraits<dim>::Triangle* triangle(int i) const
+            requires (subdim > 2);
 
         /**
          * A dimension-specific alias for face<3>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 4.
-         *
          * See face() for further information.
          */
-        Face<dim, 3>* tetrahedron(int i) const;
+        TriangulationTraits<dim>::Tetrahedron* tetrahedron(int i) const
+            requires (subdim > 3);
 
         /**
          * A dimension-specific alias for face<4>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 5.
-         *
          * See face() for further information.
          */
-        Face<dim, 4>* pentachoron(int i) const;
+        TriangulationTraits<dim>::Pentachoron* pentachoron(int i) const
+            requires (subdim > 4);
 
         /**
          * Examines the given <i>lowerdim</i>-dimensional subface of this face,
@@ -991,7 +982,6 @@ class FaceBase :
          * parameter \a lowerdim becomes the first argument of the function.
          *
          * \tparam lowerdim the dimension of subface to examine.
-         * This must be between 0 and (\a subdim - 1) inclusive.
          *
          * \param face the <i>lowerdim</i>-face of this <i>subdim</i>-face to
          * examine.  This should be between 0 and
@@ -1000,53 +990,48 @@ class FaceBase :
          * <i>lowerdim</i>-face of the triangulation to the vertices of
          * this <i>subdim</i>-face.
          */
-        template <int lowerdim>
+        template <int lowerdim> requires (lowerdim >= 0 && lowerdim < subdim)
         Perm<dim + 1> faceMapping(int face) const;
 
         /**
          * A dimension-specific alias for faceMapping<0>().
          *
-         * This alias is available for all facial dimensions \a subdim.
-         *
          * See faceMapping() for further information.
          */
-        Perm<dim + 1> vertexMapping(int face) const;
+        Perm<dim + 1> vertexMapping(int face) const
+            requires (subdim > 0);
 
         /**
          * A dimension-specific alias for faceMapping<1>().
          *
-         * This alias is available for all facial dimensions \a subdim.
-         *
          * See faceMapping() for further information.
          */
-        Perm<dim + 1> edgeMapping(int face) const;
+        Perm<dim + 1> edgeMapping(int face) const
+            requires (subdim > 1);
 
         /**
          * A dimension-specific alias for faceMapping<2>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 3.
-         *
          * See faceMapping() for further information.
          */
-        Perm<dim + 1> triangleMapping(int face) const;
+        Perm<dim + 1> triangleMapping(int face) const
+            requires (subdim > 2);
 
         /**
          * A dimension-specific alias for faceMapping<3>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 4.
-         *
          * See faceMapping() for further information.
          */
-        Perm<dim + 1> tetrahedronMapping(int face) const;
+        Perm<dim + 1> tetrahedronMapping(int face) const
+            requires (subdim > 3);
 
         /**
          * A dimension-specific alias for faceMapping<4>().
          *
-         * This alias is available for facial dimensions \a subdim ≥ 5.
-         *
          * See faceMapping() for further information.
          */
-        Perm<dim + 1> pentachoronMapping(int face) const;
+        Perm<dim + 1> pentachoronMapping(int face) const
+            requires (subdim > 4);
 
         /**
          * For boundary facets, joins this to another boundary facet using the
@@ -1067,7 +1052,6 @@ class FaceBase :
          * FaceEmbedding::vertices().  This labelling is independent of the
          * vertex numbers in any top-dimensional simplices that contain \a f.
          *
-         * \pre The facial dimension \a subdim is precisely `dim-1`.
          * \pre This and the given face are distinct boundary facets of the
          * same triangulation.
          *
@@ -1089,17 +1073,16 @@ class FaceBase :
          * of this boundary facet will map to the inherent vertices of the
          * given boundary facet across the new gluing.
          */
-        void join(Face<dim, subdim>* you, Perm<dim> gluing);
+        void join(Face<dim, subdim>* you, Perm<dim> gluing)
+            requires (subdim == dim - 1);
 
         /**
          * For edges, determines whether this face is a loop.
          * A _loop_ is an edge whose two endpoints are identified.
          *
-         * \pre The facial dimension \a subdim is precisely 1.
-         *
          * \return \c true if and only if this edge is a loop.
          */
-        bool isLoop() const;
+        bool isLoop() const requires (subdim == 1);
 
         /**
          * For triangles, returns the combinatorial type of this face.
@@ -1114,13 +1097,10 @@ class FaceBase :
          * The reason this routine is non-const is because the triangle type
          * and subtype are cached when first computed.
          *
-         * \pre The facial dimension \a subdim is precisely 2, and the
-         * triangulation dimension \a dim is at least 3.
-         *
          * \return the combinatorial type of this triangle.  This routine will
          * never return TriangleType::Unknown.
          */
-        TriangleType triangleType();
+        TriangleType triangleType() requires (subdim == 2 && dim >= 3);
 
         /**
          * For triangles, returns the vertex or edge number in this face
@@ -1135,14 +1115,11 @@ class FaceBase :
          * The reason this routine is non-const is because the triangle type
          * and subtype are cached when first computed.
          *
-         * \pre The facial dimension \a subdim is precisely 2, and the
-         * triangulation dimension \a dim is at least 3.
-         *
-         * \return The vertex or edge number (0, 1 or 2) that plays a special
+         * \return the vertex or edge number (0, 1 or 2) that plays a special
          * role, or -1 if this triangle's combinatorial type has no special
          * vertex or edge.
          */
-        int triangleSubtype();
+        int triangleSubtype() requires (subdim == 2 && dim >= 3);
 
         /**
          * For triangles, determines whether this face is wrapped up to form
@@ -1157,12 +1134,9 @@ class FaceBase :
          * The reason this routine is non-const is because the triangle type
          * is cached when first computed.
          *
-         * \pre The facial dimension \a subdim is precisely 2, and the
-         * triangulation dimension \a dim is at least 3.
-         *
          * \return \c true if and only if this triangle forms a Mobius band.
          */
-        bool formsMobiusBand();
+        bool formsMobiusBand() requires (subdim == 2 && dim >= 3);
 
         /**
          * For triangles, determines whether this face is wrapped up to form
@@ -1177,12 +1151,9 @@ class FaceBase :
          * The reason this routine is non-const is because the triangle type
          * is cached when first computed.
          *
-         * \pre The facial dimension \a subdim is precisely 2, and the
-         * triangulation dimension \a dim is at least 3.
-         *
          * \return \c true if and only if this triangle forms a cone.
          */
-        bool formsCone();
+        bool formsCone() requires (subdim == 2 && dim >= 3);
 
         /**
          * Locks this codimension-1-face.
@@ -1201,10 +1172,8 @@ class FaceBase :
          * one of the simplices on either side of this (<i>dim</i>-1)-face.
          *
          * It is safe to call this function even if this face is already locked.
-         *
-         * \pre The facial dimension \a subdim is precisely <i>dim</i>-1.
          */
-        void lock();
+        void lock() requires (subdim == dim - 1);
         /**
          * Unlocks this codimension-1-face.
          *
@@ -1221,10 +1190,8 @@ class FaceBase :
          * See Triangulation<dim>::unlockAll() for a convenient way to unlock
          * all top-dimensional simplices and (<i>dim</i>-1)-faces across an
          * entire triangulation.
-         *
-         * \pre The facial dimension \a subdim is precisely <i>dim</i>-1.
          */
-        void unlock();
+        void unlock() requires (subdim == dim - 1);
         /**
          * Determines whether this codimension-1-face is locked.
          *
@@ -1239,11 +1206,9 @@ class FaceBase :
          * whether any top-dimensional simplex and/or (<i>dim</i>-1)-face
          * is locked across an entire triangulation.
          *
-         * \pre The facial dimension \a subdim is precisely <i>dim</i>-1.
-         *
          * \return \c true if and only if this (<i>dim</i>-1)-face is locked.
          */
-        bool isLocked() const;
+        bool isLocked() const requires (subdim == dim - 1);
 
         /**
          * Writes a short text representation of this object to the
@@ -1296,40 +1261,49 @@ class FaceBase :
          */
         void relabel(Perm<dim + 1> adjust);
 
-    friend class Triangulation<dim>;
-    friend class TriangulationBase<dim>;
-    // BoundaryComponent::buildRealBoundary() calls Face::relabel().
-    template<int> friend class BoundaryComponentBase;
+    friend class regina::Triangulation<dim>;
+    friend class regina::detail::TriangulationBase<dim>;
+
+    // BoundaryComponent<dim>::buildRealBoundary() calls
+    // Face<dim-1, subdim>::relabel().
+    template <int dim_> requires (supportedDim(dim_))
+    friend class regina::detail::BoundaryComponentBase;
 };
 
 // Inline functions for FaceEmbeddingBase
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline FaceEmbeddingBase<dim, subdim>::FaceEmbeddingBase() : simplex_(nullptr) {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline FaceEmbeddingBase<dim, subdim>::FaceEmbeddingBase(
         Simplex<dim>* simplex, Perm<dim + 1> vertices) :
         simplex_(simplex), vertices_(vertices) {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline Simplex<dim>* FaceEmbeddingBase<dim, subdim>::simplex() const {
     return simplex_;
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline int FaceEmbeddingBase<dim, subdim>::face() const {
     return FaceNumbering<dim, subdim>::faceNumber(vertices_);
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline Perm<dim+1> FaceEmbeddingBase<dim, subdim>::vertices() const {
     return vertices_;
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline bool FaceEmbeddingBase<dim, subdim>::operator == (
         const FaceEmbeddingBase& rhs) const {
     return simplex_->index() == rhs.simplex_->index() &&
@@ -1337,6 +1311,7 @@ inline bool FaceEmbeddingBase<dim, subdim>::operator == (
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline void FaceEmbeddingBase<dim, subdim>::writeTextShort(std::ostream& out)
         const {
     if constexpr (subdim == 0)
@@ -1349,77 +1324,89 @@ inline void FaceEmbeddingBase<dim, subdim>::writeTextShort(std::ostream& out)
 // Inline functions for FaceBase
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline size_t FaceBase<dim, subdim>::index() const {
     return markedIndex();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline Triangulation<dim>& FaceBase<dim, subdim>::triangulation() const {
     return front().simplex()->triangulation();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline Component<dim>* FaceBase<dim, subdim>::component() const {
     return component_;
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline BoundaryComponent<dim>* FaceBase<dim, subdim>::boundaryComponent()
         const {
     return boundaryComponent_;
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline bool FaceBase<dim, subdim>::isBoundary() const {
     return boundaryComponent_;
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline size_t FaceBase<dim, subdim>::degree() const {
     return embeddings_.size();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline const FaceEmbedding<dim, subdim>& FaceBase<dim, subdim>::embedding(
         size_t index) const {
     return embeddings_[index];
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline auto FaceBase<dim, subdim>::embeddings() const {
-    return ListView(embeddings_);
+    return std::views::all(embeddings_);
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline auto FaceBase<dim, subdim>::begin() const {
     return embeddings_.begin();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline auto FaceBase<dim, subdim>::end() const {
     return embeddings_.end();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline const FaceEmbedding<dim, subdim>& FaceBase<dim, subdim>::front() const {
     return embeddings_.front();
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline const FaceEmbedding<dim, subdim>& FaceBase<dim, subdim>::back() const {
     return embeddings_.back();
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::inMaximalForest() const {
-    static_assert(dim == subdim + 1,
-        "FaceBase::inMaximalForest() is only available for faces of "
-        "codimension 1");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::inMaximalForest() const
+        requires (subdim == dim - 1) {
     return embeddings_.front().simplex()->facetInMaximalForest(
         embeddings_.front().face());
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline bool FaceBase<dim, subdim>::isLinkOrientable() const {
     if constexpr (allowsNonOrientableLinks)
         return linkOrientable_.value;
@@ -1428,6 +1415,7 @@ inline bool FaceBase<dim, subdim>::isLinkOrientable() const {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline bool FaceBase<dim, subdim>::isValid() const {
     if constexpr (! allowsInvalidFaces)
         return true;
@@ -1438,6 +1426,7 @@ inline bool FaceBase<dim, subdim>::isValid() const {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline bool FaceBase<dim, subdim>::hasBadIdentification() const {
     if constexpr (! allowsInvalidFaces)
         return false;
@@ -1448,8 +1437,9 @@ inline bool FaceBase<dim, subdim>::hasBadIdentification() const {
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::hasBadLink() const {
-    static_assert(standardDim(dim), "The routine hasBadLink() is only available in Regina's standard dimensions.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::hasBadLink() const
+        requires (standardDim(dim)) {
     if constexpr (! allowsInvalidFaces)
         return false;
     else
@@ -1457,12 +1447,9 @@ inline bool FaceBase<dim, subdim>::hasBadLink() const {
 }
 
 template <int dim, int subdim>
-template <int lowerdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+template <int lowerdim> requires (lowerdim >= 0 && lowerdim < subdim)
 inline Face<dim, lowerdim>* FaceBase<dim, subdim>::face(int f) const {
-    static_assert(0 <= lowerdim && lowerdim < subdim,
-        "Face<dim, subdim>::face<lowerdim>() requires "
-        "0 <= lowerdim < subdim.");
-
     // Let S be the dim-simplex corresponding to the first embedding,
     // i.e., this->front().
     // Let face f of this subdim-face correspond to face inSimp of S.
@@ -1477,43 +1464,49 @@ inline Face<dim, lowerdim>* FaceBase<dim, subdim>::face(int f) const {
 }
 
 template <int dim, int subdim>
-inline Face<dim, 0>* FaceBase<dim, subdim>::vertex(int i) const {
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangulationTraits<dim>::Vertex*
+        FaceBase<dim, subdim>::vertex(int i) const
+        requires (subdim > 0) {
     return face<0>(i);
 }
 
 template <int dim, int subdim>
-inline Face<dim, 1>* FaceBase<dim, subdim>::edge(int i) const {
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangulationTraits<dim>::Edge*
+        FaceBase<dim, subdim>::edge(int i) const
+        requires (subdim > 1) {
     return face<1>(i);
 }
 
 template <int dim, int subdim>
-inline Face<dim, 2>* FaceBase<dim, subdim>::triangle(int i) const {
-    static_assert(subdim >= 3, "triangle() is only available "
-        "for faces of dimension >= 3.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangulationTraits<dim>::Triangle*
+        FaceBase<dim, subdim>::triangle(int i) const
+        requires (subdim > 2) {
     return face<2>(i);
 }
 
 template <int dim, int subdim>
-inline Face<dim, 3>* FaceBase<dim, subdim>::tetrahedron(int i) const {
-    static_assert(subdim >= 4, "tetrahedron() is only available "
-        "for faces of dimension >= 4.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangulationTraits<dim>::Tetrahedron*
+        FaceBase<dim, subdim>::tetrahedron(int i) const
+        requires (subdim > 3) {
     return face<3>(i);
 }
 
 template <int dim, int subdim>
-inline Face<dim, 4>* FaceBase<dim, subdim>::pentachoron(int i) const {
-    static_assert(subdim >= 5, "pentachoron() is only available "
-        "for faces of dimension >= 5.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangulationTraits<dim>::Pentachoron*
+        FaceBase<dim, subdim>::pentachoron(int i) const
+        requires (subdim > 4) {
     return face<4>(i);
 }
 
 template <int dim, int subdim>
-template <int lowerdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+template <int lowerdim> requires (lowerdim >= 0 && lowerdim < subdim)
 Perm<dim + 1> FaceBase<dim, subdim>::faceMapping(int f) const {
-    static_assert(0 <= lowerdim && lowerdim < subdim,
-        "Face<dim, subdim>::faceMapping<lowerdim>() requires "
-        "0 <= lowerdim < subdim.");
-
     // Let S be the dim-simplex corresponding to the first embedding,
     // i.e., this->front().
     // Let face f of this subdim-face correspond to face inSimp of S.
@@ -1546,42 +1539,44 @@ Perm<dim + 1> FaceBase<dim, subdim>::faceMapping(int f) const {
 }
 
 template <int dim, int subdim>
-inline Perm<dim + 1> FaceBase<dim, subdim>::vertexMapping(int face) const {
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline Perm<dim + 1> FaceBase<dim, subdim>::vertexMapping(int face) const
+        requires (subdim > 0) {
     return faceMapping<0>(face);
 }
 
 template <int dim, int subdim>
-inline Perm<dim + 1> FaceBase<dim, subdim>::edgeMapping(int face) const {
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline Perm<dim + 1> FaceBase<dim, subdim>::edgeMapping(int face) const
+        requires (subdim > 1) {
     return faceMapping<1>(face);
 }
 
 template <int dim, int subdim>
-inline Perm<dim + 1> FaceBase<dim, subdim>::triangleMapping(int face) const {
-    static_assert(subdim >= 3, "triangleMapping() is only available "
-        "for faces of dimension >= 3.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline Perm<dim + 1> FaceBase<dim, subdim>::triangleMapping(int face) const
+        requires (subdim > 2) {
     return faceMapping<2>(face);
 }
 
 template <int dim, int subdim>
-inline Perm<dim + 1> FaceBase<dim, subdim>::tetrahedronMapping(int face) const {
-    static_assert(subdim >= 4, "tetrahedronMapping() is only available "
-        "for faces of dimension >= 4.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline Perm<dim + 1> FaceBase<dim, subdim>::tetrahedronMapping(int face) const
+        requires (subdim > 3) {
     return faceMapping<3>(face);
 }
 
 template <int dim, int subdim>
-inline Perm<dim + 1> FaceBase<dim, subdim>::pentachoronMapping(int face) const {
-    static_assert(subdim >= 5, "pentachoronMapping() is only available "
-        "for faces of dimension >= 5.");
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline Perm<dim + 1> FaceBase<dim, subdim>::pentachoronMapping(int face) const
+        requires (subdim > 4) {
     return faceMapping<4>(face);
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline void FaceBase<dim, subdim>::join(Face<dim, subdim>* you,
-        Perm<dim> gluing) {
-    static_assert(subdim == dim - 1, "Face<dim, subdim>::join() is only "
-        "available for faces of dimension subdim == dim - 1.");
-
+        Perm<dim> gluing) requires (subdim == dim - 1) {
     // The preconditions and locks will be checked by Simplex::join().
     // All we need to do is pull together the correct arguments.
     auto emb0 = front();
@@ -1592,21 +1587,17 @@ inline void FaceBase<dim, subdim>::join(Face<dim, subdim>* you,
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::isLoop() const {
-    static_assert(subdim == 1, "isLoop() is only available for edges.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::isLoop() const requires (subdim == 1) {
     const auto& emb = front();
     const Simplex<dim>* simp = emb.simplex();
     return simp->vertex(emb.vertices()[0]) == simp->vertex(emb.vertices()[1]);
 }
 
 template <int dim, int subdim>
-inline TriangleType FaceBase<dim, subdim>::triangleType() {
-    static_assert(subdim == 2,
-        "triangleType() is only available for triangles.");
-    static_assert(dim >= 3,
-        "triangleType() is only available in triangulations of dimension ≥ 3.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline TriangleType FaceBase<dim, subdim>::triangleType()
+        requires (subdim == 2 && dim >= 3) {
     if (triangleType_.value != TriangleType::Unknown)
         return triangleType_.value;
 
@@ -1666,25 +1657,17 @@ inline TriangleType FaceBase<dim, subdim>::triangleType() {
 }
 
 template <int dim, int subdim>
-inline int FaceBase<dim, subdim>::triangleSubtype() {
-    static_assert(subdim == 2,
-        "triangleSubtype() is only available for triangles.");
-    static_assert(dim >= 3,
-        "triangleSubtype() is only available in triangulations of "
-        "dimension ≥ 3.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline int FaceBase<dim, subdim>::triangleSubtype()
+        requires (subdim == 2 && dim >= 3) {
     triangleType();
     return triangleSubtype_.value;
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::formsMobiusBand() {
-    static_assert(subdim == 2,
-        "formsMobiusBand() is only available for triangles.");
-    static_assert(dim >= 3,
-        "formsMobiusBand() is only available in triangulations of "
-        "dimension ≥ 3.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::formsMobiusBand()
+        requires (subdim == 2 && dim >= 3) {
     switch (triangleType()) {
         case TriangleType::L31:
         case TriangleType::DunceHat:
@@ -1696,12 +1679,9 @@ inline bool FaceBase<dim, subdim>::formsMobiusBand() {
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::formsCone() {
-    static_assert(subdim == 2,
-        "formsCone() is only available for triangles.");
-    static_assert(dim >= 3,
-        "formsCone() is only available in triangulations of dimension ≥ 3.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::formsCone()
+        requires (subdim == 2 && dim >= 3) {
     switch (triangleType()) {
         case TriangleType::DunceHat:
         case TriangleType::Cone:
@@ -1713,38 +1693,35 @@ inline bool FaceBase<dim, subdim>::formsCone() {
 }
 
 template <int dim, int subdim>
-inline void FaceBase<dim, subdim>::lock() {
-    static_assert(subdim == dim - 1,
-        "lock() is only available for faces of codimension 1.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline void FaceBase<dim, subdim>::lock() requires (subdim == dim - 1) {
     auto emb = front();
     emb.simplex()->lockFacet(emb.vertices()[dim]);
 }
 
 template <int dim, int subdim>
-inline void FaceBase<dim, subdim>::unlock() {
-    static_assert(subdim == dim - 1,
-        "unlock() is only available for faces of codimension 1.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline void FaceBase<dim, subdim>::unlock() requires (subdim == dim - 1) {
     auto emb = front();
     emb.simplex()->unlockFacet(emb.vertices()[dim]);
 }
 
 template <int dim, int subdim>
-inline bool FaceBase<dim, subdim>::isLocked() const {
-    static_assert(subdim == dim - 1,
-        "isLocked() is only available for faces of codimension 1.");
-
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
+inline bool FaceBase<dim, subdim>::isLocked() const
+        requires (subdim == dim - 1) {
     auto emb = front();
     return emb.simplex()->isFacetLocked(emb.vertices()[dim]);
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 inline FaceBase<dim, subdim>::FaceBase(Component<dim>* component) :
         component_(component), boundaryComponent_(nullptr) {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 void FaceBase<dim, subdim>::writeTextShort(std::ostream& out) const {
     out << Strings<subdim>::Face << ' ' << index() << ", ";
     if constexpr (dim == 3 && subdim == 0) {
@@ -1796,6 +1773,7 @@ void FaceBase<dim, subdim>::writeTextShort(std::ostream& out) const {
 }
 
 template <int dim, int subdim>
+requires (supportedDim(dim) && subdim >= 0 && subdim < dim)
 void FaceBase<dim, subdim>::relabel(Perm<dim + 1> adjust) {
     adjust.clear(subdim + 1);
     if (! adjust.isIdentity()) {

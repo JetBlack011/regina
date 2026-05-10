@@ -43,6 +43,8 @@
 #include "surface/normalsurface.h"
 #include "triangulation/dim3.h" // for Triangulation<3>::size()
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class AngleStructure;
@@ -50,6 +52,9 @@ class LPConstraintNone;
 
 #ifdef __APIDOCS
 /**
+ * A documentation-only class describing the expected behaviour of
+ * linear constraint types.
+ *
  * Regina supports _linear constraint types_, which describe different
  * families of linear constraints that can be used with Regina's linear
  * programming machinery.  These constraints are added to the tableaux of
@@ -121,7 +126,7 @@ class LPConstraintAPI {
          * the number of elements may be any non-negative integer (here in
          * this API documentation we use `1` just as an example).
          */
-        static constexpr std::array<LPConstraintType, 1> constraints;
+        static constexpr std::array<LPConstraintType, 1> constraints { };
 
         /**
          * The type used to store each coefficient for each of our
@@ -166,7 +171,7 @@ class LPConstraintAPI {
          * If your constraint type will not be working with octagons at all,
          * simply declare this constant as zero.
          */
-        static constexpr Coefficient octAdjustment;
+        static constexpr Coefficient octAdjustment { 0 };
 
         /**
          * Explicitly builds equations for the linear function(s) constrained
@@ -313,6 +318,8 @@ class LPConstraintAPI {
          * also supported by this specific constraint class.
          */
         static bool supported(NormalEncoding enc);
+
+        LPConstraintAPI() = delete;
 };
 #endif
 
@@ -388,6 +395,8 @@ class LPConstraintNone {
         static bool verify(const NormalSurface&);
         static bool verify(const AngleStructure&);
         static bool supported(NormalEncoding enc);
+
+        LPConstraintNone() = delete;
 };
 
 /**
@@ -448,6 +457,8 @@ class LPConstraintEulerPositive {
         static bool verify(const NormalSurface& s);
         static bool verify(const AngleStructure&);
         static bool supported(NormalEncoding enc);
+
+        LPConstraintEulerPositive() = delete;
 };
 
 /**
@@ -495,6 +506,8 @@ class LPConstraintEulerZero {
         static bool verify(const NormalSurface& s);
         static bool verify(const AngleStructure&);
         static bool supported(NormalEncoding enc);
+
+        LPConstraintEulerZero() = delete;
 };
 
 /**
@@ -557,6 +570,8 @@ class LPConstraintNonSpun {
         static bool verify(const NormalSurface& s);
         static bool verify(const AngleStructure&);
         static bool supported(NormalEncoding enc);
+
+        LPConstraintNonSpun() = delete;
 };
 
 /**
@@ -686,7 +701,7 @@ class BanConstraintBase : public ShortOutput<BanConstraintBase> {
          *
          * \param lp the tableaux in which to enforce the bans.
          */
-        template <LPConstraint Constraint, typename IntType>
+        template <LPConstraint Constraint, ReginaInteger IntType>
         void enforceBans(LPData<Constraint, IntType>& lp) const;
 
         /**
@@ -801,7 +816,7 @@ class BanNone : public ShortOutput<BanNone> {
         template <LPConstraint Constraint>
         BanNone(const LPInitialTableaux<Constraint>&) {}
 
-        template <LPConstraint Constraint, typename IntType>
+        template <LPConstraint Constraint, ReginaInteger IntType>
         void enforceBans(LPData<Constraint, IntType>&) const {}
 
         bool operator == (const BanNone&) const { return true; }
@@ -1089,7 +1104,7 @@ inline BanConstraintBase::~BanConstraintBase() {
     delete[] marked_;
 }
 
-template <LPConstraint Constraint, typename IntType>
+template <LPConstraint Constraint, ReginaInteger IntType>
 inline void BanConstraintBase::enforceBans(LPData<Constraint, IntType>& lp)
         const {
     for (size_t i = 0; i < lp.coordinateColumns(); ++i)

@@ -42,8 +42,9 @@
 #include <iostream>
 
 #include "regina-core.h"
-#include "regina-config.h"
 #include "concepts/core.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 

@@ -37,8 +37,10 @@
 #define __REGINA_TANGLE_H
 #endif
 
+#include <ranges>
 #include "link/link.h"
-#include "utilities/listview.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -250,12 +252,12 @@ class Tangle : public Output<Tangle> {
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Crossing* c : tangle.crossings()) { ... }
@@ -598,7 +600,7 @@ class Tangle : public Output<Tangle> {
          * \param crossing identifies the crossing to be removed.
          * See Link::r1(Crossing*) for details on exactly how this will
          * be interpreted.
-         * \return The new tangle diagram obtained by performing the requested
+         * \return the new tangle diagram obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Tangle> withR1(Crossing* crossing) const;
@@ -622,7 +624,7 @@ class Tangle : public Output<Tangle> {
          * \param arc identifies one of the arcs of the bigon about
          * which the move will be performed.  See Link::r2(StrandRef)
          * for details on exactly how this will be interpretered.
-         * \return The new tangle diagram obtained by performing the requested
+         * \return the new tangle diagram obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Tangle> withR2(StrandRef arc) const;
@@ -647,7 +649,7 @@ class Tangle : public Output<Tangle> {
          * the "upper" arc that features in this move.
          * See Link::r2(Crossing*) for details on exactly how this will be
          * interpreted.
-         * \return The new tangle diagram obtained by performing the requested
+         * \return the new tangle diagram obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Tangle> withR2(Crossing* crossing) const;
@@ -1140,8 +1142,8 @@ class Tangle : public Output<Tangle> {
          * sequence of tokens for an oriented Gauss code.
          * \return the resulting tangle.
          */
-        template <RandomAccessIteratorFor<std::string> iterator>
-        static Tangle fromOrientedGauss(iterator begin, iterator end);
+        template <RandomAccessIteratorFor<std::string> Iterator>
+        static Tangle fromOrientedGauss(Iterator begin, Iterator end);
 
         /*@}*/
 
@@ -1291,7 +1293,7 @@ inline Crossing* Tangle::crossing(size_t index) const {
 }
 
 inline auto Tangle::crossings() const {
-    return ListView(crossings_);
+    return std::views::all(crossings_);
 }
 
 inline StrandRef Tangle::begin(int string) const {

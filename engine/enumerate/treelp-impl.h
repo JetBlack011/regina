@@ -64,6 +64,8 @@
 #include "utilities/bitmask.h"
 #include <cstring>
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 template <ReginaInteger IntType>
@@ -152,17 +154,21 @@ LPInitialTableaux<Constraint>::LPInitialTableaux(
     } else {
         eqns_ = regina::makeAngleEquations(tri);
 
-        // Scale each row so that the rightmost entry (used for
+        // Scale each row up so that the rightmost entry (used for
         // projectivising the angle structure polytope) is always -2.
         // This is possible since the angle equation matrix
         // will have final entries of -1 and -2 only.
         scaling_ = -2;
-        long rightmost;
         for (r = 0; r < eqns_.rows(); ++r) {
-            rightmost = eqns_.entry(r, eqns_.columns() - 1).longValue();
-            if (rightmost != scaling_)
+            // Since rightmost must be -1 or -2, unsafeValue() must succeed.
+            long rightmost = eqns_.entry(r, eqns_.columns() - 1).
+                template unsafeValue<long>();
+            if (rightmost == -1) {
                 for (c = 0; c < eqns_.columns(); ++c)
-                    eqns_.entry(r, c) *= (scaling_ / rightmost);
+                    eqns_.entry(r, c) *= 2;
+            } else if (rightmost != -2)
+                throw ImpossibleScenario("Some angle equation does not have "
+                    "-1 or -2 as its final coefficient");
         }
     }
 
@@ -180,9 +186,9 @@ LPInitialTableaux<Constraint>::LPInitialTableaux(
     for (c = 0; c < eqns_.columns() - (scaling_ ? 1 : 0); ++c)
         for (r = 0; r < rank_; ++r)
             if (eqns_.entry(r, c) != 0) {
-                // Each entry should have absolute value. <= 4
-                col_[c].push(r,
-                    static_cast<int>(eqns_.entry(r, c).longValue()));
+                // Each entry should have absolute value <= 4, so
+                // unsafeValue() is safe to use here.
+                col_[c].push(r, eqns_.entry(r, c).template unsafeValue<int>());
             }
 
     // Add in the final row(s) for any additional constraints.
@@ -295,12 +301,10 @@ void LPInitialTableaux<Constraint>::reorder(bool enumeration) {
         // from the last column to the first.
 
         // Track which rows have been processed so far.
-        bool* used = new bool[rank_];
-        std::fill(used, used + rank_, false);
+        FixedArray<bool> used(rank_, false);
 
         // Also track which tetrahedra have been used so far.
-        bool* touched = new bool[n];
-        std::fill(touched, touched + n, false);
+        FixedArray<bool> touched(n, false);
         size_t nTouched = 0;
 
         // Off we go, one row at a time.
@@ -413,9 +417,6 @@ void LPInitialTableaux<Constraint>::reorder(bool enumeration) {
             }
             ++nTouched;
         }
-
-        delete[] touched;
-        delete[] used;
     }
 
     // If we have extra variables for additional constraints or
@@ -991,14 +992,9 @@ void LPData<Constraint, IntType>::writeTextLong(std::ostream& out) const {
 
 template <LPConstraint Constraint, ReginaInteger IntType>
 template <IntegerVector Ray>
-Ray LPData<Constraint, IntType>::extractSolution(const char* type)
-        const {
-    static_assert(
-        FaithfulAssignment<IntType, typename Ray::value_type>::value,
-        "LPData::extractSolution() requires a template parameter Ray "
-        "whose elements can faithfully store integers of the template "
-        "parameter IntType.");
-
+requires (std::same_as<std::common_type_t<IntType, typename Ray::value_type>,
+    typename Ray::value_type>)
+Ray LPData<Constraint, IntType>::extractSolution(const uint8_t* type) const {
     // Fetch details on how to undo the column permutation.
     const size_t* columnPerm = origTableaux_->columnPerm();
 
@@ -1223,8 +1219,18 @@ void LPData<Constraint, IntType>::findInitialBasis() {
 
     // Copy the final tableaux into our own rowOps_ matrix.
     for (r = 0; r < rank_; ++r)
-        for (c = 0; c < rank_; ++c)
-            rowOps_.entry(r, c) = IntType(ops.entry(r, c));
+        for (c = 0; c < rank_; ++c) {
+            if constexpr (ArbitraryPrecisionInteger<IntType>) {
+                rowOps_.entry(r, c) = ops.entry(r, c);
+            } else {
+                // We are converting an arbitrary precision integer into a
+                // bounded-range integer.  Assume that the programmer has
+                // taken responsibility for range checking in advance, since
+                // they explicitly chose to use a fixed-precision integer type.
+                rowOps_.entry(r, c) = ops.entry(r, c).
+                    unsafeValue<typename IntType::Native>();
+            }
+        }
 }
 
 template <LPConstraint Constraint, ReginaInteger IntType>
@@ -1252,8 +1258,8 @@ void LPData<Constraint, IntType>::makeFeasible() {
     for (size_t r = 0; r < rank_; ++r)
         currBasis.set(basis_[r], true);
     Bitmask oldBasis(currBasis);
-    unsigned long pow2 = 1;
-    unsigned long nPivots = 0;
+    size_t pow2 = 1;
+    size_t nPivots = 0;
 
     while (true) {
 #ifdef REGINA_COUNT_PIVOTS
@@ -1336,7 +1342,7 @@ template <LPConstraint Constraint, ReginaInteger IntType>
 void LPData<Constraint, IntType>::makeFeasibleAntiCycling() {
     ssize_t outCol;
 #ifdef REGINA_COUNT_PIVOTS
-    unsigned long nPivots = 0;
+    size_t Pivots = 0;
 #endif
     while (true) {
 #ifdef REGINA_COUNT_PIVOTS

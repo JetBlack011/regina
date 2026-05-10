@@ -28,52 +28,57 @@
  *                                                                        *
  **************************************************************************/
 
-#include <pybind11/pybind11.h>
-#include "foreign/isosig.h"
-#include "link/link.h"
-#include "packet/container.h"
-#include "triangulation/dim2.h"
-#include "triangulation/dim3.h"
-#include "triangulation/dim4.h"
-#include "../helpers.h"
-#include "../docstrings/foreign/isosig.h"
+/*! \file python/helpers/concepts.h
+ *  \brief C++ concepts for use with Regina's Python bindings.
+ */
 
-using pybind11::overload_cast;
+#include "packet/packet.h"
 
-void addForeignIsoSig(pybind11::module_& m) {
-    RDOC_SCOPE_BEGIN_MAIN
+namespace regina::python {
 
-    m.def("readSigList", [](int dimension, const char* filename,
-            unsigned colSigs, int colLabels, unsigned long ignoreLines) {
-        if (dimension > 4) {
-            throw regina::InvalidArgument(
-                "The python version of readSigList() can only work "
-                "with Regina's standard dimensions.");
-        }
-        switch (dimension) {
-            case 0:
-                return regina::readSigList<regina::Link>(
-                    filename, colSigs, colLabels, ignoreLines);
-            case 2:
-                return regina::readSigList<regina::Triangulation<2>>(
-                    filename, colSigs, colLabels, ignoreLines);
-            case 3:
-                return regina::readSigList<regina::Triangulation<3>>(
-                    filename, colSigs, colLabels, ignoreLines);
-            case 4:
-                return regina::readSigList<regina::Triangulation<4>>(
-                    filename, colSigs, colLabels, ignoreLines);
-            default:
-                return std::shared_ptr<regina::Container>();
-        }
-    },
-    pybind11::arg("dimension"),
-    pybind11::arg("filename"),
-    pybind11::arg("colSigs") = 0,
-    pybind11::arg("colLabels") = -1,
-    pybind11::arg("ignoreLines") = 0,
-    rdoc::readSigList);
+/**
+ * A Python container type whose elements can be accessed via integer indexing.
+ * Examples are `pybind11::list`, `pybind11::tuple`, and `pybind11::args`.
+ */
+template <typename T>
+concept PythonSequence =
+    std::derived_from<T, pybind11::object> &&
+    requires(T x, size_t i) {
+        { x[i] } -> std::convertible_to<pybind11::object>;
+    };
 
-    RDOC_SCOPE_END
-}
+/**
+ * A Python class wrapper type; that is, a type of the form
+ * `pybind11::class_<...>`.
+ */
+template <typename T>
+concept PythonClassWrapper =
+    requires(T x) { { pybind11::class_(x) } -> std::same_as<T>; };
 
+/**
+ * A Python class wrapper type for one of Regina's wrapped packet types.
+ * That is, \a T is a type of the form
+ * `pybind11::class_<regina::PacketOf<...>, ...>`.
+ */
+template <typename T>
+concept PythonWrappedPacketWrapper =
+    PythonClassWrapper<T> &&
+    requires {
+        typename T::type;
+        requires regina::WrappedPacket<typename T::type>;
+    };
+
+/**
+ * A Python class wrapper type whose corresponding C++ type can be held within
+ * one of Regina's wrapped packets.  That is, \a T is a type of the form
+ * `pybind11::class_<H, ...>` where \a H adheres to the concept PacketHeldType.
+ */
+template <typename T>
+concept PythonPacketHeldWrapper =
+    PythonClassWrapper<T> &&
+    requires {
+        typename T::type;
+        requires regina::PacketHeldType<typename T::type>;
+    };
+
+} // namespace regina::python

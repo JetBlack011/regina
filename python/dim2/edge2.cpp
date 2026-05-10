@@ -32,12 +32,12 @@
 #include "triangulation/dim2.h"
 #include "../helpers.h"
 #include "../generic/facehelper.h"
+#include "../docstrings/triangulation/facenumbering.h"
 #include "../docstrings/triangulation/alias/face.h"
 #include "../docstrings/triangulation/alias/facenumber.h"
 #include "../docstrings/triangulation/generic/face.h"
 #include "../docstrings/triangulation/generic/faceembedding.h"
 #include "../docstrings/triangulation/detail/face.h"
-#include "../docstrings/triangulation/detail/facenumbering.h"
 
 using regina::Edge;
 using regina::EdgeEmbedding;
@@ -62,13 +62,13 @@ void addEdge2(pybind11::module_& m, pybind11::module_& internal) {
         .def("edge", &EdgeEmbedding<2>::edge, rbase2::edge)
         .def("vertices", &EdgeEmbedding<2>::vertices, rbase::vertices)
     ;
-    regina::python::add_output(e);
+    regina::python::add_output_rich(e);
     regina::python::add_eq_operators(e, rbase::__eq);
 
     // We use the global scope here because all of Face's members are
     // inherited, and so Face's own docstring namespace does not exist.
     RDOC_SCOPE_SWITCH_MAIN
-    RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
+    RDOC_SCOPE_BASE_2(detail::FaceBase, FaceNumbering)
 
     auto c = pybind11::class_<Face<2, 1>>(m, "Face2_1", rdoc::Face)
         .def("index", &Edge<2>::index, rbase::index)
@@ -94,12 +94,12 @@ void addEdge2(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::component)
         .def("boundaryComponent", &Edge<2>::boundaryComponent,
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
-        .def("face", &regina::python::face<Edge<2>, 1, int>,
+        .def("face", &regina::python::face<2, 1>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::face)
         .def("vertex", &Edge<2>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
-        .def("faceMapping", &regina::python::faceMapping<Edge<2>, 1, 3>,
+        .def("faceMapping", &regina::python::faceMapping<2, 1>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping)
         .def("vertexMapping", &Edge<2>::vertexMapping, rbase::vertexMapping)
@@ -111,24 +111,28 @@ void addEdge2(pybind11::module_& m, pybind11::module_& internal) {
         .def("isBoundary", &Edge<2>::isBoundary, rbase::isBoundary)
         .def("inMaximalForest", &Edge<2>::inMaximalForest,
             rbase::inMaximalForest)
-        .def_static("ordering", &Edge<2>::ordering)
+        .def_static("ordering", &Edge<2>::ordering, rbase2::ordering)
         .def_static("faceNumber",
-            pybind11::overload_cast<regina::Perm<3>>(&Edge<2>::faceNumber))
+            pybind11::overload_cast<regina::Perm<3>>(&Edge<2>::faceNumber),
+            rbase2::faceNumber)
         .def_static("faceNumber",
-            pybind11::overload_cast<int, int>(&Edge<2>::faceNumber))
-        .def_static("containsVertex", &Edge<2>::containsVertex)
+            pybind11::overload_cast<int, int>(&Edge<2>::faceNumber),
+            rbase2::faceNumber_2)
+        .def_static("containsVertex", &Edge<2>::containsVertex,
+            rbase2::containsVertex)
         .def_readonly_static("nFaces", &Edge<2>::nFaces)
         .def_readonly_static("lexNumbering", &Edge<2>::lexNumbering)
         .def_readonly_static("oppositeDim", &Edge<2>::oppositeDim)
         .def_readonly_static("dimension", &Edge<2>::dimension)
         .def_readonly_static("subdimension", &Edge<2>::subdimension)
+        .def_readonly_static("hasNumberingTables", &Edge<2>::hasNumberingTables)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Edge<2>>().embeddings())>(internal,
         "Face2_1_embeddings");
 

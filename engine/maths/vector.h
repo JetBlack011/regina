@@ -50,6 +50,8 @@
 #include "utilities/intutils.h"
 #include "utilities/tightencoding.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 class Rational;
@@ -89,7 +91,7 @@ class Rational;
  *
  * \ingroup maths
  */
-template <RingLike T>
+template <Ring T>
 requires Writeable<T> && IntegerCompatible<T>
 class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
     public:
@@ -173,8 +175,8 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * \param end a past-the-end iterator indicating the end of the
          * sequence of elements.
          */
-        template <RandomAccessIteratorFor<T> iterator>
-        inline Vector(iterator begin, iterator end) :
+        template <RandomAccessIteratorFor<T> Iterator>
+        inline Vector(Iterator begin, Iterator end) :
                 elts_(new T[end - begin]), end_(elts_ + (end - begin)) {
             std::copy(begin, end, elts_);
         }
@@ -212,13 +214,9 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * \python Using this constructor, Python allows you to construct a
          * Vector<Integer> from a Vector<LargeInteger> or vice versa.
          *
-         * \tparam U the type of object held by the given vector \a src.
-         * It must be possible to _assign_ an object of type \a U to an object
-         * of type \a T.
-         *
          * \param src the vector to clone.
          */
-        template <typename U>
+        template <AssignableTo<T&> U>
         inline explicit Vector(const Vector<U>& src) :
                 elts_(new T[src.size()]), end_(elts_ + src.size()) {
             std::copy(src.begin(), src.end(), elts_);
@@ -358,7 +356,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          *
          * \nocpp For C++ users, Vector provides the usual begin() and end()
          * functions instead.  In particular, you can iterate over the elements
-         * of this list in the usual way using a range-based \c for loop.
+         * of this list in the usual way using a range-based `for` loop.
          *
          * \return an iterator over the elements of this vector.
          */
@@ -563,7 +561,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * Negates every element of this vector.
          */
         inline void negate() {
-            if constexpr (IsReginaInteger<T>::value ||
+            if constexpr (ReginaInteger<T> ||
                     std::is_same_v<T, regina::Rational>) {
                 for (T* e = elts_; e < end_; ++e)
                     e->negate();
@@ -772,8 +770,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
          * \return the requested unit vector.
          */
         static Vector unit(size_t dimension, size_t coordinate) {
-            if constexpr (IsReginaInteger<T>::value) {
-                // Elements are initialised to zero by default.
+            if constexpr (RingTraits<T>::zeroInitialised) {
                 Vector ans(dimension);
                 ans[coordinate] = 1;
                 return ans;
@@ -796,7 +793,7 @@ class Vector : public ShortOutput<Vector<T>>, public TightEncodable<Vector<T>> {
  *
  * \ingroup maths
  */
-template <RingLike T>
+template <Ring T>
 inline void swap(Vector<T>& a, Vector<T>& b) noexcept {
     a.swap(b);
 }
@@ -812,7 +809,7 @@ inline void swap(Vector<T>& a, Vector<T>& b) noexcept {
  *
  * \ingroup maths
  */
-template <RingLike T>
+template <Ring T>
 std::ostream& operator << (std::ostream& out, const Vector<T>& vector) {
     size_t size = vector.size();
     if (size == 0)

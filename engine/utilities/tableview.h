@@ -42,6 +42,8 @@
 #include <type_traits>
 #include "regina-core.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 template <typename Element, size_t dim1, size_t... dim>
@@ -66,6 +68,8 @@ namespace detail {
      *
      * - \a type represents `const T`;
      * - \a view represents `const T&`.
+     *
+     * \ingroup detail
      */
     template <typename T, size_t... dim>
     struct ConstArrayOf;
@@ -95,25 +99,23 @@ namespace detail {
  * to point to different objects, but the objects they _point_ to can still
  * be modified.)
  *
- * This class is in a sense a multi-dimensional analogue to TableView
- * (though it does also support one-dimensional tables).
+ * This class is in a sense a multi-dimensional analogue to standard C++ views
+ * from the `std::ranges` library (though it does also support one-dimensional
+ * tables).
  *
- * Where this class differs from ListView is:
+ * Where this class differs from standard C++ views is:
  *
- * - TableView supports multi-dimensional tables, whereas ListView only
- *   supports one-dimensional lists.
- *
- * - TableView offers a smaller set of member functions, whereas ListView
- *   has a richer interface.
+ * - TableView supports multi-dimensional tables, whereas standard C++ views
+ *   only supports one-dimensional lists.
  *
  * - TableView is (for now) only designed to work with fixed-size C-style
  *   arrays of the form `Element[a][b]...[z]`, where the array
- *   dimensions are compile-time constants.  In contrast, ListView can also
- *   work with rich C++ container classes and variable-sized C-style arrays.
+ *   dimensions are compile-time constants.  In contrast, standard C++ views
+ *   can work with a variety of different container types.
  *
- * - While ListView has a purpose in C++ (to hide the "real" type used
- *   by the underlying implementation), TableView is primary for the Python
- *   bindings: its main benefit is to strictly enforce read-only access
+ * - While standard C++ views have a purpose in C++ (to hide the "real" type
+ *   used by the underlying implementation), TableView is primary for the
+ *   Python bindings: its main benefit is to strictly enforce read-only access
  *   (since Python loses all knowledge of constness, and sometimes allows
  *   users to change things that they should not).  Typically TableView
  *   would be used to wrap global constant arrays (such as regina::quadDefn,
@@ -508,7 +510,7 @@ class TableView {
          * \nocpp For C++ users, TableView provides the usual begin() and end()
          * functions instead.  In particular, you can iterate over the
          * subarrays or elements of this table in the usual way using a
-         * range-based \c for loop.
+         * range-based `for` loop.
          *
          * \return an iterator over the subarrays or elements of this table.
          */

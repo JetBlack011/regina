@@ -28,38 +28,37 @@
  *                                                                        *
  **************************************************************************/
 
-/*! \file concepts/packet.h
- *  \brief Concepts related to Regina's packets.
- */
-
-#ifndef __REGINA_CONCEPTS_PACKET_H
-#ifndef __DOXYGEN
-#define __REGINA_CONCEPTS_PACKET_H
-#endif
-
-#include <concepts>
-#include "packet/packet.h"
+#include <iomanip>
+#include "utilities/bytesequence.h"
 
 namespace regina {
 
-/**
- * A class that is equal to or derived from one of Regina's packet types.
- *
- * This concept does _not_ include the virtual base class Packet.
- * It does, however, include SurfaceFilter (which represents a single packet
- * type in Regina, but which itself is a virtual base class for different
- * kinds of filters).
- *
- * \ingroup concepts
- */
-template <typename T>
-concept PacketClass =
-    std::derived_from<T, Packet> &&
-    requires {
-        { T::typeID } -> std::same_as<const PacketType&>;
-    };
+std::ostream& operator << (std::ostream& out, const ByteSequence& bytes) {
+    if (bytes.empty())
+        return out;
+
+    auto prevFlags = out.flags();
+    char prevFill = out.fill();
+
+    out << std::noshowbase << std::hex; // changes flags
+    out.fill('0');
+
+    // We need to cast to an integer type (to avoid character output), and in a
+    // way that ensures that (for example) 0xff becomes 255 and not -1.  We
+    // therefore cast twice: first to uint8_t, and then to unsigned int.
+    bool sep = false;
+    for (auto b : bytes) {
+        if (sep)
+            out << ':';
+        else
+            sep = true;
+        out << std::setw(2) << static_cast<unsigned>(static_cast<uint8_t>(b));
+    }
+
+    out.flags(prevFlags);
+    out.fill(prevFill);
+    return out;
+}
 
 } // namespace regina
-
-#endif
 

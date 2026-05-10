@@ -28,21 +28,38 @@
  *                                                                        *
  **************************************************************************/
 
-#include <stdexcept>
-#include <sstream>
-#include "facehelper.h"
+/*! \file python/helpers/concepts.h
+ *  \brief Conversions between `regina::ByteSequence` and Python `bytes`.
+ *
+ *  This header is _not_ included automatically by python/helpers.h.
+ *  If you are binding any routines that take or return ByteSequence objects,
+ *  you will need to explicitly include this header yourself.
+ */
 
-namespace regina::python {
+#include <pybind11/pybind11.h>
+#include "utilities/bytesequence.h"
 
-void invalidFaceDimension(const char* functionName, int minDim, int maxDim) {
-    std::ostringstream s;
-    if (minDim == maxDim)
-        s << functionName << "() can only work with face dimension " << minDim;
-    else
-        s << functionName << "() requires a face dimension in the range "
-            << minDim << ".." << maxDim;
-    throw regina::InvalidArgument(s.str());
-}
+namespace pybind11::detail {
 
-} // namespace regina::python
+template <>
+struct type_caster<regina::ByteSequence> {
+    PYBIND11_TYPE_CASTER(regina::ByteSequence, const_name("bytes"));
+
+    static pybind11::handle cast(const regina::ByteSequence& seq,
+            pybind11::return_value_policy, pybind11::handle /* parent */) {
+        return pybind11::bytes(seq.asString()).release();
+    }
+
+    bool load(pybind11::handle src, bool /* allow implicit conversions? */) {
+        // Check if handle is a Sequence
+        if (! pybind11::isinstance<pybind11::bytes>(src))
+            return false;
+
+        // Load the contents from pybind11::bytes via std::string.
+        value.load(pybind11::reinterpret_borrow<pybind11::bytes>(src));
+        return true;
+    }
+};
+
+} // namespace pybind11::detail
 

@@ -65,42 +65,36 @@ bool valueOf(const std::string& str, double& dest) {
     if (str.empty() || std::isspace(str.front()))
         return false;
 
-    char* endPtr;
-    dest = strtod(str.c_str(), &endPtr);
-    return (*endPtr == 0);
+    size_t pos = 0;
+    try {
+        double ans = std::stod(str, std::addressof(pos));
+        if (pos != str.size())
+            return false;
+        dest = ans;
+        return true;
+    } catch (const std::logic_error&) {
+        // Either the string was unconvertible, or the value was out of range.
+        return false;
+    }
 }
 
 bool valueOf(const std::string& str, bool& dest) {
-    if (str.empty()) {
-        dest = false;
+    if (str.empty())
         return false;
-    }
+
     if (str[0] == 't' || str[0] == 'T' || str[0] == '1') {
         dest = true;
         return true;
     }
-    dest = false;
-    return (str[0] == 'F' || str[0] == 'f' || str[0] == '0');
+    if (str[0] == 'F' || str[0] == 'f' || str[0] == '0') {
+        dest = false;
+        return true;
+    }
+    return false;
 }
 
 bool valueOf(const std::string& str, BoolSet& dest) {
-    if (str.length() != 2) {
-        dest.clear();
-        return false;
-    }
-    char t = str[0];
-    char f = str[1];
-    if (t != '-' && t != 'T' && t != 't') {
-        dest.clear();
-        return false;
-    }
-    if (f != '-' && f != 'F' && f != 'f') {
-        dest.clear();
-        return false;
-    }
-
-    dest = BoolSet(t != '-', f != '-');
-    return true;
+    return dest.setStringCode(str);
 }
 
 std::string stringToToken(std::string str) {

@@ -31,7 +31,6 @@
 #include "concepts/io.h"
 #include "concepts/iterator.h"
 #include "concepts/maths.h"
-#include "concepts/packet.h"
 #include "link/link.h"
 #include "maths/arrow.h"
 #include "maths/cyclotomic.h"
@@ -44,6 +43,8 @@
 #include "maths/rational.h"
 #include "maths/vector.h"
 #include "packet/container.h"
+#include "packet/script.h"
+#include "packet/text.h"
 #include "surface/surfacefilter.h"
 
 using regina::Integer;
@@ -64,6 +65,38 @@ namespace {
     template <typename T>
     class SubVector : public Vector<T> {};
 }
+
+static_assert(regina::AssignableTo<const char*, std::string&>);
+static_assert(! regina::AssignableTo<std::string&, char*&>);
+static_assert(regina::AssignableTo<double, int&>);
+static_assert(regina::AssignableTo<int, Integer&>);
+static_assert(regina::AssignableTo<int, LargeInteger&>);
+static_assert(! regina::AssignableTo<Integer, int&>);
+static_assert(! regina::AssignableTo<LargeInteger, int&>);
+static_assert(regina::AssignableTo<Integer, Integer&>);
+static_assert(regina::AssignableTo<LargeInteger, LargeInteger&>);
+static_assert(regina::AssignableTo<Integer, LargeInteger&>);
+static_assert(regina::AssignableTo<LargeInteger, Integer&>);
+static_assert(regina::AssignableTo<NativeInteger<4>, Integer&>);
+static_assert(regina::AssignableTo<NativeInteger<4>, LargeInteger&>);
+static_assert(! regina::AssignableTo<Integer, NativeInteger<4>&>);
+static_assert(! regina::AssignableTo<LargeInteger, NativeInteger<4>&>);
+static_assert(! regina::AssignableTo<NativeInteger<2>, NativeInteger<4>&>);
+static_assert(regina::AssignableTo<int16_t, NativeInteger<4>&>);
+static_assert(regina::AssignableTo<int32_t, NativeInteger<4>&>);
+static_assert(regina::AssignableTo<int64_t, NativeInteger<4>&>);
+static_assert(regina::AssignableTo<int16_t, Integer&>);
+static_assert(regina::AssignableTo<int16_t, LargeInteger&>);
+static_assert(! regina::AssignableTo<NativeInteger<4>, int16_t&>);
+static_assert(! regina::AssignableTo<NativeInteger<4>, int32_t&>);
+static_assert(! regina::AssignableTo<NativeInteger<4>, int64_t&>);
+static_assert(! regina::AssignableTo<Integer, int16_t&>);
+static_assert(! regina::AssignableTo<LargeInteger, int16_t&>);
+
+static_assert(regina::SameModCVRef<const int&, int>);
+static_assert(regina::SameModCVRef<int, const int&>);
+static_assert(! std::same_as<const int&, int>);
+static_assert(! std::same_as<int, const int&>);
 
 static_assert(CppInteger<char>);
 static_assert(StandardCppInteger<char>);
@@ -101,13 +134,13 @@ static_assert(! UnsignedCppInteger<ssize_t>);
 #if defined(INT128_AVAILABLE)
 // 128-bit integers might or might not be standard C++ types.
 // Therefore we do not test adherence to StandardCppInteger here.
-static_assert(CppInteger<regina::IntOfSize<16>::type>);
-static_assert(SignedCppInteger<regina::IntOfSize<16>::type>);
-static_assert(! UnsignedCppInteger<regina::IntOfSize<16>::type>);
+static_assert(CppInteger<regina::Int128>);
+static_assert(SignedCppInteger<regina::Int128>);
+static_assert(! UnsignedCppInteger<regina::Int128>);
 
-static_assert(CppInteger<regina::IntOfSize<16>::utype>);
-static_assert(! SignedCppInteger<regina::IntOfSize<16>::utype>);
-static_assert(UnsignedCppInteger<regina::IntOfSize<16>::utype>);
+static_assert(CppInteger<regina::UInt128>);
+static_assert(! SignedCppInteger<regina::UInt128>);
+static_assert(UnsignedCppInteger<regina::UInt128>);
 #endif
 
 static_assert(! CppInteger<bool>);
@@ -231,6 +264,79 @@ static_assert(! regina::CoefficientDomain<regina::Laurent<Integer>>);
 static_assert(! regina::CoefficientDomain<regina::Laurent2<Integer>>);
 static_assert(! regina::CoefficientDomain<regina::Cyclotomic>);
 
+static_assert(! regina::Field<int>);
+static_assert(! regina::Field<unsigned>);
+static_assert(! regina::Field<Integer>);
+static_assert(! regina::Field<LargeInteger>);
+static_assert(regina::Field<Rational>);
+static_assert(! regina::Field<regina::Matrix2>);
+static_assert(! regina::Field<regina::Arrow>);
+static_assert(! regina::Field<regina::Polynomial<Integer>>);
+static_assert(! regina::Field<regina::Polynomial<Rational>>);
+static_assert(! regina::Field<regina::Laurent<Integer>>);
+static_assert(! regina::Field<regina::Laurent2<Integer>>);
+static_assert(! regina::Field<regina::Cyclotomic>);
+
+static_assert(regina::StandardStringifiable<int>);
+static_assert(regina::StandardStringifiable<long>);
+static_assert(regina::StandardStringifiable<long long>);
+static_assert(regina::StandardStringifiable<unsigned>);
+static_assert(regina::StandardStringifiable<unsigned long>);
+static_assert(regina::StandardStringifiable<unsigned long long>);
+static_assert(regina::StandardStringifiable<float>);
+static_assert(regina::StandardStringifiable<double>);
+static_assert(regina::StandardStringifiable<long double>);
+// Characters should be stringifiable via std::to_string(signed/unsigned int).
+static_assert(regina::StandardStringifiable<signed char>);
+static_assert(regina::StandardStringifiable<unsigned char>);
+static_assert(! regina::StandardStringifiable<int*>);
+
+static_assert(regina::Readable<signed char>);
+static_assert(regina::Readable<int>);
+static_assert(regina::Readable<long>);
+static_assert(regina::Readable<long long>);
+static_assert(regina::Readable<unsigned char>);
+static_assert(regina::Readable<unsigned>);
+static_assert(regina::Readable<unsigned long>);
+static_assert(regina::Readable<unsigned long long>);
+static_assert(regina::Readable<float>);
+static_assert(regina::Readable<double>);
+static_assert(regina::Readable<long double>);
+// Pointers should be writeable but not readable.
+static_assert(! regina::Readable<int*>);
+static_assert(! regina::Readable<regina::Arrow>);
+
+static_assert(regina::Writeable<signed char>);
+static_assert(regina::Writeable<int>);
+static_assert(regina::Writeable<long>);
+static_assert(regina::Writeable<long long>);
+static_assert(regina::Writeable<unsigned char>);
+static_assert(regina::Writeable<unsigned>);
+static_assert(regina::Writeable<unsigned long>);
+static_assert(regina::Writeable<unsigned long long>);
+static_assert(regina::Writeable<float>);
+static_assert(regina::Writeable<double>);
+static_assert(regina::Writeable<long double>);
+// Pointers should be writeable but not readable.
+static_assert(regina::Writeable<int*>);
+static_assert(regina::Writeable<regina::Arrow>);
+
+static_assert(regina::Stringifiable<regina::Arrow>);
+static_assert(regina::Stringifiable<regina::Link>);
+// Note: PacketOf<Link> derives from Output<Packet> and also Output<Link>.
+static_assert(regina::Stringifiable<regina::PacketOf<regina::Link>>);
+static_assert(regina::Stringifiable<regina::Integer>);
+static_assert(! regina::Stringifiable<bool>);
+static_assert(! regina::Stringifiable<std::pair<int, int>>);
+
+static_assert(regina::RichStringifiable<regina::Arrow>);
+static_assert(regina::RichStringifiable<regina::Link>);
+// Note: PacketOf<Link> derives from Output<Packet> and also Output<Link>.
+static_assert(regina::RichStringifiable<regina::PacketOf<regina::Link>>);
+static_assert(! regina::RichStringifiable<regina::Integer>);
+static_assert(! regina::RichStringifiable<bool>);
+static_assert(! regina::RichStringifiable<std::pair<int, int>>);
+
 static_assert(regina::InherentlyTightEncodable<Integer>);
 static_assert(regina::InherentlyTightEncodable<LargeInteger>);
 static_assert(regina::InherentlyTightEncodable<Vector<Integer>>);
@@ -238,12 +344,35 @@ static_assert(! regina::InherentlyTightEncodable<int>);
 // NativeInteger does not yet support tight encodings.
 static_assert(! regina::InherentlyTightEncodable<NativeInteger<8>>);
 
+static_assert(! regina::PacketClass<int>);
+static_assert(! regina::PacketClass<regina::Arrow>);
 static_assert(regina::PacketClass<regina::Container>);
 static_assert(regina::PacketClass<regina::PacketOf<regina::Link>>);
 static_assert(! regina::PacketClass<regina::Link>);
 static_assert(! regina::PacketClass<regina::Packet>);
 static_assert(regina::PacketClass<regina::SurfaceFilter>);
 static_assert(regina::PacketClass<regina::SurfaceFilterCombination>);
+
+static_assert(! regina::WrappedPacket<int>);
+static_assert(! regina::WrappedPacket<regina::Arrow>);
+static_assert(! regina::WrappedPacket<regina::Text>);
+static_assert(! regina::WrappedPacket<regina::Script>);
+static_assert(! regina::WrappedPacket<regina::Container>);
+static_assert(! regina::WrappedPacket<regina::Link>);
+static_assert(regina::WrappedPacket<regina::PacketOf<regina::Link>>);
+
+static_assert(! regina::TextPacket<int>);
+static_assert(! regina::TextPacket<regina::Arrow>);
+static_assert(regina::TextPacket<regina::Text>);
+static_assert(regina::TextPacket<regina::Script>);
+static_assert(! regina::TextPacket<regina::Container>);
+static_assert(! regina::TextPacket<regina::Link>);
+
+static_assert(! regina::PacketHeldType<int>);
+static_assert(! regina::PacketHeldType<regina::Arrow>);
+static_assert(regina::PacketHeldType<regina::Link>);
+static_assert(! regina::PacketHeldType<regina::PacketOf<regina::Link>>);
+static_assert(! regina::PacketHeldType<regina::Container>);
 
 static_assert(regina::InputIteratorFor<std::vector<int>::iterator, int>);
 static_assert(regina::InputIteratorFor<std::vector<int>::const_iterator, int>);
@@ -257,3 +386,6 @@ static_assert(regina::PacketIterator<regina::ChildIterator<true>>);
 static_assert(regina::PacketIterator<regina::ChildIterator<false>>);
 static_assert(regina::PacketIterator<regina::SubtreeIterator<true>>);
 static_assert(regina::PacketIterator<regina::SubtreeIterator<false>>);
+
+static_assert(regina::OutputIterator<std::vector<int>::iterator>);
+static_assert(! regina::OutputIterator<std::vector<int>::const_iterator>);

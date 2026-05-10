@@ -58,7 +58,7 @@ std::vector<Triangulation<3>> Triangulation<3>::summands() const {
     Triangulation<3>& start = toProcess.emplace(*this, false, false);
     start.simplify();
 
-    unsigned long initZ, initZ2, initZ3;
+    size_t initZ, initZ2, initZ3;
     {
         AbelianGroup homology = start.homology();
         initZ = homology.rank();
@@ -149,7 +149,7 @@ std::vector<Triangulation<3>> Triangulation<3>::summands() const {
 
     // Run a final homology check and put back our missing S2xS1, S2x~S1,
     // RP3 and L(3,1) terms.
-    unsigned long finalZ = 0, finalZ2 = 0, finalZ3 = 0;
+    size_t finalZ = 0, finalZ2 = 0, finalZ3 = 0;
     for (const Triangulation<3>& c : primeComponents) {
         AbelianGroup homology = c.homology();
         finalZ += homology.rank();
@@ -327,9 +327,11 @@ bool Triangulation<3>::isSphere() const {
     return true;
 }
 
-bool Triangulation<3>::knowsSphere() const {
+bool Triangulation<3>::knowsSphere(bool cachedOnly) const {
     if (prop_.threeSphere_.has_value())
         return true;
+    if (cachedOnly)
+        return false;
 
     // Run some very fast prelimiary tests before we give up and say no.
     if (! (isValid() && isClosed() && isOrientable() && isConnected())) {
@@ -381,9 +383,11 @@ bool Triangulation<3>::isBall() const {
     }
 }
 
-bool Triangulation<3>::knowsBall() const {
+bool Triangulation<3>::knowsBall(bool cachedOnly) const {
     if (prop_.handlebody_.has_value())
         return true;
+    if (cachedOnly)
+        return false;
 
     // Run some very fast prelimiary tests before we give up and say no.
     if (! (isValid() && isOrientable() && isConnected() &&
@@ -535,9 +539,11 @@ bool Triangulation<3>::isSolidTorus() const {
     }
 }
 
-bool Triangulation<3>::knowsSolidTorus() const {
+bool Triangulation<3>::knowsSolidTorus(bool cachedOnly) const {
     if (prop_.handlebody_.has_value())
         return true;
+    if (cachedOnly)
+        return false;
 
     // Run some very fast preliminary tests before we give up and say no.
     if (! (isValid() && isOrientable() && isConnected() &&
@@ -776,10 +782,11 @@ ssize_t Triangulation<3>::recogniseHandlebody() const {
     return *(prop_.handlebody_ = genus);
 }
 
-bool Triangulation<3>::knowsHandlebody() const {
-    if (prop_.handlebody_.has_value()) {
+bool Triangulation<3>::knowsHandlebody(bool cachedOnly) const {
+    if (prop_.handlebody_.has_value())
         return true;
-    }
+    if (cachedOnly)
+        return false;
 
     // Run some very fast preliminary tests before we give up and say no.
     // Note: an orientable 3-manifold implies that the boundary is also
@@ -849,9 +856,11 @@ bool Triangulation<3>::isTxI() const {
     return *(prop_.TxI_ = true);
 }
 
-bool Triangulation<3>::knowsTxI() const {
+bool Triangulation<3>::knowsTxI(bool cachedOnly) const {
     if (prop_.TxI_.has_value())
         return true;
+    if (cachedOnly)
+        return false;
 
     // Run some very fast prelimiary tests before we give up and say no.
     if (! (isValid() && isOrientable() && isConnected())) {
@@ -877,17 +886,27 @@ bool Triangulation<3>::knowsTxI() const {
 }
 
 bool Triangulation<3>::isIrreducible() const {
+    // Check basic preconditions.
+    if (! isValid())
+        throw FailedPrecondition("Irreducibility testing requires a "
+            "valid triangulation");
+    if (! isOrientable())
+        throw FailedPrecondition("Irreducibility testing requires an "
+            "orientable triangulation");
+    if (! isClosed())
+        throw FailedPrecondition("Irreducibility testing requires a "
+            "closed triangulation");
+    if (! isConnected())
+        throw FailedPrecondition("Irreducibility testing requires a "
+            "connected triangulation");
+
     if (prop_.irreducible_.has_value())
         return *prop_.irreducible_;
-
-    // Precondition checks.
-    if (! (isValid() && isClosed() && isOrientable() && isConnected()))
-        return false;
 
     // We will essentially carry out a connected sum decomposition, but
     // instead of keeping prime summands we will just count them and
     // throw them away.
-    unsigned long summands = 0;
+    size_t summands = 0;
 
     std::stack<Triangulation<3>> toProcess;
 
@@ -895,7 +914,7 @@ bool Triangulation<3>::isIrreducible() const {
     Triangulation<3>& start = toProcess.emplace(*this, false, false);
     start.simplify();
 
-    unsigned long Z, Z2, Z3;
+    size_t Z, Z2, Z3;
     {
         AbelianGroup homology = start.homology();
         Z = homology.rank();
@@ -1005,18 +1024,22 @@ bool Triangulation<3>::isIrreducible() const {
     return *(prop_.irreducible_ = true);
 }
 
-bool Triangulation<3>::knowsIrreducible() const {
-    return prop_.irreducible_.has_value();
-}
-
 bool Triangulation<3>::hasCompressingDisc() const {
+    if (! isValid())
+        throw FailedPrecondition("Testing for compressing discs requires a "
+            "valid triangulation");
+    if (isIdeal())
+        throw FailedPrecondition("Testing for compressing discs is not "
+            "available for ideal triangulations");
+
     if (prop_.compressingDisc_.has_value())
         return *prop_.compressingDisc_;
 
+    // Note: the calls to isCompressingDisc() below could throw an UnsolvedCase
+    // exception.
+
     // Some sanity checks; also enforce preconditions.
     if (! hasBoundaryTriangles())
-        return *(prop_.compressingDisc_ = false);
-    if ((! isValid()) || isIdeal())
         return *(prop_.compressingDisc_ = false);
 
     long minBdryEuler = 2;
@@ -1123,16 +1146,30 @@ bool Triangulation<3>::hasCompressingDisc() const {
     }
 }
 
-bool Triangulation<3>::knowsCompressingDisc() const {
+bool Triangulation<3>::knowsCompressingDisc(bool cachedOnly) const {
+    // Avoid checking the preconditions if we can.
+    if (cachedOnly && ! prop_.compressingDisc_.has_value())
+        return false;
+
+    // Check the preconditions now, before going further.
+    if ((! isValid()) || isIdeal())
+        return false;
+
     if (prop_.compressingDisc_.has_value())
         return true;
+
+    // The existence of a compressing disc is not yet cached.
+    // This means that cachedOnly is false (otherwise we would have returned
+    // at the very beginning of this routine).
+    // Look for ways in which the compressing disc computation might be trivial.
 
     // Quickly check for non-spherical boundary components before we give up.
     for (auto bc : boundaryComponents())
         if (bc->eulerChar() < 2)
             return false;
 
-    // All boundary components are 2-spheres.
+    // All boundary components are 2-spheres, which means there can be
+    // no compressing discs.
     prop_.compressingDisc_ = false;
     return true;
 }
@@ -1174,7 +1211,7 @@ bool Triangulation<3>::hasSimpleCompressingDisc() const {
     // This is important because we test whether a disc is a compressing
     // disc by cutting along it and looking for any *new* boundary
     // spheres that might result.
-    unsigned long origSphereCount = 0;
+    size_t origSphereCount = 0;
     for (auto bc : use.boundaryComponents())
         if (bc->eulerChar() == 2)
             ++origSphereCount;
@@ -1182,7 +1219,7 @@ bool Triangulation<3>::hasSimpleCompressingDisc() const {
     // Look for a single internal triangle surrounded by three boundary edges.
     // It doesn't matter whether the edges and/or vertices are distinct.
     Edge<3> *e0, *e1, *e2;
-    unsigned long newSphereCount;
+    size_t newSphereCount;
     for (Triangle<3>* t : use.triangles()) {
         if (t->isBoundary())
             continue;
@@ -1271,40 +1308,34 @@ bool Triangulation<3>::hasSimpleCompressingDisc() const {
     return false;
 }
 
-namespace {
-    /**
-     * Used to sort candidate incompressible surfaces by Euler characteristic.
-     * Surfaces with smaller genus (i.e., larger Euler characteristic)
-     * are to be processed first.
-     */
-    struct SurfaceID {
-        long index;
-            /**< Which surface in the list are we referring to? */
-        long euler;
-            /**< What is its Euler characteristic? */
-
-        inline bool operator < (const SurfaceID& rhs) const {
-            return (euler > rhs.euler ||
-                (euler == rhs.euler && index < rhs.index));
-        }
-    };
-}
-
 bool Triangulation<3>::isHaken() const {
+    // Check basic preconditions.
+    if (! isValid())
+        throw FailedPrecondition("Hakenness testing requires a "
+            "valid triangulation");
+    if (! isOrientable())
+        throw FailedPrecondition("Hakenness testing requires an "
+            "orientable triangulation");
+    if (! isClosed())
+        throw FailedPrecondition("Hakenness testing requires a "
+            "closed triangulation");
+    if (! isConnected())
+        throw FailedPrecondition("Hakenness testing requires a "
+            "connected triangulation");
+
     if (prop_.haken_.has_value())
         return *prop_.haken_;
 
-    // Check basic preconditions.
-    if (! (isValid() && isOrientable() && isClosed() && isConnected()))
-        return false;
-
     // Irreducibility is not a precondition, but we promise to return
-    // false immediately if the triangulation is not irreducible.
+    // false if the triangulation is not irreducible.
     // Do not set the property in this situation.
+    //
+    // (Note: Our calls to NormalSurface::isIncompressible() could throw an
+    // UnsolvedCase exception.)
     if (! isIrreducible())
         return false;
 
-    // Okay: we are closed, connected, orientable and irreducible.
+    // Okay: we are valid, closed, connected, orientable, and irreducible.
     // Move to a copy of this triangulation, which we can mess with.
     Triangulation<3> t(*this, false, false);
     t.simplify();
@@ -1322,29 +1353,25 @@ bool Triangulation<3>::isHaken() const {
     // Run through each surface, one at a time.
     // Sort them first however, so we process the (easier) smaller genus
     // surfaces first.
-    auto* id = new SurfaceID[list.size()];
-    unsigned i;
-    for (i = 0; i < list.size(); ++i) {
-        id[i].index = i;
-        id[i].euler = list[i].eulerChar().longValue();
+    // Each SurfaceID in the following list is a pair (index, Euler char).
+    using SurfaceID = std::pair<size_t, Integer>;
+    FixedArray<SurfaceID> id(list.size());
+    for (size_t i = 0; i < list.size(); ++i) {
+        id[i].first = i;
+        id[i].second = list[i].eulerChar();
     }
-    std::sort(id, id + list.size());
+    std::sort(id.begin(), id.end(), [](const SurfaceID& a, const SurfaceID& b) {
+        return (a.second > b.second); // genus of a < genus of b
+    });
 
-    for (i = 0; i < list.size(); ++i) {
-        // std::cout << "Testing surface " << i << "..." << std::endl;
-        if (list[id[i].index].isIncompressible()) {
-            delete[] id;
+    for (const auto& sid : id) {
+        if (list[sid.first].isIncompressible()) {
             prop_.threeSphere_ = false; // Implied by Hakenness.
             return *(prop_.haken_ = true);
         }
     }
 
-    delete[] id;
     return *(prop_.haken_ = false);
-}
-
-bool Triangulation<3>::knowsHaken() const {
-    return prop_.haken_.has_value();
 }
 
 } // namespace regina

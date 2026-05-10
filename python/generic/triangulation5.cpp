@@ -43,9 +43,20 @@ void addTriangulations5(pybind11::module_& m, pybind11::module_& internal) {
     addIsoSigClassic<5>(m, "IsoSigClassic5");
     addIsoSigEdgeDegrees<5>(m, "IsoSigEdgeDegrees5");
     addIsoSigRidgeDegrees<5>(m, "IsoSigRidgeDegrees5");
-    addIsoSigPrintable<5, true>(m, "IsoSigPrintable5");
-    addIsoSigPrintable<5, false>(m, "IsoSigPrintableLockFree5");
+    addIsoSigData<1, 5>(m, "IsoSigData1_5");
+    addIsoSigData<2, 5>(m, "IsoSigData2_5");
 
     m.attr("Face5_5") = m.attr("Simplex5");
 }
 
+// Instantiate templates for isomorphism signature encodings:
+template void regina::python::add_isosig_encoding_functions<1, 5>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<2, 5>(
+    pybind11::class_<regina::IsoSigPrintable>&);
+template void regina::python::add_isosig_encoding_functions<1, 5>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 5>(
+    pybind11::class_<regina::IsoSigPrintableLockFree>&);
+template void regina::python::add_isosig_encoding_functions<2, 5>(
+    pybind11::class_<regina::IsoSigBinary>&);

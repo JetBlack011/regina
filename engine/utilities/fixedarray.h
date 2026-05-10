@@ -38,7 +38,11 @@
 #endif
 
 #include <algorithm>
-#include "regina-core.h"
+#include <concepts>
+#include <cstddef>
+#include "concepts/iterator.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 namespace regina {
 
@@ -69,7 +73,7 @@ namespace regina {
  *
  * \ingroup utilities
  */
-template <typename T>
+template <std::default_initializable T>
 class FixedArray {
     private:
         T* data_; /**< The elements of this array. */
@@ -121,8 +125,6 @@ class FixedArray {
         /**
          * Constructs a new array of the given size.
          *
-         * \pre The type \a T has a default constructor.
-         *
          * Every element will be created using the default constructor for \a T.
          *
          * \param size the number of elements in the new array.
@@ -134,12 +136,11 @@ class FixedArray {
          * Constructs a new array of the given size, and initialises every
          * element to the given value.
          *
-         * \pre The type \a T has a copy constructor.
-         *
          * \param size the number of elements in the new array.
          * \param value the value to assign to every element of the new array.
          */
-        FixedArray(size_t size, const T& value) :
+        FixedArray(size_t size, const T& value)
+                requires std::copyable<T> :
                 data_(new T[size]), size_(size) {
             std::fill(data_, data_ + size_, value);
         }
@@ -147,13 +148,25 @@ class FixedArray {
         /**
          * Makes a new deep copy of the given array.
          *
-         * \pre The type \a T has a copy assignment operator.
-         *
          * \param src the array whose contents should be copied.
          */
-        FixedArray(const FixedArray& src) :
+        FixedArray(const FixedArray& src)
+                requires std::copyable<T> :
                 data_(new T[src.size_]), size_(src.size_) {
             std::copy(src.data_, src.data_ + src.size_, data_);
+        }
+
+        /**
+         * Makes a new deep copy of the sequence bounded by the given iterators.
+         *
+         * \param begin an iterator pointing to the beginning of the sequence
+         * to copy.
+         * \param end an iterator pointing past the end of the sequence to copy.
+         */
+        template <RandomAccessIteratorFor<T> Iterator>
+        FixedArray(Iterator begin, Iterator end) : size_(end - begin) {
+            data_ = new T[size_];
+            std::copy(begin, end, data_);
         }
 
         /**
@@ -172,11 +185,10 @@ class FixedArray {
         /**
          * Creates a new array containing a hard-coded sequence of values.
          *
-         * \pre The type \a T has a copy assignment operator.
-         *
          * \param values the sequence of values to copy into this new list.
          */
-        FixedArray(std::initializer_list<T> values) :
+        FixedArray(std::initializer_list<T> values)
+                requires std::copyable<T> :
                 data_(new T[values.size()]), size_(values.size()) {
             std::copy(values.begin(), values.end(), data_);
         }

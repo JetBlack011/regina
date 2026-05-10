@@ -44,8 +44,10 @@
 #include <map>
 #include <string>
 #include <sstream>
-#include "regina-core.h"
+#include "concepts/io.h"
 #include "utilities/boolset.h"
+
+ENSURE_ESSENTIAL_REGINA_HEADERS
 
 /**
  * Various classes and routines for XML manipulation, some taken or
@@ -101,7 +103,7 @@ std::string xmlEncodeComment(const std::string& comment);
  *
  * \ingroup utilities
  */
-template <typename T>
+template <Writeable T>
 inline std::string xmlValueTag(const std::string& tagName, const T& value) {
     std::ostringstream out;
     out << '<' << tagName << " value=\"" << value << "\"/>";

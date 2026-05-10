@@ -40,11 +40,13 @@
 #include <iostream>
 #include "regina-core.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
 /**
- * Identifies a single normal or almost normal disc type within a
- * triangulation.
+ * Identifies a single normal or almost normal disc type within a triangulation,
+ * where the numbering scheme for disc types is left up to the user.
  *
  * A disc type is identified by a tetrahedron index (the data member
  * \a tetIndex), and a disc type within that tetrahedron (the data
@@ -138,7 +140,7 @@ struct DiscType {
      * \python This spaceship operator `x <=> y` is not available, but the
      * other comparison operators that it generates _are_ available.
      *
-     * \return The result of the comparison between this and the given
+     * \return the result of the comparison between this and the given
      * disc type.
      */
     constexpr std::strong_ordering operator <=> (const DiscType&) const =

@@ -38,7 +38,7 @@
 using pybind11::overload_cast;
 using regina::Simplex;
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 void addSimplex(pybind11::module_& m, const char* name) {
     static_assert(! regina::standardDim(dim));
 
@@ -76,7 +76,7 @@ void addSimplex(pybind11::module_& m, const char* name) {
             rbase::triangulation)
         .def("component", &Simplex<dim>::component,
             pybind11::return_value_policy::reference, rbase::component)
-        .def("face", &regina::python::face<Simplex<dim>, dim, int>,
+        .def("face", &regina::python::face<dim, dim>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::face)
         .def("vertex", &Simplex<dim>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
@@ -91,7 +91,7 @@ void addSimplex(pybind11::module_& m, const char* name) {
             pybind11::return_value_policy::reference, rbase::tetrahedron)
         .def("pentachoron", &Simplex<dim>::pentachoron,
             pybind11::return_value_policy::reference, rbase::pentachoron)
-        .def("faceMapping", &regina::python::faceMapping<Simplex<dim>, dim>,
+        .def("faceMapping", &regina::python::faceMapping<dim, dim>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::faceMapping)
         .def("vertexMapping", &Simplex<dim>::vertexMapping,
             rbase::vertexMapping)
@@ -108,7 +108,7 @@ void addSimplex(pybind11::module_& m, const char* name) {
         .def_readonly_static("dimension", &Simplex<dim>::dimension)
         .def_readonly_static("subdimension", &Simplex<dim>::subdimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END

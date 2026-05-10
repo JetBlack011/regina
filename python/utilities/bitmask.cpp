@@ -32,7 +32,6 @@
 #include <pybind11/operators.h>
 #include "utilities/bitmask.h"
 #include "utilities/exception.h"
-#include "utilities/intutils.h"
 #include "../helpers.h"
 #include "../docstrings/utilities/bitmask.h"
 
@@ -40,7 +39,8 @@ using regina::Bitmask;
 using regina::Bitmask1;
 using regina::Bitmask2;
 
-template <typename B>
+template <regina::ReginaBitmask B>
+requires (! std::same_as<B, Bitmask>)
 void addBitmaskOpt(pybind11::module_& m, const char* name) {
     // B could be an instance of either Bitmask1 or Bitmask2, but since the
     // Python docs are essentially the same we will just use Bitmask1 here.
@@ -72,7 +72,12 @@ void addBitmaskOpt(pybind11::module_& m, const char* name) {
         .def(pybind11::self ^= pybind11::self, rdoc::__ixor)
         .def(pybind11::self -= pybind11::self, rdoc::__isub)
         .def("flip", &B::flip, rdoc::flip)
-        .def("lessThan", &B::lessThan, rdoc::lessThan)
+        .def("lessThan", [](const B& a, const B& b) { // deprecated
+            return a.numericalComp(b) < 0;
+        }, rdoc::lessThan)
+        .def("numericalLessThan", [](const B& a, const B& b) {
+            return a.numericalComp(b) < 0;
+        }, rdoc::numericalComp)
         .def("inUnion", &B::inUnion, rdoc::inUnion)
         .def("containsIntn", &B::containsIntn, rdoc::containsIntn)
         .def("bits", &B::bits, rdoc::bits)
@@ -120,7 +125,12 @@ void addBitmaskGeneric(pybind11::module_& m) {
         .def(pybind11::self ^= pybind11::self, rdoc::__ixor)
         .def(pybind11::self -= pybind11::self, rdoc::__isub)
         .def("flip", &Bitmask::flip, rdoc::flip)
-        .def("lessThan", &Bitmask::lessThan, rdoc::lessThan)
+        .def("lessThan", [](const Bitmask& a, const Bitmask& b) { // deprecated
+            return a.numericalComp(b) < 0;
+        }, rdoc::lessThan)
+        .def("numericalLessThan", [](const Bitmask& a, const Bitmask& b) {
+            return a.numericalComp(b) < 0;
+        }, rdoc::numericalComp)
         .def("inUnion", &Bitmask::inUnion, rdoc::inUnion)
         .def("containsIntn", &Bitmask::containsIntn, rdoc::containsIntn)
         .def("bits", &Bitmask::bits, rdoc::bits)
@@ -145,9 +155,8 @@ void addBitmask(pybind11::module_& m) {
     addBitmaskOpt<Bitmask1<uint32_t>>(m, "Bitmask32");
     addBitmaskOpt<Bitmask1<uint64_t>>(m, "Bitmask64");
     #ifdef INT128_AVAILABLE
-    addBitmaskOpt<Bitmask1<regina::IntOfSize<16>::utype>>(m, "Bitmask128");
-    addBitmaskOpt<Bitmask2<regina::IntOfSize<16>::utype,
-        regina::IntOfSize<16>::utype>>(m, "Bitmask256");
+    addBitmaskOpt<Bitmask1<regina::UInt128>>(m, "Bitmask128");
+    addBitmaskOpt<Bitmask2<regina::UInt128, regina::UInt128>>(m, "Bitmask256");
     #else
     addBitmaskOpt<Bitmask2<uint64_t, uint64_t>>(m, "Bitmask128");
     #endif

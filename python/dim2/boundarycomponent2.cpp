@@ -52,19 +52,23 @@ void addBoundaryComponent2(pybind11::module_& m, pybind11::module_& internal) {
         .def("countRidges", &BoundaryComponent<2>::countRidges,
             rbase::countRidges)
         .def("countFaces",
-            &regina::python::countFaces<BoundaryComponent<2>, 2, 1>,
-            pybind11::arg("subdim"), rbase::countFaces)
+            (regina::python::countFacesFunc<BoundaryComponent<2>>)(
+                &BoundaryComponent<2>::countFaces),
+            rbase::countFaces)
         .def("countEdges", &BoundaryComponent<2>::countEdges, rbase::countEdges)
         .def("countVertices", &BoundaryComponent<2>::countVertices,
             rbase::countVertices)
         .def("facets", &BoundaryComponent<2>::facets, rbase::facets)
-        .def("faces", &regina::python::faces<BoundaryComponent<2>, 2>,
+        .def("faces", (regina::python::facesFunc<BoundaryComponent<2>>)(
+                &BoundaryComponent<2>::faces),
             pybind11::arg("subdim"), rbase::faces)
         .def("edges", &BoundaryComponent<2>::edges, rbase::edges)
         .def("vertices", &BoundaryComponent<2>::vertices, rbase::vertices)
         .def("facet", &BoundaryComponent<2>::facet,
             pybind11::return_value_policy::reference, rbase::facet)
-        .def("face", &regina::python::face<BoundaryComponent<2>, 2, size_t>,
+        .def("face", (regina::python::faceFunc<BoundaryComponent<2>>)(
+                &BoundaryComponent<2>::face),
+            pybind11::return_value_policy::reference,
             pybind11::arg("subdim"), pybind11::arg("index"), rbase::face)
         .def("edge", &BoundaryComponent<2>::edge,
             pybind11::return_value_policy::reference, rbase::edge)
@@ -86,15 +90,15 @@ void addBoundaryComponent2(pybind11::module_& m, pybind11::module_& internal) {
         .def_readonly_static("allowVertex", &BoundaryComponent<2>::allowVertex)
         .def_readonly_static("canBuild", &BoundaryComponent<2>::canBuild)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<BoundaryComponent<2>>().vertices())>(internal,
         "BoundaryComponent2_vertices");
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<BoundaryComponent<2>>().edges())>(internal,
         "BoundaryComponent2_edges");
 }

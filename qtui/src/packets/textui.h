@@ -35,15 +35,9 @@
 #ifndef __TEXTUI_H
 #define __TEXTUI_H
 
+#include "packet/text.h"
 #include "../packetui.h"
-
-template <typename, typename> class DocWidget;
-class DocWidgetNoSanitise;
-
-namespace regina {
-    class Packet;
-    class Text;
-};
+#include "docwidget.h"
 
 /**
  * A packet interface for viewing text packets.
@@ -61,7 +55,7 @@ class TextUI : public QObject, public PacketUI {
          * Internal components
          */
         QWidget* ui;
-        DocWidget<regina::Text, DocWidgetNoSanitise>* editWidget;
+        DocWidget<regina::Text>* editWidget;
         PacketEditIface* editIface;
 
     public:

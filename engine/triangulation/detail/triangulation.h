@@ -41,11 +41,13 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <variant>
 #include <vector>
 #include "regina-core.h"
+#include "concepts/core.h"
 #include "core/output.h"
 #include "algebra/abeliangroup.h"
 #include "algebra/grouppresentation.h"
@@ -57,47 +59,58 @@
 #include "triangulation/generic/face.h"
 #include "triangulation/generic/isomorphism.h"
 #include "triangulation/generic/simplex.h"
-#include "triangulation/isosigencoding.h"
+#include "triangulation/isosig.h"
 #include "utilities/exception.h"
-#include "utilities/listview.h"
 #include "utilities/snapshot.h"
 #include "utilities/tightencoding.h"
 #include "utilities/topologylock.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina {
 
-template <int dim> class FacetPairing;
-template <int dim> class IsoSigClassic;
-template <int dim> class XMLLegacySimplicesReader;
-template <int dim> class XMLTriangulationReader;
+template <int dim> requires (supportedDim(dim)) class FacetPairing;
+template <int dim> requires (supportedDim(dim)) class XMLLegacySimplicesReader;
+template <int dim> requires (supportedDim(dim)) class XMLTriangulationReader;
+
+template <CharIterator Iterator>
+requires std::bidirectional_iterator<Iterator>
+class Base64Decoder;
+
+template <CharIterator Iterator>
+requires std::bidirectional_iterator<Iterator>
+class Base64BitDecoder;
 
 /**
- * Contains implementation details and common functionality for Regina's
- * dimension-agnostic classes.
+ * Hides away implementation details, and also provides common functionality
+ * for Regina's dimension-agnostic triangulation code.
  *
- * For most of Regina's dimension-agnostic classes, such as
- * Triangulation<dim>, Simplex<dim> and Face<dim, subdim>, the bulk of
- * the implementation is hidden away in the namespace regina::detail.
+ * End users should never need to refer to the namespace regina::detail
+ * directly.
  *
- * Regina's main classes acquire their functionality through inheritance.
- * For example, the end-user class regina::Triangulation<dim> inherits
- * most of its functionality from the implementation class
- * regina::detail::TriangulationBase<dim>.
+ * Regarding triangulations:
  *
- * Because of this inheritance, there is typically no need for
- * end users to explicitly refer to the namespace regina::detail.
+ * - For Regina's triangulation-related classes, such as `Triangulation<dim>`,
+ *   `Simplex<dim>` and `Face<dim, subdim>`, regina::detail provides code that
+ *   is shared across all dimensions (as opposed to code that is specialised
+ *   for dimensions 2, 3 and 4).
  *
- * Since regina::detail contains implementation details, its
- * classes are subject to change between releases.  Specifically:
+ * - Regina's end-user classes acquire this functionality through inheritance.
+ *   For example, the end-user class `regina::Triangulation<dim>` inherits
+ *   most of its functionality from its parent class
+ *   `regina::detail::TriangulationBase<dim>`.
  *
- * - All member functions that are inherited and exposed by the end-user
- *   classes in regina (e.g., Triangulation, Simplex, Face and so on) may be
- *   considered part of Regina's official API, and will be supported from
- *   release to release.
+ * Since regina::detail contains implementation details, its classes are
+ * subject to change between releases.  Specifically:
+ *
+ * - All functions that are inherited and exposed by Regina's end-user classes
+ *   (e.g., those member functions of `TriangulationBase<dim>` that are
+ *   exposed by `Triangulation<dim>`) may be considered part of Regina's
+ *   official API, and will be supported from release to release.
  *
  * - In constrast, any methods that are not exposed by the end-user classes
  *   (including the names and inheritance structure of classes within
- *   regina::detail) might change in subsequent releases without notice.
+ *   regina::detail) might change between releases without notice.
  */
 namespace detail {
 
@@ -127,19 +140,16 @@ namespace detail {
  * Triangulation<dim> is.
  *
  * \tparam dim the dimension of the triangulation.
- * This must be between 2 and 15 inclusive.
  *
  * \ingroup detail
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 class TriangulationBase :
         public Snapshottable<Triangulation<dim>>,
         public PacketData<Triangulation<dim>>,
         public Output<Triangulation<dim>>,
         public TightEncodable<Triangulation<dim>>,
         protected TopologyLockable {
-    static_assert(dim >= 2, "Triangulation requires dimension >= 2.");
-
     public:
         using typename PacketData<Triangulation<dim>>::PacketChangeSpan;
         using typename PacketData<Triangulation<dim>>::PacketChangeGroup;
@@ -154,7 +164,7 @@ class TriangulationBase :
 
     private:
         /**
-         * The sequence of all subface dimensions 0,...,(<i>dim</i>-1).
+         * The sequence of all subface dimensions `0,...,(dim-1)`.
          */
         using subdimensions = std::make_integer_sequence<int, dim>;
 
@@ -169,36 +179,8 @@ class TriangulationBase :
 
         decltype(seqToFaces(subdimensions())) faces_;
             /**< A tuple of vectors holding all faces of this triangulation.
-                 Specifically, std::get<k>(faces_)[i] is a pointer to the
+                 Specifically, `std::get<k>(faces_)[i]` is a pointer to the
                  ith k-face of the triangulation. */
-
-        /**
-         * A compile-time constant function that returns the facial dimension
-         * corresponding to an element of the \a faces_ tuple.
-         *
-         * This is to assist code that calls std::apply() on \a faces_,
-         * since functions in TriangulationBase have easy access to the
-         * tuple type but not the corresponding integer parameter pack
-         * of face dimensions.
-         *
-         * If \a f is an element of \a faces_, possibly with reference
-         * qualifiers, then the corresponding face dimension is:
-         *
-         * \code{.cpp}
-         * subdimOf<decltype(f)>()
-         * \endcode
-         *
-         * \tparam TupleElement the type of one of the members of \a faces,
-         * or a reference to such a type.
-         * \return the face dimension corresponding to \a TupleElement;
-         * this will be an integer between 0 and (<i>dim</i>-1) inclusive.
-         */
-        template <typename TupleElement>
-        static constexpr int subdimOf() {
-            return std::remove_pointer_t<
-                    typename std::remove_reference_t<TupleElement>::value_type
-                >::subdimension;
-        }
 
     protected:
         MarkedVector<Component<dim>> components_;
@@ -226,9 +208,14 @@ class TriangulationBase :
         mutable std::optional<GroupPresentation> fundGroup_;
             /**< Fundamental group of the triangulation.
                  This is std::nullopt if it has not yet been computed. */
-        mutable std::optional<AbelianGroup> H1_;
-            /**< First homology group of the triangulation.
-                 This is std::nullopt if it has not yet been computed. */
+        static constexpr int maxHomologyCache_ = (dim == 3 || dim == 4 ? 2 : 1);
+            /**< The maximum \a k for which we cache the <i>k</i>th homology
+                 group. */
+        mutable std::array<std::optional<AbelianGroup>, maxHomologyCache_>
+                homology_;
+            /**< The cached homology groups of the triangulation, beginning
+                 with H1.  Each element of this array is std::nullopt if the
+                 corresponding homology group has not yet been computed. */
 
     public:
         /**
@@ -335,7 +322,7 @@ class TriangulationBase :
          * Returns the number of top-dimensional simplices in the
          * triangulation.
          *
-         * \return The number of top-dimensional simplices.
+         * \return the number of top-dimensional simplices.
          */
         size_t size() const;
         /**
@@ -344,12 +331,12 @@ class TriangulationBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Simplex<dim>* s : tri.simplices()) { ... }
@@ -428,13 +415,12 @@ class TriangulationBase :
          * runtime argument, and the new top-dimensional simplices will
          * be returned in a Python tuple of size \a k.
          *
-         * \tparam k the number of new top-dimensional simplices to add;
-         * this must be non-negative.
+         * \tparam k the number of new top-dimensional simplices to add.
          *
          * \return an array containing all of the new simplices, in the order
          * in which they were added.
          */
-        template <int k>
+        template <int k> requires (k >= 0)
         std::array<Simplex<dim>*, k> newSimplices();
         /**
          * Creates \a k new top-dimensional simplices and adds them to this
@@ -644,12 +630,11 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `countFaces(subdim)`.
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * \a dim inclusive.
+         * \tparam subdim the face dimension.
          *
          * \return the number of <i>subdim</i>-faces.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim <= dim)
         size_t countFaces() const;
 
         /**
@@ -679,16 +664,12 @@ class TriangulationBase :
         /**
          * A dimension-specific alias for countFaces<0>().
          *
-         * This alias is available for all dimensions \a dim.
-         *
          * See countFaces() for further information.
          */
         size_t countVertices() const;
 
         /**
          * A dimension-specific alias for countFaces<1>().
-         *
-         * This alias is available for all dimensions \a dim.
          *
          * See countFaces() for further information.
          */
@@ -697,8 +678,6 @@ class TriangulationBase :
         /**
          * A dimension-specific alias for countFaces<2>().
          *
-         * This alias is available for all dimensions \a dim.
-         *
          * See countFaces() for further information.
          */
         size_t countTriangles() const;
@@ -706,20 +685,18 @@ class TriangulationBase :
         /**
          * A dimension-specific alias for countFaces<3>().
          *
-         * This alias is available for dimensions \a dim ≥ 3.
-         *
          * See countFaces() for further information.
          */
-        size_t countTetrahedra() const;
+        size_t countTetrahedra() const
+            requires (dim >= 3);
 
         /**
          * A dimension-specific alias for countFaces<4>().
          *
-         * This alias is available for dimensions \a dim ≥ 4.
-         *
          * See countFaces() for further information.
          */
-        size_t countPentachora() const;
+        size_t countPentachora() const
+            requires (dim >= 4);
 
         /**
          * Returns the f-vector of this triangulation, which counts the
@@ -744,12 +721,12 @@ class TriangulationBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Component<dim>* c : tri.components()) { ... }
@@ -778,12 +755,12 @@ class TriangulationBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (BoundaryComponent<dim>* b : tri.boundaryComponents()) { ... }
@@ -807,12 +784,12 @@ class TriangulationBase :
          *
          * The object that is returned is lightweight, and can be happily
          * copied by value.  The C++ type of the object is subject to change,
-         * so C++ users should use \c auto (just like this declaration does).
+         * so C++ users should use `auto` (just like this declaration does).
          *
-         * The returned object is guaranteed to be an instance of ListView,
-         * which means it offers basic container-like functions and supports
-         * range-based \c for loops.  Note that the elements of the list
-         * will be pointers, so your code might look like:
+         * The returned object is guaranteed to be a lightweight view type
+         * from the `std::ranges` library, which means it supports range-based
+         * `for` loops.  Note that the elements of the view will be pointers,
+         * so your code might look like:
          *
          * \code{.cpp}
          * for (Face<dim, subdim>* f : tri.faces<subdim>()) { ... }
@@ -827,12 +804,11 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `faces(subdim)`.
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i>-1 inclusive.
+         * \tparam subdim the face dimension.
          *
          * \return access to the list of all <i>subdim</i>-faces.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
         auto faces() const;
 
         /**
@@ -840,19 +816,19 @@ class TriangulationBase :
          * to all <i>subdim</i>-faces of this triangulation, in a way
          * that is optimised for Python programmers.
          *
-         * C++ users should not use this routine.  The return type must be
-         * fixed at compile time, and so it is a std::variant that can hold
-         * any of the lightweight return types from the templated
-         * faces<subdim>() function.  This means that the return value will
+         * C++ users should not use this routine.  The return type must be fixed
+         * at compile time, and so it is typically a `std::variant` that can
+         * hold any of the lightweight view types returned from the templated
+         * `faces<subdim>()` function.  This means that the return value will
          * still need compile-time knowledge of \a subdim to extract and
          * use the appropriate face objects.  However, once you know \a subdim
          * at compile time, you are much better off using the (simpler and
-         * faster) routine faces<subdim>() instead.
+         * faster) routine `faces<subdim>()` instead.
          *
          * For Python users, this routine is much more useful: the return type
-         * can be chosen at runtime, and so this routine returns a Python list
-         * of Face<dim, subdim> objects (holding all the <i>subdim</i>-faces
-         * of the triangulation), which you can use immediately.
+         * can be chosen at runtime, and so this routine returns a single
+         * lightweight view granting access to all of the <i>subdim</i>-faces
+         * of the triangulation, which you can use immediately.
          *
          * \exception InvalidArgument The face dimension \a subdim is outside
          * the supported range (i.e., negative, or greater than or equal to
@@ -867,16 +843,12 @@ class TriangulationBase :
         /**
          * A dimension-specific alias for faces<0>().
          *
-         * This alias is available for all dimensions \a dim.
-         *
          * See faces() for further information.
          */
         auto vertices() const;
 
         /**
          * A dimension-specific alias for faces<1>().
-         *
-         * This alias is available for all dimensions \a dim.
          *
          * See faces() for further information.
          */
@@ -886,8 +858,6 @@ class TriangulationBase :
          * A dimension-specific alias for faces<2>(), or an alias for
          * simplices() in dimension \a dim = 2.
          *
-         * This alias is available for all dimensions.
-         *
          * See faces() for further information.
          */
         auto triangles() const;
@@ -896,21 +866,19 @@ class TriangulationBase :
          * A dimension-specific alias for faces<3>(), or an alias for
          * simplices() in dimension \a dim = 3.
          *
-         * This alias is available for dimensions \a dim ≥ 3.
-         *
          * See faces() for further information.
          */
-        auto tetrahedra() const;
+        auto tetrahedra() const
+            requires (dim >= 3);
 
         /**
          * A dimension-specific alias for faces<4>(), or an alias for
          * simplices() in dimension \a dim = 4.
          *
-         * This alias is available for dimensions \a dim ≥ 4.
-         *
          * See faces() for further information.
          */
-        auto pentachora() const;
+        auto pentachora() const
+            requires (dim >= 4);
 
         /**
          * Returns the requested connected component of this triangulation.
@@ -944,14 +912,13 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `face(subdim, index)`.
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i>-1 inclusive.
+         * \tparam subdim the face dimension.
          *
          * \param index the index of the desired face, ranging from 0 to
          * countFaces<subdim>()-1 inclusive.
          * \return the requested face.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
         Face<dim, subdim>* face(size_t index) const;
 
         /**
@@ -959,21 +926,21 @@ class TriangulationBase :
          * in a way that is optimised for Python programmers.
          *
          * For C++ users, this routine is not very useful: since precise types
-         * must be know at compile time, this routine returns a std::variant
-         * \a v that could store a pointer to any class Face<dim, ...>.
+         * must be know at compile time, this routine returns a `std::variant`
+         * \a v that could store a pointer to any class `Face<dim, ...>`.
          * This means you cannot access the face directly: you will still need
          * some kind of compile-time knowledge of \a subdim before you can
-         * extract and use an appropriate Face<dim, subdim> object from \a v.
+         * extract and use an appropriate `Face<dim, subdim>` object from \a v.
          * However, once you know \a subdim at compile time, you are better off
-         * using the (simpler and faster) routine face<subdim>() instead.
+         * using the (simpler and faster) routine `face<subdim>()` instead.
          *
          * For Python users, this routine is much more useful: the return type
          * can be chosen at runtime, and so this routine simply returns a
-         * Face<dim, subdim> object of the appropriate face dimension that
+         * `Face<dim, subdim>` object of the appropriate face dimension that
          * you can use immediately.
          *
          * The specific return type for C++ programmers will be
-         * std::variant<Face<dim, 0>*, ..., Face<dim, dim-1>*>.
+         * `std::variant<Face<dim, 0>*, ..., Face<dim, dim-1>*>`.
          *
          * \exception InvalidArgument The face dimension \a subdim is outside
          * the supported range (i.e., negative, or greater than or equal to
@@ -982,7 +949,7 @@ class TriangulationBase :
          * \param subdim the face dimension; this must be between 0 and
          * <i>dim</i>-1 inclusive.
          * \param index the index of the desired face, ranging from 0 to
-         * countFaces<subdim>()-1 inclusive.
+         * `countFaces<subdim>()-1` inclusive.
          * \return the requested face.
          */
         auto face(int subdim, size_t index) const;
@@ -990,16 +957,12 @@ class TriangulationBase :
         /**
          * A dimension-specific alias for face<0>().
          *
-         * This alias is available for all dimensions \a dim.
-         *
          * See face() for further information.
          */
         Face<dim, 0>* vertex(size_t index) const;
 
         /**
          * A dimension-specific alias for face<1>().
-         *
-         * This alias is available for all dimensions \a dim.
          *
          * See face() for further information.
          */
@@ -1009,8 +972,7 @@ class TriangulationBase :
          * A dimension-specific alias for face<2>(), or an alias for
          * simplex() in dimension \a dim = 2.
          *
-         * This alias is available for all dimensions \a dim.
-         * It returns a non-const triangle pointer.
+         * This returns a non-const triangle pointer.
          *
          * See face() for further information.
          */
@@ -1020,8 +982,7 @@ class TriangulationBase :
          * A dimension-specific alias for face<2>(), or an alias for
          * simplex() in dimension \a dim = 2.
          *
-         * This alias is available for all dimensions \a dim.
-         * It returns a const triangle pointer in dimension \a dim = 2,
+         * This returns a const triangle pointer in dimension \a dim = 2,
          * and a non-const triangle pointer in all higher dimensions.
          *
          * See face() for further information.
@@ -1032,47 +993,47 @@ class TriangulationBase :
          * A dimension-specific alias for face<3>(), or an alias for
          * simplex() in dimension \a dim = 3.
          *
-         * This alias is available for dimensions \a dim ≥ 3.
-         * It returns a non-const tetrahedron pointer.
+         * This returns a non-const tetrahedron pointer.
          *
          * See face() for further information.
          */
-        auto tetrahedron(size_t index);
+        auto tetrahedron(size_t index)
+            requires (dim >= 3);
 
         /**
          * A dimension-specific alias for face<3>(), or an alias for
          * simplex() in dimension \a dim = 3.
          *
-         * This alias is available for dimensions \a dim ≥ 3.
-         * It returns a const tetrahedron pointer in dimension \a dim = 3,
+         * This returns a const tetrahedron pointer in dimension \a dim = 3,
          * and a non-const tetrahedron pointer in all higher dimensions.
          *
          * See face() for further information.
          */
-        auto tetrahedron(size_t index) const;
+        auto tetrahedron(size_t index) const
+            requires (dim >= 3);
 
         /**
          * A dimension-specific alias for face<4>(), or an alias for
          * simplex() in dimension \a dim = 4.
          *
-         * This alias is available for dimensions \a dim ≥ 4.
-         * It returns a non-const pentachoron pointer.
+         * This returns a non-const pentachoron pointer.
          *
          * See face() for further information.
          */
-        auto pentachoron(size_t index);
+        auto pentachoron(size_t index)
+            requires (dim >= 4);
 
         /**
          * A dimension-specific alias for face<4>(), or an alias for
          * simplex() in dimension \a dim = 4.
          *
-         * This alias is available for dimensions \a dim ≥ 4.
-         * It returns a const pentachoron pointer in dimension \a dim = 4,
+         * This returns a const pentachoron pointer in dimension \a dim = 4,
          * and a non-const pentachoron pointer in all higher dimensions.
          *
          * See face() for further information.
          */
-        auto pentachoron(size_t index) const;
+        auto pentachoron(size_t index) const
+            requires (dim >= 4);
 
         /**
          * Translates a face of some other triangulation into the corresponding
@@ -1105,13 +1066,12 @@ class TriangulationBase :
          * above, in typical scenarios both triangulations would actually be
          * combinatorially identical).
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i> inclusive.
+         * \tparam subdim the face dimension.
          *
          * \param other the face to translate.
          * \return the corresponding face of this triangulation.
          */
-        template <int subdim>
+        template <int subdim> requires (0 <= subdim && subdim <= dim)
         Face<dim, subdim>* translate(const Face<dim, subdim>* other) const;
 
         /**
@@ -1134,13 +1094,12 @@ class TriangulationBase :
          * above, in typical scenarios both triangulations would actually be
          * combinatorially identical).
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i>-1 inclusive.
+         * \tparam subdim the face dimension.
          *
          * \param other the face embedding to translate.
          * \return the corresponding face embedding in this triangulation.
          */
-        template <int subdim>
+        template <int subdim> requires (0 <= subdim && subdim < dim)
         FaceEmbedding<dim, subdim> translate(
             const FaceEmbedding<dim, subdim>& other) const;
 
@@ -1246,12 +1205,11 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `countBoundaryFaces(subdim)`.
          *
-         * \tparam subdim the face dimension; this must be between 0 and
-         * <i>dim</i>-1 inclusive.
+         * \tparam subdim the face dimension.
          *
          * \return the number of boundary <i>subdim</i>-faces.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
         size_t countBoundaryFaces() const;
 
         /**
@@ -1397,6 +1355,9 @@ class TriangulationBase :
          * fundamental group with fillings, call
          * SnapPeaTriangulation::fundamentalGroupFilled() instead.
          *
+         * \exception FailedPrecondition This triangulation has more than one
+         * component.
+         *
          * \return the fundamental group.
          */
         const GroupPresentation& group() const;
@@ -1420,6 +1381,9 @@ class TriangulationBase :
          * Regina's Triangulation<3> class.)  If you wish to compute the
          * fundamental group with fillings, call
          * SnapPeaTriangulation::fundamentalGroupFilled() instead.
+         *
+         * \exception FailedPrecondition This triangulation has more than one
+         * component.
          *
          * \return the fundamental group.
          */
@@ -1445,8 +1409,13 @@ class TriangulationBase :
          *
          * Note that this routine will not fire a packet change event.
          *
+         * \pre This triangulation has at most one component.
+         *
          * \pre The given presentation \a pres is indeed a presentation of the
          * fundamental group of this triangulation, as described by group().
+         *
+         * \exception FailedPrecondition This triangulation has more than one
+         * component.
          *
          * \param pres a new presentation of the fundamental group of this
          * triangulation.
@@ -1460,8 +1429,13 @@ class TriangulationBase :
          *
          * \deprecated This routine has been renamed to setGroupPresentation().
          *
+         * \pre This triangulation has at most one component.
+         *
          * \pre The given presentation \a pres is indeed a presentation of the
          * fundamental group of this triangulation, as described by group().
+         *
+         * \exception FailedPrecondition This triangulation has more than one
+         * component.
          *
          * \param pres a new presentation of the fundamental group of this
          * triangulation.
@@ -1469,13 +1443,37 @@ class TriangulationBase :
         [[deprecated]] void simplifiedFundamentalGroup(GroupPresentation pres);
 
         /**
+         * Is a presentation of the fundamental group currently cached?
+         * See group() for further details.
+         *
+         * Calling `group()` is always fast, since the group presentation is
+         * easy to construct.  However, simplifying group presentations can be
+         * difficult, and it is even possible that you have used external tools
+         * to do this (see for example setGroupPresentation()).  Therefore
+         * Regina caches the group presentation once you have computed it (or
+         * further simplified it).
+         *
+         * In particular, if this routine returns `true` then future calls to
+         * `group()` will be very fast, and will not attempt to perform any
+         * further simplification.
+         *
+         * Note that group() requires a triangulation with at most one component
+         * as a precondition.  Therefore, if this triangulation has more than
+         * one component, cachedGroup() will return `false`.
+         *
+         * \return \c true if and only if the fundamental group is currently
+         * cached, _and_ the preconditions for group() are satisfied.
+         */
+        bool cachedGroup() const;
+
+        /**
          * Returns the <i>k</i>th homology group of this triangulation,
          * treating any ideal vertices as though they had been truncated.
          *
-         * For C++ programmers who know \a subdim at compile time, you should
-         * use this template function `homology<subdim>()`, which is
-         * slightly faster than passing \a subdim as an ordinary runtime
-         * argument to `homology(subdim)`.
+         * For C++ programmers who know \a k at compile time, you should
+         * use this template function `homology<k>()`, which is
+         * slightly faster than passing \a k as an ordinary runtime
+         * argument to `homology(k)`.
          *
          * See the non-templated homology(int) for full details on exactly what
          * this function computes.
@@ -1493,14 +1491,12 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `homology(k)`.
          *
-         * \tparam k the dimension of the homology group to return;
-         * this must be between 1 and (\a dim - 1) inclusive if \a dim is
-         * one of Regina's \ref stddim "standard dimensions", or between
-         * 1 and (\a dim - 2) inclusive if not.
+         * \tparam k the dimension of the homology group to return.
          *
          * \return the <i>k</i>th homology group.
          */
         template <int k = 1>
+        requires (k > 0 && k < (standardDim(dim) ? dim : dim - 1))
         AbelianGroup homology() const;
 
         /**
@@ -1569,14 +1565,99 @@ class TriangulationBase :
         AbelianGroup homology(int k) const;
 
         /**
+         * Is the <i>k</i>th homology group already known (or trivial to
+         * determine)?  See homology() for further details.
+         *
+         * If this returns `true` then future calls to `homology<k>()` will be
+         * very fast.
+         *
+         * This is only relevant for those homology groups that are cached
+         * by the corresponding `Triangulation<dim>` class.  Currently this
+         * means `k = 1` for triangulations of any dimension, or `k = 2` for
+         * triangulations of dimensions three and four.  For any other
+         * `(dim, k)` combination, this routine is unavailable.
+         *
+         * Note that if `k ≠ 1` then homology() requires a valid triangulation
+         * as a precondition.  Therefore, if `k ≠ 1` and this triangulation is
+         * _not_ valid, knowsHomology() will return `false`.
+         *
+         * For C++ programmers who know \a k at compile time, you should
+         * use this template function `knowsHomology<k>()`, which is
+         * slightly faster than passing \a k as an ordinary runtime
+         * argument to `knowsHomology(k)`.
+         *
+         * \nopython Instead use the variant `knowsHomology(k)`.
+         *
+         * \tparam k the dimension of the homology group to query.
+         * This must be one of the `(dim, k)` combinations for which homology
+         * groups are cached, as discussed above.
+         *
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make homology trivial to compute; however, it is
+         * provided for compatibility with other `knows...()` routines.
+         * \return \c true if and only if this property is already known or
+         * trivial to calculate, _and_ the validity preconditions for homology()
+         * are satisfied.
+         */
+        template <int k = 1>
+        requires (k == 1 || (k == 2 && dim >= 3 && dim <= 4))
+        bool knowsHomology(bool cachedOnly = false) const;
+
+        /**
+         * Determines whether the <i>k</i>th homology group is already known
+         * (or trivial to determine), where the parameter \a k does not need to
+         * be known until runtime.  See homology() for further details.
+         *
+         * If this returns `true` then future calls to `homology(k)` will be
+         * very fast.
+         *
+         * This is only relevant for those homology groups that are cached
+         * by the corresponding `Triangulation<dim>` class.  Currently this
+         * means `k = 1` for triangulations of any dimension, or `k = 2` for
+         * triangulations of dimensions three and four.  For any other
+         * `(dim, k)` combination, this routine will throw an exception.
+         *
+         * Note that if `k ≠ 1` then homology() requires a valid triangulation
+         * as a precondition.  Therefore, if `k ≠ 1` and this triangulation is
+         * _not_ valid, knowsHomology() will return `false`.
+         *
+         * For C++ programmers who know \a k at compile time, you are better
+         * off using the template function `knowsHomology<k>()` instead, which
+         * is slightly faster.
+         *
+         * \exception InvalidArgument Homology groups are not cached for this
+         * combination `(dim, k)`, as discussed above.
+         *
+         * \python Like the C++ template function `homology<k>()`,
+         * you can omit the homology dimension \a k; this will default to 1.
+         *
+         * \param k the dimension of the homology group to query.
+         * This must be one of the `(dim, k)` combinations for which homology
+         * groups are cached, as discussed above.
+         * \param cachedOnly if `true`, this routine will only identify
+         * whether the property is already cached, and will not attempt to
+         * compute it even if the computation will be trivial.
+         * Currently this argument is ignored since this routine does not look
+         * for shortcuts that make homology trivial to compute; however, it is
+         * provided for compatibility with other `knows...()` routines.
+         * \return \c true if and only if this property is already known or
+         * trivial to calculate, _and_ the validity preconditions for homology()
+         * are satisfied.
+         */
+        bool knowsHomology(int k, bool cachedOnly = false) const;
+
+        /**
          * Returns the <i>k</i>th homology group of this triangulation,
          * without truncating ideal vertices, but with explicit coordinates
          * that track the individual <i>k</i>-faces of this triangulation.
          *
-         * For C++ programmers who know \a subdim at compile time, you should
-         * use this template function `markedHomology<subdim>()`, which is
-         * slightly faster than passing \a subdim as an ordinary runtime
-         * argument to `markedHomology(subdim)`.
+         * For C++ programmers who know \a k at compile time, you should
+         * use this template function `markedHomology<k>()`, which is
+         * slightly faster than passing \a k as an ordinary runtime
+         * argument to `markedHomology(k)`.
          *
          * See the non-templated markedHomology(int) for full details on what
          * this function computes, some important caveats to be aware of,
@@ -1588,13 +1669,12 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `markedHomology(k)`.
          *
-         * \tparam k the dimension of the homology group to compute; this must
-         * be between 1 and (<i>dim</i>-1) inclusive.
+         * \tparam k the dimension of the homology group to compute.
          *
          * \return the <i>k</i>th homology group of the union of all
          * simplices in this triangulation, as described above.
          */
-        template <int k = 1>
+        template <int k = 1> requires (k > 0 && k < dim)
         MarkedAbelianGroup markedHomology() const;
 
         /**
@@ -1668,13 +1748,12 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `boundaryMap(subdim)`.
          *
-         * \tparam subdim the face dimension; this must be between 1 and
-         * \a dim inclusive.
+         * \tparam subdim the face dimension.
          *
          * \return the boundary map from <i>subdim</i>-faces to
          * (<i>subdim</i>-1)-faces.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim > 0 && subdim <= dim)
         MatrixInt boundaryMap() const;
 
         /**
@@ -1753,14 +1832,13 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `dualBoundaryMap(subdim)`.
          *
-         * \tparam subdim the dual face dimension; this must be between
-         * 1 and \a dim inclusive if \a dim is one of Regina's standard
-         * dimensions, or between 1 and (\a dim - 1) inclusive otherwise.
+         * \tparam subdim the dual face dimension.
          *
          * \return the boundary map from dual <i>subdim</i>-faces to
          * dual (<i>subdim</i>-1)-faces.
          */
         template <int subdim>
+        requires (subdim > 0 && subdim <= (standardDim(dim) ? dim : dim - 1))
         MatrixInt dualBoundaryMap() const;
 
         /**
@@ -1879,13 +1957,12 @@ class TriangulationBase :
          *
          * \nopython Instead use the variant `dualToPrimal(subdim)`.
          *
-         * \tparam subdim the chain dimension; this must be between
-         * 0 and (\a dim - 1) inclusive.
+         * \tparam subdim the chain dimension.
          *
          * \return the map from dual <i>subdim</i>-chains to primal
          * <i>subdim</i>-chains.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
         MatrixInt dualToPrimal() const;
 
         /**
@@ -2091,14 +2168,13 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be
-         * between 0 and (\a dim) inclusive.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
          * \return \c true if and only if the requested move was able to be
          * performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         bool pachner(Face<dim, k>* f);
 
         /**
@@ -2135,12 +2211,11 @@ class TriangulationBase :
          * \exception LockViolation This move would violate a simplex or facet
          * lock.  This exception will be thrown before any changes are made.
          *
-         * \tparam k the dimension of the given face.  This must be
-         * between 0 and (\a dim) inclusive.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         void pachner(Face<dim, k>* f, Unprotected);
 
         /**
@@ -2208,14 +2283,13 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
-         * and must not exceed `dim - 2`.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
          * \return \c true if and only if the requested move was able to be
          * performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
         bool move20(Face<dim, k>* f);
 
         /**
@@ -2273,15 +2347,13 @@ class TriangulationBase :
          * (faces, components, etc.) will be reconstructed, which means
          * any pointers to old skeletal objects can no longer be used.
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
          * \pre The given simplex is a simplex of this triangulation.
          *
          * \param s the top-dimensional simplex upon which to perform the move.
          * \return \c true if and only if the requested move was able to be
          * performed.
          */
-        bool shellBoundary(Simplex<dim>* s);
+        bool shellBoundary(Simplex<dim>* s) requires (standardDim(dim));
 
         /**
          * Determines whether it is possible to perform a
@@ -2295,13 +2367,12 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be
-         * between 0 and (\a dim) inclusive.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the candidate move.
          * \return \c true if and only if the requested move can be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         bool hasPachner(Face<dim, k>* f) const;
 
         /**
@@ -2315,13 +2386,12 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
-         * and must not exceed `dim - 2`.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the candidate move.
          * \return \c true if and only if the requested move can be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
         bool has20(Face<dim, k>* f) const;
 
         /**
@@ -2337,15 +2407,14 @@ class TriangulationBase :
          * For more detail on boundary shelling moves and when they can be
          * performed, see shellBoundary().
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
          * \pre The given simplex is a simplex of this triangulation.
          *
          * \param s the top-dimensional simplex upon which to perform the
          * candidate move.
          * \return \c true if and only if the requested move can be performed.
          */
-        bool hasShellBoundary(Simplex<dim>* s) const;
+        bool hasShellBoundary(Simplex<dim>* s) const
+            requires (standardDim(dim));
 
         /**
          * If possible, returns the triangulation obtained by performing a
@@ -2362,14 +2431,13 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be
-         * between 0 and (\a dim) inclusive.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         std::optional<Triangulation<dim>> withPachner(Face<dim, k>* f) const;
 
         /**
@@ -2386,14 +2454,13 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
-         * and must not exceed `dim - 2`.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
         std::optional<Triangulation<dim>> with20(Face<dim, k>* f) const;
 
         /**
@@ -2413,16 +2480,14 @@ class TriangulationBase :
          * For more detail on boundary shelling moves and when they can be
          * performed, see shellBoundary().
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
          * \pre The given simplex is a simplex of this triangulation.
          *
          * \param s the top-dimensional simplex upon which to perform the move.
-         * \return The new triangulation obtained by performing the requested
+         * \return the new triangulation obtained by performing the requested
          * move, or no value if the requested move cannot be performed.
          */
         std::optional<Triangulation<dim>> withShellBoundary(Simplex<dim>* s)
-            const;
+            const requires (standardDim(dim));
 
         /**
          * Deprecated routine that tests for and optionally performs a
@@ -2445,8 +2510,7 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be
-         * between 0 and (\a dim) inclusive.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
          * \param ignored an argument that is ignored.  In earlier versions of
@@ -2456,7 +2520,7 @@ class TriangulationBase :
          * assuming the move is allowed.
          * \return \c true if and only if the requested move could be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         [[deprecated]] bool pachner(Face<dim, k>* f, bool ignored,
             bool perform = true);
 
@@ -2480,8 +2544,7 @@ class TriangulationBase :
          * \pre The given <i>k</i>-face is a <i>k</i>-face of this
          * triangulation.
          *
-         * \tparam k the dimension of the given face.  This must be 0, 1 or 2,
-         * and must not exceed `dim - 2`.
+         * \tparam k the dimension of the given face.
          *
          * \param f the <i>k</i>-face about which to perform the move.
          * \param ignored an argument that is ignored.  In earlier versions of
@@ -2491,7 +2554,7 @@ class TriangulationBase :
          * assuming the move is allowed.
          * \return \c true if and only if the requested move could be performed.
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
         [[deprecated]] bool twoZeroMove(Face<dim, k>* f, bool ignored,
             bool perform = true);
 
@@ -2518,8 +2581,6 @@ class TriangulationBase :
          * call hasShellBoundary().  If you wish to both check and perform the
          * move, call shellBoundary() without the two extra boolean arguments.
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
          * \pre The given simplex is a simplex of this triangulation.
          *
          * \param s the top-dimensional simplex upon which to perform the move.
@@ -2531,7 +2592,7 @@ class TriangulationBase :
          * \return \c true if and only if the requested move could be performed.
          */
         [[deprecated]] bool shellBoundary(Simplex<dim>* s, bool ignored,
-            bool perform = true);
+            bool perform = true) requires (standardDim(dim));
 
         /*@}*/
         /**
@@ -2644,10 +2705,10 @@ class TriangulationBase :
          * according to the lexicographical ordering of the corresponding
          * permutations \a p.
          *
-         * \pre \a dim is one of Regina's standard dimensions.
-         * This precondition is a safety net, since in higher dimensions the
-         * triangulation would explode too quickly in size (and for the
-         * highest dimensions, possibly beyond the limits of \c size_t).
+         * As a safety net, this routine requires that \a dim must be one of
+         * Regina's \ref stddim "standard dimensions".  Otherwise in higher
+         * dimensions the triangulation would explode too quickly in size (and
+         * for the highest dimensions, possibly beyond the limits of \c size_t).
          *
          * \warning In dimensions 3 and 4, both the labelling and ordering of
          * sub-simplices in the subdivided triangulation has changed as of
@@ -2667,7 +2728,8 @@ class TriangulationBase :
          * subdivision, which may change properties such as
          * Triangulation<4>::knownSimpleLinks).
          */
-        void subdivide();
+        void subdivide()
+            requires (standardDim(dim));
 
         /**
          * Deprecated routine that performs a barycentric subdivision of the
@@ -2675,9 +2737,7 @@ class TriangulationBase :
          *
          * \deprecated This routine has been renamed to subdivide(), both to
          * shorten the name but also to make it clearer that this triangulation
-         * will be modified directly.
-         *
-         * \pre \a dim is one of Regina's standard dimensions.
+         * will be modified directly.  See subdivide() for further details.
          *
          * \exception LockViolation This triangulation contains at least one
          * locked top-dimensional simplex and/or facet.  This exception will be
@@ -2685,7 +2745,8 @@ class TriangulationBase :
          * Simplex<dim>::lockFacet() for further details on how such locks work
          * and what their implications are.
          */
-        [[deprecated]] void barycentricSubdivision();
+        [[deprecated]] void barycentricSubdivision()
+            requires (standardDim(dim));
 
         /**
          * Converts each real boundary component into a cusp (i.e., an
@@ -2913,10 +2974,9 @@ class TriangulationBase :
          * details on this.
          *
          * For each isomorphism that is found, this routine will call
-         * \a action (which must be a function or some other callable object).
+         * \a action (which must be a function or some other callable type).
          *
-         * - The first argument to \a action must be of type
-         *   `(const Isomorphism<dim>&)`; this will be a reference to
+         * - The first argument to \a action will be a const reference to
          *   the isomorphism that was found.  If \a action wishes to keep the
          *   isomorphism, it should take a deep copy (not a reference), since
          *   the isomorphism may be changed and reused after \a action returns.
@@ -2947,7 +3007,7 @@ class TriangulationBase :
          * found.
          *
          * \param other the triangulation to compare with this one.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each isomorphism that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial isomorphism argument.
@@ -2955,6 +3015,7 @@ class TriangulationBase :
          * \c true, or \c false if the search was allowed to run to completion.
          */
         template <typename Action, typename... Args>
+        requires TerminatingCallback<Action, const Isomorphism<dim>&, Args...>
         bool findAllIsomorphisms(const Triangulation<dim>& other,
             Action&& action, Args&&... args) const;
 
@@ -2970,10 +3031,9 @@ class TriangulationBase :
          * details on this.
          *
          * For each isomorphism that is found, this routine will call
-         * \a action (which must be a function or some other callable object).
+         * \a action (which must be a function or some other callable type).
          *
-         * - The first argument to \a action must be of type
-         *   `(const Isomorphism<dim>&)`; this will be a reference to
+         * - The first argument to \a action will be a const reference to
          *   the isomorphism that was found.  If \a action wishes to keep the
          *   isomorphism, it should take a deep copy (not a reference), since
          *   the isomorphism may be changed and reused after \a action returns.
@@ -3005,7 +3065,7 @@ class TriangulationBase :
          *
          * \param other the triangulation in which to search for
          * isomorphic copies of this triangulation.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each isomorphism that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial isomorphism argument.
@@ -3013,6 +3073,7 @@ class TriangulationBase :
          * \c true, or \c false if the search was allowed to run to completion.
          */
         template <typename Action, typename... Args>
+        requires TerminatingCallback<Action, const Isomorphism<dim>&, Args...>
         bool findAllSubcomplexesIn(const Triangulation<dim>& other,
             Action&& action, Args&&... args) const;
 
@@ -3142,193 +3203,437 @@ class TriangulationBase :
         void writeTextLong(std::ostream& out) const;
 
         /**
-         * Constructs the isomorphism signature of the given type for this
-         * triangulation.  Support for different _types_ of signature is new
-         * to Regina 7.0 (see below for details); all isomorphism signatures
-         * created in Regina 6.0.1 or earlier are of the default type
-         * IsoSigClassic.
+         * Constructs an _isomorphism signature_ for this triangulation.
          *
-         * An _isomorphism signature_ is a compact representation
-         * of a triangulation that uniquely determines the triangulation up to
-         * combinatorial isomorphism.  That is, for any fixed signature type
-         * \a T, two triangulations of dimension \a dim are combinatorially
-         * isomorphic if and only if their isomorphism signatures of
-         * type \a T are the same.
+         * Most users will not need to use this routine, which is extremely
+         * customisable; instead just call isoSig() for a first-generation
+         * signature (if you need backward compatibility), or neoSig() for a
+         * second-generation signature (if you want performance and/or if you
+         * need to preserve orientation).  Read on for the full details.
          *
-         * By default, isomorphism signatures support simplex and facet locks:
-         * this means that locks are encoded in the isomorphism signature, and
-         * the "combinatorial isomorphisms" mentioned above must respect not
-         * just the gluings between simplices but also any simplex and/or facet
-         * locks.  You can change this behaviour by requesting a different
-         * encoding (such as IsoSigPrintableLockFree).  Under the default
-         * encoding, if this triangulation does not have any simplex and/or
-         * facet locks then the isomorphism signature will look the same as it
-         * did in Regina 7.3.x and earlier, before locks were supported.
+         * An _isomorphism signature_ is a compact representation of a
+         * triangulation, typically (but not necessarily) in a readable text
+         * form, that uniquely determines the triangulation up to combinatorial
+         * isomorphism.  In other words, for any fixed choice of signature
+         * parameters, two triangulations of dimension \a dim will have the
+         * same signature if and only if they are related by a relabelling of
+         * the top-dimensional simplices and/or their vertices.  Unless
+         * otherwise requested (see encodings below), this relabelling must
+         * also respect any simplex and/or facet locks.
          *
-         * The length of an isomorphism signature is proportional to
-         * `n log n`, where \a n is the number of top-dimenisonal
-         * simplices.  The time required to construct it is worst-case
-         * `O((dim!) n² log² n)`.  Whilst this is fine for large
-         * triangulations, it becomes very slow for large _dimensions_;
-         * the main reason for introducing different signature types is that
-         * some alternative types can be much faster to compute in practice.
+         * The signature _parameters_ include: whether the signature is
+         * first-generation or second-generation; whether it is oriented or
+         * unoriented; and a choice of signature _encoding_ and _type_.
+         * All of these parameters are explained in detail below; if this is
+         * too much information to digest all at once then you can jump to the
+         * summary of recommendations at the end.
          *
-         * Whilst the format of an isomorphism signature bears some
+         * Regina supports _first-generation_ and _second-generation_
+         * signatures:
+         *
+         * - First-generation signatures are the old isomorphism signatures
+         *   from Regina ≤ 7.x, and are _not_ recommended for use in new code.
+         *   They encode a triangulation as a printable ASCII string.  You can
+         *   compute the first-generation signature by calling `isoSig()`.
+         *
+         * - Second-generation signatures are typically shorter, faster to
+         *   compute, and support both printable encodings (as an ASCII string)
+         *   and binary encodings (as a raw byte sequence, which is even
+         *   shorter but unprintable).  These are better to use in new code,
+         *   but be aware that they are only supported in Regina ≥ 8.0.  You
+         *   can compute the second-generation signature in string form by
+         *   calling `neoSig()`, or in binary form by calling
+         *   `neoSig<IsoSigBinary>()`.
+         *
+         * - If you are not sure, just use the second-generation signature by
+         *   calling `neoSig()`.
+         *
+         * - This routine `sig()` is a generic routine that allows you to
+         *   compute _either_ a first-generation or second-generation signature
+         *   by passing appropriate template arguments: `sig<1>()`, `sig<2>()`,
+         *   or `sig<2, IsoSigBinary>()`.
+         *
+         * Signatures can be _oriented_ or _unoriented_:
+         *
+         * - Unoriented signatures (the default) follow the general rules
+         *   described above: two triangulations have the same signature if and
+         *   only if they are related by a relabelling of top-dimensional
+         *   simplices and/or their vertices.
+         *
+         * - Oriented signatures follow slightly different rules: they can
+         *   only be computed for oriented triangulations; moreover, two
+         *   oriented triangulations will have the same signature if and only
+         *   if they are related by an _orientation-preserving_ relabelling.
+         *
+         * - Only second-generation signatures have the option of being
+         *   oriented.  You control this via the boolean argument to neoSig()
+         *   or sig(): calling `neoSig()` or `sig<2>()` with no arguments will
+         *   compute an unoriented second-generation signature, whereas calling
+         *   `neoSig(true)` or `sig<2>(true)` will compute an oriented
+         *   second-generation signature.  First-generation signatures as
+         *   computed by `isoSig()` or `sig<1>()` are always unoriented.
+         *
+         * Signatures can use different _encodings_.  The role of an encoding
+         * is to convert the combinatorial data into its final signature form
+         * (e.g., a printable string, or a byte sequence); see the
+         * IsoSigEncoding concept for full details.  Regina offers the
+         * following encodings:
+         *
+         * - The encoding IsoSigPrintable encodes the data as a `std::string`
+         *   consisting entirely of printable characters in the 7-bit ASCII
+         *   range.  This is the default encoding for both first-generation and
+         *   second-generation signatures.
+         *
+         * - The encoding IsoSigPrintableLockFree is like IsoSigPrintable,
+         *   except that it ignores (and therefore does not encode) any
+         *   simplex and/or facet locks.
+         *
+         * - The encoding IsoSigBinary encodes the data in binary, as a
+         *   ByteSequence.  This is only available for second-generation
+         *   signatures.  This binary encoding is typically shorter than the
+         *   printable string encoding, and is useful if memory usage needs to
+         *   be kept to a minimum.
+         *
+         * - Most users should only ever need the default encoding.  To use
+         *   a non-default encoding, you should pass the encoding class as a
+         *   template argument to the relevant signature function (e.g., to
+         *   isoSig(), neoSig(), or sig()).
+         *
+         * Finally, signatures can be of different _types_.  The type allows
+         * you to tailor the signature algorithm to different computational
+         * needs, by modifying what is meant by a "canonical labelling"; see
+         * the IsoSigType concept for full details.  Regina offers the
+         * following types:
+         *
+         * - The type `IsoSigClassic<dim>` is slow; the main reason to use it
+         *   is that it is consistent with the original isomorphism signatures
+         *   first introduced in Regina 4.90.  This is the default type for
+         *   first-generation signatures, and is not recommended for use in
+         *   new projects.
+         *
+         * - The type `IsoSigDegrees<dim, subdim>` aims to speed up the
+         *   computation by examining <i>subdim</i>-face degree sequences of
+         *   top-dimensional simplices.  In particular, the type
+         *   `IsoSigDegrees<dim, dim-2>` is the default for second-generation
+         *   signatures (this default type is also known by the alias
+         *   `IsoSigRidgeDegrees<dim>`).
+         *
+         * - Most users should only ever need the default signature type.
+         *   To use a non-default type, you should pass the type class as a
+         *   template argument to the relevant signature function (e.g., to
+         *   isoSig(), neoSig(), or sig()).
+         *
+         * So, in summary, the recommendations are:
+         *
+         * - If you need compatibility with isomorphism signatures from
+         *   Regina ≤ 7.x, create a first-generation signature by calling
+         *   `isoSig()`.  Furthermore, if you need to remove simplex/facet
+         *   locks from the signature (since these were not supported until
+         *   Regina 7.4), call `isoSig<IsoSigPrintableLockFree>()`.
+         *
+         * - If you are starting a new project and want the best performance,
+         *   create a second-generation signature by calling `neoSig()`.
+         *   This signature will only be compatible with Regina ≥ 8.0.
+         *
+         * - If you need an oriented signature, call `neoSig(true)`.
+         *
+         * - All other options are intended for experts only.
+         *
+         * The length of an isomorphism signature is proportional to `n log n`,
+         * where \a n is the number of top-dimenisonal simplices.  The time
+         * required to construct it is worst-case `O((dim!) n² log² n)`.
+         * Whilst this is fine for large triangulations, beware that it becomes
+         * very slow for large _dimensions_.
+         *
+         * Note that, whilst the format of an isomorphism signature bears some
          * similarity to dehydration strings for 3-manifolds, they are more
          * general: isomorphism signatures can be used with any triangulations,
          * including closed, bounded and/or disconnected triangulations,
-         * as well as triangulations with many simplices.  Note also that
-         * 3-manifold dehydration strings are not unique up to isomorphism
-         * (they depend on the particular labelling of tetrahedra).
+         * as well as triangulations of arbitrary size.  Moreover, 3-manifold
+         * dehydration strings are not unique up to isomorphism (they depend on
+         * the particular labelling of tetrahedra).
          *
-         * The routine fromIsoSig() can be used to recover a triangulation
-         * from an isomorphism signature (only if the default encoding has
-         * been used, but it does not matter which signature type was used).
-         * The triangulation recovered might not be identical to the original,
-         * but it _will_ be combinatorially isomorphic.  If you need the
-         * precise relabelling, you can call isoSigDetail() instead.
+         * The routine fromSig() can be used to recover a triangulation
+         * from an isomorphism signature (it supports both first-generation
+         * and second-generation signatures, and supports both string and binary
+         * encodings).  The triangulation recovered might not be identical to
+         * the original, but it _will_ be combinatorially isomorphic (and, if
+         * you used an oriented signature, it will have the same orientation).
+         * If you need the precise relabelling, you can call isoSigDetail()
+         * or neoSigDetail() instead.
          *
-         * Regina supports several different variants of isomorphism signatures,
-         * which are tailored to different computational needs; these are
-         * currently determined by the template parameters \a Type and
-         * \a Encoding:
-         *
-         * - The \a Type parameter identifies which signature type is to be
-         *   constructed.  Essentially, different signature types use
-         *   different rules to determine which labelling of a triangulation
-         *   is "canonical".  The default type IsoSigClassic is slow
-         *   (it never does better than the worst-case time described above);
-         *   its main advantage is that it is consistent with the original
-         *   implementation of isomorphism signatures in Regina 4.90.
-         *
-         * - The \a Encoding parameter controls how Regina encodes a canonical
-         *   labelling into a final signature.  The default encoding
-         *   IsoSigPrintable returns a std::string consisting entirely of
-         *   printable characters in the 7-bit ASCII range.  Importantly, this
-         *   default encoding is currently the only encoding from which Regina
-         *   can _reconstruct_ a triangulation (including any simplex and/or
-         *   facet locks) from its isomorphism signature.
-         *
-         * You may instead pass your own type and/or encoding parameters as
-         * template arguments.  Currently this facility is for internal use
-         * only, and the requirements for type and encoding parameters may
-         * change in future versions of Regina.  At present:
-         *
-         * - The \a Type parameter should be a class that is constructible
-         *   from a componenent reference, and that offers the member functions
-         *   `simplex()`, `perm()` and `next()`; see the implementation of
-         *   IsoSigClassic for details.
-         *
-         * - The \a Encoding parameter should be a class that offers a
-         *   \a Signature type alias, and static functions `emptySig()` and
-         *   `encode()`.  See the implementation of IsoSigPrintable for details.
-         *
-         * - If you wish to produce an isomorphism signature that ignores
-         *   simplex and/or facet locks then you can use an encoding whose
-         *   `encode()` function ignores the final \a locks argument, such as
-         *   IsoSigPrintableLockFree.
-         *
-         * For a full and precise description of the classic isomorphism
-         * signature format for 3-manifold triangulations, see
+         * For a full and precise description of the first-generation
+         * isomorphism signature format for 3-manifold triangulations, see
          * _Simplification paths in the Pachner graphs of closed orientable
-         * 3-manifold triangulations_, Burton, 2011,
-         * `arXiv:1110.6080`.  The format for other dimensions is
-         * essentially the same, but with minor dimension-specific adjustments.
-         *
-         * \python Although this is a templated function, all of the variants
-         * supplied with Regina are available to Python users.  To use the
-         * default signature type and encoding, just call `isoSig()`.  To use
-         * a non-default signature type, add a suffix `_Type` where \a Type is
-         * an abbreviated version of the signature type (e.g.,
-         * `isoSig_EdgeDegrees()` for the signature type IsoSigEdgeDegrees).
-         * To use the encoding IsoSigPrintableLockFree (the only non-default
-         * encoding available at present), add another suffix `_LockFree`
-         * (e.g., `isoSig_LockFree()`, or `isoSig_EdgeDegrees_LockFree()`).
+         * 3-manifold triangulations_, Burton, 2011, `arXiv:1110.6080`.
+         * The format for other dimensions is essentially the same, but with
+         * minor dimension-specific adjustments.
          *
          * \warning Do not mix isomorphism signatures between dimensions!
-         * It is possible that the same string could corresponding to both a
+         * It is possible that the same string could describe both a
          * \a p-dimensional triangulation and a \a q-dimensional triangulation
          * for different dimensions \a p and \a q.
          *
-         * \return the isomorphism signature of this triangulation.
+         * \pre If \a oriented is `true`, then this is an oriented
+         * triangulation.
+         *
+         * \python Python does not support C++ templates.  Instead, you should
+         * pass the template arguments at runtime, using the argument order
+         * `sig(generation, oriented, encoding, type)`.
+         * So, for example, to generate a string-based second-generation
+         * signature, you can call `sig(2)`, or for a binary oriented signature,
+         * `sig(2, True, IsoSigBinary)`.  When generating binary signatures
+         * (via `IsoSigBinary`), the return value will be a Python `bytes`
+         * object (not a ByteSequence).
+         *
+         * \exception InvalidArgument An oriented first-generation signature
+         * was requested.  As discussed above, only second-generation signatures
+         * can be oriented.
+         *
+         * \exception FailedPrecondition An oriented second-generation signature
+         * was requested (i.e., \a oriented is `true`), but this triangulation
+         * is not oriented.
+         *
+         * \tparam generation either 1 or 2, indicating whether to generate a
+         * first-generation or second-generation signature.
+         * \tparam Encoding indicates the encoding to use, as discussed in
+         * detail above.
+         * \tparam Type indicates the signature type, again as discussed above.
+         *
+         * \param oriented indicates whether to generate an oriented signature
+         * (`true`), or an unoriented signature (`false`).  You can only pass
+         * `true` here when generating a second-generation signature.
+         * \return the isomorphism signature of this triangulation.  This will
+         * be of type `std::string` for string-based encodings, or ByteSequence
+         * for binary encodings.
          */
-        template <typename Type = IsoSigClassic<dim>,
-            typename Encoding = IsoSigPrintable<dim>>
+        template <int generation,
+            IsoSigEncoding<generation, dim> Encoding = IsoSigPrintable,
+            IsoSigType<dim> Type = std::conditional_t<generation == 1,
+                IsoSigClassic<dim>, IsoSigRidgeDegrees<dim>>>
+        requires (generation == 1 || generation == 2)
+        typename Encoding::Signature sig(bool oriented = false) const;
+
+        /**
+         * Constructs the first-generation isomorphism signature for this
+         * triangulation.  This is identical to calling `sig<1, ...>()`.
+         *
+         * First-generation signatures are the older string-based signatures
+         * used in Regina ≤ 7.x.
+         *
+         * For new code, it is strongly recommended to use second-generation
+         * signatures, as returned by neoSig().  Second-generation signatures
+         * are shorter and faster to compute, support both printable and binary
+         * encodings, and support both oriented and unoriented signatures.
+         *
+         * See sig() for further details on isomorphism signatures in general.
+         *
+         * \warning Do not mix isomorphism signatures between dimensions!
+         * It is possible that the same string could describe both a
+         * \a p-dimensional triangulation and a \a q-dimensional triangulation
+         * for different dimensions \a p and \a q.
+         *
+         * \python You can pass the optional template arguments as runtime
+         * arguments: `isoSig(encoding, type)`.  So, for example, to use the
+         * encoding that omits simplex/facet locks, you can call
+         * `isoSig(IsoSigPrintableLockFree)`.
+         *
+         * \tparam Encoding indicates the encoding to use, as discussed in
+         * detail in the documentation for sig().  The default encoding is
+         * consistent with the isomorphism signatures from Regina ≤ 7.x.
+         * Note that Regina ≤ 7.3.1 did not support simplex or facet locks;
+         * if you wish to omit these from the signature, you can use the
+         * encoding IsoSigPrintableLockFree.
+         * \tparam Type indicates the signature type, again as discussed in
+         * detail in the documentation for sig().  The default signature type
+         * is consistent with the isomorphism signatures from Regina ≤ 7.x.
+         *
+         * \return the first-generation isomorphism signature.  This will be
+         * of type `std::string` for string-based encodings (which is all that
+         * Regina offers for first-generation signatures).
+         */
+        template <IsoSigEncoding<1, dim> Encoding = IsoSigPrintable,
+            IsoSigType<dim> Type = IsoSigClassic<dim>>
         typename Encoding::Signature isoSig() const;
 
         /**
-         * Alias for isoSig(), which constructs the isomorphism signature of
-         * the given type for this triangulation.
+         * Constructs the second-generation isomorphism signature for this
+         * triangulation.  This is identical to calling `sig<2, ...>()`.
          *
-         * This alias sig() is provided to assist with generic code that can
-         * work with both triangulations and links.
+         * Second-generation signatures are recommended for use in new projects.
+         * They are shorter and faster to compute than first-generation
+         * signatures, they support both printable and binary encodings, and
+         * they support both oriented and unoriented signatures.
          *
-         * See isoSig() for further details.
+         * See sig() for further details on isomorphism signatures in general.
          *
-         * \python This alias is only available for the default signature type
-         * and encoding (i.e., the default C++ template arguments).
-         * If you wish to use a different signature type and/or encoding, you
-         * can instead use the variants provided with isoSig(); that is, you
-         * can call a function of the form isoSig_<i>Type</i>.  See the
-         * isoSig() documentation for further details.
+         * \warning Do not mix isomorphism signatures between dimensions!
+         * It is possible that the same string could describe both a
+         * \a p-dimensional triangulation and a \a q-dimensional triangulation
+         * for different dimensions \a p and \a q.
          *
-         * \return the isomorphism signature of this triangulation.
+         * \pre If \a oriented is `true`, then this is an oriented
+         * triangulation.
+         *
+         * \python You can pass the optional template arguments as additional
+         * runtime arguments: `neoSig(oriented, encoding, type)`.  So, for
+         * example, to use a binary encoding you can call
+         * `neoSig(encoding = IsoSigBinary)`.  When generating binary
+         * signatures (via `IsoSigBinary`), the return value will be a Python
+         * `bytes` object (not a ByteSequence).
+         *
+         * \exception FailedPrecondition An oriented signature was requested
+         * (i.e., \a oriented is `true`), but this triangulation is not
+         * oriented.
+         *
+         * \tparam Encoding indicates the encoding to use, as discussed in
+         * detail in the documentation for sig().  For a printable
+         * string-based signature, you can just use the default encoding.
+         * If you wish to omit simplex and facet locks from the signature,
+         * you can use the encoding IsoSigPrintableLockFree.  If you need to
+         * conserve memory, you can use the binary encoding IsoSigBinary.
+         * \tparam Type indicates the signature type, again as discussed in
+         * detail in the documentation for sig().  The default signature type
+         * is recommended here.
+         *
+         * \param oriented indicates whether to generate an oriented signature
+         * (`true`), or an unoriented signature (`false`).
+         * \return the second-generation isomorphism signature.  This will be
+         * of type `std::string` for string-based encodings, or ByteSequence
+         * for binary encodings.
          */
-        template <typename Type = IsoSigClassic<dim>,
-            typename Encoding = IsoSigPrintable<dim>>
-        typename Encoding::Signature sig() const;
+        template <IsoSigEncoding<2, dim> Encoding = IsoSigPrintable,
+            IsoSigType<dim> Type = IsoSigRidgeDegrees<dim>>
+        typename Encoding::Signature neoSig(bool oriented = false) const;
 
         /**
-         * Constructs the isomorphism signature for this triangulation, along
-         * with the relabelling that will occur when the triangulation is
-         * reconstructed from it.
+         * Constructs the first-generation isomorphism signature for this
+         * triangulation, along with the relabelling that will occur when the
+         * triangulation is reconstructed from it.
          *
-         * Essentially, an isomorphism signature is a compact representation
-         * of a triangulation that uniquely determines the triangulation up to
-         * combinatorial isomorphism.  See isoSig() for much more detail on
-         * isomorphism signatures as well as the support for different
-         * signature types and encodings.
+         * First-generation signatures are the older string-based signatures
+         * used in Regina ≤ 7.x, and are not recommended for new projects.
+         * Instead, for new projects it is recommended to use second-generation
+         * signatures, where the analogous routine to this is neoSigDetail().
          *
-         * As described in the isoSig() notes, you can call fromIsoSig() to
-         * recover a triangulation from an isomorphism signature (assuming
-         * the default encoding was used).  Whilst the triangulation that is
-         * recovered will be combinatorially isomorphic to the original,
-         * it might not be identical.  This routine returns not only the
-         * isomorphism signature, but also an isomorphism that describes the
-         * precise relationship between this triangulation and the
-         * reconstruction from fromIsoSig().
+         * The documentation for sig() includes a thorough discussion on
+         * isomorphism signatures and their various parameters.  In brief,
+         * an isomorphism signature is a compact representation of a
+         * triangulation that uniquely determines the triangulation up to
+         * combinatorial isomorphism.  You can reconstruct a triangulation
+         * from its isomorphism signature by calling fromSig().
          *
-         * Specifically, if this routine returns the pair
-         * (\a sig, \a relabelling), this means that the triangulation
-         * reconstructed from `fromIsoSig(sig)` will be identical to
-         * `relabelling(this)`.
+         * Although the triangulation that is recovered via fromSig() will be
+         * combinatorially isomorphic to the original, it might not use the
+         * same labelling.  This routine returns not only the isomorphism
+         * signature, but also the precise relabelling that occurs between this
+         * triangulation and the reconstruction via fromSig().  Specifically,
+         * it returns a pair `(sig, iso)`, where \a sig is the isomorphism
+         * signature of this triangulation, and \a iso is an isomorphism with
+         * the property that `fromSig(sig) == iso(this)`.
          *
-         * \python Although this is a templated function, all of the variants
-         * supplied with Regina are available to Python users.  To use the
-         * default signature type and encoding, just call `isoSigDetail()`.
-         * To use a non-default signature type, add a suffix `_Type` where
-         * \a Type is an abbreviated version of the signature type (e.g.,
-         * `isoSigDetail_EdgeDegrees()` for the signature type
-         * IsoSigEdgeDegrees).  To use the encoding IsoSigPrintableLockFree
-         * (the only non-default encoding available at present), add another
-         * suffix `_LockFree` (e.g., `isoSigDetail_LockFree()`, or
-         * `isoSigDetail_EdgeDegrees_LockFree()`).
+         * \pre This triangulation is non-empty and connected.  The facility
+         * to return a relabelling for disconnected triangulations may be
+         * added to Regina in a later release.
          *
-         * \pre This triangulation must be non-empty and connected.  The
-         * facility to return a relabelling for disconnected triangulations
-         * may be added to Regina in a later release.
+         * \python You can pass the optional template arguments as runtime
+         * arguments: `isoSigDetail(encoding, type)`.  So, for example, to use
+         * the signature encoding that omits simplex/facet locks, you can call
+         * `isoSigDetail(IsoSigPrintableLockFree)`.
          *
          * \exception FailedPrecondition This triangulation is either
          * empty or disconnected.
          *
-         * \return a pair containing (i) the isomorphism signature of this
-         * triangulation, and (ii) the isomorphism between this triangulation
-         * and the triangulation that would be reconstructed from fromIsoSig().
+         * \tparam Encoding indicates the encoding to use for the isomorphism
+         * signature, as discussed in detail in the documentation for sig().
+         * The default encoding is consistent with the isomorphism signatures
+         * from Regina ≤ 7.x.  Note that Regina ≤ 7.3.1 did not support simplex
+         * or facet locks; if you wish to omit these from the signature, you can
+         * use the encoding IsoSigPrintableLockFree.
+         * \tparam Type indicates the signature type, again as discussed in
+         * detail in the documentation for sig().  The default signature type
+         * is consistent with the isomorphism signatures from Regina ≤ 7.x.
+         *
+         * \return a pair containing (i) the first-generation isomorphism
+         * signature of this triangulation, and (ii) the isomorphism from this
+         * triangulation to the reconstruction via fromSig().  The signature
+         * will be of type `std::string` for string-based encodings (which is
+         * all that Regina offers for first-generation signatures).
          */
-        template <typename Type = IsoSigClassic<dim>,
-            typename Encoding = IsoSigPrintable<dim>>
-        std::pair<typename Encoding::Signature, Isomorphism<dim>> isoSigDetail()
-            const;
+        template <IsoSigEncoding<1, dim> Encoding = IsoSigPrintable,
+            IsoSigType<dim> Type = IsoSigClassic<dim>>
+        std::pair<typename Encoding::Signature, Isomorphism<dim>>
+            isoSigDetail() const;
+
+        /**
+         * Constructs the second-generation isomorphism signature for this
+         * triangulation, along with the relabelling that will occur when the
+         * triangulation is reconstructed from it.
+         *
+         * Second-generation signatures are recommended for use in new projects.
+         * They are shorter and faster to compute than first-generation
+         * signatures, they support both printable and binary encodings, and
+         * they support both oriented and unoriented signatures.
+         *
+         * The documentation for sig() includes a thorough discussion on
+         * isomorphism signatures and their various parameters.  In brief,
+         * an isomorphism signature is a compact representation of a
+         * triangulation that uniquely determines the triangulation up to
+         * combinatorial isomorphism.  You can reconstruct a triangulation
+         * from its isomorphism signature by calling fromSig().
+         *
+         * Although the triangulation that is recovered via fromSig() will be
+         * combinatorially isomorphic to the original, it might not use the
+         * same labelling.  This routine returns not only the isomorphism
+         * signature, but also the precise relabelling that occurs between this
+         * triangulation and the reconstruction via fromSig().  Specifically,
+         * it returns a pair `(sig, iso)`, where \a sig is the isomorphism
+         * signature of this triangulation, and \a iso is an isomorphism with
+         * the property that `fromSig(sig) == iso(this)`.
+         *
+         * If this triangulation is oriented and you are generating an
+         * oriented signature via `neoSigDetail(true)`, it is guaranteed that
+         * the isomorphism that is returned will be orientation-preserving.
+         *
+         * \pre This triangulation is non-empty and connected.  The facility
+         * to return a relabelling for disconnected triangulations may be
+         * added to Regina in a later release.
+         *
+         * \pre If \a oriented is `true`, then this is an oriented
+         * triangulation.
+         *
+         * \python You can pass the optional template arguments as runtime
+         * arguments: `neoSigDetail(oriented, encoding, type)`.  So, for
+         * example, to use a binary signature encoding, you can call
+         * `neoSigDetail(encoding = IsoSigBinary)`.
+         *
+         * \exception FailedPrecondition Either this triangulation is empty or
+         * disconnected, or an oriented signature was requested (i.e.,
+         * \a oriented is `true`) but this triangulation is not oriented.
+         *
+         * \tparam Encoding indicates the encoding to use for the isomorphism
+         * signature, as discussed in detail in the documentation for sig().
+         * For a printable string-based signature, you can just use the default
+         * encoding.  If you wish to omit simplex and facet locks from the
+         * signature, you can use the encoding IsoSigPrintableLockFree.  If you
+         * need to conserve memory, you can use the binary encoding
+         * IsoSigBinary.
+         * \tparam Type indicates the signature type, again as discussed in
+         * detail in the documentation for sig().  The default signature type
+         * is recommended here.
+         *
+         * \param oriented indicates whether to generate an oriented signature
+         * (`true`), or an unoriented signature (`false`).
+         * \return a pair containing (i) the second-generation isomorphism
+         * signature of this triangulation, and (ii) the isomorphism from this
+         * triangulation to the reconstruction via fromSig().  The signature
+         * will be of type `std::string` for string-based encodings, or
+         * ByteSequence for binary encodings.
+         */
+        template <IsoSigEncoding<2, dim> Encoding = IsoSigPrintable,
+            IsoSigType<dim> Type = IsoSigRidgeDegrees<dim>>
+        std::pair<typename Encoding::Signature, Isomorphism<dim>>
+            neoSigDetail(bool oriented = false) const;
 
         /**
          * Writes the tight encoding of this triangulation to the given output
@@ -3555,119 +3860,168 @@ class TriangulationBase :
          * of the list of gluings.
          * \return the reconstructed triangulation.
          */
-        template <std::input_iterator iterator>
-        requires requires(iterator it) {
+        template <std::input_iterator Iterator>
+        requires requires(Iterator it) {
             { std::get<0>(*it) } -> std::convertible_to<size_t>;
             { std::get<1>(*it) } -> std::convertible_to<int>;
             { std::get<2>(*it) } -> std::convertible_to<size_t>;
             { std::get<3>(*it) } -> std::convertible_to<Perm<dim + 1>>;
         }
         static Triangulation<dim> fromGluings(size_t size,
-            iterator beginGluings, iterator endGluings);
+            Iterator beginGluings, Iterator endGluings);
 
         /**
-         * Recovers a full triangulation from an isomorphism signature.
+         * Recovers a full triangulation from a string-based isomorphism
+         * signature.  This may be either a first-generation signature
+         * (computed via `isoSig()`), or a second-generation signature
+         * (computed via `neoSig()`).
          *
-         * See isoSig() for more information on isomorphism signatures.
-         * It will be assumed that the signature describes a triangulation of
-         * dimension \a dim.
+         * See isoSig() and neoSig() for general information on first-generation
+         * and second-generation isomorphism signatures.
          *
-         * Currently this routine only supports isomorphism signatures
-         * that were created with the default encoding (i.e., there was
-         * no \a Encoding template parameter passed to isoSig()).
+         * There is also a variant of fromSig() that takes a byte sequence,
+         * and which can work with binary second-generation signatures.
          *
-         * Calling isoSig() followed by fromIsoSig() is not guaranteed to
-         * produce an _identical_ triangulation to the original, but it
-         * is guaranteed to produce a combinatorially _isomorphic_
-         * triangulation.  In other words, fromIsoSig() may reconstruct the
-         * triangulation with its simplices and/or vertices relabelled.
-         * The optional argument to isoSig() allows you to determine the
-         * precise relabelling that will be used, if you need to know it.
+         * Computing a signature via isoSig() or neoSig() and then calling
+         * fromSig() on the result is not guaranteed to produce an _identical_
+         * triangulation to the original, but it is guaranteed to produce a
+         * combinatorially _isomorphic_ triangulation (i.e., one whose simplices
+         * and/or vertices have been relabelled).  Moreover, if you began with
+         * an oriented triangulation and you computed an _oriented_
+         * second-generation signature via `neoSig(true)`, it is guaranteed
+         * that this relabelling will be orientation-preserving.  If you need
+         * to know the precise relabelling when computing a signature, you can
+         * call isoSigDetail() or neoSigDetail() instead.
          *
-         * For a full and precise description of the isomorphism signature
-         * format for 3-manifold triangulations, see _Simplification paths in
-         * the Pachner graphs of closed orientable 3-manifold triangulations_,
-         * Burton, 2011, `arXiv:1110.6080`.  The format for other dimensions is
-         * essentially the same, but with minor dimension-specific adjustments.
+         * For a full and precise description of the first-generation
+         * isomorphism signature format for 3-manifold triangulations, see
+         * _Simplification paths in the Pachner graphs of closed orientable
+         * 3-manifold triangulations_, Burton, 2011, `arXiv:1110.6080`.
+         * The format for second-generation signatures, and for other
+         * dimensions, is similar in nature but with minor adjustments.
          *
          * \warning Do not mix isomorphism signatures between dimensions!
-         * It is possible that the same string could corresponding to both a
+         * It is possible that the same string could describe both a
          * \a p-dimensional triangulation and a \a q-dimensional triangulation
          * for different dimensions \a p and \a q.
          *
          * \exception InvalidArgument The given string was not a valid
-         * <i>dim</i>-dimensional isomorphism signature created using
-         * the default encoding.
+         * string-based <i>dim</i>-dimensional isomorphism signature.
          *
-         * \param sig the isomorphism signature of the triangulation to
-         * construct.  Note that isomorphism signatures are case-sensitive
-         * (unlike, for example, dehydration strings for 3-manifolds).
-         * \return the reconstructed triangulation.
-         */
-        static Triangulation<dim> fromIsoSig(const std::string& sig);
-
-        /**
-         * Alias for fromIsoSig(), to recover a full triangulation from an
-         * isomorphism signature.
-         *
-         * This alias fromSig() is provided to assist with generic code
-         * that can work with both triangulations and links.
-         *
-         * See fromIsoSig() for further details.
-         *
-         * \exception InvalidArgument The given string was not a valid
-         * <i>dim</i>-dimensional isomorphism signature created using
-         * the default encoding.
-         *
-         * \param sig the isomorphism signature of the triangulation to
-         * construct.  Note that isomorphism signatures are case-sensitive
+         * \param sig the signature of the triangulation to construct.
+         * Note that isomorphism signatures are case-sensitive
          * (unlike, for example, dehydration strings for 3-manifolds).
          * \return the reconstructed triangulation.
          */
         static Triangulation<dim> fromSig(const std::string& sig);
 
         /**
-         * Deduces the number of top-dimensional simplices in a
-         * connected triangulation from its isomorphism signature.
+         * Recovers a full triangulation from a binary second-generation
+         * isomorphism signature.  This signature would typically have been
+         * computed via `neoSig<IsoSigBinary>()`.
          *
-         * See isoSig() for more information on isomorphism signatures.
-         * It will be assumed that the signature describes a triangulation of
-         * dimension \a dim.
+         * See neoSig() for general information on second-generation
+         * isomorphism signatures.
          *
-         * Currently this routine only supports isomorphism signatures
-         * that were created with the default encoding (i.e., there was
-         * no \a Encoding template parameter passed to isoSig()).
+         * There is also a variant of fromSig() that takes a string, and which
+         * can work with both first-generation and string-based
+         * second-generation signatures.
          *
-         * If the signature describes a connected triangulation, this
-         * routine will simply return the size of that triangulation
-         * (e.g., the number of tetrahedra in the case \a dim = 3).
-         * You can also pass an isomorphism signature that describes a
-         * disconnected triangulation; however, this routine will only
-         * return the number of top-dimensional simplices in the first
-         * connected component.  If you need the total size of a
-         * disconnected triangulation, you will need to reconstruct the
-         * full triangulation by calling fromIsoSig() instead.
-         *
-         * This routine is very fast, since it only examines the first
-         * few characters of the isomorphism signature (in which the size
-         * of the first component is encoded).  However, a side-effect
-         * of this is that it is possible to pass an _invalid_ isomorphism
-         * signature and still receive a positive result.  If you need to
-         * test whether a signature is valid or not, you must call fromIsoSig()
-         * instead, which will examine the entire signature in full.
+         * Computing a signature via `neoSig<IsoSigBinary>()` and then calling
+         * fromSig() on the result is not guaranteed to produce an _identical_
+         * triangulation to the original, but it is guaranteed to produce a
+         * combinatorially _isomorphic_ triangulation (i.e., one whose simplices
+         * and/or vertices have been relabelled).  Moreover, if you began with
+         * an oriented triangulation and you computed an _oriented_
+         * second-generation signature via `neoSig<IsoSigBinary>(true)`, it is
+         * guaranteed that this relabelling will be orientation-preserving.
+         * If you need to know the precise relabelling when computing a
+         * signature, you can call `neoSigDetail<IsoSigBinary>()` instead.
          *
          * \warning Do not mix isomorphism signatures between dimensions!
-         * It is possible that the same string could corresponding to both a
+         * It is possible that the same byte sequence could describe both a
          * \a p-dimensional triangulation and a \a q-dimensional triangulation
          * for different dimensions \a p and \a q.
          *
-         * \param sig the isomorphism signature of a <i>dim</i>-dimensional
-         * triangulation.  Note that isomorphism signature are case-sensitive
+         * \python You should pass the signature as a Python `bytes` object.
+         *
+         * \exception InvalidArgument The given byte sequence was not a valid
+         * binary second-generation signature for a <i>dim</i>-dimensional
+         * triangulation.
+         *
+         * \param sig the signature of the triangulation to construct.
+         * \return the reconstructed triangulation.
+         */
+        static Triangulation<dim> fromSig(const ByteSequence& sig);
+
+        /**
+         * Deprecated alias for fromSig(), to recover a full triangulation
+         * from a string-based isomorphism signature.
+         *
+         * \deprecated You should call this as fromSig() instead.
+         *
+         * See fromSig() for further details.
+         *
+         * \exception InvalidArgument The given string was not a valid
+         * string-based <i>dim</i>-dimensional isomorphism signature.
+         *
+         * \param sig the isomorphism signature of the triangulation to
+         * construct.  Note that isomorphism signatures are case-sensitive
          * (unlike, for example, dehydration strings for 3-manifolds).
-         * \return the number of top-dimensional simplices in the first
-         * connected component, or 0 if this could not be determined
-         * because the given string was not a valid isomorphism signature
-         * created using the default encoding.
+         * \return the reconstructed triangulation.
+         */
+        [[deprecated]] static Triangulation<dim> fromIsoSig(
+            const std::string& sig);
+
+        /**
+         * Deduces the number of top-dimensional simplices in a connected
+         * triangulation from its string-based isomorphism signature.  This may
+         * be either a first-generation signature (computed via `isoSig()`),
+         * or a second-generation signature (computed via `neoSig()`).
+         *
+         * See isoSig() and neoSig() for general information on first-generation
+         * and second-generation isomorphism signatures.
+         *
+         * Regarding connectivity and components:
+         *
+         * - If the given signature describes a connected triangulation, this
+         *   routine will return the size of that triangulation (i.e., the
+         *   number of top-dimensional simplices).  This is the intended
+         *   use case for this routine.
+         *
+         * - If the signature describes a _disconnected_ triangulation, this
+         *   routine will only return the size of the first component.
+         *   If you need the total size of a disconnected triangulation, you
+         *   will need to reconstruct the full triangulation by calling
+         *   fromSig() instead.
+         *
+         * - If the signature describes the empty triangulation, this routine
+         *   will return zero.
+         *
+         * This routine is very fast, since it only examines the first few
+         * characters of the given signature (in which the size of the first
+         * component is encoded).  However, a side-effect of this is that
+         * it is possible to pass an _invalid_ isomorphism signature and still
+         * receive a positive result.  If you need to test whether a signature
+         * is valid or not, you must call fromSig() instead, which will examine
+         * the entire signature in full.
+         *
+         * \warning Do not mix isomorphism signatures between dimensions!
+         * It is possible that the same string could describe both a
+         * \a p-dimensional triangulation and a \a q-dimensional triangulation
+         * for different dimensions \a p and \a q.
+         *
+         * \exception InvalidArgument The given string was not a valid
+         * string-based <i>dim</i>-dimensional isomorphism signature.
+         * As described above, invalid signatures are not always detected;
+         * this exception will only be thrown if the error is so severe that
+         * the component size cannot be deduced from the first few characters.
+         *
+         * \param sig a signature of some <i>dim</i>-dimensional triangulation.
+         * Note that isomorphism signature are case-sensitive
+         * (unlike, for example, dehydration strings for 3-manifolds).
+         * \return the size of the first connected component, or 0 if the
+         * given signature describes the empty triangulation.
          */
         static size_t isoSigComponentSize(const std::string& sig);
 
@@ -3802,7 +4156,7 @@ class TriangulationBase :
          * The return value for this routine is the same as for newSimplices().
          * See newSimplices() for further details.
          */
-        template <int k>
+        template <int k> requires (k >= 0)
         std::array<Simplex<dim>*, k> newSimplicesRaw();
 
         /**
@@ -3920,7 +4274,7 @@ class TriangulationBase :
          * (the one exception is the copy assignment operator).
          * Typically clearBaseProperties() is only ever called by
          * Triangulation<dim>::clearAllProperties(), which in turn is called by
-         * "atomic" routines that change the triangluation (before firing
+         * "atomic" routines that change the triangulation (before firing
          * packet change events), as well as the Triangulation<dim> destructor.
          */
         void clearBaseProperties();
@@ -3939,20 +4293,6 @@ class TriangulationBase :
          */
         void swapBaseData(TriangulationBase<dim>& other);
 
-        /**
-         * Writes a chunk of XML containing properties of this triangulation.
-         * This routine covers those properties that are managed by this base
-         * class TriangulationBase and that have already been computed for this
-         * triangulation.
-         *
-         * This routine is typically called from within
-         * Triangulation<dim>::writeXMLPacketData().  The XML elements
-         * that it writes are child elements of the \c tri element.
-         *
-         * \param out the output stream to which the XML should be written.
-         */
-        void writeXMLBaseProperties(std::ostream& out) const;
-
     private:
         /**
          * Internal to calculateSkeleton().
@@ -3962,16 +4302,10 @@ class TriangulationBase :
          *
          * See calculateSkeleton() for further details.
          *
-         * This _should_ have been an ordinary member function (not static),
-         * but it caused an internal compiler error in gcc8 (see gcc bug #86594,
-         * which is fixed in gcc9).  Making the function static is a workaround
-         * that we will need to keep until we drop support for gcc8.
-         *
          * \tparam subdim the dimension of the faces to compute.
-         * This must be between 0 and (\a dim - 1) inclusive.
          */
-        template <int subdim>
-        static void calculateFaces(TriangulationBase<dim>* tri);
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
+        void calculateFaces();
 
         /**
          * Internal to calculateSkeleton().
@@ -3986,14 +4320,12 @@ class TriangulationBase :
          * Internal to calculateRealBoundary().
          *
          * This routine identifies and marks all <i>subdim</i>-faces within
-         * the given boundary facet.
-         *
-         * It does not handle ridges or facets, so if \a subdim is greater
-         * than <i>dim</i>-3 then this routine does nothing.
+         * the given boundary facet, with the exception that it does not
+         * handle ridges (`subdim == dim - 2`).
          *
          * See calculateRealBoundary() for further details.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim <= dim - 3)
         void calculateBoundaryFaces(BoundaryComponent<dim>* bc,
             Face<dim, dim-1>* facet);
 
@@ -4010,7 +4342,7 @@ class TriangulationBase :
          * in the correct order.  It does not matter if the internal data for
          * these cloned facial objects is not yet completely filled.
          */
-        template <int subdim>
+        template <int subdim> requires (subdim >= 0 && subdim < dim)
         Face<dim, subdim>* clonedFace(const Face<dim, subdim>* src) const;
 
         /**
@@ -4070,7 +4402,7 @@ class TriangulationBase :
          * \return \c true if the requested checks pass, or if \a check was
          * \c false (which means no checks were performed at all).
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= dim)
         bool internalPachner(Face<dim, k>* f, bool check, bool perform);
 
         /**
@@ -4093,15 +4425,13 @@ class TriangulationBase :
          * \return \c true if the requested checks pass, or if \a check was
          * \c false (which means no checks were performed at all).
          */
-        template <int k>
+        template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
         bool internal20(Face<dim, k>* f, bool check, bool perform);
 
         /**
          * Implements testing for and/or performing boundary shelling moves.
          * See shellBoundary() for details on what the location arguments mean.
          *
-         * \pre The dimension \a dim is one of Regina's
-         * \ref stddim "standard dimensions".
          * \pre The arguments \a check and \a perform are not both \c false.
          * \pre If \a perform is \c true but \a check is \c false, then it must
          * be known in advance that the requested move is legal and will not
@@ -4118,28 +4448,8 @@ class TriangulationBase :
          * \return \c true if the requested checks pass, or if \a check was
          * \c false (which means no checks were performed at all).
          */
-        bool internalShellBoundary(Simplex<dim>* s, bool check, bool perform);
-
-        /**
-         * Internal to isoSig().
-         *
-         * Constructs a candidate isomorphism signature for a single
-         * component of this triangulation.  This candidate signature
-         * assumes that the given simplex with the given labelling
-         * of its vertices becomes simplex zero with vertices
-         * 0,...,\a dim under the "canonical isomorphism".
-         *
-         * \param simp the index of some top-dimensional simplex in this
-         * triangulation.
-         * \param vertices some ordering of the vertices of the given simplex.
-         * \param relabelling if this is non-null, it will be filled with the
-         * canonical isomorphism; in this case it must already have been
-         * constructed for the correct number of simplices.
-         * \return the candidate isomorphism signature.
-         */
-        template <typename Encoding>
-        typename Encoding::Signature isoSigFrom(size_t simp,
-            const Perm<dim+1>& vertices, Isomorphism<dim>* relabelling) const;
+        bool internalShellBoundary(Simplex<dim>* s, bool check, bool perform)
+            requires (standardDim(dim));
 
         /**
          * Determines if an isomorphic copy of this triangulation is
@@ -4171,7 +4481,7 @@ class TriangulationBase :
          * \param complete \c true if isomorphisms must be
          * onto and boundary complete, or \c false if neither of these
          * restrictions should be imposed.
-         * \param action a function (or other callable object) to call
+         * \param action a function (or other callable type) to call
          * for each isomorphism that is found.
          * \param args any additional arguments that should be passed to
          * \a action, following the initial isomorphism argument.
@@ -4179,6 +4489,7 @@ class TriangulationBase :
          * \c true, or \c false if the search was allowed to run to completion.
          */
         template <typename Action, typename... Args>
+        requires TerminatingCallback<Action, const Isomorphism<dim>&, Args...>
         bool findIsomorphisms(const Triangulation<dim>& other,
                 bool complete, Action&& action, Args&&... args) const;
 
@@ -4221,8 +4532,75 @@ class TriangulationBase :
          *
          * \pre The skeleton of this triangulation has been computed.
          */
-        template <int subdim, InputIteratorFor<Face<dim, subdim>*> iterator>
-        void reorderFaces(iterator begin, iterator end);
+        template <int subdim, InputIteratorFor<Face<dim, subdim>*> Iterator>
+        requires (subdim >= 0 && subdim < dim)
+        void reorderFaces(Iterator begin, Iterator end);
+
+        /**
+         * Internal to fromSig().
+         *
+         * This routine reads and constructs a single connected component from
+         * a first-generation isomorphism signature (via the given decoder).
+         *
+         * It is assumed that the size of the component and the character
+         * width of an arbitrary simplex index have already been read from
+         * the decoder (the latter is passed as the argument \a intWidth).
+         * The given array will contain the correct number of
+         * freshly-constructed isolated simplices, ready to be glued together.
+         * This routine is also responsible for any sanity checks (e.g., by
+         * calling verifyLockConsistency() if it sets raw simplex and/or
+         * facet locks).
+         *
+         * This routine will throw an InvalidArgument if it encounters any
+         * errors, since that is what fromSig() is expected to throw.
+         * Note that the decoder itself might throw an InvalidInput exception;
+         * however, fromSig() will take responsibility for converting this.
+         */
+        template <CharIterator Iterator>
+        requires std::bidirectional_iterator<Iterator>
+        static void fillComponentFromSig1(
+            const FixedArray<Simplex<dim>*>& simplices,
+            Base64Decoder<Iterator>& decoder,
+            int intWidth);
+
+        /**
+         * Internal to fromSig().
+         *
+         * This routine reads and constructs a single connected component from
+         * a second-generation isomorphism signature (via the given decoder).
+         *
+         * It is assumed that the size of the component and the character
+         * width of an arbitrary simplex index have already been read from
+         * the decoder (the latter is not actually needed, and can be safely
+         * ignored).  The given array will contain the correct number of
+         * freshly-constructed isolated simplices, ready to be glued together.
+         * This routine is also responsible for any sanity checks (e.g., by
+         * calling verifyLockConsistency() if it sets raw simplex and/or
+         * facet locks).
+         *
+         * This routine will throw an InvalidArgument if it encounters any
+         * errors, since that is what fromSig() is expected to throw.
+         * Note that the decoder itself might throw an InvalidInput exception;
+         * however, fromSig() will take responsibility for converting this.
+         */
+        template <CharIterator Iterator>
+        requires std::bidirectional_iterator<Iterator>
+        static void fillComponentFromSig2(
+            const FixedArray<Simplex<dim>*>& simplices,
+            Base64BitDecoder<Iterator>& decoder);
+
+        /**
+         * Internal to fromSig().
+         *
+         * Verifies that any facet locks on the given simplices are consistent
+         * (i.e., if an internal facet is locked from one side then it is
+         * locked from both sides).
+         *
+         * This will throw an InvalidArgument if an inconsistency is detected,
+         * since this is what fromSig() is expected to throw.
+         */
+        static void verifyLockConsistency(
+            const FixedArray<Simplex<dim>*>& simplices);
 
         /**
          * Tests whether this and the given triangulation have the same
@@ -4238,7 +4616,7 @@ class TriangulationBase :
          * \return \c true if and only if the <i>useDim</i>-face
          * degree sequences are equal.
          */
-        template <int useDim>
+        template <int useDim> requires (useDim >= 0 && useDim < dim)
         bool sameDegreesAt(const TriangulationBase& other) const;
         /**
          * Tests whether this and the given triangulation have the same
@@ -4256,7 +4634,7 @@ class TriangulationBase :
          * \return \c true if and only if all degree sequences considered
          * are equal.
          */
-        template <int... useDim>
+        template <int... useDim> requires ((useDim >= 0 && useDim < dim) && ...)
         bool sameDegreesAt(const TriangulationBase& other,
             std::integer_sequence<int, useDim...>) const;
 
@@ -4379,11 +4757,14 @@ class TriangulationBase :
                     delete;
         };
 
-    template <int> friend class BoundaryComponentBase;
+    // BoundaryComponent<dim>::buildRealBoundary() calls
+    // Triangulation<dim-1>::reorderFaces().
+    template <int dim_> requires (supportedDim(dim_))
+    friend class regina::detail::BoundaryComponentBase;
+
     friend class regina::XMLLegacySimplicesReader<dim>;
     friend class regina::XMLSimplexReader<dim>;
     friend class regina::XMLTriangulationReader<dim>;
-    friend class regina::XMLWriter<Triangulation<dim>>;
 };
 
 } // namespace regina::detail -> namespace regina
@@ -4403,9 +4784,9 @@ class TriangulationBase :
  * \param lhs the triangulation whose contents should be swapped with \a rhs.
  * \param rhs the triangulation whose contents should be swapped with \a lhs.
  *
- * \ingroup detail
+ * \ingroup triangulation
  */
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void swap(Triangulation<dim>& lhs, Triangulation<dim>& rhs) {
     lhs.swap(rhs);
 }
@@ -4414,18 +4795,18 @@ namespace detail {
 
 // Inline functions for TriangulationBase
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline TriangulationBase<dim>::TriangulationBase() :
         calculatedSkeleton_(false) {
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline TriangulationBase<dim>::TriangulationBase(
         const TriangulationBase<dim>& src) :
         TriangulationBase(src, true, true) {
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 TriangulationBase<dim>::TriangulationBase(const TriangulationBase<dim>& src,
         bool cloneProps, bool cloneLocks) :
         Snapshottable<Triangulation<dim>>(src),
@@ -4471,11 +4852,11 @@ TriangulationBase<dim>::TriangulationBase(const TriangulationBase<dim>& src,
     // Clone properties:
     if (cloneProps) {
         fundGroup_ = src.fundGroup_;
-        H1_ = src.H1_;
+        homology_ = src.homology_;
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 TriangulationBase<dim>::TriangulationBase(TriangulationBase<dim>&& src)
         noexcept :
         Snapshottable<Triangulation<dim>>(std::move(src)),
@@ -4484,7 +4865,7 @@ TriangulationBase<dim>::TriangulationBase(TriangulationBase<dim>&& src)
         calculatedSkeleton_(src.calculatedSkeleton_),
         orientable_(src.orientable_),
         fundGroup_(std::move(src.fundGroup_)),
-        H1_(std::move(src.H1_)) {
+        homology_(std::move(src.homology_)) {
     // For our simplices and skeletal components, we use swaps instead
     // of moves because we need to ensure that src's lists finish empty.
     // Otherwise src will try to destroy the objects that they contain.
@@ -4499,7 +4880,7 @@ TriangulationBase<dim>::TriangulationBase(TriangulationBase<dim>&& src)
         s->tri_ = static_cast<Triangulation<dim>*>(this);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 TriangulationBase<dim>& TriangulationBase<dim>::operator =
         (const TriangulationBase<dim>& src) {
     if (std::addressof(src) == this)
@@ -4555,12 +4936,12 @@ TriangulationBase<dim>& TriangulationBase<dim>::operator =
 
     // Clone other computed properties:
     fundGroup_ = src.fundGroup_;
-    H1_ = src.H1_;
+    homology_ = src.homology_;
 
     return *this;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 TriangulationBase<dim>& TriangulationBase<dim>::operator =
         (TriangulationBase<dim>&& src) {
     Snapshottable<Triangulation<dim>>::operator =(std::move(src));
@@ -4594,40 +4975,40 @@ TriangulationBase<dim>& TriangulationBase<dim>::operator =
     std::swap(calculatedSkeleton_, src.calculatedSkeleton_);
 
     fundGroup_ = std::move(src.fundGroup_);
-    H1_ = std::move(src.H1_);
+    homology_ = std::move(src.homology_);
 
     // Let src dispose of the original simplices and skeletal objects in
     // its own destructor.
     return *this;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline TriangulationBase<dim>::~TriangulationBase() {
     for (auto s : simplices_)
         delete s;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::size() const {
     return simplices_.size();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::simplices() const {
-    return ListView(simplices_);
+    return std::views::all(simplices_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Simplex<dim>* TriangulationBase<dim>::simplex(size_t index) {
     return simplices_[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline const Simplex<dim>* TriangulationBase<dim>::simplex(size_t index) const {
     return simplices_[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 Simplex<dim>* TriangulationBase<dim>::newSimplex() {
     ChangeAndClearSpan<> span(*this);
 
@@ -4636,19 +5017,16 @@ Simplex<dim>* TriangulationBase<dim>::newSimplex() {
     return s;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Simplex<dim>* TriangulationBase<dim>::newSimplexRaw() {
     auto* s = new Simplex<dim>(static_cast<Triangulation<dim>*>(this));
     simplices_.push_back(s);
     return s;
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0)
 std::array<Simplex<dim>*, k> TriangulationBase<dim>::newSimplices() {
-    static_assert(k >= 0,
-        "The template argument k to newSimplices() must be non-negative.");
-
     ChangeAndClearSpan<> span(*this);
 
     std::array<Simplex<dim>*, k> ans;
@@ -4659,12 +5037,9 @@ std::array<Simplex<dim>*, k> TriangulationBase<dim>::newSimplices() {
     return ans;
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0)
 inline std::array<Simplex<dim>*, k> TriangulationBase<dim>::newSimplicesRaw() {
-    static_assert(k >= 0,
-        "The template argument k to newSimplicesRaw() must be non-negative.");
-
     std::array<Simplex<dim>*, k> ans;
     for (int i = 0; i < k; ++i)
         simplices_.push_back(ans[i] = new Simplex<dim>(
@@ -4672,7 +5047,7 @@ inline std::array<Simplex<dim>*, k> TriangulationBase<dim>::newSimplicesRaw() {
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::newSimplices(size_t k) {
     ChangeAndClearSpan<> span(*this);
 
@@ -4681,7 +5056,7 @@ void TriangulationBase<dim>::newSimplices(size_t k) {
             static_cast<Triangulation<dim>*>(this)));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 Simplex<dim>* TriangulationBase<dim>::newSimplex(const std::string& desc) {
     ChangeAndClearSpan<> span(*this);
 
@@ -4690,7 +5065,7 @@ Simplex<dim>* TriangulationBase<dim>::newSimplex(const std::string& desc) {
     return s;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::removeSimplex(Simplex<dim>* simplex) {
     if (simplex->lockMask() != 0)
         throw LockViolation("An attempt was made to remove a "
@@ -4706,14 +5081,14 @@ inline void TriangulationBase<dim>::removeSimplex(Simplex<dim>* simplex) {
     delete simplex;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::removeSimplexRaw(Simplex<dim>* simplex) {
     simplex->isolateRaw();
     simplices_.erase(simplices_.begin() + simplex->index());
     delete simplex;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::removeSimplexAt(size_t index) {
     Simplex<dim>* simplex = simplices_[index];
     if (simplex->lockMask() != 0)
@@ -4730,7 +5105,7 @@ inline void TriangulationBase<dim>::removeSimplexAt(size_t index) {
     delete simplex;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::removeAllSimplices() {
     if (hasLocks())
         throw LockViolation("An attempt was made to remove all "
@@ -4744,7 +5119,7 @@ inline void TriangulationBase<dim>::removeAllSimplices() {
     simplices_.clear();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::moveContentsTo(Triangulation<dim>& dest) {
     if (isEmpty())
         return;
@@ -4768,7 +5143,7 @@ void TriangulationBase<dim>::moveContentsTo(Triangulation<dim>& dest) {
     simplices_.clear();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 bool TriangulationBase<dim>::hasLocks() const {
     for (auto s : simplices_)
         if (s->locks_)
@@ -4776,7 +5151,7 @@ bool TriangulationBase<dim>::hasLocks() const {
     return false;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::lockBoundary() {
     // We could do this without the skeleton, but this would require a full
     // scan through all top-dimensional simplices.  Instead we guess that the
@@ -4796,7 +5171,7 @@ void TriangulationBase<dim>::lockBoundary() {
             f->lock();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::unlockAll() {
     auto it = simplices_.begin();
     for ( ; it != simplices_.end(); ++it)
@@ -4815,20 +5190,20 @@ void TriangulationBase<dim>::unlockAll() {
         (*it)->locks_ = 0;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countComponents() const {
     ensureSkeleton();
     return components_.size();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countBoundaryComponents() const {
     ensureSkeleton();
     return boundaryComponents_.size();
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim <= dim)
 inline size_t TriangulationBase<dim>::countFaces() const {
     if constexpr (subdim == dim)
         return size();
@@ -4838,7 +5213,7 @@ inline size_t TriangulationBase<dim>::countFaces() const {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countFaces(int subdim) const {
     if (subdim == dim)
         return size();
@@ -4850,19 +5225,19 @@ inline size_t TriangulationBase<dim>::countFaces(int subdim) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countVertices() const {
     ensureSkeleton();
     return std::get<0>(faces_).size();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countEdges() const {
     ensureSkeleton();
     return std::get<1>(faces_).size();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countTriangles() const {
     if constexpr (dim == 2) {
         return simplices_.size();
@@ -4872,10 +5247,9 @@ inline size_t TriangulationBase<dim>::countTriangles() const {
     }
 }
 
-template <int dim>
-inline size_t TriangulationBase<dim>::countTetrahedra() const {
-    static_assert(dim >= 3, "countTetrahedra() is only available "
-        "for triangulations of dimension >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline size_t TriangulationBase<dim>::countTetrahedra() const
+        requires (dim >= 3) {
     if constexpr (dim == 3) {
         return simplices_.size();
     } else {
@@ -4884,10 +5258,9 @@ inline size_t TriangulationBase<dim>::countTetrahedra() const {
     }
 }
 
-template <int dim>
-inline size_t TriangulationBase<dim>::countPentachora() const {
-    static_assert(dim >= 4, "countPentachora() is only available "
-        "for triangulations of dimension >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline size_t TriangulationBase<dim>::countPentachora() const
+        requires (dim >= 4) {
     if constexpr (dim == 4) {
         return simplices_.size();
     } else {
@@ -4896,7 +5269,7 @@ inline size_t TriangulationBase<dim>::countPentachora() const {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline std::vector<size_t> TriangulationBase<dim>::fVector() const {
     ensureSkeleton();
     return std::apply([this](auto&&... kFaces) {
@@ -4904,26 +5277,26 @@ inline std::vector<size_t> TriangulationBase<dim>::fVector() const {
     }, faces_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::components() const {
     ensureSkeleton();
-    return ListView(components_);
+    return std::views::all(components_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::boundaryComponents() const {
     ensureSkeleton();
-    return ListView(boundaryComponents_);
+    return std::views::all(boundaryComponents_);
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim < dim)
 inline auto TriangulationBase<dim>::faces() const {
     ensureSkeleton();
-    return ListView(std::get<subdim>(faces_));
+    return std::views::all(std::get<subdim>(faces_));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::faces(int subdim) const {
     if (subdim < 0 || subdim >= dim)
         throw InvalidArgument("faces(): unsupported face dimension");
@@ -4933,79 +5306,78 @@ inline auto TriangulationBase<dim>::faces(int subdim) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::vertices() const {
     ensureSkeleton();
-    return ListView(std::get<0>(faces_));
+    return std::views::all(std::get<0>(faces_));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::edges() const {
     ensureSkeleton();
-    return ListView(std::get<1>(faces_));
+    return std::views::all(std::get<1>(faces_));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::triangles() const {
     if constexpr (dim == 2) {
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     } else {
         ensureSkeleton();
-        return ListView(std::get<2>(faces_));
+        return std::views::all(std::get<2>(faces_));
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::tetrahedra() const {
-    static_assert(dim >= 3, "tetrahedra() is only available "
-        "for triangulations of dimension >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::tetrahedra() const
+        requires (dim >= 3) {
     if constexpr (dim == 3) {
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     } else {
         ensureSkeleton();
-        return ListView(std::get<3>(faces_));
+        return std::views::all(std::get<3>(faces_));
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::pentachora() const {
-    static_assert(dim >= 4, "pentachora() is only available "
-        "for triangulations of dimension >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::pentachora() const
+        requires (dim >= 4) {
     if constexpr (dim == 4) {
-        return ListView(simplices_);
+        return std::views::all(simplices_);
     } else {
         ensureSkeleton();
-        return ListView(std::get<4>(faces_));
+        return std::views::all(std::get<4>(faces_));
     }
 }
 
-template <int dim>
-template <int subdim, InputIteratorFor<Face<dim, subdim>*> iterator>
-inline void TriangulationBase<dim>::reorderFaces(iterator begin, iterator end) {
+template <int dim> requires (supportedDim(dim))
+template <int subdim, InputIteratorFor<Face<dim, subdim>*> Iterator>
+requires (subdim >= 0 && subdim < dim)
+inline void TriangulationBase<dim>::reorderFaces(Iterator begin, Iterator end) {
     std::get<subdim>(faces_).refill(begin, end);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Component<dim>* TriangulationBase<dim>::component(size_t index) const {
     ensureSkeleton();
     return components_[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline BoundaryComponent<dim>* TriangulationBase<dim>::boundaryComponent(
         size_t index) const {
     ensureSkeleton();
     return boundaryComponents_[index];
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim < dim)
 inline Face<dim, subdim>* TriangulationBase<dim>::face(size_t index) const {
     ensureSkeleton();
     return std::get<subdim>(faces_)[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::face(int subdim, size_t index) const {
     if (subdim < 0 || subdim >= dim)
         throw InvalidArgument("face(): unsupported face dimension");
@@ -5015,19 +5387,19 @@ inline auto TriangulationBase<dim>::face(int subdim, size_t index) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Face<dim, 0>* TriangulationBase<dim>::vertex(size_t index) const {
     ensureSkeleton();
     return std::get<0>(faces_)[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Face<dim, 1>* TriangulationBase<dim>::edge(size_t index) const {
     ensureSkeleton();
     return std::get<1>(faces_)[index];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::triangle(size_t index) {
     if constexpr (dim == 2) {
         return simplices_[index];
@@ -5037,7 +5409,7 @@ inline auto TriangulationBase<dim>::triangle(size_t index) {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline auto TriangulationBase<dim>::triangle(size_t index) const {
     if constexpr (dim == 2) {
         return simplices_[index];
@@ -5047,10 +5419,9 @@ inline auto TriangulationBase<dim>::triangle(size_t index) const {
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::tetrahedron(size_t index) {
-    static_assert(dim >= 3, "tetrahedron() is only available "
-        "for triangulations of dimension >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::tetrahedron(size_t index)
+        requires (dim >= 3) {
     if constexpr (dim == 3) {
         return simplices_[index];
     } else {
@@ -5059,10 +5430,9 @@ inline auto TriangulationBase<dim>::tetrahedron(size_t index) {
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::tetrahedron(size_t index) const {
-    static_assert(dim >= 3, "tetrahedron() is only available "
-        "for triangulations of dimension >= 3.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::tetrahedron(size_t index) const
+        requires (dim >= 3) {
     if constexpr (dim == 3) {
         return simplices_[index];
     } else {
@@ -5071,10 +5441,9 @@ inline auto TriangulationBase<dim>::tetrahedron(size_t index) const {
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::pentachoron(size_t index) {
-    static_assert(dim >= 4, "pentachoron() is only available "
-        "for triangulations of dimension >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::pentachoron(size_t index)
+        requires (dim >= 4) {
     if constexpr (dim == 4) {
         return simplices_[index];
     } else {
@@ -5083,10 +5452,9 @@ inline auto TriangulationBase<dim>::pentachoron(size_t index) {
     }
 }
 
-template <int dim>
-inline auto TriangulationBase<dim>::pentachoron(size_t index) const {
-    static_assert(dim >= 4, "pentachoron() is only available "
-        "for triangulations of dimension >= 4.");
+template <int dim> requires (supportedDim(dim))
+inline auto TriangulationBase<dim>::pentachoron(size_t index) const
+        requires (dim >= 4) {
     if constexpr (dim == 4) {
         return simplices_[index];
     } else {
@@ -5095,13 +5463,10 @@ inline auto TriangulationBase<dim>::pentachoron(size_t index) const {
     }
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (0 <= subdim && subdim <= dim)
 inline Face<dim, subdim>* TriangulationBase<dim>::translate(
         const Face<dim, subdim>* other) const {
-    static_assert(0 <= subdim && subdim <= dim, "translate() for faces "
-        "requires a facial dimension between 0 and dim inclusive.");
-
     if (other) {
         if constexpr (subdim < dim) {
             const auto& emb = other->front();
@@ -5113,28 +5478,24 @@ inline Face<dim, subdim>* TriangulationBase<dim>::translate(
         return nullptr;
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (0 <= subdim && subdim < dim)
 inline FaceEmbedding<dim, subdim> TriangulationBase<dim>::translate(
         const FaceEmbedding<dim, subdim>& other) const {
-    static_assert(0 <= subdim && subdim < dim,
-        "translate() for face embeddings requires a facial dimension between "
-        "0 and dim-1 inclusive.");
-
     return { simplices_[other.simplex()->index()], other.vertices() };
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline FacetPairing<dim> TriangulationBase<dim>::pairing() const {
     return FacetPairing<dim>(static_cast<const Triangulation<dim>&>(*this));
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::isEmpty() const {
     return simplices_.empty();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::isValid() const {
     if constexpr (dim == 2) {
         // There is nothing that can go wrong in dimension 2.
@@ -5145,28 +5506,26 @@ inline bool TriangulationBase<dim>::isValid() const {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::hasBoundaryFacets() const {
     ensureSkeleton();
     return nBoundaryFaces_[dim - 1] > 0;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countBoundaryFacets() const {
     ensureSkeleton();
     return nBoundaryFaces_[dim - 1];
 }
 
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim < dim)
 inline size_t TriangulationBase<dim>::countBoundaryFaces() const {
-    static_assert(subdim >= 0 && subdim < dim,
-        "countBoundaryFaces() requires 0 <= subdim < dim.");
     ensureSkeleton();
     return nBoundaryFaces_[subdim];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline size_t TriangulationBase<dim>::countBoundaryFaces(int subdim) const {
     if (subdim < 0 || subdim >= dim)
         throw InvalidArgument(
@@ -5177,19 +5536,19 @@ inline size_t TriangulationBase<dim>::countBoundaryFaces(int subdim) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::isOrientable() const {
     ensureSkeleton();
     return orientable_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::isConnected() const {
     ensureSkeleton();
     return (components_.size() <= 1);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 bool TriangulationBase<dim>::operator == (const TriangulationBase<dim>& other)
         const {
     if (simplices_.size() != other.simplices_.size())
@@ -5215,7 +5574,7 @@ bool TriangulationBase<dim>::operator == (const TriangulationBase<dim>& other)
     return true;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline std::optional<Isomorphism<dim>> TriangulationBase<dim>::isIsomorphicTo(
         const Triangulation<dim>& other) const {
     std::optional<Isomorphism<dim>> ans;
@@ -5226,7 +5585,7 @@ inline std::optional<Isomorphism<dim>> TriangulationBase<dim>::isIsomorphicTo(
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline std::optional<Isomorphism<dim>> TriangulationBase<dim>::isContainedIn(
         const Triangulation<dim>& other) const {
     std::optional<Isomorphism<dim>> ans;
@@ -5237,8 +5596,9 @@ inline std::optional<Isomorphism<dim>> TriangulationBase<dim>::isContainedIn(
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 template <typename Action, typename... Args>
+requires TerminatingCallback<Action, const Isomorphism<dim>&, Args...>
 inline bool TriangulationBase<dim>::findAllIsomorphisms(
         const Triangulation<dim>& other, Action&& action, Args&&... args)
         const {
@@ -5246,8 +5606,9 @@ inline bool TriangulationBase<dim>::findAllIsomorphisms(
         std::forward<Args>(args)...);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 template <typename Action, typename... Args>
+requires TerminatingCallback<Action, const Isomorphism<dim>&, Args...>
 inline bool TriangulationBase<dim>::findAllSubcomplexesIn(
         const Triangulation<dim>& other, Action&& action, Args&&... args)
         const {
@@ -5255,7 +5616,7 @@ inline bool TriangulationBase<dim>::findAllSubcomplexesIn(
         std::forward<Args>(args)...);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::insertTriangulation(
         const Triangulation<dim>& source) {
     if (source.isEmpty())
@@ -5292,7 +5653,7 @@ void TriangulationBase<dim>::insertTriangulation(
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::insertTriangulation(Triangulation<dim>&& source) {
     if (source.isEmpty())
         return;
@@ -5314,12 +5675,12 @@ void TriangulationBase<dim>::insertTriangulation(Triangulation<dim>&& source) {
     source.simplices_.clear();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::string TriangulationBase<dim>::dumpConstruction() const {
     return source(Language::Cxx);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::tightEncode(std::ostream& out) const {
     regina::detail::tightEncodeIndex(out, size());
 
@@ -5350,7 +5711,7 @@ void TriangulationBase<dim>::tightEncode(std::ostream& out) const {
                 regina::detail::tightEncodeNoIndex(out);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 Triangulation<dim> TriangulationBase<dim>::tightDecode(std::istream& input) {
     auto size = regina::detail::tightDecodeIndex<size_t>(input);
 
@@ -5392,16 +5753,16 @@ Triangulation<dim> TriangulationBase<dim>::tightDecode(std::istream& input) {
     return ans;
 }
 
-template <int dim>
-template <std::input_iterator iterator>
-requires requires(iterator it) {
+template <int dim> requires (supportedDim(dim))
+template <std::input_iterator Iterator>
+requires requires(Iterator it) {
     { std::get<0>(*it) } -> std::convertible_to<size_t>;
     { std::get<1>(*it) } -> std::convertible_to<int>;
     { std::get<2>(*it) } -> std::convertible_to<size_t>;
     { std::get<3>(*it) } -> std::convertible_to<Perm<dim + 1>>;
 }
 Triangulation<dim> TriangulationBase<dim>::fromGluings(size_t size,
-        iterator beginGluings, iterator endGluings) {
+        Iterator beginGluings, Iterator endGluings) {
     Triangulation<dim> ans;
 
     // Note: new simplices are initialised with all adj_[i] null.
@@ -5448,33 +5809,33 @@ Triangulation<dim> TriangulationBase<dim>::fromGluings(size_t size,
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Triangulation<dim> TriangulationBase<dim>::fromGluings(size_t size,
         std::initializer_list<std::tuple<size_t, int, size_t, Perm<dim+1>>>
         gluings) {
     return fromGluings(size, gluings.begin(), gluings.end());
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline std::string TriangulationBase<dim>::dot(bool labels) const {
     std::ostringstream ans;
     writeDot(ans, labels);
     return ans.str();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::ensureSkeleton() const {
     if (! calculatedSkeleton_)
         const_cast<Triangulation<dim>*>(
             static_cast<const Triangulation<dim>*>(this))->calculateSkeleton();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::calculatedSkeleton() const {
     return calculatedSkeleton_;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 bool TriangulationBase<dim>::isOriented() const {
     // Calling isOrientable() will force a skeletal calculation if this
     // has not been done already.
@@ -5488,7 +5849,7 @@ bool TriangulationBase<dim>::isOriented() const {
     return true;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline long TriangulationBase<dim>::eulerCharTri() const {
     ensureSkeleton();
     return std::apply([this](auto&&... kFaces) {
@@ -5496,7 +5857,7 @@ inline long TriangulationBase<dim>::eulerCharTri() const {
     }, faces_);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::orient() {
     ensureSkeleton();
 
@@ -5532,7 +5893,7 @@ void TriangulationBase<dim>::orient() {
         }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::reflect() {
     ensureSkeleton();
 
@@ -5557,7 +5918,7 @@ void TriangulationBase<dim>::reflect() {
     }
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline Isomorphism<dim> TriangulationBase<dim>::randomiseLabelling(
         bool preserveOrientation) {
     auto iso = Isomorphism<dim>::random(size(), preserveOrientation);
@@ -5566,73 +5927,55 @@ inline Isomorphism<dim> TriangulationBase<dim>::randomiseLabelling(
     return iso;
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 inline bool TriangulationBase<dim>::pachner(Face<dim, k>* f) {
-    static_assert(0 <= k && k <= dim, "pachner() requires a "
-        "facial dimension between 0 and dim inclusive.");
-
     return internalPachner(f, true, true);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 inline void TriangulationBase<dim>::pachner(Face<dim, k>* f, Unprotected) {
-    static_assert(0 <= k && k <= dim, "pachner() requires a "
-        "facial dimension between 0 and dim inclusive.");
-
     internalPachner(f, false, true);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
 inline bool TriangulationBase<dim>::move20(Face<dim, k>* f) {
-    static_assert(0 <= k && k <= 2 && k <= dim - 2,
-        "move20() requires a facial dimension of 0, 1 or 2 that does "
-        "not exceed dim - 2.");
-
     return internal20(f, true, true);
 }
 
-template <int dim>
-inline bool TriangulationBase<dim>::shellBoundary(Simplex<dim>* s) {
+template <int dim> requires (supportedDim(dim))
+inline bool TriangulationBase<dim>::shellBoundary(Simplex<dim>* s)
+        requires (standardDim(dim)) {
     return internalShellBoundary(s, true, true);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 bool TriangulationBase<dim>::hasPachner(Face<dim, k>* f) const {
-    static_assert(0 <= k && k <= dim, "hasPachner() requires a "
-        "facial dimension between 0 and dim inclusive.");
-
     return const_cast<TriangulationBase<dim>*>(this)->internalPachner(f,
         true, false);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
 bool TriangulationBase<dim>::has20(Face<dim, k>* f) const {
-    static_assert(0 <= k && k <= 2 && k <= dim - 2,
-        "has20() requires a facial dimension of 0, 1 or 2 that does "
-        "not exceed dim - 2.");
-
     return const_cast<TriangulationBase<dim>*>(this)->internal20(f,
         true, false);
 }
 
-template <int dim>
-bool TriangulationBase<dim>::hasShellBoundary(Simplex<dim>* s) const {
+template <int dim> requires (supportedDim(dim))
+bool TriangulationBase<dim>::hasShellBoundary(Simplex<dim>* s) const
+        requires (standardDim(dim)) {
     return const_cast<TriangulationBase<dim>*>(this)->internalShellBoundary(s,
         true, false);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 std::optional<Triangulation<dim>> TriangulationBase<dim>::withPachner(
         Face<dim, k>* f) const {
-    static_assert(0 <= k && k <= dim, "withPachner() requires a "
-        "facial dimension between 0 and dim inclusive.");
-
     if (! hasPachner(f))
         return {};
 
@@ -5642,14 +5985,10 @@ std::optional<Triangulation<dim>> TriangulationBase<dim>::withPachner(
     return ans;
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
 std::optional<Triangulation<dim>> TriangulationBase<dim>::with20(
         Face<dim, k>* f) const {
-    static_assert(0 <= k && k <= 2 && k <= dim - 2,
-        "with20() requires a facial dimension of 0, 1 or 2 that does "
-        "not exceed dim - 2.");
-
     if (! has20(f))
         return {};
 
@@ -5659,9 +5998,9 @@ std::optional<Triangulation<dim>> TriangulationBase<dim>::with20(
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::optional<Triangulation<dim>> TriangulationBase<dim>::withShellBoundary(
-        Simplex<dim>* s) const {
+        Simplex<dim>* s) const requires (standardDim(dim)) {
     if (! hasShellBoundary(s))
         return {};
 
@@ -5671,49 +6010,43 @@ std::optional<Triangulation<dim>> TriangulationBase<dim>::withShellBoundary(
     return ans;
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 inline bool TriangulationBase<dim>::pachner(Face<dim, k>* f, bool,
         bool perform) {
-    static_assert(0 <= k && k <= dim, "pachner() requires a "
-        "facial dimension between 0 and dim inclusive.");
-
     return internalPachner(f, true, perform);
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
 inline bool TriangulationBase<dim>::twoZeroMove(Face<dim, k>* f, bool,
         bool perform) {
-    static_assert(0 <= k && k <= 2 && k <= dim - 2,
-        "twoZeroMove() requires a facial dimension of 0, 1 or 2 that does "
-        "not exceed dim - 2.");
-
     return internal20(f, true, perform);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::shellBoundary(Simplex<dim>* s, bool,
-        bool perform) {
+        bool perform) requires (standardDim(dim)) {
     return internalShellBoundary(s, true, perform);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 void TriangulationBase<dim>::makeDoubleCover() {
     *this = doubleCover();
 }
 
-template <int dim>
-inline void TriangulationBase<dim>::barycentricSubdivision() {
+template <int dim> requires (supportedDim(dim))
+inline void TriangulationBase<dim>::barycentricSubdivision()
+        requires (standardDim(dim)) {
     subdivide();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline bool TriangulationBase<dim>::finiteToIdeal() {
     return makeIdeal();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 std::vector<Triangulation<dim>>
         TriangulationBase<dim>::triangulateComponents() const {
     // Knock off the empty triangulation first.
@@ -5753,27 +6086,42 @@ std::vector<Triangulation<dim>>
     return ans;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline const GroupPresentation& TriangulationBase<dim>::fundamentalGroup()
         const {
+    // The call to group() will check the precondition on components and throw
+    // an exception if necessary.
     return group();
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::setGroupPresentation(
         GroupPresentation pres) {
+    if (countComponents() > 1)
+        throw FailedPrecondition("Working with fundamental group requires "
+            "the triangulation to have ≤ 1 component");
     fundGroup_ = std::move(pres);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline void TriangulationBase<dim>::simplifiedFundamentalGroup(
         GroupPresentation pres) {
     // Reimplement instead of calling setGroupPresentation(), to avoid two
     // moves.
+    if (countComponents() > 1)
+        throw FailedPrecondition("Working with fundamental group requires "
+            "the triangulation to have ≤ 1 component");
     fundGroup_ = std::move(pres);
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
+inline bool TriangulationBase<dim>::cachedGroup() const {
+    if (countComponents() > 1)
+        return false; // failed precondition
+    return fundGroup_.has_value();
+}
+
+template <int dim> requires (supportedDim(dim))
 inline AbelianGroup TriangulationBase<dim>::homology(int k) const {
     // upperBound is one more than the largest allowed k.
     constexpr int upperBound = (standardDim(dim) ? dim : (dim - 1));
@@ -5785,11 +6133,30 @@ inline AbelianGroup TriangulationBase<dim>::homology(int k) const {
     });
 }
 
-template <int dim>
-template <int k>
-inline MarkedAbelianGroup TriangulationBase<dim>::markedHomology() const {
-    static_assert(1 <= k && k < dim);
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k == 1 || (k == 2 && dim >= 3 && dim <= 4))
+inline bool TriangulationBase<dim>::knowsHomology(bool) const {
+    if constexpr (k == 1)
+        return homology_[0].has_value();
+    else
+        return homology_[k - 1].has_value() && isValid();
+}
 
+template <int dim> requires (supportedDim(dim))
+inline bool TriangulationBase<dim>::knowsHomology(int k, bool) const {
+    if (k < 1 || k > maxHomologyCache_)
+        throw InvalidArgument("Homology groups are not cached for this "
+            "combination (dim, k) of triangulation and homology dimensions");
+
+    if (k == 1)
+        return homology_[0].has_value();
+    else
+        return homology_[k - 1].has_value() && isValid();
+}
+
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k > 0 && k < dim)
+inline MarkedAbelianGroup TriangulationBase<dim>::markedHomology() const {
     if (isEmpty())
         throw FailedPrecondition("markedHomology(): triangulation is empty");
     if (! isValid())
@@ -5798,7 +6165,7 @@ inline MarkedAbelianGroup TriangulationBase<dim>::markedHomology() const {
     return MarkedAbelianGroup(boundaryMap<k>(), boundaryMap<k + 1>());
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline MarkedAbelianGroup TriangulationBase<dim>::markedHomology(int k) const {
     if (k < 1 || k >= dim)
         throw InvalidArgument(
@@ -5809,7 +6176,7 @@ inline MarkedAbelianGroup TriangulationBase<dim>::markedHomology(int k) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline MatrixInt TriangulationBase<dim>::boundaryMap(int subdim) const {
     if (subdim < 1 || subdim > dim)
         throw InvalidArgument("boundaryMap(): unsupported face dimension");
@@ -5819,7 +6186,7 @@ inline MatrixInt TriangulationBase<dim>::boundaryMap(int subdim) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline MatrixInt TriangulationBase<dim>::dualBoundaryMap(int subdim) const {
     constexpr int maxSubdim = (standardDim(dim) ? dim : dim - 1);
     if (subdim < 1 || subdim > maxSubdim)
@@ -5831,7 +6198,7 @@ inline MatrixInt TriangulationBase<dim>::dualBoundaryMap(int subdim) const {
     });
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 inline MatrixInt TriangulationBase<dim>::dualToPrimal(int subdim) const {
     if (subdim < 0 || subdim >= dim)
         throw InvalidArgument(
@@ -5842,22 +6209,8 @@ inline MatrixInt TriangulationBase<dim>::dualToPrimal(int subdim) const {
     });
 }
 
-template <int dim>
-void TriangulationBase<dim>::writeXMLBaseProperties(std::ostream& out) const {
-    if (fundGroup_.has_value()) {
-        out << "  <fundgroup>\n";
-        fundGroup_->writeXMLData(out);
-        out << "  </fundgroup>\n";
-    }
-    if (H1_.has_value()) {
-        out << "  <H1>";
-        H1_->writeXMLData(out);
-        out << "</H1>\n";
-    }
-}
-
-template <int dim>
-template <int subdim>
+template <int dim> requires (supportedDim(dim))
+template <int subdim> requires (subdim >= 0 && subdim < dim)
 inline Face<dim, subdim>* TriangulationBase<dim>::clonedFace(
         const Face<dim, subdim>* src) const {
     // This is a tiny function; it exists mainly to help in scenarios where
@@ -5866,7 +6219,7 @@ inline Face<dim, subdim>* TriangulationBase<dim>::clonedFace(
     return std::get<subdim>(faces_)[src->index()];
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 template <typename FaceList>
 inline void TriangulationBase<dim>::cloneBoundaryFaces(
         BoundaryComponent<dim>* bc, const FaceList& srcFaces) {
@@ -5876,49 +6229,53 @@ inline void TriangulationBase<dim>::cloneBoundaryFaces(
         bc->push_back(clonedFace(f));
 }
 
-template <int dim>
-template <typename Type, typename Encoding>
-inline typename Encoding::Signature TriangulationBase<dim>::sig() const {
-    return isoSig<Type, Encoding>();
+template <int dim> requires (supportedDim(dim))
+template <int generation, IsoSigEncoding<generation, dim> Encoding,
+    IsoSigType<dim> Type>
+requires (generation == 1 || generation == 2)
+typename Encoding::Signature TriangulationBase<dim>::sig(bool oriented) const {
+    if constexpr (generation == 1) {
+        if (oriented)
+            throw InvalidArgument(
+                "First-generation isomorphism signatures cannot be oriented");
+        else
+            return isoSig<Encoding, Type>();
+    } else {
+        return neoSig<Encoding, Type>(oriented);
+    }
 }
 
-template <int dim>
-inline Triangulation<dim> TriangulationBase<dim>::fromSig(
+template <int dim> requires (supportedDim(dim))
+inline Triangulation<dim> TriangulationBase<dim>::fromIsoSig(
         const std::string& sig) {
-    return TriangulationBase<dim>::fromIsoSig(sig);
+    return TriangulationBase<dim>::fromSig(sig);
 }
 
-template <int dim>
-template <int useDim>
+template <int dim> requires (supportedDim(dim))
+template <int useDim> requires (useDim >= 0 && useDim < dim)
 bool TriangulationBase<dim>::sameDegreesAt(const TriangulationBase<dim>& other)
         const {
     // We may assume that # faces is the same for both triangulations.
     size_t n = std::get<useDim>(faces_).size();
 
-    auto* deg1 = new size_t[n];
-    auto* deg2 = new size_t[n];
+    FixedArray<size_t> deg1(n);
+    FixedArray<size_t> deg2(n);
 
-    size_t* p;
-    p = deg1;
+    auto p = deg1.begin();
     for (auto f : std::get<useDim>(faces_))
         *p++ = f->degree();
-    p = deg2;
+    p = deg2.begin();
     for (auto f : std::get<useDim>(other.faces_))
         *p++ = f->degree();
 
-    std::sort(deg1, deg1 + n);
-    std::sort(deg2, deg2 + n);
+    std::sort(deg1.begin(), deg1.end());
+    std::sort(deg2.begin(), deg2.end());
 
-    bool ans = std::equal(deg1, deg1 + n, deg2);
-
-    delete[] deg1;
-    delete[] deg2;
-
-    return ans;
+    return std::equal(deg1.begin(), deg1.end(), deg2.begin());
 }
 
-template <int dim>
-template <int... useDim>
+template <int dim> requires (supportedDim(dim))
+template <int... useDim> requires ((useDim >= 0 && useDim < dim) && ...)
 inline bool TriangulationBase<dim>::sameDegreesAt(
         const TriangulationBase& other,
         std::integer_sequence<int, useDim...>) const {

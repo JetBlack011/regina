@@ -60,7 +60,7 @@ Python:
 
 Template parameter ``dim``:
     the dimension of the triangulations that this isomorphism class
-    works with. This must be between 2 and 15 inclusive.)doc";
+    works with.)doc";
 
 namespace Isomorphism_ {
 
@@ -227,10 +227,6 @@ Perm<dim>::Sn.
 In particular, the identity isomorphism is the first in such an
 iteration. If this isomorphism is the _last_ in such an iteration,
 then this operator will "wrap around" and set this to the identity.
-
-Precondition:
-    The class Perm<dim+1> supports the preincrement operator;
-    currently this means that *dim* must be at most 6.
 
 Python:
     This routine is named inc() since Python does not support the
@@ -410,6 +406,17 @@ Precondition:
 
 Returns:
     the inverse isomorphism.)doc";
+
+// Docstring regina::python::doc::Isomorphism_::isEven
+constexpr const char *isEven =
+R"doc(Determines whether or not this is an even isomorphism.
+
+In an even isomorphism, every facet/vertex permutation is even.
+Applying an even isomorphism to an oriented triangulation *T* will
+result in an oriented relabelling of *T* with the same orientation.
+
+Returns:
+    ``True`` if this is an even isomorphism, or ``False`` otherwise.)doc";
 
 // Docstring regina::python::doc::Isomorphism_::isIdentity
 constexpr const char *isIdentity =

@@ -74,7 +74,7 @@ void addTetrahedron3(pybind11::module_& m) {
             rbase::triangulation)
         .def("component", &Tetrahedron<3>::component,
             pybind11::return_value_policy::reference, rbase::component)
-        .def("face", &regina::python::face<Tetrahedron<3>, 3, int>,
+        .def("face", &regina::python::face<3, 3>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::face)
         .def("vertex", &Tetrahedron<3>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
@@ -86,7 +86,7 @@ void addTetrahedron3(pybind11::module_& m) {
             pybind11::return_value_policy::reference, rbase::edge_2)
         .def("triangle", &Tetrahedron<3>::triangle,
             pybind11::return_value_policy::reference, rbase::triangle)
-        .def("faceMapping", &regina::python::faceMapping<Tetrahedron<3>, 3>,
+        .def("faceMapping", &regina::python::faceMapping<3, 3>,
             pybind11::arg("subdim"), pybind11::arg("face"), rbase::faceMapping)
         .def("vertexMapping", &Tetrahedron<3>::vertexMapping,
             rbase::vertexMapping)
@@ -99,7 +99,7 @@ void addTetrahedron3(pybind11::module_& m) {
         .def_readonly_static("dimension", &Tetrahedron<3>::dimension)
         .def_readonly_static("subdimension", &Tetrahedron<3>::subdimension)
     ;
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END

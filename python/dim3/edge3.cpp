@@ -33,11 +33,11 @@
 #include "../helpers.h"
 #include "../helpers/tableview.h"
 #include "../generic/facehelper.h"
+#include "../docstrings/triangulation/facenumbering.h"
 #include "../docstrings/triangulation/alias/face.h"
 #include "../docstrings/triangulation/alias/facenumber.h"
 #include "../docstrings/triangulation/dim3/edge3.h"
 #include "../docstrings/triangulation/detail/face.h"
-#include "../docstrings/triangulation/detail/facenumbering.h"
 #include "../docstrings/triangulation/generic/faceembedding.h"
 
 using regina::Edge;
@@ -64,11 +64,11 @@ void addEdge3(pybind11::module_& m, pybind11::module_& internal) {
         .def("edge", &EdgeEmbedding<3>::edge, rbase2::edge)
         .def("vertices", &EdgeEmbedding<3>::vertices, rbase::vertices)
     ;
-    regina::python::add_output(e);
+    regina::python::add_output_rich(e);
     regina::python::add_eq_operators(e, rbase::__eq);
 
     RDOC_SCOPE_SWITCH(Face)
-    RDOC_SCOPE_BASE_2(detail::FaceBase, detail::FaceNumberingAPI)
+    RDOC_SCOPE_BASE_2(detail::FaceBase, FaceNumbering)
 
     auto c = pybind11::class_<Face<3, 1>>(m, "Face3_1", rdoc_scope)
         .def("index", &Edge<3>::index, rbase::index)
@@ -87,12 +87,12 @@ void addEdge3(pybind11::module_& m, pybind11::module_& internal) {
             pybind11::return_value_policy::reference, rbase::component)
         .def("boundaryComponent", &Edge<3>::boundaryComponent,
             pybind11::return_value_policy::reference, rbase::boundaryComponent)
-        .def("face", &regina::python::face<Edge<3>, 1, int>,
+        .def("face", &regina::python::face<3, 1>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::face)
         .def("vertex", &Edge<3>::vertex,
             pybind11::return_value_policy::reference, rbase::vertex)
-        .def("faceMapping", &regina::python::faceMapping<Edge<3>, 1, 4>,
+        .def("faceMapping", &regina::python::faceMapping<3, 1>,
             pybind11::arg("lowerdim"), pybind11::arg("face"),
             rbase::faceMapping)
         .def("vertexMapping", &Edge<3>::vertexMapping, rbase::vertexMapping)
@@ -106,17 +106,21 @@ void addEdge3(pybind11::module_& m, pybind11::module_& internal) {
         .def("isLinkOrientable", &Edge<3>::isLinkOrientable,
             rbase::isLinkOrientable)
         .def("linkingSurface", &Edge<3>::linkingSurface, rdoc::linkingSurface)
-        .def_static("ordering", &Edge<3>::ordering)
+        .def_static("ordering", &Edge<3>::ordering, rbase2::ordering)
         .def_static("faceNumber",
-            pybind11::overload_cast<regina::Perm<4>>(&Edge<3>::faceNumber))
+            pybind11::overload_cast<regina::Perm<4>>(&Edge<3>::faceNumber),
+            rbase2::faceNumber)
         .def_static("faceNumber",
-            pybind11::overload_cast<int, int>(&Edge<3>::faceNumber))
-        .def_static("containsVertex", &Edge<3>::containsVertex)
+            pybind11::overload_cast<int, int>(&Edge<3>::faceNumber),
+            rbase2::faceNumber_2)
+        .def_static("containsVertex", &Edge<3>::containsVertex,
+            rbase2::containsVertex)
         .def_readonly_static("nFaces", &Edge<3>::nFaces)
         .def_readonly_static("lexNumbering", &Edge<3>::lexNumbering)
         .def_readonly_static("oppositeDim", &Edge<3>::oppositeDim)
         .def_readonly_static("dimension", &Edge<3>::dimension)
         .def_readonly_static("subdimension", &Edge<3>::subdimension)
+        .def_readonly_static("hasNumberingTables", &Edge<3>::hasNumberingTables)
         // Since the Triangulation<3> maximal forest routines return
         // sets of edges, we need edges to be hashable.
         .def("__hash__", [](const Edge<3>& e) {
@@ -153,12 +157,12 @@ versions of Regina.)doc")
     c.attr("edgeNumber") = wrapTableView(internal, Edge<3>::edgeNumber);
     c.attr("edgeVertex") = wrapTableView(internal, Edge<3>::edgeVertex);
 
-    regina::python::add_output(c);
+    regina::python::add_output_rich(c);
     regina::python::add_eq_operators(c);
 
     RDOC_SCOPE_END
 
-    regina::python::addListView<
+    regina::python::addStdView<
         decltype(std::declval<Edge<3>>().embeddings())>(internal,
         "Face3_1_embeddings");
 

@@ -50,7 +50,7 @@ Triangulation<3>::Triangulation(const Link& link, bool simplify) :
 
 Triangulation<3>::Triangulation(const std::string& description) {
     try {
-        *this = fromIsoSig(description);
+        *this = fromSig(description);
         return;
     } catch (const InvalidArgument&) {
     }
@@ -85,7 +85,6 @@ void Triangulation<3>::clearAllProperties() {
     if (! topologyLocked()) {
         prop_.H1Rel_.reset();
         prop_.H1Bdry_.reset();
-        prop_.H2_.reset();
         prop_.twoSphereBoundaryComponents_.reset();
         prop_.negativeIdealBoundaryComponents_.reset();
         prop_.threeSphere_.reset();
@@ -121,7 +120,6 @@ void Triangulation<3>::swap(Triangulation<3>& other) {
     // Properties stored using std::... helper classes:
     prop_.H1Rel_.swap(other.prop_.H1Rel_);
     prop_.H1Bdry_.swap(other.prop_.H1Bdry_);
-    prop_.H2_.swap(other.prop_.H2_);
 
     prop_.twoSphereBoundaryComponents_.swap(
         other.prop_.twoSphereBoundaryComponents_);
@@ -458,9 +456,9 @@ const Triangulation<3>& static_triangulation3_cast(const Packet& p) {
     // This is in the .cpp file so we can keep snappeatriangulation.h
     // out of the main Triangulation<3> headers.
     if (p.type() == PacketType::SnapPea)
-        return static_packet_cast<const SnapPeaTriangulation>(p);
+        return static_packet_cast<SnapPeaTriangulation>(p);
     else
-        return static_packet_cast<const Triangulation<3>>(p);
+        return static_packet_cast<Triangulation<3>>(p);
 }
 
 } // namespace regina

@@ -61,22 +61,24 @@
  * Q_OBJECT does not play well with template classes.  Since the chooser
  * classes do not use slots or signals, I believe this is okay.
  */
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 class SimplexChooser : public QComboBox, public regina::PacketListener {
     public:
+        using Choice = regina::Simplex<dim>*;
+
         /**
          * A filter function, used to determine whether a given simplex
          * should appear in the list.
          */
-        using FilterFunc = bool (*)(regina::Simplex<dim>*);
+        using Filter = bool (*)(Choice);
 
     private:
         regina::Triangulation<dim>* tri_;
             /**< The triangulation whose simplices we are choosing from. */
-        FilterFunc filter_;
+        Filter filter_;
             /**< A filter to restrict the available selections, or
                  \c null if no filter is necessary. */
-        std::vector<regina::Simplex<dim>*> options_;
+        std::vector<Choice> options_;
             /**< A list of the available options to choose from. */
 
     public:
@@ -96,8 +98,7 @@ class SimplexChooser : public QComboBox, public regina::PacketListener {
          * will be offered.
          */
         SimplexChooser(regina::PacketOf<regina::Triangulation<dim>>* tri,
-                FilterFunc filter, QWidget* parent,
-                bool autoUpdate = true);
+                Filter filter, QWidget* parent, bool autoUpdate = true);
 
         /**
          * Returns the currently selected simplex.
@@ -152,7 +153,7 @@ class SimplexChooser : public QComboBox, public regina::PacketListener {
  * Q_OBJECT does not play well with template classes.  Since the chooser
  * dialog classes do not use slots or signals, I believe this is okay.
  */
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 class SimplexDialog : public QDialog {
     private:
         /**
@@ -166,20 +167,20 @@ class SimplexDialog : public QDialog {
          */
         SimplexDialog(QWidget* parent,
             regina::PacketOf<regina::Triangulation<dim>>* tri,
-            typename SimplexChooser<dim>::FilterFunc filter,
+            typename SimplexChooser<dim>::Filter filter,
             const QString& title,
             const QString& message,
             const QString& whatsThis);
 
         static regina::Simplex<dim>* choose(QWidget* parent,
             regina::PacketOf<regina::Triangulation<dim>>* tri,
-            typename SimplexChooser<dim>::FilterFunc filter,
+            typename SimplexChooser<dim>::Filter filter,
             const QString& title,
             const QString& message,
             const QString& whatsThis);
 };
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 inline bool SimplexChooser<dim>::refresh() {
     clear();
     options_.clear();
@@ -187,28 +188,27 @@ inline bool SimplexChooser<dim>::refresh() {
     return (count() > 0);
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 inline void SimplexChooser<dim>::packetToBeChanged(regina::Packet&) {
     clear();
     options_.clear();
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 inline void SimplexChooser<dim>::packetWasChanged(regina::Packet&) {
     fill();
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 inline void SimplexChooser<dim>::packetBeingDestroyed(regina::PacketShell) {
     clear();
     options_.clear();
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 SimplexChooser<dim>::SimplexChooser(
         regina::PacketOf<regina::Triangulation<dim>>* tri,
-        FilterFunc filter, QWidget* parent,
-        bool autoUpdate) :
+        Filter filter, QWidget* parent, bool autoUpdate) :
         QComboBox(parent), tri_(tri), filter_(filter) {
     setMinimumContentsLength(30);
     setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -217,7 +217,7 @@ SimplexChooser<dim>::SimplexChooser(
     fill();
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 regina::Simplex<dim>* SimplexChooser<dim>::selected() {
     if (count() == 0)
         return nullptr;
@@ -225,7 +225,7 @@ regina::Simplex<dim>* SimplexChooser<dim>::selected() {
     return (curr < 0 ? nullptr : options_[curr]);
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 void SimplexChooser<dim>::select(regina::Simplex<dim>* option) {
     int index = 0;
     auto it = options_.begin();
@@ -244,12 +244,12 @@ void SimplexChooser<dim>::select(regina::Simplex<dim>* option) {
     return;
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 QString SimplexChooser<dim>::description(regina::Simplex<dim>* option) {
     return tr("%1 %2").arg(FaceName<dim>::upper()).arg(option->index());
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 void SimplexChooser<dim>::fill() {
     for (auto s : tri_->simplices())
         if ((! filter_) || (*filter_)(s)) {
@@ -258,10 +258,10 @@ void SimplexChooser<dim>::fill() {
         }
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 SimplexDialog<dim>::SimplexDialog(QWidget* parent,
         regina::PacketOf<regina::Triangulation<dim>>* tri,
-        typename SimplexChooser<dim>::FilterFunc filter,
+        typename SimplexChooser<dim>::Filter filter,
         const QString& title,
         const QString& message,
         const QString& whatsThis) :
@@ -284,10 +284,10 @@ SimplexDialog<dim>::SimplexDialog(QWidget* parent,
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
 }
 
-template <int dim>
+template <int dim> requires (regina::supportedDim(dim))
 regina::Simplex<dim>* SimplexDialog<dim>::choose(QWidget* parent,
         regina::PacketOf<regina::Triangulation<dim>>* tri,
-        typename SimplexChooser<dim>::FilterFunc filter,
+        typename SimplexChooser<dim>::Filter filter,
         const QString& title,
         const QString& message,
         const QString& whatsThis) {

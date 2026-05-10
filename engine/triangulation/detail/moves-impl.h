@@ -47,6 +47,8 @@
 
 #include "triangulation/generic/triangulation.h"
 
+ENSURE_ESSENTIAL_REGINA_HEADERS
+
 namespace regina::detail {
 
 #ifndef __DOXYGEN
@@ -91,9 +93,8 @@ namespace regina::detail {
      * 0 and \a k inclusive.
      */
     template <int dim, int k>
+    requires (supportedDim(dim) && k > 0 && k < dim)
     Perm<dim + 1> movePerm(int oldSimp, int newSimp) {
-        static_assert(0 < k && k < dim,
-            "movePerm() may not be called for 0-faces or dim-faces.");
         static_assert(! standardDim(dim),
             "The generic movePerm() implementation cannot be used in "
             "standard dimensions.");
@@ -191,14 +192,10 @@ namespace regina::detail {
     }
 #endif // __DOXYGEN
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= dim)
 bool TriangulationBase<dim>::internalPachner(Face<dim, k>* f, bool check,
         bool perform) {
-    static_assert(0 <= k && k <= dim,
-        "Pachner moves require a facial dimension between "
-        "0 and dim inclusive.");
-
     using LockMask = typename Simplex<dim>::LockMask;
 
     if constexpr (k == 0) {
@@ -704,14 +701,10 @@ bool TriangulationBase<dim>::internalPachner(Face<dim, k>* f, bool check,
     }
 }
 
-template <int dim>
-template <int k>
+template <int dim> requires (supportedDim(dim))
+template <int k> requires (k >= 0 && k <= 2 && k <= dim - 2)
 bool TriangulationBase<dim>::internal20(Face<dim, k>* f, bool check,
         bool perform) {
-    static_assert(0 <= k && k <= 2 && k <= dim - 2,
-        "2-0 moves require a facial dimension of 0, 1 or 2 that does "
-        "not exceed dim - 2.");
-
     using LockMask = Simplex<dim>::LockMask;
 
     // Note: In general we do not know how to check validity or boundary in
@@ -1030,12 +1023,9 @@ bool TriangulationBase<dim>::internal20(Face<dim, k>* f, bool check,
     return true;
 }
 
-template <int dim>
+template <int dim> requires (supportedDim(dim))
 bool TriangulationBase<dim>::internalShellBoundary(Simplex<dim>* s,
-        bool check, bool perform) {
-    static_assert(standardDim(dim),
-        "Boundary shelling moves are only available in standard dimensions.");
-
+        bool check, bool perform) requires (standardDim(dim)) {
     if (s->isLocked()) {
         if (check)
             return false;

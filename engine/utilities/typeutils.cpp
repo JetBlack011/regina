@@ -28,7 +28,6 @@
  *                                                                        *
  **************************************************************************/
 
-#include "regina-config.h" // for REGINA_HIGHDIM
 #include "link/link.h"
 #include "angle/anglestructures.h"
 #include "hypersurface/normalhypersurfaces.h"
@@ -99,14 +98,20 @@ namespace {
         registerType(typeid(IntegerBase<true>), "regina.LargeInteger");
         registerType(typeid(IntegerBase<false>), "regina.Integer");
 
-        // We use the hard-coded dimension strings to build names for
-        // Perm2..Perm15.
-        for_constexpr<2, 16>([](auto i) {
-            registerType(typeid(Perm<i>),
-                std::string("regina.Perm") + regina::detail::Strings<i>::dim);
-        });
-        // Perm16 does not have a hard-coded dimension string, so do
-        // this separately.
+        registerType(typeid(Perm<2>), "regina.Perm2");
+        registerType(typeid(Perm<3>), "regina.Perm3");
+        registerType(typeid(Perm<4>), "regina.Perm4");
+        registerType(typeid(Perm<5>), "regina.Perm5");
+        registerType(typeid(Perm<6>), "regina.Perm6");
+        registerType(typeid(Perm<7>), "regina.Perm7");
+        registerType(typeid(Perm<8>), "regina.Perm8");
+        registerType(typeid(Perm<9>), "regina.Perm9");
+        registerType(typeid(Perm<10>), "regina.Perm10");
+        registerType(typeid(Perm<11>), "regina.Perm11");
+        registerType(typeid(Perm<12>), "regina.Perm12");
+        registerType(typeid(Perm<13>), "regina.Perm13");
+        registerType(typeid(Perm<14>), "regina.Perm14");
+        registerType(typeid(Perm<15>), "regina.Perm15");
         registerType(typeid(Perm<16>), "regina.Perm16");
 
         for_constexpr<2, REGINA_MAXDIM + 1>([](auto i) {
@@ -119,7 +124,7 @@ namespace {
                     regina::detail::Strings<i>::dim);
             registerType(
                 typeid(decltype(Triangulation<i>().components())),
-                std::string("<internal>.ListView[regina.Component") +
+                std::string("<internal>.View[regina.Component") +
                     regina::detail::Strings<i>::dim + ']');
 
             registerType(typeid(BoundaryComponent<i>),
@@ -127,12 +132,12 @@ namespace {
                     regina::detail::Strings<i>::dim);
             registerType(
                 typeid(decltype(Triangulation<i>().boundaryComponents())),
-                std::string("<internal>.ListView[regina.BoundaryComponent") +
+                std::string("<internal>.View[regina.BoundaryComponent") +
                     regina::detail::Strings<i>::dim + ']');
             registerType(
                 typeid(decltype(Triangulation<i>().component(0)->
                     boundaryComponents())),
-                std::string("<internal>.ListView[regina.BoundaryComponent") +
+                std::string("<internal>.View[regina.BoundaryComponent") +
                     regina::detail::Strings<i>::dim + ']');
 
             registerType(typeid(Isomorphism<i>),
@@ -154,88 +159,88 @@ namespace {
                 registerType(typeid(Triangle<2>), "regina.Triangle2");
                 registerType(
                     typeid(decltype(Triangulation<2>().simplices())),
-                    "<internal>.ListView[regina.Triangle2]");
+                    "<internal>.View[regina.Triangle2]");
                 registerType(
                     typeid(decltype(Triangulation<2>().component(0)->
                         simplices())),
-                    "<internal>.ListView[regina.Triangle2]");
+                    "<internal>.View[regina.Triangle2]");
                 registerType(
                     typeid(decltype(Triangulation<2>().boundaryComponent(0)->
                         facets())),
-                    "<internal>.ListView[regina.Edge2]");
+                    "<internal>.View[regina.Edge2]");
                 registerType(
                     typeid(decltype(Triangulation<2>().boundaryComponent(0)->
                         vertices())),
-                    "<internal>.ListView[regina.Vertex2]");
+                    "<internal>.View[regina.Vertex2]");
             } else if constexpr (i == 3) {
                 registerType(typeid(Tetrahedron<3>), "regina.Tetrahedron3");
                 registerType(
                     typeid(decltype(Triangulation<3>().simplices())),
-                    "<internal>.ListView[regina.Tetrahedron3]");
+                    "<internal>.View[regina.Tetrahedron3]");
                 registerType(
                     typeid(decltype(Triangulation<3>().component(0)->
                         simplices())),
-                    "<internal>.ListView[regina.Tetrahedron3]");
+                    "<internal>.View[regina.Tetrahedron3]");
                 registerType(
                     typeid(decltype(Triangulation<3>().boundaryComponent(0)->
                         facets())),
-                    "<internal>.ListView[regina.Triangle3]");
+                    "<internal>.View[regina.Triangle3]");
                 registerType(
                     typeid(decltype(Triangulation<3>().boundaryComponent(0)->
                         edges())),
-                    "<internal>.ListView[regina.Edge3]");
+                    "<internal>.View[regina.Edge3]");
                 registerType(
                     typeid(decltype(Triangulation<3>().boundaryComponent(0)->
                         vertices())),
-                    "<internal>.ListView[regina.Vertex3]");
+                    "<internal>.View[regina.Vertex3]");
             } else if constexpr (i == 4) {
                 registerType(typeid(Pentachoron<4>), "regina.Pentachoron4");
                 registerType(
                     typeid(decltype(Triangulation<4>().simplices())),
-                    "<internal>.ListView[regina.Pentachoron4]");
+                    "<internal>.View[regina.Pentachoron4]");
                 registerType(
                     typeid(decltype(Triangulation<4>().component(0)->
                         simplices())),
-                    "<internal>.ListView[regina.Pentachoron4]");
+                    "<internal>.View[regina.Pentachoron4]");
                 registerType(
                     typeid(decltype(Triangulation<4>().boundaryComponent(0)->
                         facets())),
-                    "<internal>.ListView[regina.Tetrahedron4]");
+                    "<internal>.View[regina.Tetrahedron4]");
                 registerType(
                     typeid(decltype(Triangulation<4>().boundaryComponent(0)->
                         triangles())),
-                    "<internal>.ListView[regina.Triangle4]");
+                    "<internal>.View[regina.Triangle4]");
                 registerType(
                     typeid(decltype(Triangulation<4>().boundaryComponent(0)->
                         edges())),
-                    "<internal>.ListView[regina.Edge4]");
+                    "<internal>.View[regina.Edge4]");
                 registerType(
                     typeid(decltype(Triangulation<4>().boundaryComponent(0)->
                         vertices())),
-                    "<internal>.ListView[regina.Vertex4]");
+                    "<internal>.View[regina.Vertex4]");
             } else {
                 registerType(typeid(Face<i, i>),
                     std::string("regina.Simplex") +
                         regina::detail::Strings<i>::dim);
                 registerType(
                     typeid(decltype(Triangulation<i>().simplices())),
-                    std::string("<internal>.ListView[regina.Simplex") +
+                    std::string("<internal>.View[regina.Simplex") +
                         regina::detail::Strings<i>::dim + ']');
                 registerType(
                     typeid(decltype(Triangulation<i>().component(0)->
                         simplices())),
-                    std::string("<internal>.ListView[regina.Simplex") +
+                    std::string("<internal>.View[regina.Simplex") +
                         regina::detail::Strings<i>::dim + ']');
                 if constexpr (i == 5) {
                     registerType(
                         typeid(decltype(Triangulation<5>().
                             boundaryComponent(0)->facets())),
-                        "<internal>.ListView[regina.Pentachoron5]");
+                        "<internal>.View[regina.Pentachoron5]");
                 } else {
                     registerType(
                         typeid(decltype(Triangulation<i>().
                             boundaryComponent(0)->facets())),
-                        std::string("<internal>.ListView[regina.Face") +
+                        std::string("<internal>.View[regina.Face") +
                             regina::detail::Strings<i>::dim + '_' +
                             regina::detail::Strings<i - 1>::dim + ']');
                 }
@@ -246,26 +251,26 @@ namespace {
                 std::string("regina.Vertex") + regina::detail::Strings<i>::dim);
             registerType(
                 typeid(decltype(Triangulation<i>().vertices())),
-                std::string("<internal>.ListView[regina.Vertex") +
+                std::string("<internal>.View[regina.Vertex") +
                     regina::detail::Strings<i>::dim + ']');
             registerType(
                 typeid(decltype(Triangulation<i>().
                     vertex(0)->embeddings())),
                 std::string(
-                    "<internal>.ListView[regina.VertexEmbedding") +
+                    "<internal>.View[regina.VertexEmbedding") +
                     regina::detail::Strings<i>::dim + ']');
             registerType(
                 typeid(Edge<i>),
                 std::string("regina.Edge") + regina::detail::Strings<i>::dim);
             registerType(
                 typeid(decltype(Triangulation<i>().edges())),
-                std::string("<internal>.ListView[regina.Edge") +
+                std::string("<internal>.View[regina.Edge") +
                     regina::detail::Strings<i>::dim + ']');
             registerType(
                 typeid(decltype(Triangulation<i>().
                     edge(0)->embeddings())),
                 std::string(
-                    "<internal>.ListView[regina.EdgeEmbedding") +
+                    "<internal>.View[regina.EdgeEmbedding") +
                     regina::detail::Strings<i>::dim + ']');
             if constexpr (i > 2) {
                 registerType(
@@ -275,12 +280,12 @@ namespace {
                 registerType(
                     typeid(decltype(Triangulation<i>().
                         triangles())),
-                    std::string("<internal>.ListView[regina.Triangle") +
+                    std::string("<internal>.View[regina.Triangle") +
                         regina::detail::Strings<i>::dim + ']');
                 registerType(
                     typeid(decltype(Triangulation<i>().
                         triangle(0)->embeddings())),
-                    std::string("<internal>.ListView["
+                    std::string("<internal>.View["
                         "regina.TriangleEmbedding") +
                         regina::detail::Strings<i>::dim + ']');
             }
@@ -293,13 +298,13 @@ namespace {
                     typeid(decltype(Triangulation<i>().
                         tetrahedra())),
                     std::string(
-                        "<internal>.ListView[regina.Tetrahedron") +
+                        "<internal>.View[regina.Tetrahedron") +
                         regina::detail::Strings<i>::dim + ']');
                 registerType(
                     typeid(decltype(Triangulation<i>().
                         tetrahedron(0)->embeddings())),
                     std::string(
-                        "<internal>.ListView["
+                        "<internal>.View["
                         "regina.TetrahedronEmbedding") +
                         regina::detail::Strings<i>::dim + ']');
             }
@@ -312,13 +317,13 @@ namespace {
                     typeid(decltype(Triangulation<i>().
                         pentachora())),
                     std::string(
-                        "<internal>.ListView[regina.Pentachoron") +
+                        "<internal>.View[regina.Pentachoron") +
                         regina::detail::Strings<i>::dim + ']');
                 registerType(
                     typeid(decltype(Triangulation<i>().
                         pentachoron(0)->embeddings())),
                     std::string(
-                        "<internal>.ListView["
+                        "<internal>.View["
                         "regina.PentachoronEmbedding") +
                         regina::detail::Strings<i>::dim + ']');
             }
@@ -339,14 +344,14 @@ namespace {
                     registerType(
                         typeid(decltype(Triangulation<i_>().
                             template faces<j>())),
-                        std::string("<internal>.ListView[regina.Face") +
+                        std::string("<internal>.View[regina.Face") +
                             regina::detail::Strings<i_>::dim + '_' +
                             regina::detail::Strings<j>::dim + ']');
                     registerType(
                         typeid(decltype(Triangulation<i_>().
                             template face<j>(0)->embeddings())),
                         std::string(
-                            "<internal>.ListView[regina.FaceEmbedding") +
+                            "<internal>.View[regina.FaceEmbedding") +
                             regina::detail::Strings<i_>::dim + '_' +
                             regina::detail::Strings<j>::dim + ']');
                 });
@@ -359,15 +364,15 @@ namespace {
         });
 
         registerType(typeid(decltype(SnapPeaTriangulation().cusps())),
-            "<internal>.ListView[regina.Cusp]");
+            "<internal>.View[regina.Cusp]");
         registerType(typeid(decltype(Link().crossings())),
-            "<internal>.ListView[regina.Crossing]");
+            "<internal>.View[regina.Crossing]");
         registerType(typeid(decltype(Link().components())),
-            "<internal>.ListView[regina.StrandRef]");
+            "<internal>.View[regina.StrandRef]");
         registerType(typeid(decltype(ModelLinkGraph().nodes())),
-            "<internal>.ListView[regina.ModelLinkGraphNode]");
+            "<internal>.View[regina.ModelLinkGraphNode]");
         registerType(typeid(decltype(ModelLinkGraph().cells().arcs(0))),
-            "<internal>.ListView[regina.ModelLinkGraphArc]");
+            "<internal>.View[regina.ModelLinkGraphArc]");
 
         // Enums that live within individual face classes:
         registerType(typeid(Vertex<3>::Link), "regina.Vertex3.Link");
