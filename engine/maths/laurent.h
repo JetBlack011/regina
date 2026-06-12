@@ -112,19 +112,6 @@ class Laurent :
         Laurent();
 
         /**
-         * Deprecated constructor that creates the polynomial `x^d` for the
-         * given exponent \a d.
-         *
-         * \deprecated This will be removed in a future version of Regina,
-         * since in casual reading of code it is too easy to misread this as
-         * creating a polynomial with only a constant term.  You can still
-         * create `x^d` by calling `initExp(d)` instead.
-         *
-         * \param exponent the exponent to use for the new polynomial.
-         */
-        [[deprecated]] explicit Laurent(long exponent);
-
-        /**
          * Creates a new copy of the given polynomial.
          *
          * This constructor induces a deep copy of \a value.
@@ -228,18 +215,6 @@ class Laurent :
          * \param exponent the new exponent to use for this polynomial.
          */
         void initExp(long exponent);
-
-        /**
-         * Deprecated function that sets this to become the polynomial `x^d`
-         * for the given exponent \a d.
-         *
-         * \deprecated This has been renamed to initExp(), since in casual
-         * reading of code it is too easy to misread this as setting this
-         * polynomial to have only a constant term.
-         *
-         * \param exponent the new exponent to use for this polynomial.
-         */
-        [[deprecated]] void init(long exponent);
 
         /**
          * Sets this to become the polynomial described by the given
