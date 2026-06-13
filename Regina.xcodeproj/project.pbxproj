@@ -883,7 +883,7 @@
 		05617B811D9DC7B000B1E33B /* censuslookup.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05617AE41D9DC02900B1E33B /* censuslookup.cpp */; };
 		056184231F97F6980080E7E2 /* linkcreator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 056184201F97F6910080E7E2 /* linkcreator.cpp */; };
 		056292052DAF217100896529 /* ring.h in Headers */ = {isa = PBXBuildFile; fileRef = 056292042DAF217100896529 /* ring.h */; };
-		0564A7F81811D921002CC2AE /* actionspart.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4091811D91E002CC2AE /* actionspart.cpp */; };
+		0564A7F81811D921002CC2AE /* actions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4091811D91E002CC2AE /* actions.cpp */; };
 		0564A7F91811D921002CC2AE /* bigwidget.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0564A40A1811D91E002CC2AE /* bigwidget.cpp */; };
 		0564A7FA1811D921002CC2AE /* boundary3chooser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0564A40D1811D91E002CC2AE /* boundary3chooser.cpp */; };
 		0564A7FD1811D921002CC2AE /* edgeintchooser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4121811D91E002CC2AE /* edgeintchooser.cpp */; };
@@ -3104,7 +3104,7 @@
 		056292042DAF217100896529 /* ring.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ring.h; sourceTree = "<group>"; };
 		0564A1DF1811D6F8002CC2AE /* Regina.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Regina.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0564A4071811D91E002CC2AE /* README.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README.txt; sourceTree = "<group>"; };
-		0564A4091811D91E002CC2AE /* actionspart.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = actionspart.cpp; sourceTree = "<group>"; };
+		0564A4091811D91E002CC2AE /* actions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = actions.cpp; sourceTree = "<group>"; };
 		0564A40A1811D91E002CC2AE /* bigwidget.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = bigwidget.cpp; sourceTree = "<group>"; };
 		0564A40B1811D91E002CC2AE /* bigwidget.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bigwidget.h; sourceTree = "<group>"; };
 		0564A40D1811D91E002CC2AE /* boundary3chooser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = boundary3chooser.cpp; sourceTree = "<group>"; };
@@ -6770,7 +6770,7 @@
 		0564A4081811D91E002CC2AE /* qtui */ = {
 			isa = PBXGroup;
 			children = (
-				0564A4091811D91E002CC2AE /* actionspart.cpp */,
+				0564A4091811D91E002CC2AE /* actions.cpp */,
 				05754E73258F92CA00236ED7 /* Assets.xcassets */,
 				05866B802E52CB7900C74465 /* auxtoolbar.h */,
 				0564A40A1811D91E002CC2AE /* bigwidget.cpp */,
@@ -10322,7 +10322,7 @@
 				0564A9581811D921002CC2AE /* surfacescreator.cpp in Sources */,
 				0564A7F91811D921002CC2AE /* bigwidget.cpp in Sources */,
 				0564A96E1811D921002CC2AE /* packetui.cpp in Sources */,
-				0564A7F81811D921002CC2AE /* actionspart.cpp in Sources */,
+				0564A7F81811D921002CC2AE /* actions.cpp in Sources */,
 				0564A96B1811D921002CC2AE /* tri3surfaces.cpp in Sources */,
 				0564A80D1811D921002CC2AE /* orbhandler.cpp in Sources */,
 				0564A96F1811D921002CC2AE /* packetwindow.cpp in Sources */,
