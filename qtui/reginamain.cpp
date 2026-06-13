@@ -624,7 +624,7 @@ void ReginaMain::setupWidgets() {
         "which you will see in this window.  "
         "You can click on a packet in the tree to "
         "edit it or view detailed information.</qt>"));
-    connect(treeView, &PacketTreeView::itemSelectionChanged, this,
+    connect(treeView, &QTreeWidget::itemSelectionChanged, this,
         &ReginaMain::updateTreeActions);
     layout->addWidget(treeView, 1);
 

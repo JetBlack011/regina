@@ -110,9 +110,17 @@ IntroDialog::IntroDialog(QWidget* parent) : QDialog(parent) {
     });
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(offerHelp, &QCheckBox::checkStateChanged, this, [](int newState) {
-        ReginaPrefSet::global().helpIntroOnStartup = (newState == Qt::Checked);
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(offerHelp, &QCheckBox::checkStateChanged, this,
+            [](Qt::CheckState state) {
+        ReginaPrefSet::global().helpIntroOnStartup = (state == Qt::Checked);
         ReginaPrefSet::propagate();
     });
+#else
+    connect(offerHelp, &QCheckBox::stateChanged, this, [](int state) {
+        ReginaPrefSet::global().helpIntroOnStartup = (state == Qt::Checked);
+        ReginaPrefSet::propagate();
+    });
+#endif
 }
 

@@ -64,7 +64,7 @@ PacketWindow::PacketWindow(PacketPane* newPane, ReginaMain* parent) :
     parent->registerWindow(windowAction);
 
     // If the main window closes, its packet windows must close also.
-    connect(parent, &ReginaMain::destroyed, this, &PacketWindow::deleteLater);
+    connect(parent, &QMainWindow::destroyed, this, &PacketWindow::deleteLater);
 }
 
 void PacketWindow::closeEvent(QCloseEvent* event) {

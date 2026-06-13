@@ -142,12 +142,12 @@ PacketTreeView::PacketTreeView(ReginaMain* newMainWindow, QWidget* parent)
     setSelectionMode(QAbstractItemView::SingleSelection);
     setExpandsOnDoubleClick(false); // since double-click opens a packet
 
-    connect(this, &PacketTreeView::itemExpanded, this,
+    connect(this, &QTreeWidget::itemExpanded, this,
         [](QTreeWidgetItem* item) {
             if (auto p = dynamic_cast<PacketTreeItem*>(item))
                 p->markShouldBeExpanded(true);
         });
-    connect(this, &PacketTreeView::itemCollapsed, this,
+    connect(this, &QTreeWidget::itemCollapsed, this,
         [](QTreeWidgetItem* item) {
             if (auto p = dynamic_cast<PacketTreeItem*>(item))
                 p->markShouldBeExpanded(false);
@@ -156,7 +156,7 @@ PacketTreeView::PacketTreeView(ReginaMain* newMainWindow, QWidget* parent)
     // Currently we use the platform default activation method (which is
     // often double-click).  To make this single-click always, change
     // itemActivated() to itemClicked().
-    connect(this, &PacketTreeView::itemActivated, this,
+    connect(this, &QTreeWidget::itemActivated, this,
         [this](QTreeWidgetItem* item) {
             if (item)
                 mainWindow->packetView(*(static_cast<PacketTreeItem*>(item)->
