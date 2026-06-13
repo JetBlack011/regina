@@ -910,12 +910,6 @@ inline Laurent<T>::Laurent() : minExp_(0), maxExp_(0), base_(0),
 }
 
 template <CoefficientDomain T>
-inline Laurent<T>::Laurent(long exp) :
-        minExp_(exp), maxExp_(exp), base_(exp), coeff_(new T[1]) {
-    coeff_[0] = 1;
-}
-
-template <CoefficientDomain T>
 template <RandomAccessIteratorFor<T> Iterator>
 inline Laurent<T>::Laurent(long minExp, Iterator begin, Iterator end) :
         coeff_(nullptr) {
@@ -982,11 +976,6 @@ inline void Laurent<T>::initExp(long exp) {
     minExp_ = maxExp_ = base_ = exp;
     coeff_ = new T[1];
     coeff_[0] = 1;
-}
-
-template <CoefficientDomain T>
-inline void Laurent<T>::init(long exp) {
-    initExp(exp);
 }
 
 template <CoefficientDomain T>

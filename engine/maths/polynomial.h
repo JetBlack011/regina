@@ -901,12 +901,6 @@ inline Polynomial<T>::Polynomial() : degree_(0), coeff_(new T[1]) {
 }
 
 template <CoefficientDomain T>
-inline Polynomial<T>::Polynomial(size_t degree) :
-        degree_(degree), coeff_(new T[degree + 1]) {
-    coeff_[degree] = 1;
-}
-
-template <CoefficientDomain T>
 template <RandomAccessIteratorFor<T> Iterator>
 inline Polynomial<T>::Polynomial(Iterator begin, Iterator end) :
         coeff_(nullptr) {
@@ -962,11 +956,6 @@ inline void Polynomial<T>::initExp(size_t degree) {
     degree_ = degree;
     coeff_ = new T[degree + 1];
     coeff_[degree] = 1;
-}
-
-template <CoefficientDomain T>
-inline void Polynomial<T>::init(size_t degree) {
-    initExp(degree);
 }
 
 template <CoefficientDomain T>

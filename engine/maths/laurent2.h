@@ -774,11 +774,6 @@ template <CoefficientDomain T>
 const T Laurent2<T>::zero_(0);
 
 template <CoefficientDomain T>
-inline Laurent2<T>::Laurent2(long xExp, long yExp) {
-    coeff_.emplace(Exponents(xExp, yExp), 1);
-}
-
-template <CoefficientDomain T>
 inline Laurent2<T>::Laurent2(const Laurent2<T>& value) :
         coeff_(value.coeff_) {
     // TODO: Use default implementation.
@@ -847,11 +842,6 @@ template <CoefficientDomain T>
 inline void Laurent2<T>::initExp(long xExp, long yExp) {
     coeff_.clear();
     coeff_.emplace(Exponents(xExp, yExp), 1);
-}
-
-template <CoefficientDomain T>
-inline void Laurent2<T>::init(long xExp, long yExp) {
-    initExp(xExp, yExp);
 }
 
 template <CoefficientDomain T>
