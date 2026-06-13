@@ -516,7 +516,8 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     coords = new CoordinateChooser();
     coords->insertAllViewers(surfaces);
     coords->setCurrentSystem(surfaces->coords());
-    connect(coords, SIGNAL(activated(int)), this, SLOT(refresh()));
+    connect(coords, &QComboBox::activated, this,
+        &SurfacesCoordinateUI::refresh);
     hdrLayout->addWidget(coords);
     QString msg = tr("Allows you to view these normal surfaces in a "
         "different coordinate system.");
@@ -532,7 +533,8 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
         new SingleTypeFilter<regina::SurfaceFilter>(),
         PacketChooser::RootRole::Packet, true, nullptr, ui);
     filter->setAutoUpdate(true);
-    connect(filter, SIGNAL(activated(int)), this, SLOT(refresh()));
+    connect(filter, &QComboBox::activated, this,
+        &SurfacesCoordinateUI::refresh);
     hdrLayout->addWidget(filter);
     msg = tr("<qt>Allows you to filter this list so that only normal "
         "surfaces satisfying particular properties are displayed.<p>"
@@ -580,8 +582,8 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     table->header()->resizeSections(QHeaderView::ResizeToContents);
     uiLayout->addWidget(table, 1);
 
-    connect(table->header(), SIGNAL(sectionResized(int, int, int)),
-        this, SLOT(columnResized(int, int, int)));
+    connect(table->header(), &QHeaderView::sectionResized, this,
+        &SurfacesCoordinateUI::columnResized);
 
     actCutAlong = new QAction(this);
     actCutAlong->setText(tr("Cu&t Along Surface"));
@@ -597,7 +599,8 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
         "because the new surface boundaries are created from real "
         "boundary triangles, the resulting number of tetrahedra might be very "
         "large."));
-    connect(actCutAlong, SIGNAL(triggered()), this, SLOT(cutAlong()));
+    connect(actCutAlong, &QAction::triggered, this,
+        &SurfacesCoordinateUI::cutAlong);
     surfaceActionList.push_back(actCutAlong);
 
     actCrush = new QAction(this);
@@ -614,7 +617,8 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
         "the surface and shrinking the resulting boundary/boundaries "
         "to points."));
     surfaceActionList.push_back(actCrush);
-    connect(actCrush, SIGNAL(triggered()), this, SLOT(crush()));
+    connect(actCrush, &QAction::triggered, this,
+        &SurfacesCoordinateUI::crush);
 
     // If we've changed the unicode setting, then we may need some redrawing.
     connect(&ReginaPrefSet::global(), &ReginaPrefSet::preferencesChanged,

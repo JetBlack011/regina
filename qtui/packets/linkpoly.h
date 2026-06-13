@@ -50,8 +50,6 @@ namespace regina {
  * A packet viewer tab for viewing graphs related to a link.
  */
 class LinkPolynomialUI : public QObject, public PacketViewerTab {
-    Q_OBJECT
-
     private:
         /**
          * The link itself
@@ -94,7 +92,6 @@ class LinkPolynomialUI : public QObject, public PacketViewerTab {
         QWidget* getInterface() override;
         void refresh() override;
 
-    public slots:
         /**
          * Calculate properties.
          */

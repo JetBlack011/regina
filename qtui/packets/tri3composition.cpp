@@ -108,11 +108,11 @@ Tri3CompositionUI::Tri3CompositionUI(regina::Triangulation<3>* tri,
     standardTri->setContextMenuPolicy(Qt::CustomContextMenu);
     label->setContextMenuPolicy(Qt::CustomContextMenu);
     // Contextless connections are ok: senders will be destroyed with [this].
-    connect(standardTri, &QPushButton::customContextMenuRequested,
+    connect(standardTri, &QWidget::customContextMenuRequested,
         [this](const QPoint& p) {
             contextStandardTri(p, standardTri);
         });
-    connect(label, &QPushButton::customContextMenuRequested,
+    connect(label, &QWidget::customContextMenuRequested,
         [=, this](const QPoint& p) {
             contextStandardTri(p, label);
         });
@@ -154,11 +154,11 @@ Tri3CompositionUI::Tri3CompositionUI(regina::Triangulation<3>* tri,
     isoSig->setContextMenuPolicy(Qt::CustomContextMenu);
     label->setContextMenuPolicy(Qt::CustomContextMenu);
     // Contextless connections are ok: senders will be destroyed with [this].
-    connect(isoSig, &QPushButton::customContextMenuRequested,
+    connect(isoSig, &QWidget::customContextMenuRequested,
         [this](const QPoint& p) {
             contextIsoSig(p, isoSig);
         });
-    connect(label, &QPushButton::customContextMenuRequested,
+    connect(label, &QWidget::customContextMenuRequested,
         [=, this](const QPoint& p) {
             contextIsoSig(p, label);
         });

@@ -120,8 +120,6 @@ class SurfaceModel : public QAbstractItemModel {
  */
 class SurfacesCoordinateUI : public QObject, public PacketEditorTab,
         public regina::PacketListener {
-    Q_OBJECT
-
     private:
         /**
          * Packet details
@@ -171,7 +169,6 @@ class SurfacesCoordinateUI : public QObject, public PacketEditorTab,
          */
         void packetBeingDestroyed(regina::PacketShell packet) override;
 
-    public slots:
         /**
          * More PacketEditorTab overrides.
          */

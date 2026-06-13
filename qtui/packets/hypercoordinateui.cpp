@@ -413,7 +413,7 @@ HyperCoordinateUI::HyperCoordinateUI(
     coords = new HyperCoordinateChooser();
     coords->insertAllViewers(surfaces);
     coords->setCurrentSystem(surfaces->coords());
-    connect(coords, SIGNAL(activated(int)), this, SLOT(refresh()));
+    connect(coords, &QComboBox::activated, this, &HyperCoordinateUI::refresh);
     hdrLayout->addWidget(coords);
     QString msg = tr("Allows you to view these normal hypersurfaces in a "
         "different coordinate system.");
@@ -460,8 +460,8 @@ HyperCoordinateUI::HyperCoordinateUI(
     table->header()->resizeSections(QHeaderView::ResizeToContents);
     uiLayout->addWidget(table, 1);
 
-    connect(table->header(), SIGNAL(sectionResized(int, int, int)),
-        this, SLOT(columnResized(int, int, int)));
+    connect(table->header(), &QHeaderView::sectionResized, this,
+        &HyperCoordinateUI::columnResized);
 
     actTriangulate = new QAction(this);
     actTriangulate->setText(tr("&Triangulate Hypersurface"));
@@ -474,12 +474,12 @@ HyperCoordinateUI::HyperCoordinateUI(
         "selected hypersurface.  However, it will be simplified, "
         "which means that information about the <i>combinatorics</i> "
         "of the hypersurface will be lost."));
-    connect(actTriangulate, SIGNAL(triggered()), this, SLOT(triangulate()));
+    connect(actTriangulate, &QAction::triggered, this,
+        &HyperCoordinateUI::triangulate);
     surfaceActionList.push_back(actTriangulate);
 
-    connect(table->selectionModel(),
-        SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
-        this, SLOT(updateActionStates()));
+    connect(table->selectionModel(), &QItemSelectionModel::selectionChanged,
+        this, &HyperCoordinateUI::updateActionStates);
 
     // If we've changed the unicode setting, then we may need some redrawing.
     connect(&ReginaPrefSet::global(), &ReginaPrefSet::preferencesChanged,

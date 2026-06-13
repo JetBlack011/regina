@@ -97,7 +97,8 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         "still be a little slow for larger links (which is why the "
         "Alexander polynomial is not always computed automatically).</qt>"));
     sublayout->addWidget(btnAlexander);
-    connect(btnAlexander, SIGNAL(clicked()), this, SLOT(calculateAlexander()));
+    connect(btnAlexander, &QPushButton::clicked, this,
+        &LinkPolynomialUI::calculateAlexander);
     blockLayout->addLayout(sublayout);
 
     blockLayout->addSpacing(10);
@@ -140,7 +141,8 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         "larger links (which is why the Jones polynomial is not "
         "always computed automatically).</qt>"));
     sublayout->addWidget(btnJones);
-    connect(btnJones, SIGNAL(clicked()), this, SLOT(calculateJones()));
+    connect(btnJones, &QPushButton::clicked, this,
+        &LinkPolynomialUI::calculateJones);
     blockLayout->addLayout(sublayout);
 
     blockLayout->addSpacing(10);
@@ -191,8 +193,10 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         btnLM->setChecked(true);
     else
         btnAZ->setChecked(true);
-    connect(btnAZ, SIGNAL(toggled(bool)), this, SLOT(homflyTypeChanged(bool)));
-    connect(btnLM, SIGNAL(toggled(bool)), this, SLOT(homflyTypeChanged(bool)));
+    connect(btnAZ, &QRadioButton::toggled, this,
+        &LinkPolynomialUI::homflyTypeChanged);
+    connect(btnLM, &QRadioButton::toggled, this,
+        &LinkPolynomialUI::homflyTypeChanged);
     blockLayout->addLayout(sublayout);
 
     blockLayout->addSpacing(5);
@@ -213,7 +217,8 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         "larger links (which is why the HOMFLY-PT polynomial is not "
         "always computed automatically).</qt>"));
     sublayout->addWidget(btnHomfly);
-    connect(btnHomfly, SIGNAL(clicked()), this, SLOT(calculateHomfly()));
+    connect(btnHomfly, &QPushButton::clicked, this,
+        &LinkPolynomialUI::calculateHomfly);
     blockLayout->addLayout(sublayout);
 
     blockLayout->addSpacing(10);
@@ -249,7 +254,8 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         "larger links (which is why the Kauffman bracket is not "
         "always computed automatically).</qt>"));
     sublayout->addWidget(btnBracket);
-    connect(btnBracket, SIGNAL(clicked()), this, SLOT(calculateBracket()));
+    connect(btnBracket, &QPushButton::clicked, this,
+        &LinkPolynomialUI::calculateBracket);
     blockLayout->addLayout(sublayout);
 
     blockLayout->addSpacing(10);
@@ -313,7 +319,8 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
         "larger links (which is why the arrow polynomial is not "
         "always computed automatically).</qt>"));
     sublayout->addWidget(btnArrow);
-    connect(btnArrow, SIGNAL(clicked()), this, SLOT(calculateArrow()));
+    connect(btnArrow, &QPushButton::clicked, this,
+        &LinkPolynomialUI::calculateArrow);
     blockLayout->addLayout(sublayout);
 
     // Make this block invisible so the initial layout (before refresh()
@@ -339,18 +346,18 @@ LinkPolynomialUI::LinkPolynomialUI(regina::PacketOf<regina::Link>* packet,
     affineIndex->setContextMenuPolicy(Qt::CustomContextMenu);
     arrow->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    connect(alexander, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextAlexander(const QPoint&)));
-    connect(jones, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextJones(const QPoint&)));
-    connect(homfly, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextHomfly(const QPoint&)));
-    connect(bracket, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextBracket(const QPoint&)));
-    connect(affineIndex, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextAffineIndex(const QPoint&)));
-    connect(arrow, SIGNAL(customContextMenuRequested(const QPoint&)),
-        this, SLOT(contextArrow(const QPoint&)));
+    connect(alexander, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextAlexander);
+    connect(jones, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextJones);
+    connect(homfly, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextHomfly);
+    connect(bracket, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextBracket);
+    connect(affineIndex, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextAffineIndex);
+    connect(arrow, &QWidget::customContextMenuRequested, this,
+        &LinkPolynomialUI::contextArrow);
 }
 
 regina::Packet* LinkPolynomialUI::getPacket() {
@@ -609,8 +616,9 @@ void LinkPolynomialUI::contextAlexander(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyAlexander()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyAlexanderPlain()));
+    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyAlexander);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyAlexanderPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -625,8 +633,9 @@ void LinkPolynomialUI::contextJones(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyJones()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyJonesPlain()));
+    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyJones);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyJonesPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -641,8 +650,9 @@ void LinkPolynomialUI::contextHomfly(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyHomfly()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyHomflyPlain()));
+    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyHomfly);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyHomflyPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -657,8 +667,9 @@ void LinkPolynomialUI::contextBracket(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyBracket()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyBracketPlain()));
+    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyBracket);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyBracketPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -673,8 +684,9 @@ void LinkPolynomialUI::contextArrow(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyArrow()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyArrowPlain()));
+    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyArrow);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyArrowPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -688,8 +700,10 @@ void LinkPolynomialUI::contextAffineIndex(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, SIGNAL(triggered()), this, SLOT(copyAffineIndex()));
-    connect(&copyPlain, SIGNAL(triggered()), this, SLOT(copyAffineIndexPlain()));
+    connect(&copy, &QAction::triggered, this,
+        &LinkPolynomialUI::copyAffineIndex);
+    connect(&copyPlain, &QAction::triggered, this,
+        &LinkPolynomialUI::copyAffineIndexPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
