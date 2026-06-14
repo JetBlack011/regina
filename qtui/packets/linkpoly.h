@@ -120,12 +120,6 @@ class LinkPolynomialUI : public QObject, public PacketViewerTab {
         void contextBracket(const QPoint& pos);
         void contextAffineIndex(const QPoint& pos);
         void contextArrow(const QPoint& pos);
-        void copyAlexander();
-        void copyJones();
-        void copyHomfly();
-        void copyBracket();
-        void copyAffineIndex();
-        void copyArrow();
         void copyAlexanderPlain();
         void copyJonesPlain();
         void copyHomflyPlain();

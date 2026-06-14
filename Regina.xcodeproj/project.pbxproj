@@ -492,13 +492,10 @@
 		05431FA91C40F5A2009BC072 /* perm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FA51C40F599009BC072 /* perm.cpp */; };
 		05431FAA1C40F5A2009BC072 /* perm2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FA61C40F599009BC072 /* perm2.cpp */; };
 		05431FCF1C40F663009BC072 /* intutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FCD1C40F65D009BC072 /* intutils.cpp */; };
-		0543AE911811DE79002758F8 /* packetui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5CB1811D920002CC2AE /* packetui.h */; };
 		0543AE991811E12A002758F8 /* coordinatechooser.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A41E1811D91E002CC2AE /* coordinatechooser.h */; };
 		0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4231811D91E002CC2AE /* examplesaction.h */; };
-		0543AE9E1811E12A002758F8 /* newpacketdialog.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5771811D920002CC2AE /* newpacketdialog.h */; };
 		0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A57E1811D920002CC2AE /* packeteditiface.h */; };
 		0543AEA11811E12A002758F8 /* packettabui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5831811D920002CC2AE /* packettabui.h */; };
-		0543AEA41811E12A002758F8 /* tri2skeleton.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A58D1811D920002CC2AE /* tri2skeleton.h */; };
 		0543AEA51811E12A002758F8 /* tri2ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A58F1811D920002CC2AE /* tri2ui.h */; };
 		0543AEA61811E12A002758F8 /* eltmovedialog3.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5911811D920002CC2AE /* eltmovedialog3.h */; };
 		0543AEA71811E12A002758F8 /* facetgraphtab.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5931811D920002CC2AE /* facetgraphtab.h */; };
@@ -516,15 +513,10 @@
 		0543AEB41811E12A002758F8 /* tri3algebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B71811D920002CC2AE /* tri3algebra.h */; };
 		0543AEB51811E12A002758F8 /* tri3ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5BB1811D920002CC2AE /* tri3ui.h */; };
 		0543AEB61811E12A002758F8 /* tri3composition.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5BD1811D920002CC2AE /* tri3composition.h */; };
-		0543AEB81811E12A002758F8 /* tri3skeleton.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C11811D920002CC2AE /* tri3skeleton.h */; };
-		0543AEB91811E12A002758F8 /* tri3snappea.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C31811D920002CC2AE /* tri3snappea.h */; };
-		0543AEBA1811E12A002758F8 /* tri3surfaces.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C51811D920002CC2AE /* tri3surfaces.h */; };
-		0543AEBB1811E12A002758F8 /* skeletonwindow.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C71811D920002CC2AE /* skeletonwindow.h */; };
 		0543AEBC1811E12A002758F8 /* snappeacomponents.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C91811D920002CC2AE /* snappeacomponents.h */; };
 		0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5CF1811D920002CC2AE /* patiencedialog.h */; };
 		0543AEBF1811E12A002758F8 /* progressdialogs.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5D11811D920002CC2AE /* progressdialogs.h */; };
 		0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5DF1811D920002CC2AE /* recentfilesaction.h */; };
-		0543AEC11811E12A002758F8 /* reginaabout.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5E71811D920002CC2AE /* reginaabout.h */; };
 		0543AEC31811E12A002758F8 /* reginamanager.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5EC1811D920002CC2AE /* reginamanager.h */; };
 		0543AEC61811E12A002758F8 /* shortrunner.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5F61811D920002CC2AE /* shortrunner.h */; };
 		0544BBA92B0D6AD600FF26CD /* LinkAlgebra.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544BBA42B0D6AD500FF26CD /* LinkAlgebra.swift */; };
@@ -1134,7 +1126,6 @@
 		0582FDEA2731FE3300203AE7 /* attachment.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0582FDE92731FE3300203AE7 /* attachment.cpp */; };
 		0582FDEE2731FE5800203AE7 /* attachmenthandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0582FDED2731FE5800203AE7 /* attachmenthandler.cpp */; };
 		0582FDF12731FE8D00203AE7 /* attachmentui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0582FDF02731FE8D00203AE7 /* attachmentui.cpp */; };
-		0582FDF22731FEA300203AE7 /* attachmentui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0582FDEF2731FE8D00203AE7 /* attachmentui.h */; };
 		0583656218DB8876008B08D9 /* double_SnapPy.h in Headers */ = {isa = PBXBuildFile; fileRef = 0583655E18DB8876008B08D9 /* double_SnapPy.h */; };
 		0583656318DB8876008B08D9 /* end_namespace.h in Headers */ = {isa = PBXBuildFile; fileRef = 0583655F18DB8876008B08D9 /* end_namespace.h */; };
 		0583656518DB8876008B08D9 /* real_type.h in Headers */ = {isa = PBXBuildFile; fileRef = 0583656118DB8876008B08D9 /* real_type.h */; };
@@ -1173,7 +1164,6 @@
 		0591E8421C4F769100793A9C /* tri4skeleton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8311C4F767300793A9C /* tri4skeleton.cpp */; };
 		0591E8431C4F769100793A9C /* tri4ui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8331C4F767300793A9C /* tri4ui.cpp */; };
 		0591E8441C4F772B00793A9C /* tri4algebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 0591E82C1C4F767300793A9C /* tri4algebra.h */; };
-		0591E8471C4F773800793A9C /* tri4skeleton.h in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8321C4F767300793A9C /* tri4skeleton.h */; };
 		0591E8481C4F773C00793A9C /* tri4ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8341C4F767300793A9C /* tri4ui.h */; };
 		0591E85E1C50D28700793A9C /* enumerate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E85C1C50D28700793A9C /* enumerate.cpp */; };
 		0591E85F1C50D28700793A9C /* hyperflags.h in Headers */ = {isa = PBXBuildFile; fileRef = 0591E85D1C50D28700793A9C /* hyperflags.h */; };
@@ -1353,7 +1343,6 @@
 		05A73CE219B2F99B0099C617 /* groupwidget.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CBD19B2F1AB0099C617 /* groupwidget.h */; };
 		05A73CE319B2F9DC0099C617 /* snappeafile.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC319B2F1AB0099C617 /* snappeafile.h */; };
 		05A73CE419B2F9DC0099C617 /* snappeagluings.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC519B2F1AB0099C617 /* snappeagluings.h */; };
-		05A73CE519B2F9DC0099C617 /* snappeashapes.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC719B2F1AB0099C617 /* snappeashapes.h */; };
 		05A73CE619B2F9DC0099C617 /* snappeaui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC919B2F1AB0099C617 /* snappeaui.h */; };
 		05AA71EE1FB17E0100186E30 /* flype.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05AA71ED1FB17DFF00186E30 /* flype.cpp */; };
 		05AC685C1DFE729100FF1A4C /* layeredtorusbundle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05AC685A1DFE729100FF1A4C /* layeredtorusbundle.cpp */; };
@@ -1441,7 +1430,6 @@
 		05BDA5732CB64CCD006F4738 /* lattice_ideal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BDA55F2CB64CCD006F4738 /* lattice_ideal.cpp */; };
 		05BDA5752CB65B08006F4738 /* iterators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BDA5742CB65B08006F4738 /* iterators.cpp */; };
 		05BDA5842CB6648D006F4738 /* spatiallinkui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BDA5832CB6648D006F4738 /* spatiallinkui.cpp */; };
-		05BDA5852CB664BE006F4738 /* spatiallinkui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05BDA5822CB6648D006F4738 /* spatiallinkui.h */; };
 		05BF6FD02DB0001D0093D7A2 /* matrix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BF6FCF2DB0001D0093D7A2 /* matrix.cpp */; };
 		05BF6FD22DB0116A0093D7A2 /* alexander.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BF6FD12DB0116A0093D7A2 /* alexander.cpp */; };
 		05BF6FD32DB0116A0093D7A2 /* alexander.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05BF6FD12DB0116A0093D7A2 /* alexander.cpp */; };
@@ -10119,19 +10107,15 @@
 				0543AE991811E12A002758F8 /* coordinatechooser.h in Sources */,
 				05941EFA272A9E8600562586 /* elidedlabel.h in Sources */,
 				0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */,
-				0543AE9E1811E12A002758F8 /* newpacketdialog.h in Sources */,
 				0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */,
 				0543AEA11811E12A002758F8 /* packettabui.h in Sources */,
-				0543AE911811DE79002758F8 /* packetui.h in Sources */,
 				0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */,
 				0543AEBF1811E12A002758F8 /* progressdialogs.h in Sources */,
 				0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */,
-				0543AEC11811E12A002758F8 /* reginaabout.h in Sources */,
 				0543AEC31811E12A002758F8 /* reginamanager.h in Sources */,
 				05E62B3E2FDCF0C000AE1B84 /* reginaprefset.h in Sources */,
 				0543AEC61811E12A002758F8 /* shortrunner.h in Sources */,
 				0543AEA91811E12A002758F8 /* anglesui.h in Sources */,
-				0582FDF22731FEA300203AE7 /* attachmentui.h in Sources */,
 				0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */,
 				05866B7F2E52B0E000C74465 /* eltmovedialog2.h in Sources */,
 				0543AEA61811E12A002758F8 /* eltmovedialog3.h in Sources */,
@@ -10152,31 +10136,23 @@
 				05D322E51FA9241E00E5F9B8 /* linkmovedialog.h in Sources */,
 				05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */,
 				0543AEAC1811E12A002758F8 /* scriptui.h in Sources */,
-				0543AEBB1811E12A002758F8 /* skeletonwindow.h in Sources */,
 				052942DA1C5CDFBE0011C1E6 /* snappeaalgebra.h in Sources */,
 				0543AEBC1811E12A002758F8 /* snappeacomponents.h in Sources */,
 				05A73CE319B2F9DC0099C617 /* snappeafile.h in Sources */,
 				05A73CE419B2F9DC0099C617 /* snappeagluings.h in Sources */,
-				05A73CE519B2F9DC0099C617 /* snappeashapes.h in Sources */,
 				05A73CE619B2F9DC0099C617 /* snappeaui.h in Sources */,
-				05BDA5852CB664BE006F4738 /* spatiallinkui.h in Sources */,
 				0543AEAD1811E12A002758F8 /* surfacescompatui.h in Sources */,
 				0543AEB11811E12A002758F8 /* surfacesmatchingui.h in Sources */,
 				0543AEB21811E12A002758F8 /* surfacessummaryui.h in Sources */,
 				0543AEAB1811E12A002758F8 /* surfacesui.h in Sources */,
 				0543AEB31811E12A002758F8 /* textui.h in Sources */,
 				05E6297A2FBC880B00AE1B84 /* tri2composition.h in Sources */,
-				0543AEA41811E12A002758F8 /* tri2skeleton.h in Sources */,
 				0543AEA51811E12A002758F8 /* tri2ui.h in Sources */,
 				0543AEB41811E12A002758F8 /* tri3algebra.h in Sources */,
 				0543AEB61811E12A002758F8 /* tri3composition.h in Sources */,
-				0543AEB81811E12A002758F8 /* tri3skeleton.h in Sources */,
-				0543AEB91811E12A002758F8 /* tri3snappea.h in Sources */,
-				0543AEBA1811E12A002758F8 /* tri3surfaces.h in Sources */,
 				0543AEB51811E12A002758F8 /* tri3ui.h in Sources */,
 				0591E8441C4F772B00793A9C /* tri4algebra.h in Sources */,
 				05C265A4282B3B8200232420 /* tri4composition.h in Sources */,
-				0591E8471C4F773800793A9C /* tri4skeleton.h in Sources */,
 				0591E8481C4F773C00793A9C /* tri4ui.h in Sources */,
 				050F5E8A1B9BD9C100C1F681 /* commandedit.h in Sources */,
 				051691B81C5AD5AC00DC69EC /* hypercoordinateui.cpp in Sources */,

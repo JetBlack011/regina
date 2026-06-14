@@ -95,7 +95,8 @@ HyperCompatibilityUI::HyperCompatibilityUI(
         "hypersurfaces (which is why this matrix is not always "
         "calculated automatically).</qt>"));
     hdrLayout->addWidget(btnCalculate);
-    connect(btnCalculate, SIGNAL(clicked()), this, SLOT(calculate()));
+    connect(btnCalculate, &QPushButton::clicked, this,
+        &HyperCompatibilityUI::calculate);
 
     stack = new QStackedWidget(ui);
     layerNone = new MessageLayer("dialog-information");

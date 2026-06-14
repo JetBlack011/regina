@@ -311,8 +311,8 @@ LinkMoveDialog::LinkMoveDialog(QWidget* parent,
 
     connect(box2upOver, SIGNAL(activated(int)), this,
         SLOT(changedR2UpOver(int)));
-    connect(buttons, SIGNAL(clicked(QAbstractButton*)), this,
-        SLOT(clicked(QAbstractButton*)));
+    connect(buttons, &QDialogButtonBox::clicked, this,
+        &QDialog::accept);
     connect(moveTypes, SIGNAL(buttonClicked(QAbstractButton*)), this,
         SLOT(updateApply()));
 

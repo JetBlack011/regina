@@ -144,9 +144,6 @@ class Tri3CompositionUI : public QObject, public PacketViewerTab,
          * Support clipboard actions.
          */
         void contextComposition(const QPoint& pos);
-        void copyStandardTri();
-        void copyIsoSig();
-        void copyCompositionLine();
 
     private:
         /**

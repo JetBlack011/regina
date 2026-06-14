@@ -154,7 +154,8 @@ Tri4CompositionUI::Tri4CompositionUI(
         "(if any) between this and the selected triangulation.  The precise "
         "mapping between pentachora and pentachoron vertices will be "
         "displayed in a separate window."));
-    connect(isoView, SIGNAL(clicked()), this, SLOT(viewIsomorphism()));
+    connect(isoView, &QPushButton::clicked, this,
+        &Tri4CompositionUI::viewIsomorphism);
     wideIsoArea->addWidget(isoView);
 
     layout->addStretch(6);
@@ -325,13 +326,11 @@ void Tri4CompositionUI::contextIsoSig(const QPoint& pos,
 
     QMenu m(tr("Context menu"), fromWidget);
     QAction a("Copy isomorphism signature", fromWidget);
-    connect(&a, SIGNAL(triggered()), this, SLOT(copyIsoSig()));
+    connect(&a, &QAction::triggered, this, [this]() {
+        if (! sig_.empty())
+            QApplication::clipboard()->setText(sig_.c_str());
+    });
     m.addAction(&a);
     m.exec(fromWidget->mapToGlobal(pos));
-}
-
-void Tri4CompositionUI::copyIsoSig() {
-    if (! sig_.empty())
-        QApplication::clipboard()->setText(sig_.c_str());
 }
 

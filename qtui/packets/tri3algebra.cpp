@@ -351,7 +351,8 @@ Tri3TuraevViroUI::Tri3TuraevViroUI(
         "<b>Warning:</b> This calculation can be quite slow for large "
         "values of <i>r</i>, since the processing time grows exponentially "
         "with <i>r</i>.</qt>"));
-    connect(calculate, SIGNAL(clicked()), this, SLOT(calculateInvariant()));
+    connect(calculate, &QPushButton::clicked, this,
+        qOverload<>(&Tri3TuraevViroUI::calculateInvariant));
     paramsArea->addWidget(calculate);
 
     paramsArea->addStretch(1);

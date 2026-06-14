@@ -154,7 +154,8 @@ Tri2CompositionUI::Tri2CompositionUI(
         "(if any) between this and the selected triangulation.  The precise "
         "mapping between triangles and triangle vertices will be "
         "displayed in a separate window."));
-    connect(isoView, SIGNAL(clicked()), this, SLOT(viewIsomorphism()));
+    connect(isoView, &QPushButton::clicked, this,
+        &Tri2CompositionUI::viewIsomorphism);
     wideIsoArea->addWidget(isoView);
 
     layout->addStretch(6);
@@ -323,13 +324,11 @@ void Tri2CompositionUI::contextIsoSig(const QPoint& pos,
 
     QMenu m(tr("Context menu"), fromWidget);
     QAction a("Copy isomorphism signature", fromWidget);
-    connect(&a, SIGNAL(triggered()), this, SLOT(copyIsoSig()));
+    connect(&a, &QAction::triggered, this, [this]() {
+        if (! sig_.empty())
+            QApplication::clipboard()->setText(sig_.c_str());
+    });
     m.addAction(&a);
     m.exec(fromWidget->mapToGlobal(pos));
-}
-
-void Tri2CompositionUI::copyIsoSig() {
-    if (! sig_.empty())
-        QApplication::clipboard()->setText(sig_.c_str());
 }
 

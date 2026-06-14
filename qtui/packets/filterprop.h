@@ -104,13 +104,6 @@ class FilterPropUI : public QObject, public PacketUI {
          */
         bool notifyOptionsChanged();
 
-        /**
-         * Update the enabled/disable state of particular components.
-         */
-        void enableDisableOrient();
-        void enableDisableCompact();
-        void enableDisableBdry();
-
     private:
         /**
          * Translate between UI elements and underlying filter options.

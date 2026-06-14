@@ -616,7 +616,9 @@ void LinkPolynomialUI::contextAlexander(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyAlexander);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(alexander->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyAlexanderPlain);
     m.addAction(&copy);
@@ -633,7 +635,9 @@ void LinkPolynomialUI::contextJones(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyJones);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(jones->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyJonesPlain);
     m.addAction(&copy);
@@ -650,7 +654,9 @@ void LinkPolynomialUI::contextHomfly(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyHomfly);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(homfly->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyHomflyPlain);
     m.addAction(&copy);
@@ -667,7 +673,9 @@ void LinkPolynomialUI::contextBracket(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyBracket);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(bracket->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyBracketPlain);
     m.addAction(&copy);
@@ -684,7 +692,9 @@ void LinkPolynomialUI::contextArrow(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this, &LinkPolynomialUI::copyArrow);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(arrow->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyArrowPlain);
     m.addAction(&copy);
@@ -700,38 +710,15 @@ void LinkPolynomialUI::contextAffineIndex(const QPoint& pos) {
 
     QAction copy("Copy", this);
     QAction copyPlain("Copy plain text", this);
-    connect(&copy, &QAction::triggered, this,
-        &LinkPolynomialUI::copyAffineIndex);
+    connect(&copy, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(affineIndex->text());
+    });
     connect(&copyPlain, &QAction::triggered, this,
         &LinkPolynomialUI::copyAffineIndexPlain);
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
     m.exec(affineIndex->mapToGlobal(pos));
-}
-
-void LinkPolynomialUI::copyAlexander() {
-    QApplication::clipboard()->setText(alexander->text());
-}
-
-void LinkPolynomialUI::copyJones() {
-    QApplication::clipboard()->setText(jones->text());
-}
-
-void LinkPolynomialUI::copyHomfly() {
-    QApplication::clipboard()->setText(homfly->text());
-}
-
-void LinkPolynomialUI::copyBracket() {
-    QApplication::clipboard()->setText(bracket->text());
-}
-
-void LinkPolynomialUI::copyArrow() {
-    QApplication::clipboard()->setText(arrow->text());
-}
-
-void LinkPolynomialUI::copyAffineIndex() {
-    QApplication::clipboard()->setText(affineIndex->text());
 }
 
 void LinkPolynomialUI::copyAlexanderPlain() {

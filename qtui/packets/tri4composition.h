@@ -124,11 +124,6 @@ class Tri4CompositionUI : public QObject, public PacketViewerTab,
          * View the isomorphism details.
          */
         void viewIsomorphism();
-
-        /**
-         * Support clipboard actions.
-         */
-        void copyIsoSig();
 };
 
 #endif

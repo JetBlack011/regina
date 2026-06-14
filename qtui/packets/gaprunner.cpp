@@ -134,7 +134,7 @@ GAPRunner::GAPRunner(QWidget* parent, const QString& useExec,
     if (! proc->waitForStarted(10000 /* milliseconds */))
         error(tr("GAP could not be started."));
 
-    connect(killBtn, SIGNAL(clicked()), this, SLOT(slotCancel()));
+    connect(killBtn, &QPushButton::clicked, this, &GAPRunner::slotCancel);
 }
 
 GAPRunner::~GAPRunner() {

@@ -355,8 +355,8 @@ EltMoveDialog4::EltMoveDialog4(QWidget* parent,
         QDialogButtonBox::Apply | QDialogButtonBox::Close);
     dialogLayout->addWidget(buttons);
 
-    connect(buttons, SIGNAL(clicked(QAbstractButton*)), this,
-        SLOT(clicked(QAbstractButton*)));
+    connect(buttons, &QDialogButtonBox::clicked, this,
+        &QDialog::accept);
     connect(moveTypes, SIGNAL(buttonClicked(QAbstractButton*)), this,
         SLOT(updateApply()));
 
