@@ -185,15 +185,15 @@ FilterPropUI::FilterPropUI(SurfaceFilterProperties* packet,
     connect(useBdry, &QCheckBox::clicked,
         this, &FilterPropUI::notifyOptionsChanged);
 
-    connect(optOrient, SIGNAL(activated(int)),
-        this, SLOT(notifyOptionsChanged()));
-    connect(optCompact, SIGNAL(activated(int)),
-        this, SLOT(notifyOptionsChanged()));
-    connect(optBdry, SIGNAL(activated(int)),
-        this, SLOT(notifyOptionsChanged()));
+    connect(optOrient, &QComboBox::activated, this,
+        &FilterPropUI::notifyOptionsChanged);
+    connect(optCompact, &QComboBox::activated, this,
+        &FilterPropUI::notifyOptionsChanged);
+    connect(optBdry, &QComboBox::activated, this,
+        &FilterPropUI::notifyOptionsChanged);
 
-    connect(eulerList, SIGNAL(editingFinished()),
-        this, SLOT(notifyOptionsChanged()));
+    connect(eulerList, &QLineEdit::editingFinished, this,
+        &FilterPropUI::notifyOptionsChanged);
 }
 
 regina::Packet* FilterPropUI::getPacket() {

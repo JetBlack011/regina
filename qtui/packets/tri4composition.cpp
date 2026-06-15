@@ -77,7 +77,8 @@ Tri4CompositionUI::Tri4CompositionUI(
     line->addWidget(isoSig, 1);
     isoSigVariant = new TriSigChooser(ui);
     isoSigVariant->setWhatsThis(msg);
-    connect(isoSigVariant, SIGNAL(activated(int)), this, SLOT(updateIsoSig()));
+    connect(isoSigVariant, &QComboBox::activated, this,
+        &Tri4CompositionUI::updateIsoSig);
     line->addWidget(isoSigVariant);
     layout->addLayout(line);
 
@@ -138,7 +139,8 @@ Tri4CompositionUI::Tri4CompositionUI(
         PacketChooser::RootRole::Packet, true, nullptr, ui);
     isoTest->setAutoUpdate(true);
     isoTest->setWhatsThis(msg);
-    connect(isoTest, SIGNAL(activated(int)), this, SLOT(updateIsoPanel()));
+    connect(isoTest, &QComboBox::activated, this,
+        &Tri4CompositionUI::updateIsoPanel);
     isoSelectArea->addWidget(isoTest, 1);
     // isoSelectArea->addStretch(1);
 

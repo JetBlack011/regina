@@ -135,8 +135,6 @@ class Dim4FacetGraphData : public FacetGraphData {
  * an appropriate subclass of FacetGraphData is defined.
  */
 class FacetGraphTab : public QObject, public PacketViewerTab {
-    Q_OBJECT
-
     private:
         /**
          * Packet and graphing details
@@ -177,7 +175,6 @@ class FacetGraphTab : public QObject, public PacketViewerTab {
         QWidget* getInterface() override;
         void refresh() override;
 
-    public slots:
         /**
          * Reflect preference changes.
          */

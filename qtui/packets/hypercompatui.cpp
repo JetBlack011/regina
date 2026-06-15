@@ -69,7 +69,8 @@ HyperCompatibilityUI::HyperCompatibilityUI(
     hdrLayout->addWidget(label);
     chooseMatrix = new QComboBox(ui);
     chooseMatrix->addItem(tr("Local compatibility (prism types)"));
-    connect(chooseMatrix, SIGNAL(activated(int)), this, SLOT(changeLayer(int)));
+    connect(chooseMatrix, &QComboBox::activated, this,
+        &HyperCompatibilityUI::changeLayer);
     hdrLayout->addWidget(chooseMatrix);
     QString msg = tr("<qt>Allows you to switch between different types of "
         "compatibility matrix.<p>"

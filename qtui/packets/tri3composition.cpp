@@ -138,7 +138,8 @@ Tri3CompositionUI::Tri3CompositionUI(regina::Triangulation<3>* tri,
     line->addWidget(isoSig, 1);
     isoSigVariant = new TriSigChooser(ui);
     isoSigVariant->setWhatsThis(msg);
-    connect(isoSigVariant, SIGNAL(activated(int)), this, SLOT(updateIsoSig()));
+    connect(isoSigVariant, &QComboBox::activated, this,
+        &Tri3CompositionUI::updateIsoSig);
     line->addWidget(isoSigVariant);
     layout->addLayout(line);
 
@@ -221,7 +222,8 @@ Tri3CompositionUI::Tri3CompositionUI(regina::Triangulation<3>* tri,
         PacketChooser::RootRole::Packet, true, nullptr, ui);
     isoTest->setAutoUpdate(true);
     isoTest->setWhatsThis(msg);
-    connect(isoTest, SIGNAL(activated(int)), this, SLOT(updateIsoPanel()));
+    connect(isoTest, &QComboBox::activated, this,
+        &Tri3CompositionUI::updateIsoPanel);
     isoSelectArea->addWidget(isoTest, 1);
     // isoSelectArea->addStretch(1);
 

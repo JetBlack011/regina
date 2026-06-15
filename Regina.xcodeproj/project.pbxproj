@@ -143,10 +143,6 @@
 		051691B91C5AD5AC00DC69EC /* hypermatchingui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691A71C5AD59000DC69EC /* hypermatchingui.cpp */; };
 		051691BA1C5AD5AC00DC69EC /* hypersummaryui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691A91C5AD59000DC69EC /* hypersummaryui.cpp */; };
 		051691BB1C5AD5AC00DC69EC /* hyperui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 051691AB1C5AD59000DC69EC /* hyperui.cpp */; };
-		051691BC1C5AD60100DC69EC /* hypercompatui.h in Sources */ = {isa = PBXBuildFile; fileRef = 051691A41C5AD59000DC69EC /* hypercompatui.h */; };
-		051691BE1C5AD60A00DC69EC /* hypermatchingui.h in Sources */ = {isa = PBXBuildFile; fileRef = 051691A81C5AD59000DC69EC /* hypermatchingui.h */; };
-		051691BF1C5AD60D00DC69EC /* hypersummaryui.h in Sources */ = {isa = PBXBuildFile; fileRef = 051691AA1C5AD59000DC69EC /* hypersummaryui.h */; };
-		051691C01C5AD61200DC69EC /* hyperui.h in Sources */ = {isa = PBXBuildFile; fileRef = 051691AC1C5AD59000DC69EC /* hyperui.h */; };
 		051806AC2C2B9512001470F1 /* fixedarray.h in Headers */ = {isa = PBXBuildFile; fileRef = 051806AB2C2B9512001470F1 /* fixedarray.h */; };
 		051806D4181202BD008EBB01 /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 051806D3181202BD008EBB01 /* icons */; };
 		0518B99429D5932D0020ADC1 /* snappy_get_gluing_equations.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0518B99329D5932C0020ADC1 /* snappy_get_gluing_equations.cpp */; };
@@ -494,25 +490,11 @@
 		0543AE991811E12A002758F8 /* coordinatechooser.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A41E1811D91E002CC2AE /* coordinatechooser.h */; };
 		0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4231811D91E002CC2AE /* examplesaction.h */; };
 		0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A57E1811D920002CC2AE /* packeteditiface.h */; };
-		0543AEA11811E12A002758F8 /* packettabui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5831811D920002CC2AE /* packettabui.h */; };
-		0543AEA51811E12A002758F8 /* tri2ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A58F1811D920002CC2AE /* tri2ui.h */; };
-		0543AEA71811E12A002758F8 /* facetgraphtab.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5931811D920002CC2AE /* facetgraphtab.h */; };
-		0543AEA81811E12A002758F8 /* gaprunner.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5951811D920002CC2AE /* gaprunner.h */; };
-		0543AEA91811E12A002758F8 /* anglesui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5991811D920002CC2AE /* anglesui.h */; };
 		0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A59B1811D920002CC2AE /* compatcanvas.h */; };
-		0543AEAB1811E12A002758F8 /* surfacesui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A11811D920002CC2AE /* surfacesui.h */; };
 		0543AEAC1811E12A002758F8 /* scriptui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A51811D920002CC2AE /* scriptui.h */; };
-		0543AEAD1811E12A002758F8 /* surfacescompatui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A71811D920002CC2AE /* surfacescompatui.h */; };
-		0543AEB01811E12A002758F8 /* filterprop.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5AF1811D920002CC2AE /* filterprop.h */; };
-		0543AEB11811E12A002758F8 /* surfacesmatchingui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B11811D920002CC2AE /* surfacesmatchingui.h */; };
-		0543AEB21811E12A002758F8 /* surfacessummaryui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B31811D920002CC2AE /* surfacessummaryui.h */; };
 		0543AEB31811E12A002758F8 /* textui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B51811D920002CC2AE /* textui.h */; };
-		0543AEB41811E12A002758F8 /* tri3algebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B71811D920002CC2AE /* tri3algebra.h */; };
-		0543AEB51811E12A002758F8 /* tri3ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5BB1811D920002CC2AE /* tri3ui.h */; };
-		0543AEB61811E12A002758F8 /* tri3composition.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5BD1811D920002CC2AE /* tri3composition.h */; };
 		0543AEBC1811E12A002758F8 /* snappeacomponents.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C91811D920002CC2AE /* snappeacomponents.h */; };
 		0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5CF1811D920002CC2AE /* patiencedialog.h */; };
-		0543AEBF1811E12A002758F8 /* progressdialogs.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5D11811D920002CC2AE /* progressdialogs.h */; };
 		0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5DF1811D920002CC2AE /* recentfilesaction.h */; };
 		0543AEC31811E12A002758F8 /* reginamanager.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5EC1811D920002CC2AE /* reginamanager.h */; };
 		0543AEC61811E12A002758F8 /* shortrunner.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5F61811D920002CC2AE /* shortrunner.h */; };
@@ -1159,8 +1141,6 @@
 		0591E8411C4F769100793A9C /* tri4gluings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E82F1C4F767300793A9C /* tri4gluings.cpp */; };
 		0591E8421C4F769100793A9C /* tri4skeleton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8311C4F767300793A9C /* tri4skeleton.cpp */; };
 		0591E8431C4F769100793A9C /* tri4ui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8331C4F767300793A9C /* tri4ui.cpp */; };
-		0591E8441C4F772B00793A9C /* tri4algebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 0591E82C1C4F767300793A9C /* tri4algebra.h */; };
-		0591E8481C4F773C00793A9C /* tri4ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8341C4F767300793A9C /* tri4ui.h */; };
 		0591E85E1C50D28700793A9C /* enumerate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E85C1C50D28700793A9C /* enumerate.cpp */; };
 		0591E85F1C50D28700793A9C /* hyperflags.h in Headers */ = {isa = PBXBuildFile; fileRef = 0591E85D1C50D28700793A9C /* hyperflags.h */; };
 		0591E8631C50D2B000793A9C /* hyperflags.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8611C50D2A900793A9C /* hyperflags.cpp */; };
@@ -1446,7 +1426,6 @@
 		05C1BED91DCA89DA007C946B /* triangulation7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C1BECB1DCA89DA007C946B /* triangulation7.cpp */; };
 		05C1BEDA1DCA89DA007C946B /* triangulation8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C1BECC1DCA89DA007C946B /* triangulation8.cpp */; };
 		05C265A3282B3B3900232420 /* tri4composition.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C265A1282B3B3900232420 /* tri4composition.cpp */; };
-		05C265A4282B3B8200232420 /* tri4composition.h in Sources */ = {isa = PBXBuildFile; fileRef = 05C265A2282B3B3900232420 /* tri4composition.h */; };
 		05C265B3282C948700232420 /* facetpairing7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C265B2282C947D00232420 /* facetpairing7.cpp */; };
 		05C265B4282C948700232420 /* facetpairing2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C265B0282C947C00232420 /* facetpairing2.cpp */; };
 		05C265B5282C948700232420 /* facetpairing3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05C265A9282C947C00232420 /* facetpairing3.cpp */; };
@@ -1494,10 +1473,8 @@
 		05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322BF1F9FE72000E5F9B8 /* linkui.h */; };
 		05D322C91F9FED7F00E5F9B8 /* linkcrossings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322C61F9FED7700E5F9B8 /* linkcrossings.cpp */; };
 		05D322D01FA0415000E5F9B8 /* linkgraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322CD1FA0414400E5F9B8 /* linkgraph.cpp */; };
-		05D322D11FA0416000E5F9B8 /* linkgraph.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322CC1FA0414200E5F9B8 /* linkgraph.h */; };
 		05D322D61FA1415700E5F9B8 /* linkpoly.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D21FA1414F00E5F9B8 /* linkpoly.cpp */; };
 		05D322DC1FA1EC1C00E5F9B8 /* linkcodes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D91FA1EC1400E5F9B8 /* linkcodes.cpp */; };
-		05D322DD1FA1EC3B00E5F9B8 /* linkcodes.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D81FA1EC1200E5F9B8 /* linkcodes.h */; };
 		05D322E41FA923FB00E5F9B8 /* linkmovedialog.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322E11FA923F000E5F9B8 /* linkmovedialog.cpp */; };
 		05DADB1821928EC400DC80E1 /* binom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05DADB1621928EBF00DC80E1 /* binom.cpp */; };
 		05DC13811FEB86E900171D66 /* retriangulate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05DC13801FEB86E900171D66 /* retriangulate.cpp */; };
@@ -1519,7 +1496,6 @@
 		05E0F1EE2582429000965440 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 05E0EFEE258241E100965440 /* libz.tbd */; };
 		05E221D52CEC24F3009D5D4E /* permsn.h in Headers */ = {isa = PBXBuildFile; fileRef = 05E221D42CEC24F3009D5D4E /* permsn.h */; };
 		05E221D82CEC2525009D5D4E /* permsn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E221D72CEC2525009D5D4E /* permsn.cpp */; };
-		05E6297A2FBC880B00AE1B84 /* tri2composition.h in Sources */ = {isa = PBXBuildFile; fileRef = 0545A04F2FBBCD71008D3ADB /* tri2composition.h */; };
 		05E6297E2FBFAB6800AE1B84 /* isomorphism.h in Headers */ = {isa = PBXBuildFile; fileRef = 05E6297D2FBFAB6800AE1B84 /* isomorphism.h */; };
 		05E629812FBFB32100AE1B84 /* hidim.h in Headers */ = {isa = PBXBuildFile; fileRef = 05E629802FBFB32100AE1B84 /* hidim.h */; };
 		05E629832FBFC5C500AE1B84 /* triangulation.h in Headers */ = {isa = PBXBuildFile; fileRef = 05E629822FBFC5C500AE1B84 /* triangulation.h */; };
@@ -10103,27 +10079,15 @@
 				05941EFA272A9E8600562586 /* elidedlabel.h in Sources */,
 				0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */,
 				0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */,
-				0543AEA11811E12A002758F8 /* packettabui.h in Sources */,
 				0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */,
-				0543AEBF1811E12A002758F8 /* progressdialogs.h in Sources */,
 				0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */,
 				0543AEC31811E12A002758F8 /* reginamanager.h in Sources */,
 				05E62B3E2FDCF0C000AE1B84 /* reginaprefset.h in Sources */,
 				0543AEC61811E12A002758F8 /* shortrunner.h in Sources */,
-				0543AEA91811E12A002758F8 /* anglesui.h in Sources */,
 				0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */,
-				0543AEA71811E12A002758F8 /* facetgraphtab.h in Sources */,
-				0543AEB01811E12A002758F8 /* filterprop.h in Sources */,
-				0543AEA81811E12A002758F8 /* gaprunner.h in Sources */,
 				05A73CE219B2F99B0099C617 /* groupwidget.h in Sources */,
 				05E629B02FBFE4B100AE1B84 /* hidimui.h in Sources */,
-				051691BC1C5AD60100DC69EC /* hypercompatui.h in Sources */,
-				051691BE1C5AD60A00DC69EC /* hypermatchingui.h in Sources */,
-				051691BF1C5AD60D00DC69EC /* hypersummaryui.h in Sources */,
-				051691C01C5AD61200DC69EC /* hyperui.h in Sources */,
 				056F746C2767551F00F7EAC9 /* linkalgebra.h in Sources */,
-				05D322DD1FA1EC3B00E5F9B8 /* linkcodes.h in Sources */,
-				05D322D11FA0416000E5F9B8 /* linkgraph.h in Sources */,
 				05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */,
 				0543AEAC1811E12A002758F8 /* scriptui.h in Sources */,
 				052942DA1C5CDFBE0011C1E6 /* snappeaalgebra.h in Sources */,
@@ -10131,19 +10095,7 @@
 				05A73CE319B2F9DC0099C617 /* snappeafile.h in Sources */,
 				05A73CE419B2F9DC0099C617 /* snappeagluings.h in Sources */,
 				05A73CE619B2F9DC0099C617 /* snappeaui.h in Sources */,
-				0543AEAD1811E12A002758F8 /* surfacescompatui.h in Sources */,
-				0543AEB11811E12A002758F8 /* surfacesmatchingui.h in Sources */,
-				0543AEB21811E12A002758F8 /* surfacessummaryui.h in Sources */,
-				0543AEAB1811E12A002758F8 /* surfacesui.h in Sources */,
 				0543AEB31811E12A002758F8 /* textui.h in Sources */,
-				05E6297A2FBC880B00AE1B84 /* tri2composition.h in Sources */,
-				0543AEA51811E12A002758F8 /* tri2ui.h in Sources */,
-				0543AEB41811E12A002758F8 /* tri3algebra.h in Sources */,
-				0543AEB61811E12A002758F8 /* tri3composition.h in Sources */,
-				0543AEB51811E12A002758F8 /* tri3ui.h in Sources */,
-				0591E8441C4F772B00793A9C /* tri4algebra.h in Sources */,
-				05C265A4282B3B8200232420 /* tri4composition.h in Sources */,
-				0591E8481C4F773C00793A9C /* tri4ui.h in Sources */,
 				050F5E8A1B9BD9C100C1F681 /* commandedit.h in Sources */,
 				051691B81C5AD5AC00DC69EC /* hypercoordinateui.cpp in Sources */,
 				050F5E7E1B9BD6F400C1F681 /* pythonconsole.cpp in Sources */,
