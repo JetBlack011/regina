@@ -7,9 +7,10 @@
 // You MUST NOT SELECT this configuration in the Xcode project tab - this file
 // is only intended to be #included by other configurations.
 
-// Third-party tools that Regina uses in its build:
+// Third-party tools and libraries that Regina uses in its build:
 
 DOXYGEN = /opt/local/bin/doxygen
+QTDIR = /Users/bab/Qt/current
 
 // A basic configuration for codesigning that is not good for anything other
 // than running building and locally.
