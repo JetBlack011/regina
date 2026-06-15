@@ -10,7 +10,7 @@
 // Third-party tools and libraries that Regina uses in its build:
 
 DOXYGEN = /opt/local/bin/doxygen
-QTDIR = /Users/bab/Qt/current
+QTDIR = /Users/bab/Qt/current/macos
 
 // A basic configuration for codesigning that is not good for anything other
 // than running building and locally.

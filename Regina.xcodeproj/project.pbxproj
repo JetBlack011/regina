@@ -1702,7 +1702,7 @@
 				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE)_moc.cxx",
 			);
 			runOncePerArchitecture = 0;
-			script = "${QTDIR}/macos/libexec/moc \\\n-I${QTDIR}/macos/lib/QtCore.framework/Headers \\\n-I${QTDIR}/macos/lib/QtGui.framework/Headers \\\n-I${QTDIR}/macos/lib/QtSvg.framework/Headers \\\n-I${QTDIR}/macos/lib/QtWidgets.framework/Headers \\\n-DQT_GUI_LIB -DQT_CORE_LIB \\\n-o \"${DERIVED_FILE_DIR}/${INPUT_FILE_BASE}_moc.cxx\" \"${INPUT_FILE_PATH}\"\n";
+			script = "${QTDIR}/libexec/moc \\\n-I${QTDIR}/lib/QtCore.framework/Headers \\\n-I${QTDIR}/lib/QtGui.framework/Headers \\\n-I${QTDIR}/lib/QtSvg.framework/Headers \\\n-I${QTDIR}/lib/QtWidgets.framework/Headers \\\n-DQT_GUI_LIB -DQT_CORE_LIB \\\n-o \"${DERIVED_FILE_DIR}/${INPUT_FILE_BASE}_moc.cxx\" \"${INPUT_FILE_PATH}\"\n";
 		};
 		05617AD71D9D3CBD00B1E33B /* PBXBuildRule */ = {
 			isa = PBXBuildRule;
@@ -11460,7 +11460,7 @@
 					"$(inherited)",
 					"$(LOCAL_LIBRARY_DIR)/Frameworks",
 					"$(USER_LIBRARY_DIR)/Frameworks",
-					"$(QTDIR)/macos/lib",
+					"$(QTDIR)/lib",
 					/Applications/Xcode.app/Contents/Developer/Library/Frameworks,
 				);
 				GCC_C_LANGUAGE_STANDARD = "compiler-default";
@@ -11476,11 +11476,11 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/qtui\"",
-					"$(QTDIR)/macos/lib/QtCore.framework/Headers",
-					"$(QTDIR)/macos/lib/QtGui.framework/Headers",
-					"$(QTDIR)/macos/lib/QtSvg.framework/Headers",
-					"$(QTDIR)/macos/lib/QtSvgWidgets.framework/Headers",
-					"$(QTDIR)/macos/lib/QtWidgets.framework/Headers",
+					"$(QTDIR)/lib/QtCore.framework/Headers",
+					"$(QTDIR)/lib/QtGui.framework/Headers",
+					"$(QTDIR)/lib/QtSvg.framework/Headers",
+					"$(QTDIR)/lib/QtSvgWidgets.framework/Headers",
+					"$(QTDIR)/lib/QtWidgets.framework/Headers",
 					/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Headers,
 				);
 				INFOPLIST_FILE = qtui/regina.plist;
@@ -11520,7 +11520,7 @@
 					"$(inherited)",
 					"$(LOCAL_LIBRARY_DIR)/Frameworks",
 					"$(USER_LIBRARY_DIR)/Frameworks",
-					"$(QTDIR)/macos/lib",
+					"$(QTDIR)/lib",
 					/Applications/Xcode.app/Contents/Developer/Library/Frameworks,
 				);
 				GCC_C_LANGUAGE_STANDARD = "compiler-default";
@@ -11534,11 +11534,11 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/qtui\"",
-					"$(QTDIR)/macos/lib/QtCore.framework/Headers",
-					"$(QTDIR)/macos/lib/QtGui.framework/Headers",
-					"$(QTDIR)/macos/lib/QtSvg.framework/Headers",
-					"$(QTDIR)/macos/lib/QtSvgWidgets.framework/Headers",
-					"$(QTDIR)/macos/lib/QtWidgets.framework/Headers",
+					"$(QTDIR)/lib/QtCore.framework/Headers",
+					"$(QTDIR)/lib/QtGui.framework/Headers",
+					"$(QTDIR)/lib/QtSvg.framework/Headers",
+					"$(QTDIR)/lib/QtSvgWidgets.framework/Headers",
+					"$(QTDIR)/lib/QtWidgets.framework/Headers",
 					/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Headers,
 				);
 				INFOPLIST_FILE = qtui/regina.plist;
