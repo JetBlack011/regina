@@ -339,9 +339,9 @@ EltMoveDialog3::EltMoveDialog3(QWidget* parent,
     dialogLayout->addWidget(buttons);
 
     connect(buttons, &QDialogButtonBox::clicked, this,
-        &QDialog::accept);
-    connect(moveTypes, SIGNAL(buttonClicked(QAbstractButton*)), this,
-        SLOT(updateApply()));
+        &EltMoveDialog3::clicked);
+    connect(moveTypes, &QButtonGroup::buttonClicked, this,
+        &EltMoveDialog3::updateApply);
 
     packetWasRenamed(*tri);
     packetWasChanged(*tri);

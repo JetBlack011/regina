@@ -309,12 +309,12 @@ LinkMoveDialog::LinkMoveDialog(QWidget* parent,
         QDialogButtonBox::Apply | QDialogButtonBox::Close);
     dialogLayout->addWidget(buttons);
 
-    connect(box2upOver, SIGNAL(activated(int)), this,
-        SLOT(changedR2UpOver(int)));
+    connect(box2upOver, &QComboBox::activated, this,
+        &LinkMoveDialog::changedR2UpOver);
     connect(buttons, &QDialogButtonBox::clicked, this,
-        &QDialog::accept);
-    connect(moveTypes, SIGNAL(buttonClicked(QAbstractButton*)), this,
-        SLOT(updateApply()));
+        &LinkMoveDialog::clicked);
+    connect(moveTypes, &QButtonGroup::buttonClicked, this,
+        &LinkMoveDialog::updateApply);
 
     packetWasRenamed(*link);
     packetWasChanged(*link);

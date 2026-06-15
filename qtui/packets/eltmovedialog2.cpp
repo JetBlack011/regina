@@ -173,9 +173,9 @@ EltMoveDialog2::EltMoveDialog2(QWidget* parent,
     dialogLayout->addWidget(buttons);
 
     connect(buttons, &QDialogButtonBox::clicked, this,
-        &QDialog::accept);
-    connect(moveTypes, SIGNAL(buttonClicked(QAbstractButton*)), this,
-        SLOT(updateApply()));
+        &EltMoveDialog2::clicked);
+    connect(moveTypes, &QButtonGroup::buttonClicked, this,
+        &EltMoveDialog2::updateApply);
 
     packetWasRenamed(*tri);
     packetWasChanged(*tri);

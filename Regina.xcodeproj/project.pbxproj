@@ -40,7 +40,6 @@
 		0504D3592DE59396003453CE /* arrow.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0504D3582DE59396003453CE /* arrow.cpp */; };
 		050613572F8DA057009CF16A /* isosig.h in Headers */ = {isa = PBXBuildFile; fileRef = 050613562F8DA057009CF16A /* isosig.h */; };
 		0507C5A71C54495D00D1C86C /* eltmovedialog4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0507C5A31C54494E00D1C86C /* eltmovedialog4.cpp */; };
-		0507C5A81C54497200D1C86C /* eltmovedialog4.h in Sources */ = {isa = PBXBuildFile; fileRef = 0507C5A41C54494E00D1C86C /* eltmovedialog4.h */; };
 		05098A6628F24CBC005E4716 /* typeutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05098A6528F24CBC005E4716 /* typeutils.cpp */; };
 		05098AB428F452C6005E4716 /* vector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05098AB328F452C6005E4716 /* vector.cpp */; };
 		05098AB728F4C4CF005E4716 /* matrix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05098AB628F4C4CF005E4716 /* matrix.cpp */; };
@@ -497,7 +496,6 @@
 		0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A57E1811D920002CC2AE /* packeteditiface.h */; };
 		0543AEA11811E12A002758F8 /* packettabui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5831811D920002CC2AE /* packettabui.h */; };
 		0543AEA51811E12A002758F8 /* tri2ui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A58F1811D920002CC2AE /* tri2ui.h */; };
-		0543AEA61811E12A002758F8 /* eltmovedialog3.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5911811D920002CC2AE /* eltmovedialog3.h */; };
 		0543AEA71811E12A002758F8 /* facetgraphtab.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5931811D920002CC2AE /* facetgraphtab.h */; };
 		0543AEA81811E12A002758F8 /* gaprunner.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5951811D920002CC2AE /* gaprunner.h */; };
 		0543AEA91811E12A002758F8 /* anglesui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5991811D920002CC2AE /* anglesui.h */; };
@@ -505,7 +503,6 @@
 		0543AEAB1811E12A002758F8 /* surfacesui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A11811D920002CC2AE /* surfacesui.h */; };
 		0543AEAC1811E12A002758F8 /* scriptui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A51811D920002CC2AE /* scriptui.h */; };
 		0543AEAD1811E12A002758F8 /* surfacescompatui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A71811D920002CC2AE /* surfacescompatui.h */; };
-		0543AEAF1811E12A002758F8 /* filtercomb.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5AB1811D920002CC2AE /* filtercomb.h */; };
 		0543AEB01811E12A002758F8 /* filterprop.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5AF1811D920002CC2AE /* filterprop.h */; };
 		0543AEB11811E12A002758F8 /* surfacesmatchingui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B11811D920002CC2AE /* surfacesmatchingui.h */; };
 		0543AEB21811E12A002758F8 /* surfacessummaryui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B31811D920002CC2AE /* surfacessummaryui.h */; };
@@ -1131,7 +1128,6 @@
 		0583656518DB8876008B08D9 /* real_type.h in Headers */ = {isa = PBXBuildFile; fileRef = 0583656118DB8876008B08D9 /* real_type.h */; };
 		0583656D18DB8B68008B08D9 /* kernel_namespace.h in Headers */ = {isa = PBXBuildFile; fileRef = 0583656018DB8876008B08D9 /* kernel_namespace.h */; };
 		05866B7E2E52AF4C00C74465 /* eltmovedialog2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05866B7D2E52AF4C00C74465 /* eltmovedialog2.cpp */; };
-		05866B7F2E52B0E000C74465 /* eltmovedialog2.h in Sources */ = {isa = PBXBuildFile; fileRef = 05866B7C2E52AF4C00C74465 /* eltmovedialog2.h */; };
 		05870CAE1FAD24EF00835F9E /* modellinkgraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05870CAC1FAD24EB00835F9E /* modellinkgraph.cpp */; };
 		05870CB21FAD250900835F9E /* modellinkgraph.h in Headers */ = {isa = PBXBuildFile; fileRef = 05870CB01FAD250900835F9E /* modellinkgraph.h */; };
 		05870CB31FAD250900835F9E /* modellinkgraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05870CB11FAD250900835F9E /* modellinkgraph.cpp */; };
@@ -1503,7 +1499,6 @@
 		05D322DC1FA1EC1C00E5F9B8 /* linkcodes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D91FA1EC1400E5F9B8 /* linkcodes.cpp */; };
 		05D322DD1FA1EC3B00E5F9B8 /* linkcodes.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D81FA1EC1200E5F9B8 /* linkcodes.h */; };
 		05D322E41FA923FB00E5F9B8 /* linkmovedialog.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322E11FA923F000E5F9B8 /* linkmovedialog.cpp */; };
-		05D322E51FA9241E00E5F9B8 /* linkmovedialog.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322E01FA923ED00E5F9B8 /* linkmovedialog.h */; };
 		05DADB1821928EC400DC80E1 /* binom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05DADB1621928EBF00DC80E1 /* binom.cpp */; };
 		05DC13811FEB86E900171D66 /* retriangulate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05DC13801FEB86E900171D66 /* retriangulate.cpp */; };
 		05E0EFFE2582420A00965440 /* libxml2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 05E0EFED258241E100965440 /* libxml2.tbd */; };
@@ -10117,11 +10112,7 @@
 				0543AEC61811E12A002758F8 /* shortrunner.h in Sources */,
 				0543AEA91811E12A002758F8 /* anglesui.h in Sources */,
 				0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */,
-				05866B7F2E52B0E000C74465 /* eltmovedialog2.h in Sources */,
-				0543AEA61811E12A002758F8 /* eltmovedialog3.h in Sources */,
-				0507C5A81C54497200D1C86C /* eltmovedialog4.h in Sources */,
 				0543AEA71811E12A002758F8 /* facetgraphtab.h in Sources */,
-				0543AEAF1811E12A002758F8 /* filtercomb.h in Sources */,
 				0543AEB01811E12A002758F8 /* filterprop.h in Sources */,
 				0543AEA81811E12A002758F8 /* gaprunner.h in Sources */,
 				05A73CE219B2F99B0099C617 /* groupwidget.h in Sources */,
@@ -10133,7 +10124,6 @@
 				056F746C2767551F00F7EAC9 /* linkalgebra.h in Sources */,
 				05D322DD1FA1EC3B00E5F9B8 /* linkcodes.h in Sources */,
 				05D322D11FA0416000E5F9B8 /* linkgraph.h in Sources */,
-				05D322E51FA9241E00E5F9B8 /* linkmovedialog.h in Sources */,
 				05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */,
 				0543AEAC1811E12A002758F8 /* scriptui.h in Sources */,
 				052942DA1C5CDFBE0011C1E6 /* snappeaalgebra.h in Sources */,
