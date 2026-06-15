@@ -534,6 +534,13 @@ void HyperCoordinateUI::triangulate() {
                 "infinitely many normal pieces)."));
         return;
     }
+    if (! use.embedded()) {
+        ReginaSupport::info(ui,
+            tr("I can only triangulate properly embedded hypersurfaces."),
+            tr("The surface you have selected is either immersed or "
+                "singular."));
+        return;
+    }
 
     // Go ahead and triangulate it.
     auto ans = make_packet(use.triangulate(),
@@ -543,8 +550,7 @@ void HyperCoordinateUI::triangulate() {
 }
 
 void HyperCoordinateUI::updateActionStates() {
-    actTriangulate->setEnabled(table->selectionModel()->hasSelection() &&
-        surfaces->isEmbeddedOnly());
+    actTriangulate->setEnabled(table->selectionModel()->hasSelection());
 }
 
 void HyperCoordinateUI::columnResized(int section, int, int newSize) {

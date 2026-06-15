@@ -590,6 +590,7 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     actCutAlong->setIcon(ReginaSupport::regIcon("cutalong"));
     actCutAlong->setToolTip(tr("Cut the triangulation along the "
         "selected surface"));
+    actCutAlong->setEnabled(false);
     actCutAlong->setWhatsThis(tr("Cuts open the surround triangulation "
         "along the selected surface.  This triangulation will not "
         "be changed; instead a new cut-open triangulation will be created.<p>"
@@ -607,6 +608,7 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     actCrush->setText("Crus&h Surface");
     actCrush->setIcon(ReginaSupport::regIcon("crush"));
     actCrush->setToolTip(tr("Crush the selected surface to a point"));
+    actCrush->setEnabled(false);
     actCrush->setWhatsThis(tr("Crushes the selected surface to a point "
         "within the surrounding triangulation.  This triangulation will not "
         "be changed; instead a new crushed triangulation will be created.<p>"
@@ -619,6 +621,9 @@ SurfacesCoordinateUI::SurfacesCoordinateUI(
     surfaceActionList.push_back(actCrush);
     connect(actCrush, &QAction::triggered, this,
         &SurfacesCoordinateUI::crush);
+
+    connect(table->selectionModel(), &QItemSelectionModel::selectionChanged,
+        this, &SurfacesCoordinateUI::updateActionStates);
 
     // If we've changed the unicode setting, then we may need some redrawing.
     connect(&ReginaPrefSet::global(), &ReginaPrefSet::preferencesChanged,
@@ -665,6 +670,7 @@ void SurfacesCoordinateUI::refresh() {
         model->rebuild(selectedSystem); // Faster if the filter is the same.
 
     // Tidy up.
+    updateActionStates();
     if (coordsChanged) {
         currentlyResizing = true;
         table->header()->resizeSections(QHeaderView::ResizeToContents);
@@ -749,6 +755,11 @@ void SurfacesCoordinateUI::crush() {
         "Crushed #" + std::to_string(whichSurface));
     surfaces->append(ans);
     enclosingPane->getMainWindow()->packetView(*ans, true, true);
+}
+
+void SurfacesCoordinateUI::updateActionStates() {
+    actCutAlong->setEnabled(table->selectionModel()->hasSelection());
+    actCrush->setEnabled(table->selectionModel()->hasSelection());
 }
 
 void SurfacesCoordinateUI::columnResized(int section, int, int newSize) {

@@ -619,8 +619,10 @@ void LinkPolynomialUI::contextAlexander(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(alexander->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyAlexanderPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(link->alexander().str(
+            Link::alexanderVar).c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -638,8 +640,9 @@ void LinkPolynomialUI::contextJones(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(jones->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyJonesPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(jonesPlain().c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -657,8 +660,9 @@ void LinkPolynomialUI::contextHomfly(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(homfly->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyHomflyPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(homflyPlain().c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -676,8 +680,10 @@ void LinkPolynomialUI::contextBracket(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(bracket->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyBracketPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(
+            link->bracket().str(Link::bracketVar).c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -695,8 +701,9 @@ void LinkPolynomialUI::contextArrow(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(arrow->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyArrowPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(link->arrow().str().c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
@@ -713,53 +720,34 @@ void LinkPolynomialUI::contextAffineIndex(const QPoint& pos) {
     connect(&copy, &QAction::triggered, this, [this]() {
         QApplication::clipboard()->setText(affineIndex->text());
     });
-    connect(&copyPlain, &QAction::triggered, this,
-        &LinkPolynomialUI::copyAffineIndexPlain);
+    connect(&copyPlain, &QAction::triggered, this, [this]() {
+        QApplication::clipboard()->setText(link->affineIndex().str(
+            Link::affineIndexVar).c_str());
+    });
     m.addAction(&copy);
     m.addAction(&copyPlain);
 
     m.exec(affineIndex->mapToGlobal(pos));
 }
 
-void LinkPolynomialUI::copyAlexanderPlain() {
-    QApplication::clipboard()->setText(link->alexander().str(
-        Link::alexanderVar).c_str());
-}
-
-void LinkPolynomialUI::copyJonesPlain() {
+std::string LinkPolynomialUI::jonesPlain() {
     const auto& polySqrtT = link->jones();
     if (polySqrtT.isZero() || polySqrtT.minExp() % 2 == 0) {
         // We can express this as a polynomial in t.
         regina::Laurent<regina::Integer> scaled(polySqrtT);
         scaled.scaleDown(2);
-        QApplication::clipboard()->setText(scaled.str("t").c_str());
+        return scaled.str("t");
     } else {
         // Keep it as a polynomial in sqrt(t).
-        QApplication::clipboard()->setText(polySqrtT.str("sqrt_t").c_str());
+        return polySqrtT.str("sqrt_t");
     }
 }
 
-void LinkPolynomialUI::copyHomflyPlain() {
+std::string LinkPolynomialUI::homflyPlain() {
     if (! btnLM->isChecked())
-        QApplication::clipboard()->setText(
-            link->homflyAZ().str("a", "z").c_str());
+        return link->homflyAZ().str("a", "z");
     else
-        QApplication::clipboard()->setText(
-            link->homflyLM().str("l", "m").c_str());
-}
-
-void LinkPolynomialUI::copyBracketPlain() {
-    QApplication::clipboard()->setText(link->bracket().str(Link::bracketVar).
-        c_str());
-}
-
-void LinkPolynomialUI::copyArrowPlain() {
-    QApplication::clipboard()->setText(link->arrow().str().c_str());
-}
-
-void LinkPolynomialUI::copyAffineIndexPlain() {
-    QApplication::clipboard()->setText(link->affineIndex().str(
-        Link::affineIndexVar).c_str());
+        return link->homflyLM().str("l", "m");
 }
 
 void LinkPolynomialUI::homflyTypeChanged(bool checked) {
