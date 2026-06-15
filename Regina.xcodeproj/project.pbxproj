@@ -3203,9 +3203,9 @@
 		0564A6181811D921002CC2AE /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = "<group>"; };
 		05669D911DCB0E9A00C870C6 /* facetpairing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = facetpairing.h; sourceTree = "<group>"; };
 		05669D931DCB0E9A00C870C6 /* facetpairing3.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = facetpairing3.h; sourceTree = "<group>"; };
-		0567B4AC2581ABA20022EA5D /* libgmp.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libgmp.xcframework; path = ../../Library/Frameworks/libgmp.xcframework; sourceTree = "<group>"; };
-		0567B4BD2581ABA60022EA5D /* libgmpxx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libgmpxx.xcframework; path = ../../Library/Frameworks/libgmpxx.xcframework; sourceTree = "<group>"; };
-		0567B4CE2581ABAA0022EA5D /* libtokyocabinet.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libtokyocabinet.xcframework; path = ../../Library/Frameworks/libtokyocabinet.xcframework; sourceTree = "<group>"; };
+		0567B4AC2581ABA20022EA5D /* libgmp.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = libgmp.xcframework; sourceTree = "<group>"; };
+		0567B4BD2581ABA60022EA5D /* libgmpxx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = libgmpxx.xcframework; sourceTree = "<group>"; };
+		0567B4CE2581ABAA0022EA5D /* libtokyocabinet.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = libtokyocabinet.xcframework; sourceTree = "<group>"; };
 		05685F671F970E6200085B44 /* distcheck */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = distcheck; sourceTree = "<group>"; };
 		05685F6C1F970E6400085B44 /* RELEASE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = RELEASE.txt; sourceTree = "<group>"; };
 		05685F6E1F970E6500085B44 /* README.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = README.txt; sourceTree = "<group>"; };
@@ -3543,7 +3543,7 @@
 		057ED8EB2581B49E004F0068 /* QtDBus.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = QtDBus.framework; sourceTree = "<group>"; };
 		057ED8EC2581B49E004F0068 /* QtGui.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = QtGui.framework; sourceTree = "<group>"; };
 		057ED8ED2581B49E004F0068 /* QtWidgets.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = QtWidgets.framework; sourceTree = "<group>"; };
-		057ED9C32581BAAE004F0068 /* graphviz.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = graphviz.xcframework; path = ../../Library/Frameworks/graphviz.xcframework; sourceTree = "<group>"; };
+		057ED9C32581BAAE004F0068 /* graphviz.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = graphviz.xcframework; sourceTree = "<group>"; };
 		057EDAE42581D83A004F0068 /* libqtuiotouchplugin.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqtuiotouchplugin.dylib; path = generic/libqtuiotouchplugin.dylib; sourceTree = "<group>"; };
 		057EDAE62581D877004F0068 /* libqsvgicon.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqsvgicon.dylib; path = iconengines/libqsvgicon.dylib; sourceTree = "<group>"; };
 		057EDAE82581D8BA004F0068 /* libqgif.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqgif.dylib; path = imageformats/libqgif.dylib; sourceTree = "<group>"; };
@@ -3554,8 +3554,6 @@
 		057EDAF22581D95B004F0068 /* libqminimal.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqminimal.dylib; path = platforms/libqminimal.dylib; sourceTree = "<group>"; };
 		057EDAF32581D95B004F0068 /* libqoffscreen.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqoffscreen.dylib; path = platforms/libqoffscreen.dylib; sourceTree = "<group>"; };
 		057EDAF42581D95B004F0068 /* libqcocoa.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.bundle"; name = libqcocoa.dylib; path = platforms/libqcocoa.dylib; sourceTree = "<group>"; };
-		057EDEF82582370B004F0068 /* Python.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Python.xcframework; path = ../../Library/Frameworks/Python.xcframework; sourceTree = "<group>"; };
-		057EDF1925823779004F0068 /* XZ.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = XZ.xcframework; path = ../../Library/Frameworks/XZ.xcframework; sourceTree = "<group>"; };
 		057FDAF22EE56488000C706E /* stringutils.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = stringutils.cpp; sourceTree = "<group>"; };
 		057FDAF42EE7ACC3000C706E /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		057FDAF52EE7ACC3000C706E /* core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = core.h; sourceTree = "<group>"; };
@@ -3708,7 +3706,6 @@
 		059D023725BB08B6004150F7 /* retriangulate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = retriangulate.h; sourceTree = "<group>"; };
 		059D023825BB08B6004150F7 /* retriangulate-impl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "retriangulate-impl.h"; sourceTree = "<group>"; };
 		059D6168258866370011E905 /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
-		059D61692588663B0011E905 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		059ED6AA27A758680065424A /* operators.test */ = {isa = PBXFileReference; lastKnownFileType = text; path = operators.test; sourceTree = "<group>"; };
 		059ED6AB27A758680065424A /* operators.out */ = {isa = PBXFileReference; lastKnownFileType = text; path = operators.out; sourceTree = "<group>"; };
 		05A0251D25D48E500091372D /* constructors.test */ = {isa = PBXFileReference; lastKnownFileType = text; path = constructors.test; sourceTree = "<group>"; };
@@ -4321,7 +4318,7 @@
 		05E62AAA2FC5F1AF00AE1B84 /* strict_fstream.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = strict_fstream.hpp; sourceTree = "<group>"; };
 		05E62AAB2FC5F1AF00AE1B84 /* z_stream_wrapper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = z_stream_wrapper.hpp; sourceTree = "<group>"; };
 		05E62AAC2FC5F1AF00AE1B84 /* zstd_stream_wrapper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = zstd_stream_wrapper.hpp; sourceTree = "<group>"; };
-		05E62ABE2FC691BD00AE1B84 /* liblzma.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = liblzma.xcframework; path = ../../Library/Frameworks/liblzma.xcframework; sourceTree = "<absolute>"; };
+		05E62ABE2FC691BD00AE1B84 /* liblzma.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = liblzma.xcframework; sourceTree = "<group>"; };
 		05E62AC02FC7070F00AE1B84 /* christy-knots-links.xzsig */ = {isa = PBXFileReference; lastKnownFileType = file; path = "christy-knots-links.xzsig"; sourceTree = "<group>"; };
 		05E62AC12FC7070F00AE1B84 /* classical.xzsig */ = {isa = PBXFileReference; lastKnownFileType = file; path = classical.xzsig; sourceTree = "<group>"; };
 		05E62AC22FC7070F00AE1B84 /* closed-hyp-census-full.xzsig */ = {isa = PBXFileReference; lastKnownFileType = file; path = "closed-hyp-census-full.xzsig"; sourceTree = "<group>"; };
@@ -6427,20 +6424,16 @@
 			path = utilities;
 			sourceTree = "<group>";
 		};
-		052FA0AF180604A900FAE4DF /* Frameworks */ = {
+		052FA0AF180604A900FAE4DF /* System Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				057ED9C32581BAAE004F0068 /* graphviz.xcframework */,
-				0567B4AC2581ABA20022EA5D /* libgmp.xcframework */,
-				0567B4BD2581ABA60022EA5D /* libgmpxx.xcframework */,
-				05E62ABE2FC691BD00AE1B84 /* liblzma.xcframework */,
-				0567B4CE2581ABAA0022EA5D /* libtokyocabinet.xcframework */,
-				057EDEF82582370B004F0068 /* Python.xcframework */,
-				057EDF1925823779004F0068 /* XZ.xcframework */,
+				059D6168258866370011E905 /* libbz2.tbd */,
+				05E0EFEC258241E100965440 /* libiconv.tbd */,
+				05E0EFED258241E100965440 /* libxml2.tbd */,
+				05E0EFEE258241E100965440 /* libz.tbd */,
 				05B0E139259AAC87000B62A3 /* Python3.framework */,
-				05C65E781D9C7B1200877233 /* System */,
 			);
-			name = Frameworks;
+			name = "System Frameworks";
 			sourceTree = "<group>";
 		};
 		053CAB261DA7108F00A92F98 /* spec */ = {
@@ -7405,7 +7398,8 @@
 				05E62B202FDA2FEC00AE1B84 /* preconfig */,
 				059D015A25B6A6E3004150F7 /* timing */,
 				0575E65A1805F36D009E3FC4 /* Products */,
-				052FA0AF180604A900FAE4DF /* Frameworks */,
+				052FA0AF180604A900FAE4DF /* System Frameworks */,
+				05E62B412FE09B3300AE1B84 /* Local Frameworks */,
 				05E62B3F2FE0998B00AE1B84 /* Qt */,
 			);
 			sourceTree = "<group>";
@@ -7703,18 +7697,6 @@
 				05C1BED31DCA89DA007C946B /* triangulation15.cpp */,
 			);
 			path = explicit;
-			sourceTree = "<group>";
-		};
-		05C65E781D9C7B1200877233 /* System */ = {
-			isa = PBXGroup;
-			children = (
-				059D6168258866370011E905 /* libbz2.tbd */,
-				05E0EFEC258241E100965440 /* libiconv.tbd */,
-				059D61692588663B0011E905 /* libsqlite3.tbd */,
-				05E0EFED258241E100965440 /* libxml2.tbd */,
-				05E0EFEE258241E100965440 /* libz.tbd */,
-			);
-			name = System;
 			sourceTree = "<group>";
 		};
 		05CAE62B27450D89007C93F3 /* explicit */ = {
@@ -8294,6 +8276,19 @@
 			name = Frameworks;
 			path = lib;
 			sourceTree = "<group>";
+		};
+		05E62B412FE09B3300AE1B84 /* Local Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				057ED9C32581BAAE004F0068 /* graphviz.xcframework */,
+				0567B4AC2581ABA20022EA5D /* libgmp.xcframework */,
+				0567B4BD2581ABA60022EA5D /* libgmpxx.xcframework */,
+				05E62ABE2FC691BD00AE1B84 /* liblzma.xcframework */,
+				0567B4CE2581ABAA0022EA5D /* libtokyocabinet.xcframework */,
+			);
+			name = "Local Frameworks";
+			path = /Users/bab/Library/Frameworks;
+			sourceTree = "<absolute>";
 		};
 		05F09FC21DBF018400117BFC /* dim2 */ = {
 			isa = PBXGroup;
