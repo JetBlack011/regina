@@ -227,7 +227,6 @@
 		0529094C2AE5EA090028990D /* ReginaDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0529094B2AE5EA090028990D /* ReginaDocument.swift */; };
 		052909502AE5EA0A0028990D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0529094F2AE5EA0A0028990D /* Assets.xcassets */; };
 		052909532AE5EA0A0028990D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 052909522AE5EA0A0028990D /* Preview Assets.xcassets */; };
-		052942DA1C5CDFBE0011C1E6 /* snappeaalgebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CBF19B2F1AB0099C617 /* snappeaalgebra.h */; };
 		0529AB8F2DEF98CF00F02D9C /* complement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0529AB8E2DEF98CF00F02D9C /* complement.cpp */; };
 		0529AB902DEF98CF00F02D9C /* complement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0529AB8E2DEF98CF00F02D9C /* complement.cpp */; };
 		0529AB922DF0445500F02D9C /* truncate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0529AB912DF0445500F02D9C /* truncate.cpp */; };
@@ -487,17 +486,9 @@
 		05431FA91C40F5A2009BC072 /* perm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FA51C40F599009BC072 /* perm.cpp */; };
 		05431FAA1C40F5A2009BC072 /* perm2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FA61C40F599009BC072 /* perm2.cpp */; };
 		05431FCF1C40F663009BC072 /* intutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05431FCD1C40F65D009BC072 /* intutils.cpp */; };
-		0543AE991811E12A002758F8 /* coordinatechooser.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A41E1811D91E002CC2AE /* coordinatechooser.h */; };
 		0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A4231811D91E002CC2AE /* examplesaction.h */; };
 		0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A57E1811D920002CC2AE /* packeteditiface.h */; };
-		0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A59B1811D920002CC2AE /* compatcanvas.h */; };
-		0543AEAC1811E12A002758F8 /* scriptui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5A51811D920002CC2AE /* scriptui.h */; };
-		0543AEB31811E12A002758F8 /* textui.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5B51811D920002CC2AE /* textui.h */; };
-		0543AEBC1811E12A002758F8 /* snappeacomponents.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5C91811D920002CC2AE /* snappeacomponents.h */; };
-		0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5CF1811D920002CC2AE /* patiencedialog.h */; };
 		0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5DF1811D920002CC2AE /* recentfilesaction.h */; };
-		0543AEC31811E12A002758F8 /* reginamanager.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5EC1811D920002CC2AE /* reginamanager.h */; };
-		0543AEC61811E12A002758F8 /* shortrunner.h in Sources */ = {isa = PBXBuildFile; fileRef = 0564A5F61811D920002CC2AE /* shortrunner.h */; };
 		0544BBA92B0D6AD600FF26CD /* LinkAlgebra.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544BBA42B0D6AD500FF26CD /* LinkAlgebra.swift */; };
 		0544BBAA2B0D6AD600FF26CD /* LinkCrossings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544BBA52B0D6AD500FF26CD /* LinkCrossings.swift */; };
 		0544BBAB2B0D6AD600FF26CD /* LinkGraphs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544BBA62B0D6AD500FF26CD /* LinkGraphs.swift */; };
@@ -991,7 +982,6 @@
 		056AEDBC2A46690D00EAF4FA /* rational.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 056AEDBB2A46690D00EAF4FA /* rational.cpp */; };
 		056EC5502A288F2E006EE87A /* default_theme.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 056EC54F2A288F2E006EE87A /* default_theme.cpp */; };
 		056F746B276754CD00F7EAC9 /* linkalgebra.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 056F746A276754CC00F7EAC9 /* linkalgebra.cpp */; };
-		056F746C2767551F00F7EAC9 /* linkalgebra.h in Sources */ = {isa = PBXBuildFile; fileRef = 056F7469276754CC00F7EAC9 /* linkalgebra.h */; };
 		05721EE21F97153E00A83FFC /* jenkins.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05721ECE1F97153C00A83FFC /* jenkins.cpp */; };
 		05721EE31F97153E00A83FFC /* data-impl.h in Headers */ = {isa = PBXBuildFile; fileRef = 05721ECF1F97153C00A83FFC /* data-impl.h */; };
 		05721EE51F97153E00A83FFC /* gauss.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05721ED21F97153C00A83FFC /* gauss.cpp */; };
@@ -1146,7 +1136,6 @@
 		0591E8631C50D2B000793A9C /* hyperflags.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0591E8611C50D2A900793A9C /* hyperflags.cpp */; };
 		0591FB302E591B240061D270 /* virtual-census.rga in Copy Examples */ = {isa = PBXBuildFile; fileRef = 0591FB2E2E591AA80061D270 /* virtual-census.rga */; };
 		05941EF9272A9E3500562586 /* elidedlabel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05941EF7272A9E3500562586 /* elidedlabel.cpp */; };
-		05941EFA272A9E8600562586 /* elidedlabel.h in Sources */ = {isa = PBXBuildFile; fileRef = 05941EF8272A9E3500562586 /* elidedlabel.h */; };
 		059493072920B1C300940F0D /* permgroup.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 059493042920B1C200940F0D /* permgroup.cpp */; };
 		059493092920B1C300940F0D /* permgroup.h in Headers */ = {isa = PBXBuildFile; fileRef = 059493052920B1C300940F0D /* permgroup.h */; };
 		0594930A2920B1C300940F0D /* perm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 059493062920B1C300940F0D /* perm.cpp */; };
@@ -1317,9 +1306,6 @@
 		05A73CD519B2F2040099C617 /* columnlayout.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CD119B2F2040099C617 /* columnlayout.cpp */; };
 		05A73CD819B2F2180099C617 /* cuspchooser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CD619B2F2180099C617 /* cuspchooser.cpp */; };
 		05A73CE219B2F99B0099C617 /* groupwidget.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CBD19B2F1AB0099C617 /* groupwidget.h */; };
-		05A73CE319B2F9DC0099C617 /* snappeafile.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC319B2F1AB0099C617 /* snappeafile.h */; };
-		05A73CE419B2F9DC0099C617 /* snappeagluings.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC519B2F1AB0099C617 /* snappeagluings.h */; };
-		05A73CE619B2F9DC0099C617 /* snappeaui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05A73CC919B2F1AB0099C617 /* snappeaui.h */; };
 		05AA71EE1FB17E0100186E30 /* flype.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05AA71ED1FB17DFF00186E30 /* flype.cpp */; };
 		05AC685C1DFE729100FF1A4C /* layeredtorusbundle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05AC685A1DFE729100FF1A4C /* layeredtorusbundle.cpp */; };
 		05AC685D1DFE729100FF1A4C /* layeredtorusbundle.h in Headers */ = {isa = PBXBuildFile; fileRef = 05AC685B1DFE729100FF1A4C /* layeredtorusbundle.h */; };
@@ -1470,7 +1456,6 @@
 		05CBE6ED273B6504009F0674 /* validityconstraints.h in Headers */ = {isa = PBXBuildFile; fileRef = 05CBE6EC273B6504009F0674 /* validityconstraints.h */; };
 		05D047062599F5AE00FA2B3E /* plainCompleter.py in Copy Python Scripts */ = {isa = PBXBuildFile; fileRef = 05D046E62599F58A00FA2B3E /* plainCompleter.py */; };
 		05D322C31F9FE72E00E5F9B8 /* linkui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322C01F9FE72100E5F9B8 /* linkui.cpp */; };
-		05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05D322BF1F9FE72000E5F9B8 /* linkui.h */; };
 		05D322C91F9FED7F00E5F9B8 /* linkcrossings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322C61F9FED7700E5F9B8 /* linkcrossings.cpp */; };
 		05D322D01FA0415000E5F9B8 /* linkgraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322CD1FA0414400E5F9B8 /* linkgraph.cpp */; };
 		05D322D61FA1415700E5F9B8 /* linkpoly.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05D322D21FA1414F00E5F9B8 /* linkpoly.cpp */; };
@@ -1515,7 +1500,6 @@
 		05E629AB2FBFD04600AE1B84 /* links4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E629942FBFD04600AE1B84 /* links4.cpp */; };
 		05E629AC2FBFD04600AE1B84 /* isomorphism4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E629932FBFD04600AE1B84 /* isomorphism4.cpp */; };
 		05E629AF2FBFE48800AE1B84 /* hidimui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E629AE2FBFE48800AE1B84 /* hidimui.cpp */; };
-		05E629B02FBFE4B100AE1B84 /* hidimui.h in Sources */ = {isa = PBXBuildFile; fileRef = 05E629AD2FBFE48800AE1B84 /* hidimui.h */; };
 		05E62A262FBFFD8D00AE1B84 /* tetrahedron3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E629C82FBFFD8D00AE1B84 /* tetrahedron3.cpp */; };
 		05E62A272FBFFD8D00AE1B84 /* isomorphism2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E629B82FBFFD8D00AE1B84 /* isomorphism2.cpp */; };
 		05E62A282FBFFD8D00AE1B84 /* cut.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 05E62A1D2FBFFD8D00AE1B84 /* cut.cpp */; };
@@ -10075,27 +10059,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0543AE991811E12A002758F8 /* coordinatechooser.h in Sources */,
-				05941EFA272A9E8600562586 /* elidedlabel.h in Sources */,
 				0543AE9A1811E12A002758F8 /* examplesaction.h in Sources */,
 				0543AEA01811E12A002758F8 /* packeteditiface.h in Sources */,
-				0543AEBE1811E12A002758F8 /* patiencedialog.h in Sources */,
 				0543AEC01811E12A002758F8 /* recentfilesaction.h in Sources */,
-				0543AEC31811E12A002758F8 /* reginamanager.h in Sources */,
 				05E62B3E2FDCF0C000AE1B84 /* reginaprefset.h in Sources */,
-				0543AEC61811E12A002758F8 /* shortrunner.h in Sources */,
-				0543AEAA1811E12A002758F8 /* compatcanvas.h in Sources */,
 				05A73CE219B2F99B0099C617 /* groupwidget.h in Sources */,
-				05E629B02FBFE4B100AE1B84 /* hidimui.h in Sources */,
-				056F746C2767551F00F7EAC9 /* linkalgebra.h in Sources */,
-				05D322C41F9FE8BE00E5F9B8 /* linkui.h in Sources */,
-				0543AEAC1811E12A002758F8 /* scriptui.h in Sources */,
-				052942DA1C5CDFBE0011C1E6 /* snappeaalgebra.h in Sources */,
-				0543AEBC1811E12A002758F8 /* snappeacomponents.h in Sources */,
-				05A73CE319B2F9DC0099C617 /* snappeafile.h in Sources */,
-				05A73CE419B2F9DC0099C617 /* snappeagluings.h in Sources */,
-				05A73CE619B2F9DC0099C617 /* snappeaui.h in Sources */,
-				0543AEB31811E12A002758F8 /* textui.h in Sources */,
 				050F5E8A1B9BD9C100C1F681 /* commandedit.h in Sources */,
 				051691B81C5AD5AC00DC69EC /* hypercoordinateui.cpp in Sources */,
 				050F5E7E1B9BD6F400C1F681 /* pythonconsole.cpp in Sources */,

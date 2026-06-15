@@ -150,7 +150,6 @@ class Tri3TuraevViroUI : public QObject, public PacketViewerTab {
         QWidget* getInterface() override;
         void refresh() override;
 
-    public slots:
         /**
          * Calculate the requested Turaev-Viro invariant.
          */
@@ -203,7 +202,6 @@ class Tri3CellularInfoUI: public QObject, public PacketViewerTab {
         QWidget* getInterface() override;
         void refresh() override;
 
-    public slots:
         /**
          * Note that preferences have changed.
          */

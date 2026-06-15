@@ -187,7 +187,6 @@ class FacetGraphTab : public QObject, public PacketViewerTab {
         void showInfo(const QString& msg);
         void showError(const QString& msg);
 
-    private slots:
         /**
          * Change graphs.
          */
