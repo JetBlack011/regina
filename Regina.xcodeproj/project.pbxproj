@@ -1702,7 +1702,7 @@
 				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE)_moc.cxx",
 			);
 			runOncePerArchitecture = 0;
-			script = "${Qt}/libexec/moc \\\n-I${Qt}/lib/QtCore.framework/Headers \\\n-I${Qt}/lib/QtGui.framework/Headers \\\n-I${Qt}/lib/QtSvg.framework/Headers \\\n-I${Qt}/lib/QtWidgets.framework/Headers \\\n-DQT_GUI_LIB -DQT_CORE_LIB \\\n-o \"${DERIVED_FILE_DIR}/${INPUT_FILE_BASE}_moc.cxx\" \"${INPUT_FILE_PATH}\"\n";
+			script = "if [ ! -x \"${MOC}\" ]; then\n  echo \"ERROR: Missing moc: ${MOC}\"\n  exit 1\nfi\n\n${MOC} \\\n-I${Qt}/lib/QtCore.framework/Headers \\\n-I${Qt}/lib/QtGui.framework/Headers \\\n-I${Qt}/lib/QtSvg.framework/Headers \\\n-I${Qt}/lib/QtWidgets.framework/Headers \\\n-DQT_GUI_LIB -DQT_CORE_LIB \\\n-o \"${DERIVED_FILE_DIR}/${INPUT_FILE_BASE}_moc.cxx\" \"${INPUT_FILE_PATH}\"\n";
 		};
 		05617AD71D9D3CBD00B1E33B /* PBXBuildRule */ = {
 			isa = PBXBuildRule;

@@ -26,6 +26,7 @@
 // -------------------- Third-party tools --------------------
 
 DOXYGEN = /opt/local/bin/doxygen
+MOC = ${Qt}/libexec/moc
 
 // -------------------- Code signing --------------------
 
