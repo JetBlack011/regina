@@ -19,7 +19,8 @@
 #include <string>
 
 #include "triangulation/forward.h"
-#include "triangulation/generic/triangulation.h"
+//#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 #include "utilities/exception.h"
 
 #include "knotbuilder.h"
@@ -201,7 +202,7 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
         block1.glue(wall1, block2, wall2);
     }
 
-    //tri.finiteToIdeal();
+    tri.finiteToIdeal();
 
     for (const auto &block : blocks) {
         const auto blockEdges = block.getEdges();

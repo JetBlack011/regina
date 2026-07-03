@@ -22,8 +22,9 @@
 
 #include "knotbuilder.h"
 #include "triangulation/forward.h"
-#include "triangulation/generic/boundarycomponent.h"
-#include "triangulation/generic/triangulation.h"
+//#include "triangulation/generic/boundarycomponent.h"
+//#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 
 #include "gluinggraph.h"
 #include "knotbuilder.h"
@@ -156,7 +157,7 @@ int main(int argc, char *argv[]) {
 
     regina::Triangulation<4> tri;
     SurfaceCondition cond = SurfaceCondition::boundary;
-    std::vector<regina::Triangle<4> *> startingTriangles;
+    //std::vector<regina::Triangle<4> *> startingTriangles;
 
     if (argc == 2) {
         regina::Triangulation<3> threeMfld;
@@ -261,10 +262,13 @@ int main(int argc, char *argv[]) {
         boundaries.begin(), boundaries.end(),
         [](const auto &b1, const auto &b2) { return b2.first < b1.first; });
 
+    int count = 0;
     if (cond == SurfaceCondition::boundary) {
         for (const auto &[l, s] : boundaries) {
+            if (count > 10) break;
             std::cout << s->detail() << " has boundary " << l << "\n";
             l.recognizeComplement();
+            ++count;
         }
     }
 

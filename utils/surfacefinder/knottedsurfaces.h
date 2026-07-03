@@ -28,10 +28,11 @@
 
 #include "census/census.h"
 #include "triangulation/forward.h"
-#include "triangulation/generic/boundarycomponent.h"
-#include "triangulation/generic/face.h"
-#include "triangulation/generic/faceembedding.h"
-#include "triangulation/generic/triangulation.h"
+//#include "triangulation/generic/boundarycomponent.h"
+//#include "triangulation/generic/face.h"
+//#include "triangulation/generic/faceembedding.h"
+//#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 #include "utilities/exception.h"
 
 #include "gluing.h"
@@ -487,10 +488,10 @@ class KnottedSurface {
             }
         }
 
-        surface_.removeSimplex(src);
         emb_.erase(src);
         inv_.erase(f);
         indices_.erase(f->index());
+        surface_.removeSimplex(src); // deletes src; must come after map erasures
         updateInvariants_();
     }
 

@@ -16,9 +16,10 @@
 
 #include "triangulation/example3.h"
 #include "triangulation/forward.h"
-#include "triangulation/generic/boundarycomponent.h"
-#include "triangulation/generic/isomorphism.h"
-#include "triangulation/generic/triangulation.h"
+//#include "triangulation/generic/boundarycomponent.h"
+//#include "triangulation/generic/isomorphism.h"
+//#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 
 #include "knotbuilder.h"
 

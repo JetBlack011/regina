@@ -20,7 +20,7 @@
 #include <cstring>
 
 #include "triangulation/forward.h"
-#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 
 #include "knottedsurfaces.h"
 
@@ -242,6 +242,7 @@ class GluingGraph {
         }
 
         // Don't forget to backtrack
+        node->visited = false;
         surface_.removeTriangle(node->f);
     }
 };

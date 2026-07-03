@@ -20,7 +20,8 @@
 #include <string>
 
 #include "triangulation/forward.h"
-#include "triangulation/generic/triangulation.h"
+//#include "triangulation/generic/triangulation.h"
+#include <triangulation/generic.h>
 
 #include "gluing.h"
 #include "simplicialprism.h"
@@ -54,6 +55,8 @@ template <int dim>
 regina::Triangulation<dim> &
 glueBoundaries(regina::Triangulation<dim> &tri, int bdryIndex1, int bdryIndex2,
                const regina::Isomorphism<dim - 1> &iso) {
+    // Defer joins to avoid modifying the triangulation while iterating
+    // boundary components.
     std::vector<Gluing<dim, dim>> gluings;
     const regina::BoundaryComponent<dim> *bdry1 =
         tri.boundaryComponent(bdryIndex1);

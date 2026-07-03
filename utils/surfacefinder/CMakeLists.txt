@@ -1,5 +1,5 @@
 set(UTILS
-  bogocheck
+  #bogocheck
   #buildknot
   #surfacefinder
   fillmanifold
@@ -10,6 +10,9 @@ target_link_libraries(buildknot ${ENGINE_LIBRARY})
 
 add_executable(surfacefinder surfacefinder.cpp knotbuilder.cpp)
 target_link_libraries(surfacefinder ${ENGINE_LIBRARY})
+
+add_executable(gluinggraph_test gluinggraph_test.cpp)
+target_link_libraries(gluinggraph_test ${ENGINE_LIBRARY})
 
 foreach(UTIL ${UTILS})
   add_executable(${UTIL} ${UTIL}.cpp)

@@ -1,22 +1,22 @@
-#ifndef GLUING_H 
+#ifndef GLUING_H
 
 #define GLUING_H
 
-#include "triangulation/generic/face.h"
+#include "triangulation/forward.h"
 
 /** Gluing Implementation */
 
 template <int dim, int subdim>
 struct Gluing {
-    regina::Face<dim, subdim> *src;
+    regina::SafeFace<dim, subdim> *src;
     int srcFacet;
-    regina::Face<dim, subdim> *dst;
+    regina::SafeFace<dim, subdim> *dst;
     regina::Perm<subdim + 1> gluing;
 
     Gluing() = default;
 
-    Gluing(regina::Face<dim, subdim> *src, int srcFacet,
-           regina::Face<dim, subdim> *dst, regina::Perm<subdim + 1> gluing)
+    Gluing(regina::SafeFace<dim, subdim> *src, int srcFacet,
+           regina::SafeFace<dim, subdim> *dst, regina::Perm<subdim + 1> gluing)
         : src(src), srcFacet(srcFacet), dst(dst), gluing(gluing) {}
 
     friend std::ostream &operator<<(std::ostream &os, const Gluing &g) {
