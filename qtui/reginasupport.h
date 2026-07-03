@@ -1,0 +1,137 @@
+
+/**************************************************************************
+ *                                                                        *
+ *  Regina - A Normal Surface Theory Calculator                           *
+ *  Qt User Interface                                                     *
+ *                                                                        *
+ *  Copyright (c) 1999-2026, Ben Burton                                   *
+ *  For further details contact Ben Burton (bab@debian.org).              *
+ *                                                                        *
+ *  This program is free software; you can redistribute it and/or         *
+ *  modify it under the terms of the GNU General Public License as        *
+ *  published by the Free Software Foundation; either version 2 of the    *
+ *  License, or (at your option) any later version.                       *
+ *                                                                        *
+ *  As an exception, when this program is distributed through (i) the     *
+ *  App Store by Apple Inc.; (ii) the Mac App Store by Apple Inc.; or     *
+ *  (iii) Google Play by Google Inc., then that store may impose any      *
+ *  digital rights management, device limits and/or redistribution        *
+ *  restrictions that are required by its terms of service.               *
+ *                                                                        *
+ *  This program is distributed in the hope that it will be useful, but   *
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of            *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
+ *  General Public License for more details.                              *
+ *                                                                        *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
+ *                                                                        *
+ **************************************************************************/
+
+/*! \file reginasupport.h
+ *  \brief Miscellaneous GUI-related support routines and concepts for Regina.
+ */
+
+#ifndef __REGINASUPPORT_H
+#define __REGINASUPPORT_H
+
+#include "reginaqt.h"
+#include <QIcon>
+#include <QString> 
+
+class QWidget;
+
+/**
+ * A drop-down box that allows the user to select an object of an arbitrary type
+ * (specifically, of type `T::Choice`).  Examples are simplex choosers and
+ * face choosers in triangulations, or crossing choosers in links.
+ *
+ * The function `refresh()` should return `true` if and only if the chooser is
+ * non-empty after the refresh (i.e., at least one option is present).
+ */
+template <typename T>
+concept ObjectChooser = requires(T x) {
+    typename T::Choice;
+    { x.selected() } -> std::same_as<typename T::Choice>;
+    x.select(std::declval<typename T::Choice>());
+    { x.refresh() } -> std::same_as<bool>;
+};
+
+/**
+ * A class with miscellaneous support routines for Regina.
+ *
+ * The icon loading routines give correct results for full installations in
+ * a fixed location (e.g., a typical Linux install), as well as relocatable
+ * application bundles (e.g., a typical macOS install).
+ */
+class ReginaSupport {
+    private:
+        static QString home_;
+
+    public:
+        /**
+         * Produces a platform-agnostic information message.
+         */
+        static void info(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Produces a platform-agnostic "sorry" message informing the
+         * user that (for example) a selection is invalid, or some
+         * action is not possible.
+         */
+        static void sorry(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Produces a platform-agnostic warning message informing the
+         * user that something non-critical has gone wrong.
+         */
+        static void warn(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Produces a platform-agnostic warning message that informs the
+         * user that they are about to do something dangerous, and asks
+         * if they wish to proceed.
+         */
+        static bool warnYesNo(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Produces a platform-agnostic warning message indicating some
+         * kind of success.
+         */
+        static void success(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Produces a platform-agnostic warning message indicating some
+         * kind of failure.
+         */
+        static void failure(QWidget* parent, const QString& text,
+            const QString& informativeText = QString(),
+            const QString& detailedText = QString());
+
+        /**
+         * Load a Regina-specific icon.
+         */
+        static QIcon regIcon(const QString& name);
+
+        /**
+         * Load an icon from the default theme, falling back to the
+         * Humanity/Oxygen icons shipped with Regina if necessary.
+         */
+        static QIcon themeIcon(const QString& name);
+
+    private:
+        static const QString& home();
+};
+
+#endif
+

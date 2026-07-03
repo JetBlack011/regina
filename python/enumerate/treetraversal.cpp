@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Python Interface                                                      *
  *                                                                        *
- *  Copyright (c) 1999-2025, Ben Burton                                   *
+ *  Copyright (c) 1999-2026, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -35,6 +35,8 @@
 #include "../helpers.h"
 #include "../docstrings/enumerate/treetraversal.h"
 
+using namespace pybind11::literals;
+
 using regina::Integer;
 using regina::NormalEncoding;
 using regina::Triangulation;
@@ -55,7 +57,7 @@ void addTreeTraversalBase(pybind11::module_& m, const char* name) {
 
     using Tree = regina::TreeTraversal<Constraint, BanConstraint, Integer>;
 
-    auto c = pybind11::class_<Tree>(m, name, rdoc_scope)
+    auto c = pybind11::class_<Tree>(m, name, rdoc::__class)
         .def_static("supported", &Tree::supported, rdoc::supported)
         .def("visited", &Tree::visited, rdoc::visited)
         .def("typeString", &Tree::typeString, rdoc::typeString)
@@ -69,7 +71,7 @@ void addTreeTraversalBase(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_END
 }
 
-template <regina::LPSubspace Constraint,
+template <regina::LPSurfaceSubspace Constraint,
     typename BanConstraint, typename... BanArgs>
 void addTreeEnumeration(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_BEGIN(TreeEnumeration)
@@ -78,14 +80,14 @@ void addTreeEnumeration(pybind11::module_& m, const char* name) {
     using Action = const std::function<bool(const Tree&)>&;
 
     auto c = pybind11::class_<Tree, regina::TreeTraversal<
-            Constraint, BanConstraint, Integer>>(m, name, rdoc_scope)
+            Constraint, BanConstraint, Integer>>(m, name, rdoc::__class)
         .def(pybind11::init<const Triangulation<3>&, NormalEncoding,
             BanArgs...>(), rdoc::__init)
         .def("solutions", &Tree::solutions, rdoc::solutions)
         .def("run", &Tree::template run<Action>,
-            pybind11::arg("action"), rdoc::run)
+            "action"_a, rdoc::run)
         .def("next", &Tree::next,
-            pybind11::arg("tracker") = nullptr,
+            "tracker"_a = nullptr,
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::next)
         .def_static("writeTypes", &Tree::writeTypes, rdoc::writeTypes)
@@ -97,7 +99,7 @@ void addTreeEnumeration(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_END
 }
 
-template <regina::LPSubspace Constraint,
+template <regina::LPStructureSubspace Constraint,
     typename BanConstraint, typename... BanArgs>
 void addTautEnumeration(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_BEGIN(TautEnumeration)
@@ -106,14 +108,14 @@ void addTautEnumeration(pybind11::module_& m, const char* name) {
     using Action = const std::function<bool(const Tree&)>&;
 
     auto c = pybind11::class_<Tree, regina::TreeTraversal<
-            Constraint, BanConstraint, Integer>>(m, name, rdoc_scope)
+            Constraint, BanConstraint, Integer>>(m, name, rdoc::__class)
         .def(pybind11::init<const Triangulation<3>&, BanArgs...>(),
             rdoc::__init)
         .def("solutions", &Tree::solutions, rdoc::solutions)
         .def("run", &Tree::template run<Action>,
-            pybind11::arg("action"), rdoc::run)
+            "action"_a, rdoc::run)
         .def("next", &Tree::next,
-            pybind11::arg("tracker") = nullptr,
+            "tracker"_a = nullptr,
             pybind11::call_guard<regina::python::GILScopedRelease>(),
             rdoc::next)
         .def_static("writeTypes", &Tree::writeTypes, rdoc::writeTypes)
@@ -126,7 +128,7 @@ void addTautEnumeration(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_END
 }
 
-template <regina::LPConstraint Constraint,
+template <regina::LPSurfaceConstraint Constraint,
     typename BanConstraint, typename... BanArgs>
 void addTreeSingleSoln(pybind11::module_& m, const char* name) {
     RDOC_SCOPE_BEGIN(TreeSingleSoln)
@@ -134,7 +136,7 @@ void addTreeSingleSoln(pybind11::module_& m, const char* name) {
     using Tree = regina::TreeSingleSoln<Constraint, BanConstraint>;
 
     auto c = pybind11::class_<Tree, regina::TreeTraversal<
-            Constraint, BanConstraint, Integer>>(m, name, rdoc_scope)
+            Constraint, BanConstraint, Integer>>(m, name, rdoc::__class)
         .def(pybind11::init<const Triangulation<3>&, NormalEncoding,
             BanArgs...>(), rdoc::__init)
         .def("find", &Tree::find, rdoc::find)

@@ -1,0 +1,161 @@
+
+/**************************************************************************
+ *                                                                        *
+ *  Regina - A Normal Surface Theory Calculator                           *
+ *  Qt User Interface                                                     *
+ *                                                                        *
+ *  Copyright (c) 1999-2026, Ben Burton                                   *
+ *  For further details contact Ben Burton (bab@debian.org).              *
+ *                                                                        *
+ *  This program is free software; you can redistribute it and/or         *
+ *  modify it under the terms of the GNU General Public License as        *
+ *  published by the Free Software Foundation; either version 2 of the    *
+ *  License, or (at your option) any later version.                       *
+ *                                                                        *
+ *  As an exception, when this program is distributed through (i) the     *
+ *  App Store by Apple Inc.; (ii) the Mac App Store by Apple Inc.; or     *
+ *  (iii) Google Play by Google Inc., then that store may impose any      *
+ *  digital rights management, device limits and/or redistribution        *
+ *  restrictions that are required by its terms of service.               *
+ *                                                                        *
+ *  This program is distributed in the hope that it will be useful, but   *
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of            *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
+ *  General Public License for more details.                              *
+ *                                                                        *
+ *  You should have received a copy of the GNU General Public License     *
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>. *
+ *                                                                        *
+ **************************************************************************/
+
+/*! \file sighandler.h
+ *  \brief Allows interaction with knot/link and isomorphism signature lists.
+ */
+
+#ifndef __SIGHANDLER_H
+#define __SIGHANDLER_H
+
+#include "triangulation/forward.h"
+
+#include "foreign/siglist.h"
+#include "packetimporter.h"
+#include "reginamain.h"
+#include "reginasupport.h"
+#include "../packetfilter.h"
+
+#include <QFile>
+#include <QTextDocument>
+
+namespace regina {
+    class Link;
+}
+
+/**
+ * An object responsible for importing data from knot/link signature or
+ * isomorphism signature lists.
+ *
+ * Rather than creating new objects of this class, the globally
+ * available object `SigHandler<PacketType>::instance` should always be used.
+ *
+ * \tparam PacketType Indicates which types of signatures to import.
+ */
+template <regina::SignatureEncodable PacketType>
+class SigHandler : public PacketImporter {
+    using PacketImporter::importData;
+
+    public:
+        /**
+         * A globally available instance of this class.
+         */
+        static const SigHandler instance;
+
+    public:
+        /**
+         * PacketImporter overrides:
+         */
+        std::shared_ptr<regina::Packet> importData(const QString& filename,
+            ReginaMain* parentWidget) const override;
+
+    private:
+        /**
+         * Don't allow people to construct their own handlers.
+         */
+        SigHandler() = default;
+};
+
+template <regina::SignatureEncodable PacketType>
+const SigHandler<PacketType> SigHandler<PacketType>::instance;
+
+template <regina::SignatureEncodable PacketType>
+std::shared_ptr<regina::Packet> SigHandler<PacketType>::importData(
+        const QString& filename, ReginaMain* parentWidget) const {
+    QString explnSuffix;
+    QString signatures;
+    if constexpr (std::is_same_v<PacketType, regina::Link>) {
+        explnSuffix = QObject::tr("<p>The file should be a plain text file "
+            "containing one knot/link signature per line. "
+            "Both first-generation signatures (from Regina ≤ 7.x) and "
+            "second-generation signatures (from Regina ≥ 8.0) are "
+            "accepted.</qt>");
+        signatures = QObject::tr("knot/link signatures");
+    } else {
+        explnSuffix = QObject::tr("<p>The file should be a plain text file "
+            "containing one %1-manifold isomorphism signature per line. "
+            "Both first-generation signatures (from Regina ≤ 7.x) and "
+            "second-generation signatures (from Regina ≥ 8.0) are "
+            "accepted.</qt>")
+            .arg(PacketType::dimension);
+        signatures = QObject::tr("isomorphism signatures");
+    }
+
+    std::shared_ptr<regina::Packet> ans;
+    try {
+        ans = regina::readSigList<PacketType>(
+            static_cast<const char*>(QFile::encodeName(filename)));
+    } catch (const regina::FileError&) {
+        ReginaSupport::sorry(parentWidget,
+            QObject::tr("The import failed."),
+            QObject::tr("<qt>I could not open the file <tt>%1</tt>.  "
+                "Please check that this file is readable.</qt>")
+                .arg(filename.toHtmlEscaped()));
+        return nullptr;
+    }
+
+    std::shared_ptr<regina::Packet> last = ans->lastChild();
+    if (! last) {
+        ReginaSupport::sorry(parentWidget,
+            QObject::tr("The import failed."),
+            QObject::tr("<qt>The selected file does "
+            "not contain any %1.").arg(signatures) + explnSuffix);
+        return nullptr;
+    } else if (last->type() == regina::PacketType::Text) {
+        if (last == ans->firstChild()) {
+            ReginaSupport::sorry(parentWidget, 
+                QObject::tr("The import failed."),
+                QObject::tr("<qt>None of the lines in the selected file "
+                "could be interpreted as %1.").arg(signatures)
+                + explnSuffix);
+            return nullptr;
+        } else {
+            ReginaSupport::warn(parentWidget, 
+                QObject::tr("There were problems with the import."),
+                QObject::tr("<qt>One or more lines in the selected file "
+                "could not be interpreted as %1. "
+                "For details, see the text packet "
+                "at the end of the imported packet list.").arg(signatures)
+                + explnSuffix);
+        }
+    }
+
+    // All worked out okay.
+    if constexpr (std::is_same_v<PacketType, regina::Link>) {
+        ans->setLabel(
+            QObject::tr("Imported Knots").toUtf8().constData());
+    } else {
+        ans->setLabel(
+            QObject::tr("Imported Triangulations").toUtf8().constData());
+    }
+    return ans;
+}
+
+#endif

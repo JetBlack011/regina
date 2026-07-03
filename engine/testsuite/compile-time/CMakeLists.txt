@@ -1,5 +1,6 @@
 # Files to compile
 SET ( FILES
+  aggregator.cpp
   binom.cpp
   boolset.cpp
   concepts.cpp
@@ -12,6 +13,7 @@ SET ( FILES
   perm.cpp
   snappea.cpp
   tableview.cpp
+  treeconstraint.cpp
   triangulation.cpp
   )
 

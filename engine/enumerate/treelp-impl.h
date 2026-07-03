@@ -4,7 +4,7 @@
  *  Regina - A Normal Surface Theory Calculator                           *
  *  Computational Engine                                                  *
  *                                                                        *
- *  Copyright (c) 2011-2025, Ben Burton                                   *
+ *  Copyright (c) 2011-2026, Ben Burton                                   *
  *  For further details contact Ben Burton (bab@debian.org).              *
  *                                                                        *
  *  This program is free software; you can redistribute it and/or         *
@@ -137,9 +137,9 @@ void LPMatrix<IntType>::writeTextLong(std::ostream& out) const {
 }
 
 template <LPConstraint Constraint>
-LPInitialTableaux<Constraint>::LPInitialTableaux(
-        const Triangulation<3>& tri, NormalEncoding enc, bool enumeration) :
-        tri_(&tri), system_(enc) {
+LPInitialTableaux<Constraint>::LPInitialTableaux(const Triangulation<3>& tri,
+        NormalEncoding encoding, bool enumeration) :
+        tri_(&tri), system_(encoding) {
     size_t r, c;
 
     // Fetch the original (unadjusted) matrix of matching equations.
@@ -738,7 +738,8 @@ void LPData<Constraint, IntType>::constrainPositive(size_t pos) {
 }
 
 template <LPConstraint Constraint, ReginaInteger IntType>
-void LPData<Constraint, IntType>::constrainOct(size_t quad1, size_t quad2) {
+void LPData<Constraint, IntType>::constrainOct(size_t quad1, size_t quad2)
+        requires LPSurfaceConstraint<Constraint> {
     // If either variable has already been deactivated, it cannot
     // be positive.
     if (! (isActive(quad1) && isActive(quad2))) {
