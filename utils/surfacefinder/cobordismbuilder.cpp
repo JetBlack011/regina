@@ -3,7 +3,7 @@
 //
 //  Created by John Teague on 04/12/2025.
 
-#include "knotbuilder.h"
+#include "cobordismbuilder.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     }
 
     regina::Triangulation<3> bdryTri(isoSig);
-    knotbuilder::CobordismBuilder<3> cob(bdryTri);
+    CobordismBuilder<3> cob(bdryTri);
     regina::Triangulation<4> tri = cob.thicken(2);
 
     std::cout << "[+] Thickened isosig = " << tri.isoSig()

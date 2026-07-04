@@ -76,108 +76,121 @@ class SimplicialPrism {
     //    return subprism<1>(vertices);
     //}
 
+    // Glues this prism to `other` along the wall lying over the facet of
+    // the "top" simplex obtained by omitting vertex `facet` (resp.
+    // `otherFacet` for `other`). Because the underlying triangulation is
+    // assumed to be ordered, the correspondence between the walls' two
+    // sub-triangulations (and the permutation identifying them) is
+    // completely determined by `facet` and `otherFacet` alone.
     void glue(int facet, SimplicialPrism<dim> &other, int otherFacet) {
-        // Positively heinous code
-        if (!(0 <= facet && facet <= dim && 0 <= otherFacet &&
-              otherFacet <= dim))
+        if (!(0 <= facet && facet < dim && 0 <= otherFacet &&
+              otherFacet < dim))
             throw regina::InvalidArgument(
                 "SimplicialPrism::glue(): Invalid faces");
 
-        // First, identify which facets in the wall of the prism ought to be
-        // identified
-        std::vector<std::pair<int, int>> gluingFacets;
-        std::vector<std::pair<int, int>> otherGluingFacets;
-
-        for (int i = 0; i < dim; ++i) {
-            if (i == facet)
+        for (int k = 0; k < dim; ++k) {
+            if (k == facet)
                 continue;
 
-            if (i < facet) {
-                gluingFacets.emplace_back(i, facet + 1);
-            } else {
-                gluingFacets.emplace_back(i, facet);
-            }
-        }
+            int kOther = mapExcluding_(k, facet, otherFacet);
 
-        for (int i = 0; i < dim; ++i) {
-            if (i == otherFacet)
+            int myFacet = wallFacet_(k, facet);
+            int otherLocalFacet = wallFacet_(kOther, otherFacet);
+
+            std::array<int, dim + 1> image;
+            for (int m = 0; m <= dim; ++m) {
+                if (m == myFacet) {
+                    image[m] = otherLocalFacet;
+                    continue;
+                }
+
+                // Decode local vertex m of simplices_[k] as (base vertex,
+                // is-top-copy), translate the base vertex across the
+                // (ordered) base gluing, then re-encode within
+                // other.simplices_[kOther]. The top/bottom level is
+                // unaffected by the gluing, since it only identifies the
+                // base simplices and acts as the identity on the I factor.
+                auto [baseVertex, isTop] = decode_(k, m);
+                int otherBaseVertex = mapExcluding_(baseVertex, facet, otherFacet);
+                image[m] = encode_(otherBaseVertex, isTop);
+            }
+
+            simplices_[k]->join(myFacet, other.simplices_[kOther],
+                                 regina::Perm<dim + 1>(image));
+        }
+    }
+
+    // Glues this prism's top facet (the base simplex x {1}) to `next`'s
+    // bottom facet (the base simplex x {0}), stacking `next` on top of this
+    // prism to extend the interval factor. Since both facets triangulate
+    // the same base simplex with no relabelling, the only two sub-simplices
+    // involved are simplices_[dim-1] (whose sole non-top vertex is the
+    // bottom copy of the top facet) and next.simplices_[0] (whose sole
+    // non-bottom vertex is the top copy of the bottom facet); matching up
+    // decode_/encode_ across the seam reduces to the cyclic shift
+    // i -> (i + 1) mod (dim + 1).
+    void stitchTop(SimplicialPrism<dim> &next) {
+        std::array<int, dim + 1> image;
+        for (int i = 0; i <= dim; ++i)
+            image[i] = (i + 1) % (dim + 1);
+
+        simplices_[dim - 1]->join(dim - 1, next.simplices_[0],
+                                   regina::Perm<dim + 1>(image));
+    }
+
+    // Glues this prism's top facet (the base simplex x {1}) directly onto
+    // `coneSimplex`, a single dim-simplex representing the base simplex
+    // coned to a new apex point: `coneSimplex`'s local vertex i (for
+    // i = 0,...,dim-1) is assumed to equal the base simplex's own vertex i,
+    // with local vertex dim the apex (the convention used by
+    // CobordismBuilder::cone()). This caps the top off in one step, using
+    // the same decode_ used by glue()/stitchTop() rather than a further
+    // layer of prism structure.
+    void capTop(regina::Simplex<dim> *coneSimplex) {
+        std::array<int, dim + 1> image;
+        for (int m = 0; m <= dim; ++m) {
+            if (m == dim - 1) {
+                image[m] = dim;
                 continue;
-
-            if (i < otherFacet) {
-                otherGluingFacets.emplace_back(i, otherFacet + 1);
-            } else {
-                otherGluingFacets.emplace_back(i, otherFacet);
             }
+            image[m] = decode_(dim - 1, m).first;
         }
 
-        if (gluingFacets.size() != otherGluingFacets.size())
-            throw regina::InvalidArgument(
-                "SimplicialPrism::glue(): oh dear god...");
+        simplices_[dim - 1]->join(dim - 1, coneSimplex,
+                                   regina::Perm<dim + 1>(image));
+    }
 
-        // for (int i = 0; i < gluingFacets.size(); ++i) {
-        //     simplices_[gluingFacets[i].first]->join(
-        //         gluingFacets[i].second,
-        //         other.simplices_[otherGluingFacets[i].first]);
-        // }
+  private:
+    // The unique order-preserving bijection from {0,...}\{a} to {0,...}\{b},
+    // evaluated at x (where x != a).
+    static int mapExcluding_(int x, int a, int b) {
+        int rank = (x < a) ? x : x - 1;
+        return (rank < b) ? rank : rank + 1;
+    }
 
-        //    simplices_[i]->join(k0, other.simplices_[j], g);
+    // Decodes local vertex m of simplices_[k] as (base vertex, is-top-copy).
+    static std::pair<int, bool> decode_(int k, int m) {
+        if (m == dim)
+            return {0, true};
+        if (k <= m)
+            return {m, false};
+        return {m + 1, true};
+    }
 
-        // Then identify them
+    // Inverse of decode_: the local vertex index (within some simplices_[k])
+    // holding (v, isTop), given that this vertex is actually present there.
+    static int encode_(int v, bool isTop) {
+        if (!isTop)
+            return v;
+        return v == 0 ? dim : v - 1;
+    }
 
-        // -------
-        // int i = 0, j = 0;
-        // while (i < dim && j < dim) {
-        //    if (i == facet)
-        //        ++i;
-        //    if (j == otherFacet)
-        //        ++j;
-
-        //    if (i == dim || j == dim)
-        //        break;
-
-        //    std::array<int, dim + 1> g;
-        //    int k = 0, l = 0;
-        //    int k0 = dim, l0 = dim;
-        //    while (k <= i) {
-        //        if (k == facet) {
-        //            k0 = k == 0 ? dim : k - 1;
-        //            ++k;
-        //        }
-        //        if (l == otherFacet) {
-        //            l0 = l == 0 ? dim : l - 1;
-        //            ++l;
-        //        }
-
-        //        g[k == 0 ? dim : k - 1] = l == 0 ? dim : l - 1;
-        //        ++k, ++l;
-        //    }
-        //    k--, l--;
-        //    while (k < dim) {
-        //        if (k == facet)
-        //            k0 = k++;
-        //        if (l == otherFacet)
-        //            l0 = l++;
-
-        //        g[k++] = l++;
-        //    }
-        //    g[k0] = l0;
-
-        //    //std::cout << "Triangulation = "
-        //    //          << simplices_[i]->triangulation().isoSig() << "\n";
-        //    //std::cout << "facet = " << facet << ", otherFacet = " <<
-        //    otherFacet
-        //    //          << ", i = " << i << ", j = " << j << ", k0 = " << k0
-        //    //          << ", l0 = " << l0 << ", g = {";
-        //    //for (int m = 0; m < dim + 1; ++m) {
-        //    //    std::cout << g[m];
-        //    //    if (m < dim)
-        //    //        std::cout << ", ";
-        //    //}
-        //    //std::cout << "}\n";
-        //    simplices_[i]->join(k0, other.simplices_[j], g);
-
-        //    ++i, ++j;
-        //}
+    // The local facet index (within simplices_[k]) of the facet lying in
+    // wall(v), for k != v.
+    static int wallFacet_(int k, int v) {
+        if (k < v)
+            return v;
+        return v == 0 ? dim : v - 1;
     }
 };
 

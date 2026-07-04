@@ -8,9 +8,9 @@ set(TESTS
   cobordismbuilder_test 
 )
 
-set(surfacefinder_EXTRA_SOURCES    knotbuilder.cpp)
-set(triangulateknot_EXTRA_SOURCES  knotbuilder.cpp)
-set(knotbuilder_test_EXTRA_SOURCES knotbuilder.cpp)
+set(surfacefinder_EXTRA_SOURCES        knotbuilder.cpp)
+set(triangulateknot_EXTRA_SOURCES      knotbuilder.cpp)
+set(cobordismbuilder_test_EXTRA_SOURCES knotbuilder.cpp)
 
 foreach(EXE ${UTILS} ${TESTS})
   add_executable(${EXE} ${EXE}.cpp ${${EXE}_EXTRA_SOURCES})

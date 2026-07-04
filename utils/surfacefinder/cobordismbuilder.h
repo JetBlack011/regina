@@ -24,17 +24,36 @@ class CobordismBuilder {
                                         SimplicialPrism<dim + 1>>;
 
     PrismMap topPrisms_;
+    bool hasPreviousLayer_ = false;
 
-    const regina::Triangulation<dim> &tri_;
+    regina::Triangulation<dim> tri_;
     regina::Triangulation<dim + 1> cob_;
 
   public:
-    CobordismBuilder(const regina::Triangulation<dim> &tri) : tri_(tri) {}
+    // Takes (and owns) a copy of `tri`, since thicken() requires an ordered
+    // triangulation (see isOrdered() below) and may need to relabel vertices
+    // to achieve this.
+    CobordismBuilder(const regina::Triangulation<dim> &tri) : tri_(tri) {
+        if (isOrdered(tri_))
+            return;
+
+        if constexpr (dim == 3) {
+            if (!tri_.order() || !isOrdered(tri_))
+                throw regina::InvalidArgument(
+                    "CobordismBuilder::CobordismBuilder(): triangulation "
+                    "could not be ordered.");
+        } else {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::CobordismBuilder(): triangulation is not "
+                "ordered, and automatic ordering is only implemented for "
+                "dim == 3.");
+        }
+    }
 
     template <int d>
     static bool isOrdered(const regina::Triangulation<d> &tri) {
         for (const auto &s : tri.simplices()) {
-            for (int f = 0; f < d; ++f) {
+            for (int f = 0; f <= d; ++f) {
                 if (s->adjacentSimplex(f) == nullptr)
                     continue;
                 regina::Perm<d + 1> g = s->adjacentGluing(f);
@@ -107,28 +126,36 @@ class CobordismBuilder {
                               tri1.countBoundaryComponents() + bdryIndex2, iso);
     }
 
+    // Caps off the current top of the cobordism with a cone on tri_: one
+    // new simplex per base simplex of tri_, each with a single new apex
+    // vertex, glued together mirroring tri_'s own gluings. If thicken() has
+    // not yet been called, the cone alone becomes the whole cobordism (a
+    // triangulation of Cone(tri_), e.g. a ball when tri_ is a sphere).
+    // Otherwise the cone is glued directly onto the most recent layer's top
+    // via SimplicialPrism::capTop(), simplex by simplex, using the same
+    // base simplex on both sides (so, as with stitchTop(), no relabelling
+    // of base vertices is needed).
     regina::Triangulation<dim + 1> &cone() {
-        regina::Triangulation<dim + 1> coneTri;
-
-        for (auto s : tri_.simplices()) {
-            coneTri.newSimplex();
+        std::unordered_map<const regina::Simplex<dim> *,
+                           regina::Simplex<dim + 1> *>
+            coneSimplices;
+        coneSimplices.reserve(tri_.size());
+        for (const auto *s : tri_.simplices()) {
+            coneSimplices.emplace(s, cob_.newSimplex());
         }
 
-        for (int i = 0; i < tri_.simplices().size(); ++i) {
-            auto bdrySimplex = tri_.simplex(i);
-            auto coneSimplex = coneTri.simplex(i);
+        for (const auto *s : tri_.simplices()) {
+            regina::Simplex<dim + 1> *coneSimplex = coneSimplices.at(s);
 
             for (int f = 0; f <= dim; ++f) {
-                if (bdrySimplex->adjacentSimplex(f) == nullptr ||
-                    coneSimplex->adjacentSimplex(f) != nullptr)
+                const regina::Simplex<dim> *adj = s->adjacentSimplex(f);
+                if (adj == nullptr || coneSimplex->adjacentSimplex(f) != nullptr)
                     continue;
 
-                regina::Perm<dim + 1> bdryGluing =
-                    bdrySimplex->adjacentGluing(f);
-                regina::Simplex<dim + 1> *adjConeSimplex =
-                    coneTri.simplex(bdrySimplex->adjacentSimplex(f)->index());
+                regina::Perm<dim + 1> bdryGluing = s->adjacentGluing(f);
+                regina::Simplex<dim + 1> *adjConeSimplex = coneSimplices.at(adj);
                 std::array<int, dim + 2> coneGluing;
-                for (int i = 0; i < dim + 1; ++i) {
+                for (int i = 0; i <= dim; ++i) {
                     coneGluing[i] = bdryGluing[i];
                 }
                 coneGluing[dim + 1] = dim + 1;
@@ -137,27 +164,16 @@ class CobordismBuilder {
             }
         }
 
-        if (cob_.isConnected()) {
-            return cob_ = coneTri;
+        if (hasPreviousLayer_) {
+            for (const auto *s : tri_.simplices()) {
+                topPrisms_.at(s).capTop(coneSimplices.at(s));
+            }
         }
-
-        cob_.insertTriangulation(coneTri);
-        // Glue the cone triangulation to the cobordism triangulation
-        auto iso = cob_.boundaryComponent(0)->build().isIsomorphicTo(
-            cob_.boundaryComponent(2)->build());
-        if (!iso.has_value()) {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::cone(): Cannot glue cone triangulation to "
-                "cobordism triangulation; boundary components are not "
-                "isomorphic.");
-        }
-        glueBoundaries(cob_, 0, 2, iso.value());
 
         if (!cob_.isValid()) {
             throw regina::InvalidArgument(
                 "CobordismBuilder::cone(): Resulting triangulation is not "
-                "valid after gluing cone triangulation to cobordism "
-                "triangulation.");
+                "valid.");
         }
 
         return cob_;
@@ -173,44 +189,22 @@ class CobordismBuilder {
         return cob_;
     }
 
-    // template <int facedim>
-    // std::vector<const regina::Face<dim + 1, facedim + 1> *> facesTimesI(
-    //     const std::vector<const regina::Face<dim, facedim> *> &faces) const {
-    //     std::vector<const regina::Face<dim + 1, facedim + 1> *>
-    //     thickenedFaces; thickenedFaces.reserve(faces.size() * (facedim + 1));
-
-    //    for (const auto &face : faces) {
-    //        const regina::FaceEmbedding<dim, facedim> &emb = face->front();
-    //        const SimplicialPrism<dim + 1> &prism =
-    //            topPrisms_.at(emb.simplex());
-    //        const auto facesTimesI =
-    //            prism.template subprism<facedim>(emb.vertices());
-    //        thickenedFaces.insert(thickenedFaces.end(), facesTimesI.begin(),
-    //                              facesTimesI.end());
-    //    }
-
-    //    return thickenedFaces;
-    //}
-
-    // inline std::vector<const regina::Triangle<dim + 1> *>
-    // edgesTimesI(const std::vector<const regina::Edge<dim> *> &edges) const {
-    //     return facesTimesI(edges);
-    // }
-
   private:
     regina::Triangulation<dim + 1> &thicken_() {
-        // Make a prism for each simplex in the triangulation
-        topPrisms_.clear();
-        topPrisms_.reserve(tri_.size());
+        // Make a new prism for each simplex in the triangulation. This is
+        // its own layer: it gets fully glued together internally below,
+        // independently of any previous layer.
+        PrismMap newPrisms;
+        newPrisms.reserve(tri_.size());
         for (const auto *s : tri_.simplices()) {
-            topPrisms_.emplace(s, cob_);
+            newPrisms.emplace(s, cob_);
         }
 
         // Now glue the prisms together along their walls according to the
         // gluing of the original triangulation
         std::set<std::pair<const regina::Simplex<dim> *, int>> visited;
 
-        for (int i = 0; i < topPrisms_.size(); ++i) {
+        for (size_t i = 0; i < tri_.size(); ++i) {
             for (int facet = 0; facet < dim + 1; ++facet) {
                 const regina::Simplex<dim> *s = tri_.simplex(i);
                 const regina::Simplex<dim> *adj = s->adjacentSimplex(facet);
@@ -220,77 +214,34 @@ class CobordismBuilder {
 
                 int adjFacet = s->adjacentFacet(facet);
 
-                std::cout << "[*] Gluing thickened triangulation: "
-                          << s->index() << " facet " << facet << " to "
-                          << adj->index() << " facet " << adjFacet << "\n";
-                topPrisms_.at(s).glue(facet, topPrisms_.at(adj), adjFacet);
+                newPrisms.at(s).glue(facet, newPrisms.at(adj), adjFacet);
 
                 visited.insert({s, facet});
                 visited.insert({adj, adjFacet});
             }
         }
 
-        // If this is the first layer of thickening, we can just return the
-        // thickened triangulation
-        if (cob_.isConnected()) {
-            return cob_;
-        } else {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::thicken(): More than 1 layer!!! Or wasn't "
-                "able to glue every prism together");
+        // If there is a previous layer, stitch this layer's bottom onto its
+        // top, simplex by simplex: since both layers thicken the same base
+        // triangulation, the seam uses the same base simplex on both sides
+        // and needs no relabelling of base vertices.
+        if (hasPreviousLayer_) {
+            for (const auto *s : tri_.simplices()) {
+                topPrisms_.at(s).stitchTop(newPrisms.at(s));
+            }
         }
 
-        // For now, let's just get 1 layer working
+        topPrisms_ = std::move(newPrisms);
+        hasPreviousLayer_ = true;
 
-        //// Otherwise, we need to glue the thickened triangulation to the
-        //// existing cobordism triangulation
-        // auto iso = cob_.boundaryComponent(1)->build().isIsomorphicTo(
-        //     cob_.boundaryComponent(2)->build());
-        // if (!iso.has_value()) {
-        //     throw regina::InvalidArgument(
-        //         "CobordismBuilder::thicken(): Cannot glue thickened "
-        //         "triangulation to cobordism triangulation; boundary
-        //         components " "are not isomorphic.");
-        // }
+        if (!cob_.isValid()) {
+            throw regina::InvalidArgument(
+                "CobordismBuilder::thicken(): Resulting triangulation is not "
+                "valid.");
+        }
 
-        // std::cout << "[*] Gluing thickened triangulation\n";
-
-        // glueBoundaries(cob_, 1, 2, iso.value());
-        // std::cout << "[*] Done gluing thickened triangulation\n";
-
-        // if (!cob_.isValid()) {
-        //     throw regina::InvalidArgument(
-        //         "CobordismBuilder::thicken(): Resulting triangulation is not
-        //         " "valid after gluing thickened triangulation to cobordism "
-        //         "triangulation.");
-        // }
-
-        // return cob_;
+        return cob_;
     }
 };
-
-// template <>
-// inline regina::Triangulation<4> &CobordismBuilder<3>::thicken() {
-//     // if (!tri_.isOrdered() && !tri_.order())
-//     //     throw regina::InvalidArgument(
-//     //         "CobordismBuilder<3>::thicken(): Could not thicken!
-//     Triangulation
-//     //         " "is unorderable.");
-//     return thicken_();
-// }
-//
-// template <>
-// inline regina::Triangulation<4> &CobordismBuilder<3>::thicken(int layers) {
-//     // if (!tri_.isOrdered() && !tri_.order())
-//     //     throw regina::InvalidArgument("CobordismBuilder<3>::thicken(int):
-//     "
-//     //                                   "Could not thicken! Triangulation "
-//     //                                   "is unorderable.");
-//     for (int i = 0; i < layers; ++i) {
-//         thicken_();
-//     }
-//
-//     return cob_;
-// }
 
 #endif // COBORDISM_BUILDER_H
