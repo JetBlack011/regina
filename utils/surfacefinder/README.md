@@ -8,6 +8,8 @@ signature, or thickened up from a knot/link diagram via a PD code),
 embedded 2-surfaces satisfying some boundary condition (closed, properly
 bounded, or unconstrained).
 
+Primarily developed by [John Teague](https://jetblack011.github.io/), advised by [Lisa Piccirillo](https://sites.google.com/view/lpiccirillo/home), with contributions from Srinivas Vadhiraj, Samantha Ward, Angel Yuan, and Jingyuan Zhang as part of the [Texas Experimental Geometry Lab (TXGL)](https://texas-experimental-geometry-lab.gitlab.io/).
+
 ## Contents
 
 ### Library headers (no standalone build output)
