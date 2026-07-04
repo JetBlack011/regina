@@ -1,3 +1,4 @@
+#include "cobordismbuilder.h"
 #include "knotbuilder.h"
 #include "knottedsurfaces.h"
 
@@ -99,7 +100,7 @@ int main(int argc, char *argv[]) {
     // std::cout << "Triangulation of the complement = "
     //           << l.buildComplement().isoSig() << "\n";
 
-    knotbuilder::CobordismBuilder<3> cob(tri);
+    CobordismBuilder<3> cob(tri);
     regina::Triangulation<4> thickenedTri = cob.thicken();
 
     std::cout << "[+] Thickened triangulation = " << thickenedTri.isoSig()

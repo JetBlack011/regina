@@ -130,29 +130,6 @@ void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
     }
 }
 
-template <int dim>
-bool isOrdered(const regina::Triangulation<dim> &tri) {
-    for (const auto &s : tri.simplices()) {
-        for (int f = 0; f < dim; ++f) {
-            if (s->adjacentSimplex(f) == nullptr)
-                continue;
-            regina::Perm<dim + 1> g = s->adjacentGluing(f);
-            std::vector<int> a;
-            for (int i = 0; i < dim + 1; ++i) {
-                if (i == f)
-                    continue;
-                a.push_back(g[i]);
-            }
-
-            if (!std::ranges::is_sorted(a)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
 bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
                             std::vector<const regina::Edge<3> *> &edges) {
     size_t numCrossings = pdcode.size();
@@ -188,13 +165,13 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
     tri.finiteToIdeal();
 
     for (const auto &block : blocks) {
-        const auto blockEdges = block.getEdges();
+        const auto blockEdges = block.getLinkEdges();
         edges.insert(edges.begin(), blockEdges.begin(), blockEdges.end());
     }
 
     return true;
 }
 
-const std::vector<regina::Edge<3> *> knotbuilder::Block::getEdges() const {
+const std::vector<regina::Edge<3> *> knotbuilder::Block::getLinkEdges() const {
     return {core_[4]->edge(5), core_[5]->edge(5), core_[4]->edge(0)};
 }

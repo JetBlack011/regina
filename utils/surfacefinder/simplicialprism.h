@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <triangulation/forward.h>
 #include <maths/perm.h>
 
 template <int dim>

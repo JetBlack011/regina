@@ -2,13 +2,13 @@
 // Tests for CobordismBuilder::thicken() — verifies SimplicialPrism construction
 // and gluing produce a valid product cobordism.
 
+#include <iostream>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <triangulation/example3.h>
 #include <triangulation/example4.h>
-#include <iostream>
 
-#include "knotbuilder.h"
+#include "cobordismbuilder.h"
 
 static int passed = 0, failed_count = 0;
 
@@ -17,11 +17,11 @@ static int passed = 0, failed_count = 0;
         auto _a = (actual);                                                    \
         auto _e = (expected);                                                  \
         if (_a == _e) {                                                        \
-            std::cout << "  PASS: " << (desc) << "\n";                        \
+            std::cout << "  PASS: " << (desc) << "\n";                         \
             ++passed;                                                          \
         } else {                                                               \
-            std::cout << "  FAIL: " << (desc) << "\n"                         \
-                      << "        expected " << _e << ", got " << _a << "\n"; \
+            std::cout << "  FAIL: " << (desc) << "\n"                          \
+                      << "        expected " << _e << ", got " << _a << "\n";  \
             ++failed_count;                                                    \
         }                                                                      \
     } while (0)
@@ -40,8 +40,8 @@ void test_ball_thicken_one_layer() {
     regina::Triangulation<3> ball;
     ball.newTetrahedron();
 
-    knotbuilder::CobordismBuilder<3> cob(ball);
-    auto& result = cob.thicken(1);
+    CobordismBuilder<3> cob(ball);
+    auto &result = cob.thicken(1);
 
     EXPECT_EQ((int)result.size(), 4,
               "1 tet × 4 prism simplices = 4 pentachora");
@@ -63,8 +63,8 @@ void test_s3_thicken_one_layer() {
 
     auto s3 = regina::Example<3>::threeSphere();
 
-    knotbuilder::CobordismBuilder<3> cob(s3);
-    auto& result = cob.thicken(1);
+    CobordismBuilder<3> cob(s3);
+    auto &result = cob.thicken(1);
 
     EXPECT_EQ((int)result.size(), 8,
               "2 tets × 4 prism simplices = 8 pentachora");
@@ -72,10 +72,12 @@ void test_s3_thicken_one_layer() {
     EXPECT_EQ(result.isConnected(), true, "S³×I triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
               "2 boundary components (top and bottom S³)");
-    EXPECT_EQ(result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(0) ≅ S³");
-    EXPECT_EQ(result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(1) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(0) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(1) ≅ S³");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,23 +89,27 @@ void test_s3_thicken_one_layer() {
 //   - 2 boundary components, each ≅ S³
 // ─────────────────────────────────────────────────────────────────────────────
 void test_s3_thicken_two_layers() {
-    std::cout << "\n--- Minimal S³ (2 tets), thicken(2): inter-layer gluing ---\n";
+    std::cout
+        << "\n--- Minimal S³ (2 tets), thicken(2): inter-layer gluing ---\n";
 
     auto s3 = regina::Example<3>::threeSphere();
 
-    knotbuilder::CobordismBuilder<3> cob(s3);
-    auto& result = cob.thicken(2);
+    CobordismBuilder<3> cob(s3);
+    auto &result = cob.thicken(2);
 
     EXPECT_EQ((int)result.size(), 16,
               "2 layers × 8 pentachora = 16 pentachora");
     EXPECT_EQ(result.isValid(), true, "S³×[0,2] triangulation is valid");
-    EXPECT_EQ(result.isConnected(), true, "S³×[0,2] triangulation is connected");
+    EXPECT_EQ(result.isConnected(), true,
+              "S³×[0,2] triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
               "2 boundary components (top and bottom S³)");
-    EXPECT_EQ(result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(0) ≅ S³");
-    EXPECT_EQ(result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(1) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(0) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(1) ≅ S³");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,8 +130,8 @@ void test_bdy_delta4_thicken_one_layer() {
 
     std::cout << "    " << s3.size() << " tetrahedra\n";
 
-    knotbuilder::CobordismBuilder<3> cob(s3);
-    auto& result = cob.thicken(1);
+    CobordismBuilder<3> cob(s3);
+    auto &result = cob.thicken(1);
 
     EXPECT_EQ((int)result.size(), 20,
               "5 tets × 4 prism simplices = 20 pentachora");
@@ -133,27 +139,29 @@ void test_bdy_delta4_thicken_one_layer() {
     EXPECT_EQ(result.isConnected(), true, "S³×I triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
               "2 boundary components (top and bottom S³)");
-    EXPECT_EQ(result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(0) ≅ S³");
-    EXPECT_EQ(result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
-              true, "bc(1) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(0) ≅ S³");
+    EXPECT_EQ(
+        result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
+        true, "bc(1) ≅ S³");
 }
 
 template <typename F>
-void run(const char* name, F fn) {
+void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
         fn();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cout << "  EXCEPTION: " << e.what() << "\n";
         ++failed_count;
     }
 }
 
 int main() {
-    run("test_ball_thicken_one_layer",    test_ball_thicken_one_layer);
-    run("test_s3_thicken_one_layer",      test_s3_thicken_one_layer);
-    run("test_s3_thicken_two_layers",     test_s3_thicken_two_layers);
+    run("test_ball_thicken_one_layer", test_ball_thicken_one_layer);
+    run("test_s3_thicken_one_layer", test_s3_thicken_one_layer);
+    run("test_s3_thicken_two_layers", test_s3_thicken_two_layers);
     run("test_bdy_delta4_thicken_one_layer", test_bdy_delta4_thicken_one_layer);
 
     std::cout << "\n=== " << passed << " passed, " << failed_count

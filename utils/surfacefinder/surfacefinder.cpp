@@ -8,6 +8,7 @@
 
 #include "gluinggraph.h"
 #include "knotbuilder.h"
+#include "cobordismbuilder.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
@@ -145,7 +146,7 @@ int main(int argc, char *argv[]) {
         knotbuilder::buildLink(threeMfld, pdcode, linkEdges);
         Link bdry(threeMfld, linkEdges);
 
-        knotbuilder::CobordismBuilder<3> cob(threeMfld);
+        CobordismBuilder<3> cob(threeMfld);
 
         tri = cob.thicken(2);
     } else if (argc == 3) {

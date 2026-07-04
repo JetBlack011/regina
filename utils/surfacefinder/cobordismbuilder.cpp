@@ -50,8 +50,6 @@ int main(int argc, char *argv[]) {
               "Please provide an isomorphism signature and/or dimension.");
     }
 
-    knotbuilder::PDCode pdcode;
-
     regina::Triangulation<3> bdryTri(isoSig);
     knotbuilder::CobordismBuilder<3> cob(bdryTri);
     regina::Triangulation<4> tri = cob.thicken(2);
