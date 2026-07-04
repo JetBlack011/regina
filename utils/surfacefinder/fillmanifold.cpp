@@ -3,24 +3,6 @@
 //
 //  Created by John Teague on 04/12/2025.
 
-#include <gmpxx.h>
-#include <link/link.h>
-#include <triangulation/dim2.h>
-#include <triangulation/dim3.h>
-#include <triangulation/dim4.h>
-#include <unistd.h>
-
-#include <iostream>
-#include <ostream>
-#include <string>
-
-#include "triangulation/example3.h"
-#include "triangulation/forward.h"
-//#include "triangulation/generic/boundarycomponent.h"
-//#include "triangulation/generic/isomorphism.h"
-//#include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
-
 #include "knotbuilder.h"
 
 namespace {

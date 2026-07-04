@@ -2,42 +2,43 @@
 // Sanity checks for GluingGraph: structure (nodes/edges) and surface counts
 // on small triangulations where the answer is known by hand.
 
+#include <iostream>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <triangulation/example3.h>
 #include <triangulation/example4.h>
-#include <iostream>
 
 #include "gluinggraph.h"
 
 static int passed = 0, failed_count = 0;
 
-#define EXPECT_EQ(actual, expected, desc)                                  \
-    do {                                                                    \
-        auto _a = (actual);                                                 \
-        auto _e = (expected);                                               \
-        if (_a == _e) {                                                     \
-            std::cout << "  PASS: " << (desc) << "\n";                     \
-            ++passed;                                                       \
-        } else {                                                            \
-            std::cout << "  FAIL: " << (desc) << "\n"                      \
-                      << "        expected " << _e << ", got " << _a << "\n";\
-            ++failed_count;                                                 \
-        }                                                                   \
+#define EXPECT_EQ(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a == _e) {                                                        \
+            std::cout << "  PASS: " << (desc) << "\n";                         \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << "  FAIL: " << (desc) << "\n"                          \
+                      << "        expected " << _e << ", got " << _a << "\n";  \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
-#define EXPECT_GE(actual, expected, desc)                                  \
-    do {                                                                    \
-        auto _a = (actual);                                                 \
-        auto _e = (expected);                                               \
-        if (_a >= _e) {                                                     \
-            std::cout << "  PASS: " << (desc) << "\n";                     \
-            ++passed;                                                       \
-        } else {                                                            \
-            std::cout << "  FAIL: " << (desc) << "\n"                      \
-                      << "        expected >= " << _e << ", got " << _a << "\n";\
-            ++failed_count;                                                 \
-        }                                                                   \
+#define EXPECT_GE(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a >= _e) {                                                        \
+            std::cout << "  PASS: " << (desc) << "\n";                         \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << "  FAIL: " << (desc) << "\n"                          \
+                      << "        expected >= " << _e << ", got " << _a        \
+                      << "\n";                                                 \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
 // ────────────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ void test_single_tetrahedron() {
     tri.newSimplex();
 
     EXPECT_EQ(tri.countTriangles(), 4, "triangulation has 4 triangles");
-    EXPECT_EQ(tri.isClosed(), false,   "triangulation has boundary");
+    EXPECT_EQ(tri.isClosed(), false, "triangulation has boundary");
 
     // Graph structure
     {
@@ -77,17 +78,17 @@ void test_single_tetrahedron() {
     // Surface counts
     {
         GluingGraph<3> g(tri, SurfaceCondition::all);
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_EQ((int)s.size(), 15, "--all: 15 surfaces");
     }
     {
         GluingGraph<3> g(tri, SurfaceCondition::boundary);
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_EQ((int)s.size(), 15, "--boundary: 15 proper surfaces");
     }
     {
         GluingGraph<3> g(tri, SurfaceCondition::closed);
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_EQ((int)s.size(), 1, "--closed: 1 closed surface (S^2)");
     }
 }
@@ -108,8 +109,8 @@ void test_two_tetrahedra() {
     std::cout << "\n--- two tetrahedra sharing one face ---\n";
 
     regina::Triangulation<3> tri;
-    auto* t0 = tri.newSimplex();
-    auto* t1 = tri.newSimplex();
+    auto *t0 = tri.newSimplex();
+    auto *t1 = tri.newSimplex();
     t0->join(3, t1, regina::Perm<4>());
 
     EXPECT_EQ(tri.countTriangles(), 7, "7 distinct triangles");
@@ -117,17 +118,17 @@ void test_two_tetrahedra() {
     {
         GluingGraph<3> g(tri, SurfaceCondition::all);
         EXPECT_EQ(g.countNodes(), 7, "7 nodes in gluing graph");
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_GE((int)s.size(), 7, "--all: ≥ 7 surfaces");
     }
     {
         GluingGraph<3> g(tri, SurfaceCondition::boundary);
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_GE((int)s.size(), 6, "--boundary: ≥ 6 proper surfaces");
     }
     {
         GluingGraph<3> g(tri, SurfaceCondition::closed);
-        auto& s = g.findSurfaces();
+        auto &s = g.findSurfaces();
         EXPECT_GE((int)s.size(), 1, "--closed: ≥ 1 closed surface");
     }
 }
@@ -208,14 +209,14 @@ void test_four_sphere() {
 
     auto tri = regina::Example<4>::fourSphere();
     EXPECT_EQ(tri.isClosed(), true, "S^4 is closed");
-    std::cout << "    " << tri.size() << " pentachora, "
-              << tri.countTriangles() << " triangles\n";
+    std::cout << "    " << tri.size() << " pentachora, " << tri.countTriangles()
+              << " triangles\n";
 
     GluingGraph<4> g(tri, SurfaceCondition::closed);
     std::cout << "    Gluing graph: " << g.countNodes() << " nodes, "
               << g.countEdges() << " edges\n";
 
-    auto& s = g.findSurfaces();
+    auto &s = g.findSurfaces();
     std::cout << "    Closed surfaces found: " << s.size() << "\n";
     EXPECT_GE((int)s.size(), 0, "findSurfaces() completes without error");
 }

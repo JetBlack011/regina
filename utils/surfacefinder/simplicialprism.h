@@ -2,15 +2,10 @@
 
 #define SIMPLICIALPRISM_H
 
-#include <algorithm>
-#include <gmpxx.h>
-#include <triangulation/dim2.h>
-#include <triangulation/dim3.h>
-#include <triangulation/dim4.h>
-#include <unistd.h>
 #include <unordered_set>
+#include <vector>
 
-#include "triangulation/forward.h"
+#include <maths/perm.h>
 
 template <int dim>
 class SimplicialPrism {
@@ -87,58 +82,101 @@ class SimplicialPrism {
             throw regina::InvalidArgument(
                 "SimplicialPrism::glue(): Invalid faces");
 
-        int i = 0, j = 0;
-        while (i < dim && j < dim) {
+        // First, identify which facets in the wall of the prism ought to be
+        // identified
+        std::vector<std::pair<int, int>> gluingFacets;
+        std::vector<std::pair<int, int>> otherGluingFacets;
+
+        for (int i = 0; i < dim; ++i) {
             if (i == facet)
-                ++i;
-            if (j == otherFacet)
-                ++j;
+                continue;
 
-            if (i == dim || j == dim)
-                break;
-
-            std::array<int, dim + 1> g;
-            int k = 0, l = 0;
-            int k0 = dim, l0 = dim;
-            while (k <= i) {
-                if (k == facet) {
-                    k0 = k == 0 ? dim : k - 1;
-                    ++k;
-                }
-                if (l == otherFacet) {
-                    l0 = l == 0 ? dim : l - 1;
-                    ++l;
-                }
-
-                g[k == 0 ? dim : k - 1] = l == 0 ? dim : l - 1;
-                ++k, ++l;
+            if (i < facet) {
+                gluingFacets.emplace_back(i, facet + 1);
+            } else {
+                gluingFacets.emplace_back(i, facet);
             }
-            k--, l--;
-            while (k < dim) {
-                if (k == facet)
-                    k0 = k++;
-                if (l == otherFacet)
-                    l0 = l++;
-
-                g[k++] = l++;
-            }
-            g[k0] = l0;
-
-            //std::cout << "Triangulation = "
-            //          << simplices_[i]->triangulation().isoSig() << "\n";
-            //std::cout << "facet = " << facet << ", otherFacet = " << otherFacet
-            //          << ", i = " << i << ", j = " << j << ", k0 = " << k0
-            //          << ", l0 = " << l0 << ", g = {";
-            //for (int m = 0; m < dim + 1; ++m) {
-            //    std::cout << g[m];
-            //    if (m < dim)
-            //        std::cout << ", ";
-            //}
-            //std::cout << "}\n";
-            simplices_[i]->join(k0, other.simplices_[j], g);
-
-            ++i, ++j;
         }
+
+        for (int i = 0; i < dim; ++i) {
+            if (i == otherFacet)
+                continue;
+
+            if (i < otherFacet) {
+                otherGluingFacets.emplace_back(i, otherFacet + 1);
+            } else {
+                otherGluingFacets.emplace_back(i, otherFacet);
+            }
+        }
+
+        if (gluingFacets.size() != otherGluingFacets.size())
+            throw regina::InvalidArgument(
+                "SimplicialPrism::glue(): oh dear god...");
+
+        // for (int i = 0; i < gluingFacets.size(); ++i) {
+        //     simplices_[gluingFacets[i].first]->join(
+        //         gluingFacets[i].second,
+        //         other.simplices_[otherGluingFacets[i].first]);
+        // }
+
+        //    simplices_[i]->join(k0, other.simplices_[j], g);
+
+        // Then identify them
+
+        // -------
+        // int i = 0, j = 0;
+        // while (i < dim && j < dim) {
+        //    if (i == facet)
+        //        ++i;
+        //    if (j == otherFacet)
+        //        ++j;
+
+        //    if (i == dim || j == dim)
+        //        break;
+
+        //    std::array<int, dim + 1> g;
+        //    int k = 0, l = 0;
+        //    int k0 = dim, l0 = dim;
+        //    while (k <= i) {
+        //        if (k == facet) {
+        //            k0 = k == 0 ? dim : k - 1;
+        //            ++k;
+        //        }
+        //        if (l == otherFacet) {
+        //            l0 = l == 0 ? dim : l - 1;
+        //            ++l;
+        //        }
+
+        //        g[k == 0 ? dim : k - 1] = l == 0 ? dim : l - 1;
+        //        ++k, ++l;
+        //    }
+        //    k--, l--;
+        //    while (k < dim) {
+        //        if (k == facet)
+        //            k0 = k++;
+        //        if (l == otherFacet)
+        //            l0 = l++;
+
+        //        g[k++] = l++;
+        //    }
+        //    g[k0] = l0;
+
+        //    //std::cout << "Triangulation = "
+        //    //          << simplices_[i]->triangulation().isoSig() << "\n";
+        //    //std::cout << "facet = " << facet << ", otherFacet = " <<
+        //    otherFacet
+        //    //          << ", i = " << i << ", j = " << j << ", k0 = " << k0
+        //    //          << ", l0 = " << l0 << ", g = {";
+        //    //for (int m = 0; m < dim + 1; ++m) {
+        //    //    std::cout << g[m];
+        //    //    if (m < dim)
+        //    //        std::cout << ", ";
+        //    //}
+        //    //std::cout << "}\n";
+        //    simplices_[i]->join(k0, other.simplices_[j], g);
+
+        //    ++i, ++j;
+        //}
     }
 };
 

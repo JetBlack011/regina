@@ -4,32 +4,10 @@
 //  Created by John Teague on 06/19/2024.
 //
 
-#include <algorithm>
-#include <gmpxx.h>
-#include <link/link.h>
-#include <triangulation/dim2.h>
-#include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
-#include <unistd.h>
-
-#include <algorithm>
-#include <iostream>
-#include <map>
-#include <ostream>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "knotbuilder.h"
-#include "triangulation/forward.h"
-//#include "triangulation/generic/boundarycomponent.h"
-//#include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
 
 #include "gluinggraph.h"
 #include "knotbuilder.h"
-#include "knottedsurfaces.h"
-#include "utilities/exception.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {

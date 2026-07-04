@@ -11,17 +11,8 @@
 
 #define KNOTBUILDER_H
 
-#include <gmpxx.h>
-#include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
-#include <unistd.h>
-
-#include <string>
-
-#include "triangulation/forward.h"
-//#include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
 
 #include "gluing.h"
 #include "simplicialprism.h"

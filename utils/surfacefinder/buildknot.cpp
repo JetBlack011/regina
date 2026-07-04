@@ -1,19 +1,3 @@
-#include <gmpxx.h>
-#include <link/link.h>
-#include <triangulation/dim2.h>
-#include <triangulation/dim3.h>
-#include <triangulation/dim4.h>
-#include <unistd.h>
-
-#include <cassert>
-#include <iostream>
-#include <string>
-
-#include "triangulation/example2.h"
-#include "triangulation/forward.h"
-// #include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
-
 #include "knotbuilder.h"
 #include "knottedsurfaces.h"
 

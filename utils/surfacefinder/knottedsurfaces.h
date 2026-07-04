@@ -8,36 +8,15 @@
 
 #define KNOTTED_SURFACES_H
 
-#include <gmpxx.h>
-#include <link/link.h>
+#include <unordered_set>
+
+#include <census/census.h>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
-#include <triangulation/dim4.h>
-#include <unistd.h>
-
-#include <array>
-#include <cstddef>
-#include <cstring>
-#include <iostream>
-#include <ostream>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <utility>
-#include <vector>
-
-#include "census/census.h"
-#include "triangulation/forward.h"
-//#include "triangulation/generic/boundarycomponent.h"
-//#include "triangulation/generic/face.h"
-//#include "triangulation/generic/faceembedding.h"
-//#include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
-#include "utilities/exception.h"
 
 #include "gluing.h"
 
-enum class SurfaceCondition { all, boundary, closed };
+enum class SurfaceCondition : std::uint8_t { all, boundary, closed };
 
 /** Knot/Link implementation, specialized for taking complements */
 class EdgeComplement {
@@ -491,7 +470,8 @@ class KnottedSurface {
         emb_.erase(src);
         inv_.erase(f);
         indices_.erase(f->index());
-        surface_.removeSimplex(src); // deletes src; must come after map erasures
+        surface_.removeSimplex(
+            src); // deletes src; must come after map erasures
         updateInvariants_();
     }
 

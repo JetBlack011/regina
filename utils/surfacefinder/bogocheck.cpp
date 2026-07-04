@@ -1,11 +1,4 @@
-#include <gmpxx.h>
 #include <link/link.h>
-#include <triangulation/dim2.h>
-#include <triangulation/dim3.h>
-#include <triangulation/dim4.h>
-#include <unistd.h>
-//#include "triangulation/generic/triangulation.h"
-#include <triangulation/generic.h>
 
 std::mutex mutex;
 

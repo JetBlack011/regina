@@ -2,7 +2,11 @@
 
 #define GLUING_H
 
-#include "triangulation/forward.h"
+#include <ostream>
+#include <unordered_map>
+
+#include <triangulation/forward.h>
+#include <maths/perm.h>
 
 /** Gluing Implementation */
 
@@ -27,7 +31,7 @@ struct Gluing {
 
 template <int dim>
 class GluingNode {
-   public:
+  public:
     using AdjList = std::unordered_map<GluingNode *, Gluing<dim, 2>>;
 
     regina::Triangle<dim> *f;
