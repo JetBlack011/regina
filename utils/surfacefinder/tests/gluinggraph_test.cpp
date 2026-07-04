@@ -7,21 +7,45 @@
 #include <triangulation/dim4.h>
 #include <triangulation/example3.h>
 #include <triangulation/example4.h>
+#include <unistd.h>
 
 #include "gluinggraph.h"
 
 static int passed = 0, failed_count = 0;
+
+// ANSI color manipulators for PASS/FAIL output. Auto-disabled when stdout
+// isn't a terminal (e.g. piped to a file), so logs don't fill up with
+// escape codes.
+namespace {
+bool colorEnabled() {
+    static bool enabled = isatty(fileno(stdout));
+    return enabled;
+}
+std::ostream &green(std::ostream &os) {
+    return colorEnabled() ? os << "\033[32m" : os;
+}
+std::ostream &red(std::ostream &os) {
+    return colorEnabled() ? os << "\033[31m" : os;
+}
+std::ostream &bold(std::ostream &os) {
+    return colorEnabled() ? os << "\033[1m" : os;
+}
+std::ostream &resetColor(std::ostream &os) {
+    return colorEnabled() ? os << "\033[0m" : os;
+}
+} // namespace
 
 #define EXPECT_EQ(actual, expected, desc)                                      \
     do {                                                                       \
         auto _a = (actual);                                                    \
         auto _e = (expected);                                                  \
         if (_a == _e) {                                                        \
-            std::cout << "  PASS: " << (desc) << "\n";                         \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
             ++passed;                                                          \
         } else {                                                               \
-            std::cout << "  FAIL: " << (desc) << "\n"                          \
-                      << "        expected " << _e << ", got " << _a << "\n";  \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                  \
+                      << "        expected " << _e << ", got " << _a          \
+                      << resetColor << "\n";                                   \
             ++failed_count;                                                    \
         }                                                                      \
     } while (0)
@@ -31,12 +55,12 @@ static int passed = 0, failed_count = 0;
         auto _a = (actual);                                                    \
         auto _e = (expected);                                                  \
         if (_a >= _e) {                                                        \
-            std::cout << "  PASS: " << (desc) << "\n";                         \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
             ++passed;                                                          \
         } else {                                                               \
-            std::cout << "  FAIL: " << (desc) << "\n"                          \
-                      << "        expected >= " << _e << ", got " << _a        \
-                      << "\n";                                                 \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                  \
+                      << "        expected >= " << _e << ", got " << _a       \
+                      << resetColor << "\n";                                   \
             ++failed_count;                                                    \
         }                                                                      \
     } while (0)
@@ -227,7 +251,9 @@ int main() {
     test_three_sphere();
     test_four_sphere();
 
-    std::cout << "\n=== " << passed << " passed, " << failed_count
-              << " failed ===\n";
+    std::cout << "\n"
+              << bold << (failed_count > 0 ? red : green) << "=== " << passed
+              << " passed, " << failed_count << " failed ===" << resetColor
+              << "\n";
     return failed_count > 0 ? 1 : 0;
 }
