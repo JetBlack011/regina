@@ -26,55 +26,55 @@ class SimplicialPrism {
         }
     }
 
-    template <int facedim>
-    std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
-    subprism(const regina::Perm<dim> &vertices) const {
-        static_assert(
-            facedim >= 0 && facedim < dim - 1,
-            "SimplicialPrism::faceTimesI: facedim must be in [0, dim-2]");
+    //template <int facedim>
+    //std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
+    //subprism(const regina::Perm<dim> &vertices) const {
+    //    static_assert(
+    //        facedim >= 0 && facedim < dim - 1,
+    //        "SimplicialPrism::faceTimesI: facedim must be in [0, dim-2]");
 
-        std::vector<int> faceVerts;
-        for (int i = 0; i < dim; ++i) {
-            faceVerts.push_back(vertices[i]);
-        }
-        std::sort(faceVerts.begin(), faceVerts.begin() + facedim + 1);
+    //    std::vector<int> faceVerts;
+    //    for (int i = 0; i < dim; ++i) {
+    //        faceVerts.push_back(vertices[i]);
+    //    }
+    //    std::sort(faceVerts.begin(), faceVerts.begin() + facedim + 1);
 
-        std::array<const regina::Face<dim, facedim + 1> *, facedim + 1> faces;
+    //    std::array<const regina::Face<dim, facedim + 1> *, facedim + 1> faces;
 
-        for (int i = 0; i <= facedim; ++i) {
-            std::array<int, dim + 1> facetVerts;
-            std::unordered_set<int> unusedVerts;
-            for (int j = 0; j <= dim; ++j) {
-                unusedVerts.insert(j);
-            }
+    //    for (int i = 0; i <= facedim; ++i) {
+    //        std::array<int, dim + 1> facetVerts;
+    //        std::unordered_set<int> unusedVerts;
+    //        for (int j = 0; j <= dim; ++j) {
+    //            unusedVerts.insert(j);
+    //        }
 
-            int j = 0;
-            for (; j <= i; ++j) {
-                facetVerts[j] = faceVerts[j] == 0 ? dim : faceVerts[j] - 1;
-                unusedVerts.erase(facetVerts[j]);
-            }
-            for (; j <= facedim + 1; ++j) {
-                facetVerts[j] = faceVerts[j - 1];
-                unusedVerts.erase(facetVerts[j]);
-            }
-            for (; j <= dim; ++j) {
-                facetVerts[j] = *unusedVerts.begin();
-                unusedVerts.erase(unusedVerts.begin());
-            }
+    //        int j = 0;
+    //        for (; j <= i; ++j) {
+    //            facetVerts[j] = faceVerts[j] == 0 ? dim : faceVerts[j] - 1;
+    //            unusedVerts.erase(facetVerts[j]);
+    //        }
+    //        for (; j <= facedim + 1; ++j) {
+    //            facetVerts[j] = faceVerts[j - 1];
+    //            unusedVerts.erase(facetVerts[j]);
+    //        }
+    //        for (; j <= dim; ++j) {
+    //            facetVerts[j] = *unusedVerts.begin();
+    //            unusedVerts.erase(unusedVerts.begin());
+    //        }
 
-            int facetIndex =
-                regina::Face<dim, facedim + 1>::faceNumber(facetVerts);
-            faces[i] = simplices_[faceVerts[i]]->template face<facedim + 1>(
-                facetIndex);
-        }
+    //        int facetIndex =
+    //            regina::Face<dim, facedim + 1>::faceNumber(facetVerts);
+    //        faces[i] = simplices_[faceVerts[i]]->template face<facedim + 1>(
+    //            facetIndex);
+    //    }
 
-        return faces;
-    }
+    //    return faces;
+    //}
 
-    inline std::array<const regina::Triangle<dim> *, 2>
-    edgeTimesI(const regina::Perm<dim> &vertices) const {
-        return subprism<1>(vertices);
-    }
+    //inline std::array<const regina::Triangle<dim> *, 2>
+    //edgeTimesI(const regina::Perm<dim> &vertices) const {
+    //    return subprism<1>(vertices);
+    //}
 
     void glue(int facet, SimplicialPrism<dim> &other, int otherFacet) {
         // Positively heinous code

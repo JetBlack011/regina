@@ -106,7 +106,5 @@ int main(int argc, char *argv[]) {
     std::cout << "[+] Thickened triangulation = " << thickenedTri.isoSig()
               << "\n";
 
-    cob.edgesTimesI(edges);
-
     return 0;
 }

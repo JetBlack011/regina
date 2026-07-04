@@ -173,37 +173,41 @@ class CobordismBuilder {
         return cob_;
     }
 
-    template <int facedim>
-    std::vector<const regina::Face<dim + 1, facedim + 1> *> facesTimesI(
-        const std::vector<const regina::Face<dim, facedim> *> &faces) const {
-        std::vector<const regina::Face<dim + 1, facedim + 1> *> thickenedFaces;
-        thickenedFaces.reserve(faces.size() * (facedim + 1));
+    // template <int facedim>
+    // std::vector<const regina::Face<dim + 1, facedim + 1> *> facesTimesI(
+    //     const std::vector<const regina::Face<dim, facedim> *> &faces) const {
+    //     std::vector<const regina::Face<dim + 1, facedim + 1> *>
+    //     thickenedFaces; thickenedFaces.reserve(faces.size() * (facedim + 1));
 
-        for (const auto &face : faces) {
-            const regina::FaceEmbedding<dim, facedim> &emb = face->front();
-            const SimplicialPrism<dim + 1> &prism =
-                topPrisms_.at(emb.simplex());
-            const auto facesTimesI =
-                prism.template subprism<facedim>(emb.vertices());
-            thickenedFaces.insert(thickenedFaces.end(), facesTimesI.begin(),
-                                  facesTimesI.end());
-        }
+    //    for (const auto &face : faces) {
+    //        const regina::FaceEmbedding<dim, facedim> &emb = face->front();
+    //        const SimplicialPrism<dim + 1> &prism =
+    //            topPrisms_.at(emb.simplex());
+    //        const auto facesTimesI =
+    //            prism.template subprism<facedim>(emb.vertices());
+    //        thickenedFaces.insert(thickenedFaces.end(), facesTimesI.begin(),
+    //                              facesTimesI.end());
+    //    }
 
-        return thickenedFaces;
-    }
+    //    return thickenedFaces;
+    //}
 
-    inline std::vector<const regina::Triangle<dim + 1> *>
-    edgesTimesI(const std::vector<const regina::Edge<dim> *> &edges) const {
-        return facesTimesI(edges);
-    }
+    // inline std::vector<const regina::Triangle<dim + 1> *>
+    // edgesTimesI(const std::vector<const regina::Edge<dim> *> &edges) const {
+    //     return facesTimesI(edges);
+    // }
 
   private:
     regina::Triangulation<dim + 1> &thicken_() {
+        // Make a prism for each simplex in the triangulation
         topPrisms_.clear();
         topPrisms_.reserve(tri_.size());
         for (const auto *s : tri_.simplices()) {
             topPrisms_.emplace(s, cob_);
         }
+
+        // Now glue the prisms together along their walls according to the
+        // gluing of the original triangulation
         std::set<std::pair<const regina::Simplex<dim> *, int>> visited;
 
         for (int i = 0; i < topPrisms_.size(); ++i) {
@@ -226,33 +230,42 @@ class CobordismBuilder {
             }
         }
 
+        // If this is the first layer of thickening, we can just return the
+        // thickened triangulation
         if (cob_.isConnected()) {
             return cob_;
-        }
-
-        // Glue the thickened triangulation to the cobordism triangulation
-        auto iso = cob_.boundaryComponent(1)->build().isIsomorphicTo(
-            cob_.boundaryComponent(2)->build());
-        if (!iso.has_value()) {
+        } else {
             throw regina::InvalidArgument(
-                "CobordismBuilder::thicken(): Cannot glue thickened "
-                "triangulation to cobordism triangulation; boundary components "
-                "are not isomorphic.");
+                "CobordismBuilder::thicken(): More than 1 layer!!! Or wasn't "
+                "able to glue every prism together");
         }
 
-        std::cout << "[*] Gluing thickened triangulation\n";
+        // For now, let's just get 1 layer working
 
-        glueBoundaries(cob_, 1, 2, iso.value());
-        std::cout << "[*] Done gluing thickened triangulation\n";
+        //// Otherwise, we need to glue the thickened triangulation to the
+        //// existing cobordism triangulation
+        // auto iso = cob_.boundaryComponent(1)->build().isIsomorphicTo(
+        //     cob_.boundaryComponent(2)->build());
+        // if (!iso.has_value()) {
+        //     throw regina::InvalidArgument(
+        //         "CobordismBuilder::thicken(): Cannot glue thickened "
+        //         "triangulation to cobordism triangulation; boundary
+        //         components " "are not isomorphic.");
+        // }
 
-        if (!cob_.isValid()) {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::thicken(): Resulting triangulation is not "
-                "valid after gluing thickened triangulation to cobordism "
-                "triangulation.");
-        }
+        // std::cout << "[*] Gluing thickened triangulation\n";
 
-        return cob_;
+        // glueBoundaries(cob_, 1, 2, iso.value());
+        // std::cout << "[*] Done gluing thickened triangulation\n";
+
+        // if (!cob_.isValid()) {
+        //     throw regina::InvalidArgument(
+        //         "CobordismBuilder::thicken(): Resulting triangulation is not
+        //         " "valid after gluing thickened triangulation to cobordism "
+        //         "triangulation.");
+        // }
+
+        // return cob_;
     }
 };
 
