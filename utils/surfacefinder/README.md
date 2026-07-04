@@ -12,7 +12,7 @@ Primarily developed by [John Teague](https://jetblack011.github.io/), advised by
 
 ## Contents
 
-### Library headers (no standalone build output)
+### Library headers
 
 | File | Purpose |
 |---|---|
@@ -139,7 +139,7 @@ ctest -L surfacefinder --output-on-failure
 ./build/utils/surfacefinder/tests/knotbuilder_test
 ```
 
-### Triangulating the full knot-table
+### Triangulating the full knot table
 
 `triangulate_knot_table` is a standalone utility, not part of the
 routine test suite (running it against the full KnotInfo table takes roughly 10-15 minutes):
