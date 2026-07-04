@@ -124,17 +124,17 @@ class SimplicialPrism {
             }
             g[k0] = l0;
 
-            std::cout << "Triangulation = "
-                      << simplices_[i]->triangulation().isoSig() << "\n";
-            std::cout << "facet = " << facet << ", otherFacet = " << otherFacet
-                      << ", i = " << i << ", j = " << j << ", k0 = " << k0
-                      << ", l0 = " << l0 << ", g = {";
-            for (int m = 0; m < dim + 1; ++m) {
-                std::cout << g[m];
-                if (m < dim)
-                    std::cout << ", ";
-            }
-            std::cout << "}\n";
+            //std::cout << "Triangulation = "
+            //          << simplices_[i]->triangulation().isoSig() << "\n";
+            //std::cout << "facet = " << facet << ", otherFacet = " << otherFacet
+            //          << ", i = " << i << ", j = " << j << ", k0 = " << k0
+            //          << ", l0 = " << l0 << ", g = {";
+            //for (int m = 0; m < dim + 1; ++m) {
+            //    std::cout << g[m];
+            //    if (m < dim)
+            //        std::cout << ", ";
+            //}
+            //std::cout << "}\n";
             simplices_[i]->join(k0, other.simplices_[j], g);
 
             ++i, ++j;

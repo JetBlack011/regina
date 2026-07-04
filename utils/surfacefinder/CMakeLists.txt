@@ -14,6 +14,9 @@ target_link_libraries(surfacefinder ${ENGINE_LIBRARY})
 add_executable(gluinggraph_test gluinggraph_test.cpp)
 target_link_libraries(gluinggraph_test ${ENGINE_LIBRARY})
 
+add_executable(knotbuilder_test knotbuilder_test.cpp knotbuilder.cpp)
+target_link_libraries(knotbuilder_test ${ENGINE_LIBRARY})
+
 foreach(UTIL ${UTILS})
   add_executable(${UTIL} ${UTIL}.cpp)
   target_link_libraries(${UTIL} ${ENGINE_LIBRARY})
