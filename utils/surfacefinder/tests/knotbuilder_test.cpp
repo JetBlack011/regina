@@ -6,8 +6,11 @@
 
 #include <iostream>
 #include <link/link.h>
+#include <string>
 #include <triangulation/dim3.h>
 #include <unistd.h>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "cobordismbuilder.h"
 #include "knotbuilder.h"
@@ -76,6 +79,84 @@ regina::Triangulation<3> buildFromPD(const char *pd,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Independent structural check on the raw edge list returned by buildLink(),
+// deliberately *not* reusing Link's own tip-to-tail grouping logic (that's
+// exactly what this is meant to double-check). Verifies:
+//   1. no duplicate edges;
+//   2. every vertex touched by the edge set has degree exactly 2 within that
+//      set (necessary for the edges to be a disjoint union of simple closed
+//      curves, rather than dangling ends or a branch point);
+//   3. tracing tip-to-tail from any edge always returns to its own starting
+//      vertex (each component is a genuine closed loop, not an open path
+//      that Link's greedy grouping would otherwise silently accept); and
+//   4. the edges partition into exactly the expected number of such loops,
+//      consuming every edge exactly once.
+// This says nothing about which knot/link it is (that's what the homology/
+// census/isomorphism checks are for) -- only that getLinkEdges() produced
+// something combinatorially sane for Link to work with in the first place.
+// ─────────────────────────────────────────────────────────────────────────────
+void checkEdgesFormSimpleClosedLoops(
+    const std::vector<const regina::Edge<3> *> &edges, int expectedComponents,
+    const std::string &name) {
+    std::unordered_set<const regina::Edge<3> *> edgeSet(edges.begin(),
+                                                         edges.end());
+    EXPECT_EQ(edgeSet.size(), edges.size(),
+              name + ": no duplicate edges in the link edge list");
+
+    std::unordered_map<const regina::Vertex<3> *, int> degree;
+    for (const regina::Edge<3> *e : edges) {
+        ++degree[e->vertex(0)];
+        ++degree[e->vertex(1)];
+    }
+    bool allDegreeTwo = true;
+    for (auto &[v, d] : degree) {
+        if (d != 2)
+            allDegreeTwo = false;
+    }
+    EXPECT_EQ(allDegreeTwo, true,
+              name + ": every vertex touched by the link edges has degree "
+                     "exactly 2 (no dangling ends or branch points)");
+
+    std::unordered_set<const regina::Edge<3> *> remaining(edges.begin(),
+                                                           edges.end());
+    int componentsFound = 0;
+    bool allClosed = true;
+    while (!remaining.empty()) {
+        const regina::Edge<3> *start = *remaining.begin();
+        const regina::Vertex<3> *startVertex = start->vertex(0);
+        const regina::Vertex<3> *currVertex = start->vertex(1);
+        remaining.erase(start);
+
+        while (currVertex != startVertex) {
+            const regina::Edge<3> *next = nullptr;
+            for (const regina::Edge<3> *e : remaining) {
+                if (e->vertex(0) == currVertex || e->vertex(1) == currVertex) {
+                    next = e;
+                    break;
+                }
+            }
+            if (next == nullptr)
+                break; // dangling: this component never closes up
+
+            currVertex = (next->vertex(0) == currVertex) ? next->vertex(1)
+                                                          : next->vertex(0);
+            remaining.erase(next);
+        }
+
+        if (currVertex != startVertex)
+            allClosed = false;
+        ++componentsFound;
+    }
+
+    EXPECT_EQ(allClosed, true,
+              name + ": every component closes up into a single loop "
+                     "(tip-to-tail trace returns to its own start)");
+    EXPECT_EQ(componentsFound, expectedComponents,
+              name + ": edges trace exactly the expected number of simple "
+                     "closed loops");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Layer 1: knotbuilder's raw output, on its own, independent of
 // CobordismBuilder. If buildLink() ever stops producing a valid closed S³
 // (e.g. a knotbuilder change breaks the block gluing pattern), this should
@@ -94,6 +175,8 @@ void test_knotbuilder_trefoil_is_valid_s3() {
     EXPECT_EQ(tri.isSphere(), true, "trefoil triangulation is S³");
     EXPECT_EQ((int)edges.size(), 9, "3 crossings × 3 link edges per block = 9");
 
+    checkEdgesFormSimpleClosedLoops(edges, 1, "trefoil");
+
     Link link(tri, edges);
     EXPECT_EQ((int)link.comps_.size(), 1, "trefoil is a 1-component knot");
 }
@@ -106,6 +189,8 @@ void test_knotbuilder_hopf_link_two_components() {
 
     EXPECT_EQ(tri.isValid(), true, "Hopf link triangulation is valid");
     EXPECT_EQ(tri.isSphere(), true, "Hopf link triangulation is S³");
+
+    checkEdgesFormSimpleClosedLoops(edges, 2, "Hopf link");
 
     Link link(tri, edges);
     EXPECT_EQ((int)link.comps_.size(), 2, "Hopf link has 2 components");
@@ -152,6 +237,8 @@ void test_knotbuilder_nonalternating_regression() {
               "sphere before capping)");
     EXPECT_EQ(tri.isSphere(), true,
               "non-alternating shadow: triangulation is S³");
+
+    checkEdgesFormSimpleClosedLoops(edges, 2, "non-alternating shadow");
 
     Link link(tri, edges);
     EXPECT_EQ((int)link.comps_.size(), 2,
@@ -239,6 +326,8 @@ void test_knotbuilder_many_named_knots() {
                   std::string(knot.name) + ": triangulation is closed");
         EXPECT_EQ(tri.isSphere(), true,
                   std::string(knot.name) + ": triangulation is S³");
+
+        checkEdgesFormSimpleClosedLoops(edges, 1, knot.name);
 
         Link link(tri, edges);
         EXPECT_EQ((int)link.comps_.size(), 1,

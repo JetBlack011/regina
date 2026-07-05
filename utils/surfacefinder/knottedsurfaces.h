@@ -277,9 +277,60 @@ class KnottedSurface {
      * top-dimensional simplices of the sub-triangulation. Note that
      * inv_.at(emb_.at(face)) = face */
 
-    std::array<int, 3> invariants_;
+    mutable std::array<int, 3> invariants_;
+    mutable bool invariantsValid_ = false;
+    /**< Regina's isOrientable()/countBoundaryComponents()/eulerChar() force
+     * a full recompute of surface_'s skeleton (its cache is invalidated by
+     * every addTriangle/removeTriangle mutation), so we no longer call them
+     * eagerly on every DFS step -- only lazily, the first time detail() (or
+     * any future invariant accessor) actually needs them. */
 
     std::set<int> indices_;
+
+    // --- Incremental self-intersection tracking ---
+    //
+    // Rather than rescanning every vertex of the surface built so far on
+    // every single addTriangle() attempt (an O(current surface size) cost
+    // repeated at every DFS node), we maintain a rollback-capable union-find
+    // over "raw corners" (a triangle together with one of its 3 local
+    // vertices). Two raw corners end up in the same component exactly when
+    // they're connected by a chain of edge-gluings among the triangles
+    // currently in the surface -- i.e. one component per abstract vertex of
+    // the surface being built, same as regina::Triangulation<2>'s own
+    // vertex identification, just maintained incrementally by us instead of
+    // recomputed from scratch after every mutation.
+    //
+    // imageRootCount_ tracks, for each ambient vertex, how many *distinct*
+    // components currently map to it; selfIntersections_ counts how many
+    // ambient vertices have more than one such component (i.e. two
+    // genuinely different points of the abstract surface landing on the
+    // same ambient point -- a self-intersection). A rollback union-find (no
+    // path compression, union by size, undo log) is correct here because
+    // DFS add/remove is properly nested (stack-like): whenever a triangle
+    // is removed it's always the most recently added triangle that hasn't
+    // already been removed, so undoing its union-find operations in LIFO
+    // order always exactly reverses them.
+    std::unordered_map<size_t, size_t> ufParent_;
+    std::unordered_map<size_t, int> ufSize_;
+    std::unordered_map<const regina::Vertex<dim> *, int> imageRootCount_;
+    int selfIntersections_ = 0;
+
+    struct UfUndoEntry {
+        size_t childRoot;
+        size_t parentRoot;
+        int parentOldSize;
+        const regina::Vertex<dim> *image;
+    };
+    std::vector<UfUndoEntry> ufUndoLog_;
+    // Per-triangle snapshot of ufUndoLog_.size() taken just before that
+    // triangle's unions were performed, so removeTriangle() knows exactly
+    // how many log entries to undo.
+    std::unordered_map<const regina::Triangle<dim> *, size_t> ufCheckpoints_;
+
+    // Number of (triangle, local facet) pairs in the surface not currently
+    // glued to a neighbour -- lets isClosed() be O(1) instead of going
+    // through regina::Triangulation<2>'s (skeleton-dependent) isClosed().
+    int numBoundaryFacets_ = 0;
 
   public:
     std::unordered_set<const regina::Edge<dim> *> improperEdges_;
@@ -296,7 +347,12 @@ class KnottedSurface {
     KnottedSurface(const KnottedSurface &other)
         : tri_(other.tri_), surface_(other.surface_),
           improperEdges_(other.improperEdges_), invariants_(other.invariants_),
-          indices_(other.indices_) {
+          invariantsValid_(other.invariantsValid_), indices_(other.indices_),
+          ufParent_(other.ufParent_), ufSize_(other.ufSize_),
+          imageRootCount_(other.imageRootCount_),
+          selfIntersections_(other.selfIntersections_),
+          ufUndoLog_(other.ufUndoLog_), ufCheckpoints_(other.ufCheckpoints_),
+          numBoundaryFacets_(other.numBoundaryFacets_) {
         if (!tri_->isClosed()) {
             bdry_ = tri_->boundaryComponent(0)->build();
         }
@@ -315,7 +371,15 @@ class KnottedSurface {
             surface_ = other.surface_;
             improperEdges_ = other.improperEdges_;
             invariants_ = other.invariants_;
+            invariantsValid_ = other.invariantsValid_;
             indices_ = other.indices_;
+            ufParent_ = other.ufParent_;
+            ufSize_ = other.ufSize_;
+            imageRootCount_ = other.imageRootCount_;
+            selfIntersections_ = other.selfIntersections_;
+            ufUndoLog_ = other.ufUndoLog_;
+            ufCheckpoints_ = other.ufCheckpoints_;
+            numBoundaryFacets_ = other.numBoundaryFacets_;
 
             // emb_/inv_ point into the *old* surface_, which the assignment
             // above just destroyed -- clear them before rebuilding, or
@@ -337,22 +401,11 @@ class KnottedSurface {
 
     const regina::Triangulation<2> &surface() const { return surface_; }
 
-    bool isClosed() const { return surface_.isClosed(); }
+    bool isClosed() const { return numBoundaryFacets_ == 0; }
 
-    bool isProper() const {
-        return surface_.isClosed() || improperEdges_.empty();
-    }
+    bool isProper() const { return isClosed() || improperEdges_.empty(); }
 
-    bool hasSelfIntersection() const {
-        std::unordered_set<const regina::Vertex<dim> *> images;
-        for (const regina::Vertex<2> *v : surface_.vertices()) {
-            const regina::Vertex<dim> *im = image(v);
-            if (images.find(im) != images.end())
-                return true;
-            images.insert(im);
-        }
-        return false;
-    }
+    bool hasSelfIntersection() const { return selfIntersections_ > 0; }
 
     Link boundary() const {
         std::unordered_set<const regina::Edge<dim - 1> *> edges;
@@ -417,6 +470,21 @@ class KnottedSurface {
         emb_[src] = f;
         inv_[f] = src;
 
+        // Register f's 3 raw corners as fresh singleton union-find
+        // components before attempting any joins, so ufUnite_() below always
+        // has something to look up. ufCheckpoint marks where in the undo log
+        // this triangle's own unions start, for removeTriangle() to roll
+        // back to later.
+        size_t ufCheckpoint = ufUndoLog_.size();
+        for (int i = 0; i < 3; ++i) {
+            size_t key = cornerKey_(f, i);
+            ufParent_[key] = key;
+            ufSize_[key] = 1;
+            addCornerImage_(f->vertex(i));
+        }
+
+        int boundaryFacetsConsumed = 0;
+
         for (const auto &[adjNode, g] : adj) {
             auto search = inv_.find(adjNode->f);
             if (search == inv_.end())
@@ -428,20 +496,29 @@ class KnottedSurface {
             // Saves us from catching an error
             if (dst->adjacentSimplex(dstFacet) != nullptr ||
                 src->adjacentSimplex(g.srcFacet) != nullptr) {
-                surface_.removeSimplex(src);
-                emb_.erase(src);
-                inv_.erase(f);
+                undoFailedAdd_(f, ufCheckpoint, src);
                 return false;
             }
 
             isBoundaryEdge[g.srcFacet] = false;
+            ++boundaryFacetsConsumed;
             src->join(g.srcFacet, dst, g.gluing);
+
+            // The gluing perm maps src's local vertex numbering to dst's;
+            // the two vertices on the shared edge (everything but the
+            // facet itself) get identified as the same abstract surface
+            // vertex.
+            for (int corner = 0; corner < 3; ++corner) {
+                if (corner == g.srcFacet)
+                    continue;
+                ufUnite_(cornerKey_(f, corner),
+                        cornerKey_(adjNode->f, g.gluing[corner]),
+                        f->vertex(corner));
+            }
         }
 
         if (hasSelfIntersection()) {
-            surface_.removeSimplex(src);
-            emb_.erase(src);
-            inv_.erase(f);
+            undoFailedAdd_(f, ufCheckpoint, src);
             return false;
         }
 
@@ -453,8 +530,15 @@ class KnottedSurface {
             }
         }
 
+        // Each consumed facet removes one boundary slot on our own side (it
+        // was never counted) and flips one on the neighbour's side from
+        // boundary to interior; the remaining (3 - boundaryFacetsConsumed)
+        // facets are new boundary slots of our own.
+        numBoundaryFacets_ += 3 - 2 * boundaryFacetsConsumed;
+
+        ufCheckpoints_[f] = ufCheckpoint;
         indices_.insert(f->index());
-        updateInvariants_();
+        invariantsValid_ = false;
 
         return true;
     }
@@ -470,7 +554,19 @@ class KnottedSurface {
                 if (!edge->isBoundary()) {
                     improperEdges_.insert(edge);
                 }
+                ++numBoundaryFacets_;
+            } else {
+                --numBoundaryFacets_;
             }
+        }
+
+        ufUndoTo_(ufCheckpoints_.at(f));
+        ufCheckpoints_.erase(f);
+        for (int i = 0; i < 3; ++i) {
+            size_t key = cornerKey_(f, i);
+            removeCornerImage_(f->vertex(i));
+            ufParent_.erase(key);
+            ufSize_.erase(key);
         }
 
         emb_.erase(src);
@@ -478,11 +574,13 @@ class KnottedSurface {
         indices_.erase(f->index());
         surface_.removeSimplex(
             src); // deletes src; must come after map erasures
-        updateInvariants_();
+        invariantsValid_ = false;
     }
 
     std::string detail() const {
         // if (!detail_.empty()) return detail_;
+
+        ensureInvariants_();
 
         /* Generate surface details */
         bool isOrientable = invariants_[0];
@@ -535,21 +633,109 @@ class KnottedSurface {
         return ans.str();
     }
 
+    // The triangle index set already uniquely identifies a surface (the same
+    // set of triangles is definitionally the same surface, and no two
+    // different sets are "the same" surface), so it alone is sufficient for
+    // std::set's ordering/dedup -- invariants_ is purely derived/display
+    // data and doesn't need to participate here. That's what lets
+    // computing invariants_ be deferred out of the DFS hot path entirely.
     friend bool operator==(const KnottedSurface &lhs,
                            const KnottedSurface &rhs) {
-        return lhs.invariants_ == rhs.invariants_ &&
-               lhs.indices_ == rhs.indices_;
+        return lhs.indices_ == rhs.indices_;
     }
 
     friend bool operator<(const KnottedSurface &lhs,
                           const KnottedSurface &rhs) {
-        return lhs.invariants_ < rhs.invariants_ ||
-               (lhs.invariants_ == rhs.invariants_ &&
-                lhs.indices_ < rhs.indices_);
+        return lhs.indices_ < rhs.indices_;
     }
 
   private:
-    void updateInvariants_() {
+    static size_t cornerKey_(const regina::Triangle<dim> *f, int i) {
+        return f->index() * 3 + static_cast<size_t>(i);
+    }
+
+    size_t ufFind_(size_t x) const {
+        while (true) {
+            size_t parent = ufParent_.at(x);
+            if (parent == x)
+                return x;
+            x = parent;
+        }
+    }
+
+    // Registers a freshly-created raw corner mapping to ambient vertex v,
+    // updating the self-intersection count if this creates (or grows) a
+    // conflict.
+    void addCornerImage_(const regina::Vertex<dim> *v) {
+        int oldCount = imageRootCount_[v]++;
+        if (oldCount == 1)
+            ++selfIntersections_;
+    }
+
+    // Inverse of addCornerImage_(), used both when unwinding a failed add
+    // and when a corner's owning triangle is fully removed.
+    void removeCornerImage_(const regina::Vertex<dim> *v) {
+        int oldCount = imageRootCount_[v]--;
+        if (oldCount == 2)
+            --selfIntersections_;
+    }
+
+    // Unions the union-find components of raw corners x and y, which must
+    // both currently map to ambient vertex v (guaranteed by construction:
+    // the gluing permutation used to reach here was derived directly from
+    // the ambient triangulation's own edge identifications). No-op if
+    // they're already in the same component (e.g. a triangle glued to
+    // itself along another edge that already connected them).
+    void ufUnite_(size_t x, size_t y, const regina::Vertex<dim> *v) {
+        size_t rx = ufFind_(x), ry = ufFind_(y);
+        if (rx == ry)
+            return;
+        if (ufSize_.at(rx) < ufSize_.at(ry))
+            std::swap(rx, ry);
+
+        int oldParentSize = ufSize_.at(rx);
+        ufUndoLog_.push_back({ry, rx, oldParentSize, v});
+        ufParent_[ry] = rx;
+        ufSize_[rx] = oldParentSize + ufSize_.at(ry);
+
+        removeCornerImage_(v);
+    }
+
+    // Rolls ufUndoLog_ back to the given checkpoint (a prior
+    // ufUndoLog_.size()), in LIFO order -- correct because DFS add/remove is
+    // properly nested (see the class-level comment on ufParent_).
+    void ufUndoTo_(size_t checkpoint) {
+        while (ufUndoLog_.size() > checkpoint) {
+            const UfUndoEntry &e = ufUndoLog_.back();
+            ufParent_[e.childRoot] = e.childRoot;
+            ufSize_[e.parentRoot] = e.parentOldSize;
+            addCornerImage_(e.image);
+            ufUndoLog_.pop_back();
+        }
+    }
+
+    // Common cleanup when addTriangle() must bail out (a double-glued
+    // facet, or a self-intersection): undo this attempt's union-find
+    // operations and singleton corners, then the surface_/emb_/inv_ state
+    // that addTriangle() had already set up for f.
+    void undoFailedAdd_(const regina::Triangle<dim> *f, size_t ufCheckpoint,
+                        regina::Triangle<2> *src) {
+        ufUndoTo_(ufCheckpoint);
+        for (int i = 0; i < 3; ++i) {
+            size_t key = cornerKey_(f, i);
+            removeCornerImage_(f->vertex(i));
+            ufParent_.erase(key);
+            ufSize_.erase(key);
+        }
+        surface_.removeSimplex(src);
+        emb_.erase(src);
+        inv_.erase(f);
+    }
+
+    void ensureInvariants_() const {
+        if (invariantsValid_)
+            return;
+
         bool isOrientable = surface_.isOrientable();
         int punctures = surface_.countBoundaryComponents();
         int genus = isOrientable ? (2 - surface_.eulerChar() - punctures) / 2
@@ -558,6 +744,7 @@ class KnottedSurface {
         invariants_[0] = isOrientable;
         invariants_[1] = punctures;
         invariants_[2] = genus;
+        invariantsValid_ = true;
     }
 };
 
