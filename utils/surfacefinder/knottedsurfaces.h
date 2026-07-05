@@ -8,6 +8,7 @@
 
 #define KNOTTED_SURFACES_H
 
+#include <memory>
 #include <unordered_set>
 
 #include <census/census.h>
@@ -261,21 +262,32 @@ class KnottedSurface {
     const regina::Triangulation<dim> *tri_;
     /**< The dim-manifold triangulation in which this subdim-manifold is
      * embedded */
-    regina::Triangulation<dim - 1> bdry_;
+    std::shared_ptr<const regina::Triangulation<dim - 1>> bdry_;
+    /**< tri_'s boundary, built once (in the very first KnottedSurface
+     * constructed for a given tri_) and shared by pointer across every
+     * subsequent copy -- it depends only on the fixed ambient triangulation,
+     * never on anything the search mutates, so there's no reason to rebuild
+     * it from scratch every time a surface gets copied into the results
+     * set. */
     regina::Triangulation<2> surface_;
     /**< The triangulation of the sub-triangulation induced by the embedding
      */
 
-    std::unordered_map<regina::Triangle<2> *, const regina::Triangle<dim> *>
-        emb_;
-    /**< A mapping from the top-dimensional simplices of the
-     * sub-triangulation into the subdim-simplices of the dim-triangulation
-     */
-    std::unordered_map<const regina::Triangle<dim> *, regina::Triangle<2> *>
-        inv_;
-    /**< A mapping from the subdim-simplices of the dim-triangulation to the
-     * top-dimensional simplices of the sub-triangulation. Note that
-     * inv_.at(emb_.at(face)) = face */
+    std::vector<const regina::Triangle<dim> *> emb_;
+    /**< emb_[t->index()] is the tri_-triangle that surface_-triangle t maps
+     * to. Grows/shrinks in lockstep with surface_ itself (push_back on
+     * addTriangle, pop_back on removeTriangle) -- correct because
+     * surface_'s own newSimplex()/removeSimplex() calls are always properly
+     * nested (the DFS only ever removes the triangle it most recently
+     * added), so surface_'s triangle indices behave exactly like a stack. */
+    std::vector<regina::Triangle<2> *> inv_;
+    /**< inv_[f->index()] is the surface_ triangle currently mapping to
+     * tri_-triangle f, or nullptr if f isn't part of the surface right now.
+     * Sized to tri_->countTriangles() once at construction, since tri_'s
+     * triangle indices are fixed for the lifetime of the search -- this
+     * replaces what used to be an unordered_map keyed on f, so every lookup
+     * in the addTriangle/removeTriangle hot path is a plain array access
+     * instead of a hash. */
 
     mutable std::array<int, 3> invariants_;
     mutable bool invariantsValid_ = false;
@@ -310,9 +322,16 @@ class KnottedSurface {
     // is removed it's always the most recently added triangle that hasn't
     // already been removed, so undoing its union-find operations in LIFO
     // order always exactly reverses them.
-    std::unordered_map<size_t, size_t> ufParent_;
-    std::unordered_map<size_t, int> ufSize_;
-    std::unordered_map<const regina::Vertex<dim> *, int> imageRootCount_;
+    //
+    // All three of ufParent_/ufSize_/imageRootCount_ are indexed by a fixed,
+    // known-bounded key derived from tri_ (corner keys range over
+    // [0, 3*tri_->countTriangles()), vertex indices over
+    // [0, tri_->countVertices())), so -- like emb_/inv_ above -- plain
+    // arrays sized once at construction replace what used to be
+    // unordered_maps, eliminating hashing from the DFS hot path.
+    std::vector<size_t> ufParent_;
+    std::vector<int> ufSize_;
+    std::vector<int> imageRootCount_;
     int selfIntersections_ = 0;
 
     struct UfUndoEntry {
@@ -322,10 +341,10 @@ class KnottedSurface {
         const regina::Vertex<dim> *image;
     };
     std::vector<UfUndoEntry> ufUndoLog_;
-    // Per-triangle snapshot of ufUndoLog_.size() taken just before that
-    // triangle's unions were performed, so removeTriangle() knows exactly
-    // how many log entries to undo.
-    std::unordered_map<const regina::Triangle<dim> *, size_t> ufCheckpoints_;
+    // Per-triangle (indexed by f->index()) snapshot of ufUndoLog_.size()
+    // taken just before that triangle's unions were performed, so
+    // removeTriangle() knows exactly how many log entries to undo.
+    std::vector<size_t> ufCheckpoints_;
 
     // Number of (triangle, local facet) pairs in the surface not currently
     // glued to a neighbour -- lets isClosed() be O(1) instead of going
@@ -338,37 +357,45 @@ class KnottedSurface {
      * of the boundary of the sub-triangulation is entirely contained within
      * the boundary of the dim-manifold triangulation */
 
-    KnottedSurface(const regina::Triangulation<dim> *tri) : tri_(tri) {
+    KnottedSurface(const regina::Triangulation<dim> *tri)
+        : tri_(tri), inv_(tri_->countTriangles(), nullptr),
+          ufParent_(3 * tri_->countTriangles()),
+          ufSize_(3 * tri_->countTriangles()),
+          imageRootCount_(tri_->countVertices(), 0),
+          ufCheckpoints_(tri_->countTriangles()) {
         if (!tri_->isClosed()) {
-            bdry_ = tri_->boundaryComponent(0)->build();
+            bdry_ = std::make_shared<const regina::Triangulation<dim - 1>>(
+                tri_->boundaryComponent(0)->build());
         }
     }
 
     KnottedSurface(const KnottedSurface &other)
-        : tri_(other.tri_), surface_(other.surface_),
-          improperEdges_(other.improperEdges_), invariants_(other.invariants_),
+        : tri_(other.tri_), bdry_(other.bdry_), surface_(other.surface_),
+          emb_(other.emb_), inv_(other.inv_.size(), nullptr),
+          invariants_(other.invariants_),
           invariantsValid_(other.invariantsValid_), indices_(other.indices_),
           ufParent_(other.ufParent_), ufSize_(other.ufSize_),
           imageRootCount_(other.imageRootCount_),
           selfIntersections_(other.selfIntersections_),
           ufUndoLog_(other.ufUndoLog_), ufCheckpoints_(other.ufCheckpoints_),
-          numBoundaryFacets_(other.numBoundaryFacets_) {
-        if (!tri_->isClosed()) {
-            bdry_ = tri_->boundaryComponent(0)->build();
-        }
-        // Connect the wires...
-        for (regina::Triangle<2> *t : other.surface_.triangles()) {
-            const regina::Triangle<dim> *f = other.emb_.at(t);
-            regina::Triangle<2> *newT = surface_.triangle(t->index());
-            emb_[newT] = f;
-            inv_[f] = newT;
+          numBoundaryFacets_(other.numBoundaryFacets_),
+          improperEdges_(other.improperEdges_) {
+        // emb_ was blitted straight from other (its values point into the
+        // shared, immutable tri_, so they need no adjustment), but inv_'s
+        // values point into surface_ itself -- a fresh, distinct copy of
+        // other.surface_ -- so those pointers have to be rebuilt from our
+        // own surface_ rather than copied from other.inv_.
+        for (regina::Triangle<2> *t : surface_.triangles()) {
+            inv_[emb_[t->index()]->index()] = t;
         }
     }
 
     KnottedSurface &operator=(const KnottedSurface &other) {
         if (this != &other) {
             tri_ = other.tri_;
+            bdry_ = other.bdry_;
             surface_ = other.surface_;
+            emb_ = other.emb_;
             improperEdges_ = other.improperEdges_;
             invariants_ = other.invariants_;
             invariantsValid_ = other.invariantsValid_;
@@ -381,18 +408,11 @@ class KnottedSurface {
             ufCheckpoints_ = other.ufCheckpoints_;
             numBoundaryFacets_ = other.numBoundaryFacets_;
 
-            // emb_/inv_ point into the *old* surface_, which the assignment
-            // above just destroyed -- clear them before rebuilding, or
-            // they're left holding dangling pointers into freed memory.
-            emb_.clear();
-            inv_.clear();
-
-            // Connect the wires...
-            for (regina::Triangle<2> *t : other.surface_.triangles()) {
-                const regina::Triangle<dim> *f = other.emb_.at(t);
-                regina::Triangle<2> *newT = surface_.triangle(t->index());
-                emb_[newT] = f;
-                inv_[f] = newT;
+            // See the copy constructor: inv_'s values are per-instance
+            // surface_ pointers, so they must be rebuilt, not blitted.
+            inv_.assign(other.inv_.size(), nullptr);
+            for (regina::Triangle<2> *t : surface_.triangles()) {
+                inv_[emb_[t->index()]->index()] = t;
             }
         }
 
@@ -420,7 +440,7 @@ class KnottedSurface {
                     const regina::Edge<dim> *im = image(e);
                     for (int i = 0; i < triBoundaryComp->countEdges(); ++i) {
                         if (im == triBoundaryComp->edge(i)) {
-                            edges.insert(bdry_.edge(i));
+                            edges.insert(bdry_->edge(i));
                             break;
                         }
                     }
@@ -430,7 +450,7 @@ class KnottedSurface {
 
         std::vector<const regina::Edge<dim - 1> *> edgeList(edges.begin(),
                                                             edges.end());
-        return {bdry_, edgeList};
+        return {*bdry_, edgeList};
     }
 
     template <int facedim>
@@ -438,24 +458,17 @@ class KnottedSurface {
         static_assert(0 <= facedim && facedim <= 2,
                       "Must have 0 <= facedim <= 2");
 
-        // for (auto &[t, f] : emb_) {
-        //     std::cout << "(" << t->index() << ", " << f->index() << ") ";
-        // }
-        // std::cout << "\n";
-
         const regina::FaceEmbedding<2, facedim> &fEmb = f->front();
-        return emb_.at(fEmb.simplex())->template face<facedim>(fEmb.face());
+        return emb_[fEmb.simplex()->index()]->template face<facedim>(
+            fEmb.face());
     }
 
     const regina::Triangle<dim> *image(regina::Triangle<2> *t) const {
-        return emb_.at(t);
+        return emb_[t->index()];
     }
 
     regina::Triangle<2> *preimage(const regina::Triangle<dim> *f) const {
-        auto search = inv_.find(f);
-        if (search == inv_.end())
-            return nullptr;
-        return search->second;
+        return inv_[f->index()];
     }
 
     /** Mutation methods */
@@ -480,8 +493,11 @@ class KnottedSurface {
         regina::Triangle<2> *src = surface_.newSimplex();
         std::array<bool, 3> isBoundaryEdge = {true, true, true};
 
-        emb_[src] = f;
-        inv_[f] = src;
+        // src is always the newest surface_ triangle (index == emb_.size()
+        // before this push), so emb_ can just grow in lockstep instead of
+        // being keyed by src's pointer.
+        emb_.push_back(f);
+        inv_[f->index()] = src;
 
         // Register f's 3 raw corners as fresh singleton union-find
         // components before attempting any joins, so ufUnite_() below always
@@ -499,11 +515,10 @@ class KnottedSurface {
         int boundaryFacetsConsumed = 0;
 
         for (const auto &[adjNode, g] : adj) {
-            auto search = inv_.find(adjNode->f);
-            if (search == inv_.end())
+            regina::Triangle<2> *dst = inv_[adjNode->f->index()];
+            if (dst == nullptr)
                 continue;
 
-            regina::Triangle<2> *dst = search->second;
             int dstFacet = g.gluing[g.srcFacet];
 
             // Saves us from catching an error
@@ -549,7 +564,7 @@ class KnottedSurface {
         // facets are new boundary slots of our own.
         numBoundaryFacets_ += 3 - 2 * boundaryFacetsConsumed;
 
-        ufCheckpoints_[f] = ufCheckpoint;
+        ufCheckpoints_[f->index()] = ufCheckpoint;
         indices_.insert(f->index());
         invariantsValid_ = false;
 
@@ -557,7 +572,7 @@ class KnottedSurface {
     }
 
     void removeTriangle(const regina::Triangle<dim> *f) {
-        regina::Triangle<2> *src = inv_.at(f);
+        regina::Triangle<2> *src = inv_[f->index()];
 
         for (int i = 0; i < 3; ++i) {
             regina::Triangle<2> *dst = src->adjacentSimplex(i);
@@ -573,20 +588,18 @@ class KnottedSurface {
             }
         }
 
-        ufUndoTo_(ufCheckpoints_.at(f));
-        ufCheckpoints_.erase(f);
+        ufUndoTo_(ufCheckpoints_[f->index()]);
         for (int i = 0; i < 3; ++i) {
-            size_t key = cornerKey_(f, i);
             removeCornerImage_(f->vertex(i));
-            ufParent_.erase(key);
-            ufSize_.erase(key);
         }
 
-        emb_.erase(src);
-        inv_.erase(f);
+        // src is always surface_'s current last triangle -- the DFS only
+        // ever removes the triangle it most recently added -- so emb_ can
+        // just shrink in lockstep instead of being keyed by src's pointer.
+        emb_.pop_back();
+        inv_[f->index()] = nullptr;
         indices_.erase(f->index());
-        surface_.removeSimplex(
-            src); // deletes src; must come after map erasures
+        surface_.removeSimplex(src); // deletes src
         invariantsValid_ = false;
     }
 
@@ -669,7 +682,7 @@ class KnottedSurface {
 
     size_t ufFind_(size_t x) const {
         while (true) {
-            size_t parent = ufParent_.at(x);
+            size_t parent = ufParent_[x];
             if (parent == x)
                 return x;
             x = parent;
@@ -680,7 +693,7 @@ class KnottedSurface {
     // updating the self-intersection count if this creates (or grows) a
     // conflict.
     void addCornerImage_(const regina::Vertex<dim> *v) {
-        int oldCount = imageRootCount_[v]++;
+        int oldCount = imageRootCount_[v->index()]++;
         if (oldCount == 1)
             ++selfIntersections_;
     }
@@ -688,7 +701,7 @@ class KnottedSurface {
     // Inverse of addCornerImage_(), used both when unwinding a failed add
     // and when a corner's owning triangle is fully removed.
     void removeCornerImage_(const regina::Vertex<dim> *v) {
-        int oldCount = imageRootCount_[v]--;
+        int oldCount = imageRootCount_[v->index()]--;
         if (oldCount == 2)
             --selfIntersections_;
     }
@@ -703,13 +716,13 @@ class KnottedSurface {
         size_t rx = ufFind_(x), ry = ufFind_(y);
         if (rx == ry)
             return;
-        if (ufSize_.at(rx) < ufSize_.at(ry))
+        if (ufSize_[rx] < ufSize_[ry])
             std::swap(rx, ry);
 
-        int oldParentSize = ufSize_.at(rx);
+        int oldParentSize = ufSize_[rx];
         ufUndoLog_.push_back({ry, rx, oldParentSize, v});
         ufParent_[ry] = rx;
-        ufSize_[rx] = oldParentSize + ufSize_.at(ry);
+        ufSize_[rx] = oldParentSize + ufSize_[ry];
 
         removeCornerImage_(v);
     }
@@ -735,14 +748,11 @@ class KnottedSurface {
                         regina::Triangle<2> *src) {
         ufUndoTo_(ufCheckpoint);
         for (int i = 0; i < 3; ++i) {
-            size_t key = cornerKey_(f, i);
             removeCornerImage_(f->vertex(i));
-            ufParent_.erase(key);
-            ufSize_.erase(key);
         }
         surface_.removeSimplex(src);
-        emb_.erase(src);
-        inv_.erase(f);
+        emb_.pop_back();
+        inv_[f->index()] = nullptr;
     }
 
     void ensureInvariants_() const {

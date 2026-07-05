@@ -90,8 +90,9 @@ class SurfaceFinder {
             }
         }
         if (startingNodes.size() != startingTriangles.size()) {
-            throw regina::InvalidArgument("SurfaceFinder::findSurfaces: Starting "
-                                          "triangle(s) not found in the graph");
+            throw regina::InvalidArgument(
+                "SurfaceFinder::findSurfaces: Starting "
+                "triangle(s) not found in the graph");
         }
 
         surface_ = {&tri_};
@@ -285,9 +286,9 @@ class SurfaceFinder {
     void extend_(std::vector<GluingNode<dim> *> &frontier, size_t idx,
                  size_t seedIdx = 0) {
         ++calls_;
-        if (calls_ % 100000 == 0)
-            std::cout << "\r" << std::flush << "[*] Call " << calls_
-                      << ", Surface size " << surface_.surface().size()
+        if (calls_ % 1000000 == 0)
+            std::cout << "\r" << std::flush << "[*] Call " << (calls_ / 1000000)
+                      << "M, Surface size " << surface_.surface().size()
                       << ", Surfaces " << surfaces_.size() << "          ";
 
         if (idx >= frontier.size())

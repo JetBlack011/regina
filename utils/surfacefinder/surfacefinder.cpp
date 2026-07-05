@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
         CobordismBuilder<3> cob(threeMfld);
 
-        tri = cob.thicken(2);
+        tri = cob.thicken();
     } else if (argc == 3) {
         std::string arg = argv[1];
         std::string isoSig = argv[2];
