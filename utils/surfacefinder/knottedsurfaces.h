@@ -460,8 +460,21 @@ class KnottedSurface {
 
     /** Mutation methods */
 
+    // checkSelfIntersection=false defers the self-intersection check (still
+    // performed, just not acted on here -- see hasSelfIntersection()) to
+    // the caller. This matters for building a fixed multi-triangle base
+    // (as opposed to the single-triangle-at-a-time DFS search, which wants
+    // the immediate check for early pruning): a base with an internal
+    // branch point can need triangle A and triangle B to both individually
+    // touch some ambient vertex v before the *connecting* triangle between
+    // them has been added, even though the full base is perfectly valid
+    // once everything is in. Checking (and rejecting) after every single
+    // insertion can therefore reject a valid base purely because of
+    // insertion order, when what actually matters is whether a
+    // self-intersection remains once the whole base is present.
     bool addTriangle(const regina::Triangle<dim> *f,
-                     const typename GluingNode<dim>::AdjList &adj) {
+                     const typename GluingNode<dim>::AdjList &adj,
+                     bool checkSelfIntersection = true) {
         // TODO: Figure out a nice way for this method not to know what an
         // AdjList is
         regina::Triangle<2> *src = surface_.newSimplex();
@@ -517,7 +530,7 @@ class KnottedSurface {
             }
         }
 
-        if (hasSelfIntersection()) {
+        if (checkSelfIntersection && hasSelfIntersection()) {
             undoFailedAdd_(f, ufCheckpoint, src);
             return false;
         }

@@ -101,12 +101,34 @@ class SurfaceFinder {
 
         std::cout << "\n";
         for (auto *base : startingNodes) {
-            if (!surface_.addTriangle(base->f, base->adjList))
+            // Defer the self-intersection check (see addTriangle's
+            // documentation): a base with an internal branch point can
+            // legitimately have two of its own triangles both touching an
+            // ambient vertex before the triangle connecting them has been
+            // inserted, even though the full base is perfectly valid once
+            // everything is in. Rejecting per-insertion here would make
+            // the result depend on startingNodes' (hash-based, arbitrary)
+            // iteration order instead of on whether the base is actually
+            // valid. A double-glued facet is still a hard, immediate
+            // failure -- that can never be "fixed" by a later insertion.
+            if (!surface_.addTriangle(base->f, base->adjList,
+                                      /*checkSelfIntersection=*/false))
                 throw regina::InvalidArgument(
                     "SurfaceFinder::findSurfaces: Starting triangles do not "
-                    "form a valid embedded partial surface (self-intersects "
-                    "or an edge is glued twice)");
+                    "form a valid embedded partial surface (an edge is "
+                    "glued twice)");
             base->visited = true;
+        }
+
+        // Now that every base triangle is in, check self-intersection
+        // exactly once, over the whole base. This is the check that was
+        // deferred above -- see addTriangle's documentation for why doing
+        // it per-triangle during the loop is wrong for a base with
+        // internal branch points.
+        if (surface_.hasSelfIntersection()) {
+            throw regina::InvalidArgument(
+                "SurfaceFinder::findSurfaces: Starting triangles do not "
+                "form a valid embedded partial surface (self-intersects)");
         }
 
         if (!surface_.surface().isConnected()) {
@@ -215,7 +237,19 @@ class SurfaceFinder {
     // requirement and has no self-intersection. Called after every triangle
     // is added to surface_, regardless of whether the search goes on to add
     // more triangles afterward.
+    //
+    // The hasSelfIntersection() check here is a deliberate, unconditional
+    // final gate, independent of whatever checks already happened upstream
+    // (extend_'s per-triangle check, or findSurfaces(startingTriangles)'s
+    // deferred whole-base check): this is the one place a surface actually
+    // gets recorded, so it's the one place that must never let a
+    // self-intersecting surface through, regardless of how surface_ got
+    // into its current state. Embedded-ness is the entire point of this
+    // tool -- this check should never be relied on to be redundant.
     void checkWin_() {
+        if (surface_.hasSelfIntersection())
+            return;
+
         if ((cond_ == SurfaceCondition::all) ||
             (cond_ == SurfaceCondition::closed && surface_.isClosed()) ||
             (cond_ == SurfaceCondition::boundary && surface_.isProper())) {

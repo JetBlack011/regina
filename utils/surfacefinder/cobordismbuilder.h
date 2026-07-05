@@ -50,6 +50,35 @@ class CobordismBuilder {
         }
     }
 
+    // The triangulation thicken()/cone() actually build against -- NOT the
+    // same object as whatever was passed to the constructor. The
+    // constructor takes a *copy* of its argument (and may reorder it), so a
+    // Simplex<dim>*/Edge<dim>* etc. obtained from the caller's own
+    // triangulation is a dangling reference to a different object as far as
+    // this class is concerned, even though indices (tetrahedron, edge,
+    // vertex) are preserved across the copy and any subsequent order().
+    // Callers that need to refer to a specific piece of the original
+    // triangulation (e.g. a knot edge) after construction must look it up
+    // here by index (e.g. `cob.baseTriangulation().edge(origEdge->index())`)
+    // rather than reusing the original pointer.
+    const regina::Triangulation<dim> &baseTriangulation() const {
+        return tri_;
+    }
+
+    // The k-th sub-simplex of the most-recently-built thickening layer's
+    // prism over `baseSimplex` (a simplex of baseTriangulation(), NOT of
+    // whatever triangulation was originally passed to the constructor --
+    // see baseTriangulation()). Only valid after at least one thicken()
+    // call, and only reflects the *most recent* layer -- topPrisms_ is
+    // replaced wholesale on the next thicken() call, so callers that need
+    // per-layer data (e.g. tracing an edge's sweep through every layer)
+    // must extract it after each individual thicken() call, before moving
+    // on to the next one.
+    regina::Simplex<dim + 1> *currentTopSimplex(
+        const regina::Simplex<dim> *baseSimplex, int k) const {
+        return topPrisms_.at(baseSimplex).simplex(k);
+    }
+
     template <int d>
     static bool isOrdered(const regina::Triangulation<d> &tri) {
         for (const auto &s : tri.simplices()) {

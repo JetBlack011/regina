@@ -26,6 +26,19 @@ class SimplicialPrism {
         }
     }
 
+    // The k-th sub-simplex of this prism (see decode_/encode_ for how its
+    // local vertices relate to the base simplex being thickened). Exposed
+    // so callers can locate specific faces of the thickening directly --
+    // e.g. the triangles swept out by a single base edge -- without needing
+    // a further layer of prism-specific API.
+    regina::Simplex<dim> *simplex(int k) const { return simplices_[k]; }
+
+    // Local vertex index (within simplex(k)) holding (v, isTop), if that
+    // vertex is actually present there. Public wrapper around encode_ for
+    // callers that need to locate a specific base vertex's image within a
+    // specific sub-simplex (see decode_'s class-level documentation).
+    static int localVertex(int v, bool isTop) { return encode_(v, isTop); }
+
     //template <int facedim>
     //std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
     //subprism(const regina::Perm<dim> &vertices) const {
