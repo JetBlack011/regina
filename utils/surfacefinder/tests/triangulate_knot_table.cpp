@@ -37,6 +37,25 @@ void usage(const char *progName, const std::string &error = std::string()) {
                  "to check\n";
     exit(1);
 }
+
+// Clears whatever partial line (a rolling progress update) is currently on
+// stdout, so a discrete message (a failure line) can be printed cleanly on
+// its own line instead of being appended to the tail of the progress line.
+void clearProgressLine() { std::cout << "\r" << std::string(100, ' ') << "\r"; }
+
+void printProgress(long total, long limit, long passed, long failedBuild,
+                   long failedValid, long failedClosed, long failedSphere,
+                   long failedLinkException) {
+    long failed = failedBuild + failedValid + failedClosed + failedSphere +
+                 failedLinkException;
+    std::cout << "\r" << std::flush << "[*] " << total;
+    if (limit != std::numeric_limits<long>::max())
+        std::cout << "/" << limit;
+    std::cout << " knots, passed=" << passed << ", failed=" << failed
+              << " (build=" << failedBuild << " valid=" << failedValid
+              << " closed=" << failedClosed << " sphere=" << failedSphere
+              << " linkExc=" << failedLinkException << ")          ";
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -69,7 +88,10 @@ int main(int argc, char *argv[]) {
         ++total;
         knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdStr);
         if (pdcode.empty()) {
+            clearProgressLine();
             std::cout << "EMPTY PD CODE: " << name << "\n";
+            printProgress(total, limit, passed, failedBuild, failedValid,
+                         failedClosed, failedSphere, failedLinkException);
             continue;
         }
 
@@ -77,7 +99,10 @@ int main(int argc, char *argv[]) {
         std::vector<const regina::Edge<3> *> edges;
         if (!knotbuilder::buildLink(tri, pdcode, edges)) {
             ++failedBuild;
+            clearProgressLine();
             std::cout << "BUILD FAILED: " << name << "\n";
+            printProgress(total, limit, passed, failedBuild, failedValid,
+                         failedClosed, failedSphere, failedLinkException);
             continue;
         }
 
@@ -99,6 +124,7 @@ int main(int argc, char *argv[]) {
             Link link(tri, edges);
         } catch (const std::exception &e) {
             ++failedLinkException;
+            clearProgressLine();
             std::cout << "LINK EXCEPTION: " << name << ": " << e.what()
                       << "\n";
             ok = false;
@@ -107,17 +133,22 @@ int main(int argc, char *argv[]) {
         if (ok) {
             ++passed;
         } else {
+            clearProgressLine();
             std::cout << "FAIL: " << name << " (" << pdcode.size()
                       << " crossings) valid=" << tri.isValid()
                       << " closed=" << tri.isClosed()
                       << " sphere=" << tri.isSphere() << "\n";
         }
+
+        printProgress(total, limit, passed, failedBuild, failedValid,
+                     failedClosed, failedSphere, failedLinkException);
     }
 
     double elapsed =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
             .count();
 
+    clearProgressLine();
     std::cout << "\n=== " << passed << "/" << total << " passed in "
               << elapsed << "s ===\n";
     std::cout << "failedBuild=" << failedBuild << " failedValid=" << failedValid
