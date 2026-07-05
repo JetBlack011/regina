@@ -1,6 +1,6 @@
 # Fast, always-run correctness tests for surfacefinder's components. Each
 # test binary covers one program/module:
-#   gluinggraph_test        - GluingGraph (surfacefinder's core search)
+#   surfacefinder_test      - SurfaceFinder (surfacefinder's core search)
 #   cobordismbuilder_test   - CobordismBuilder (thicken()/cone())
 #   knotbuilder_test        - knotbuilder (PD code -> triangulated S³) and
 #                             its integration with CobordismBuilder
@@ -9,7 +9,7 @@
 # the build directory runs and tracks all of them in one place, alongside
 # the rest of Regina's test suite.
 set(TESTS
-  gluinggraph_test
+  surfacefinder_test
   cobordismbuilder_test
   knotbuilder_test
 )

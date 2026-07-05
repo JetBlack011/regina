@@ -6,7 +6,7 @@
 
 #include <triangulation/dim4.h>
 
-#include "gluinggraph.h"
+#include "surfacefinder.h"
 #include "knotbuilder.h"
 #include "cobordismbuilder.h"
 
@@ -208,13 +208,13 @@ int main(int argc, char *argv[]) {
     //    tri.subdivide();
 
     std::cout << "[*] Building gluing graph...\n";
-    GluingGraph graph(tri, cond);
-    std::cout << "[+] Total gluing graph nodes = " << graph.countNodes() << "\n"
-              << "[+] Total gluing graph edges = " << graph.countEdges()
+    SurfaceFinder finder(tri, cond);
+    std::cout << "[+] Total gluing graph nodes = " << finder.countNodes() << "\n"
+              << "[+] Total gluing graph edges = " << finder.countEdges()
               << "\n";
-    //<< "[+] Graph = \n" << graph << "\n";
+    //<< "[+] Graph = \n" << finder << "\n";
 
-    auto &surfaces = graph.findSurfaces();
+    auto &surfaces = finder.findSurfaces();
 
     surfacesDetail(surfaces, cond);
 

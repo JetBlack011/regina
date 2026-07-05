@@ -317,6 +317,12 @@ class KnottedSurface {
             invariants_ = other.invariants_;
             indices_ = other.indices_;
 
+            // emb_/inv_ point into the *old* surface_, which the assignment
+            // above just destroyed -- clear them before rebuilding, or
+            // they're left holding dangling pointers into freed memory.
+            emb_.clear();
+            inv_.clear();
+
             // Connect the wires...
             for (regina::Triangle<2> *t : other.surface_.triangles()) {
                 const regina::Triangle<dim> *f = other.emb_.at(t);

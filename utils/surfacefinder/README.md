@@ -19,8 +19,8 @@ Primarily developed by [John Teague](https://jetblack011.github.io/), advised by
 | `knotbuilder.h` / `knotbuilder.cpp` | Builds a closed triangulation of S³ from a PD code, with the knot/link embedded as a specific cycle of edges. One `Block` per crossing, glued wall-to-wall along the diagram's edges. |
 | `cobordismbuilder.h` | `CobordismBuilder<dim>`: thickens a `Triangulation<dim>` into a `Triangulation<dim+1>` (`thicken()`/`thicken(n)`), and caps a thickened cobordism into a ball (`cone()`). |
 | `simplicialprism.h` | `SimplicialPrism<dim>`: the "staircase" triangulation of `Δ^(dim-1) × I` that `CobordismBuilder::thicken()` builds out of, one prism per base simplex. |
-| `gluinggraph.h` | `GluingGraph<dim>` and `GluingNode<dim>`: builds the graph of triangles/gluings that `surfacefinder`'s DFS runs over, and the DFS itself (`findSurfaces()`). |
-| `gluing.h` | Small `Gluing<dim, subdim>` helper struct used when deferring/batching face identifications. |
+| `surfacefinder.h` | `SurfaceFinder<dim>`: builds the graph of triangles/gluings that the DFS runs over (using `GluingNode<dim>` from `gluing.h`), and the DFS itself (`findSurfaces()`). |
+| `gluing.h` | `GluingNode<dim>` (one node per triangle, with its adjacency list) and the small `Gluing<dim, subdim>` helper struct used when deferring/batching face identifications. |
 | `knottedsurfaces.h` | `KnottedSurface<dim>` (the surface under construction during DFS, with its invariants), `EdgeComplement`/`Knot`/`Link` (boundary link extraction and complement recognition), and `SurfaceCondition`. |
 
 ### Programs
@@ -34,7 +34,7 @@ Primarily developed by [John Teague](https://jetblack011.github.io/), advised by
 
 | File | Covers |
 |---|---|
-| `gluinggraph_test.cpp` | `GluingGraph`/`findSurfaces()` against hand-verified triangulations (single tetrahedron, two tetrahedra, minimal S³, S⁴). |
+| `surfacefinder_test.cpp` | `SurfaceFinder` end to end: exact/hand-verified surface counts on small triangulations (single tetrahedron, two tetrahedra, minimal S³, ∂Δ⁴, S⁴); unit tests for `findSurfaces(startingTriangles)` (single- and multi-triangle bases, rejecting unknown/disconnected bases), `surfaces()`, and `operator<<`; and a bounded pipeline smoke test (`CobordismBuilder::cone()` → seeded `SurfaceFinder<4>` search → `KnottedSurface::boundary()`) confirming a surface bounding a known unknotted loop is actually found. |
 | `cobordismbuilder_test.cpp` | `CobordismBuilder::thicken()`/`cone()`: multi-layer thickening, capping, ordering, and an exhaustive sweep over `SimplicialPrism::glue()`'s facet-pairing permutations. Independent of knotbuilder. |
 | `knotbuilder_test.cpp` | `knotbuilder::buildLink()` end to end: validity/closure/sphere checks, a dedicated regression test for a non-alternating diagram, a sweep over 18 named knots (3 to 13 crossings, alternating and non-alternating) cross-checked against Regina's own `Link::fromPD()`, and the full `knotbuilder` → `CobordismBuilder` → ball pipeline. |
 | `triangulate_knot_table.cpp` | Standalone utility (**not** a CTest test — see [Tests](#tests)): sweeps `knotbuilder::buildLink()` over every row of a PD-code CSV file. |
@@ -65,7 +65,7 @@ Resulting binaries:
 ```
 build/utils/surfacefinder/surfacefinder
 build/utils/surfacefinder/triangulateknot
-build/utils/surfacefinder/tests/gluinggraph_test
+build/utils/surfacefinder/tests/surfacefinder_test
 build/utils/surfacefinder/tests/cobordismbuilder_test
 build/utils/surfacefinder/tests/knotbuilder_test
 build/utils/surfacefinder/tests/triangulate_knot_table
@@ -134,7 +134,7 @@ ctest -L surfacefinder --output-on-failure
 ### Running individually
 
 ```bash
-./build/utils/surfacefinder/tests/gluinggraph_test
+./build/utils/surfacefinder/tests/surfacefinder_test
 ./build/utils/surfacefinder/tests/cobordismbuilder_test
 ./build/utils/surfacefinder/tests/knotbuilder_test
 ```
