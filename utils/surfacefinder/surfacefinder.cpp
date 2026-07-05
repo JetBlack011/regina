@@ -66,24 +66,21 @@ void surfacesDetail(std::set<KnottedSurface<dim>> &surfaces,
             ++closedCount;
         }
 
-        // For checking if properness works
-        bool isProper = true;
+        // Sanity check: isProper() should agree with a direct scan of the
+        // surface's boundary image. This should never fire; if it does,
+        // it means isProper()'s bookkeeping has drifted from reality.
+        bool matchesIsProper = true;
         for (const regina::BoundaryComponent<2> *comp :
              surface.surface().boundaryComponents()) {
             for (const regina::Edge<2> *edge : comp->edges()) {
                 if (edge->isBoundary() && !surface.image(edge)->isBoundary()) {
-                    std::cout << "NOTE: " << surface.detail()
-                              << " is not proper!!\n";
-                    isProper = false;
-                    return;
+                    matchesIsProper = false;
                 }
             }
         }
-
-        // if (isProper) {
-        //     std::cout << surface.detail() << " is PROPER!"
-        //               << "\n";
-        // }
+        if (!matchesIsProper) {
+            std::cout << "NOTE: " << surface.detail() << " is not proper!!\n";
+        }
 
         auto search = countMap.find(surface.detail());
         if (search == countMap.end()) {

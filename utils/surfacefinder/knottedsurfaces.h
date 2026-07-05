@@ -584,6 +584,17 @@ class KnottedSurface {
                 }
                 ++numBoundaryFacets_;
             } else {
+                // f was the sole surface triangle exposing this facet as
+                // un-glued (any other triangle sharing the same ambient edge
+                // would have been joined to it in addTriangle instead), so
+                // if it was flagged improper there, that flag must be
+                // cleared now -- otherwise it lingers in improperEdges_
+                // after f is gone, permanently poisoning isProper() for
+                // whatever the surface goes on to become.
+                regina::Edge<dim> *edge = f->edge(i);
+                if (!edge->isBoundary()) {
+                    improperEdges_.erase(edge);
+                }
                 --numBoundaryFacets_;
             }
         }

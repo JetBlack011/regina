@@ -310,6 +310,108 @@ void test_two_tetrahedra() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// KnottedSurface::removeTriangle must clear improperEdges_ entries that
+// belonged solely to the triangle being removed.
+//
+// Bug: addTriangle() flags a triangle's own un-glued facet as improper
+// whenever the underlying ambient edge isn't on the manifold's boundary.
+// removeTriangle() previously never undid this -- only the "this facet
+// just became un-glued because its neighbour left" branch touched
+// improperEdges_, not the "this facet was already un-glued and its
+// owning triangle is now gone" branch. So once *any* triangle with a
+// genuinely-interior un-glued edge was added and later backtracked out
+// (an everyday occurrence in the DFS), isProper() would incorrectly and
+// permanently report false for the rest of that surface_'s lifetime,
+// silently dropping otherwise-valid surfaces under --boundary/--links.
+//
+// Tests this directly against KnottedSurface, bypassing SurfaceFinder's
+// DFS, so the add/remove sequence is fully controlled: a boundary
+// triangle (Y, from a free-standing, unglued tetrahedron -- every edge
+// of every one of its faces is on the boundary) is added and kept
+// throughout, so the surface never becomes trivially "closed" (which
+// would mask the bug via isProper()'s isClosed() short-circuit); an
+// interior triangle (X, taken from a separate, closed ∂Delta^4 S^3
+// component -- every edge there is non-boundary, since the component
+// itself has no boundary at all) is then added alone -- with an empty
+// adjacency list, so none of its facets get glued -- making it improper,
+// and then removed. isProper() must return to true afterward.
+//
+// (The minimal 1-tetrahedron S^3 used elsewhere in this file isn't
+// suitable here: its own two triangles already have coincident local
+// vertices, so adding either one alone is rejected outright as
+// self-intersecting -- see test_three_sphere's comment. ∂Delta^4 is fine
+// enough that its triangles are individually well-behaved.)
+// ────────────────────────────────────────────────────────────────────
+void test_removeTriangle_clears_improper_edges() {
+    std::cout
+        << "\n--- KnottedSurface::removeTriangle clears improperEdges_ ---\n";
+
+    // Component A: the closed S^3 boundary of a single 4-simplex (5
+    // tetrahedra) -- every edge is non-boundary, since the component has
+    // no boundary, and its triangles are well-behaved (no coincident
+    // local vertices).
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
+    // Component B: a second, free-standing tetrahedron, left completely
+    // unglued -- every edge of every one of its faces is on the boundary.
+    tri.newSimplex();
+
+    regina::Triangle<3> *interior = nullptr;
+    regina::Triangle<3> *bdryTriangle = nullptr;
+    for (regina::Triangle<3> *t : tri.triangles()) {
+        bool anyNonBoundary = false;
+        bool allBoundary = true;
+        for (int i = 0; i < 3; ++i) {
+            if (t->edge(i)->isBoundary())
+                ; // still eligible as a boundary edge
+            else {
+                anyNonBoundary = true;
+                allBoundary = false;
+            }
+        }
+        if (anyNonBoundary && interior == nullptr)
+            interior = t;
+        if (allBoundary && bdryTriangle == nullptr)
+            bdryTriangle = t;
+    }
+
+    if (interior == nullptr || bdryTriangle == nullptr) {
+        std::cout << red
+                   << "  FAIL: couldn't locate suitable triangles to "
+                      "set up this test\n"
+                   << resetColor;
+        ++failed_count;
+        return;
+    }
+
+    KnottedSurface<3> ks(&tri);
+    GluingNode<3>::AdjList empty;
+
+    EXPECT_EQ(ks.addTriangle(bdryTriangle, empty), true,
+              "boundary triangle adds with no neighbours present");
+    EXPECT_EQ(ks.isProper(), true,
+              "surface containing only the boundary triangle is proper");
+    EXPECT_EQ(ks.isClosed(), false,
+              "surface containing only the boundary triangle isn't closed");
+
+    EXPECT_EQ(ks.addTriangle(interior, empty), true,
+              "interior triangle adds with no neighbours present");
+    EXPECT_EQ(
+        ks.isProper(), false,
+        "surface is improper while the interior triangle's edges are unglued");
+
+    ks.removeTriangle(interior);
+
+    EXPECT_EQ(ks.isClosed(), false,
+              "boundary triangle is still present after removing the "
+              "interior one");
+    EXPECT_EQ(ks.isProper(), true,
+              "removing the interior triangle must clear its improper "
+              "edges (bug #1)");
+}
+
+// ────────────────────────────────────────────────────────────────────
 // S^3 (closed 3-manifold).
 //
 // In a closed manifold isProper() ≡ isClosed(), so --boundary and
@@ -499,6 +601,7 @@ int main() {
     test_starting_triangles_disconnected_base();
     test_accessor_and_stream_output();
     test_two_tetrahedra();
+    test_removeTriangle_clears_improper_edges();
     test_three_sphere();
     test_cone_pipeline_finds_disc_bounding_known_unknot();
     test_four_sphere();
