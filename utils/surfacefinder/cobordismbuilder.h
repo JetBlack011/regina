@@ -11,6 +11,8 @@
 
 #define COBORDISM_BUILDER_H
 
+#include <cassert>
+
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
@@ -199,11 +201,15 @@ class CobordismBuilder {
             }
         }
 
-        if (!cob_.isValid()) {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::cone(): Resulting triangulation is not "
-                "valid.");
-        }
+        // Validity here is guaranteed by construction (coning a valid,
+        // ordered triangulation, glued face-for-face onto a valid previous
+        // layer, cannot produce an invalid result) -- checking it costs a
+        // full vertex-link recognition pass (Triangulation<3>::isSphere()/
+        // isBall() per vertex, i.e. real 3-manifold simplification), which
+        // dominates runtime on triangulations of any size. Debug-only.
+        assert(cob_.isValid() &&
+               "CobordismBuilder::cone(): resulting triangulation is not "
+               "valid.");
 
         return cob_;
     }
@@ -263,11 +269,13 @@ class CobordismBuilder {
         topPrisms_ = std::move(newPrisms);
         hasPreviousLayer_ = true;
 
-        if (!cob_.isValid()) {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::thicken(): Resulting triangulation is not "
-                "valid.");
-        }
+        // See the identical comment in cone(): validity is guaranteed by
+        // construction, and checking it here is the dominant cost of
+        // thicken() (a full vertex-link recognition pass over the whole
+        // accumulated cobordism, on every single layer). Debug-only.
+        assert(cob_.isValid() &&
+               "CobordismBuilder::thicken(): resulting triangulation is not "
+               "valid.");
 
         return cob_;
     }
