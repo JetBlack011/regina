@@ -44,7 +44,7 @@ class SurfaceFinder {
         std::cout << "\n";
         for (auto &seed : nodes_) {
             // Reset the surface and visited flags
-            surface_ = {&tri_};
+            surface_.reset();
             for (auto &node : nodes_) {
                 node.visited = false;
             }
@@ -95,7 +95,7 @@ class SurfaceFinder {
                 "triangle(s) not found in the graph");
         }
 
-        surface_ = {&tri_};
+        surface_.reset();
         for (auto &node : nodes_) {
             node.visited = false;
         }

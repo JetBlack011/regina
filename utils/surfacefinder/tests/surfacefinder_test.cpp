@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "cobordismbuilder.h"
+#include "collar.h"
+#include "knotbuilder.h"
 #include "surfacefinder.h"
 
 static int passed = 0, failed_count = 0;
@@ -494,13 +496,16 @@ void test_three_sphere() {
 // search calls with no end in sight. The fix for that is exactly the
 // seeded search exercised here: give findSurfaces(startingTriangles) the
 // triangles that already trace out the known loop, so the search only has
-// to find the cap, not explore the whole graph. Wiring that up against
-// knotbuilder's *actual* Block-gadget output -- i.e. identifying which
-// triangles trace a specific knot/link edge's sweep through thicken()/
-// cone() -- is real infrastructure that doesn't exist yet; this test
-// covers the same data flow (Link extraction, CobordismBuilder capping,
-// seeded SurfaceFinder search, boundary Link comparison) on a manifold
-// small enough to make the point without it.
+// to find the cap, not explore the whole graph. This test covers that
+// data flow (Link extraction, CobordismBuilder capping, seeded
+// SurfaceFinder search, boundary Link comparison) on a manifold small
+// enough to make the point directly, bypassing edge-tracing entirely by
+// hand-picking the loop.
+//
+// CollarBuilder (collar.h) now provides the actual edge-tracing machinery
+// this test used to say didn't exist -- see
+// test_boundary_reports_multiple_components_via_collar below for that
+// piece exercised directly against thicken().
 // ────────────────────────────────────────────────────────────────────
 void test_cone_pipeline_finds_disc_bounding_known_unknot() {
     std::cout << "\n--- cone() pipeline: seeded search finds discs "
@@ -558,15 +563,18 @@ void test_cone_pipeline_finds_disc_bounding_known_unknot() {
     for (const auto &surf : surfaces) {
         if (surf.isClosed())
             continue;
-        Link link = surf.boundary();
-        if (link.countComponents() != 1)
-            continue;
-        // A 1-component boundary here is necessarily seed3's own 3-edge
-        // loop: every surface in `surfaces` contains seed4, whose only
-        // proper (non-improper) edges, if any survive to the final
-        // boundary, are exactly those 3.
-        foundBoundingDisc = true;
-        break;
+        for (const auto &[component, link] : surf.boundary()) {
+            if (link.countComponents() != 1)
+                continue;
+            // A 1-component boundary here is necessarily seed3's own
+            // 3-edge loop: every surface in `surfaces` contains seed4,
+            // whose only proper (non-improper) edges, if any survive to
+            // the final boundary, are exactly those 3.
+            foundBoundingDisc = true;
+            break;
+        }
+        if (foundBoundingDisc)
+            break;
     }
     EXPECT_EQ(foundBoundingDisc, true,
               "found a proper surface whose boundary is a single-component "
@@ -1117,6 +1125,253 @@ void test_copy_independence() {
              "it received");
 }
 
+// ────────────────────────────────────────────────────────────────────
+// KnottedSurface::boundary() must report one Link per ambient boundary
+// component the surface's boundary actually touches, each paired with
+// that component's index -- not silently mixing edges from different
+// components together (or crashing), as it did before bdry_ became
+// bdryComponents_.
+//
+// CobordismBuilder::thicken() on a closed base gives exactly 2 boundary
+// components (the bottom and top copies of the base -- see thicken_()'s
+// own comment: only the very first layer's bottom and the very last
+// layer's top stay unglued). This is also the real construction the CLI's
+// PD-code path uses under the hood, so this isn't just a synthetic case.
+// ────────────────────────────────────────────────────────────────────
+void test_boundary_reports_multiple_components() {
+    std::cout << "\n--- KnottedSurface::boundary() handles multiple ambient "
+                "boundary components ---\n";
+
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    regina::Triangulation<3> base = fourBall.boundaryComponent(0)->build();
+
+    CobordismBuilder<3> cob(base);
+    regina::Triangulation<4> &tri = cob.thicken(1);
+
+    EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
+             "thickening a closed 3-manifold gives exactly 2 boundary "
+             "components");
+    if (tri.countBoundaryComponents() != 2) {
+        return;
+    }
+
+    regina::Triangle<4> *X = *tri.boundaryComponent(0)->triangles().begin();
+    regina::Triangle<4> *Y = *tri.boundaryComponent(1)->triangles().begin();
+
+    KnottedSurface<4> ks(&tri);
+    EXPECT_EQ(ks.addTriangle(X, GluingNode<4>::AdjList{}), true,
+             "X, a triangle from boundary component 0, adds alone");
+    EXPECT_EQ(ks.addTriangle(Y, GluingNode<4>::AdjList{}), true,
+             "Y, a triangle from boundary component 1, adds alone");
+
+    auto pieces = ks.boundary();
+    EXPECT_EQ((int)pieces.size(), 2,
+             "boundary() reports one Link per touched boundary component");
+
+    std::set<size_t> componentsSeen;
+    for (const auto &[component, link] : pieces) {
+        componentsSeen.insert(component);
+    }
+    EXPECT_EQ(componentsSeen.count(0) == 1 && componentsSeen.count(1) == 1,
+             true, "the two reported pieces are attributed to components 0 "
+                   "and 1, one each");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Same claim as the test above, but built from CollarBuilder -- the real
+// production mechanism for tracing a knot/link edge through thicken()'s
+// layers -- instead of two hand-picked, unrelated triangles. This is
+// preliminary infrastructure (see collar.h's own header comment), so
+// beyond the multi-boundary-component claim itself, this also checks the
+// basic shape it's supposed to produce: a single connected, embedded
+// strip whose own boundary is exactly the traced loop, once at the
+// bottom (original position) and once at the top (where thickening
+// pushed it).
+// ────────────────────────────────────────────────────────────────────
+void test_boundary_reports_multiple_components_via_collar() {
+    std::cout << "\n--- KnottedSurface::boundary() on a real "
+                "thicken()+CollarBuilder collar ---\n";
+
+    // Same hand-built S^3 as the cone() pipeline test above:
+    // tri.triangle(0)'s own 3 edges form an unknotted loop.
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    auto tri = fourBall.boundaryComponent(0)->build();
+    regina::Triangle<3> *loopTriangle = tri.triangle(0);
+    std::vector<int> edgeIndices;
+    for (int i = 0; i < 3; ++i) {
+        edgeIndices.push_back(loopTriangle->edge(i)->index());
+    }
+
+    CobordismBuilder<3> cob(tri);
+    CollarBuilder collarBuilder(edgeIndices);
+
+    // addLayer() must be called right after thicken(), before anything
+    // else touches cob -- see CollarBuilder's class-level comment.
+    regina::Triangulation<4> &thickened = cob.thicken();
+    collarBuilder.addLayer(cob);
+
+    EXPECT_EQ((int)thickened.countBoundaryComponents(), 2,
+             "thickening a closed 3-manifold gives exactly 2 boundary "
+             "components");
+
+    std::unordered_set<regina::Triangle<4> *> collarTriangles =
+        collarBuilder.resolve();
+    EXPECT_EQ((int)collarTriangles.size(), 6,
+             "the collar has 2 sweep triangles per traced edge");
+
+    SurfaceFinder<4> g(thickened, SurfaceCondition::all);
+    KnottedSurface<4> ks(&thickened);
+
+    // Deferred self-intersection checking, exactly as
+    // findSurfaces(startingTriangles) does for a fixed base: an arbitrary
+    // (unordered_set) insertion order shouldn't be able to falsely reject
+    // a genuine branch point in the collar's own shape.
+    bool allAdded = true;
+    for (regina::Triangle<4> *t : collarTriangles) {
+        if (!ks.addTriangle(t, g.adjacencyOf(t), /*checkSelfIntersection=*/false))
+            allAdded = false;
+    }
+    EXPECT_EQ(allAdded, true,
+             "every collar triangle adds cleanly (no double-glued facet)");
+    EXPECT_EQ(ks.hasSelfIntersection(), false,
+             "the collar is embedded, not self-intersecting");
+    EXPECT_EQ(ks.surface().isConnected(), true,
+             "the collar forms a single connected strip, not disjoint pieces");
+
+    auto pieces = ks.boundary();
+    std::set<size_t> componentsSeen;
+    for (const auto &[component, link] : pieces) {
+        componentsSeen.insert(component);
+    }
+    EXPECT_EQ(componentsSeen.size(), (size_t)2,
+             "the collar's boundary spans exactly 2 ambient boundary "
+             "components (bottom and top copies of the traced loop)");
+    for (const auto &[component, link] : pieces) {
+        EXPECT_EQ(link.countComponents(), 1,
+                 "each boundary piece is the traced loop's single 3-edge "
+                 "cycle, not something fragmented");
+    }
+}
+
+regina::Triangulation<3>
+buildKnotFromPD(const char *pd, std::vector<const regina::Edge<3> *> &edges) {
+    regina::Triangulation<3> tri;
+    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
+    if (!knotbuilder::buildLink(tri, pdcode, edges))
+        throw regina::InvalidArgument("buildKnotFromPD: buildLink() failed");
+    return tri;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Same claim as test_boundary_reports_multiple_components_via_collar, but
+// tracing an actual non-trivial knot (built from a real PD code via
+// knotbuilder, not a hand-picked trivial 3-edge loop) through thicken().
+// Beyond the structural claims (connected, embedded, 2 boundary
+// components), this also confirms the traced knot survives thickening
+// intact on *both* sides, in two stages:
+//   1. each boundary piece's complement is not a solid torus
+//      (recogniseHandlebody() != 1) -- i.e. it's not the unknot; and
+//   2. each boundary piece's complement is actually homeomorphic (checked
+//      via triangulation isomorphism, following the same isIsomorphicTo()
+//      pattern already used for cone()'s boundary in
+//      checkKnotToBallPipeline over in knotbuilder_test.cpp) to the
+//      *original*, un-thickened knot's own complement -- i.e. it's not
+//      merely "some other non-trivial knot", it's the same knot.
+// If thickening somehow silently altered the pushed-off copy (e.g. a bug
+// in how CollarBuilder's sweep triangles glue to each other), check 1
+// would catch an unknotting, and check 2 would catch a knot swap that
+// still happened to be non-trivial.
+// ────────────────────────────────────────────────────────────────────
+void checkCollarTracesNontrivialKnot(const char *name, const char *pd) {
+    std::vector<const regina::Edge<3> *> linkEdges;
+    regina::Triangulation<3> tri = buildKnotFromPD(pd, linkEdges);
+
+    // What both boundary pieces' complements should be homeomorphic to.
+    Link referenceLink(tri, linkEdges);
+    regina::Triangulation<3> referenceComplement =
+        referenceLink.buildComplement();
+
+    std::vector<int> edgeIndices;
+    for (const regina::Edge<3> *e : linkEdges) {
+        edgeIndices.push_back(e->index());
+    }
+
+    CobordismBuilder<3> cob(tri);
+    CollarBuilder collarBuilder(edgeIndices);
+
+    // addLayer() must be called right after thicken(), before anything
+    // else touches cob -- see CollarBuilder's class-level comment.
+    regina::Triangulation<4> &thickened = cob.thicken();
+    collarBuilder.addLayer(cob);
+
+    EXPECT_EQ((int)thickened.countBoundaryComponents(), 2,
+             std::string(name) +
+                 ": thickening gives exactly 2 boundary components");
+
+    std::unordered_set<regina::Triangle<4> *> collarTriangles =
+        collarBuilder.resolve();
+    EXPECT_EQ((int)collarTriangles.size(), 2 * (int)linkEdges.size(),
+             std::string(name) +
+                 ": the collar has 2 sweep triangles per traced edge");
+
+    SurfaceFinder<4> g(thickened, SurfaceCondition::all);
+    KnottedSurface<4> ks(&thickened);
+
+    // Deferred self-intersection checking, exactly as
+    // findSurfaces(startingTriangles) does for a fixed base.
+    bool allAdded = true;
+    for (regina::Triangle<4> *t : collarTriangles) {
+        if (!ks.addTriangle(t, g.adjacencyOf(t), /*checkSelfIntersection=*/false))
+            allAdded = false;
+    }
+    EXPECT_EQ(allAdded, true,
+             std::string(name) + ": every collar triangle adds cleanly");
+    EXPECT_EQ(ks.hasSelfIntersection(), false,
+             std::string(name) + ": the collar is embedded");
+    EXPECT_EQ(ks.surface().isConnected(), true,
+             std::string(name) + ": the collar forms a single connected strip");
+
+    auto pieces = ks.boundary();
+    EXPECT_EQ((int)pieces.size(), 2,
+             std::string(name) +
+                 ": the collar's boundary spans exactly 2 ambient boundary "
+                 "components");
+
+    for (const auto &[component, link] : pieces) {
+        EXPECT_EQ(link.countComponents(), 1,
+                 std::string(name) + ": boundary component " +
+                     std::to_string(component) + " is a single knot, not a "
+                     "fragmented or multi-component link");
+
+        regina::Triangulation<3> complement = link.buildComplement();
+        ssize_t genus = complement.recogniseHandlebody();
+        EXPECT_EQ(genus != 1, true,
+                 std::string(name) + ": boundary component " +
+                     std::to_string(component) +
+                     "'s complement is not a solid torus -- the traced knot "
+                     "survives thickening as genuinely non-trivial");
+
+        EXPECT_EQ(
+            complement.isIsomorphicTo(referenceComplement).has_value(), true,
+            std::string(name) + ": boundary component " +
+                std::to_string(component) +
+                "'s complement is homeomorphic to the original knot's own "
+                "complement -- it's the same knot, not merely some other "
+                "non-trivial one");
+    }
+}
+
+void test_collar_traces_nontrivial_knots() {
+    std::cout
+        << "\n--- collar traces non-trivial knots through thicken() intact ---\n";
+    checkCollarTracesNontrivialKnot("trefoil (3_1)",
+                                    "1 4 2 5 3 6 4 1 5 2 6 3");
+    checkCollarTracesNontrivialKnot("figure-eight (4_1)",
+                                    "4 2 5 1 8 6 1 5 6 3 7 4 2 7 3 8");
+}
+
 int main() {
     test_single_tetrahedron();
     test_starting_triangles_overload();
@@ -1136,6 +1391,9 @@ int main() {
     test_deferred_self_intersection_check_resolves_branch_point();
     test_tetrahedron_boundary_lifecycle();
     test_copy_independence();
+    test_boundary_reports_multiple_components();
+    test_boundary_reports_multiple_components_via_collar();
+    test_collar_traces_nontrivial_knots();
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

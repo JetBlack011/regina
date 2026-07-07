@@ -4,6 +4,8 @@
 //  Created by John Teague on 06/19/2024.
 //
 
+#include <tuple>
+
 #include <triangulation/dim4.h>
 
 #include "surfacefinder.h"
@@ -223,26 +225,30 @@ int main(int argc, char *argv[]) {
     // }
     // std::cout << "\n";
 
-    std::vector<std::pair<Link, const KnottedSurface<4> *>> boundaries;
+    std::vector<std::tuple<size_t, Link, const KnottedSurface<4> *>> boundaries;
     for (const auto &surface : surfaces) {
         if (surface.isClosed())
             continue;
 
-        boundaries.emplace_back(surface.boundary(), &surface);
+        for (auto &[component, link] : surface.boundary()) {
+            boundaries.emplace_back(component, std::move(link), &surface);
+        }
     }
 
     std::cout << "[+] Found " << boundaries.size() << " total boundary links\n";
     std::cout << "[*] Sorting links by complexity...\n";
 
-    std::sort(
-        boundaries.begin(), boundaries.end(),
-        [](const auto &b1, const auto &b2) { return b2.first < b1.first; });
+    std::sort(boundaries.begin(), boundaries.end(),
+             [](const auto &b1, const auto &b2) {
+                 return std::get<1>(b2) < std::get<1>(b1);
+             });
 
     int count = 0;
     if (cond == SurfaceCondition::boundary) {
-        for (const auto &[l, s] : boundaries) {
+        for (const auto &[component, l, s] : boundaries) {
             if (count > 10) break;
-            std::cout << s->detail() << " has boundary " << l << "\n";
+            std::cout << s->detail() << " has boundary " << l
+                      << " (boundary component " << component << ")\n";
             l.recognizeComplement();
             ++count;
         }
