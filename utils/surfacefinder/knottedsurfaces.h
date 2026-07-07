@@ -262,13 +262,19 @@ class KnottedSurface {
     const regina::Triangulation<dim> *tri_;
     /**< The dim-manifold triangulation in which this subdim-manifold is
      * embedded */
-    std::shared_ptr<const regina::Triangulation<dim - 1>> bdry_;
-    /**< tri_'s boundary, built once (in the very first KnottedSurface
-     * constructed for a given tri_) and shared by pointer across every
-     * subsequent copy -- it depends only on the fixed ambient triangulation,
-     * never on anything the search mutates, so there's no reason to rebuild
-     * it from scratch every time a surface gets copied into the results
-     * set. */
+    std::vector<std::shared_ptr<const regina::Triangulation<dim - 1>>>
+        bdryComponents_;
+    /**< bdryComponents_[c] is a standalone triangulation of
+     * tri_->boundaryComponent(c), built once per component (in the very
+     * first KnottedSurface constructed for a given tri_) and shared by
+     * pointer across every subsequent copy -- these depend only on the
+     * fixed ambient triangulation, never on anything the search mutates,
+     * so there's no reason to rebuild them every time a surface gets
+     * copied into the results set. A surface's boundary can touch more
+     * than one of tri_'s boundary components (e.g. a cylinder built by
+     * CobordismBuilder::thicken() naturally has a bottom and a top copy
+     * of the base manifold), so this is a vector, not a single
+     * triangulation -- see boundary(). */
     regina::Triangulation<2> surface_;
     /**< The triangulation of the sub-triangulation induced by the embedding
      */
@@ -364,15 +370,19 @@ class KnottedSurface {
           imageRootCount_(tri_->countVertices(), 0),
           ufCheckpoints_(tri_->countTriangles()) {
         if (!tri_->isClosed()) {
-            bdry_ = std::make_shared<const regina::Triangulation<dim - 1>>(
-                tri_->boundaryComponent(0)->build());
+            bdryComponents_.reserve(tri_->countBoundaryComponents());
+            for (size_t c = 0; c < tri_->countBoundaryComponents(); ++c) {
+                bdryComponents_.push_back(
+                    std::make_shared<const regina::Triangulation<dim - 1>>(
+                        tri_->boundaryComponent(c)->build()));
+            }
         }
     }
 
     KnottedSurface(const KnottedSurface &other)
-        : tri_(other.tri_), bdry_(other.bdry_), surface_(other.surface_),
-          emb_(other.emb_), inv_(other.inv_.size(), nullptr),
-          invariants_(other.invariants_),
+        : tri_(other.tri_), bdryComponents_(other.bdryComponents_),
+          surface_(other.surface_), emb_(other.emb_),
+          inv_(other.inv_.size(), nullptr), invariants_(other.invariants_),
           invariantsValid_(other.invariantsValid_), indices_(other.indices_),
           ufParent_(other.ufParent_), ufSize_(other.ufSize_),
           imageRootCount_(other.imageRootCount_),
@@ -393,7 +403,7 @@ class KnottedSurface {
     KnottedSurface &operator=(const KnottedSurface &other) {
         if (this != &other) {
             tri_ = other.tri_;
-            bdry_ = other.bdry_;
+            bdryComponents_ = other.bdryComponents_;
             surface_ = other.surface_;
             emb_ = other.emb_;
             improperEdges_ = other.improperEdges_;
@@ -427,12 +437,22 @@ class KnottedSurface {
 
     bool hasSelfIntersection() const { return selfIntersections_ > 0; }
 
-    Link boundary() const {
-        std::unordered_set<const regina::Edge<dim - 1> *> edges;
+    // Returns one Link per tri_ boundary component that this surface's
+    // boundary actually touches, paired with that component's index (see
+    // bdryComponents_'s class-level comment for why this isn't just a
+    // single Link). A connected boundary circle of the abstract surface
+    // is a continuous image, so it always lands entirely within one
+    // ambient boundary component -- it can never straddle two -- which is
+    // what makes attributing edges to a single component well-defined
+    // here.
+    std::vector<std::pair<size_t, Link>> boundary() const {
+        std::vector<std::pair<size_t, Link>> result;
 
         // TODO: Make this O(1) somehow
-        for (const regina::BoundaryComponent<dim> *triBoundaryComp :
-             tri_->boundaryComponents()) {
+        for (size_t c = 0; c < bdryComponents_.size(); ++c) {
+            const regina::BoundaryComponent<dim> *triBoundaryComp =
+                tri_->boundaryComponent(c);
+            std::unordered_set<const regina::Edge<dim - 1> *> edges;
 
             for (const regina::BoundaryComponent<2> *surfaceBoundaryComp :
                  surface_.boundaryComponents()) {
@@ -440,17 +460,22 @@ class KnottedSurface {
                     const regina::Edge<dim> *im = image(e);
                     for (int i = 0; i < triBoundaryComp->countEdges(); ++i) {
                         if (im == triBoundaryComp->edge(i)) {
-                            edges.insert(bdry_->edge(i));
+                            edges.insert(bdryComponents_[c]->edge(i));
                             break;
                         }
                     }
                 }
             }
+
+            if (edges.empty())
+                continue;
+
+            std::vector<const regina::Edge<dim - 1> *> edgeList(edges.begin(),
+                                                                edges.end());
+            result.emplace_back(c, Link(*bdryComponents_[c], edgeList));
         }
 
-        std::vector<const regina::Edge<dim - 1> *> edgeList(edges.begin(),
-                                                            edges.end());
-        return {*bdry_, edgeList};
+        return result;
     }
 
     template <int facedim>
@@ -469,6 +494,28 @@ class KnottedSurface {
 
     regina::Triangle<2> *preimage(const regina::Triangle<dim> *f) const {
         return inv_[f->index()];
+    }
+
+    // Clears all per-search mutable state, as if freshly constructed --
+    // but leaves tri_/bdryComponents_ untouched, since those depend only
+    // on the fixed ambient triangulation. Lets a search reuse a single
+    // KnottedSurface across every seed without re-deriving (and
+    // re-copying) every boundary component's triangulation each time,
+    // which `surface_ = {&tri_};`-style reassignment would otherwise do.
+    void reset() {
+        surface_ = regina::Triangulation<2>();
+        emb_.clear();
+        inv_.assign(tri_->countTriangles(), nullptr);
+        invariantsValid_ = false;
+        indices_.clear();
+        std::fill(ufParent_.begin(), ufParent_.end(), size_t{0});
+        std::fill(ufSize_.begin(), ufSize_.end(), 0);
+        std::fill(imageRootCount_.begin(), imageRootCount_.end(), 0);
+        selfIntersections_ = 0;
+        ufUndoLog_.clear();
+        std::fill(ufCheckpoints_.begin(), ufCheckpoints_.end(), size_t{0});
+        numBoundaryFacets_ = 0;
+        improperEdges_.clear();
     }
 
     /** Mutation methods */
