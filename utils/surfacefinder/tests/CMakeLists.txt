@@ -1,6 +1,8 @@
 # Fast, always-run correctness tests for surfacefinder's components. Each
 # test binary covers one program/module:
 #   surfacefinder_test      - SurfaceFinder (surfacefinder's core search)
+#   surfacefinder_2d_test   - SurfaceFinder search vs. known Triangulation<2>
+#                             surfaces, coned one dimension up
 #   cobordismbuilder_test   - CobordismBuilder (thicken()/cone())
 #   knotbuilder_test        - knotbuilder (PD code -> triangulated S³) and
 #                             its integration with CobordismBuilder
@@ -10,6 +12,7 @@
 # the rest of Regina's test suite.
 set(TESTS
   surfacefinder_test
+  surfacefinder_2d_test
   cobordismbuilder_test
   knotbuilder_test
 )

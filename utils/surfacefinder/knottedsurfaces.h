@@ -514,34 +514,40 @@ class KnottedSurface {
 
         int boundaryFacetsConsumed = 0;
 
-        for (const auto &[adjNode, g] : adj) {
+        // adjNode may be reachable via more than one gluing (two triangles
+        // can share more than one edge -- see GluingNode::AdjList's class
+        // comment), so every gluing in the vector needs to be joined and
+        // unioned, not just one.
+        for (const auto &[adjNode, gluings] : adj) {
             regina::Triangle<2> *dst = inv_[adjNode->f->index()];
             if (dst == nullptr)
                 continue;
 
-            int dstFacet = g.gluing[g.srcFacet];
+            for (const auto &g : gluings) {
+                int dstFacet = g.gluing[g.srcFacet];
 
-            // Saves us from catching an error
-            if (dst->adjacentSimplex(dstFacet) != nullptr ||
-                src->adjacentSimplex(g.srcFacet) != nullptr) {
-                undoFailedAdd_(f, ufCheckpoint, src);
-                return false;
-            }
+                // Saves us from catching an error
+                if (dst->adjacentSimplex(dstFacet) != nullptr ||
+                    src->adjacentSimplex(g.srcFacet) != nullptr) {
+                    undoFailedAdd_(f, ufCheckpoint, src);
+                    return false;
+                }
 
-            isBoundaryEdge[g.srcFacet] = false;
-            ++boundaryFacetsConsumed;
-            src->join(g.srcFacet, dst, g.gluing);
+                isBoundaryEdge[g.srcFacet] = false;
+                ++boundaryFacetsConsumed;
+                src->join(g.srcFacet, dst, g.gluing);
 
-            // The gluing perm maps src's local vertex numbering to dst's;
-            // the two vertices on the shared edge (everything but the
-            // facet itself) get identified as the same abstract surface
-            // vertex.
-            for (int corner = 0; corner < 3; ++corner) {
-                if (corner == g.srcFacet)
-                    continue;
-                ufUnite_(cornerKey_(f, corner),
-                        cornerKey_(adjNode->f, g.gluing[corner]),
-                        f->vertex(corner));
+                // The gluing perm maps src's local vertex numbering to dst's;
+                // the two vertices on the shared edge (everything but the
+                // facet itself) get identified as the same abstract surface
+                // vertex.
+                for (int corner = 0; corner < 3; ++corner) {
+                    if (corner == g.srcFacet)
+                        continue;
+                    ufUnite_(cornerKey_(f, corner),
+                            cornerKey_(adjNode->f, g.gluing[corner]),
+                            f->vertex(corner));
+                }
             }
         }
 

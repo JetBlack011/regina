@@ -4,6 +4,7 @@
 
 #include <ostream>
 #include <unordered_map>
+#include <vector>
 
 #include <triangulation/forward.h>
 #include <maths/perm.h>
@@ -32,7 +33,17 @@ struct Gluing {
 template <int dim>
 class GluingNode {
   public:
-    using AdjList = std::unordered_map<GluingNode *, Gluing<dim, 2>>;
+    // Two triangles can share more than one edge with each other (common in
+    // minimal/coarse triangulations, e.g. the standard one-vertex 2-triangle
+    // torus, where every edge of one triangle is glued to the other) -- so
+    // this must hold every gluing to a given neighbour, not just one. A map
+    // keyed only by neighbour previously overwrote all but the last such
+    // gluing, silently dropping the vertex identifications the others would
+    // have produced and causing KnottedSurface's self-intersection tracking
+    // to see incomplete adjacency (false positives on otherwise-valid,
+    // embeddable surfaces).
+    using AdjList =
+        std::unordered_map<GluingNode *, std::vector<Gluing<dim, 2>>>;
 
     regina::Triangle<dim> *f;
     AdjList adjList;
@@ -42,8 +53,9 @@ class GluingNode {
 
     friend std::ostream &operator<<(std::ostream &os, const GluingNode &node) {
         os << "(" << node.f->index() << " { ";
-        for (const auto &[_, gluing] : node.adjList) {
-            os << gluing << " ";
+        for (const auto &[_, gluings] : node.adjList) {
+            for (const auto &gluing : gluings)
+                os << gluing << " ";
         }
 
         os << "})";

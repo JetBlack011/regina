@@ -161,7 +161,9 @@ class SurfaceFinder {
     int countEdges() const {
         int count = 0;
         for (const auto &node : nodes_) {
-            count += node.adjList.size();
+            for (const auto &[_, gluings] : node.adjList) {
+                count += gluings.size();
+            }
         }
         return count;
     }
@@ -185,9 +187,10 @@ class SurfaceFinder {
            << ", edges = " << graph.countEdges() << ")\n";
         for (const auto &node : graph.nodes_) {
             os << "  Triangle: " << node.f->index() << "\n";
-            for (const auto &[adjNode, gluing] : node.adjList) {
-                os << "    Adjacent: " << adjNode->f->index() << ", " << gluing
-                   << "\n";
+            for (const auto &[adjNode, gluings] : node.adjList) {
+                for (const auto &gluing : gluings)
+                    os << "    Adjacent: " << adjNode->f->index() << ", "
+                       << gluing << "\n";
             }
         }
         return os;
@@ -239,8 +242,12 @@ class SurfaceFinder {
                             p[edgeToTriangle[k]] = edgeToOther[k];
                         }
 
-                        node.adjList[&otherNode] = {triangle, i, otherTriangle,
-                                                    p};
+                        // Append rather than overwrite: triangle and
+                        // otherTriangle may share more than one edge (see
+                        // GluingNode::AdjList's class comment), and every
+                        // such gluing needs to survive.
+                        node.adjList[&otherNode].push_back(
+                            {triangle, i, otherTriangle, p});
                     }
                 }
             }

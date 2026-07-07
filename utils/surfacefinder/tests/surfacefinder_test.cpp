@@ -750,7 +750,7 @@ void test_gluing_clears_improper_edge_and_avoids_false_self_intersection() {
     }
     auto firstNeighbour = adjX.begin();
     regina::Triangle<3> *Y = firstNeighbour->first->f;
-    regina::Edge<3> *shared = X->edge(firstNeighbour->second.srcFacet);
+    regina::Edge<3> *shared = X->edge(firstNeighbour->second[0].srcFacet);
 
     KnottedSurface<3> ks(&tri);
     EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true,
@@ -865,8 +865,9 @@ void test_double_glued_facet_rejected_and_rolled_back() {
     }
 
     std::vector<regina::Triangle<3> *> byFacet[3];
-    for (auto &[node, gluing] : g.adjacencyOf(M))
-        byFacet[gluing.srcFacet].push_back(node->f);
+    for (auto &[node, gluings] : g.adjacencyOf(M))
+        for (auto &gluing : gluings)
+            byFacet[gluing.srcFacet].push_back(node->f);
 
     regina::Triangle<3> *X = nullptr, *Y = nullptr;
     for (int i = 0; i < 3; ++i) {
