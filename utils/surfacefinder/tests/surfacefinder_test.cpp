@@ -4,12 +4,14 @@
 
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <triangulation/example3.h>
 #include <triangulation/example4.h>
 #include <unistd.h>
 #include <unordered_set>
+#include <vector>
 
 #include "cobordismbuilder.h"
 #include "surfacefinder.h"
@@ -595,6 +597,526 @@ void test_four_sphere() {
     EXPECT_EQ((int)s.size(), 15, "S^4 (2 pentachora) has 15 closed surfaces");
 }
 
+// ────────────────────────────────────────────────────────────────────
+// Every surface findSurfaces() returns must be connected and embedded (an
+// injective vertex map into the ambient triangulation), and must actually
+// satisfy the SurfaceCondition it was searched under -- checked here from
+// scratch using regina's own primitives (isConnected(),
+// countBoundaryFacets(), boundary-edge images), never KnottedSurface's own
+// incremental flags, so a bug in the incremental bookkeeping can't hide
+// from the very check meant to catch it.
+// ────────────────────────────────────────────────────────────────────
+void checkFoundSurfacesSatisfyInvariants(const std::string &label,
+                                         regina::Triangulation<3> &tri,
+                                         SurfaceCondition cond) {
+    SurfaceFinder<3> g(tri, cond);
+    auto &surfaces = g.findSurfaces();
+
+    bool allConnected = true;
+    bool allEmbedded = true;
+    bool conditionHolds = true;
+    bool closedFlagConsistent = true;
+
+    for (const auto &s : surfaces) {
+        if (!s.surface().isConnected())
+            allConnected = false;
+
+        std::unordered_set<const regina::Vertex<3> *> seen;
+        for (regina::Vertex<2> *v : s.surface().vertices()) {
+            if (!seen.insert(s.image(v)).second)
+                allEmbedded = false;
+        }
+
+        if (s.isClosed() != s.surface().isClosed())
+            closedFlagConsistent = false;
+
+        if (cond == SurfaceCondition::closed) {
+            if (s.surface().countBoundaryFacets() != 0)
+                conditionHolds = false;
+        } else if (cond == SurfaceCondition::boundary) {
+            for (const regina::BoundaryComponent<2> *comp :
+                s.surface().boundaryComponents()) {
+                for (const regina::Edge<2> *edge : comp->edges()) {
+                    if (edge->isBoundary() && !s.image(edge)->isBoundary())
+                        conditionHolds = false;
+                }
+            }
+        }
+    }
+
+    EXPECT_GE((int)surfaces.size(), 1, label + ": found at least one surface");
+    EXPECT_EQ(allConnected, true, label + ": every found surface is connected");
+    EXPECT_EQ(allEmbedded, true,
+             label + ": every found surface has an injective vertex map");
+    EXPECT_EQ(closedFlagConsistent, true,
+             label + ": isClosed() agrees with surface().isClosed()");
+    if (cond != SurfaceCondition::all)
+        EXPECT_EQ(conditionHolds, true,
+                 label +
+                     ": every found surface satisfies its search condition");
+}
+
+void test_found_surfaces_satisfy_invariants() {
+    std::cout << "\n--- found surfaces satisfy their invariants ---\n";
+
+    {
+        regina::Triangulation<3> tri;
+        tri.newSimplex();
+        checkFoundSurfacesSatisfyInvariants("single tetrahedron --all", tri,
+                                            SurfaceCondition::all);
+        checkFoundSurfacesSatisfyInvariants("single tetrahedron --boundary",
+                                            tri, SurfaceCondition::boundary);
+        checkFoundSurfacesSatisfyInvariants("single tetrahedron --closed", tri,
+                                            SurfaceCondition::closed);
+    }
+    {
+        regina::Triangulation<3> tri;
+        auto *t0 = tri.newSimplex();
+        auto *t1 = tri.newSimplex();
+        t0->join(3, t1, regina::Perm<4>());
+        checkFoundSurfacesSatisfyInvariants("two tetrahedra --all", tri,
+                                            SurfaceCondition::all);
+        checkFoundSurfacesSatisfyInvariants("two tetrahedra --boundary", tri,
+                                            SurfaceCondition::boundary);
+        checkFoundSurfacesSatisfyInvariants("two tetrahedra --closed", tri,
+                                            SurfaceCondition::closed);
+    }
+    {
+        regina::Triangulation<4> fourBall;
+        fourBall.newSimplex();
+        regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
+        checkFoundSurfacesSatisfyInvariants("boundary of Delta^4 (S^3) --closed",
+                                            tri, SurfaceCondition::closed);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// KnottedSurface equality/ordering is defined purely by the *set* of
+// triangle indices (see the class-level comment on operator==), so
+// building the same two triangles in a different order must still
+// compare equal.
+// ────────────────────────────────────────────────────────────────────
+void test_surface_equality_order_independent() {
+    std::cout << "\n--- KnottedSurface equality is order-independent ---\n";
+
+    regina::Triangulation<3> tri;
+    tri.newSimplex();
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+    regina::Triangle<3> *t0 = tri.triangle(0);
+    regina::Triangle<3> *t1 = tri.triangle(1);
+
+    KnottedSurface<3> ksAB(&tri);
+    EXPECT_EQ(ksAB.addTriangle(t0, GluingNode<3>::AdjList{}), true,
+             "t0 adds alone (A-then-B order)");
+    EXPECT_EQ(ksAB.addTriangle(t1, g.adjacencyOf(t1)), true,
+             "t1 adds and glues to t0 (A-then-B order)");
+
+    KnottedSurface<3> ksBA(&tri);
+    EXPECT_EQ(ksBA.addTriangle(t1, GluingNode<3>::AdjList{}), true,
+             "t1 adds alone (B-then-A order)");
+    EXPECT_EQ(ksBA.addTriangle(t0, g.adjacencyOf(t0)), true,
+             "t0 adds and glues to t1 (B-then-A order)");
+
+    EXPECT_EQ(ksAB == ksBA, true,
+             "the same two triangles added in different orders compare equal");
+    EXPECT_EQ((ksAB < ksBA) || (ksBA < ksAB), false,
+             "neither ordering is considered less than the other");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// addTriangle()'s "erase on add" branch: gluing to an already-present
+// neighbour along a shared, previously-unglued interior edge must clear
+// that edge from improperEdges_ (the mirror image of the removeTriangle
+// bug fixed above), and must NOT be mistaken for a self-intersection --
+// identifying the two ends of a genuinely shared edge is exactly what a
+// valid gluing is supposed to do.
+// ────────────────────────────────────────────────────────────────────
+void test_gluing_clears_improper_edge_and_avoids_false_self_intersection() {
+    std::cout << "\n--- gluing clears improperEdges_ without a false "
+                "self-intersection ---\n";
+
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+
+    regina::Triangle<3> *X = tri.triangle(0);
+    const auto &adjX = g.adjacencyOf(X);
+    if (adjX.empty()) {
+        std::cout << red << "  FAIL: triangle 0 has no neighbours to test with\n"
+                  << resetColor;
+        ++failed_count;
+        return;
+    }
+    auto firstNeighbour = adjX.begin();
+    regina::Triangle<3> *Y = firstNeighbour->first->f;
+    regina::Edge<3> *shared = X->edge(firstNeighbour->second.srcFacet);
+
+    KnottedSurface<3> ks(&tri);
+    EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true,
+             "X adds alone with no neighbours present");
+    EXPECT_EQ((int)ks.improperEdges_.count(shared), 1,
+             "X's shared, un-glued, non-boundary edge is flagged improper");
+
+    EXPECT_EQ(ks.addTriangle(Y, g.adjacencyOf(Y)), true,
+             "Y adds and glues to X along the shared edge");
+    EXPECT_EQ((int)ks.improperEdges_.count(shared), 0,
+             "gluing clears the shared edge from improperEdges_");
+    EXPECT_EQ(ks.hasSelfIntersection(), false,
+             "gluing along a shared edge is not mistaken for a self-intersection");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Two triangles sharing an ambient vertex without a glued edge between
+// them must be rejected as self-intersecting (two distinct components of
+// the abstract surface would land on the same ambient point), and the
+// rejected addTriangle() must fully roll back: no growth in surface_, no
+// leftover preimage mapping, and no lingering self-intersection flag.
+// ────────────────────────────────────────────────────────────────────
+void test_self_intersection_detected_and_rolled_back() {
+    std::cout
+        << "\n--- self-intersection is detected and fully rolled back ---\n";
+
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
+
+    regina::Triangle<3> *A = nullptr, *B = nullptr;
+    for (regina::Triangle<3> *a : tri.triangles()) {
+        for (regina::Triangle<3> *b : tri.triangles()) {
+            if (a == b)
+                continue;
+            bool sharesVertex = false;
+            for (int i = 0; i < 3 && !sharesVertex; ++i)
+                for (int j = 0; j < 3 && !sharesVertex; ++j)
+                    if (a->vertex(i) == b->vertex(j))
+                        sharesVertex = true;
+            if (!sharesVertex)
+                continue;
+            bool sharesEdge = false;
+            for (int i = 0; i < 3 && !sharesEdge; ++i)
+                for (int j = 0; j < 3 && !sharesEdge; ++j)
+                    if (a->edge(i) == b->edge(j))
+                        sharesEdge = true;
+            if (sharesEdge)
+                continue;
+            A = a;
+            B = b;
+            break;
+        }
+        if (A)
+            break;
+    }
+
+    if (!A || !B) {
+        std::cout << red
+                  << "  FAIL: couldn't find two triangles sharing a vertex "
+                     "but no edge\n"
+                  << resetColor;
+        ++failed_count;
+        return;
+    }
+
+    KnottedSurface<3> ks(&tri);
+    EXPECT_EQ(ks.addTriangle(A, GluingNode<3>::AdjList{}), true, "A adds alone");
+    EXPECT_EQ(ks.hasSelfIntersection(), false,
+             "a single triangle never self-intersects");
+
+    EXPECT_EQ(ks.addTriangle(B, GluingNode<3>::AdjList{}), false,
+             "B, sharing only a vertex with A, is rejected as self-intersecting");
+    EXPECT_EQ((int)ks.surface().countTriangles(), 1,
+             "the rejected triangle's abstract simplex was rolled back");
+    EXPECT_EQ(ks.preimage(B) == nullptr, true,
+             "the rejected triangle has no leftover preimage mapping");
+    EXPECT_EQ(ks.hasSelfIntersection(), false,
+             "surface_ is back to just A, with no lingering self-intersection");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// An ambient edge shared by three distinct triangles (the shared face
+// between two tetrahedra, plus one triangle from each side -- see the
+// two-tetrahedra test above) can only ever be glued to *one* of them.
+// Adding the third once the other two are already present must be
+// rejected as a double-glued facet, and must fully roll back.
+// ────────────────────────────────────────────────────────────────────
+void test_double_glued_facet_rejected_and_rolled_back() {
+    std::cout << "\n--- a double-glued facet is rejected and fully rolled "
+                "back ---\n";
+
+    regina::Triangulation<3> tri;
+    auto *t0 = tri.newSimplex();
+    auto *t1 = tri.newSimplex();
+    t0->join(3, t1, regina::Perm<4>());
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+
+    regina::Triangle<3> *M = nullptr;
+    for (regina::Triangle<3> *t : tri.triangles()) {
+        if (t->degree() == 2) {
+            M = t;
+            break;
+        }
+    }
+    if (!M) {
+        std::cout << red
+                  << "  FAIL: couldn't find the shared interior triangle\n"
+                  << resetColor;
+        ++failed_count;
+        return;
+    }
+
+    std::vector<regina::Triangle<3> *> byFacet[3];
+    for (auto &[node, gluing] : g.adjacencyOf(M))
+        byFacet[gluing.srcFacet].push_back(node->f);
+
+    regina::Triangle<3> *X = nullptr, *Y = nullptr;
+    for (int i = 0; i < 3; ++i) {
+        if (byFacet[i].size() == 2) {
+            X = byFacet[i][0];
+            Y = byFacet[i][1];
+            break;
+        }
+    }
+    if (!X || !Y) {
+        std::cout << red
+                  << "  FAIL: couldn't find a facet of M shared by two other "
+                     "triangles\n"
+                  << resetColor;
+        ++failed_count;
+        return;
+    }
+
+    KnottedSurface<3> ks(&tri);
+    EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true, "X adds alone");
+    EXPECT_EQ(ks.addTriangle(Y, g.adjacencyOf(Y)), true,
+             "Y adds and glues to X (only X present so far)");
+
+    EXPECT_EQ(ks.addTriangle(M, g.adjacencyOf(M)), false,
+             "M can't glue the same facet to both X and Y");
+    EXPECT_EQ((int)ks.surface().countTriangles(), 2,
+             "the rejected triangle's abstract simplex was rolled back");
+    EXPECT_EQ(ks.preimage(M) == nullptr, true,
+             "the rejected triangle has no leftover preimage mapping");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// findSurfaces(startingTriangles) defers the self-intersection check
+// while assembling its base (checkSelfIntersection=false) specifically so
+// a base with an internal branch point can be built at all -- see
+// addTriangle's documentation. This searches for a genuine branch point
+// (two triangles A, B sharing an ambient vertex with no glued edge between
+// them, plus a connector C genuinely adjacent to both) and empirically
+// verifies -- by actually trying candidates and checking
+// hasSelfIntersection() -- that: (a) eager per-triangle checking rejects
+// B before C is present, and (b) deferred checking lets the whole base
+// assemble, with the self-intersection genuinely resolving once C unites
+// A and B's shared vertex.
+// ────────────────────────────────────────────────────────────────────
+void test_deferred_self_intersection_check_resolves_branch_point() {
+    std::cout << "\n--- deferred self-intersection check resolves a branch "
+                "point ---\n";
+
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+
+    auto sharesVertex = [](regina::Triangle<3> *a, regina::Triangle<3> *b) {
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                if (a->vertex(i) == b->vertex(j))
+                    return true;
+        return false;
+    };
+    auto sharesEdge = [](regina::Triangle<3> *a, regina::Triangle<3> *b) {
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                if (a->edge(i) == b->edge(j))
+                    return true;
+        return false;
+    };
+
+    regina::Triangle<3> *foundA = nullptr, *foundB = nullptr, *foundC = nullptr;
+
+    for (regina::Triangle<3> *a : tri.triangles()) {
+        for (regina::Triangle<3> *b : tri.triangles()) {
+            if (a == b || !sharesVertex(a, b) || sharesEdge(a, b))
+                continue;
+
+            KnottedSurface<3> probe(&tri);
+            if (!probe.addTriangle(a, g.adjacencyOf(a), false))
+                continue;
+            if (!probe.addTriangle(b, g.adjacencyOf(b), false))
+                continue;
+            if (!probe.hasSelfIntersection())
+                continue; // not actually a branch point -- already fine
+
+            for (auto &[node, gluing] : g.adjacencyOf(a)) {
+                regina::Triangle<3> *c = node->f;
+                if (c == b)
+                    continue;
+                KnottedSurface<3> attempt = probe;
+                if (!attempt.addTriangle(c, g.adjacencyOf(c), false))
+                    continue;
+                if (!attempt.hasSelfIntersection()) {
+                    foundA = a;
+                    foundB = b;
+                    foundC = c;
+                    break;
+                }
+            }
+            if (foundC)
+                break;
+        }
+        if (foundC)
+            break;
+    }
+
+    if (!foundA || !foundB || !foundC) {
+        std::cout << red
+                  << "  FAIL: couldn't find a branch-point triple in this "
+                     "triangulation\n"
+                  << resetColor;
+        ++failed_count;
+        return;
+    }
+
+    // Eager per-triangle checking rejects the branch point immediately:
+    {
+        KnottedSurface<3> eager(&tri);
+        EXPECT_EQ(eager.addTriangle(foundA, g.adjacencyOf(foundA)), true,
+                 "A adds alone under eager checking");
+        EXPECT_EQ(
+            eager.addTriangle(foundB, g.adjacencyOf(foundB)), false,
+            "eager per-triangle self-intersection checking rejects B before "
+            "the connecting triangle is present");
+    }
+
+    // Deferred checking lets the whole branch-point base assemble, and the
+    // self-intersection genuinely resolves once the connector is in:
+    KnottedSurface<3> deferred(&tri);
+    EXPECT_EQ(deferred.addTriangle(foundA, g.adjacencyOf(foundA), false), true,
+             "A adds alone (deferred)");
+    EXPECT_EQ(deferred.addTriangle(foundB, g.adjacencyOf(foundB), false), true,
+             "B adds alongside A (deferred)");
+    EXPECT_EQ(deferred.hasSelfIntersection(), true,
+             "the branch point genuinely isn't resolved until the connector "
+             "is added");
+    EXPECT_EQ(deferred.addTriangle(foundC, g.adjacencyOf(foundC), false), true,
+             "connecting triangle C adds");
+    EXPECT_EQ(deferred.hasSelfIntersection(), false,
+             "once C is in, the full base has no self-intersection after all");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Walks a single tetrahedron's boundary from one triangle up to the full
+// closed S^2 and back down to three triangles, cross-checking at every
+// step against regina's own countBoundaryFacets() (never trusting
+// numBoundaryFacets_ in isolation), and checking detail()'s naming and
+// cache invalidation across an add/remove cycle. Also exercises
+// image()/preimage() as a round trip once all four triangles are in.
+// ────────────────────────────────────────────────────────────────────
+void test_tetrahedron_boundary_lifecycle() {
+    std::cout << "\n--- single tetrahedron boundary: lifecycle of "
+                "numBoundaryFacets_/detail() ---\n";
+
+    regina::Triangulation<3> tri;
+    tri.newSimplex();
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+    regina::Triangle<3> *t0 = tri.triangle(0);
+    regina::Triangle<3> *t1 = tri.triangle(1);
+    regina::Triangle<3> *t2 = tri.triangle(2);
+    regina::Triangle<3> *t3 = tri.triangle(3);
+
+    KnottedSurface<3> ks(&tri);
+
+    EXPECT_EQ(ks.addTriangle(t0, GluingNode<3>::AdjList{}), true,
+             "t0 adds alone");
+    EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 3,
+             "a single triangle has 3 boundary facets");
+    EXPECT_EQ(ks.isClosed(), false, "a single triangle isn't closed");
+    EXPECT_EQ(ks.detail(), "Disc", "a single triangle is a disc");
+
+    EXPECT_EQ(ks.addTriangle(t1, g.adjacencyOf(t1)), true,
+             "t1 adds and glues to t0");
+    EXPECT_EQ(ks.detail(), "Disc",
+             "two triangles glued along one edge is still a disc");
+
+    EXPECT_EQ(ks.addTriangle(t2, g.adjacencyOf(t2)), true, "t2 adds");
+    EXPECT_EQ(ks.detail(), "Disc", "three triangles (a 'cap') is still a disc");
+
+    EXPECT_EQ(ks.addTriangle(t3, g.adjacencyOf(t3)), true,
+             "t3 adds, closing up the boundary");
+    EXPECT_EQ(ks.isClosed(), true, "all four triangles close up into a sphere");
+    EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 0,
+             "a closed surface has no boundary facets");
+    EXPECT_EQ(ks.detail(), "Sphere", "all four triangles form a sphere");
+
+    // image()/preimage() round trip while all four are present.
+    bool roundTripOk = true;
+    for (regina::Triangle<3> *t : {t0, t1, t2, t3}) {
+        regina::Triangle<2> *pre = ks.preimage(t);
+        if (pre == nullptr || ks.image(pre) != t)
+            roundTripOk = false;
+    }
+    EXPECT_EQ(roundTripOk, true,
+             "preimage()/image() round-trip correctly for all four triangles");
+
+    ks.removeTriangle(t3);
+    EXPECT_EQ(ks.isClosed(), false, "removing one triangle re-opens the sphere");
+    EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 3,
+             "removing one triangle exposes exactly its own three edges");
+    EXPECT_EQ(ks.detail(), "Disc",
+             "detail() recomputes correctly after removal, not left stale "
+             "from being a sphere");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Copying a KnottedSurface mid-construction and then mutating the copy
+// must not affect the original -- targets the copy constructor's/
+// operator='s requirement to rebuild inv_ from the copy's own surface_
+// rather than blitting it from the source (see the class-level comment on
+// inv_).
+// ────────────────────────────────────────────────────────────────────
+void test_copy_independence() {
+    std::cout << "\n--- copying mid-construction doesn't alias state ---\n";
+
+    regina::Triangulation<3> tri;
+    tri.newSimplex();
+    SurfaceFinder<3> g(tri, SurfaceCondition::all);
+    regina::Triangle<3> *t0 = tri.triangle(0);
+    regina::Triangle<3> *t1 = tri.triangle(1);
+    regina::Triangle<3> *t2 = tri.triangle(2);
+
+    KnottedSurface<3> original(&tri);
+    original.addTriangle(t0, GluingNode<3>::AdjList{});
+    original.addTriangle(t1, g.adjacencyOf(t1));
+
+    KnottedSurface<3> copiedByCtor = original;
+    copiedByCtor.addTriangle(t2, g.adjacencyOf(t2));
+
+    EXPECT_EQ((int)original.surface().countTriangles(), 2,
+             "original untouched by mutating a copy-constructed copy");
+    EXPECT_EQ((int)copiedByCtor.surface().countTriangles(), 3,
+             "the copy-constructed copy reflects its own mutation");
+    EXPECT_EQ(original.preimage(t0) != nullptr &&
+                 original.image(original.preimage(t0)) == t0,
+             true, "original's own mapping is intact after the copy diverges");
+    EXPECT_EQ(original.preimage(t2) == nullptr, true,
+             "original has no mapping for a triangle only added to the copy");
+    EXPECT_EQ(copiedByCtor.preimage(t2) != nullptr, true,
+             "the copy's mapping includes the triangle only it received");
+
+    KnottedSurface<3> copiedByAssign(&tri);
+    copiedByAssign = original;
+    copiedByAssign.addTriangle(t2, g.adjacencyOf(t2));
+
+    EXPECT_EQ((int)original.surface().countTriangles(), 2,
+             "original untouched by mutating an operator=-copied copy either");
+    EXPECT_EQ(copiedByAssign.preimage(t2) != nullptr, true,
+             "the operator=-copied copy's mapping includes the triangle only "
+             "it received");
+}
+
 int main() {
     test_single_tetrahedron();
     test_starting_triangles_overload();
@@ -605,6 +1127,15 @@ int main() {
     test_three_sphere();
     test_cone_pipeline_finds_disc_bounding_known_unknot();
     test_four_sphere();
+
+    test_found_surfaces_satisfy_invariants();
+    test_surface_equality_order_independent();
+    test_gluing_clears_improper_edge_and_avoids_false_self_intersection();
+    test_self_intersection_detected_and_rolled_back();
+    test_double_glued_facet_rejected_and_rolled_back();
+    test_deferred_self_intersection_check_resolves_branch_point();
+    test_tetrahedron_boundary_lifecycle();
+    test_copy_independence();
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

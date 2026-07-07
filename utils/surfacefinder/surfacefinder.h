@@ -166,6 +166,19 @@ class SurfaceFinder {
         return count;
     }
 
+    // Exposes a triangle's real gluing-graph adjacency, so tests can drive
+    // KnottedSurface::addTriangle directly with genuine adjacency data
+    // instead of re-deriving gluing permutations by hand.
+    const typename GluingNode<dim>::AdjList &
+    adjacencyOf(const regina::Triangle<dim> *f) const {
+        for (const auto &node : nodes_) {
+            if (node.f == f)
+                return node.adjList;
+        }
+        throw regina::InvalidArgument(
+            "SurfaceFinder::adjacencyOf: triangle not found in the graph");
+    }
+
     friend std::ostream &operator<<(std::ostream &os,
                                     const SurfaceFinder<dim> &graph) {
         os << "SurfaceFinder<" << dim << ">(nodes = " << graph.countNodes()
