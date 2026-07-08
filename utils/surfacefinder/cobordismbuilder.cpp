@@ -54,13 +54,12 @@ int main(int argc, char *argv[]) {
     CobordismBuilder<3> cob(bdryTri);
     regina::Triangulation<4> tri = cob.thicken(2);
 
-    std::cout << "[+] Thickened isosig = " << tri.isoSig()
-              << "\n";
+    std::cout << "[+] Thickened isosig = " << tri.isoSig() << "\n";
 
-    //regina::Triangulation<3> threeMfld = regina::Example<3>::sphere600();
-    //std::cout << "Original = " << threeMfld.isoSig() << "\n";
-    //regina::Triangulation<4> tri1 = knotbuilder::thicken(threeMfld).value();
-    //regina::Triangulation<4> tri2 = knotbuilder::cone(threeMfld);
+    // regina::Triangulation<3> threeMfld = regina::Example<3>::sphere600();
+    // std::cout << "Original = " << threeMfld.isoSig() << "\n";
+    // regina::Triangulation<4> tri1 = knotbuilder::thicken(threeMfld).value();
+    // regina::Triangulation<4> tri2 = knotbuilder::cone(threeMfld);
 
     return 0;
 }

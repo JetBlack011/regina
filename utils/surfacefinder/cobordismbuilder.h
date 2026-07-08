@@ -63,9 +63,7 @@ class CobordismBuilder {
     // triangulation (e.g. a knot edge) after construction must look it up
     // here by index (e.g. `cob.baseTriangulation().edge(origEdge->index())`)
     // rather than reusing the original pointer.
-    const regina::Triangulation<dim> &baseTriangulation() const {
-        return tri_;
-    }
+    const regina::Triangulation<dim> &baseTriangulation() const { return tri_; }
 
     // The k-th sub-simplex of the most-recently-built thickening layer's
     // prism over `baseSimplex` (a simplex of baseTriangulation(), NOT of
@@ -76,8 +74,8 @@ class CobordismBuilder {
     // per-layer data (e.g. tracing an edge's sweep through every layer)
     // must extract it after each individual thicken() call, before moving
     // on to the next one.
-    regina::Simplex<dim + 1> *currentTopSimplex(
-        const regina::Simplex<dim> *baseSimplex, int k) const {
+    regina::Simplex<dim + 1> *
+    currentTopSimplex(const regina::Simplex<dim> *baseSimplex, int k) const {
         return topPrisms_.at(baseSimplex).simplex(k);
     }
 
@@ -180,11 +178,13 @@ class CobordismBuilder {
 
             for (int f = 0; f <= dim; ++f) {
                 const regina::Simplex<dim> *adj = s->adjacentSimplex(f);
-                if (adj == nullptr || coneSimplex->adjacentSimplex(f) != nullptr)
+                if (adj == nullptr ||
+                    coneSimplex->adjacentSimplex(f) != nullptr)
                     continue;
 
                 regina::Perm<dim + 1> bdryGluing = s->adjacentGluing(f);
-                regina::Simplex<dim + 1> *adjConeSimplex = coneSimplices.at(adj);
+                regina::Simplex<dim + 1> *adjConeSimplex =
+                    coneSimplices.at(adj);
                 std::array<int, dim + 2> coneGluing;
                 for (int i = 0; i <= dim; ++i) {
                     coneGluing[i] = bdryGluing[i];

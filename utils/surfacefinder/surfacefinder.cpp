@@ -8,9 +8,9 @@
 
 #include <triangulation/dim4.h>
 
-#include "surfacefinder.h"
-#include "knotbuilder.h"
 #include "cobordismbuilder.h"
+#include "knotbuilder.h"
+#include "surfacefinder.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
 
     regina::Triangulation<4> tri;
     SurfaceCondition cond = SurfaceCondition::boundary;
-    //std::vector<regina::Triangle<4> *> startingTriangles;
+    // std::vector<regina::Triangle<4> *> startingTriangles;
 
     if (argc == 2) {
         regina::Triangulation<3> threeMfld;
@@ -208,7 +208,8 @@ int main(int argc, char *argv[]) {
 
     std::cout << "[*] Building gluing graph...\n";
     SurfaceFinder finder(tri, cond);
-    std::cout << "[+] Total gluing graph nodes = " << finder.countNodes() << "\n"
+    std::cout << "[+] Total gluing graph nodes = " << finder.countNodes()
+              << "\n"
               << "[+] Total gluing graph edges = " << finder.countEdges()
               << "\n";
     //<< "[+] Graph = \n" << finder << "\n";
@@ -239,14 +240,15 @@ int main(int argc, char *argv[]) {
     std::cout << "[*] Sorting links by complexity...\n";
 
     std::sort(boundaries.begin(), boundaries.end(),
-             [](const auto &b1, const auto &b2) {
-                 return std::get<1>(b2) < std::get<1>(b1);
-             });
+              [](const auto &b1, const auto &b2) {
+                  return std::get<1>(b2) < std::get<1>(b1);
+              });
 
     int count = 0;
     if (cond == SurfaceCondition::boundary) {
         for (const auto &[component, l, s] : boundaries) {
-            if (count > 10) break;
+            if (count > 10)
+                break;
             std::cout << s->detail() << " has boundary " << l
                       << " (boundary component " << component << ")\n";
             l.recognizeComplement();

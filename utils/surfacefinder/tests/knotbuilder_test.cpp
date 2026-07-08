@@ -40,19 +40,19 @@ std::ostream &resetColor(std::ostream &os) {
 }
 } // namespace
 
-#define EXPECT_EQ(actual, expected, desc)                                     \
-    do {                                                                      \
-        auto _a = (actual);                                                   \
-        auto _e = (expected);                                                 \
-        if (_a == _e) {                                                       \
-            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
-            ++passed;                                                         \
-        } else {                                                              \
-            std::cout << red << "  FAIL: " << (desc) << "\n"                  \
-                      << "        expected " << _e << ", got " << _a          \
-                      << resetColor << "\n";                                  \
-            ++failed_count;                                                   \
-        }                                                                     \
+#define EXPECT_EQ(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a == _e) {                                                        \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n";  \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                   \
+                      << "        expected " << _e << ", got " << _a           \
+                      << resetColor << "\n";                                   \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -65,12 +65,12 @@ std::ostream &resetColor(std::ostream &os) {
 // expected number of components from the returned link edges, before being
 // used in any CobordismBuilder pipeline test.
 // ═════════════════════════════════════════════════════════════════════════
-const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3";              // 3_1
-const char *HOPF_LINK_PD = "1 4 2 3 3 2 4 1";                    // 2-component link
+const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3"; // 3_1
+const char *HOPF_LINK_PD = "1 4 2 3 3 2 4 1";       // 2-component link
 const char *FIGURE_EIGHT_PD = "4 2 5 1 8 6 1 5 6 3 7 4 2 7 3 8"; // 4_1
 
-regina::Triangulation<3> buildFromPD(const char *pd,
-                                     std::vector<const regina::Edge<3> *> &edges) {
+regina::Triangulation<3>
+buildFromPD(const char *pd, std::vector<const regina::Edge<3> *> &edges) {
     regina::Triangulation<3> tri;
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
     if (!knotbuilder::buildLink(tri, pdcode, edges))
@@ -99,7 +99,7 @@ void checkEdgesFormSimpleClosedLoops(
     const std::vector<const regina::Edge<3> *> &edges, int expectedComponents,
     const std::string &name) {
     std::unordered_set<const regina::Edge<3> *> edgeSet(edges.begin(),
-                                                         edges.end());
+                                                        edges.end());
     EXPECT_EQ(edgeSet.size(), edges.size(),
               name + ": no duplicate edges in the link edge list");
 
@@ -118,7 +118,7 @@ void checkEdgesFormSimpleClosedLoops(
                      "exactly 2 (no dangling ends or branch points)");
 
     std::unordered_set<const regina::Edge<3> *> remaining(edges.begin(),
-                                                           edges.end());
+                                                          edges.end());
     int componentsFound = 0;
     bool allClosed = true;
     while (!remaining.empty()) {
@@ -139,7 +139,7 @@ void checkEdgesFormSimpleClosedLoops(
                 break; // dangling: this component never closes up
 
             currVertex = (next->vertex(0) == currVertex) ? next->vertex(1)
-                                                          : next->vertex(0);
+                                                         : next->vertex(0);
             remaining.erase(next);
         }
 
@@ -171,7 +171,8 @@ void test_knotbuilder_trefoil_is_valid_s3() {
 
     EXPECT_EQ(tri.isValid(), true, "trefoil triangulation is valid");
     EXPECT_EQ(tri.isClosed(), true, "trefoil triangulation is closed");
-    EXPECT_EQ(tri.isIdeal(), false, "trefoil triangulation has no ideal vertices");
+    EXPECT_EQ(tri.isIdeal(), false,
+              "trefoil triangulation has no ideal vertices");
     EXPECT_EQ(tri.isSphere(), true, "trefoil triangulation is S³");
     EXPECT_EQ((int)edges.size(), 9, "3 crossings × 3 link edges per block = 9");
 
@@ -182,7 +183,8 @@ void test_knotbuilder_trefoil_is_valid_s3() {
 }
 
 void test_knotbuilder_hopf_link_two_components() {
-    std::cout << "\n--- knotbuilder: Hopf link PD code -> 2-component link ---\n";
+    std::cout
+        << "\n--- knotbuilder: Hopf link PD code -> 2-component link ---\n";
 
     std::vector<const regina::Edge<3> *> edges;
     auto tri = buildFromPD(HOPF_LINK_PD, edges);
@@ -360,8 +362,7 @@ void test_knotbuilder_many_named_knots() {
 // caught right here instead of as a mysterious CobordismBuilder exception.
 // ─────────────────────────────────────────────────────────────────────────────
 void test_knotbuilder_output_is_orderable() {
-    std::cout
-        << "\n--- knotbuilder output: raw ordering + orderability ---\n";
+    std::cout << "\n--- knotbuilder output: raw ordering + orderability ---\n";
 
     const std::pair<const char *, const char *> knots[] = {
         {"trefoil", TREFOIL_PD},
@@ -373,8 +374,8 @@ void test_knotbuilder_output_is_orderable() {
         std::vector<const regina::Edge<3> *> edges;
         auto tri = buildFromPD(pd, edges);
 
-        std::cout << "  " << name
-                   << ": raw isOrdered() = " << tri.isOrdered() << "\n";
+        std::cout << "  " << name << ": raw isOrdered() = " << tri.isOrdered()
+                  << "\n";
 
         regina::Triangulation<3> ordered(tri);
         EXPECT_EQ(ordered.order(), true,
@@ -416,9 +417,9 @@ void checkKnotToBallPipeline(const char *name, const char *pd, int layers) {
         cob.thicken(layers);
     auto &result = cob.cone();
 
-    EXPECT_EQ(result.isValid(),
-              true, std::string(name) + ": thicken(" + std::to_string(layers) +
-                        ")+cone() triangulation is valid");
+    EXPECT_EQ(result.isValid(), true,
+              std::string(name) + ": thicken(" + std::to_string(layers) +
+                  ")+cone() triangulation is valid");
     EXPECT_EQ((int)result.countBoundaryComponents(), 1,
               std::string(name) + ": thicken(" + std::to_string(layers) +
                   ")+cone() has exactly 1 boundary component");

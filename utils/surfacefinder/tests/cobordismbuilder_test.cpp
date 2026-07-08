@@ -38,19 +38,19 @@ std::ostream &resetColor(std::ostream &os) {
 }
 } // namespace
 
-#define EXPECT_EQ(actual, expected, desc)                                     \
-    do {                                                                      \
-        auto _a = (actual);                                                   \
-        auto _e = (expected);                                                 \
-        if (_a == _e) {                                                       \
-            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
-            ++passed;                                                         \
-        } else {                                                              \
-            std::cout << red << "  FAIL: " << (desc) << "\n"                  \
-                      << "        expected " << _e << ", got " << _a          \
-                      << resetColor << "\n";                                  \
-            ++failed_count;                                                   \
-        }                                                                     \
+#define EXPECT_EQ(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a == _e) {                                                        \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n";  \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                   \
+                      << "        expected " << _e << ", got " << _a           \
+                      << resetColor << "\n";                                   \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,7 +96,8 @@ void test_s3_selfglued_thicken_one_layer() {
     CobordismBuilder<3> cob(s3);
     auto &result = cob.thicken(1);
 
-    EXPECT_EQ((int)result.size(), 4, "1 tet × 4 prism simplices = 4 pentachora");
+    EXPECT_EQ((int)result.size(), 4,
+              "1 tet × 4 prism simplices = 4 pentachora");
     EXPECT_EQ(result.isValid(), true, "S³×I triangulation is valid");
     EXPECT_EQ(result.isConnected(), true, "S³×I triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
@@ -161,7 +162,8 @@ void test_doubled_tetrahedra_thicken_one_layer() {
     CobordismBuilder<3> cob(s3);
     auto &result = cob.thicken(1);
 
-    EXPECT_EQ((int)result.size(), 8, "2 tets × 4 prism simplices = 8 pentachora");
+    EXPECT_EQ((int)result.size(), 8,
+              "2 tets × 4 prism simplices = 8 pentachora");
     EXPECT_EQ(result.isValid(), true, "S³×I triangulation is valid");
     EXPECT_EQ(result.isConnected(), true, "S³×I triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
@@ -183,7 +185,8 @@ void test_doubled_tetrahedra_thicken_two_layers() {
     CobordismBuilder<3> cob(s3);
     auto &result = cob.thicken(2);
 
-    EXPECT_EQ((int)result.size(), 16, "2 layers × 8 pentachora = 16 pentachora");
+    EXPECT_EQ((int)result.size(), 16,
+              "2 layers × 8 pentachora = 16 pentachora");
     EXPECT_EQ(result.isValid(), true, "S³×[0,2] triangulation is valid");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
               "2 boundary components (top and bottom S³)");
@@ -212,7 +215,8 @@ void test_cone_alone() {
 
     EXPECT_EQ((int)result.size(), 2, "1 cone pentachoron per base tet = 2");
     EXPECT_EQ(result.isValid(), true, "Cone(S³) triangulation is valid");
-    EXPECT_EQ(result.isConnected(), true, "Cone(S³) triangulation is connected");
+    EXPECT_EQ(result.isConnected(), true,
+              "Cone(S³) triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 1,
               "Cone(S³) has exactly 1 boundary component");
     EXPECT_EQ(result.eulerCharManifold(), 1L,
@@ -246,7 +250,8 @@ void test_cone_after_one_thicken() {
 
     EXPECT_EQ((int)result.size(), 10,
               "8 pentachora (thicken) + 2 (cone) = 10, not just the cone's 2");
-    EXPECT_EQ(result.isValid(), true, "thicken(1)+cone() triangulation is valid");
+    EXPECT_EQ(result.isValid(), true,
+              "thicken(1)+cone() triangulation is valid");
     EXPECT_EQ(result.isConnected(), true,
               "thicken(1)+cone() triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 1,
@@ -276,7 +281,8 @@ void test_cone_after_multiple_thickens() {
 
     EXPECT_EQ((int)result.size(), 26,
               "3 layers × 8 pentachora + 2 (cone) = 26");
-    EXPECT_EQ(result.isValid(), true, "thicken(3)+cone() triangulation is valid");
+    EXPECT_EQ(result.isValid(), true,
+              "thicken(3)+cone() triangulation is valid");
     EXPECT_EQ((int)result.countBoundaryComponents(), 1,
               "thicken(3)+cone() has exactly 1 boundary component");
     EXPECT_EQ(result.eulerCharManifold(), 1L,
@@ -433,8 +439,9 @@ void test_all_facet_pairs_two_tets() {
         }
     }
 
-    EXPECT_EQ(numOk, 16,
-              "all 16 (facet, otherFacet) pairs give a valid B⁴ with S³ boundary");
+    EXPECT_EQ(
+        numOk, 16,
+        "all 16 (facet, otherFacet) pairs give a valid B⁴ with S³ boundary");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -520,7 +527,8 @@ void test_dim2_doubled_triangle() {
     EXPECT_EQ((int)result.size(), 12,
               "2 layers × (2 triangles × 3 prism tets) = 12 tetrahedra");
     EXPECT_EQ(result.isValid(), true, "S²×[0,2] triangulation is valid");
-    EXPECT_EQ(result.isConnected(), true, "S²×[0,2] triangulation is connected");
+    EXPECT_EQ(result.isConnected(), true,
+              "S²×[0,2] triangulation is connected");
     EXPECT_EQ((int)result.countBoundaryComponents(), 2,
               "2 boundary components (top and bottom S²)");
     EXPECT_EQ(

@@ -5,8 +5,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include <triangulation/forward.h>
 #include <maths/perm.h>
+#include <triangulation/forward.h>
 
 template <int dim>
 class SimplicialPrism {
@@ -39,12 +39,12 @@ class SimplicialPrism {
     // specific sub-simplex (see decode_'s class-level documentation).
     static int localVertex(int v, bool isTop) { return encode_(v, isTop); }
 
-    //template <int facedim>
-    //std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
-    //subprism(const regina::Perm<dim> &vertices) const {
-    //    static_assert(
-    //        facedim >= 0 && facedim < dim - 1,
-    //        "SimplicialPrism::faceTimesI: facedim must be in [0, dim-2]");
+    // template <int facedim>
+    // std::array<const regina::Face<dim, facedim + 1> *, facedim + 1>
+    // subprism(const regina::Perm<dim> &vertices) const {
+    //     static_assert(
+    //         facedim >= 0 && facedim < dim - 1,
+    //         "SimplicialPrism::faceTimesI: facedim must be in [0, dim-2]");
 
     //    std::vector<int> faceVerts;
     //    for (int i = 0; i < dim; ++i) {
@@ -84,10 +84,10 @@ class SimplicialPrism {
     //    return faces;
     //}
 
-    //inline std::array<const regina::Triangle<dim> *, 2>
-    //edgeTimesI(const regina::Perm<dim> &vertices) const {
-    //    return subprism<1>(vertices);
-    //}
+    // inline std::array<const regina::Triangle<dim> *, 2>
+    // edgeTimesI(const regina::Perm<dim> &vertices) const {
+    //     return subprism<1>(vertices);
+    // }
 
     // Glues this prism to `other` along the wall lying over the facet of
     // the "top" simplex obtained by omitting vertex `facet` (resp.
@@ -96,8 +96,7 @@ class SimplicialPrism {
     // sub-triangulations (and the permutation identifying them) is
     // completely determined by `facet` and `otherFacet` alone.
     void glue(int facet, SimplicialPrism<dim> &other, int otherFacet) {
-        if (!(0 <= facet && facet < dim && 0 <= otherFacet &&
-              otherFacet < dim))
+        if (!(0 <= facet && facet < dim && 0 <= otherFacet && otherFacet < dim))
             throw regina::InvalidArgument(
                 "SimplicialPrism::glue(): Invalid faces");
 
@@ -124,12 +123,13 @@ class SimplicialPrism {
                 // unaffected by the gluing, since it only identifies the
                 // base simplices and acts as the identity on the I factor.
                 auto [baseVertex, isTop] = decode_(k, m);
-                int otherBaseVertex = mapExcluding_(baseVertex, facet, otherFacet);
+                int otherBaseVertex =
+                    mapExcluding_(baseVertex, facet, otherFacet);
                 image[m] = encode_(otherBaseVertex, isTop);
             }
 
             simplices_[k]->join(myFacet, other.simplices_[kOther],
-                                 regina::Perm<dim + 1>(image));
+                                regina::Perm<dim + 1>(image));
         }
     }
 
@@ -148,7 +148,7 @@ class SimplicialPrism {
             image[i] = (i + 1) % (dim + 1);
 
         simplices_[dim - 1]->join(dim - 1, next.simplices_[0],
-                                   regina::Perm<dim + 1>(image));
+                                  regina::Perm<dim + 1>(image));
     }
 
     // Glues this prism's top facet (the base simplex x {1}) directly onto
@@ -170,7 +170,7 @@ class SimplicialPrism {
         }
 
         simplices_[dim - 1]->join(dim - 1, coneSimplex,
-                                   regina::Perm<dim + 1>(image));
+                                  regina::Perm<dim + 1>(image));
     }
 
   private:

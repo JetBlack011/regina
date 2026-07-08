@@ -71,28 +71,31 @@ std::ostream &resetColor(std::ostream &os) {
 }
 } // namespace
 
-#define EXPECT_EQ(actual, expected, desc)                                     \
-    do {                                                                     \
-        auto _a = (actual);                                                  \
-        auto _e = (expected);                                                \
-        if (_a == _e) {                                                      \
-            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
-            ++passed;                                                        \
-        } else {                                                             \
-            std::cout << red << "  FAIL: " << (desc) << "\n"                 \
-                      << "        expected " << _e << ", got " << _a         \
-                      << resetColor << "\n";                                 \
-            ++failed_count;                                                  \
-        }                                                                    \
+#define EXPECT_EQ(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a == _e) {                                                        \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n";  \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                   \
+                      << "        expected " << _e << ", got " << _a           \
+                      << resetColor << "\n";                                   \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
 namespace {
 
 const char *condName(SurfaceCondition c) {
     switch (c) {
-    case SurfaceCondition::all: return "--all";
-    case SurfaceCondition::boundary: return "--boundary";
-    case SurfaceCondition::closed: return "--closed";
+    case SurfaceCondition::all:
+        return "--all";
+    case SurfaceCondition::boundary:
+        return "--boundary";
+    case SurfaceCondition::closed:
+        return "--closed";
     }
     return "?";
 }
@@ -104,11 +107,15 @@ const char *condName(SurfaceCondition c) {
 // from *never trusting the DFS's own accounting* of which triangle sets
 // reach this predicate; see bruteForceGroundTruth's enumeration.
 template <int dim>
-bool satisfiesCondition(const KnottedSurface<dim> &surf, SurfaceCondition cond) {
+bool satisfiesCondition(const KnottedSurface<dim> &surf,
+                        SurfaceCondition cond) {
     switch (cond) {
-    case SurfaceCondition::all: return true;
-    case SurfaceCondition::boundary: return surf.isProper();
-    case SurfaceCondition::closed: return surf.isClosed();
+    case SurfaceCondition::all:
+        return true;
+    case SurfaceCondition::boundary:
+        return surf.isProper();
+    case SurfaceCondition::closed:
+        return surf.isClosed();
     }
     return false;
 }
@@ -127,9 +134,9 @@ bool satisfiesCondition(const KnottedSurface<dim> &surf, SurfaceCondition cond) 
 // call site below, so the brute-force result is never read with the DFS's
 // own answer already in mind.
 template <int dim>
-std::optional<std::set<std::set<int>>> bruteForceGroundTruth(
-    const regina::Triangulation<dim> &tri, SurfaceCondition cond,
-    int maxTriangles = 20) {
+std::optional<std::set<std::set<int>>>
+bruteForceGroundTruth(const regina::Triangulation<dim> &tri,
+                      SurfaceCondition cond, int maxTriangles = 20) {
     int n = tri.countTriangles();
     if (n > maxTriangles || n == 0)
         return std::nullopt;
@@ -150,8 +157,8 @@ std::optional<std::set<std::set<int>>> bruteForceGroundTruth(
         KnottedSurface<dim> surf(&tri);
         bool ok = true;
         for (int i : subset) {
-            if (!surf.addTriangle(triangles[i], finder.adjacencyOf(triangles[i]),
-                                  false)) {
+            if (!surf.addTriangle(triangles[i],
+                                  finder.adjacencyOf(triangles[i]), false)) {
                 ok = false;
                 break;
             }
@@ -172,8 +179,8 @@ std::optional<std::set<std::set<int>>> bruteForceGroundTruth(
 // computed by the caller *before* calling this, so the brute-force
 // enumeration is never influenced by having already seen the DFS's answer.
 template <int dim>
-void checkSearch(const std::string &name,
-                 const regina::Triangulation<dim> &tri, SurfaceCondition cond,
+void checkSearch(const std::string &name, const regina::Triangulation<dim> &tri,
+                 SurfaceCondition cond,
                  const std::optional<std::set<std::set<int>>> &groundTruth) {
     std::string label = name + " " + condName(cond);
     std::cout << "\n--- " << label << " ---\n";
@@ -181,27 +188,25 @@ void checkSearch(const std::string &name,
     SurfaceFinder<dim> finder(tri, cond);
 
     long hookCalls = 0, violations = 0;
-    finder.setDebugHook(
-        [&](const char *stage, const KnottedSurface<dim> &s) {
-            ++hookCalls;
-            std::ostringstream diag;
-            if (!s.checkInvariants(diag)) {
-                ++violations;
-                if (violations <= 5) {
-                    std::cout << red << "  INVARIANT VIOLATION after stage '"
-                              << stage << "' (hook call " << hookCalls
-                              << "):\n"
-                              << diag.str() << resetColor;
-                }
+    finder.setDebugHook([&](const char *stage, const KnottedSurface<dim> &s) {
+        ++hookCalls;
+        std::ostringstream diag;
+        if (!s.checkInvariants(diag)) {
+            ++violations;
+            if (violations <= 5) {
+                std::cout << red << "  INVARIANT VIOLATION after stage '"
+                          << stage << "' (hook call " << hookCalls << "):\n"
+                          << diag.str() << resetColor;
             }
-        });
+        }
+    });
 
     auto &surfaces = finder.findSurfaces();
 
     EXPECT_EQ(violations, 0L,
-             label + ": zero checkInvariants() violations across " +
-                 std::to_string(hookCalls) +
-                 " mutations of the live production DFS");
+              label + ": zero checkInvariants() violations across " +
+                  std::to_string(hookCalls) +
+                  " mutations of the live production DFS");
 
     if (!groundTruth) {
         std::cout << "  (skipped brute-force cross-check: too large)\n";
@@ -225,12 +230,12 @@ void checkSearch(const std::string &name,
             ++bogus;
 
     std::cout << "  brute-force ground truth: " << groundTruth->size()
-               << " surfaces; DFS found: " << found.size() << " ("
-               << missing << " missing, " << bogus << " bogus)\n";
+              << " surfaces; DFS found: " << found.size() << " (" << missing
+              << " missing, " << bogus << " bogus)\n";
 
     EXPECT_EQ(found.size(), groundTruth->size(),
-             label + ": DFS found the same number of surfaces as brute-force "
-                     "ground truth");
+              label + ": DFS found the same number of surfaces as brute-force "
+                      "ground truth");
     EXPECT_EQ(missing, 0, label + ": zero surfaces missing vs. ground truth");
     EXPECT_EQ(bogus, 0, label + ": zero bogus surfaces vs. ground truth");
 }
@@ -242,11 +247,11 @@ void checkTriangulation(const std::string &name,
                         const regina::Triangulation<dim> &tri,
                         int maxBruteForceTriangles = 20) {
     std::cout << "\n=== " << name << " (" << tri.countTriangles()
-               << " triangles) ===\n";
+              << " triangles) ===\n";
 
     for (SurfaceCondition cond :
-        {SurfaceCondition::all, SurfaceCondition::boundary,
-         SurfaceCondition::closed}) {
+         {SurfaceCondition::all, SurfaceCondition::boundary,
+          SurfaceCondition::closed}) {
         auto groundTruth =
             bruteForceGroundTruth(tri, cond, maxBruteForceTriangles);
         checkSearch(name, tri, cond, groundTruth);

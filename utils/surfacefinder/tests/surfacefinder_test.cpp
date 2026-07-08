@@ -382,9 +382,9 @@ void test_removeTriangle_clears_improper_edges() {
 
     if (interior == nullptr || bdryTriangle == nullptr) {
         std::cout << red
-                   << "  FAIL: couldn't locate suitable triangles to "
-                      "set up this test\n"
-                   << resetColor;
+                  << "  FAIL: couldn't locate suitable triangles to "
+                     "set up this test\n"
+                  << resetColor;
         ++failed_count;
         return;
     }
@@ -643,7 +643,7 @@ void checkFoundSurfacesSatisfyInvariants(const std::string &label,
                 conditionHolds = false;
         } else if (cond == SurfaceCondition::boundary) {
             for (const regina::BoundaryComponent<2> *comp :
-                s.surface().boundaryComponents()) {
+                 s.surface().boundaryComponents()) {
                 for (const regina::Edge<2> *edge : comp->edges()) {
                     if (edge->isBoundary() && !s.image(edge)->isBoundary())
                         conditionHolds = false;
@@ -655,13 +655,13 @@ void checkFoundSurfacesSatisfyInvariants(const std::string &label,
     EXPECT_GE((int)surfaces.size(), 1, label + ": found at least one surface");
     EXPECT_EQ(allConnected, true, label + ": every found surface is connected");
     EXPECT_EQ(allEmbedded, true,
-             label + ": every found surface has an injective vertex map");
+              label + ": every found surface has an injective vertex map");
     EXPECT_EQ(closedFlagConsistent, true,
-             label + ": isClosed() agrees with surface().isClosed()");
+              label + ": isClosed() agrees with surface().isClosed()");
     if (cond != SurfaceCondition::all)
         EXPECT_EQ(conditionHolds, true,
-                 label +
-                     ": every found surface satisfies its search condition");
+                  label +
+                      ": every found surface satisfies its search condition");
 }
 
 void test_found_surfaces_satisfy_invariants() {
@@ -693,8 +693,9 @@ void test_found_surfaces_satisfy_invariants() {
         regina::Triangulation<4> fourBall;
         fourBall.newSimplex();
         regina::Triangulation<3> tri = fourBall.boundaryComponent(0)->build();
-        checkFoundSurfacesSatisfyInvariants("boundary of Delta^4 (S^3) --closed",
-                                            tri, SurfaceCondition::closed);
+        checkFoundSurfacesSatisfyInvariants(
+            "boundary of Delta^4 (S^3) --closed", tri,
+            SurfaceCondition::closed);
     }
 }
 
@@ -715,20 +716,20 @@ void test_surface_equality_order_independent() {
 
     KnottedSurface<3> ksAB(&tri);
     EXPECT_EQ(ksAB.addTriangle(t0, GluingNode<3>::AdjList{}), true,
-             "t0 adds alone (A-then-B order)");
+              "t0 adds alone (A-then-B order)");
     EXPECT_EQ(ksAB.addTriangle(t1, g.adjacencyOf(t1)), true,
-             "t1 adds and glues to t0 (A-then-B order)");
+              "t1 adds and glues to t0 (A-then-B order)");
 
     KnottedSurface<3> ksBA(&tri);
     EXPECT_EQ(ksBA.addTriangle(t1, GluingNode<3>::AdjList{}), true,
-             "t1 adds alone (B-then-A order)");
+              "t1 adds alone (B-then-A order)");
     EXPECT_EQ(ksBA.addTriangle(t0, g.adjacencyOf(t0)), true,
-             "t0 adds and glues to t1 (B-then-A order)");
+              "t0 adds and glues to t1 (B-then-A order)");
 
     EXPECT_EQ(ksAB == ksBA, true,
-             "the same two triangles added in different orders compare equal");
+              "the same two triangles added in different orders compare equal");
     EXPECT_EQ((ksAB < ksBA) || (ksBA < ksAB), false,
-             "neither ordering is considered less than the other");
+              "neither ordering is considered less than the other");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -741,7 +742,7 @@ void test_surface_equality_order_independent() {
 // ────────────────────────────────────────────────────────────────────
 void test_gluing_clears_improper_edge_and_avoids_false_self_intersection() {
     std::cout << "\n--- gluing clears improperEdges_ without a false "
-                "self-intersection ---\n";
+                 "self-intersection ---\n";
 
     regina::Triangulation<4> fourBall;
     fourBall.newSimplex();
@@ -751,7 +752,8 @@ void test_gluing_clears_improper_edge_and_avoids_false_self_intersection() {
     regina::Triangle<3> *X = tri.triangle(0);
     const auto &adjX = g.adjacencyOf(X);
     if (adjX.empty()) {
-        std::cout << red << "  FAIL: triangle 0 has no neighbours to test with\n"
+        std::cout << red
+                  << "  FAIL: triangle 0 has no neighbours to test with\n"
                   << resetColor;
         ++failed_count;
         return;
@@ -762,16 +764,17 @@ void test_gluing_clears_improper_edge_and_avoids_false_self_intersection() {
 
     KnottedSurface<3> ks(&tri);
     EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true,
-             "X adds alone with no neighbours present");
+              "X adds alone with no neighbours present");
     EXPECT_EQ((int)ks.improperEdges_.count(shared), 1,
-             "X's shared, un-glued, non-boundary edge is flagged improper");
+              "X's shared, un-glued, non-boundary edge is flagged improper");
 
     EXPECT_EQ(ks.addTriangle(Y, g.adjacencyOf(Y)), true,
-             "Y adds and glues to X along the shared edge");
+              "Y adds and glues to X along the shared edge");
     EXPECT_EQ((int)ks.improperEdges_.count(shared), 0,
-             "gluing clears the shared edge from improperEdges_");
-    EXPECT_EQ(ks.hasSelfIntersection(), false,
-             "gluing along a shared edge is not mistaken for a self-intersection");
+              "gluing clears the shared edge from improperEdges_");
+    EXPECT_EQ(
+        ks.hasSelfIntersection(), false,
+        "gluing along a shared edge is not mistaken for a self-intersection");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -826,18 +829,21 @@ void test_self_intersection_detected_and_rolled_back() {
     }
 
     KnottedSurface<3> ks(&tri);
-    EXPECT_EQ(ks.addTriangle(A, GluingNode<3>::AdjList{}), true, "A adds alone");
+    EXPECT_EQ(ks.addTriangle(A, GluingNode<3>::AdjList{}), true,
+              "A adds alone");
     EXPECT_EQ(ks.hasSelfIntersection(), false,
-             "a single triangle never self-intersects");
+              "a single triangle never self-intersects");
 
-    EXPECT_EQ(ks.addTriangle(B, GluingNode<3>::AdjList{}), false,
-             "B, sharing only a vertex with A, is rejected as self-intersecting");
+    EXPECT_EQ(
+        ks.addTriangle(B, GluingNode<3>::AdjList{}), false,
+        "B, sharing only a vertex with A, is rejected as self-intersecting");
     EXPECT_EQ((int)ks.surface().countTriangles(), 1,
-             "the rejected triangle's abstract simplex was rolled back");
+              "the rejected triangle's abstract simplex was rolled back");
     EXPECT_EQ(ks.preimage(B) == nullptr, true,
-             "the rejected triangle has no leftover preimage mapping");
-    EXPECT_EQ(ks.hasSelfIntersection(), false,
-             "surface_ is back to just A, with no lingering self-intersection");
+              "the rejected triangle has no leftover preimage mapping");
+    EXPECT_EQ(
+        ks.hasSelfIntersection(), false,
+        "surface_ is back to just A, with no lingering self-intersection");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -849,7 +855,7 @@ void test_self_intersection_detected_and_rolled_back() {
 // ────────────────────────────────────────────────────────────────────
 void test_double_glued_facet_rejected_and_rolled_back() {
     std::cout << "\n--- a double-glued facet is rejected and fully rolled "
-                "back ---\n";
+                 "back ---\n";
 
     regina::Triangulation<3> tri;
     auto *t0 = tri.newSimplex();
@@ -895,16 +901,17 @@ void test_double_glued_facet_rejected_and_rolled_back() {
     }
 
     KnottedSurface<3> ks(&tri);
-    EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true, "X adds alone");
+    EXPECT_EQ(ks.addTriangle(X, GluingNode<3>::AdjList{}), true,
+              "X adds alone");
     EXPECT_EQ(ks.addTriangle(Y, g.adjacencyOf(Y)), true,
-             "Y adds and glues to X (only X present so far)");
+              "Y adds and glues to X (only X present so far)");
 
     EXPECT_EQ(ks.addTriangle(M, g.adjacencyOf(M)), false,
-             "M can't glue the same facet to both X and Y");
+              "M can't glue the same facet to both X and Y");
     EXPECT_EQ((int)ks.surface().countTriangles(), 2,
-             "the rejected triangle's abstract simplex was rolled back");
+              "the rejected triangle's abstract simplex was rolled back");
     EXPECT_EQ(ks.preimage(M) == nullptr, true,
-             "the rejected triangle has no leftover preimage mapping");
+              "the rejected triangle has no leftover preimage mapping");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -928,7 +935,7 @@ void test_double_glued_facet_rejected_and_rolled_back() {
 // ────────────────────────────────────────────────────────────────────
 void test_deferred_self_intersection_check_resolves_branch_point() {
     std::cout << "\n--- deferred self-intersection check resolves a branch "
-                "point ---\n";
+                 "point ---\n";
 
     regina::Triangulation<4> fourBall;
     fourBall.newSimplex();
@@ -1001,30 +1008,29 @@ void test_deferred_self_intersection_check_resolves_branch_point() {
     {
         KnottedSurface<3> eager(&tri);
         EXPECT_EQ(eager.addTriangle(foundA, g.adjacencyOf(foundA)), true,
-                 "A adds alone under eager checking");
-        EXPECT_EQ(
-            eager.addTriangle(foundB, g.adjacencyOf(foundB)), true,
-            "eager per-triangle checking lets B through -- C could still "
-            "resolve the conflict, so it isn't rejected as permanent");
+                  "A adds alone under eager checking");
+        EXPECT_EQ(eager.addTriangle(foundB, g.adjacencyOf(foundB)), true,
+                  "eager per-triangle checking lets B through -- C could still "
+                  "resolve the conflict, so it isn't rejected as permanent");
         EXPECT_EQ(eager.hasSelfIntersection(), true,
-                 "the branch point is still transiently unresolved (real "
-                 "hasSelfIntersection() remains the true, final gate)");
+                  "the branch point is still transiently unresolved (real "
+                  "hasSelfIntersection() remains the true, final gate)");
     }
 
     // Deferred checking lets the whole branch-point base assemble, and the
     // self-intersection genuinely resolves once the connector is in:
     KnottedSurface<3> deferred(&tri);
     EXPECT_EQ(deferred.addTriangle(foundA, g.adjacencyOf(foundA), false), true,
-             "A adds alone (deferred)");
+              "A adds alone (deferred)");
     EXPECT_EQ(deferred.addTriangle(foundB, g.adjacencyOf(foundB), false), true,
-             "B adds alongside A (deferred)");
+              "B adds alongside A (deferred)");
     EXPECT_EQ(deferred.hasSelfIntersection(), true,
-             "the branch point genuinely isn't resolved until the connector "
-             "is added");
+              "the branch point genuinely isn't resolved until the connector "
+              "is added");
     EXPECT_EQ(deferred.addTriangle(foundC, g.adjacencyOf(foundC), false), true,
-             "connecting triangle C adds");
+              "connecting triangle C adds");
     EXPECT_EQ(deferred.hasSelfIntersection(), false,
-             "once C is in, the full base has no self-intersection after all");
+              "once C is in, the full base has no self-intersection after all");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -1037,7 +1043,7 @@ void test_deferred_self_intersection_check_resolves_branch_point() {
 // ────────────────────────────────────────────────────────────────────
 void test_tetrahedron_boundary_lifecycle() {
     std::cout << "\n--- single tetrahedron boundary: lifecycle of "
-                "numBoundaryFacets_/detail() ---\n";
+                 "numBoundaryFacets_/detail() ---\n";
 
     regina::Triangulation<3> tri;
     tri.newSimplex();
@@ -1050,25 +1056,25 @@ void test_tetrahedron_boundary_lifecycle() {
     KnottedSurface<3> ks(&tri);
 
     EXPECT_EQ(ks.addTriangle(t0, GluingNode<3>::AdjList{}), true,
-             "t0 adds alone");
+              "t0 adds alone");
     EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 3,
-             "a single triangle has 3 boundary facets");
+              "a single triangle has 3 boundary facets");
     EXPECT_EQ(ks.isClosed(), false, "a single triangle isn't closed");
     EXPECT_EQ(ks.detail(), "Disc", "a single triangle is a disc");
 
     EXPECT_EQ(ks.addTriangle(t1, g.adjacencyOf(t1)), true,
-             "t1 adds and glues to t0");
+              "t1 adds and glues to t0");
     EXPECT_EQ(ks.detail(), "Disc",
-             "two triangles glued along one edge is still a disc");
+              "two triangles glued along one edge is still a disc");
 
     EXPECT_EQ(ks.addTriangle(t2, g.adjacencyOf(t2)), true, "t2 adds");
     EXPECT_EQ(ks.detail(), "Disc", "three triangles (a 'cap') is still a disc");
 
     EXPECT_EQ(ks.addTriangle(t3, g.adjacencyOf(t3)), true,
-             "t3 adds, closing up the boundary");
+              "t3 adds, closing up the boundary");
     EXPECT_EQ(ks.isClosed(), true, "all four triangles close up into a sphere");
     EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 0,
-             "a closed surface has no boundary facets");
+              "a closed surface has no boundary facets");
     EXPECT_EQ(ks.detail(), "Sphere", "all four triangles form a sphere");
 
     // image()/preimage() round trip while all four are present.
@@ -1079,15 +1085,16 @@ void test_tetrahedron_boundary_lifecycle() {
             roundTripOk = false;
     }
     EXPECT_EQ(roundTripOk, true,
-             "preimage()/image() round-trip correctly for all four triangles");
+              "preimage()/image() round-trip correctly for all four triangles");
 
     ks.removeTriangle(t3);
-    EXPECT_EQ(ks.isClosed(), false, "removing one triangle re-opens the sphere");
+    EXPECT_EQ(ks.isClosed(), false,
+              "removing one triangle re-opens the sphere");
     EXPECT_EQ((int)ks.surface().countBoundaryFacets(), 3,
-             "removing one triangle exposes exactly its own three edges");
+              "removing one triangle exposes exactly its own three edges");
     EXPECT_EQ(ks.detail(), "Disc",
-             "detail() recomputes correctly after removal, not left stale "
-             "from being a sphere");
+              "detail() recomputes correctly after removal, not left stale "
+              "from being a sphere");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -1115,26 +1122,26 @@ void test_copy_independence() {
     copiedByCtor.addTriangle(t2, g.adjacencyOf(t2));
 
     EXPECT_EQ((int)original.surface().countTriangles(), 2,
-             "original untouched by mutating a copy-constructed copy");
+              "original untouched by mutating a copy-constructed copy");
     EXPECT_EQ((int)copiedByCtor.surface().countTriangles(), 3,
-             "the copy-constructed copy reflects its own mutation");
+              "the copy-constructed copy reflects its own mutation");
     EXPECT_EQ(original.preimage(t0) != nullptr &&
-                 original.image(original.preimage(t0)) == t0,
-             true, "original's own mapping is intact after the copy diverges");
+                  original.image(original.preimage(t0)) == t0,
+              true, "original's own mapping is intact after the copy diverges");
     EXPECT_EQ(original.preimage(t2) == nullptr, true,
-             "original has no mapping for a triangle only added to the copy");
+              "original has no mapping for a triangle only added to the copy");
     EXPECT_EQ(copiedByCtor.preimage(t2) != nullptr, true,
-             "the copy's mapping includes the triangle only it received");
+              "the copy's mapping includes the triangle only it received");
 
     KnottedSurface<3> copiedByAssign(&tri);
     copiedByAssign = original;
     copiedByAssign.addTriangle(t2, g.adjacencyOf(t2));
 
     EXPECT_EQ((int)original.surface().countTriangles(), 2,
-             "original untouched by mutating an operator=-copied copy either");
+              "original untouched by mutating an operator=-copied copy either");
     EXPECT_EQ(copiedByAssign.preimage(t2) != nullptr, true,
-             "the operator=-copied copy's mapping includes the triangle only "
-             "it received");
+              "the operator=-copied copy's mapping includes the triangle only "
+              "it received");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -1152,7 +1159,7 @@ void test_copy_independence() {
 // ────────────────────────────────────────────────────────────────────
 void test_boundary_reports_multiple_components() {
     std::cout << "\n--- KnottedSurface::boundary() handles multiple ambient "
-                "boundary components ---\n";
+                 "boundary components ---\n";
 
     regina::Triangulation<4> fourBall;
     fourBall.newSimplex();
@@ -1162,8 +1169,8 @@ void test_boundary_reports_multiple_components() {
     regina::Triangulation<4> &tri = cob.thicken(1);
 
     EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
-             "thickening a closed 3-manifold gives exactly 2 boundary "
-             "components");
+              "thickening a closed 3-manifold gives exactly 2 boundary "
+              "components");
     if (tri.countBoundaryComponents() != 2) {
         return;
     }
@@ -1173,21 +1180,22 @@ void test_boundary_reports_multiple_components() {
 
     KnottedSurface<4> ks(&tri);
     EXPECT_EQ(ks.addTriangle(X, GluingNode<4>::AdjList{}), true,
-             "X, a triangle from boundary component 0, adds alone");
+              "X, a triangle from boundary component 0, adds alone");
     EXPECT_EQ(ks.addTriangle(Y, GluingNode<4>::AdjList{}), true,
-             "Y, a triangle from boundary component 1, adds alone");
+              "Y, a triangle from boundary component 1, adds alone");
 
     auto pieces = ks.boundary();
     EXPECT_EQ((int)pieces.size(), 2,
-             "boundary() reports one Link per touched boundary component");
+              "boundary() reports one Link per touched boundary component");
 
     std::set<size_t> componentsSeen;
     for (const auto &[component, link] : pieces) {
         componentsSeen.insert(component);
     }
     EXPECT_EQ(componentsSeen.count(0) == 1 && componentsSeen.count(1) == 1,
-             true, "the two reported pieces are attributed to components 0 "
-                   "and 1, one each");
+              true,
+              "the two reported pieces are attributed to components 0 "
+              "and 1, one each");
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -1203,7 +1211,7 @@ void test_boundary_reports_multiple_components() {
 // ────────────────────────────────────────────────────────────────────
 void test_boundary_reports_multiple_components_via_collar() {
     std::cout << "\n--- KnottedSurface::boundary() on a real "
-                "thicken()+CollarBuilder collar ---\n";
+                 "thicken()+CollarBuilder collar ---\n";
 
     // Same hand-built S^3 as the cone() pipeline test above:
     // tri.triangle(0)'s own 3 edges form an unknotted loop.
@@ -1225,13 +1233,13 @@ void test_boundary_reports_multiple_components_via_collar() {
     collarBuilder.addLayer(cob);
 
     EXPECT_EQ((int)thickened.countBoundaryComponents(), 2,
-             "thickening a closed 3-manifold gives exactly 2 boundary "
-             "components");
+              "thickening a closed 3-manifold gives exactly 2 boundary "
+              "components");
 
     std::unordered_set<regina::Triangle<4> *> collarTriangles =
         collarBuilder.resolve();
     EXPECT_EQ((int)collarTriangles.size(), 6,
-             "the collar has 2 sweep triangles per traced edge");
+              "the collar has 2 sweep triangles per traced edge");
 
     SurfaceFinder<4> g(thickened, SurfaceCondition::all);
     KnottedSurface<4> ks(&thickened);
@@ -1242,15 +1250,16 @@ void test_boundary_reports_multiple_components_via_collar() {
     // a genuine branch point in the collar's own shape.
     bool allAdded = true;
     for (regina::Triangle<4> *t : collarTriangles) {
-        if (!ks.addTriangle(t, g.adjacencyOf(t), /*checkSelfIntersection=*/false))
+        if (!ks.addTriangle(t, g.adjacencyOf(t),
+                            /*checkSelfIntersection=*/false))
             allAdded = false;
     }
     EXPECT_EQ(allAdded, true,
-             "every collar triangle adds cleanly (no double-glued facet)");
+              "every collar triangle adds cleanly (no double-glued facet)");
     EXPECT_EQ(ks.hasSelfIntersection(), false,
-             "the collar is embedded, not self-intersecting");
+              "the collar is embedded, not self-intersecting");
     EXPECT_EQ(ks.surface().isConnected(), true,
-             "the collar forms a single connected strip, not disjoint pieces");
+              "the collar forms a single connected strip, not disjoint pieces");
 
     auto pieces = ks.boundary();
     std::set<size_t> componentsSeen;
@@ -1258,12 +1267,12 @@ void test_boundary_reports_multiple_components_via_collar() {
         componentsSeen.insert(component);
     }
     EXPECT_EQ(componentsSeen.size(), (size_t)2,
-             "the collar's boundary spans exactly 2 ambient boundary "
-             "components (bottom and top copies of the traced loop)");
+              "the collar's boundary spans exactly 2 ambient boundary "
+              "components (bottom and top copies of the traced loop)");
     for (const auto &[component, link] : pieces) {
         EXPECT_EQ(link.countComponents(), 1,
-                 "each boundary piece is the traced loop's single 3-edge "
-                 "cycle, not something fragmented");
+                  "each boundary piece is the traced loop's single 3-edge "
+                  "cycle, not something fragmented");
     }
 }
 
@@ -1319,14 +1328,14 @@ void checkCollarTracesNontrivialKnot(const char *name, const char *pd) {
     collarBuilder.addLayer(cob);
 
     EXPECT_EQ((int)thickened.countBoundaryComponents(), 2,
-             std::string(name) +
-                 ": thickening gives exactly 2 boundary components");
+              std::string(name) +
+                  ": thickening gives exactly 2 boundary components");
 
     std::unordered_set<regina::Triangle<4> *> collarTriangles =
         collarBuilder.resolve();
     EXPECT_EQ((int)collarTriangles.size(), 2 * (int)linkEdges.size(),
-             std::string(name) +
-                 ": the collar has 2 sweep triangles per traced edge");
+              std::string(name) +
+                  ": the collar has 2 sweep triangles per traced edge");
 
     SurfaceFinder<4> g(thickened, SurfaceCondition::all);
     KnottedSurface<4> ks(&thickened);
@@ -1335,35 +1344,38 @@ void checkCollarTracesNontrivialKnot(const char *name, const char *pd) {
     // findSurfaces(startingTriangles) does for a fixed base.
     bool allAdded = true;
     for (regina::Triangle<4> *t : collarTriangles) {
-        if (!ks.addTriangle(t, g.adjacencyOf(t), /*checkSelfIntersection=*/false))
+        if (!ks.addTriangle(t, g.adjacencyOf(t),
+                            /*checkSelfIntersection=*/false))
             allAdded = false;
     }
     EXPECT_EQ(allAdded, true,
-             std::string(name) + ": every collar triangle adds cleanly");
+              std::string(name) + ": every collar triangle adds cleanly");
     EXPECT_EQ(ks.hasSelfIntersection(), false,
-             std::string(name) + ": the collar is embedded");
+              std::string(name) + ": the collar is embedded");
     EXPECT_EQ(ks.surface().isConnected(), true,
-             std::string(name) + ": the collar forms a single connected strip");
+              std::string(name) +
+                  ": the collar forms a single connected strip");
 
     auto pieces = ks.boundary();
     EXPECT_EQ((int)pieces.size(), 2,
-             std::string(name) +
-                 ": the collar's boundary spans exactly 2 ambient boundary "
-                 "components");
+              std::string(name) +
+                  ": the collar's boundary spans exactly 2 ambient boundary "
+                  "components");
 
     for (const auto &[component, link] : pieces) {
         EXPECT_EQ(link.countComponents(), 1,
-                 std::string(name) + ": boundary component " +
-                     std::to_string(component) + " is a single knot, not a "
-                     "fragmented or multi-component link");
+                  std::string(name) + ": boundary component " +
+                      std::to_string(component) +
+                      " is a single knot, not a "
+                      "fragmented or multi-component link");
 
         regina::Triangulation<3> complement = link.buildComplement();
         ssize_t genus = complement.recogniseHandlebody();
         EXPECT_EQ(genus != 1, true,
-                 std::string(name) + ": boundary component " +
-                     std::to_string(component) +
-                     "'s complement is not a solid torus -- the traced knot "
-                     "survives thickening as genuinely non-trivial");
+                  std::string(name) + ": boundary component " +
+                      std::to_string(component) +
+                      "'s complement is not a solid torus -- the traced knot "
+                      "survives thickening as genuinely non-trivial");
 
         EXPECT_EQ(
             complement.isIsomorphicTo(referenceComplement).has_value(), true,
@@ -1376,10 +1388,9 @@ void checkCollarTracesNontrivialKnot(const char *name, const char *pd) {
 }
 
 void test_collar_traces_nontrivial_knots() {
-    std::cout
-        << "\n--- collar traces non-trivial knots through thicken() intact ---\n";
-    checkCollarTracesNontrivialKnot("trefoil (3_1)",
-                                    "1 4 2 5 3 6 4 1 5 2 6 3");
+    std::cout << "\n--- collar traces non-trivial knots through thicken() "
+                 "intact ---\n";
+    checkCollarTracesNontrivialKnot("trefoil (3_1)", "1 4 2 5 3 6 4 1 5 2 6 3");
     checkCollarTracesNontrivialKnot("figure-eight (4_1)",
                                     "4 2 5 1 8 6 1 5 6 3 7 4 2 7 3 8");
 }

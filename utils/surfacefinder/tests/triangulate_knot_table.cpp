@@ -47,7 +47,7 @@ void printProgress(long total, long limit, long passed, long failedBuild,
                    long failedValid, long failedClosed, long failedSphere,
                    long failedLinkException) {
     long failed = failedBuild + failedValid + failedClosed + failedSphere +
-                 failedLinkException;
+                  failedLinkException;
     std::cout << "\r" << std::flush << "[*] " << total;
     if (limit != std::numeric_limits<long>::max())
         std::cout << "/" << limit;
@@ -66,8 +66,8 @@ int main(int argc, char *argv[]) {
     if (!file)
         usage(argv[0], std::string("Could not open file: ") + argv[1]);
 
-    long limit = (argc == 3) ? std::stol(argv[2])
-                             : std::numeric_limits<long>::max();
+    long limit =
+        (argc == 3) ? std::stol(argv[2]) : std::numeric_limits<long>::max();
 
     std::string line;
     std::getline(file, line); // header row
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
             clearProgressLine();
             std::cout << "EMPTY PD CODE: " << name << "\n";
             printProgress(total, limit, passed, failedBuild, failedValid,
-                         failedClosed, failedSphere, failedLinkException);
+                          failedClosed, failedSphere, failedLinkException);
             continue;
         }
 
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
             clearProgressLine();
             std::cout << "BUILD FAILED: " << name << "\n";
             printProgress(total, limit, passed, failedBuild, failedValid,
-                         failedClosed, failedSphere, failedLinkException);
+                          failedClosed, failedSphere, failedLinkException);
             continue;
         }
 
@@ -125,8 +125,7 @@ int main(int argc, char *argv[]) {
         } catch (const std::exception &e) {
             ++failedLinkException;
             clearProgressLine();
-            std::cout << "LINK EXCEPTION: " << name << ": " << e.what()
-                      << "\n";
+            std::cout << "LINK EXCEPTION: " << name << ": " << e.what() << "\n";
             ok = false;
         }
 
@@ -141,7 +140,7 @@ int main(int argc, char *argv[]) {
         }
 
         printProgress(total, limit, passed, failedBuild, failedValid,
-                     failedClosed, failedSphere, failedLinkException);
+                      failedClosed, failedSphere, failedLinkException);
     }
 
     double elapsed =
@@ -149,8 +148,8 @@ int main(int argc, char *argv[]) {
             .count();
 
     clearProgressLine();
-    std::cout << "\n=== " << passed << "/" << total << " passed in "
-              << elapsed << "s ===\n";
+    std::cout << "\n=== " << passed << "/" << total << " passed in " << elapsed
+              << "s ===\n";
     std::cout << "failedBuild=" << failedBuild << " failedValid=" << failedValid
               << " failedClosed=" << failedClosed
               << " failedSphere=" << failedSphere

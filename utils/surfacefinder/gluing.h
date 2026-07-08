@@ -6,8 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <triangulation/forward.h>
 #include <maths/perm.h>
+#include <triangulation/forward.h>
 
 /** Gluing Implementation */
 

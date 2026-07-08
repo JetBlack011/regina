@@ -513,7 +513,9 @@ class KnottedSurface {
     // deduplicates the frontier (see gluing.h's `queued` field) -- without
     // that, the same candidate could still be re-pushed and included
     // later in the same subtree, which would make this bookkeeping wrong.
-    void decideExclude(size_t triangleIndex) { excluded_[triangleIndex] = true; }
+    void decideExclude(size_t triangleIndex) {
+        excluded_[triangleIndex] = true;
+    }
 
     void undecideExclude(size_t triangleIndex) {
         excluded_[triangleIndex] = false;
@@ -531,8 +533,10 @@ class KnottedSurface {
         // root), but only for vertices that actually have 2+ roots right
         // now -- everywhere else there's no conflict to resolve.
         std::unordered_map<
-            size_t, std::unordered_map<
-                        size_t, std::vector<std::pair<const regina::Triangle<dim> *, int>>>>
+            size_t,
+            std::unordered_map<
+                size_t,
+                std::vector<std::pair<const regina::Triangle<dim> *, int>>>>
             byVertex;
 
         for (int fi : indices_) {
@@ -766,8 +770,8 @@ class KnottedSurface {
                     if (corner == g.srcFacet)
                         continue;
                     ufUnite_(cornerKey_(f, corner),
-                            cornerKey_(adjNode->f, g.gluing[corner]),
-                            f->vertex(corner));
+                             cornerKey_(adjNode->f, g.gluing[corner]),
+                             f->vertex(corner));
                 }
             }
         }
@@ -809,7 +813,8 @@ class KnottedSurface {
         // the comment above externalFacetsConsumed's declaration). The
         // remaining (3 - boundaryFacetsConsumed) facets are new boundary
         // slots of our own.
-        numBoundaryFacets_ += 3 - boundaryFacetsConsumed - externalFacetsConsumed;
+        numBoundaryFacets_ +=
+            3 - boundaryFacetsConsumed - externalFacetsConsumed;
 
         ufCheckpoints_[f->index()] = ufCheckpoint;
         invariantsValid_ = false;
@@ -968,8 +973,7 @@ class KnottedSurface {
             }
             if (invSet) {
                 regina::Triangle<2> *t = inv_[f->index()];
-                if (t->index() >= (int)emb_.size() ||
-                    emb_[t->index()] != f) {
+                if (t->index() >= (int)emb_.size() || emb_[t->index()] != f) {
                     fail("triangle " + std::to_string(f->index()) +
                          ": inv_/emb_ round trip broken (inv_ points to "
                          "surface_ triangle " +
@@ -1017,8 +1021,7 @@ class KnottedSurface {
             }
         }
         if (groundTruthImproper.size() != improperEdges_.size()) {
-            fail("improperEdges_ has " +
-                 std::to_string(improperEdges_.size()) +
+            fail("improperEdges_ has " + std::to_string(improperEdges_.size()) +
                  " entries, ground truth scan found " +
                  std::to_string(groundTruthImproper.size()));
         } else {
@@ -1044,8 +1047,10 @@ class KnottedSurface {
         // the same machinery isOrientable()/eulerChar() rely on) -- a
         // genuinely independent source of "which corners are the same
         // abstract point", not a second copy of ufUnite_/ufFind_.
-        std::unordered_map<size_t, size_t> maintainedToRegina, reginaToMaintained;
-        std::unordered_map<size_t, const regina::Vertex<dim> *> maintainedVertex;
+        std::unordered_map<size_t, size_t> maintainedToRegina,
+            reginaToMaintained;
+        std::unordered_map<size_t, const regina::Vertex<dim> *>
+            maintainedVertex;
         std::unordered_map<size_t, std::unordered_set<size_t>> rootsAtVertex;
         for (regina::Vertex<2> *sv : surface_.vertices()) {
             // Well-definedness check: every embedding of sv (every
@@ -1100,7 +1105,8 @@ class KnottedSurface {
                          std::to_string(maintained) +
                          ") -- ufUnite_ under-merged");
 
-                auto [vIt, vNew] = maintainedVertex.emplace(maintained, ambient);
+                auto [vIt, vNew] =
+                    maintainedVertex.emplace(maintained, ambient);
                 if (!vNew && vIt->second != ambient)
                     fail("maintained union-find group " +
                          std::to_string(maintained) +
@@ -1116,8 +1122,8 @@ class KnottedSurface {
             if (it != rootsAtVertex.end())
                 groundTruthCount = (int)it->second.size();
             if (groundTruthCount != imageRootCount_[vIdx])
-                fail("imageRootCount_[" + std::to_string(vIdx) + "]=" +
-                     std::to_string(imageRootCount_[vIdx]) +
+                fail("imageRootCount_[" + std::to_string(vIdx) +
+                     "]=" + std::to_string(imageRootCount_[vIdx]) +
                      " != ground truth (Regina vertex count) " +
                      std::to_string(groundTruthCount));
         }
@@ -1167,7 +1173,8 @@ class KnottedSurface {
                     fail("candidatesByFacet_[" + std::to_string(fi) + "][" +
                          std::to_string(j) + "] = { " + ac.str() +
                          "} but ground truth (scanning tri_ directly) is "
-                         "{ " + gt.str() + "}");
+                         "{ " +
+                         gt.str() + "}");
                 }
             }
         }

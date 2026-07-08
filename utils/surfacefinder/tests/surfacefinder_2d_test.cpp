@@ -125,34 +125,34 @@ std::ostream &resetColor(std::ostream &os) {
 }
 } // namespace
 
-#define EXPECT_EQ(actual, expected, desc)                                     \
-    do {                                                                     \
-        auto _a = (actual);                                                  \
-        auto _e = (expected);                                                \
-        if (_a == _e) {                                                      \
-            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
-            ++passed;                                                        \
-        } else {                                                             \
-            std::cout << red << "  FAIL: " << (desc) << "\n"                 \
-                      << "        expected " << _e << ", got " << _a         \
-                      << resetColor << "\n";                                 \
-            ++failed_count;                                                  \
-        }                                                                    \
+#define EXPECT_EQ(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a == _e) {                                                        \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n";  \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                   \
+                      << "        expected " << _e << ", got " << _a           \
+                      << resetColor << "\n";                                   \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
-#define EXPECT_GE(actual, expected, desc)                                     \
-    do {                                                                     \
-        auto _a = (actual);                                                  \
-        auto _e = (expected);                                                \
-        if (_a >= _e) {                                                      \
-            std::cout << green << "  PASS: " << resetColor << (desc) << "\n"; \
-            ++passed;                                                        \
-        } else {                                                             \
-            std::cout << red << "  FAIL: " << (desc) << "\n"                 \
-                      << "        expected >= " << _e << ", got " << _a      \
-                      << resetColor << "\n";                                 \
-            ++failed_count;                                                  \
-        }                                                                    \
+#define EXPECT_GE(actual, expected, desc)                                      \
+    do {                                                                       \
+        auto _a = (actual);                                                    \
+        auto _e = (expected);                                                  \
+        if (_a >= _e) {                                                        \
+            std::cout << green << "  PASS: " << resetColor << (desc) << "\n";  \
+            ++passed;                                                          \
+        } else {                                                               \
+            std::cout << red << "  FAIL: " << (desc) << "\n"                   \
+                      << "        expected >= " << _e << ", got " << _a        \
+                      << resetColor << "\n";                                   \
+            ++failed_count;                                                    \
+        }                                                                      \
     } while (0)
 
 // ────────────────────────────────────────────────────────────────────
@@ -288,18 +288,18 @@ tryOrderTriangulation(const regina::Triangulation<2> &tri) {
 void test_thicken_pipeline_reconstructs_known_surface(
     const std::string &name, const regina::Triangulation<2> &input) {
     std::cout << "\n--- thicken() pipeline: " << name << " ---\n";
-    std::cout << "    " << input.countTriangles() << " triangles, closed="
-              << input.isClosed() << ", orientable="
-              << input.isOrientable() << "\n";
+    std::cout << "    " << input.countTriangles()
+              << " triangles, closed=" << input.isClosed()
+              << ", orientable=" << input.isOrientable() << "\n";
 
     regina::Triangulation<2> expected = input;
     if (!CobordismBuilder<2>::isOrdered(expected)) {
         auto reordered = tryOrderTriangulation(expected);
         if (!reordered) {
             std::cout << yellow
-                       << "    SKIPPED: no relabelling found that satisfies "
-                          "CobordismBuilder-ordered form\n"
-                       << resetColor;
+                      << "    SKIPPED: no relabelling found that satisfies "
+                         "CobordismBuilder-ordered form\n"
+                      << resetColor;
             return;
         }
         expected = *reordered;
@@ -324,12 +324,13 @@ void test_thicken_pipeline_reconstructs_known_surface(
     for (regina::Triangle<2> *t : expected.triangles()) {
         const regina::Simplex<2> *baseSimplex =
             cob.baseTriangulation().simplex(t->index());
-        regina::Simplex<3> *bottomPrismSimplex = cob.currentTopSimplex(baseSimplex, 0);
+        regina::Simplex<3> *bottomPrismSimplex =
+            cob.currentTopSimplex(baseSimplex, 0);
         base.insert(bottomPrismSimplex->triangle(3));
     }
     EXPECT_EQ((int)base.size(), (int)expected.countTriangles(),
-             name + ": found one bottom-layer counterpart triangle per "
-                    "original triangle");
+              name + ": found one bottom-layer counterpart triangle per "
+                     "original triangle");
 
     SurfaceFinder<3> g(thickened, SurfaceCondition::boundary);
     auto &surfaces = g.findSurfaces(base);
@@ -345,8 +346,8 @@ void test_thicken_pipeline_reconstructs_known_surface(
         }
     }
     EXPECT_EQ(foundMatch, true,
-             name + ": search finds a surface whose isoSig exactly matches "
-                    "the known input triangulation");
+              name + ": search finds a surface whose isoSig exactly matches "
+                     "the known input triangulation");
 }
 
 int main() {
@@ -362,8 +363,8 @@ int main() {
         "sphere", regina::Example<2>::sphereTetrahedron());
     test_thicken_pipeline_reconstructs_known_surface(
         "torus", regina::Example<2>::torus());
-    test_thicken_pipeline_reconstructs_known_surface(
-        "Klein bottle", regina::Example<2>::kb());
+    test_thicken_pipeline_reconstructs_known_surface("Klein bottle",
+                                                     regina::Example<2>::kb());
     test_thicken_pipeline_reconstructs_known_surface(
         "disc", regina::Example<2>::disc());
     test_thicken_pipeline_reconstructs_known_surface(
@@ -376,7 +377,8 @@ int main() {
     // orientable()/nonOrientable() (not ordered as built) and rely on
     // tryOrderTriangulation() to fix that up.
     test_thicken_pipeline_reconstructs_known_surface(
-        "genus-2 closed orientable surface", regina::Example<2>::orientable(2, 0));
+        "genus-2 closed orientable surface",
+        regina::Example<2>::orientable(2, 0));
     test_thicken_pipeline_reconstructs_known_surface(
         "genus-3 closed non-orientable surface",
         regina::Example<2>::nonOrientable(3, 0));
