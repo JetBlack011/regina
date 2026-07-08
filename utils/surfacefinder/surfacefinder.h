@@ -8,6 +8,8 @@
 
 #define SURFACEFINDER_H
 
+#include <functional>
+
 #include "knottedsurfaces.h"
 
 template <int dim>
@@ -27,7 +29,28 @@ class SurfaceFinder {
 
     KnottedSurface<dim> surface_;
 
+    // Test/debug-only hook: unset (nullptr) in normal use, costing one
+    // null check per call site below. When set, called with a short stage
+    // label and the current surface_ after *every* state-changing
+    // operation this class performs on it (addTriangle -- both success and
+    // failure, so rollback correctness is covered too -- removeTriangle,
+    // decideExclude, undecideExclude, reset). Lets tests assert
+    // KnottedSurface::checkInvariants() holds after literally every
+    // mutation of the real, unmodified production DFS, rather than only at
+    // the end of a search or against a separate reimplementation of it.
+    std::function<void(const char *, const KnottedSurface<dim> &)> debugHook_;
+
+    void hook_(const char *stage) {
+        if (debugHook_)
+            debugHook_(stage, surface_);
+    }
+
   public:
+    void setDebugHook(
+        std::function<void(const char *, const KnottedSurface<dim> &)> hook) {
+        debugHook_ = std::move(hook);
+    }
+
     SurfaceFinder(const regina::Triangulation<dim> &tri, SurfaceCondition cond)
         : tri_(tri), surface_(&tri), cond_(cond) {
         buildGluingNodes_();
@@ -45,19 +68,26 @@ class SurfaceFinder {
         for (auto &seed : nodes_) {
             // Reset the surface and visited flags
             surface_.reset();
+            hook_("reset");
             for (auto &node : nodes_) {
                 node.visited = false;
+                node.queued = false;
             }
 
-            if (!surface_.addTriangle(seed.f, seed.adjList))
+            if (!surface_.addTriangle(seed.f, seed.adjList)) {
+                hook_("seed-addTriangle-failed");
                 continue;
+            }
+            hook_("seed-addTriangle");
             seed.visited = true;
             checkWin_();
 
             std::vector<GluingNode<dim> *> frontier;
             for (auto &[neighbor, g] : seed.adjList) {
-                if (!neighbor->visited)
+                if (!neighbor->visited && !neighbor->queued) {
+                    neighbor->queued = true;
                     frontier.push_back(neighbor);
+                }
             }
 
             extend_(frontier, 0, seed.f->index());
@@ -66,6 +96,7 @@ class SurfaceFinder {
             // seed itself before the next iteration's reset.
             seed.visited = false;
             surface_.removeTriangle(seed.f);
+            hook_("seed-removeTriangle");
         }
         std::cout << "\n\n";
         std::cout << "[+] Total search calls = " << calls_ << "\n\n";
@@ -96,8 +127,10 @@ class SurfaceFinder {
         }
 
         surface_.reset();
+        hook_("reset");
         for (auto &node : nodes_) {
             node.visited = false;
+            node.queued = false;
         }
 
         std::cout << "\n";
@@ -113,11 +146,14 @@ class SurfaceFinder {
             // valid. A double-glued facet is still a hard, immediate
             // failure -- that can never be "fixed" by a later insertion.
             if (!surface_.addTriangle(base->f, base->adjList,
-                                      /*checkSelfIntersection=*/false))
+                                      /*checkSelfIntersection=*/false)) {
+                hook_("base-addTriangle-failed");
                 throw regina::InvalidArgument(
                     "SurfaceFinder::findSurfaces: Starting triangles do not "
                     "form a valid embedded partial surface (an edge is "
                     "glued twice)");
+            }
+            hook_("base-addTriangle");
             base->visited = true;
         }
 
@@ -143,8 +179,10 @@ class SurfaceFinder {
         std::vector<GluingNode<dim> *> frontier;
         for (auto *base : startingNodes) {
             for (auto &[neighbor, g] : base->adjList) {
-                if (!neighbor->visited)
+                if (!neighbor->visited && !neighbor->queued) {
+                    neighbor->queued = true;
                     frontier.push_back(neighbor);
+                }
             }
         }
 
@@ -212,7 +250,6 @@ class SurfaceFinder {
      */
     void buildGluingEdges_() {
         for (auto &node : nodes_) {
-            std::unordered_set<int> selfGluingEdges;
             for (int i = 0; i < 3; ++i) {
                 regina::Triangle<dim> *triangle = node.f;
                 regina::Edge<dim> *edge = triangle->edge(i);
@@ -222,17 +259,34 @@ class SurfaceFinder {
                 for (auto &otherNode : nodes_) {
                     regina::Triangle<dim> *otherTriangle = otherNode.f;
                     for (int j = 0; j < 3; ++j) {
-                        // Only glue identified edges and ignore identity
-                        // mappings/opposite self gluings
+                        // Only glue identified edges, and skip the trivial
+                        // identity (a facet is never glued to itself). A
+                        // genuine self-folded triangle (i != j, both facets
+                        // of the *same* triangle mapping to the same
+                        // ambient edge) deliberately gets an entry for
+                        // *both* directions (i as srcFacet here, and j as
+                        // srcFacet in the i==j-of-this-pass's later outer
+                        // iteration) -- both are needed, since
+                        // KnottedSurface::addTriangle() only marks facet i
+                        // as glued (isBoundaryEdge[i]/candidatesByFacet_)
+                        // when it sees an adjList entry with that specific
+                        // srcFacet. An earlier version of this loop also
+                        // suppressed the second (reverse) direction via a
+                        // `selfGluingEdges` set, from back when adjList
+                        // stored one Gluing per neighbour by plain
+                        // assignment (so both directions would have
+                        // overwritten each other's single slot anyway) --
+                        // now that adjList appends into a vector per
+                        // neighbour (see GluingNode::AdjList's class
+                        // comment), that workaround only served to
+                        // silently drop the second direction, leaving
+                        // facet j's own gluing/candidate bookkeeping never
+                        // populated even though Regina's own join() (called
+                        // once, from the surviving i-direction) glues both
+                        // facets reciprocally regardless.
                         if (otherTriangle->edge(j) != edge ||
-                            (triangle == otherTriangle &&
-                             (i == j || selfGluingEdges.find(i) !=
-                                            selfGluingEdges.end())))
+                            (triangle == otherTriangle && i == j))
                             continue;
-
-                        if (triangle == otherTriangle) {
-                            selfGluingEdges.insert(j);
-                        }
 
                         regina::Perm<dim + 1> edgeToOther =
                             otherTriangle->edgeMapping(j);
@@ -317,28 +371,50 @@ class SurfaceFinder {
         GluingNode<dim> *w = frontier[idx];
 
         // Branch 1: permanently exclude w from the surface for the rest of
-        // this search path, and move on to the next candidate.
+        // this search path, and move on to the next candidate. This is
+        // genuinely permanent now (not just for this one call) because the
+        // frontier is deduplicated below -- w can't be re-pushed and
+        // reconsidered again anywhere in this subtree -- so it's safe to
+        // tell surface_ this triangle is decided against, letting
+        // hasUnresolvableConflict() treat any facet leading only to w as a
+        // dead end from here on.
+        surface_.decideExclude(w->f->index());
+        hook_("decideExclude");
         extend_(frontier, idx + 1, seedIdx);
+        surface_.undecideExclude(w->f->index());
+        hook_("undecideExclude");
 
         // Branch 2: include w (if it isn't already part of the surface via
         // some other branch, its index doesn't fall below the seed's, and
-        // it can be validly added).
-        if (!w->visited && w->f->index() >= seedIdx &&
-            surface_.addTriangle(w->f, w->adjList)) {
+        // it can be validly added). Split out of the condition (rather than
+        // short-circuiting straight into the `if`) so the hook fires after
+        // addTriangle() regardless of whether it actually admitted w --
+        // rollback on a *failed* add needs checking just as much as a
+        // successful one.
+        bool eligible = !w->visited && w->f->index() >= seedIdx;
+        bool added = eligible && surface_.addTriangle(w->f, w->adjList);
+        if (eligible)
+            hook_(added ? "addTriangle" : "addTriangle-failed");
+        if (added) {
             w->visited = true;
             checkWin_();
 
             size_t frontierSizeBefore = frontier.size();
             for (auto &[neighbor, g] : w->adjList) {
-                if (!neighbor->visited)
+                if (!neighbor->visited && !neighbor->queued) {
+                    neighbor->queued = true;
                     frontier.push_back(neighbor);
+                }
             }
 
             extend_(frontier, idx + 1, seedIdx);
 
+            for (size_t k = frontierSizeBefore; k < frontier.size(); ++k)
+                frontier[k]->queued = false;
             frontier.resize(frontierSizeBefore);
             w->visited = false;
             surface_.removeTriangle(w->f);
+            hook_("removeTriangle");
         }
     }
 };

@@ -915,10 +915,16 @@ void test_double_glued_facet_rejected_and_rolled_back() {
 // (two triangles A, B sharing an ambient vertex with no glued edge between
 // them, plus a connector C genuinely adjacent to both) and empirically
 // verifies -- by actually trying candidates and checking
-// hasSelfIntersection() -- that: (a) eager per-triangle checking rejects
-// B before C is present, and (b) deferred checking lets the whole base
-// assemble, with the self-intersection genuinely resolving once C unites
-// A and B's shared vertex.
+// hasSelfIntersection() -- that: (a) eager per-triangle checking, which
+// now runs on hasUnresolvableConflict() rather than the raw
+// hasSelfIntersection(), lets B through anyway (C is still a live,
+// undecided candidate, so the conflict isn't yet provably permanent --
+// this is exactly the fix for the missing-surfaces bug documented
+// alongside hasUnresolvableConflict() in knottedsurfaces.h: the old eager
+// check rejected B here even though C would go on to resolve it), and
+// (b) deferred checking lets the whole base assemble the same way, with
+// the self-intersection genuinely resolving once C unites A and B's
+// shared vertex.
 // ────────────────────────────────────────────────────────────────────
 void test_deferred_self_intersection_check_resolves_branch_point() {
     std::cout << "\n--- deferred self-intersection check resolves a branch "
@@ -989,15 +995,20 @@ void test_deferred_self_intersection_check_resolves_branch_point() {
         return;
     }
 
-    // Eager per-triangle checking rejects the branch point immediately:
+    // Eager per-triangle checking (hasUnresolvableConflict(), not raw
+    // hasSelfIntersection()) lets B through: C is still a live, undecided
+    // candidate, so the conflict isn't yet provably permanent.
     {
         KnottedSurface<3> eager(&tri);
         EXPECT_EQ(eager.addTriangle(foundA, g.adjacencyOf(foundA)), true,
                  "A adds alone under eager checking");
         EXPECT_EQ(
-            eager.addTriangle(foundB, g.adjacencyOf(foundB)), false,
-            "eager per-triangle self-intersection checking rejects B before "
-            "the connecting triangle is present");
+            eager.addTriangle(foundB, g.adjacencyOf(foundB)), true,
+            "eager per-triangle checking lets B through -- C could still "
+            "resolve the conflict, so it isn't rejected as permanent");
+        EXPECT_EQ(eager.hasSelfIntersection(), true,
+                 "the branch point is still transiently unresolved (real "
+                 "hasSelfIntersection() remains the true, final gate)");
     }
 
     // Deferred checking lets the whole branch-point base assemble, and the

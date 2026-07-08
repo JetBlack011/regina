@@ -48,6 +48,16 @@ class GluingNode {
     regina::Triangle<dim> *f;
     AdjList adjList;
     bool visited = false;
+    // True while this node currently has an (undecided-or-decided) slot
+    // somewhere in extend_'s frontier vector, from the moment it's pushed
+    // until the inclusion decision that pushed it is backtracked -- lets
+    // extend_ avoid pushing the same candidate onto the frontier more than
+    // once. Safe now that self-intersection rejection is decided by
+    // KnottedSurface::hasUnresolvableConflict() (order-independent) rather
+    // than the old immediate hasSelfIntersection() check (order-dependent);
+    // previously a candidate rejected once due to insertion order relied on
+    // being re-pushed later, under different context, for a second chance.
+    bool queued = false;
 
     GluingNode(regina::Face<dim, 2> *f) : f(f) {}
 

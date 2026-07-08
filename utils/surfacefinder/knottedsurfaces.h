@@ -8,7 +8,10 @@
 
 #define KNOTTED_SURFACES_H
 
+#include <algorithm>
 #include <memory>
+#include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <census/census.h>
@@ -357,6 +360,65 @@ class KnottedSurface {
     // through regina::Triangulation<2>'s (skeleton-dependent) isClosed().
     int numBoundaryFacets_ = 0;
 
+    // --- Unresolvable-conflict tracking (for early DFS pruning) ---
+    //
+    // hasSelfIntersection() (above) answers "is there a self-intersection
+    // *right now*" -- true the instant two different abstract-surface
+    // points land on the same ambient vertex, even if a still-undecided
+    // triangle would go on to merge them into one point later (a genuine
+    // branch point: 3+ triangles meeting at one ambient vertex without
+    // being pairwise edge-adjacent yet). Rejecting on that signal alone is
+    // what silently dropped valid surfaces with real branch points (see
+    // the investigation this supports). hasUnresolvableConflict() answers
+    // the *stronger, tighter* question actually needed for early pruning:
+    // is there a conflict that can *never* be resolved by anything still
+    // possible? It's still sound to reject on (never lets a truly-bad
+    // surface through undetected -- checkWin_'s unconditional
+    // hasSelfIntersection() call remains the final gate regardless), but
+    // strictly weaker than hasSelfIntersection(), so it lets the DFS carry
+    // a transient, still-resolvable conflict forward instead of discarding
+    // it immediately.
+    //
+    // A conflict at ambient vertex v is judged permanent only once at
+    // least two of v's currently-distinct corner-components (union-find
+    // roots) are individually "closed" -- meaning every corner in that
+    // component has exhausted every facet that could ever grow or merge
+    // it further. Two closed components can never become one, so if two
+    // exist simultaneously the conflict there truly can't be undone by
+    // anything that happens later. This is deliberately scoped to just
+    // the corners actually involved in a live conflict (checked only when
+    // selfIntersections_ > 0, i.e. essentially never on the overwhelmingly
+    // common conflict-free path) rather than the whole ambient vertex's
+    // total degree in the *entire* triangulation -- the latter (tried and
+    // reverted before this) is sound but can take arbitrarily long to
+    // converge on a high-degree vertex, regardless of how small the actual
+    // conflict is, which is what caused a 76,000x DFS-call blowup on one
+    // of the existing test cases.
+    //
+    // "Exhausted every facet that could ever grow or merge it further"
+    // needs two per-triangle-facet pieces of information:
+    //  - excluded_[i]: has triangle i been permanently decided *against*
+    //    for the rest of the current DFS path? (Toggled by
+    //    decideExclude()/undecideExclude(), called from extend_'s
+    //    exclude-branch -- see gluing.h's `queued` field for why this is
+    //    now safe to treat as truly permanent within its scope.) A
+    //    triangle nobody has decided about yet (never entered the
+    //    frontier, or entered but not yet reached) is *not* excluded --
+    //    it might still show up and resolve something, so treating
+    //    "undecided" as "still a candidate" is the sound default.
+    //  - candidatesByFacet_[i][j]: the ambient triangle indices that could
+    //    ever be glued to triangle i's local facet j, i.e. every neighbour
+    //    addTriangle() saw in `adj` with that srcFacet, recorded as plain
+    //    indices (not pointers into the caller's AdjList -- some callers,
+    //    e.g. direct KnottedSurface tests, pass a temporary AdjList that
+    //    doesn't outlive the call, so a stored pointer would dangle).
+    //    Recomputed fresh every addTriangle() call for that triangle,
+    //    since it's cheap (same order as the union loop right below it)
+    //    and this way it can never go stale between a triangle's removal
+    //    and re-addition.
+    std::vector<bool> excluded_;
+    std::vector<std::array<std::vector<size_t>, 3>> candidatesByFacet_;
+
   public:
     std::unordered_set<const regina::Edge<dim> *> improperEdges_;
     /**< Notes whether an embedding is proper, in the sense that the image
@@ -368,7 +430,9 @@ class KnottedSurface {
           ufParent_(3 * tri_->countTriangles()),
           ufSize_(3 * tri_->countTriangles()),
           imageRootCount_(tri_->countVertices(), 0),
-          ufCheckpoints_(tri_->countTriangles()) {
+          ufCheckpoints_(tri_->countTriangles()),
+          excluded_(tri_->countTriangles(), false),
+          candidatesByFacet_(tri_->countTriangles()) {
         if (!tri_->isClosed()) {
             bdryComponents_.reserve(tri_->countBoundaryComponents());
             for (size_t c = 0; c < tri_->countBoundaryComponents(); ++c) {
@@ -389,6 +453,8 @@ class KnottedSurface {
           selfIntersections_(other.selfIntersections_),
           ufUndoLog_(other.ufUndoLog_), ufCheckpoints_(other.ufCheckpoints_),
           numBoundaryFacets_(other.numBoundaryFacets_),
+          excluded_(other.excluded_),
+          candidatesByFacet_(other.candidatesByFacet_),
           improperEdges_(other.improperEdges_) {
         // emb_ was blitted straight from other (its values point into the
         // shared, immutable tri_, so they need no adjustment), but inv_'s
@@ -417,6 +483,8 @@ class KnottedSurface {
             ufUndoLog_ = other.ufUndoLog_;
             ufCheckpoints_ = other.ufCheckpoints_;
             numBoundaryFacets_ = other.numBoundaryFacets_;
+            excluded_ = other.excluded_;
+            candidatesByFacet_ = other.candidatesByFacet_;
 
             // See the copy constructor: inv_'s values are per-instance
             // surface_ pointers, so they must be rebuilt, not blitted.
@@ -436,6 +504,62 @@ class KnottedSurface {
     bool isProper() const { return isClosed() || improperEdges_.empty(); }
 
     bool hasSelfIntersection() const { return selfIntersections_ > 0; }
+
+    // Records that triangle w has been permanently decided *against* for
+    // the rest of the current DFS path -- i.e. nothing will ever glue to
+    // it again down this branch. Called from extend_'s exclude-branch,
+    // matched by a later undecideExclude() when that branch backtracks.
+    // Only safe to treat as truly permanent because extend_ now also
+    // deduplicates the frontier (see gluing.h's `queued` field) -- without
+    // that, the same candidate could still be re-pushed and included
+    // later in the same subtree, which would make this bookkeeping wrong.
+    void decideExclude(size_t triangleIndex) { excluded_[triangleIndex] = true; }
+
+    void undecideExclude(size_t triangleIndex) {
+        excluded_[triangleIndex] = false;
+    }
+
+    // See the class-level comment above excluded_/candidatesByFacet_ for
+    // the full rationale. Cheap (O(1)) on the overwhelmingly common path
+    // where there's no live conflict at all; the more expensive scan below
+    // only runs while selfIntersections_ > 0.
+    bool hasUnresolvableConflict() const {
+        if (selfIntersections_ == 0)
+            return false;
+
+        // Group currently-mapped-to-v corners by (vertex, union-find
+        // root), but only for vertices that actually have 2+ roots right
+        // now -- everywhere else there's no conflict to resolve.
+        std::unordered_map<
+            size_t, std::unordered_map<
+                        size_t, std::vector<std::pair<const regina::Triangle<dim> *, int>>>>
+            byVertex;
+
+        for (int fi : indices_) {
+            const regina::Triangle<dim> *f = tri_->triangle(fi);
+            for (int c = 0; c < 3; ++c) {
+                size_t vIdx = f->vertex(c)->index();
+                if (imageRootCount_[vIdx] < 2)
+                    continue;
+                size_t root = ufFind_(cornerKey_(f, c));
+                byVertex[vIdx][root].emplace_back(f, c);
+            }
+        }
+
+        for (const auto &[vIdx, roots] : byVertex) {
+            if (roots.size() < 2)
+                continue;
+
+            int closedCount = 0;
+            for (const auto &[root, members] : roots) {
+                if (isRootClosed_(members))
+                    ++closedCount;
+            }
+            if (closedCount >= 2)
+                return true;
+        }
+        return false;
+    }
 
     // Returns one Link per tri_ boundary component that this surface's
     // boundary actually touches, paired with that component's index (see
@@ -515,6 +639,10 @@ class KnottedSurface {
         ufUndoLog_.clear();
         std::fill(ufCheckpoints_.begin(), ufCheckpoints_.end(), size_t{0});
         numBoundaryFacets_ = 0;
+        std::fill(excluded_.begin(), excluded_.end(), false);
+        // candidatesByFacet_ is purely structural (derived from `adj`,
+        // never from DFS state) and gets fully overwritten the next time
+        // each triangle is added, so it doesn't need resetting here.
         improperEdges_.clear();
     }
 
@@ -546,6 +674,20 @@ class KnottedSurface {
         emb_.push_back(f);
         inv_[f->index()] = src;
 
+        // Structural (doesn't depend on DFS state): which ambient triangles
+        // could ever be glued to each of f's 3 facets. See
+        // candidatesByFacet_'s class-level comment for why this is
+        // recomputed from `adj` here rather than just storing a pointer to
+        // it.
+        auto &byFacet = candidatesByFacet_[f->index()];
+        for (auto &slot : byFacet)
+            slot.clear();
+        for (const auto &[adjNode, gluings] : adj) {
+            for (const auto &g : gluings) {
+                byFacet[g.srcFacet].push_back(adjNode->f->index());
+            }
+        }
+
         // Register f's 3 raw corners as fresh singleton union-find
         // components before attempting any joins, so ufUnite_() below always
         // has something to look up. ufCheckpoint marks where in the undo log
@@ -560,6 +702,13 @@ class KnottedSurface {
         }
 
         int boundaryFacetsConsumed = 0;
+        // Of boundaryFacetsConsumed, how many were glued to a genuinely
+        // different, already-present neighbour triangle (as opposed to a
+        // self-fold, where both "sides" are f's own brand-new facets, and
+        // there's no pre-existing neighbour slot being flipped) -- see the
+        // comment above numBoundaryFacets_'s update below for why this
+        // needs to be tracked separately from boundaryFacetsConsumed.
+        int externalFacetsConsumed = 0;
 
         // adjNode may be reachable via more than one gluing (two triangles
         // can share more than one edge -- see GluingNode::AdjList's class
@@ -569,9 +718,32 @@ class KnottedSurface {
             regina::Triangle<2> *dst = inv_[adjNode->f->index()];
             if (dst == nullptr)
                 continue;
+            bool selfFold = (dst == src);
 
             for (const auto &g : gluings) {
                 int dstFacet = g.gluing[g.srcFacet];
+
+                // A self-folded triangle (two of f's own facets identified
+                // to the same ambient edge) gets *two* adjList entries for
+                // this one physical gluing -- one per direction (see
+                // buildGluingEdges_'s comment). Whichever is processed
+                // first joins normally below; Regina's own join() then
+                // sets *both* facets' adjacentSimplex reciprocally (dst
+                // and src are the same triangle here), so the second
+                // entry arrives seeing its own facet already glued -- that
+                // is not a genuine double-glued-facet conflict, just this
+                // gluing's other direction catching up. Its facet is
+                // genuinely interior now, so isBoundaryEdge/
+                // boundaryFacetsConsumed still need updating, but the join
+                // and vertex-identification unions were already done from
+                // the first direction (the gluing permutation is a full
+                // bijection, so one direction's ufUnite_ calls already
+                // cover every identification this gluing produces).
+                if (selfFold && src->adjacentSimplex(g.srcFacet) != nullptr) {
+                    isBoundaryEdge[g.srcFacet] = false;
+                    ++boundaryFacetsConsumed;
+                    continue;
+                }
 
                 // Saves us from catching an error
                 if (dst->adjacentSimplex(dstFacet) != nullptr ||
@@ -582,6 +754,8 @@ class KnottedSurface {
 
                 isBoundaryEdge[g.srcFacet] = false;
                 ++boundaryFacetsConsumed;
+                if (!selfFold)
+                    ++externalFacetsConsumed;
                 src->join(g.srcFacet, dst, g.gluing);
 
                 // The gluing perm maps src's local vertex numbering to dst's;
@@ -598,7 +772,21 @@ class KnottedSurface {
             }
         }
 
-        if (checkSelfIntersection && hasSelfIntersection()) {
+        // f needs to be in indices_ *before* hasUnresolvableConflict() runs
+        // (moved up from below, where it used to sit after this check):
+        // that scan walks indices_ to find every corner currently mapping
+        // to a conflicted vertex, and f's own corners are exactly what a
+        // conflict just created -- leaving f out would make its brand-new
+        // root at that vertex invisible to the closedness check.
+        indices_.insert(f->index());
+
+        // hasUnresolvableConflict(), not hasSelfIntersection(): see the
+        // class-level comment above excluded_/candidatesByFacet_. The main
+        // per-triangle DFS (extend_ in surfacefinder.h) is the only caller
+        // that reaches here with checkSelfIntersection=true; checkWin_
+        // still gates every recorded surface on the unconditional, real
+        // hasSelfIntersection() regardless of what happens here.
+        if (checkSelfIntersection && hasUnresolvableConflict()) {
             undoFailedAdd_(f, ufCheckpoint, src);
             return false;
         }
@@ -611,14 +799,19 @@ class KnottedSurface {
             }
         }
 
-        // Each consumed facet removes one boundary slot on our own side (it
-        // was never counted) and flips one on the neighbour's side from
-        // boundary to interior; the remaining (3 - boundaryFacetsConsumed)
-        // facets are new boundary slots of our own.
-        numBoundaryFacets_ += 3 - 2 * boundaryFacetsConsumed;
+        // Every consumed facet removes one boundary slot on our own side
+        // (it was never counted as boundary to begin with, since f is
+        // brand new); externally-consumed facets *additionally* flip one
+        // slot on the neighbour's side from boundary to interior, since
+        // that slot already existed and was already counted. A self-fold
+        // has no such neighbour -- both "sides" are f's own new facets --
+        // so it only accounts for the first "-1", not a second one (see
+        // the comment above externalFacetsConsumed's declaration). The
+        // remaining (3 - boundaryFacetsConsumed) facets are new boundary
+        // slots of our own.
+        numBoundaryFacets_ += 3 - boundaryFacetsConsumed - externalFacetsConsumed;
 
         ufCheckpoints_[f->index()] = ufCheckpoint;
-        indices_.insert(f->index());
         invariantsValid_ = false;
 
         return true;
@@ -630,7 +823,23 @@ class KnottedSurface {
         for (int i = 0; i < 3; ++i) {
             regina::Triangle<2> *dst = src->adjacentSimplex(i);
 
-            if (dst != nullptr) {
+            if (dst == src) {
+                // A self-folded facet: both sides of this gluing are f's
+                // own facets, and f is being removed entirely, so unlike a
+                // genuinely external neighbour there's no *other*
+                // triangle left standing to expose a newly-un-glued
+                // facet on -- this pair should net to zero, matching
+                // addTriangle's own numBoundaryFacets_ accounting for a
+                // self-fold (see externalFacetsConsumed's comment there).
+                // Never flagged improper while f was present (addTriangle
+                // never inserts a self-fold's edge -- see its own
+                // isBoundaryEdge loop), so nothing to erase there either,
+                // but do it anyway for symmetry/defensiveness.
+                regina::Edge<dim> *edge = f->edge(i);
+                if (!edge->isBoundary()) {
+                    improperEdges_.erase(edge);
+                }
+            } else if (dst != nullptr) {
                 regina::Edge<dim> *edge = f->edge(i);
                 if (!edge->isBoundary()) {
                     improperEdges_.insert(edge);
@@ -723,6 +932,249 @@ class KnottedSurface {
         return ans.str();
     }
 
+    // Independently recomputes every piece of this object's bookkeeping
+    // from just tri_/surface_/emb_/inv_ (never trusting any of the other
+    // incrementally-maintained state while doing so), and cross-checks it
+    // against what's actually stored. Intended for tests, not the DFS hot
+    // path -- most of this is O(current surface size) or worse. Returns
+    // true iff everything agrees; on any mismatch, writes a description of
+    // *every* mismatch found (not just the first) to `diag` and still
+    // returns false, so a single failing test run shows the whole picture.
+    bool checkInvariants(std::ostream &diag = std::cerr) const {
+        bool ok = true;
+        auto fail = [&](const std::string &msg) {
+            diag << "[checkInvariants] " << msg << "\n";
+            ok = false;
+        };
+
+        // --- emb_/inv_/indices_/surface_ mutual consistency ---
+        if (emb_.size() != indices_.size())
+            fail("emb_.size()=" + std::to_string(emb_.size()) +
+                 " != indices_.size()=" + std::to_string(indices_.size()));
+        if (surface_.countTriangles() != emb_.size())
+            fail("surface_.countTriangles()=" +
+                 std::to_string(surface_.countTriangles()) +
+                 " != emb_.size()=" + std::to_string(emb_.size()));
+
+        for (regina::Triangle<dim> *f : tri_->triangles()) {
+            bool inIndices = indices_.count(f->index()) != 0;
+            bool invSet = inv_[f->index()] != nullptr;
+            if (inIndices != invSet) {
+                fail("triangle " + std::to_string(f->index()) +
+                     ": indices_ membership (" + std::to_string(inIndices) +
+                     ") disagrees with inv_ being set (" +
+                     std::to_string(invSet) + ")");
+                continue;
+            }
+            if (invSet) {
+                regina::Triangle<2> *t = inv_[f->index()];
+                if (t->index() >= (int)emb_.size() ||
+                    emb_[t->index()] != f) {
+                    fail("triangle " + std::to_string(f->index()) +
+                         ": inv_/emb_ round trip broken (inv_ points to "
+                         "surface_ triangle " +
+                         std::to_string(t->index()) +
+                         ", which emb_ maps back to " +
+                         (t->index() < (int)emb_.size()
+                              ? std::to_string(emb_[t->index()]->index())
+                              : "out-of-range"));
+                }
+            }
+        }
+        for (regina::Triangle<2> *t : surface_.triangles()) {
+            if (t->index() >= (int)emb_.size()) {
+                fail("surface_ triangle " + std::to_string(t->index()) +
+                     " has no corresponding emb_ entry");
+                continue;
+            }
+            const regina::Triangle<dim> *f = emb_[t->index()];
+            if (inv_[f->index()] != t)
+                fail("surface_ triangle " + std::to_string(t->index()) +
+                     " maps via emb_ to ambient triangle " +
+                     std::to_string(f->index()) +
+                     ", but inv_ of that ambient triangle doesn't point "
+                     "back to this surface_ triangle");
+        }
+
+        // --- numBoundaryFacets_ ---
+        if (numBoundaryFacets_ != (int)surface_.countBoundaryFacets())
+            fail("numBoundaryFacets_=" + std::to_string(numBoundaryFacets_) +
+                 " != surface_.countBoundaryFacets()=" +
+                 std::to_string(surface_.countBoundaryFacets()));
+
+        // --- improperEdges_: an ambient edge belongs here iff it's not
+        // itself on tri_'s boundary, but underlies at least one currently
+        // un-glued facet of the surface. ---
+        std::unordered_set<const regina::Edge<dim> *> groundTruthImproper;
+        for (regina::Triangle<2> *t : surface_.triangles()) {
+            const regina::Triangle<dim> *f = emb_[t->index()];
+            for (int i = 0; i < 3; ++i) {
+                if (t->adjacentSimplex(i) != nullptr)
+                    continue;
+                const regina::Edge<dim> *e = f->edge(i);
+                if (!e->isBoundary())
+                    groundTruthImproper.insert(e);
+            }
+        }
+        if (groundTruthImproper.size() != improperEdges_.size()) {
+            fail("improperEdges_ has " +
+                 std::to_string(improperEdges_.size()) +
+                 " entries, ground truth scan found " +
+                 std::to_string(groundTruthImproper.size()));
+        } else {
+            for (const regina::Edge<dim> *e : groundTruthImproper) {
+                if (!improperEdges_.count(e))
+                    fail("improperEdges_ is missing ambient edge " +
+                         std::to_string(e->index()) +
+                         " (currently un-glued in surface_, not on tri_'s "
+                         "boundary)");
+            }
+        }
+
+        // --- Self-intersection ground truth ---
+        //
+        // Deliberately NOT a second hand-rolled union-find: re-deriving the
+        // "2+ roots at a vertex" idea with another from-scratch DSU would
+        // only catch *drift* between the incremental and batch versions of
+        // the *same* algorithm -- a conceptual bug in the algorithm itself
+        // (e.g. if "same abstract vertex" were subtly the wrong notion)
+        // would sail through both unchanged. Instead this cross-checks
+        // against Regina's *own*, separately-implemented vertex-skeleton
+        // computation on surface_ (regina::Triangulation<2>::vertices(),
+        // the same machinery isOrientable()/eulerChar() rely on) -- a
+        // genuinely independent source of "which corners are the same
+        // abstract point", not a second copy of ufUnite_/ufFind_.
+        std::unordered_map<size_t, size_t> maintainedToRegina, reginaToMaintained;
+        std::unordered_map<size_t, const regina::Vertex<dim> *> maintainedVertex;
+        std::unordered_map<size_t, std::unordered_set<size_t>> rootsAtVertex;
+        for (regina::Vertex<2> *sv : surface_.vertices()) {
+            // Well-definedness check: every embedding of sv (every
+            // (surface_ triangle, local vertex) pair Regina considers the
+            // same abstract point) should map, via emb_, to the *same*
+            // ambient vertex -- this is what addTriangle's gluing is
+            // supposed to guarantee, checked here directly against
+            // Regina's own embeddings() rather than assumed.
+            const regina::Vertex<dim> *ambient = nullptr;
+            for (const auto &e : sv->embeddings()) {
+                const regina::Triangle<dim> *f = emb_[e.simplex()->index()];
+                const regina::Vertex<dim> *thisAmbient = f->vertex(e.face());
+                if (ambient == nullptr) {
+                    ambient = thisAmbient;
+                } else if (ambient != thisAmbient) {
+                    fail("surface_ vertex " + std::to_string(sv->index()) +
+                         " (a single abstract point per Regina's own "
+                         "skeleton) has embeddings mapping to two "
+                         "different ambient vertices (" +
+                         std::to_string(ambient->index()) + " and " +
+                         std::to_string(thisAmbient->index()) + ")");
+                }
+            }
+            if (ambient == nullptr)
+                continue;
+            rootsAtVertex[ambient->index()].insert(sv->index());
+
+            // Cross-check against the maintained union-find on every
+            // corner Regina attributes to sv: same two-way-consistency
+            // shape as the emb_/inv_ round trip above.
+            for (const auto &e : sv->embeddings()) {
+                const regina::Triangle<dim> *f = emb_[e.simplex()->index()];
+                size_t maintained = ufFind_(cornerKey_(f, e.face()));
+
+                auto [mIt, mNew] =
+                    maintainedToRegina.emplace(maintained, sv->index());
+                if (!mNew && mIt->second != sv->index())
+                    fail("maintained union-find group " +
+                         std::to_string(maintained) +
+                         " contains corners Regina's own skeleton "
+                         "considers *different* abstract vertices (" +
+                         std::to_string(mIt->second) + " and " +
+                         std::to_string(sv->index()) +
+                         ") -- ufUnite_ over-merged");
+                auto [rIt, rNew] =
+                    reginaToMaintained.emplace(sv->index(), maintained);
+                if (!rNew && rIt->second != maintained)
+                    fail("Regina vertex " + std::to_string(sv->index()) +
+                         " (one abstract point) is split across two "
+                         "different maintained union-find groups (" +
+                         std::to_string(rIt->second) + " and " +
+                         std::to_string(maintained) +
+                         ") -- ufUnite_ under-merged");
+
+                auto [vIt, vNew] = maintainedVertex.emplace(maintained, ambient);
+                if (!vNew && vIt->second != ambient)
+                    fail("maintained union-find group " +
+                         std::to_string(maintained) +
+                         " contains corners mapping to two different "
+                         "ambient vertices (" +
+                         std::to_string(vIt->second->index()) + " and " +
+                         std::to_string(ambient->index()) + ")");
+            }
+        }
+        for (size_t vIdx = 0; vIdx < tri_->countVertices(); ++vIdx) {
+            int groundTruthCount = 0;
+            auto it = rootsAtVertex.find(vIdx);
+            if (it != rootsAtVertex.end())
+                groundTruthCount = (int)it->second.size();
+            if (groundTruthCount != imageRootCount_[vIdx])
+                fail("imageRootCount_[" + std::to_string(vIdx) + "]=" +
+                     std::to_string(imageRootCount_[vIdx]) +
+                     " != ground truth (Regina vertex count) " +
+                     std::to_string(groundTruthCount));
+        }
+        int groundTruthSelfIntersections = 0;
+        for (auto &[vIdx, roots] : rootsAtVertex)
+            if (roots.size() > 1)
+                ++groundTruthSelfIntersections;
+        if (groundTruthSelfIntersections != selfIntersections_)
+            fail("selfIntersections_=" + std::to_string(selfIntersections_) +
+                 " != ground truth (Regina vertex count) " +
+                 std::to_string(groundTruthSelfIntersections));
+
+        // --- candidatesByFacet_: for every currently-included triangle's
+        // every facet, an independent from-scratch scan of *every*
+        // triangle in tri_ (using only the basic Triangle<dim>::edge()
+        // primitive -- deliberately not Edge<dim>::embeddings(), which for
+        // dim > 2 gives top-dimensional-simplex-level embeddings, not
+        // triangle-level ones, and not any reuse of buildGluingEdges_'s own
+        // O(n^2) double loop), compared as a multiset (duplicates matter --
+        // see the class-level comment on candidatesByFacet_ re: an edge
+        // shared by the same neighbour more than once). This is also,
+        // incidentally, a direct regression check for the AdjList
+        // multi-edge-sharing bug's failure mode, one layer down from where
+        // that bug actually lived. ---
+        for (int fi : indices_) {
+            const regina::Triangle<dim> *f = tri_->triangle(fi);
+            for (int j = 0; j < 3; ++j) {
+                std::vector<size_t> groundTruth;
+                const regina::Edge<dim> *e = f->edge(j);
+                for (regina::Triangle<dim> *g : tri_->triangles()) {
+                    for (int k = 0; k < 3; ++k) {
+                        if (g == f && k == j)
+                            continue;
+                        if (g->edge(k) == e)
+                            groundTruth.push_back(g->index());
+                    }
+                }
+                std::vector<size_t> actual = candidatesByFacet_[fi][j];
+                std::sort(groundTruth.begin(), groundTruth.end());
+                std::sort(actual.begin(), actual.end());
+                if (groundTruth != actual) {
+                    std::ostringstream gt, ac;
+                    for (size_t x : groundTruth)
+                        gt << x << " ";
+                    for (size_t x : actual)
+                        ac << x << " ";
+                    fail("candidatesByFacet_[" + std::to_string(fi) + "][" +
+                         std::to_string(j) + "] = { " + ac.str() +
+                         "} but ground truth (scanning tri_ directly) is "
+                         "{ " + gt.str() + "}");
+                }
+            }
+        }
+
+        return ok;
+    }
+
     // The triangle index set already uniquely identifies a surface (the same
     // set of triangles is definitionally the same surface, and no two
     // different sets are "the same" surface), so it alone is sufficient for
@@ -751,6 +1203,47 @@ class KnottedSurface {
                 return x;
             x = parent;
         }
+    }
+
+    // Is facet `facet` of triangle f still able to ever be glued to
+    // something? False (closed) if it's already glued (nothing left to
+    // decide -- already resolved into whatever root it merged into) or if
+    // every triangle that could ever occupy that facet has been
+    // permanently excluded. True (open) if it's un-glued and at least one
+    // not-yet-excluded candidate remains -- f might still end up glued
+    // there later, potentially merging f's root with whatever that
+    // neighbour's root turns out to be.
+    bool isFacetOpen_(const regina::Triangle<dim> *f, int facet) const {
+        regina::Triangle<2> *src = inv_[f->index()];
+        if (src->adjacentSimplex(facet) != nullptr)
+            return false;
+
+        for (size_t neighborIdx : candidatesByFacet_[f->index()][facet]) {
+            if (!excluded_[neighborIdx])
+                return true;
+        }
+        return false;
+    }
+
+    // A union-find root (given as its member raw corners, all currently
+    // mapping to the same ambient vertex) is "closed" -- can never grow or
+    // merge with anything else again -- once every member corner's two
+    // vertex-incident facets (the two facets other than the corner's own
+    // local vertex index) are closed. See hasUnresolvableConflict()'s
+    // class-level comment for why two simultaneously-closed roots at the
+    // same vertex means a permanent, unresolvable conflict.
+    bool isRootClosed_(
+        const std::vector<std::pair<const regina::Triangle<dim> *, int>>
+            &members) const {
+        for (const auto &[f, c] : members) {
+            for (int facet = 0; facet < 3; ++facet) {
+                if (facet == c)
+                    continue;
+                if (isFacetOpen_(f, facet))
+                    return false;
+            }
+        }
+        return true;
     }
 
     // Registers a freshly-created raw corner mapping to ambient vertex v,
@@ -817,6 +1310,10 @@ class KnottedSurface {
         surface_.removeSimplex(src);
         emb_.pop_back();
         inv_[f->index()] = nullptr;
+        // No-op if the double-glued-facet check (earlier in addTriangle,
+        // before f ever enters indices_) is what called us; undoes the
+        // hasUnresolvableConflict()-triggered insertion otherwise.
+        indices_.erase(f->index());
     }
 
     void ensureInvariants_() const {

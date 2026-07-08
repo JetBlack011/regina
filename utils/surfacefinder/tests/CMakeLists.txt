@@ -13,11 +13,13 @@
 set(TESTS
   surfacefinder_test
   surfacefinder_2d_test
+  surfacefinder_invariants_test
   cobordismbuilder_test
   knotbuilder_test
 )
 set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp)
 set(surfacefinder_test_EXTRA_SOURCES ../knotbuilder.cpp)
+set(surfacefinder_invariants_test_EXTRA_SOURCES ../knotbuilder.cpp)
 
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})
