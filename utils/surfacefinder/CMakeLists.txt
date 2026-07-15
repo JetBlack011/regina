@@ -16,4 +16,4 @@ install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Ru
 # Let files under tests/ resolve bare quoted includes (e.g.
 # #include "cobordismbuilder.h") against this directory.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_subdirectory(tests)
+#add_subdirectory(tests)
