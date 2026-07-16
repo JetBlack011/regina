@@ -1,3 +1,8 @@
+#ifndef LINKCOMPLEMENT_H
+
+#define LINKCOMPLEMENT_H
+
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -78,6 +83,20 @@ class EdgeComplement {
             return true;
         }
         return false;
+    }
+
+    // Non-printing counterpart to recognizeComplement(), for programmatic
+    // use: the census name if Regina's census recognizes the complement,
+    // "Unknot" if it's a genus-1 handlebody (the complement of an unknotted
+    // component), or else the bare isoSig as a fallback identifier.
+    std::string identify() const {
+        auto complement = buildComplement();
+        auto hits = regina::Census::lookup(complement);
+        if (!hits.empty())
+            return hits.front().name();
+        if (complement.recogniseHandlebody() == 1)
+            return "Unknot";
+        return complement.isoSig();
     }
 
     friend bool operator<(const EdgeComplement &e1, const EdgeComplement &e2) {
@@ -240,3 +259,4 @@ class Link : public EdgeComplement {
     }
 };
 
+#endif // LINKCOMPLEMENT_H

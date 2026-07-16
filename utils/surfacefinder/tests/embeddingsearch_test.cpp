@@ -219,6 +219,40 @@ void test_engineered_interior_edge_not_proper() {
               "satisfies(proper) agrees with isProper()");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Batch boundary-link recognition (EmbeddingSearch<4, 2>::processSurfaceBoundaries()
+// / linkTally()): a single pentachoron (B^4, dim = 4) whose boundary is
+// ∂Δ^4 = S^3, exactly the "single tetrahedron" scenario from
+// test_tetrahedron_boundary_conditions one dimension up -- every ambient
+// edge is boundary, so every connected subset of the 10 triangles is
+// proper/connected. In particular a single triangle T is a proper surface
+// (a disc) whose boundary is T's own 3 edges -- trivially an unknotted loop,
+// since it's the boundary of an embedded disc already sitting inside this
+// S^3. search() with BoundaryCondition::connected should find it, batch it,
+// and processSurfaceBoundaries() (called internally as part of search()'s
+// final flush) should recognize its complement as the unknot and record it
+// bounding a Disc.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_boundary_link_batch_recognizes_unknot() {
+    std::cout << "\n--- EmbeddingSearch<4,2>: batch boundary-link "
+                 "recognition finds the unknot ---\n";
+
+    regina::Triangulation<4> fourBall;
+    fourBall.newSimplex();
+    EXPECT_EQ((int)fourBall.countBoundaryComponents(), 1,
+              "single pentachoron has one boundary component (S^3)");
+
+    EmbeddingSearch<4, 2> e(fourBall);
+    e.search(1, BoundaryCondition::connected);
+
+    std::string summary = e.linkTally().summary();
+    EXPECT_EQ(summary.find("Unknot") != std::string::npos, true,
+              "batch processing recognized the unknot among the boundary "
+              "links found");
+    EXPECT_EQ(summary.find("Disc") != std::string::npos, true,
+              "the unknot was recorded as bounding (at least) a Disc");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -236,6 +270,8 @@ int main() {
         test_thickened_annulus_proper_not_connected);
     run("test_engineered_interior_edge_not_proper",
         test_engineered_interior_edge_not_proper);
+    run("test_boundary_link_batch_recognizes_unknot",
+        test_boundary_link_batch_recognizes_unknot);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

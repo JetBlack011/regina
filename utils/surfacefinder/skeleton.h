@@ -39,16 +39,19 @@ class Skeleton {
         Node(Face *f) : face(f) {}
     };
 
+    const regina::Triangulation<dim> *tri_;
     const size_t numVertices_;
     std::vector<Node> nodes_;
 
   public:
     Skeleton(const regina::Triangulation<dim> &tri)
-        : numVertices_(tri.countVertices()) {
+        : tri_(&tri), numVertices_(tri.countVertices()) {
         static_assert(subdim >= 1 && subdim <= dim,
                       "Skeleton requires 1 <= subdim <= dim");
         buildSkeleton_(tri);
     }
+
+    const regina::Triangulation<dim> &triangulation() const { return *tri_; }
 
     const size_t numVertices() const { return numVertices_; }
 
