@@ -498,7 +498,7 @@ class EmbeddingSearch {
         long long total = 0;
         for (long long c : perThreadCount)
             total += c;
-        std::cerr << "Total elapsed: "
+        std::cerr << "\n\nTotal elapsed: "
                   << formatElapsed(std::chrono::steady_clock::now() -
                                    searchStart)
                   << "\n";

@@ -147,26 +147,30 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
-    //regina::Triangulation<3> tri = regina::Example<3>::sphere();
+    // regina::Triangulation<3> tri = regina::Example<3>::sphere();
     regina::Triangulation<3> tri;
-    tri.newSimplex();
-    tri.subdivide();
-   // std::vector<const regina::Edge<3> *> edges;
-   // std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
-   // knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-   // knotbuilder::buildLink(tri, pdcode, edges);
-   // std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
+    // t.newSimplex();
+    // t.subdivide();
+    //  tri.subdivide();
+    std::vector<const regina::Edge<3> *> edges;
+    std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
+    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+    knotbuilder::buildLink(tri, pdcode, edges);
+    std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
+    CobordismBuilder cob(tri);
+    regina::Triangulation<4> t = cob.thicken();
 
-    Skeleton<3, 2> skel(tri);
-    std::cout << skel << "\n";
+    Skeleton<4, 2> skel(t);
+    //std::cout << skel << "\n";
 
-    unsigned numThreads = std::thread::hardware_concurrency();
+    // unsigned numThreads = std::thread::hardware_concurrency();
+    unsigned numThreads = t.countTriangles();
     if (numThreads == 0)
         numThreads = 1;
     std::cerr << "Running with " << numThreads
               << " threads, condition = " << boundaryConditionName(cond)
-              << "\n";
-    EmbeddingSearch<3, 2> e(tri);
+              << "\n\n";
+    EmbeddingSearch<4, 2> e(t);
     e.search(numThreads, cond);
 
     // regina::Triangulation<4> tri;
