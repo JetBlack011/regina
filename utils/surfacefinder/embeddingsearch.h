@@ -2,6 +2,7 @@
 
 #define EMBEDDINGSEARCH_H
 
+#include <algorithm>
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -98,19 +99,18 @@ class SurfaceTypeTally {
         local.clear();
     }
 
+    // One line per surface type (plus a header line), each newline-
+    // terminated, so the caller can count lines to erase on the next
+    // redraw.
     std::string summary() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (counts_.empty())
-            return "Number of surfaces found: (none yet)";
-
         std::ostringstream out;
-        out << "Number of surfaces found: ";
-        bool first = true;
-        for (const auto &[key, n] : counts_) {
-            if (!first)
-                out << ", ";
-            out << formatSurfaceType(key) << " = " << n;
-            first = false;
+        out << "Number of surfaces found:\n";
+        if (counts_.empty()) {
+            out << "  (none yet)\n";
+        } else {
+            for (const auto &[key, n] : counts_)
+                out << "  " << formatSurfaceType(key) << " = " << n << "\n";
         }
         return out.str();
     }
@@ -433,18 +433,33 @@ class EmbeddingSearch {
             perThreadCount[tid] = localCount;
         };
 
-        // Prints total progress every second until all workers are done.
+        // Prints total progress every second until all workers are done,
+        // redrawing in place (rather than scrolling) so the tally doesn't
+        // eat up the terminal.
         std::thread reporter([&]() {
             using namespace std::chrono_literals;
+            size_t prevLines = 0;
             while (!workersFinished.load(std::memory_order_relaxed)) {
                 std::this_thread::sleep_for(1s);
-                std::cerr << "[+] roots completed: " << rootsCompleted.load()
-                          << "/" << adjList_.first
-                          << "  | million embedded submanifolds found so far: "
-                          << (globalSubgraphCount.load() / FLUSH_EVERY) << "\n";
+
+                std::ostringstream report;
+                report << "[+] roots completed: " << rootsCompleted.load()
+                       << "/" << adjList_.first
+                       << "  | million embedded submanifolds found so far: "
+                       << (globalSubgraphCount.load() / FLUSH_EVERY) << "\n";
                 if constexpr (subdim == 2) {
-                    std::cerr << surfaceTally.summary() << "\n";
+                    report << surfaceTally.summary();
                 }
+                std::string text = report.str();
+
+                // Move the cursor up to the start of the previous report
+                // and clear everything from there down, so a shorter report
+                // (e.g. fewer distinct surface types) doesn't leave stale
+                // lines behind.
+                if (prevLines > 0)
+                    std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
+                std::cerr << text;
+                prevLines = std::count(text.begin(), text.end(), '\n');
             }
         });
 
