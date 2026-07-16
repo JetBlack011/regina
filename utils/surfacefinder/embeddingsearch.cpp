@@ -7,6 +7,7 @@
 #include <maths/perm.h>
 #include <triangulation/dim4.h>
 #include <triangulation/example2.h>
+#include <triangulation/example3.h>
 #include <triangulation/example4.h>
 
 #include "cobordismbuilder.h"
@@ -21,29 +22,26 @@ void usage(const char *progName, const std::string &error = std::string()) {
 
     std::cerr << "Usage:\n";
     std::cerr << "    " << progName
-              << " [ -a, --all | -c, --closed | -p, --proper | --connected "
-                 "]\n"
+              << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
                  "    "
               << progName << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -a, --all      : Find all embedded submanifolds, "
-                 "regardless of boundary\n"
-                 "                     conditions (default)\n";
-    std::cerr << "    -c, --closed   : Find only closed embedded "
-                 "submanifolds\n";
     std::cerr
-        << "    -p, --proper   : Find embedded submanifolds whose boundary "
-           "is contained\n"
-           "                     entirely in the boundary of the ambient "
-           "triangulation\n";
+        << "    -a, --all      : Find all embedded submanifolds, regardless of "
+           "boundary\n                     conditions (default)\n";
     std::cerr
-        << "    --connected    : Same as --proper, but additionally require "
-           "at most one\n"
-           "                     boundary component of the embedded "
-           "submanifold per\n"
-           "                     boundary component of the ambient "
-           "triangulation\n\n";
-    std::cerr << "    -v, --version  : Show which version of Regina is "
-                 "being used\n";
+        << "    -c, --closed   : Find only closed embedded submanifolds\n";
+    std::cerr << "    -p, --proper   : Find embedded submanifolds whose "
+                 "boundary is contained\n"
+                 "                     entirely in the boundary of the ambient "
+                 "triangulation\n";
+    std::cerr << "    --connected    : Same as --proper, but additionally "
+                 "require at most one\n"
+                 "                     boundary component of the embedded "
+                 "submanifold per\n"
+                 "                     boundary component of the ambient "
+                 "triangulation\n\n";
+    std::cerr
+        << "    -v, --version  : Show which version of Regina is being used\n";
     std::cerr << "    -h, --help     : Display this help\n";
     exit(1);
 }
@@ -149,12 +147,15 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
+    //regina::Triangulation<3> tri = regina::Example<3>::sphere();
     regina::Triangulation<3> tri;
-    std::vector<const regina::Edge<3> *> edges;
-    std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-    knotbuilder::buildLink(tri, pdcode, edges);
-    std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
+    tri.newSimplex();
+    tri.subdivide();
+   // std::vector<const regina::Edge<3> *> edges;
+   // std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
+   // knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+   // knotbuilder::buildLink(tri, pdcode, edges);
+   // std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
 
     Skeleton<3, 2> skel(tri);
     std::cout << skel << "\n";
