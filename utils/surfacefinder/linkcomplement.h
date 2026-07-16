@@ -2,6 +2,7 @@
 
 #define LINKCOMPLEMENT_H
 
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -9,6 +10,18 @@
 #include <census/census.h>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
+
+// regina::Census::lookup()'s Tokyo Cabinet-backed database is reopened from
+// scratch, with no internal locking, on every single call (see
+// CensusDB::lookupKey() in census-impl.h) -- so unlike most of Regina's
+// engine, it cannot safely be called from more than one thread at a time.
+// This holds regardless of whether the census databases have already been
+// loaded once: concurrent calls fail unpredictably with "Could not open
+// Tokyo Cabinet database ... -> threading error" (observed directly).
+// Every regina::Census::lookup() call below serializes through this mutex;
+// buildComplement()'s pinch + simplify work is unaffected and stays
+// parallel across callers.
+inline std::mutex censusLookupMutex;
 
 /** Knot/Link implementation, specialized for taking complements */
 class EdgeComplement {
@@ -71,7 +84,11 @@ class EdgeComplement {
 
     bool recognizeComplement() const {
         auto complement = buildComplement();
-        auto hits = regina::Census::lookup(complement);
+        std::list<regina::CensusHit> hits;
+        {
+            std::lock_guard<std::mutex> lock(censusLookupMutex);
+            hits = regina::Census::lookup(complement);
+        }
         ssize_t genus = complement.recogniseHandlebody();
 
         if (!hits.empty()) {
@@ -91,7 +108,11 @@ class EdgeComplement {
     // component), or else the bare isoSig as a fallback identifier.
     std::string identify() const {
         auto complement = buildComplement();
-        auto hits = regina::Census::lookup(complement);
+        std::list<regina::CensusHit> hits;
+        {
+            std::lock_guard<std::mutex> lock(censusLookupMutex);
+            hits = regina::Census::lookup(complement);
+        }
         if (!hits.empty())
             return hits.front().name();
         if (complement.recogniseHandlebody() == 1)
@@ -217,7 +238,11 @@ class Link : public EdgeComplement {
         } else if (numComponents > 1) {
             for (int i = 0; i < numComponents; ++i) {
                 regina::Triangulation<3> complement = buildComplement(i);
-                auto hits = regina::Census::lookup(complement);
+                std::list<regina::CensusHit> hits;
+                {
+                    std::lock_guard<std::mutex> lock(censusLookupMutex);
+                    hits = regina::Census::lookup(complement);
+                }
                 ssize_t genus = complement.recogniseHandlebody();
 
                 std::cout << "    Component " << i + 1 << ": ";

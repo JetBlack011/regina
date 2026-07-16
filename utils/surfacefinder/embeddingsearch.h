@@ -537,20 +537,93 @@ class EmbeddingSearch {
             return;
 
         EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
+        processBatchRange_(embedding, batch, 0, batch.size());
+    }
 
-        for (const auto &faceIndices : batch) {
-            for (int idx : faceIndices)
-                embedding.addFace(idx);
+    // Drains whatever is left in pendingSurfaces_ once (nothing else is
+    // producing into it once the DFS workers have joined) and works through
+    // it with numThreads worker threads -- the same threads search() used
+    // for DFS, now idle. Meant to be called right after search()'s DFS
+    // workers finish, as the (potentially very large) remaining backlog of
+    // queued surfaces can dwarf the amount processed incrementally by
+    // search()'s periodic single-threaded boundaryProcessor thread. Prints
+    // linkTally_'s incremental summary once a second while it works, since
+    // this can take a long time and would otherwise look like a hang.
+    void processRemainingSurfaceBoundaries(unsigned numThreads) {
+        static_assert(dim == 4 && subdim == 2,
+                      "processRemainingSurfaceBoundaries() only makes sense "
+                      "for surfaces (dim == 4, subdim == 2)");
 
-            SurfaceTypeKey type = surfaceTypeKey(embedding.triangulation());
-            for (auto &[component, link] : embedding.boundaryLinks())
-                linkTally_.record(link.identify(), type);
+        auto batch = pendingSurfaces_.drain();
+        if (batch.empty())
+            return;
 
-            // Reverse order, mirroring how the DFS itself would back out --
-            // resets embedding to empty for the next item in the batch.
-            for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
-                embedding.removeFace(*it);
-        }
+        const auto phaseStart = std::chrono::steady_clock::now();
+        const size_t total = batch.size();
+        const unsigned workerCount = static_cast<unsigned>(
+            std::min<size_t>(numThreads, total));
+
+        std::cerr << "\n[*] Search complete; processing " << total
+                  << " remaining surface boundaries with " << workerCount
+                  << " threads...\n";
+
+        constexpr size_t CHUNK = 64;
+        std::atomic<size_t> nextIndex{0};
+        std::atomic<size_t> processedCount{0};
+        std::atomic<bool> done{false};
+
+        std::thread reporter([&]() {
+            using namespace std::chrono_literals;
+            size_t prevLines = 0;
+            while (!done.load(std::memory_order_relaxed)) {
+                std::this_thread::sleep_for(1s);
+
+                std::ostringstream report;
+                report << "[+] elapsed: "
+                       << formatElapsed(std::chrono::steady_clock::now() -
+                                        phaseStart)
+                       << "\n";
+                report << "[+] boundaries processed: "
+                       << processedCount.load() << "/" << total << "\n";
+                report << linkTally_.summary();
+                std::string text = report.str();
+
+                if (prevLines > 0)
+                    std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
+                std::cerr << text;
+                prevLines = std::count(text.begin(), text.end(), '\n');
+            }
+        });
+
+        auto worker = [&]() {
+            EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
+            while (true) {
+                size_t begin = nextIndex.fetch_add(
+                    CHUNK, std::memory_order_relaxed);
+                if (begin >= total)
+                    break;
+                size_t end = std::min(begin + CHUNK, total);
+                processBatchRange_(embedding, batch, begin, end);
+                processedCount.fetch_add(end - begin,
+                                         std::memory_order_relaxed);
+            }
+        };
+
+        std::vector<std::thread> threads;
+        threads.reserve(workerCount);
+        for (unsigned t = 0; t < workerCount; ++t)
+            threads.emplace_back(worker);
+        for (auto &th : threads)
+            th.join();
+
+        done.store(true, std::memory_order_relaxed);
+        reporter.join();
+
+        std::cerr << "\n[+] Finished processing remaining surface "
+                     "boundaries in "
+                  << formatElapsed(std::chrono::steady_clock::now() -
+                                   phaseStart)
+                  << "\n";
     }
 
     void search(const unsigned numThreads,
@@ -701,7 +774,7 @@ class EmbeddingSearch {
         if constexpr (dim == 4 && subdim == 2) {
             if (boundaryProcessor.joinable()) {
                 boundaryProcessor.join();
-                processSurfaceBoundaries();
+                processRemainingSurfaceBoundaries(numThreads);
             }
         }
 
@@ -728,6 +801,32 @@ class EmbeddingSearch {
     }
 
   private:
+    // Replays batch[begin, end) into embedding (via addFace(), in the exact
+    // order the DFS originally discovered each entry -- deterministic,
+    // since it's the same skeleton_/graph_), extracts its boundary Link(s),
+    // and records what surface type each recognized link bounds into
+    // linkTally_. embedding is reused across the whole range so its
+    // bdryComponents_ cache (see EmbeddedSubmanifold's constructor) is only
+    // built once, not once per queued surface.
+    void processBatchRange_(EmbeddedSubmanifold<dim, subdim> &embedding,
+                            const std::vector<std::vector<int>> &batch,
+                            size_t begin, size_t end) {
+        for (size_t i = begin; i < end; ++i) {
+            const auto &faceIndices = batch[i];
+            for (int idx : faceIndices)
+                embedding.addFace(idx);
+
+            SurfaceTypeKey type = surfaceTypeKey(embedding.triangulation());
+            for (auto &[component, link] : embedding.boundaryLinks())
+                linkTally_.record(link.identify(), type);
+
+            // Reverse order, mirroring how the DFS itself would back out --
+            // resets embedding to empty for the next item in the batch.
+            for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
+                embedding.removeFace(*it);
+        }
+    }
+
     static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton) {
         const auto &nodes = skeleton.getNodes();
 
