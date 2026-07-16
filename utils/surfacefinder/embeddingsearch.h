@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <iomanip>
 #include <map>
 #include <mutex>
 #include <sstream>
@@ -115,6 +117,21 @@ class SurfaceTypeTally {
         return out.str();
     }
 };
+
+// Formats a duration as zero-padded HH:MM:SS, for the running/final
+// "elapsed" line in EmbeddingSearch::search()'s output.
+inline std::string formatElapsed(std::chrono::steady_clock::duration d) {
+    using namespace std::chrono;
+    long long totalSeconds = duration_cast<seconds>(d).count();
+    long long hours = totalSeconds / 3600;
+    long long minutes = (totalSeconds % 3600) / 60;
+    long long seconds_ = totalSeconds % 60;
+
+    std::ostringstream out;
+    out << std::setfill('0') << std::setw(2) << hours << ":" << std::setw(2)
+        << minutes << ":" << std::setw(2) << seconds_;
+    return out.str();
+}
 
 inline const char *boundaryConditionName(BoundaryCondition cond) {
     switch (cond) {
@@ -371,6 +388,7 @@ class EmbeddingSearch {
 
     void search(const unsigned numThreads,
                 BoundaryCondition cond = BoundaryCondition::all) {
+        const auto searchStart = std::chrono::steady_clock::now();
         std::atomic<int> nextRoot{1}; // shared dynamic work queue over s = 1..n
         std::vector<long long> perThreadCount(numThreads, 0);
 
@@ -443,6 +461,10 @@ class EmbeddingSearch {
                 std::this_thread::sleep_for(1s);
 
                 std::ostringstream report;
+                report << "[+] elapsed: "
+                       << formatElapsed(std::chrono::steady_clock::now() -
+                                        searchStart)
+                       << "\n";
                 report << "[+] roots completed: " << rootsCompleted.load()
                        << "/" << adjList_.first
                        << "  | million embedded submanifolds found so far: "
@@ -476,6 +498,10 @@ class EmbeddingSearch {
         long long total = 0;
         for (long long c : perThreadCount)
             total += c;
+        std::cerr << "Total elapsed: "
+                  << formatElapsed(std::chrono::steady_clock::now() -
+                                   searchStart)
+                  << "\n";
         std::cerr << "Total embedded submanifolds ("
                   << boundaryConditionName(cond) << "): " << total
                   << " (across " << numThreads << " threads)\n";
