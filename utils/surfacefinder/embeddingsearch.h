@@ -15,6 +15,7 @@
 #include <tuple>
 
 #include <triangulation/dim2.h>
+#include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -107,12 +108,6 @@ class SurfaceTypeTally {
     }
 };
 
-// Thread-safe accumulator of discovered face-index sets (each one uniquely
-// identifying a found embedding, exactly the `U` the DFS reports it under),
-// staged for later, off-hot-path processing by
-// EmbeddingSearch::processSurfaceBoundaries(). Mirrors SurfaceTypeTally's
-// merge-under-lock/periodic-flush shape so the same FLUSH_EVERY cadence in
-// search()'s worker loop can drive both.
 class PendingSurfaceBatch {
   private:
     mutable std::mutex mutex_;
@@ -136,10 +131,6 @@ class PendingSurfaceBatch {
     }
 };
 
-// Thread-safe record of every distinct boundary link found so far (keyed by
-// Link::identify()'s result -- a census name, "Unknot", or a bare isoSig
-// fallback) together with how many times each surface type was found
-// bounding it.
 class LinkBoundaryTally {
   private:
     mutable std::mutex mutex_;
@@ -218,11 +209,6 @@ class EmbeddedSubmanifold {
     std::vector<std::pair<regina::Simplex<subdim> *, std::vector<int>>> faces_;
     std::vector<bool> triVertsUsed_;
 
-    // One triangulation per ambient boundary component, built once (via
-    // BoundaryComponent<dim>::build()) and reused for the lifetime of this
-    // instance. Only ever populated for dim == 4, subdim == 2 -- the only
-    // case boundaryLinks() below makes sense for -- so it stays an empty,
-    // harmless vector for every other instantiation of this class template.
     std::vector<regina::Triangulation<dim - 1>> bdryComponents_;
 
   public:
@@ -420,21 +406,6 @@ class EmbeddedSubmanifold {
         return true;
     }
 
-    // Returns one Link per ambient boundary component this embedding's
-    // boundary actually touches, paired with that component's index. Only
-    // meaningful when dim == 4 and subdim == 2 (a surface's boundary is a
-    // 1-manifold living in a 3-manifold boundary component) -- guarded by a
-    // static_assert rather than `if constexpr` since this is a template
-    // member function, so it's simply never instantiated for any other
-    // (dim, subdim) as long as callers only invoke it under their own
-    // `if constexpr (dim == 4 && subdim == 2)`.
-    //
-    // Deliberately reuses the same un-glued-facet scan as isProper()/
-    // boundaryComponentsMapInjectively() above (rather than
-    // subtri_.boundaryComponents(), which KnottedSurface::boundary() used to
-    // rely on) so this doesn't force a 2-manifold skeleton recompute of its
-    // own -- surfaceTypeKey() already pays for that separately when it's
-    // needed.
     std::vector<std::pair<size_t, Link>> boundaryLinks() const {
         static_assert(dim == 4 && subdim == 2,
                       "boundaryLinks() only makes sense for surfaces (dim == "
@@ -460,11 +431,6 @@ class EmbeddedSubmanifold {
 
                 size_t c = ambientBC->index();
 
-                // No O(1) "my index within my boundary component" accessor
-                // exists in Regina, but BoundaryComponent<dim>::build()
-                // preserves index-for-index correspondence with the
-                // component's own edge list one dimension down -- same idiom
-                // KnottedSurface::boundary() used.
                 for (int k = 0; k < ambientBC->countEdges(); ++k) {
                     if (ambientBC->edge(k) == ambientFacet) {
                         edgesByComponent[c].insert(bdryComponents_[c].edge(k));
@@ -503,23 +469,9 @@ class EmbeddedSubmanifold {
     }
 };
 
-// A subdim-face is "irreparably self-folded" when some ambient
-// (subdim-1)-facet is touched 3+ times by its own (subdim+1) local facets
-// alone -- a subdim-cell can touch any single ambient facet at most twice
-// (interior: 2, boundary: 1), so such a face can never be part of any valid
-// embedded submanifold, independent of which neighbors are present. This
-// does not flag an ordinary 2-facet self-fold (e.g. the one-triangle
-// Möbius-band construction), where each folded facet has exactly one
-// partner.
-//
-// Skeleton::buildSkeleton_'s bucket pass already emits a complete graph of
-// self-gluing entries (srcIndex == dstIndex) among any group of a face's own
-// facets that share one ambient identity -- a group of size k contributes
-// k*(k-1) such entries -- so a facet belongs to a group of size >= 3 exactly
-// when it has 2 or more distinct self-gluing partners.
 template <int dim, int subdim>
-bool hasIrreparableSelfFold(
-        const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
+bool hasIrreparableSelfGluing(
+    const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
     std::array<std::array<bool, subdim + 1>, subdim + 1> partnerSeen{};
     for (const auto &g : gluings)
         if (g.srcIndex == g.dstIndex)
@@ -538,40 +490,32 @@ bool hasIrreparableSelfFold(
 template <int dim, int subdim>
 class EmbeddednessPredicate : public ConditionalPredicate {
     EmbeddedSubmanifold<dim, subdim> &embedding;
-    const std::vector<int> &denseToOriginal;
+    const std::vector<int> &graphToSkel;
 
   public:
     EmbeddednessPredicate(EmbeddedSubmanifold<dim, subdim> &embedding,
                           const std::vector<int> &denseToOriginal)
-        : embedding(embedding), denseToOriginal(denseToOriginal) {}
+        : embedding(embedding), graphToSkel(denseToOriginal) {}
 
     bool tryAdd(int v) override {
-        return embedding.addFace(denseToOriginal[v - 1]);
+        return embedding.addFace(graphToSkel[v - 1]);
     }
 
-    void undo(int v) override { embedding.removeFace(denseToOriginal[v - 1]); }
+    void undo(int v) override { embedding.removeFace(graphToSkel[v - 1]); }
 };
 
 template <int dim, int subdim>
 class EmbeddingSearch {
   private:
-    // Bundles the DFS-facing adjacency list (built over a dense,
-    // contiguous vertex numbering that excludes irreparably self-folded
-    // faces entirely) together with the mapping back to original skeleton
-    // face indices -- both are produced by one pass over the skeleton, and
-    // both are needed by search()'s worker loop, so they travel together.
     struct Graph {
         AdjacencyList adjList;
-        std::vector<int> denseToOriginal;
+        std::vector<int> graphToSkel;
     };
 
     const Skeleton<dim, subdim> skeleton_;
     const Graph graph_;
     std::vector<EmbeddedSubmanifold<dim, subdim>> valid_embeddings_;
 
-    // Only ever populated/consumed when dim == 4, subdim == 2, and cond is
-    // proper or connected -- see search()'s dedicated background thread and
-    // processSurfaceBoundaries() below. Harmless empty members otherwise.
     PendingSurfaceBatch pendingSurfaces_;
     LinkBoundaryTally linkTally_;
 
@@ -579,21 +523,10 @@ class EmbeddingSearch {
     EmbeddingSearch(const regina::Triangulation<dim> &tri)
         : skeleton_(tri), graph_(buildGraph_(skeleton_)) {}
 
-    // Number of faces that survived the irreparable-self-fold exclusion and
-    // therefore actually participate as DFS vertices. Exposed for testing.
-    size_t numEmbeddableFaces() const {
-        return graph_.denseToOriginal.size();
-    }
+    size_t numEmbeddableFaces() const { return graph_.graphToSkel.size(); }
 
     const LinkBoundaryTally &linkTally() const { return linkTally_; }
 
-    // Drains pendingSurfaces_ and, for each queued face-index set, replays
-    // it (via addFace(), in the exact order the DFS originally discovered
-    // it -- deterministic, since it's the same skeleton_/graph_) into a
-    // single reused EmbeddedSubmanifold, extracts its boundary Link(s), and
-    // records what surface type each recognized link bounds into
-    // linkTally_. This is the expensive step (pinch + simplify + census
-    // lookup per surface) deliberately kept off the DFS hot path.
     void processSurfaceBoundaries() {
         static_assert(dim == 4 && subdim == 2,
                       "processSurfaceBoundaries() only makes sense for "
@@ -603,9 +536,6 @@ class EmbeddingSearch {
         if (batch.empty())
             return;
 
-        // Reused across every item in the batch so its bdryComponents_
-        // cache (see EmbeddedSubmanifold's constructor) is only built once
-        // per call, not once per queued surface.
         EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
 
         for (const auto &faceIndices : batch) {
@@ -642,7 +572,7 @@ class EmbeddingSearch {
                 graph_.adjList.first, graph_.adjList.second);
             EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
             EmbeddednessPredicate<dim, subdim> predicate(
-                embedding, graph_.denseToOriginal);
+                embedding, graph_.graphToSkel);
             // std::ofstream out("subgraphs_thread_" + std::to_string(tid) +
             //                   ".txt");
             long long localCount = 0;
@@ -670,7 +600,7 @@ class EmbeddingSearch {
                                     faceIndices.reserve(U.size());
                                     for (int v : U)
                                         faceIndices.push_back(
-                                            graph_.denseToOriginal[v - 1]);
+                                            graph_.graphToSkel[v - 1]);
                                     localPending.push_back(
                                         std::move(faceIndices));
                                 }
@@ -708,9 +638,6 @@ class EmbeddingSearch {
             perThreadCount[tid] = localCount;
         };
 
-        // Prints total progress every second until all workers are done,
-        // redrawing in place (rather than scrolling) so the tally doesn't
-        // eat up the terminal.
         std::thread reporter([&]() {
             using namespace std::chrono_literals;
             size_t prevLines = 0;
@@ -736,10 +663,6 @@ class EmbeddingSearch {
                 }
                 std::string text = report.str();
 
-                // Move the cursor up to the start of the previous report
-                // and clear everything from there down, so a shorter report
-                // (e.g. fewer distinct surface types) doesn't leave stale
-                // lines behind.
                 if (prevLines > 0)
                     std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
                 std::cerr << text;
@@ -747,25 +670,12 @@ class EmbeddingSearch {
             }
         });
 
-        // Drains pendingSurfaces_ roughly every 10 seconds on its own
-        // dedicated thread -- separate from `reporter` above, since
-        // processSurfaceBoundaries() does genuinely heavy work (pinch +
-        // simplify + census lookup per surface) that must not delay the
-        // lightweight 1s progress display. Only started when there's
-        // actually something for it to do.
         std::thread boundaryProcessor;
         if constexpr (dim == 4 && subdim == 2) {
             if (cond == BoundaryCondition::proper ||
                 cond == BoundaryCondition::connected) {
                 boundaryProcessor = std::thread([&]() {
                     using namespace std::chrono_literals;
-                    // Polled in short (100ms) increments, rather than one
-                    // long sleep_for(10s), so that when the DFS finishes
-                    // (workersFinished flips true) this thread notices
-                    // promptly instead of leaving search() blocked on
-                    // join() for up to the remainder of a 10s sleep --
-                    // otherwise even a trivially small search would always
-                    // take >= 10s wall-clock once this thread is started.
                     auto lastProcessed = std::chrono::steady_clock::now();
                     while (!workersFinished.load(std::memory_order_relaxed)) {
                         std::this_thread::sleep_for(100ms);
@@ -791,10 +701,6 @@ class EmbeddingSearch {
         if constexpr (dim == 4 && subdim == 2) {
             if (boundaryProcessor.joinable()) {
                 boundaryProcessor.join();
-                // Flush whatever landed in the final partial window -- the
-                // thread above only processes on its own ~10s cadence, so
-                // without this, surfaces found in the last (<10s) stretch
-                // would never get processed.
                 processSurfaceBoundaries();
             }
         }
@@ -822,48 +728,38 @@ class EmbeddingSearch {
     }
 
   private:
-    // Builds the DFS-facing adjacency list over a dense, contiguous vertex
-    // numbering that excludes faces flagged by hasIrreparableSelfFold()
-    // entirely: such a face never gets assigned a dense id, so it can never
-    // appear as anyone's neighbor either (symmetric exclusion falls out for
-    // free, since the check for the neighbor side below is just "does this
-    // original index have a dense id at all"). This keeps such faces out of
-    // enumerate_cis.h's vertex space altogether, rather than merely
-    // rejecting them if/when addFace() is called.
     static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton) {
         const auto &nodes = skeleton.getNodes();
 
-        std::vector<int> denseToOriginal;
-        std::vector<int> originalToDense(nodes.size(), -1);
+        std::vector<int> graphToSkel;
+        std::vector<int> skelToGraph(nodes.size(), -1);
         for (size_t i = 0; i < nodes.size(); ++i) {
-            if (hasIrreparableSelfFold<dim, subdim>(nodes[i].gluings))
+            if (hasIrreparableSelfGluing<dim, subdim>(nodes[i].gluings))
                 continue;
-            originalToDense[i] = static_cast<int>(denseToOriginal.size());
-            denseToOriginal.push_back(static_cast<int>(i));
+            skelToGraph[i] = static_cast<int>(graphToSkel.size());
+            graphToSkel.push_back(static_cast<int>(i));
         }
 
-        int n = static_cast<int>(denseToOriginal.size());
-        std::vector<std::vector<int>> adj(
-            n + 1); // 1-indexed, as the enumerator expects
-        for (int denseI = 0; denseI < n; ++denseI) {
-            int i = denseToOriginal[denseI];
+        int n = static_cast<int>(graphToSkel.size());
+        // 1-indexed, as the enumerator expects
+        std::vector<std::vector<int>> adj(n + 1);
+        for (int graphIdx = 0; graphIdx < n; ++graphIdx) {
+            int i = graphToSkel[graphIdx];
             std::set<int> neighbors; // dedupes parallel gluings
             for (const auto &g : nodes[i].gluings) {
-                // sanity: matches its own position
                 assert(g.srcIndex == static_cast<size_t>(i));
-                // sanity: in range
                 assert(g.dstIndex < nodes.size());
                 int u = static_cast<int>(g.dstIndex);
                 if (u == i)
                     continue; // drop self-gluings
-                int denseU = originalToDense[u];
-                if (denseU != -1) // neighbor also survived exclusion
-                    neighbors.insert(denseU);
+                int graphUdx = skelToGraph[u];
+                if (graphUdx != -1) // neighbor also survived exclusion
+                    neighbors.insert(graphUdx);
             }
             for (int denseU : neighbors)
-                adj[denseI + 1].push_back(denseU + 1);
+                adj[graphIdx + 1].push_back(denseU + 1);
         }
-        return {AdjacencyList{n, std::move(adj)}, std::move(denseToOriginal)};
+        return {AdjacencyList{n, std::move(adj)}, std::move(graphToSkel)};
     }
 };
 
