@@ -8,7 +8,7 @@
 #include <maths/perm.h>
 #include <triangulation/forward.h>
 
-enum class BoundaryCondition : uint8_t { all, closed, boundary, connected };
+enum class BoundaryCondition : uint8_t { all, closed, proper, connected };
 
 template <int dim, int subdim>
 class Skeleton {

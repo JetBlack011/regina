@@ -21,27 +21,27 @@ void usage(const char *progName, const std::string &error = std::string()) {
 
     std::cerr << "Usage:\n";
     std::cerr << "    " << progName
-              << " { -a, --all | -b, --boundary | -c, --closed | -l, --links } "
-                 "<isosig>\n"
-                 "    "
-              << progName
-              << " <PD Code>\n"
+              << " [ -a, --all | -c, --closed | -p, --proper | --connected "
+                 "]\n"
                  "    "
               << progName << " [ -v, --version | -h, --help ]\n\n";
-    std::cerr << "    -a, --all      : Find all surfaces, regardless of "
-                 "boundary conditions\n";
+    std::cerr << "    -a, --all      : Find all embedded submanifolds, "
+                 "regardless of boundary\n"
+                 "                     conditions (default)\n";
+    std::cerr << "    -c, --closed   : Find only closed embedded "
+                 "submanifolds\n";
     std::cerr
-        << "    -b, --boundary : Find surfaces such that their boundary is "
-           "contained entirely in\n"
-           "                     the boundary of the given 4-manifold (Note, "
-           "if the 4-manifold\n                     is closed, this is "
-           "equivalent to --closed)\n";
-    std::cerr << "    -c, --closed   : Find only closed surfaces in the given "
-                 "4-manifold\n";
-    std::cerr << "    -l, --links    : Same as --boundary, but also gives "
-                 "a list of link types which\n"
-                 "                     are the boundaries of the surfaces "
-                 "we find\n\n";
+        << "    -p, --proper   : Find embedded submanifolds whose boundary "
+           "is contained\n"
+           "                     entirely in the boundary of the ambient "
+           "triangulation\n";
+    std::cerr
+        << "    --connected    : Same as --proper, but additionally require "
+           "at most one\n"
+           "                     boundary component of the embedded "
+           "submanifold per\n"
+           "                     boundary component of the ambient "
+           "triangulation\n\n";
     std::cerr << "    -v, --version  : Show which version of Regina is "
                  "being used\n";
     std::cerr << "    -h, --help     : Display this help\n";
@@ -127,6 +127,8 @@ void usage(const char *progName, const std::string &error = std::string()) {
 } // namespace
 
 int main(int argc, char *argv[]) {
+    BoundaryCondition cond = BoundaryCondition::all;
+
     // Check for standard arguments:
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -137,6 +139,14 @@ int main(int argc, char *argv[]) {
                 usage(argv[0], "Option --version cannot be used with "
                                "any other arguments.");
         }
+        if (arg == "-a" || arg == "--all")
+            cond = BoundaryCondition::all;
+        else if (arg == "-c" || arg == "--closed")
+            cond = BoundaryCondition::closed;
+        else if (arg == "-p" || arg == "--proper")
+            cond = BoundaryCondition::proper;
+        else if (arg == "--connected")
+            cond = BoundaryCondition::connected;
     }
 
     regina::Triangulation<3> tri;
@@ -149,11 +159,14 @@ int main(int argc, char *argv[]) {
     Skeleton<3, 2> skel(tri);
     std::cout << skel << "\n";
 
-    // unsigned numThreads = std::thread::hardware_concurrency();
-    //unsigned numThreads = 24;
-    //std::cout << "Running with " << numThreads << " threads\n";
-    //EmbeddingSearch<3, 2> e(tri);
-    //e.search(numThreads);
+    unsigned numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0)
+        numThreads = 1;
+    std::cerr << "Running with " << numThreads
+              << " threads, condition = " << boundaryConditionName(cond)
+              << "\n";
+    EmbeddingSearch<3, 2> e(tri);
+    e.search(numThreads, cond);
 
     // regina::Triangulation<4> tri;
     // BoundaryCondition cond = BoundaryCondition::boundary;

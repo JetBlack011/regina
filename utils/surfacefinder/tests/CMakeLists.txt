@@ -1,8 +1,7 @@
 # Fast, always-run correctness tests for surfacefinder's components. Each
 # test binary covers one program/module:
-#   surfacefinder_test      - SurfaceFinder (surfacefinder's core search)
-#   surfacefinder_2d_test   - SurfaceFinder search vs. known Triangulation<2>
-#                             surfaces, coned one dimension up
+#   embeddingsearch_test    - EmbeddedSubmanifold/EmbeddingSearch (the
+#                             generic search) and BoundaryCondition filtering
 #   cobordismbuilder_test   - CobordismBuilder (thicken()/cone())
 #   knotbuilder_test        - knotbuilder (PD code -> triangulated S³) and
 #                             its integration with CobordismBuilder
@@ -10,16 +9,17 @@
 # Registered with CTest, so `ctest` (or `ctest --output-on-failure`) from
 # the build directory runs and tracks all of them in one place, alongside
 # the rest of Regina's test suite.
+#
+# surfacefinder_test/surfacefinder_2d_test/surfacefinder_invariants_test
+# tested the old SurfaceFinder/KnottedSurface machinery (#include
+# "surfacefinder.h"), which no longer exists in this fork -- superseded by
+# embeddingsearch_test above.
 set(TESTS
-  surfacefinder_test
-  surfacefinder_2d_test
-  surfacefinder_invariants_test
+  embeddingsearch_test
   cobordismbuilder_test
   knotbuilder_test
 )
 set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp)
-set(surfacefinder_test_EXTRA_SOURCES ../knotbuilder.cpp)
-set(surfacefinder_invariants_test_EXTRA_SOURCES ../knotbuilder.cpp)
 
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})

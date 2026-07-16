@@ -6,12 +6,27 @@
 #include <thread>
 
 #include <triangulation/dim4.h>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "enumerate_cis.h"
 #include "skeleton.h"
 
 using AdjacencyList = std::pair<int, std::vector<std::vector<int>>>;
+
+inline const char *boundaryConditionName(BoundaryCondition cond) {
+    switch (cond) {
+        case BoundaryCondition::all:
+            return "all";
+        case BoundaryCondition::closed:
+            return "closed";
+        case BoundaryCondition::proper:
+            return "proper";
+        case BoundaryCondition::connected:
+            return "connected";
+    }
+    return "unknown";
+}
 
 template <int dim, int subdim>
 class EmbeddedSubmanifold {
@@ -142,6 +157,119 @@ class EmbeddedSubmanifold {
         // Update subtri_
         subtri_.removeSimplex(face);
     }
+
+    // Whether this submanifold has no boundary at all. Uses the generic
+    // hasBoundaryFacets() rather than Triangulation<subdim>::isClosed(),
+    // since the latter is only defined for subdim in {2, 3, 4} while this
+    // class is templated over arbitrary subdim; subtri_ can never contain
+    // ideal vertices (it is built purely via newSimplex()/join() on
+    // facets), so the two notions coincide wherever both are defined.
+    bool isClosed() const { return !subtri_.hasBoundaryFacets(); }
+
+    // Whether every boundary facet of this submanifold corresponds to a
+    // facet that is itself on the boundary of the ambient triangulation
+    // (i.e. the submanifold's boundary lies entirely within the ambient
+    // boundary). A self-glued local facet is never left unglued in
+    // subtri_ (see addFace(): both reciprocal Gluings of a self-fold are
+    // resolved by a single join() call), so it's never mistaken here for
+    // a boundary facet.
+    bool isProper() const {
+        for (size_t f = 0; f < faces_.size(); ++f) {
+            const auto *simplex = faces_[f].first;
+            if (simplex == nullptr)
+                continue; // face f is not part of this embedding
+
+            for (int i = 0; i <= subdim; ++i) {
+                if (simplex->adjacentSimplex(i) != nullptr)
+                    continue; // internal facet of subtri_
+
+                // simplex's local facet i is a boundary facet of subtri_;
+                // check whether the corresponding AMBIENT (subdim-1)-face
+                // is itself on the ambient boundary.
+                const auto *ambientFacet =
+                    skeleton_.getNodes()[f].face->template face<subdim - 1>(
+                        i);
+                if (!ambientFacet->isBoundary())
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    // Whether this submanifold is proper AND the induced map from {its own
+    // boundary components} to {ambient boundary components} is injective,
+    // i.e. no two distinct boundary components of this submanifold map into
+    // the same boundary component of the ambient triangulation. (Named to
+    // avoid confusion with graph connectivity -- every reported embedding
+    // is already connected by construction; this is specifically about
+    // injectivity of the boundary-component map.)
+    bool boundaryComponentsMapInjectively() const {
+        std::unordered_map<size_t, const regina::BoundaryComponent<dim> *>
+            subToAmbient;
+        std::unordered_set<const regina::BoundaryComponent<dim> *>
+            usedAmbient;
+
+        for (size_t f = 0; f < faces_.size(); ++f) {
+            const auto *simplex = faces_[f].first;
+            if (simplex == nullptr)
+                continue;
+
+            for (int i = 0; i <= subdim; ++i) {
+                if (simplex->adjacentSimplex(i) != nullptr)
+                    continue;
+
+                const auto *ambientFacet =
+                    skeleton_.getNodes()[f].face->template face<subdim - 1>(
+                        i);
+                const auto *ambientBC = ambientFacet->boundaryComponent();
+                if (ambientBC == nullptr)
+                    return false; // boundary facet not on ambient boundary
+                                  // => not proper => fails "connected" too
+
+                const auto *subFacet =
+                    simplex->template face<subdim - 1>(i);
+                const auto *subBC = subFacet->boundaryComponent();
+                assert(subBC != nullptr);
+
+                size_t subIdx = subBC->index();
+                auto it = subToAmbient.find(subIdx);
+                if (it == subToAmbient.end()) {
+                    if (usedAmbient.contains(ambientBC))
+                        return false; // a different submanifold boundary
+                                      // component already claimed this
+                                      // ambient one -> not injective
+                    subToAmbient.emplace(subIdx, ambientBC);
+                    usedAmbient.insert(ambientBC);
+                } else {
+                    // Defensive well-definedness check: every facet of the
+                    // same subtri_ boundary component must map to the same
+                    // ambient boundary component. Should be guaranteed by
+                    // embeddedness, but verified rather than assumed.
+                    assert(it->second == ambientBC);
+                    if (it->second != ambientBC)
+                        return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    bool satisfies(BoundaryCondition cond) const {
+        switch (cond) {
+            case BoundaryCondition::all:
+                return true;
+            case BoundaryCondition::closed:
+                return isClosed();
+            case BoundaryCondition::proper:
+                return isProper();
+            case BoundaryCondition::connected:
+                // Already subsumes isProper(): any boundary facet that maps
+                // into the ambient interior is rejected inside
+                // boundaryComponentsMapInjectively() itself.
+                return boundaryComponentsMapInjectively();
+        }
+        return false; // unreachable
+    }
 };
 
 template <int dim, int subdim>
@@ -171,7 +299,8 @@ class EmbeddingSearch {
     EmbeddingSearch(const regina::Triangulation<dim> &tri)
         : skeleton_(tri), adjList_(toAdjacencyList_(skeleton_)) {}
 
-    void search(const unsigned numThreads) {
+    void search(const unsigned numThreads,
+                BoundaryCondition cond = BoundaryCondition::all) {
         std::atomic<int> nextRoot{1}; // shared dynamic work queue over s = 1..n
         std::vector<long long> perThreadCount(numThreads, 0);
 
@@ -199,11 +328,13 @@ class EmbeddingSearch {
                 localEnumerator.enumerateFromRootFiltered(
                     s,
                     [&](const std::vector<int> &U) {
-                        ++localCount;
-                        if (++sinceFlush >= FLUSH_EVERY) {
-                            globalSubgraphCount.fetch_add(
-                                sinceFlush, std::memory_order_relaxed);
-                            sinceFlush = 0;
+                        if (embedding.satisfies(cond)) {
+                            ++localCount;
+                            if (++sinceFlush >= FLUSH_EVERY) {
+                                globalSubgraphCount.fetch_add(
+                                    sinceFlush, std::memory_order_relaxed);
+                                sinceFlush = 0;
+                            }
                         }
                         // for (size_t i = 0; i < U.size(); ++i)
                         //     out << U[i] << (i + 1 < U.size() ? ' ' :
@@ -245,8 +376,9 @@ class EmbeddingSearch {
         long long total = 0;
         for (long long c : perThreadCount)
             total += c;
-        std::cerr << "Total embedded submanifolds: " << total
-                  << " (across " << numThreads << " threads)\n";
+        std::cerr << "Total embedded submanifolds (" << boundaryConditionName(cond)
+                  << "): " << total << " (across " << numThreads
+                  << " threads)\n";
 
         assert(globalSubgraphCount.load() == total);
     }
