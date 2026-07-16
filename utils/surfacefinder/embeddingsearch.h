@@ -3,8 +3,13 @@
 #define EMBEDDINGSEARCH_H
 
 #include <atomic>
+#include <map>
+#include <mutex>
+#include <sstream>
 #include <thread>
+#include <tuple>
 
+#include <triangulation/dim2.h>
 #include <triangulation/dim4.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -13,6 +18,103 @@
 #include "skeleton.h"
 
 using AdjacencyList = std::pair<int, std::vector<std::vector<int>>>;
+
+// (isOrientable, genus, punctures) for a 2-manifold -- cheap to compute and
+// to use as a map key, unlike the formatted name below.
+using SurfaceTypeKey = std::tuple<bool, int, int>;
+
+inline SurfaceTypeKey surfaceTypeKey(const regina::Triangulation<2> &surface) {
+    bool isOrientable = surface.isOrientable();
+    int punctures = surface.countBoundaryComponents();
+    int genus = isOrientable ? (2 - surface.eulerChar() - punctures) / 2
+                             : 2 - surface.eulerChar() - punctures;
+    return {isOrientable, genus, punctures};
+}
+
+// Mirrors (independently of -- knottedsurfaces.h is deprecated and this
+// header has no other dependency on it) the surface-naming logic in
+// KnottedSurface::detail().
+inline std::string formatSurfaceType(const SurfaceTypeKey &key) {
+    auto [isOrientable, genus, punctures] = key;
+    std::ostringstream ans;
+
+    if (isOrientable) {
+        if (genus == 0 && punctures == 1)
+            ans << "Disc";
+        else if (genus == 0 && punctures == 2)
+            ans << "Annulus";
+        else {
+            if (genus == 0)
+                ans << "Sphere";
+            else if (genus == 1)
+                ans << "Torus";
+            else
+                ans << "Orientable genus " << genus << " surface";
+
+            if (punctures == 1)
+                ans << ", 1 puncture";
+            else if (punctures > 1)
+                ans << ", " << punctures << " punctures";
+        }
+    } else {
+        if (genus == 1 && punctures == 1)
+            ans << "Möbius band";
+        else {
+            if (genus == 1)
+                ans << "Projective plane";
+            else if (genus == 2)
+                ans << "Klein bottle";
+            else
+                ans << "Non-orientable genus " << genus << " surface";
+
+            if (punctures == 1)
+                ans << ", 1 puncture";
+            else if (punctures > 1)
+                ans << ", " << punctures << " punctures";
+        }
+    }
+
+    return ans.str();
+}
+
+// Thread-safe running tally of embedded surfaces found, keyed by
+// homeomorphism type. Only meaningful when subdim == 2; EmbeddingSearch
+// leaves it unused (and empty) for other subdim values.
+class SurfaceTypeTally {
+  private:
+    mutable std::mutex mutex_;
+    std::map<SurfaceTypeKey, long long> counts_;
+
+  public:
+    // Merges a worker thread's locally-accumulated counts (e.g. since its
+    // last flush) into the shared totals, then clears local so the caller
+    // can keep reusing the same map.
+    void merge(std::map<SurfaceTypeKey, long long> &local) {
+        if (local.empty())
+            return;
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto &[key, n] : local)
+            counts_[key] += n;
+        local.clear();
+    }
+
+    std::string summary() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (counts_.empty())
+            return "Number of surfaces found: (none yet)";
+
+        std::ostringstream out;
+        out << "Number of surfaces found: ";
+        bool first = true;
+        for (const auto &[key, n] : counts_) {
+            if (!first)
+                out << ", ";
+            out << formatSurfaceType(key) << " = " << n;
+            first = false;
+        }
+        return out.str();
+    }
+};
 
 inline const char *boundaryConditionName(BoundaryCondition cond) {
     switch (cond) {
@@ -158,6 +260,10 @@ class EmbeddedSubmanifold {
         subtri_.removeSimplex(face);
     }
 
+    const regina::Triangulation<subdim> &triangulation() const {
+        return subtri_;
+    }
+
     // Unfortunately, Regina::Triangulation::isClosed() is only valid for
     // triangulations of dimensions 2, 3, and 4
     bool isClosed() const { return !subtri_.hasBoundaryFacets(); }
@@ -271,6 +377,7 @@ class EmbeddingSearch {
         std::atomic<long long> globalSubgraphCount{0};
         std::atomic<int> rootsCompleted{0};
         std::atomic<bool> workersFinished{false};
+        SurfaceTypeTally surfaceTally;
 
         // batch size for progress report
         constexpr long long FLUSH_EVERY = 1000000;
@@ -284,6 +391,7 @@ class EmbeddingSearch {
             //                   ".txt");
             long long localCount = 0;
             long long sinceFlush = 0;
+            std::map<SurfaceTypeKey, long long> localTypeCounts;
 
             while (true) {
                 int s = nextRoot.fetch_add(1);
@@ -294,10 +402,17 @@ class EmbeddingSearch {
                     [&](const std::vector<int> &U) {
                         if (embedding.satisfies(cond)) {
                             ++localCount;
+                            if constexpr (subdim == 2) {
+                                ++localTypeCounts[surfaceTypeKey(
+                                    embedding.triangulation())];
+                            }
                             if (++sinceFlush >= FLUSH_EVERY) {
                                 globalSubgraphCount.fetch_add(
                                     sinceFlush, std::memory_order_relaxed);
                                 sinceFlush = 0;
+                                if constexpr (subdim == 2) {
+                                    surfaceTally.merge(localTypeCounts);
+                                }
                             }
                         }
                         // for (size_t i = 0; i < U.size(); ++i)
@@ -312,6 +427,9 @@ class EmbeddingSearch {
             if (sinceFlush > 0)
                 globalSubgraphCount.fetch_add(sinceFlush,
                                               std::memory_order_relaxed);
+            if constexpr (subdim == 2) {
+                surfaceTally.merge(localTypeCounts);
+            }
             perThreadCount[tid] = localCount;
         };
 
@@ -324,6 +442,9 @@ class EmbeddingSearch {
                           << "/" << adjList_.first
                           << "  | million embedded submanifolds found so far: "
                           << (globalSubgraphCount.load() / FLUSH_EVERY) << "\n";
+                if constexpr (subdim == 2) {
+                    std::cerr << surfaceTally.summary() << "\n";
+                }
             }
         });
 
@@ -343,6 +464,9 @@ class EmbeddingSearch {
         std::cerr << "Total embedded submanifolds ("
                   << boundaryConditionName(cond) << "): " << total
                   << " (across " << numThreads << " threads)\n";
+        if constexpr (subdim == 2) {
+            std::cerr << surfaceTally.summary() << "\n";
+        }
 
         assert(globalSubgraphCount.load() == total);
     }
