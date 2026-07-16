@@ -578,13 +578,28 @@ class EmbeddingSearch {
             while (!done.load(std::memory_order_relaxed)) {
                 std::this_thread::sleep_for(1s);
 
+                auto elapsed = std::chrono::steady_clock::now() - phaseStart;
+                long long elapsedSeconds =
+                    std::chrono::duration_cast<std::chrono::seconds>(elapsed)
+                        .count();
+                size_t processed = processedCount.load();
+
                 std::ostringstream report;
-                report << "[+] elapsed: "
-                       << formatElapsed(std::chrono::steady_clock::now() -
-                                        phaseStart)
-                       << "\n";
-                report << "[+] boundaries processed: "
-                       << processedCount.load() << "/" << total << "\n";
+                report << "[+] elapsed: " << formatElapsed(elapsed) << "\n";
+                report << "[+] boundaries processed: " << processed << "/"
+                       << total << " (" << std::fixed << std::setprecision(2)
+                       << (total > 0 ? 100.0 * static_cast<double>(processed) /
+                                           static_cast<double>(total)
+                                     : 0.0)
+                       << "%)\n";
+                if (processed > 0 && processed < total && elapsedSeconds > 0) {
+                    long long etaSeconds = elapsedSeconds *
+                        static_cast<long long>(total - processed) /
+                        static_cast<long long>(processed);
+                    report << "[+] ETA: "
+                           << formatElapsed(std::chrono::seconds(etaSeconds))
+                           << "\n";
+                }
                 report << linkTally_.summary();
                 std::string text = report.str();
 
