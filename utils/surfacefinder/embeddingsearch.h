@@ -22,8 +22,6 @@
 
 using AdjacencyList = std::pair<int, std::vector<std::vector<int>>>;
 
-// (isOrientable, genus, punctures) for a 2-manifold -- cheap to compute and
-// to use as a map key, unlike the formatted name below.
 using SurfaceTypeKey = std::tuple<bool, int, int>;
 
 inline SurfaceTypeKey surfaceTypeKey(const regina::Triangulation<2> &surface) {
@@ -34,9 +32,6 @@ inline SurfaceTypeKey surfaceTypeKey(const regina::Triangulation<2> &surface) {
     return {isOrientable, genus, punctures};
 }
 
-// Mirrors (independently of -- knottedsurfaces.h is deprecated and this
-// header has no other dependency on it) the surface-naming logic in
-// KnottedSurface::detail().
 inline std::string formatSurfaceType(const SurfaceTypeKey &key) {
     auto [isOrientable, genus, punctures] = key;
     std::ostringstream ans;
@@ -80,18 +75,12 @@ inline std::string formatSurfaceType(const SurfaceTypeKey &key) {
     return ans.str();
 }
 
-// Thread-safe running tally of embedded surfaces found, keyed by
-// homeomorphism type. Only meaningful when subdim == 2; EmbeddingSearch
-// leaves it unused (and empty) for other subdim values.
 class SurfaceTypeTally {
   private:
     mutable std::mutex mutex_;
     std::map<SurfaceTypeKey, long long> counts_;
 
   public:
-    // Merges a worker thread's locally-accumulated counts (e.g. since its
-    // last flush) into the shared totals, then clears local so the caller
-    // can keep reusing the same map.
     void merge(std::map<SurfaceTypeKey, long long> &local) {
         if (local.empty())
             return;
@@ -101,9 +90,6 @@ class SurfaceTypeTally {
         local.clear();
     }
 
-    // One line per surface type (plus a header line), each newline-
-    // terminated, so the caller can count lines to erase on the next
-    // redraw.
     std::string summary() const {
         std::lock_guard<std::mutex> lock(mutex_);
         std::ostringstream out;
@@ -118,8 +104,6 @@ class SurfaceTypeTally {
     }
 };
 
-// Formats a duration as zero-padded HH:MM:SS, for the running/final
-// "elapsed" line in EmbeddingSearch::search()'s output.
 inline std::string formatElapsed(std::chrono::steady_clock::duration d) {
     using namespace std::chrono;
     long long totalSeconds = duration_cast<seconds>(d).count();
