@@ -4,8 +4,11 @@
 // boundaryComponentsMapInjectively(), satisfies()) -- see embeddingsearch.h.
 // Cases exercise: a trivial "everything is boundary" ball (K4 gluing graph),
 // a "proper but not connected" thickened annulus (two of its own boundary
-// components map into a single ambient one), and an engineered ambient-
-// interior edge that makes a lone face fail isProper().
+// components map into a single ambient one), an engineered ambient-interior
+// edge that makes a lone face fail isProper(), and a triangle whose three
+// edges are all identified together (irreparably self-folded, excluded from
+// the DFS graph entirely -- see hasIrreparableSelfFold() in
+// embeddingsearch.h).
 
 #include <iostream>
 #include <maths/perm.h>
@@ -220,6 +223,74 @@ void test_engineered_interior_edge_not_proper() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A single tetrahedron self-glued on two of its own faces (isoSig "bkaaid":
+// 1 vertex, 1 edge, 2 triangles, 1 tetrahedron) so that BOTH of its triangles
+// end up with all three of their local edges identified to that one ambient
+// edge -- a genuine 3-way self-collapse, not the ordinary 2-facet fold this
+// code already supports (e.g. a Möbius band from one triangle). A subdim-cell
+// can touch any one ambient facet at most twice, so neither triangle can ever
+// be part of a valid embedded submanifold; hasIrreparableSelfFold() should
+// flag both, EmbeddingSearch should exclude both from its DFS graph, and a
+// full search() over this triangulation should complete instantly and safely
+// instead of crashing (the original bug: Regina's own join() throwing
+// "cannot join facets... already joined" -- see embeddingsearch.h).
+// ─────────────────────────────────────────────────────────────────────────────
+void test_triple_self_fold_excluded() {
+    std::cout << "\n--- Triple self-fold (all 3 edges of a triangle "
+                 "identified): excluded from the DFS graph ---\n";
+
+    regina::Triangulation<3> tri;
+    auto *t = tri.newTetrahedron();
+    t->join(0, t, regina::Perm<4>(1, 2, 0, 3));
+    t->join(2, t, regina::Perm<4>(0, 2, 3, 1));
+
+    EXPECT_EQ(tri.isValid(), true, "construction is a valid triangulation");
+    EXPECT_EQ((int)tri.countTriangles(), 2, "two distinct triangle faces");
+    for (int i = 0; i < 2; ++i)
+        EXPECT_EQ(tri.triangle(i)->edge(0) == tri.triangle(i)->edge(1) &&
+                       tri.triangle(i)->edge(1) == tri.triangle(i)->edge(2),
+                   true,
+                   "triangle's 3 local edges are all the same ambient edge");
+
+    Skeleton<3, 2> skel(tri);
+    EXPECT_EQ((hasIrreparableSelfFold<3, 2>(skel.getNodes()[0].gluings)), true,
+              "triangle 0 is flagged as irreparably self-folded");
+    EXPECT_EQ((hasIrreparableSelfFold<3, 2>(skel.getNodes()[1].gluings)), true,
+              "triangle 1 is flagged as irreparably self-folded");
+
+    // Negative control: the ordinary 2-facet self-fold engineered in
+    // test_engineered_interior_edge_not_proper() must NOT be flagged.
+    {
+        regina::Triangulation<3> foldTri;
+        auto *t0 = foldTri.newTetrahedron();
+        auto *t1 = foldTri.newTetrahedron();
+        auto *t2 = foldTri.newTetrahedron();
+        regina::Perm<4> g(1, 0, 2, 3);
+        t0->join(1, t1, g);
+        t1->join(1, t2, g);
+        t2->join(1, t0, g);
+        Skeleton<3, 2> foldSkel(foldTri);
+        bool anyFlagged = false;
+        for (size_t i = 0; i < foldSkel.numFaces(); ++i)
+            anyFlagged = anyFlagged ||
+                         hasIrreparableSelfFold<3, 2>(
+                             foldSkel.getNodes()[i].gluings);
+        EXPECT_EQ(anyFlagged, false,
+                  "an ordinary self-fold triangulation flags no faces");
+    }
+
+    EmbeddingSearch<3, 2> search(tri);
+    EXPECT_EQ(search.numEmbeddableFaces(), 0ULL,
+              "both triangles are excluded from the DFS graph");
+
+    // The original crash: EmbeddingSearch::search() over this triangulation
+    // used to throw partway through addFace(). It should now complete
+    // instantly (there's nothing left to search) instead.
+    EXPECT_EQ(runFilteredCount(search, 1, BoundaryCondition::all), 0LL,
+              "search() completes safely and finds nothing");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Batch boundary-link recognition (EmbeddingSearch<4, 2>::processSurfaceBoundaries()
 // / linkTally()): a single pentachoron (B^4, dim = 4) whose boundary is
 // ∂Δ^4 = S^3, exactly the "single tetrahedron" scenario from
@@ -270,6 +341,7 @@ int main() {
         test_thickened_annulus_proper_not_connected);
     run("test_engineered_interior_edge_not_proper",
         test_engineered_interior_edge_not_proper);
+    run("test_triple_self_fold_excluded", test_triple_self_fold_excluded);
     run("test_boundary_link_batch_recognizes_unknot",
         test_boundary_link_batch_recognizes_unknot);
 

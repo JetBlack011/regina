@@ -3,6 +3,7 @@
 #define EMBEDDINGSEARCH_H
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <iomanip>
@@ -466,8 +467,7 @@ class EmbeddedSubmanifold {
                 // KnottedSurface::boundary() used.
                 for (int k = 0; k < ambientBC->countEdges(); ++k) {
                     if (ambientBC->edge(k) == ambientFacet) {
-                        edgesByComponent[c].insert(
-                            bdryComponents_[c].edge(k));
+                        edgesByComponent[c].insert(bdryComponents_[c].edge(k));
                         break;
                     }
                 }
@@ -503,24 +503,70 @@ class EmbeddedSubmanifold {
     }
 };
 
+// A subdim-face is "irreparably self-folded" when some ambient
+// (subdim-1)-facet is touched 3+ times by its own (subdim+1) local facets
+// alone -- a subdim-cell can touch any single ambient facet at most twice
+// (interior: 2, boundary: 1), so such a face can never be part of any valid
+// embedded submanifold, independent of which neighbors are present. This
+// does not flag an ordinary 2-facet self-fold (e.g. the one-triangle
+// Möbius-band construction), where each folded facet has exactly one
+// partner.
+//
+// Skeleton::buildSkeleton_'s bucket pass already emits a complete graph of
+// self-gluing entries (srcIndex == dstIndex) among any group of a face's own
+// facets that share one ambient identity -- a group of size k contributes
+// k*(k-1) such entries -- so a facet belongs to a group of size >= 3 exactly
+// when it has 2 or more distinct self-gluing partners.
+template <int dim, int subdim>
+bool hasIrreparableSelfFold(
+        const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
+    std::array<std::array<bool, subdim + 1>, subdim + 1> partnerSeen{};
+    for (const auto &g : gluings)
+        if (g.srcIndex == g.dstIndex)
+            partnerSeen[g.srcFacet][g.gluing[g.srcFacet]] = true;
+
+    for (int i = 0; i <= subdim; ++i) {
+        int distinctPartners = 0;
+        for (int j = 0; j <= subdim; ++j)
+            distinctPartners += partnerSeen[i][j];
+        if (distinctPartners >= 2)
+            return true;
+    }
+    return false;
+}
+
 template <int dim, int subdim>
 class EmbeddednessPredicate : public ConditionalPredicate {
     EmbeddedSubmanifold<dim, subdim> &embedding;
+    const std::vector<int> &denseToOriginal;
 
   public:
-    explicit EmbeddednessPredicate(EmbeddedSubmanifold<dim, subdim> &embedding)
-        : embedding(embedding) {}
+    EmbeddednessPredicate(EmbeddedSubmanifold<dim, subdim> &embedding,
+                          const std::vector<int> &denseToOriginal)
+        : embedding(embedding), denseToOriginal(denseToOriginal) {}
 
-    bool tryAdd(int v) override { return embedding.addFace(v - 1); }
+    bool tryAdd(int v) override {
+        return embedding.addFace(denseToOriginal[v - 1]);
+    }
 
-    void undo(int v) override { embedding.removeFace(v - 1); }
+    void undo(int v) override { embedding.removeFace(denseToOriginal[v - 1]); }
 };
 
 template <int dim, int subdim>
 class EmbeddingSearch {
   private:
+    // Bundles the DFS-facing adjacency list (built over a dense,
+    // contiguous vertex numbering that excludes irreparably self-folded
+    // faces entirely) together with the mapping back to original skeleton
+    // face indices -- both are produced by one pass over the skeleton, and
+    // both are needed by search()'s worker loop, so they travel together.
+    struct Graph {
+        AdjacencyList adjList;
+        std::vector<int> denseToOriginal;
+    };
+
     const Skeleton<dim, subdim> skeleton_;
-    const AdjacencyList adjList_;
+    const Graph graph_;
     std::vector<EmbeddedSubmanifold<dim, subdim>> valid_embeddings_;
 
     // Only ever populated/consumed when dim == 4, subdim == 2, and cond is
@@ -531,13 +577,19 @@ class EmbeddingSearch {
 
   public:
     EmbeddingSearch(const regina::Triangulation<dim> &tri)
-        : skeleton_(tri), adjList_(toAdjacencyList_(skeleton_)) {}
+        : skeleton_(tri), graph_(buildGraph_(skeleton_)) {}
+
+    // Number of faces that survived the irreparable-self-fold exclusion and
+    // therefore actually participate as DFS vertices. Exposed for testing.
+    size_t numEmbeddableFaces() const {
+        return graph_.denseToOriginal.size();
+    }
 
     const LinkBoundaryTally &linkTally() const { return linkTally_; }
 
     // Drains pendingSurfaces_ and, for each queued face-index set, replays
     // it (via addFace(), in the exact order the DFS originally discovered
-    // it -- deterministic, since it's the same skeleton_/adjList_) into a
+    // it -- deterministic, since it's the same skeleton_/graph_) into a
     // single reused EmbeddedSubmanifold, extracts its boundary Link(s), and
     // records what surface type each recognized link bounds into
     // linkTally_. This is the expensive step (pinch + simplify + census
@@ -566,8 +618,7 @@ class EmbeddingSearch {
 
             // Reverse order, mirroring how the DFS itself would back out --
             // resets embedding to empty for the next item in the batch.
-            for (auto it = faceIndices.rbegin(); it != faceIndices.rend();
-                 ++it)
+            for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
                 embedding.removeFace(*it);
         }
     }
@@ -587,10 +638,11 @@ class EmbeddingSearch {
         constexpr long long FLUSH_EVERY = 1000000;
 
         auto worker = [&](unsigned tid) {
-            ConnectedInducedSubgraphEnumerator localEnumerator(adjList_.first,
-                                                               adjList_.second);
+            ConnectedInducedSubgraphEnumerator localEnumerator(
+                graph_.adjList.first, graph_.adjList.second);
             EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
-            EmbeddednessPredicate<dim, subdim> predicate(embedding);
+            EmbeddednessPredicate<dim, subdim> predicate(
+                embedding, graph_.denseToOriginal);
             // std::ofstream out("subgraphs_thread_" + std::to_string(tid) +
             //                   ".txt");
             long long localCount = 0;
@@ -600,7 +652,7 @@ class EmbeddingSearch {
 
             while (true) {
                 int s = nextRoot.fetch_add(1);
-                if (s > adjList_.first)
+                if (s > graph_.adjList.first)
                     break;
                 localEnumerator.enumerateFromRootFiltered(
                     s,
@@ -617,7 +669,8 @@ class EmbeddingSearch {
                                     std::vector<int> faceIndices;
                                     faceIndices.reserve(U.size());
                                     for (int v : U)
-                                        faceIndices.push_back(v - 1);
+                                        faceIndices.push_back(
+                                            graph_.denseToOriginal[v - 1]);
                                     localPending.push_back(
                                         std::move(faceIndices));
                                 }
@@ -670,7 +723,7 @@ class EmbeddingSearch {
                                         searchStart)
                        << "\n";
                 report << "[+] roots completed: " << rootsCompleted.load()
-                       << "/" << adjList_.first
+                       << "/" << graph_.adjList.first
                        << "  | million embedded submanifolds found so far: "
                        << (globalSubgraphCount.load() / FLUSH_EVERY) << "\n";
                 if constexpr (subdim == 2) {
@@ -769,13 +822,31 @@ class EmbeddingSearch {
     }
 
   private:
-    AdjacencyList toAdjacencyList_(const Skeleton<dim, subdim> &skeleton) {
+    // Builds the DFS-facing adjacency list over a dense, contiguous vertex
+    // numbering that excludes faces flagged by hasIrreparableSelfFold()
+    // entirely: such a face never gets assigned a dense id, so it can never
+    // appear as anyone's neighbor either (symmetric exclusion falls out for
+    // free, since the check for the neighbor side below is just "does this
+    // original index have a dense id at all"). This keeps such faces out of
+    // enumerate_cis.h's vertex space altogether, rather than merely
+    // rejecting them if/when addFace() is called.
+    static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton) {
         const auto &nodes = skeleton.getNodes();
-        int n = static_cast<int>(nodes.size());
 
+        std::vector<int> denseToOriginal;
+        std::vector<int> originalToDense(nodes.size(), -1);
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            if (hasIrreparableSelfFold<dim, subdim>(nodes[i].gluings))
+                continue;
+            originalToDense[i] = static_cast<int>(denseToOriginal.size());
+            denseToOriginal.push_back(static_cast<int>(i));
+        }
+
+        int n = static_cast<int>(denseToOriginal.size());
         std::vector<std::vector<int>> adj(
             n + 1); // 1-indexed, as the enumerator expects
-        for (int i = 0; i < n; ++i) {
+        for (int denseI = 0; denseI < n; ++denseI) {
+            int i = denseToOriginal[denseI];
             std::set<int> neighbors; // dedupes parallel gluings
             for (const auto &g : nodes[i].gluings) {
                 // sanity: matches its own position
@@ -783,13 +854,16 @@ class EmbeddingSearch {
                 // sanity: in range
                 assert(g.dstIndex < nodes.size());
                 int u = static_cast<int>(g.dstIndex);
-                if (u != i)
-                    neighbors.insert(u); // drop self-gluings
+                if (u == i)
+                    continue; // drop self-gluings
+                int denseU = originalToDense[u];
+                if (denseU != -1) // neighbor also survived exclusion
+                    neighbors.insert(denseU);
             }
-            for (int u : neighbors)
-                adj[i + 1].push_back(u + 1);
+            for (int denseU : neighbors)
+                adj[denseI + 1].push_back(denseU + 1);
         }
-        return {n, std::move(adj)};
+        return {AdjacencyList{n, std::move(adj)}, std::move(denseToOriginal)};
     }
 };
 
