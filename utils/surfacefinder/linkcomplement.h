@@ -82,21 +82,31 @@ class EdgeComplement {
         return complement;
     }
 
+    // Checks the cheap, per-object recogniseHandlebody() genus test *before*
+    // falling back to the serialized Census::lookup() below: census entries
+    // are closed manifolds or genuinely knotted/hyperbolic complements, so a
+    // genus-1 handlebody (an unknotted component's complement -- a solid
+    // torus) is never actually going to be a census hit. Skipping straight
+    // to "Unknot" for that (extremely common in practice) case avoids
+    // contending on censusLookupMutex entirely -- profiling a real search
+    // where every boundary happened to be an unknot showed >99% of wall
+    // time in the old census-first ordering was spent blocked waiting on
+    // that mutex, not doing useful work.
     bool recognizeComplement() const {
         auto complement = buildComplement();
+        if (complement.recogniseHandlebody() == 1) {
+            std::cout << "      unknot, " << complement.isoSig() << "\n";
+            return true;
+        }
+
         std::list<regina::CensusHit> hits;
         {
             std::lock_guard<std::mutex> lock(censusLookupMutex);
             hits = regina::Census::lookup(complement);
         }
-        ssize_t genus = complement.recogniseHandlebody();
-
         if (!hits.empty()) {
             std::cout << "      recognized as " << hits.front().name() << ", "
                       << complement.isoSig() << "\n";
-            return true;
-        } else if (genus == 1) {
-            std::cout << "      unknot, " << complement.isoSig() << "\n";
             return true;
         }
         return false;
@@ -105,9 +115,13 @@ class EdgeComplement {
     // Non-printing counterpart to recognizeComplement(), for programmatic
     // use: the census name if Regina's census recognizes the complement,
     // "Unknot" if it's a genus-1 handlebody (the complement of an unknotted
-    // component), or else the bare isoSig as a fallback identifier.
+    // component), or else the bare isoSig as a fallback identifier. See
+    // recognizeComplement() above for why the genus check comes first.
     std::string identify() const {
         auto complement = buildComplement();
+        if (complement.recogniseHandlebody() == 1)
+            return "Unknot";
+
         std::list<regina::CensusHit> hits;
         {
             std::lock_guard<std::mutex> lock(censusLookupMutex);
@@ -115,8 +129,6 @@ class EdgeComplement {
         }
         if (!hits.empty())
             return hits.front().name();
-        if (complement.recogniseHandlebody() == 1)
-            return "Unknot";
         return complement.isoSig();
     }
 
@@ -238,18 +250,10 @@ class Link : public EdgeComplement {
         } else if (numComponents > 1) {
             for (int i = 0; i < numComponents; ++i) {
                 regina::Triangulation<3> complement = buildComplement(i);
-                std::list<regina::CensusHit> hits;
-                {
-                    std::lock_guard<std::mutex> lock(censusLookupMutex);
-                    hits = regina::Census::lookup(complement);
-                }
                 ssize_t genus = complement.recogniseHandlebody();
 
                 std::cout << "    Component " << i + 1 << ": ";
-                if (!hits.empty()) {
-                    std::cout << "      recognized as " << hits.front().name()
-                              << ", " << complement.isoSig() << "\n";
-                } else if (genus == 1) {
+                if (genus == 1) {
                     std::cout << "unknot, " << complement.isoSig() << "\n";
                 } else if (genus != -1) {
                     std::cout << "\n[!] WARNING! Recognized as a genus "
@@ -258,7 +262,22 @@ class Link : public EdgeComplement {
                                  "please "
                                  "report it!\n";
                 } else {
-                    std::cout << "NOT unknot, " << complement.isoSig() << "\n";
+                    // Not any handlebody -- genuinely might be a census hit,
+                    // so (unlike the genus >= 0 cases above) this is the one
+                    // branch that actually needs the serialized lookup.
+                    std::list<regina::CensusHit> hits;
+                    {
+                        std::lock_guard<std::mutex> lock(censusLookupMutex);
+                        hits = regina::Census::lookup(complement);
+                    }
+                    if (!hits.empty()) {
+                        std::cout << "      recognized as "
+                                  << hits.front().name() << ", "
+                                  << complement.isoSig() << "\n";
+                    } else {
+                        std::cout << "NOT unknot, " << complement.isoSig()
+                                  << "\n";
+                    }
                 }
             }
         }
