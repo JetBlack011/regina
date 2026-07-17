@@ -8,6 +8,9 @@
 
 #include "knotbuilder.h"
 
+#include <unordered_map>
+#include <unordered_set>
+
 knotbuilder::PDCode knotbuilder::parsePDCode(std::string pdcode_str) {
     std::vector<std::array<int, 4>> pdcode;
 
@@ -171,16 +174,8 @@ void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
                             matchMiddle(myMid, theirMid));
 }
 
-bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
-                            std::vector<const regina::Edge<3> *> &edges) {
+knotbuilder::TriangulationWithEdges knotbuilder::buildLink(PDCode pdcode) {
     size_t numCrossings = pdcode.size();
-
-    std::vector<Block> blocks;
-
-    blocks.reserve(numCrossings);
-    for (size_t i = 0; i < numCrossings; ++i) {
-        blocks.emplace_back(tri);
-    }
 
     std::vector<std::vector<std::pair<int, int>>> strands(2 * numCrossings);
 
@@ -193,8 +188,20 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
 
     for (const auto &strand : strands) {
         if (strand.size() != 2)
-            return false;
+            throw regina::InvalidArgument(
+                "buildLink(): every PD code strand label must appear in "
+                "exactly two crossing slots");
+    }
 
+    regina::Triangulation<3> tri;
+
+    std::vector<Block> blocks;
+    blocks.reserve(numCrossings);
+    for (size_t i = 0; i < numCrossings; ++i) {
+        blocks.emplace_back(tri);
+    }
+
+    for (const auto &strand : strands) {
         Block &block1 = blocks[strand[0].first];
         Block &block2 = blocks[strand[1].first];
         int wall1 = strand[0].second;
@@ -205,14 +212,113 @@ bool knotbuilder::buildLink(regina::Triangulation<3> &tri, PDCode pdcode,
 
     tri.finiteToIdeal();
 
+    std::vector<const regina::Edge<3> *> edges;
     for (const auto &block : blocks) {
         const auto blockEdges = block.getLinkEdges();
         edges.insert(edges.begin(), blockEdges.begin(), blockEdges.end());
     }
 
-    return true;
+    return {std::move(tri), std::move(edges)};
 }
 
 const std::vector<regina::Edge<3> *> knotbuilder::Block::getLinkEdges() const {
     return {core_[4]->edge(1, 3), core_[4]->edge(0, 2), core_[5]->edge(1, 3)};
+}
+
+namespace {
+// A tetrahedron + local edge/vertex number stays valid across repeated
+// pinchEdge() calls (which only append new tetrahedra), unlike Edge<3>*/
+// Vertex<3>* themselves (pinchEdge() fully rebuilds the skeleton, so every
+// Edge<3>*/Vertex<3>* is invalidated on every call -- see
+// engine/triangulation/dim3/moves.cpp).
+struct EdgeDescriptor {
+    regina::Tetrahedron<3> *tet;
+    int localEdge;
+
+    regina::Edge<3> *resolve() const { return tet->edge(localEdge); }
+};
+
+struct VertexDescriptor {
+    regina::Tetrahedron<3> *tet;
+    int localVertex;
+
+    regina::Vertex<3> *resolve() const { return tet->vertex(localVertex); }
+};
+} // namespace
+
+knotbuilder::TriangulationWithEdges knotbuilder::reduceVertices(
+    const regina::Triangulation<3> &tri,
+    const std::vector<const regina::Edge<3> *> &edges) {
+    regina::Triangulation<3> newTri(tri);
+
+    // Preserved edges themselves are never pinch candidates, but that alone
+    // isn't enough: pinchEdge() on some other, unrelated edge merges its two
+    // endpoint vertices, and if either of those happens to also be an
+    // endpoint of a preserved edge, the preserved edge's identity (and
+    // possibly its very shape -- it could collapse into a loop) changes as
+    // a side effect. So every vertex touched by a preserved edge must also
+    // be off-limits as a pinch-candidate endpoint.
+    std::unordered_map<const regina::Edge<3> *, EdgeDescriptor> descByOrig;
+    std::vector<VertexDescriptor> protectedVertices;
+    std::unordered_set<regina::Vertex<3> *> seenVertices;
+
+    for (const regina::Edge<3> *e : edges) {
+        if (descByOrig.contains(e))
+            continue;
+
+        regina::Edge<3> *mapped = newTri.edge(e->index());
+        if (mapped->isBoundary())
+            throw regina::InvalidArgument(
+                "reduceVertices(): a preserved edge is a boundary edge");
+
+        auto emb = mapped->front();
+        descByOrig[e] = {emb.tetrahedron(), emb.edge()};
+
+        for (int i = 0; i < 2; ++i) {
+            regina::Vertex<3> *v = mapped->vertex(i);
+            if (!seenVertices.insert(v).second)
+                continue;
+            auto vemb = v->front();
+            protectedVertices.push_back({vemb.tetrahedron(), vemb.vertex()});
+        }
+    }
+
+    // Repeatedly pinch one eligible edge at a time, rescanning from scratch
+    // every iteration since pinchEdge() invalidates every Edge<3>*/
+    // Vertex<3>* in newTri (see the descriptor structs above for how the
+    // preserved/protected sets survive this).
+    while (true) {
+        std::unordered_set<const regina::Edge<3> *> preservedNow;
+        for (const auto &[orig, desc] : descByOrig)
+            preservedNow.insert(desc.resolve());
+
+        std::unordered_set<const regina::Vertex<3> *> protectedNow;
+        for (const auto &desc : protectedVertices)
+            protectedNow.insert(desc.resolve());
+
+        regina::Edge<3> *candidate = nullptr;
+        for (regina::Edge<3> *e : newTri.edges()) {
+            if (preservedNow.contains(e))
+                continue;
+            if (e->vertex(0) == e->vertex(1))
+                continue; // pinching a loop would leave ideal boundary
+            if (protectedNow.contains(e->vertex(0)) ||
+                protectedNow.contains(e->vertex(1)))
+                continue; // would disturb a preserved edge's endpoint
+            candidate = e;
+            break;
+        }
+
+        if (!candidate)
+            break;
+
+        newTri.pinchEdge(candidate);
+    }
+
+    std::vector<const regina::Edge<3> *> newEdges;
+    newEdges.reserve(edges.size());
+    for (const regina::Edge<3> *e : edges)
+        newEdges.push_back(descByOrig.at(e).resolve());
+
+    return {std::move(newTri), std::move(newEdges)};
 }

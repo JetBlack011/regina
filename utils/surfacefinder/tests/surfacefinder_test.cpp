@@ -1278,11 +1278,16 @@ void test_boundary_reports_multiple_components_via_collar() {
 
 regina::Triangulation<3>
 buildKnotFromPD(const char *pd, std::vector<const regina::Edge<3> *> &edges) {
-    regina::Triangulation<3> tri;
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
-    if (!knotbuilder::buildLink(tri, pdcode, edges))
-        throw regina::InvalidArgument("buildKnotFromPD: buildLink() failed");
-    return tri;
+    // Note: build the result into a named local and std::move() it out
+    // explicitly (rather than destructuring into `tri`/`edges` locals and
+    // returning `tri`), since `edges` below must keep pointing into
+    // whichever Triangulation<3> object ends up owning the simplices --
+    // an explicit move guarantees that, whereas returning a structured
+    // binding by value is not guaranteed to elide/move rather than copy.
+    auto result = knotbuilder::buildLink(pdcode);
+    edges = std::move(result.edges);
+    return std::move(result.tri);
 }
 
 // ────────────────────────────────────────────────────────────────────

@@ -147,11 +147,9 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
-    regina::Triangulation<3> t;
-    std::vector<const regina::Edge<3> *> edges;
     std::string pdcode_str = "PD: [(2,3,1,4),(3,2,4,1)]";
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-    knotbuilder::buildLink(t, pdcode, edges);
+    auto [t, edges] = knotbuilder::buildLink(pdcode);
     CobordismBuilder cob(t);
     cob.thicken(2);
     regina::Triangulation<4> tri = cob.cone();

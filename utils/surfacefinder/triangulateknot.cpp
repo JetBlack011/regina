@@ -36,18 +36,22 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
 
-    regina::Triangulation<3> tri;
-    std::vector<const regina::Edge<3> *> edges;
-
     std::string pdcode_str = argv[1];
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
 
     std::cout << "[*] Building link with " << pdcode.size() << " crossings.\n";
 
-    if (pdcode_str.length() <= 4 ||
-        !knotbuilder::buildLink(tri, pdcode, edges)) {
+    if (pdcode_str.length() <= 4) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
+
+    knotbuilder::TriangulationWithEdges result;
+    try {
+        result = knotbuilder::buildLink(pdcode);
+    } catch (const regina::InvalidArgument &e) {
+        usage(argv[0], "Please provide a valid PD Code.");
+    }
+    auto &[tri, edges] = result;
 
     std::cout << "[+] Number of edges in the link = " << edges.size() << "\n";
     std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";

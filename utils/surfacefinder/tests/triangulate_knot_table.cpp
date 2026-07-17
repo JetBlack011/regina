@@ -97,10 +97,14 @@ int main(int argc, char *argv[]) {
 
         regina::Triangulation<3> tri;
         std::vector<const regina::Edge<3> *> edges;
-        if (!knotbuilder::buildLink(tri, pdcode, edges)) {
+        try {
+            auto result = knotbuilder::buildLink(pdcode);
+            tri = std::move(result.tri);
+            edges = std::move(result.edges);
+        } catch (const std::exception &e) {
             ++failedBuild;
             clearProgressLine();
-            std::cout << "BUILD FAILED: " << name << "\n";
+            std::cout << "BUILD FAILED: " << name << ": " << e.what() << "\n";
             printProgress(total, limit, passed, failedBuild, failedValid,
                           failedClosed, failedSphere, failedLinkException);
             continue;

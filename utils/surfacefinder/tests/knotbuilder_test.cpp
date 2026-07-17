@@ -71,11 +71,16 @@ const char *FIGURE_EIGHT_PD = "4 2 5 1 8 6 1 5 6 3 7 4 2 7 3 8"; // 4_1
 
 regina::Triangulation<3>
 buildFromPD(const char *pd, std::vector<const regina::Edge<3> *> &edges) {
-    regina::Triangulation<3> tri;
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
-    if (!knotbuilder::buildLink(tri, pdcode, edges))
-        throw regina::InvalidArgument("buildFromPD: buildLink() failed");
-    return tri;
+    // Build into a named local and std::move() it out explicitly (rather
+    // than destructuring and returning the destructured triangulation),
+    // since `edges` must keep pointing into whichever Triangulation<3>
+    // object ends up owning the simplices -- an explicit move guarantees
+    // that, whereas returning a structured binding by value is not
+    // guaranteed to elide/move rather than copy.
+    auto result = knotbuilder::buildLink(pdcode);
+    edges = std::move(result.edges);
+    return std::move(result.tri);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,6 +204,98 @@ void test_knotbuilder_hopf_link_two_components() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// knotbuilder::reduceVertices(): pinches away every internal edge except the
+// preserved knot/link edges and loop edges, so a caller can shrink
+// buildLink()'s (many-tetrahedra-per-crossing) output down while continuing
+// to work with the same knot/link edges. Checks (for both a knot and a
+// link, so a mistake specific to component count isn't missed):
+//   1. the result is still a valid, closed, non-ideal S³;
+//   2. it actually has no more vertices than the input (the stated purpose);
+//   3. the returned edge list still corresponds 1-1 to the input, and still
+//      traces the same knot/link diagram (checkEdgesFormSimpleClosedLoops +
+//      Link's own component count);
+//   4. every edge NOT in that returned list is a loop (the pinch loop
+//      reached a genuine fixpoint, not stopping early); and
+//   5. calling it again on its own output is a safe, idempotent no-op.
+// ─────────────────────────────────────────────────────────────────────────────
+void checkReduceVertices(const char *name, const char *pd,
+                          int expectedComponents) {
+    std::vector<const regina::Edge<3> *> edges;
+    auto tri = buildFromPD(pd, edges);
+
+    auto reduced = knotbuilder::reduceVertices(tri, edges);
+
+    EXPECT_EQ(reduced.tri.isValid(), true,
+              std::string(name) + ": reduced triangulation is valid");
+    EXPECT_EQ(reduced.tri.isClosed(), true,
+              std::string(name) + ": reduced triangulation is closed");
+    EXPECT_EQ(reduced.tri.isIdeal(), false,
+              std::string(name) +
+                  ": reduced triangulation has no ideal vertices");
+    EXPECT_EQ(reduced.tri.isSphere(), true,
+              std::string(name) + ": reduced triangulation is still S³");
+    EXPECT_EQ(reduced.tri.countVertices() <= tri.countVertices(), true,
+              std::string(name) +
+                  ": reduceVertices() does not increase vertex count");
+
+    EXPECT_EQ(reduced.edges.size(), edges.size(),
+              std::string(name) +
+                  ": reduced edge list is the same size as the input");
+    checkEdgesFormSimpleClosedLoops(reduced.edges, expectedComponents,
+                                    std::string(name) + " (reduced)");
+
+    Link reducedLink(reduced.tri, reduced.edges);
+    EXPECT_EQ((int)reducedLink.comps_.size(), expectedComponents,
+              std::string(name) +
+                  ": reduced triangulation's edges still trace the same "
+                  "number of components");
+
+    // Fixpoint check: reduceVertices() must never pinch an edge incident to
+    // a preserved edge's endpoint (doing so could turn the preserved edge
+    // into a loop, or otherwise disturb the knot/link it traces -- see the
+    // "protected vertices" logic in knotbuilder.cpp). So the loop is only
+    // guaranteed to reach a fixpoint where every remaining non-preserved
+    // edge is *either* a loop *or* touches a preserved edge's vertex --
+    // not necessarily a loop on its own.
+    std::unordered_set<const regina::Edge<3> *> preserved(
+        reduced.edges.begin(), reduced.edges.end());
+    std::unordered_set<const regina::Vertex<3> *> preservedVertices;
+    for (const regina::Edge<3> *e : reduced.edges) {
+        preservedVertices.insert(e->vertex(0));
+        preservedVertices.insert(e->vertex(1));
+    }
+    bool fixpointReached = true;
+    for (const regina::Edge<3> *e : reduced.tri.edges()) {
+        if (preserved.contains(e))
+            continue;
+        bool isLoop = e->vertex(0) == e->vertex(1);
+        bool touchesPreservedVertex =
+            preservedVertices.contains(e->vertex(0)) ||
+            preservedVertices.contains(e->vertex(1));
+        if (!isLoop && !touchesPreservedVertex)
+            fixpointReached = false;
+    }
+    EXPECT_EQ(fixpointReached, true,
+              std::string(name) +
+                  ": every edge other than the preserved ones is a loop or "
+                  "touches a preserved vertex (the pinch loop reached a "
+                  "fixpoint)");
+
+    auto reducedAgain =
+        knotbuilder::reduceVertices(reduced.tri, reduced.edges);
+    EXPECT_EQ(reducedAgain.tri.countVertices(), reduced.tri.countVertices(),
+              std::string(name) +
+                  ": reduceVertices() is idempotent on its own output");
+}
+
+void test_knotbuilder_reduce_vertices() {
+    std::cout << "\n--- knotbuilder: reduceVertices() shrinks vertex count, "
+                 "preserves link ---\n";
+    checkReduceVertices("trefoil", TREFOIL_PD, 1);
+    checkReduceVertices("Hopf link", HOPF_LINK_PD, 2);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Regression test: this specific diagram is what originally exposed the bug
 // in Block::glue(). It's the Hopf link's shadow with crossing 1's tuple
 // rotated by one position, which flips that crossing's over/under role and
@@ -224,11 +321,8 @@ void test_knotbuilder_nonalternating_regression() {
     // [1,3,0,2], flipping which pair of arms is the under-strand.
     knotbuilder::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
 
-    regina::Triangulation<3> tri;
-    std::vector<const regina::Edge<3> *> edges;
-    bool ok = knotbuilder::buildLink(tri, pd, edges);
+    auto [tri, edges] = knotbuilder::buildLink(pd);
 
-    EXPECT_EQ(ok, true, "non-alternating shadow: buildLink() succeeds");
     EXPECT_EQ(tri.isValid(), true,
               "non-alternating shadow: triangulation is valid");
     EXPECT_EQ(tri.isClosed(), true,
@@ -467,6 +561,7 @@ int main() {
         test_knotbuilder_trefoil_is_valid_s3);
     run("test_knotbuilder_hopf_link_two_components",
         test_knotbuilder_hopf_link_two_components);
+    run("test_knotbuilder_reduce_vertices", test_knotbuilder_reduce_vertices);
     run("test_knotbuilder_nonalternating_regression",
         test_knotbuilder_nonalternating_regression);
     run("test_knotbuilder_many_named_knots", test_knotbuilder_many_named_knots);
