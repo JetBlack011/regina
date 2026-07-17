@@ -147,24 +147,19 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
-    // regina::Triangulation<3> tri = regina::Example<3>::sphere();
-    regina::Triangulation<3> t = regina::Example<3>::simplicialSphere();
-    // t.newSimplex();
-    // t.subdivide();
-    //  tri.subdivide();
-    //regina::Triangulation<2> t = regina::Example<2>::torus();
-    //std::vector<const regina::Edge<3> *> edges;
-    //std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
-    //knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-    //knotbuilder::buildLink(t, pdcode, edges);
+    regina::Triangulation<3> t;
+    std::vector<const regina::Edge<3> *> edges;
+    std::string pdcode_str = "PD: [(2,3,1,4),(3,2,4,1)]";
+    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+    knotbuilder::buildLink(t, pdcode, edges);
     CobordismBuilder cob(t);
-    //regina::Triangulation<3> t2 = cob.thicken();
-    //CobordismBuilder cob2(t2);
-    regina::Triangulation<4> tri = cob.thicken();
+    cob.thicken(2);
+    regina::Triangulation<4> tri = cob.cone();
+    std::cout << tri.isoSig() << "\n";
     std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
 
     Skeleton<4, 2> skel(tri);
-    std::cout << skel << "\n";
+    //std::cout << skel << "\n";
 
     unsigned numThreads = tri.countTriangles();
     if (numThreads == 0)
