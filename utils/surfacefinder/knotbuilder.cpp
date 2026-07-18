@@ -174,7 +174,7 @@ void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
                             matchMiddle(myMid, theirMid));
 }
 
-knotbuilder::TriangulationWithEdges knotbuilder::buildLink(PDCode pdcode) {
+knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
     size_t numCrossings = pdcode.size();
 
     std::vector<std::vector<std::pair<int, int>>> strands(2 * numCrossings);
@@ -246,18 +246,11 @@ struct VertexDescriptor {
 };
 } // namespace
 
-knotbuilder::TriangulationWithEdges knotbuilder::reduceVertices(
-    const regina::Triangulation<3> &tri,
-    const std::vector<const regina::Edge<3> *> &edges) {
+knotbuilder::TriangulationWithLink
+knotbuilder::reduceVertices(const regina::Triangulation<3> &tri,
+                            const std::vector<const regina::Edge<3> *> &edges) {
     regina::Triangulation<3> newTri(tri);
 
-    // Preserved edges themselves are never pinch candidates, but that alone
-    // isn't enough: pinchEdge() on some other, unrelated edge merges its two
-    // endpoint vertices, and if either of those happens to also be an
-    // endpoint of a preserved edge, the preserved edge's identity (and
-    // possibly its very shape -- it could collapse into a loop) changes as
-    // a side effect. So every vertex touched by a preserved edge must also
-    // be off-limits as a pinch-candidate endpoint.
     std::unordered_map<const regina::Edge<3> *, EdgeDescriptor> descByOrig;
     std::vector<VertexDescriptor> protectedVertices;
     std::unordered_set<regina::Vertex<3> *> seenVertices;
@@ -272,7 +265,7 @@ knotbuilder::TriangulationWithEdges knotbuilder::reduceVertices(
                 "reduceVertices(): a preserved edge is a boundary edge");
 
         auto emb = mapped->front();
-        descByOrig[e] = {emb.tetrahedron(), emb.edge()};
+        descByOrig[e] = {.tet = emb.tetrahedron(), .localEdge = emb.edge()};
 
         for (int i = 0; i < 2; ++i) {
             regina::Vertex<3> *v = mapped->vertex(i);
@@ -283,10 +276,6 @@ knotbuilder::TriangulationWithEdges knotbuilder::reduceVertices(
         }
     }
 
-    // Repeatedly pinch one eligible edge at a time, rescanning from scratch
-    // every iteration since pinchEdge() invalidates every Edge<3>*/
-    // Vertex<3>* in newTri (see the descriptor structs above for how the
-    // preserved/protected sets survive this).
     while (true) {
         std::unordered_set<const regina::Edge<3> *> preservedNow;
         for (const auto &[orig, desc] : descByOrig)
@@ -320,5 +309,5 @@ knotbuilder::TriangulationWithEdges knotbuilder::reduceVertices(
     for (const regina::Edge<3> *e : edges)
         newEdges.push_back(descByOrig.at(e).resolve());
 
-    return {std::move(newTri), std::move(newEdges)};
+    return {.tri = std::move(newTri), .edges = std::move(newEdges)};
 }

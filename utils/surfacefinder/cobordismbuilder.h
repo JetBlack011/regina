@@ -224,6 +224,8 @@ class CobordismBuilder {
         return cob_;
     }
 
+    const regina::Triangulation<dim + 1> &getCobordism() const { return cob_; }
+
   private:
     regina::Triangulation<dim + 1> &thicken_() {
         // Make a new prism for each simplex in the triangulation. This is

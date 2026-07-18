@@ -35,7 +35,7 @@ class Block {
     }
 };
 
-struct TriangulationWithEdges {
+struct TriangulationWithLink {
     regina::Triangulation<3> tri;
     std::vector<const regina::Edge<3> *> edges;
 };
@@ -45,7 +45,7 @@ struct TriangulationWithEdges {
 //
 // Throws regina::InvalidArgument if `pdcode` is not well-formed (some strand
 // label is not used in exactly two crossing slots).
-TriangulationWithEdges buildLink(PDCode pdcode);
+TriangulationWithLink buildLink(PDCode pdcode);
 
 // Builds a copy of `tri` with every internal edge pinched away except:
 //   - the edges in `edges` (mapped into the copy), and
@@ -61,7 +61,7 @@ TriangulationWithEdges buildLink(PDCode pdcode);
 // of `tri` (pinchEdge() cannot be skipped or performed on a boundary edge,
 // and buildLink()'s output is always closed, so this should not arise for
 // its output).
-TriangulationWithEdges
+TriangulationWithLink
 reduceVertices(const regina::Triangulation<3> &tri,
                const std::vector<const regina::Edge<3> *> &edges);
 } // namespace knotbuilder

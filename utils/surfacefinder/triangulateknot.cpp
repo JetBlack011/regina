@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
 
-    knotbuilder::TriangulationWithEdges result;
+    knotbuilder::TriangulationWithLink result;
     try {
         result = knotbuilder::buildLink(pdcode);
     } catch (const regina::InvalidArgument &e) {

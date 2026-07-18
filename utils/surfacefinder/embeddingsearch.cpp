@@ -147,26 +147,31 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
-    std::string pdcode_str = "PD: [(2,3,1,4),(3,2,4,1)]";
+    std::string pdcode_str = "	[[1,5,2,4],[3,9,4,8],[5,1,6,10],[7,3,8,2],[9,7,10,6]]]";
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-    auto [t, edges] = knotbuilder::buildLink(pdcode);
-    CobordismBuilder cob(t);
-    cob.thicken(2);
-    regina::Triangulation<4> tri = cob.cone();
-    std::cout << tri.isoSig() << "\n";
-    std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
+    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+    Link l(t2, edges0);
+    std::cout << l.buildComplement().isoSig() << "\n";
+    //std::cout << "knot builder isosig = " << t2.isoSig() << "\n";
+    //auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
+    //std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
+    //CobordismBuilder cob(t);
+    //auto tri = cob.thicken();
+    ////regina::Triangulation<4> tri = cob.cone();
+    ////std::cout << tri.isoSig() << "\n";
+    //std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
 
-    Skeleton<4, 2> skel(tri);
-    //std::cout << skel << "\n";
+    //Skeleton<4, 2> skel(tri);
+    ////std::cout << skel << "\n";
 
-    unsigned numThreads = tri.countTriangles();
-    if (numThreads == 0)
-        numThreads = 1;
-    std::cerr << "Running with " << numThreads
-              << " threads, condition = " << boundaryConditionName(cond)
-              << "\n\n";
-    EmbeddingSearch<4, 2> e(tri);
-    e.search(numThreads, cond);
+    //unsigned numThreads = tri.countTriangles();
+    //if (numThreads == 0)
+    //    numThreads = 1;
+    //std::cerr << "Running with " << numThreads
+    //          << " threads, condition = " << boundaryConditionName(cond)
+    //          << "\n\n";
+    //EmbeddingSearch<4, 2> e(tri);
+    //e.search(numThreads, cond);
 
     // regina::Triangulation<4> tri;
     // BoundaryCondition cond = BoundaryCondition::boundary;
