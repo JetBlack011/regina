@@ -19,12 +19,11 @@
 #include <triangulation/dim4.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <utilities/typeutils.h>
 
 #include "enumerate_cis.h"
 #include "linkcomplement.h"
 #include "skeleton.h"
-
-#define NUM_CODIM_AT_LEAST_2_FACES(dim) ((1 << dim) - dim - 3)
 
 using AdjacencyList = std::pair<int, std::vector<std::vector<int>>>;
 
@@ -204,20 +203,28 @@ inline const char *boundaryConditionName(BoundaryCondition cond) {
 template <int dim, int subdim> class EmbeddedSubmanifold {
 private:
   using Face = const typename Skeleton<dim, subdim>::Face;
+  template <int k> using LowDimVec = std::vector<int>;
 
   const Skeleton<dim, subdim> &skeleton_;
   regina::Triangulation<subdim> subtri_;
-  std::vector<std::pair<regina::Simplex<subdim> *, std::vector<int>>> faces_;
-  std::vector<bool> triVertsUsed_;
+  std::vector<regina::Simplex<subdim> *> faces_;
+  // For k in [0, subdim-1]: number of submanifold simplices containing each
+  // k-face of tri_. For k == subdim-1 (facets): 0 = absent, 1 = boundary,
+  // ≥2 = interior. For k < subdim-1: positive iff the face is in the
+  // submanifold.
+  regina::TupleOverRange<0, subdim, LowDimVec> faceCount_;
 
   std::vector<regina::Triangulation<dim - 1>> bdryComponents_;
 
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton)
-      : skeleton_(skeleton), faces_(skeleton.numFaces()),
-        triVertsUsed_(skeleton.numVertices()) {
+      : skeleton_(skeleton), faces_(skeleton.numFaces()) {
+    const auto &tri = skeleton_.triangulation();
+    regina::for_constexpr<0, subdim>([&](auto kW) {
+      constexpr int k = decltype(kW)::value;
+      std::get<k>(faceCount_).assign(tri.template countFaces<k>(), 0);
+    });
     if constexpr (dim == 4 && subdim == 2) {
-      const auto &tri = skeleton_.triangulation();
       bdryComponents_.reserve(tri.countBoundaryComponents());
       for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
         bdryComponents_.push_back(tri.boundaryComponent(c)->build());
@@ -227,190 +234,122 @@ public:
   bool addFace(int f) {
     const auto &node = skeleton_.getNodes()[f];
 
-    // It's worth it to first check if adding f would result in an embedding
-    // before actually modifying our state
-    std::array<bool, subdim + 1> facetIsUsed;
-    std::array<bool, NUM_CODIM_AT_LEAST_2_FACES(dim)> faceIsInSubtri;
+    // Phase 1: Check Condition 1 (facet condition) and build F_bitmask.
+    // F_bitmask has bit j set iff local facet j of the new simplex is being
+    // glued to a boundary facet of the current submanifold.
+    std::array<bool, subdim + 1> facetIsUsed = {};
+    int F_bitmask = 0;
 
-    // Iterate over all faces of codimension at least 2
-    regina::for_constexpr<0, dim - 1>([&](auto subdimWrapper) {
-      constexpr int d = decltype(subdimWrapper)::value;
-      for (int i = 0; i < regina::FaceNumbering<dim, d>::nFaces; ++i) {
-        regina::Face<dim, d> *f = simplex.face<d>(i);
+    for (const auto &g : node.gluings) {
+      const int dstFacet = g.gluing[g.srcFacet];
+
+      if (g.dstIndex == static_cast<size_t>(f)) {
+        // Self-gluing: facets g.srcFacet and dstFacet of this simplex are
+        // the same (subdim-1)-face in tri_. Each pair is listed twice in
+        // gluings; process only srcFacet < dstFacet to avoid double-work.
+        if (g.srcFacet >= dstFacet)
+          continue;
+
+        if (facetIsUsed[g.srcFacet] || facetIsUsed[dstFacet])
+          return false;
+
+        // Adding this simplex will increment the count for the shared face by
+        // 2 (once per local facet). It must currently be absent.
+        if (std::get<subdim - 1>(faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)->index()] != 0)
+          return false;
+
+        facetIsUsed[g.srcFacet] = true;
+        facetIsUsed[dstFacet] = true;
+        // Self-gluings are NOT added to F_bitmask: they are internal to the
+        // new simplex, not gluings to the existing submanifold.
+
+      } else if (faces_[g.dstIndex] != nullptr) {
+        // External gluing to an existing simplex in the submanifold.
+        if (facetIsUsed[g.srcFacet])
+          return false;
+
+        // The destination facet must be a boundary facet (count == 1).
+        if (std::get<subdim - 1>(faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)->index()] != 1)
+          return false;
+
+        facetIsUsed[g.srcFacet] = true;
+        F_bitmask |= (1 << g.srcFacet);
+      }
+      // Gluings to faces not in the submanifold are ignored.
+    }
+
+    // Phase 2: Check Condition 2 (higher-codimension condition).
+    // Every k-face (k <= subdim-2) of the new simplex that is already in the
+    // submanifold must be a subface of some facet in F.
+    bool valid = true;
+    regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+      if (!valid)
+        return;
+      constexpr int k = decltype(kW)::value;
+      const auto &counts = std::get<k>(faceCount_);
+      for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+        if (counts[node.face->template face<k>(i)->index()] == 0)
+          continue;
+
+        // Bitmask of local vertex indices (0..subdim) of the i-th k-face.
+        const auto perm = regina::FaceNumbering<subdim, k>::ordering(i);
+        int S = 0;
+        for (int j = 0; j <= k; ++j)
+          S |= (1 << perm[j]);
+
+        // Facet j (opposite vertex j) contains this k-face iff j NOT in S.
+        // The face is covered by some facet in F iff (F_bitmask & ~S) != 0.
+        if ((F_bitmask & ~S) == 0) {
+          valid = false;
+          return;
+        }
       }
     });
+    if (!valid)
+      return false;
 
-    // First check facet conditions.
-    for (const auto &g : node.gluings) {
-      Face *dst = faces_[g.dstIndex];
-      int dstFacet = g.gluing[g.srcFacet];
+    // Phase 3: All conditions pass — commit state.
+    // For k == subdim-1, iterating all subdim+1 local facet indices handles
+    // self-gluings automatically: if two local facets share a tri_-face, its
+    // count increments twice, making it interior immediately.
+    regina::for_constexpr<0, subdim>([&](auto kW) {
+      constexpr int k = decltype(kW)::value;
+      auto &counts = std::get<k>(faceCount_);
+      for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
+        counts[node.face->template face<k>(i)->index()]++;
+    });
 
-      if (dst != nullptr) {
-        // We're gluing f to a genuine simplex in subtri_
-        // This face must be glued along a facet in the boundary of subtri_
-        if (dst->template face<subdim - 1>(dstFacet)->degree() != 1)
-          return false; // f cannot be added
-
-      } else if (g.dstIndex != f)
-        continue; // This gluing is not induced by adding f
-
-      // Now, either dst is in subtri_ or is f itself (a self-gluing). It
-      // suffices to check that each facet of f appears exactly once in the list
-      // of gluings
-      if (facetIsUsed[g.srcFacet])
-        return false; // f cannot be added
-
-      facetIsUsed[g.srcFacet] = true;
-    }
-
-    // Next check for higher codimension degeneracies. Adding f results in an
-    // embedded submanifold if and only if, for 0 <= k < subdim - 1, every
-    // k-simplex which appears in f AND is contained somewhere in subtri_
-    // appears in at least one (subdim - 1)-simplex in f being glued to the
-    // boundary of subtri_
-
-    // This requires some way to look up if a given k-simplex in tri_ is
-    // contained in subtri_
-
-    // Now we know it's safe to add this face and modify our state
-    for (int v : newVerts) {
-      faces_[f].second.push_back(v);
-    }
-
-    // TODO: I *think* it's more efficient to build the triangulation as
-    // we go. Technically, we could modify this class so that this isn't
-    // the case, but hopefully Regina's triangulation is efficient
-    // enough (i.e. doesn't recomputeSkeleton() on every addFace() call)
-    // for this to work.
     auto *src = subtri_.newSimplex();
-    faces_[f].first = src;
+    faces_[f] = src;
 
-    // Perform gluings
-    for (const auto &g : inducedGluings) {
-      if (src->adjacentSimplex(g.srcFacet) != nullptr) {
-        // This should never happen unless we're dealing with a
-        // self-gluing
-        assert(g.srcIndex == g.dstIndex);
+    for (const auto &g : node.gluings) {
+      if (faces_[g.dstIndex] == nullptr)
         continue;
-      }
-      src->join(g.srcFacet, faces_[g.dstIndex].first, g.gluing);
+      if (src->adjacentSimplex(g.srcFacet) != nullptr)
+        continue; // already joined (second direction of a self-gluing)
+      src->join(g.srcFacet, faces_[g.dstIndex], g.gluing);
     }
 
     return true;
   }
 
-  // bool addFace(int f) {
-  //     const auto &node = skeleton_.getNodes()[f];
-
-  //    // It's worth it to first check if adding this face would result in an
-  //    // embedding before actually modifying our state
-
-  //    // Facets of this simplex which are glued to this simplex
-  //    std::vector<int> selfGluedFacets;
-  //    // Facets of this simplex which are glued to a different simplex
-  //    std::vector<int> adjGluedFacets;
-  //    // Vertices appearing in facets of this simplex glued to different
-  //    // simplices
-  //    std::unordered_set<int> usedVerts;
-  //    // Gluings to simplices in subtri_ (or the current simplex)
-  //    std::vector<typename Skeleton<dim, subdim>::Gluing> inducedGluings;
-
-  //    // First check facet conditions
-  //    for (const auto &g : node.gluings) {
-  //        if (g.srcIndex == g.dstIndex) {
-  //            inducedGluings.push_back(g);
-  //            selfGluedFacets.push_back(g.srcFacet);
-  //            continue; // Check the self-gluings later
-  //        }
-
-  //        const auto *dst = faces_[g.dstIndex].first;
-
-  //        if (dst == nullptr)
-  //            continue;
-
-  //        // If something else is glued to dstFacet, it's over
-  //        size_t dstFacet = g.gluing[g.srcFacet];
-  //        if (dst->adjacentSimplex(dstFacet) != nullptr)
-  //            return false;
-
-  //        const auto *srcFacet =
-  //            node.face->template face<subdim - 1>(g.srcFacet);
-  //        adjGluedFacets.push_back(g.srcFacet);
-  //        for (int k = 0; k < subdim; ++k) {
-  //            usedVerts.insert(srcFacet->vertex(k)->index());
-  //        }
-
-  //        inducedGluings.push_back(g);
-  //    }
-
-  //    for (int fi : selfGluedFacets) {
-  //        for (int fj : adjGluedFacets) {
-  //            // A facet cannot be glued to both this simplex and another
-  //            // simplex
-  //            if (fi == fj)
-  //                return false;
-  //        }
-  //    }
-
-  //    // Next check vertex conditions. It suffices to check that "new"
-  //    // vertices (i.e. vertices not already used by faces in the embedding)
-  //    // admit regular neighborhoods.
-  //    std::vector<int> newVerts;
-  //    for (int i = 0; i <= subdim; ++i) {
-  //        int v = node.face->vertex(i)->index();
-  //        if (!usedVerts.contains(v)) {
-  //            newVerts.push_back(v);
-  //            if (triVertsUsed_[v])
-  //                return false;
-  //        }
-  //    }
-
-  //    // Now we know it's safe to add this face and modify our state
-  //    for (int v : newVerts) {
-  //        faces_[f].second.push_back(v);
-  //        triVertsUsed_[v] = true;
-  //    }
-
-  //    // TODO: I *think* it's more efficient to build the triangulation as
-  //    // we go. Technically, we could modify this class so that this isn't
-  //    // the case, but hopefully Regina's triangulation is efficient
-  //    // enough (i.e. doesn't recomputeSkeleton() on every addFace() call)
-  //    // for this to work.
-  //    auto *src = subtri_.newSimplex();
-  //    faces_[f].first = src;
-
-  //    // Perform gluings
-  //    for (const auto &g : inducedGluings) {
-  //        if (src->adjacentSimplex(g.srcFacet) != nullptr) {
-  //            // This should never happen unless we're dealing with a
-  //            // self-gluing
-  //            assert(g.srcIndex == g.dstIndex);
-  //            continue;
-  //        }
-  //        src->join(g.srcFacet, faces_[g.dstIndex].first, g.gluing);
-  //    }
-
-  //    return true;
-  //}
-
   void removeFace(int f) {
-    auto *face = faces_[f].first;
-    // This should go through without issue (assuming the argument is
-    // valid)
+    auto *face = faces_[f];
     if (face == nullptr)
       throw regina::InvalidArgument(
           "EmbeddedSubmanifold::removeFace(): Was asked to remove a face "
           "which is not in the embedded submanifold.");
 
-    // Update triVertsUsed_
-    for (int v : faces_[f].second)
-      triVertsUsed_[v] = false;
+    const auto &node = skeleton_.getNodes()[f];
 
-    // Update faces_
-    faces_[f].first = nullptr;
-    faces_[f].second = {};
+    regina::for_constexpr<0, subdim>([&](auto kW) {
+      constexpr int k = decltype(kW)::value;
+      auto &counts = std::get<k>(faceCount_);
+      for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
+        counts[node.face->template face<k>(i)->index()]--;
+    });
 
-    // Update subtri_
+    faces_[f] = nullptr;
     subtri_.removeSimplex(face);
   }
 
@@ -422,7 +361,7 @@ public:
 
   bool isProper() const {
     for (size_t f = 0; f < faces_.size(); ++f) {
-      const auto *simplex = faces_[f].first;
+      const auto *simplex = faces_[f];
       if (simplex == nullptr)
         continue; // face f is not part of this embedding
 
@@ -445,7 +384,7 @@ public:
     std::unordered_set<const regina::BoundaryComponent<dim> *> usedAmbient;
 
     for (size_t f = 0; f < faces_.size(); ++f) {
-      const auto *simplex = faces_[f].first;
+      const auto *simplex = faces_[f];
       if (simplex == nullptr)
         continue;
 
@@ -489,7 +428,7 @@ public:
         bdryComponents_.size());
 
     for (size_t f = 0; f < faces_.size(); ++f) {
-      const auto *simplex = faces_[f].first;
+      const auto *simplex = faces_[f];
       if (simplex == nullptr)
         continue;
 

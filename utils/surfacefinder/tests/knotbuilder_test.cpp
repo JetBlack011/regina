@@ -14,7 +14,7 @@
 
 #include "cobordismbuilder.h"
 #include "knotbuilder.h"
-#include "knottedsurfaces.h"
+#include "linkcomplement.h"
 
 static int passed = 0, failed_count = 0;
 

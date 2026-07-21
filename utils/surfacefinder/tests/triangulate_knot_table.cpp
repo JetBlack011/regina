@@ -21,7 +21,7 @@
 #include <triangulation/dim3.h>
 
 #include "../knotbuilder.h"
-#include "../knottedsurfaces.h"
+#include "../linkcomplement.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
