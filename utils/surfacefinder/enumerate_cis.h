@@ -2,7 +2,7 @@
 
 #define ENUMERATE_CIS_H
 
-// enumerate_cis.cpp
+// enumerate_cis.h
 //
 // C++ implementation of a modified algorithm from:
 //   M. Alokshiya, S. Salem, F. Abed,

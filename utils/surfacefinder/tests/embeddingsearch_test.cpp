@@ -253,9 +253,11 @@ void test_triple_self_fold_excluded() {
                    "triangle's 3 local edges are all the same ambient edge");
 
     Skeleton<3, 2> skel(tri);
-    EXPECT_EQ((hasIrreparableSelfGluing<3, 2>(skel.getNodes()[0].gluings)), true,
+    EXPECT_EQ((EmbeddedSubmanifold<3, 2>::hasIrreparableSelfGluing(
+                  skel.getNodes()[0].gluings)), true,
               "triangle 0 is flagged as irreparably self-folded");
-    EXPECT_EQ((hasIrreparableSelfGluing<3, 2>(skel.getNodes()[1].gluings)), true,
+    EXPECT_EQ((EmbeddedSubmanifold<3, 2>::hasIrreparableSelfGluing(
+                  skel.getNodes()[1].gluings)), true,
               "triangle 1 is flagged as irreparably self-folded");
 
     // Negative control: the ordinary 2-facet self-fold engineered in
@@ -273,7 +275,7 @@ void test_triple_self_fold_excluded() {
         bool anyFlagged = false;
         for (size_t i = 0; i < foldSkel.numFaces(); ++i)
             anyFlagged = anyFlagged ||
-                         hasIrreparableSelfGluing<3, 2>(
+                         EmbeddedSubmanifold<3, 2>::hasIrreparableSelfGluing(
                              foldSkel.getNodes()[i].gluings);
         EXPECT_EQ(anyFlagged, false,
                   "an ordinary self-fold triangulation flags no faces");

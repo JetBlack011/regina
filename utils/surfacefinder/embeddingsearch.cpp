@@ -485,7 +485,8 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
   std::vector<int> graphToSkel;
   std::vector<int> skelToGraph(nodes.size(), -1);
   for (size_t i = 0; i < nodes.size(); ++i) {
-    if (hasIrreparableSelfGluing<dim, subdim>(nodes[i].gluings))
+    if (EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
+            nodes[i].gluings))
       continue;
     skelToGraph[i] = static_cast<int>(graphToSkel.size());
     graphToSkel.push_back(static_cast<int>(i));

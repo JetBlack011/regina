@@ -279,7 +279,7 @@ bool EmbeddedSubmanifold<dim, subdim>::satisfies(
 }
 
 template <int dim, int subdim>
-bool hasIrreparableSelfGluing(
+bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
     const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
   std::array<std::array<bool, subdim + 1>, subdim + 1> partnerSeen{};
   for (const auto &g : gluings)
@@ -313,8 +313,5 @@ template bool EmbeddedSubmanifold<3, 2>::isProper() const;
 template bool
 EmbeddedSubmanifold<3, 2>::boundaryComponentsMapInjectively() const;
 template bool EmbeddedSubmanifold<3, 2>::satisfies(BoundaryCondition) const;
-
-template bool hasIrreparableSelfGluing<3, 2>(
+template bool EmbeddedSubmanifold<3, 2>::hasIrreparableSelfGluing(
     const std::vector<typename Skeleton<3, 2>::Gluing> &);
-template bool hasIrreparableSelfGluing<4, 2>(
-    const std::vector<typename Skeleton<4, 2>::Gluing> &);

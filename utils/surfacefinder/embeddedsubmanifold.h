@@ -50,18 +50,12 @@ public:
   std::vector<std::pair<size_t, Link>> boundaryLinks() const;
 
   bool satisfies(BoundaryCondition cond) const;
-};
 
-template <int dim, int subdim>
-bool hasIrreparableSelfGluing(
-    const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
+  static bool hasIrreparableSelfGluing(
+      const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
+};
 
 extern template class EmbeddedSubmanifold<3, 2>;
 extern template class EmbeddedSubmanifold<4, 2>;
-
-extern template bool hasIrreparableSelfGluing<3, 2>(
-    const std::vector<typename Skeleton<3, 2>::Gluing> &);
-extern template bool hasIrreparableSelfGluing<4, 2>(
-    const std::vector<typename Skeleton<4, 2>::Gluing> &);
 
 #endif // EMBEDDEDSUBMANIFOLD_H
