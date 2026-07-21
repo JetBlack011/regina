@@ -35,6 +35,10 @@ private:
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton);
 
+  // Attempts to add face f to the current submanifold. This fails if adding the
+  // face results in something which is not embedded, and returns false.
+  // Otherwise, returns true and updates the state of the current submanifold
+  // triangulation.
   bool addFace(int f);
 
   void removeFace(int f);
