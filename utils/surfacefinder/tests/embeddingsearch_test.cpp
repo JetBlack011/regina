@@ -293,7 +293,7 @@ void test_triple_self_fold_excluded() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Batch boundary-link recognition (EmbeddingSearch<4, 2>::processSurfaceBoundaries()
+// Batch boundary-link recognition (SurfaceSearch::processSurfaceBoundaries()
 // / linkTally()): a single pentachoron (B^4, dim = 4) whose boundary is
 // ∂Δ^4 = S^3, exactly the "single tetrahedron" scenario from
 // test_tetrahedron_boundary_conditions one dimension up -- every ambient
@@ -307,7 +307,7 @@ void test_triple_self_fold_excluded() {
 // bounding a Disc.
 // ─────────────────────────────────────────────────────────────────────────────
 void test_boundary_link_batch_recognizes_unknot() {
-    std::cout << "\n--- EmbeddingSearch<4,2>: batch boundary-link "
+    std::cout << "\n--- SurfaceSearch: batch boundary-link "
                  "recognition finds the unknot ---\n";
 
     regina::Triangulation<4> fourBall;
@@ -315,7 +315,7 @@ void test_boundary_link_batch_recognizes_unknot() {
     EXPECT_EQ((int)fourBall.countBoundaryComponents(), 1,
               "single pentachoron has one boundary component (S^3)");
 
-    EmbeddingSearch<4, 2> e(fourBall);
+    SurfaceSearch e(fourBall);
     e.search(1, BoundaryCondition::connected);
 
     std::string summary = e.linkTally().summary();

@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "Running with " << numThreads
               << " threads, condition = " << boundaryConditionName(cond)
               << "\n\n";
-    EmbeddingSearch<4, 2> e(tri);
+    SurfaceSearch e(tri);
     e.search(numThreads, cond);
 
     // regina::Triangulation<4> tri;

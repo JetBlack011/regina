@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cassert>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -18,11 +19,6 @@ EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     constexpr int k = decltype(kW)::value;
     std::get<k>(faceCount_).assign(tri.template countFaces<k>(), 0);
   });
-  if constexpr (dim == 4 && subdim == 2) {
-    bdryComponents_.reserve(tri.countBoundaryComponents());
-    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-      bdryComponents_.push_back(tri.boundaryComponent(c)->build());
-  }
 }
 
 template <int dim, int subdim>
@@ -213,54 +209,6 @@ bool EmbeddedSubmanifold<dim, subdim>::boundaryComponentsMapInjectively()
 }
 
 template <int dim, int subdim>
-std::vector<std::pair<size_t, Link>>
-EmbeddedSubmanifold<dim, subdim>::boundaryLinks() const {
-  static_assert(dim == 4 && subdim == 2,
-                "boundaryLinks() only makes sense for surfaces (dim == "
-                "4, subdim == 2)");
-
-  std::vector<std::unordered_set<const regina::Edge<3> *>> edgesByComponent(
-      bdryComponents_.size());
-
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue;
-
-    for (int i = 0; i <= subdim; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue; // internal facet of subtri_
-
-      const auto *ambientFacet =
-          skeleton_.getNodes()[f].face->template face<subdim - 1>(i);
-      const auto *ambientBC = ambientFacet->boundaryComponent();
-      if (ambientBC == nullptr)
-        continue; // shouldn't happen when cond is proper/connected
-
-      size_t c = ambientBC->index();
-
-      for (int k = 0; k < ambientBC->countEdges(); ++k) {
-        if (ambientBC->edge(k) == ambientFacet) {
-          edgesByComponent[c].insert(bdryComponents_[c].edge(k));
-          break;
-        }
-      }
-    }
-  }
-
-  std::vector<std::pair<size_t, Link>> result;
-  for (size_t c = 0; c < edgesByComponent.size(); ++c) {
-    if (edgesByComponent[c].empty())
-      continue;
-
-    std::vector<const regina::Edge<3> *> edgeList(edgesByComponent[c].begin(),
-                                                  edgesByComponent[c].end());
-    result.emplace_back(c, Link(bdryComponents_[c], edgeList));
-  }
-  return result;
-}
-
-template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::satisfies(
     BoundaryCondition cond) const {
   switch (cond) {
@@ -296,22 +244,107 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
   return false;
 }
 
-// EmbeddedSubmanifold<4, 2> instantiates cleanly as a whole class: its
-// boundaryLinks() static_assert(dim == 4 && subdim == 2) holds.
+template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
 
-// EmbeddedSubmanifold<3, 2>, on the other hand, cannot use the blanket
-// `template class` form: that would force boundaryLinks() to instantiate
-// too, and its static_assert fails for dim == 3. Nothing calls
-// boundaryLinks() on a dim=3 submanifold (it's surface-specific), so
-// explicitly instantiate every other member individually instead.
-template EmbeddedSubmanifold<3, 2>::EmbeddedSubmanifold(
-    const Skeleton<3, 2> &);
-template bool EmbeddedSubmanifold<3, 2>::addFace(int);
-template void EmbeddedSubmanifold<3, 2>::removeFace(int);
-template bool EmbeddedSubmanifold<3, 2>::isProper() const;
-template bool
-EmbeddedSubmanifold<3, 2>::boundaryComponentsMapInjectively() const;
-template bool EmbeddedSubmanifold<3, 2>::satisfies(BoundaryCondition) const;
-template bool EmbeddedSubmanifold<3, 2>::hasIrreparableSelfGluing(
-    const std::vector<typename Skeleton<3, 2>::Gluing> &);
+KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
+    : EmbeddedSubmanifold<4, 2>(skeleton) {
+  const auto &tri = skeleton.triangulation();
+  bdryComponents_.reserve(tri.countBoundaryComponents());
+  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+}
+
+std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
+  std::vector<std::unordered_set<const regina::Edge<3> *>> edgesByComponent(
+      bdryComponents_.size());
+
+  for (size_t f = 0; f < faces_.size(); ++f) {
+    const auto *simplex = faces_[f];
+    if (simplex == nullptr)
+      continue;
+
+    for (int i = 0; i <= 2; ++i) {
+      if (simplex->adjacentSimplex(i) != nullptr)
+        continue; // internal facet of subtri_
+
+      const auto *ambientFacet = skeleton_.getNodes()[f].face->face<1>(i);
+      const auto *ambientBC = ambientFacet->boundaryComponent();
+      if (ambientBC == nullptr)
+        continue; // shouldn't happen when cond is proper/connected
+
+      size_t c = ambientBC->index();
+
+      for (int k = 0; k < ambientBC->countEdges(); ++k) {
+        if (ambientBC->edge(k) == ambientFacet) {
+          edgesByComponent[c].insert(bdryComponents_[c].edge(k));
+          break;
+        }
+      }
+    }
+  }
+
+  std::vector<std::pair<size_t, Link>> result;
+  for (size_t c = 0; c < edgesByComponent.size(); ++c) {
+    if (edgesByComponent[c].empty())
+      continue;
+
+    std::vector<const regina::Edge<3> *> edgeList(edgesByComponent[c].begin(),
+                                                  edgesByComponent[c].end());
+    result.emplace_back(c, Link(bdryComponents_[c], edgeList));
+  }
+  return result;
+}
+
+KnottedSurface::SurfaceTypeKey
+KnottedSurface::surfaceTypeKey(const regina::Triangulation<2> &surface) {
+  bool isOrientable = surface.isOrientable();
+  int punctures = surface.countBoundaryComponents();
+  int genus = isOrientable ? (2 - surface.eulerChar() - punctures) / 2
+                           : 2 - surface.eulerChar() - punctures;
+  return {isOrientable, genus, punctures};
+}
+
+std::string
+KnottedSurface::formatSurfaceType(const SurfaceTypeKey &key) {
+  auto [isOrientable, genus, punctures] = key;
+  std::ostringstream ans;
+
+  if (isOrientable) {
+    if (genus == 0 && punctures == 1)
+      ans << "Disc";
+    else if (genus == 0 && punctures == 2)
+      ans << "Annulus";
+    else {
+      if (genus == 0)
+        ans << "Sphere";
+      else if (genus == 1)
+        ans << "Torus";
+      else
+        ans << "Orientable genus " << genus << " surface";
+
+      if (punctures == 1)
+        ans << ", 1 puncture";
+      else if (punctures > 1)
+        ans << ", " << punctures << " punctures";
+    }
+  } else {
+    if (genus == 1 && punctures == 1)
+      ans << "Möbius band";
+    else {
+      if (genus == 1)
+        ans << "Projective plane";
+      else if (genus == 2)
+        ans << "Klein bottle";
+      else
+        ans << "Non-orientable genus " << genus << " surface";
+
+      if (punctures == 1)
+        ans << ", 1 puncture";
+      else if (punctures > 1)
+        ans << ", " << punctures << " punctures";
+    }
+  }
+
+  return ans.str();
+}

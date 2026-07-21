@@ -2,6 +2,8 @@
 
 #define EMBEDDEDSUBMANIFOLD_H
 
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include <triangulation/dim2.h>
@@ -15,20 +17,20 @@
 enum class BoundaryCondition : uint8_t { all, closed, proper, connected };
 
 template <int dim, int subdim> class EmbeddedSubmanifold {
-private:
+protected:
   using Face = const typename Skeleton<dim, subdim>::Face;
   template <int k> using LowDimVec = std::vector<int>;
 
   const Skeleton<dim, subdim> &skeleton_;
   regina::Triangulation<subdim> subtri_;
   std::vector<regina::Simplex<subdim> *> faces_;
+
+private:
   // For k in [0, subdim-1]: number of submanifold simplices containing each
   // k-face of tri_. For k == subdim-1 (facets): 0 = absent, 1 = boundary,
   // ≥2 = interior. For k < subdim-1: positive iff the face is in the
   // submanifold.
   regina::TupleOverRange<0, subdim, LowDimVec> faceCount_;
-
-  std::vector<regina::Triangulation<dim - 1>> bdryComponents_;
 
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton);
@@ -47,8 +49,6 @@ public:
 
   bool boundaryComponentsMapInjectively() const;
 
-  std::vector<std::pair<size_t, Link>> boundaryLinks() const;
-
   bool satisfies(BoundaryCondition cond) const;
 
   static bool hasIrreparableSelfGluing(
@@ -57,5 +57,31 @@ public:
 
 extern template class EmbeddedSubmanifold<3, 2>;
 extern template class EmbeddedSubmanifold<4, 2>;
+
+// A submanifold embedding specialized to dim == 4, subdim == 2: a surface
+// embedded in a 4-manifold, in the sense of classical knotted surface theory.
+// Everything beyond EmbeddedSubmanifold<4, 2> itself is surface-specific:
+// boundaryLinks() identifies the links bounded by the surface's boundary
+// (which needs 3-manifold boundary components to make sense of), and
+// surfaceTypeKey()/formatSurfaceType() classify the surface's own topology
+// (genus, orientability, punctures).
+class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
+public:
+  using SurfaceTypeKey = std::tuple<bool, int, int>;
+
+private:
+  std::vector<regina::Triangulation<3>> bdryComponents_;
+
+public:
+  KnottedSurface(const Skeleton<4, 2> &skeleton);
+
+  std::vector<std::pair<size_t, Link>> boundaryLinks() const;
+
+  static SurfaceTypeKey surfaceTypeKey(const regina::Triangulation<2> &surface);
+
+  static std::string formatSurfaceType(const SurfaceTypeKey &key);
+
+  SurfaceTypeKey surfaceType() const { return surfaceTypeKey(triangulation()); }
+};
 
 #endif // EMBEDDEDSUBMANIFOLD_H
