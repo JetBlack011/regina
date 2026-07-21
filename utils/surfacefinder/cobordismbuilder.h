@@ -16,7 +16,6 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "gluing.h"
 #include "simplicialprism.h"
 
 template <int dim>
@@ -102,13 +101,15 @@ class CobordismBuilder {
         return true;
     }
 
+
     template <int d>
     static regina::Triangulation<d> &
     glueBoundaries(regina::Triangulation<d> &tri, int bdryIndex1,
                    int bdryIndex2, const regina::Isomorphism<d - 1> &iso) {
+        using Gluing = std::tuple<regina::Simplex<d> *, int, regina::Simplex<d> *, regina::Perm<d+1>>;
         // Defer joins to avoid modifying the triangulation while iterating
         // boundary components.
-        std::vector<Gluing<d, d>> gluings;
+        std::vector<Gluing> gluings;
         const regina::BoundaryComponent<d> *bdry1 =
             tri.boundaryComponent(bdryIndex1);
         const regina::BoundaryComponent<d> *bdry2 =
@@ -131,8 +132,7 @@ class CobordismBuilder {
             }
             isoPerm[d] = d;
 
-            gluings.push_back(
-                {s1, emb1.face(), s2, i2 * isoPerm * i1.inverse()});
+            gluings.emplace_back(s1, emb1.face(), s2, i2 * isoPerm * i1.inverse());
         }
 
         for (const auto &gluing : gluings) {
