@@ -13,6 +13,7 @@
 
 #include <cassert>
 
+#include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
@@ -34,22 +35,7 @@ class CobordismBuilder {
     // Takes (and owns) a copy of `tri`, since thicken() requires an ordered
     // triangulation (see isOrdered() below) and may need to relabel vertices
     // to achieve this.
-    CobordismBuilder(const regina::Triangulation<dim> &tri) : tri_(tri) {
-        if (isOrdered(tri_))
-            return;
-
-        if constexpr (dim == 3) {
-            if (!tri_.order() || !isOrdered(tri_))
-                throw regina::InvalidArgument(
-                    "CobordismBuilder::CobordismBuilder(): triangulation "
-                    "could not be ordered.");
-        } else {
-            throw regina::InvalidArgument(
-                "CobordismBuilder::CobordismBuilder(): triangulation is not "
-                "ordered, and automatic ordering is only implemented for "
-                "dim == 3.");
-        }
-    }
+    CobordismBuilder(const regina::Triangulation<dim> &tri);
 
     // The triangulation thicken()/cone() actually build against -- NOT the
     // same object as whatever was passed to the constructor. The
@@ -78,82 +64,27 @@ class CobordismBuilder {
         return topPrisms_.at(baseSimplex).simplex(k);
     }
 
-    template <int d>
-    static bool isOrdered(const regina::Triangulation<d> &tri) {
-        for (const auto &s : tri.simplices()) {
-            for (int f = 0; f <= d; ++f) {
-                if (s->adjacentSimplex(f) == nullptr)
-                    continue;
-                regina::Perm<d + 1> g = s->adjacentGluing(f);
-                std::vector<int> a;
-                for (int i = 0; i < d + 1; ++i) {
-                    if (i == f)
-                        continue;
-                    a.push_back(g[i]);
-                }
+    static bool isOrdered(const regina::Triangulation<dim> &tri);
 
-                if (!std::ranges::is_sorted(a)) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-
+    // Kept as independently-templated members (parameter `d`, not tied to
+    // the class's own `dim`) rather than plain `dim`-using members like
+    // isOrdered() above: explicit instantiation of CobordismBuilder<2>
+    // would otherwise eagerly require regina::Isomorphism<dim - 1>, i.e.
+    // Isomorphism<1>, which doesn't exist. Lazy (on-demand) instantiation
+    // avoids that; nothing in the codebase currently calls either of
+    // these, so no explicit instantiation of them exists yet either --
+    // add one (in cobordismbuilder.cpp) for whatever `d` a future caller
+    // needs.
     template <int d>
     static regina::Triangulation<d> &
     glueBoundaries(regina::Triangulation<d> &tri, int bdryIndex1,
-                   int bdryIndex2, const regina::Isomorphism<d - 1> &iso) {
-        using Gluing = std::tuple<regina::Simplex<d> *, int, regina::Simplex<d> *, regina::Perm<d+1>>;
-        // Defer joins to avoid modifying the triangulation while iterating
-        // boundary components.
-        std::vector<Gluing> gluings;
-        const regina::BoundaryComponent<d> *bdry1 =
-            tri.boundaryComponent(bdryIndex1);
-        const regina::BoundaryComponent<d> *bdry2 =
-            tri.boundaryComponent(bdryIndex2);
-
-        for (int i = 0; i < bdry1->size(); ++i) {
-            // Since these are boundary faces, they belong to exactly 1 simplex
-            const auto &emb1 = bdry1->facet(i)->front();
-            const auto &emb2 = bdry2->facet(iso.simpImage(i))->front();
-            regina::Simplex<d> *s1 = emb1.simplex();
-            regina::Simplex<d> *s2 = emb2.simplex();
-
-            regina::Perm<d + 1> i1 = emb1.vertices();
-            regina::Perm<d + 1> i2 = emb2.vertices();
-            regina::Perm<d> p = iso.facetPerm(i);
-            std::array<int, d + 1> isoPerm;
-
-            for (int j = 0; j < d; ++j) {
-                isoPerm[j] = p[j];
-            }
-            isoPerm[d] = d;
-
-            gluings.emplace_back(s1, emb1.face(), s2, i2 * isoPerm * i1.inverse());
-        }
-
-        for (const auto &gluing : gluings) {
-            gluing.src->join(gluing.srcFacet, gluing.dst, gluing.gluing);
-        }
-
-        return tri;
-    }
+                   int bdryIndex2, const regina::Isomorphism<d - 1> &iso);
 
     template <int d>
     static regina::Triangulation<d>
     glueTriangulations(const regina::Triangulation<d> &tri1, int bdryIndex1,
                        const regina::Triangulation<d> &tri2, int bdryIndex2,
-                       const regina::Isomorphism<d - 1> &iso) {
-        regina::Triangulation<d> tri;
-        tri.insertTriangulation(tri1);
-        tri.insertTriangulation(tri2);
-
-        return glueBoundaries(tri, bdryIndex1,
-                              tri1.countBoundaryComponents() + bdryIndex2, iso);
-    }
+                       const regina::Isomorphism<d - 1> &iso);
 
     // Caps off the current top of the cobordism with a cone on tri_: one
     // new simplex per base simplex of tri_, each with a single new apex
@@ -164,55 +95,7 @@ class CobordismBuilder {
     // via SimplicialPrism::capTop(), simplex by simplex, using the same
     // base simplex on both sides (so, as with stitchTop(), no relabelling
     // of base vertices is needed).
-    regina::Triangulation<dim + 1> &cone() {
-        std::unordered_map<const regina::Simplex<dim> *,
-                           regina::Simplex<dim + 1> *>
-            coneSimplices;
-        coneSimplices.reserve(tri_.size());
-        for (const auto *s : tri_.simplices()) {
-            coneSimplices.emplace(s, cob_.newSimplex());
-        }
-
-        for (const auto *s : tri_.simplices()) {
-            regina::Simplex<dim + 1> *coneSimplex = coneSimplices.at(s);
-
-            for (int f = 0; f <= dim; ++f) {
-                const regina::Simplex<dim> *adj = s->adjacentSimplex(f);
-                if (adj == nullptr ||
-                    coneSimplex->adjacentSimplex(f) != nullptr)
-                    continue;
-
-                regina::Perm<dim + 1> bdryGluing = s->adjacentGluing(f);
-                regina::Simplex<dim + 1> *adjConeSimplex =
-                    coneSimplices.at(adj);
-                std::array<int, dim + 2> coneGluing;
-                for (int i = 0; i <= dim; ++i) {
-                    coneGluing[i] = bdryGluing[i];
-                }
-                coneGluing[dim + 1] = dim + 1;
-
-                coneSimplex->join(f, adjConeSimplex, coneGluing);
-            }
-        }
-
-        if (hasPreviousLayer_) {
-            for (const auto *s : tri_.simplices()) {
-                topPrisms_.at(s).capTop(coneSimplices.at(s));
-            }
-        }
-
-        // Validity here is guaranteed by construction (coning a valid,
-        // ordered triangulation, glued face-for-face onto a valid previous
-        // layer, cannot produce an invalid result) -- checking it costs a
-        // full vertex-link recognition pass (Triangulation<3>::isSphere()/
-        // isBall() per vertex, i.e. real 3-manifold simplification), which
-        // dominates runtime on triangulations of any size. Debug-only.
-        assert(cob_.isValid() &&
-               "CobordismBuilder::cone(): resulting triangulation is not "
-               "valid.");
-
-        return cob_;
-    }
+    regina::Triangulation<dim + 1> &cone();
 
     inline regina::Triangulation<dim + 1> &thicken() { return thicken_(); }
 
@@ -227,60 +110,10 @@ class CobordismBuilder {
     const regina::Triangulation<dim + 1> &getCobordism() const { return cob_; }
 
   private:
-    regina::Triangulation<dim + 1> &thicken_() {
-        // Make a new prism for each simplex in the triangulation. This is
-        // its own layer: it gets fully glued together internally below,
-        // independently of any previous layer.
-        PrismMap newPrisms;
-        newPrisms.reserve(tri_.size());
-        for (const auto *s : tri_.simplices()) {
-            newPrisms.emplace(s, cob_);
-        }
-
-        // Now glue the prisms together along their walls according to the
-        // gluing of the original triangulation
-        std::set<std::pair<const regina::Simplex<dim> *, int>> visited;
-
-        for (size_t i = 0; i < tri_.size(); ++i) {
-            for (int facet = 0; facet < dim + 1; ++facet) {
-                const regina::Simplex<dim> *s = tri_.simplex(i);
-                const regina::Simplex<dim> *adj = s->adjacentSimplex(facet);
-
-                if (adj == nullptr || visited.contains({s, facet}))
-                    continue;
-
-                int adjFacet = s->adjacentFacet(facet);
-
-                newPrisms.at(s).glue(facet, newPrisms.at(adj), adjFacet);
-
-                visited.insert({s, facet});
-                visited.insert({adj, adjFacet});
-            }
-        }
-
-        // If there is a previous layer, stitch this layer's bottom onto its
-        // top, simplex by simplex: since both layers thicken the same base
-        // triangulation, the seam uses the same base simplex on both sides
-        // and needs no relabelling of base vertices.
-        if (hasPreviousLayer_) {
-            for (const auto *s : tri_.simplices()) {
-                topPrisms_.at(s).stitchTop(newPrisms.at(s));
-            }
-        }
-
-        topPrisms_ = std::move(newPrisms);
-        hasPreviousLayer_ = true;
-
-        // See the identical comment in cone(): validity is guaranteed by
-        // construction, and checking it here is the dominant cost of
-        // thicken() (a full vertex-link recognition pass over the whole
-        // accumulated cobordism, on every single layer). Debug-only.
-        assert(cob_.isValid() &&
-               "CobordismBuilder::thicken(): resulting triangulation is not "
-               "valid.");
-
-        return cob_;
-    }
+    regina::Triangulation<dim + 1> &thicken_();
 };
+
+extern template class CobordismBuilder<2>;
+extern template class CobordismBuilder<3>;
 
 #endif // COBORDISM_BUILDER_H

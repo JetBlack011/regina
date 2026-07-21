@@ -3,7 +3,9 @@ set(TESTS
   cobordismbuilder_test
   knotbuilder_test
 )
-set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp)
+set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../linkcomplement.cpp)
+set(cobordismbuilder_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp)
+set(embeddingsearch_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp ../linkcomplement.cpp ../enumerate_cis.cpp)
 
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})
@@ -21,5 +23,5 @@ endforeach()
 # runs); run it manually instead:
 #
 #   ./triangulate_knot_table pd_codes.csv
-add_executable(triangulate_knot_table triangulate_knot_table.cpp ../knotbuilder.cpp)
+add_executable(triangulate_knot_table triangulate_knot_table.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
 target_link_libraries(triangulate_knot_table ${ENGINE_LIBRARY})
