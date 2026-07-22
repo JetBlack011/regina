@@ -1,11 +1,11 @@
 set(UTILS
   triangulateknot
-  searchforembedded
+  surfer
 )
 
 set(triangulateknot_EXTRA_SOURCES knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp linkcomplement.cpp)
 
-set(searchforembedded_EXTRA_SOURCES
+set(surfer_EXTRA_SOURCES
   knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp linkcomplement.cpp
   enumerate_cis.cpp)

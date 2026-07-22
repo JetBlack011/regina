@@ -14,7 +14,7 @@ foreach(TEST ${TESTS})
   target_link_libraries(${TEST} ${ENGINE_LIBRARY})
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES
-    LABELS "surfacefinder"
+    LABELS "surfer"
     TIMEOUT 60)
 endforeach()
 

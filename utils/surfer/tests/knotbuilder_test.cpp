@@ -353,7 +353,7 @@ void test_knotbuilder_nonalternating_regression() {
 // beyond "didn't crash", especially for the larger examples where an exact
 // isomorphism/retriangulation check would be too slow to run routinely.
 //
-// (This is a curated sample. utils/surfacefinder/pd_codes.csv has PD codes
+// (This is a curated sample. utils/surfer/pd_codes.csv has PD codes
 // for every knot up to 13 crossings -- all 12,467 of them pass the same
 // valid/closed/sphere checks, verified separately as a one-off sweep; that
 // full run is too slow (~13 minutes) to bake into the routine suite.)
@@ -496,10 +496,10 @@ void test_knotbuilder_output_is_orderable() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Layer 3: the full pipeline requested — knotbuilder builds S³ with the
 // link as an edge circuit, CobordismBuilder thickens it (giving room for
-// surfacefinder to later search in), then cone() caps the top into a
+// surfer to later search in), then cone() caps the top into a
 // genuine triangulated 4-ball. The one boundary component left afterward
 // must be combinatorially identical to knotbuilder's original S³ — that's
-// what will let a future surfacefinder test locate the link's edges inside
+// what will let a future surfer test locate the link's edges inside
 // the boundary of this B⁴.
 // ─────────────────────────────────────────────────────────────────────────────
 void checkKnotToBallPipeline(const char *name, const char *pd, int layers) {
