@@ -249,7 +249,9 @@ Graph buildTestGraph(const Skeleton<4, 2> &skeleton) {
     std::vector<int> skelToGraph(nodes.size(), -1);
     for (size_t i = 0; i < nodes.size(); ++i) {
         if (EmbeddedSubmanifold<4, 2>::hasIrreparableSelfGluing(
-                nodes[i].gluings))
+                nodes[i].gluings) ||
+            EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+                nodes[i].face, nodes[i].gluings))
             continue;
         skelToGraph[i] = static_cast<int>(graphToSkel.size());
         graphToSkel.push_back(static_cast<int>(i));
@@ -554,6 +556,75 @@ void test_single_face_internal_vertex_collision() {
               "(reason: " + (ok ? std::string("n/a") : why) + ")");
 }
 
+// Direct unit test of hasUnexplainedSelfCollision(), independent of the DFS:
+// face 6 (no self-gluing entry) must be flagged, and face 7 (a legitimate
+// self-gluing, facet 0 <-> 1) must NOT be -- pinning down both the fix and
+// the no-over-rejection guarantee without going through addFace() or the
+// search graph at all.
+void test_has_unexplained_self_collision() {
+    std::cout << "\n--- hasUnexplainedSelfCollision() unit check ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    Skeleton<4, 2> skeleton(tri);
+    const auto &nodes = skeleton.getNodes();
+
+    EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+                  nodes[6].face, nodes[6].gluings)),
+              true, "face 6 (no self-gluing entry) IS flagged as an "
+                    "unexplained collision");
+    EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+                  nodes[7].face, nodes[7].gluings)),
+              false, "face 7 (legitimate self-gluing facet 0<->1) is NOT "
+                     "flagged");
+}
+
+// Documents the accepted incompleteness of the buildGraph_ fix: face 6 is
+// now permanently excluded from the search graph (so the search will never
+// find it), even though {6, 7} together genuinely is embedded -- a real,
+// valid configuration that becomes unreachable because 6 itself is dropped.
+// This is intentional (see ADDFACE_VERTEX_COLLISION_BUG.md): the check is
+// sound (never accepts a bad configuration) but not complete (may drop good
+// ones that depend on a bridging face like 7 to explain 6's collision).
+void test_buildgraph_known_incompleteness() {
+    std::cout << "\n--- Known incompleteness: {6,7} unreachable despite "
+                 "being genuinely embedded ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    Skeleton<4, 2> skeleton(tri);
+    Graph graph = buildTestGraph(skeleton);
+
+    bool face6Reachable = false;
+    for (int skelIdx : graph.graphToSkel)
+        if (skelIdx == 6)
+            face6Reachable = true;
+    EXPECT_EQ(face6Reachable, false,
+              "face 6 is excluded from the search graph entirely");
+
+    // But {6, 7} really is genuinely embedded, outside the graph filter.
+    KnottedSurface embedding(skeleton);
+    bool added6 = embedding.addFace(6);
+    bool added7 = embedding.addFace(7);
+    Correspondence correspondence;
+    correspondence[embedding.triangulation().simplex(0)] =
+        skeleton.getNodes()[6].face;
+    correspondence[embedding.triangulation().simplex(1)] =
+        skeleton.getNodes()[7].face;
+    bool ok = isGenuinelyEmbedded(correspondence);
+    EXPECT_EQ(added6 && added7 && ok, true,
+              "{6, 7} together is genuinely embedded, but is now permanently "
+              "unreachable by the search since 6 is dropped from the graph");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Section D: CobordismBuilder/knotbuilder-derived 4-manifolds. Depth-capped,
 // but generously -- correctness coverage takes priority over speed here.
@@ -707,6 +778,8 @@ int main() {
     run("foursphere_doubled_simplex", test_foursphere_doubled_simplex);
     run("single_face_internal_vertex_collision",
         test_single_face_internal_vertex_collision);
+    run("has_unexplained_self_collision", test_has_unexplained_self_collision);
+    run("buildgraph_known_incompleteness", test_buildgraph_known_incompleteness);
 
     run("cobordism_disc", test_cobordism_disc);
     run("cobordism_mobius", test_cobordism_mobius);

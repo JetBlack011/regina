@@ -57,6 +57,22 @@ public:
 
   static bool hasIrreparableSelfGluing(
       const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
+
+  // True iff `face` has two of its own local k-subfaces (k <= subdim-2, i.e.
+  // vertices when subdim == 2) coinciding as the same ambient object WITHOUT
+  // this being forced by one of face's own facet-level self-gluing entries
+  // in `gluings`. A collision that IS explained by a self-gluing entry (e.g.
+  // a one-triangle Mobius band self-fold) is legitimate: addFace()'s Phase 3
+  // self-joins mirror it inside subtri_ too, keeping the realization map
+  // injective. An unexplained one means subtri_ would keep the two abstract
+  // objects distinct while the ambient triangulation has already identified
+  // them -- not a valid embedding on its own, regardless of the rest of the
+  // subcomplex (though it may become valid in combination with other faces
+  // not present here; this check is deliberately a sound-but-incomplete,
+  // single-face-only approximation, not a full hereditary characterization).
+  static bool hasUnexplainedSelfCollision(
+      const typename Skeleton<dim, subdim>::Face *face,
+      const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
 };
 
 extern template class EmbeddedSubmanifold<3, 2>;

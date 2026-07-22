@@ -244,6 +244,42 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
   return false;
 }
 
+template <int dim, int subdim>
+bool EmbeddedSubmanifold<dim, subdim>::hasUnexplainedSelfCollision(
+    const typename Skeleton<dim, subdim>::Face *face,
+    const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
+  // explained[i][j]: true iff face's own local facets i and j are directly
+  // self-glued to each other, i.e. literally the same ambient (subdim-1)-face
+  // object. For subdim == 2, this is the ONLY way two of face's own local
+  // vertices can legitimately coincide as the same ambient object: two
+  // distinct edges of a triangle share exactly one vertex, so if they're the
+  // same ambient edge, their other two (non-shared) vertices are forced to
+  // coincide too -- and that identification is exactly what addFace()'s
+  // Phase 3 self-join reproduces inside subtri_.
+  std::array<std::array<bool, subdim + 1>, subdim + 1> explained{};
+  for (const auto &g : gluings)
+    if (g.srcIndex == g.dstIndex)
+      explained[g.srcFacet][g.gluing[g.srcFacet]] = true;
+
+  bool unexplained = false;
+  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+    if (unexplained)
+      return;
+    constexpr int k = decltype(kW)::value;
+    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces && !unexplained; ++i) {
+      for (int j = i + 1; j < regina::FaceNumbering<subdim, k>::nFaces; ++j) {
+        if (face->template face<k>(i) != face->template face<k>(j))
+          continue;
+        if (k == 0 && explained[i][j])
+          continue; // legitimately explained by this face's own self-gluing
+        unexplained = true;
+        break;
+      }
+    }
+  });
+  return unexplained;
+}
+
 template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
 
