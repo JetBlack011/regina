@@ -1,5 +1,5 @@
 //
-//  embeddingsearch.cpp
+//  surfer.cpp
 //
 //  Created by John Teague on 06/19/2024.
 //
@@ -17,32 +17,33 @@
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {
-  if (!error.empty())
-    std::cerr << error << "\n\n";
+    if (!error.empty())
+        std::cerr << error << "\n\n";
 
-  std::cerr << "Usage:\n";
-  std::cerr << "    " << progName
-            << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
-               "    "
-            << progName << " [ -v, --version | -h, --help ]\n\n";
-  std::cerr
-      << "    -a, --all      : Find all embedded submanifolds, regardless of "
-         "boundary\n                     conditions (default)\n";
-  std::cerr << "    -c, --closed   : Find only closed embedded submanifolds\n";
-  std::cerr << "    -p, --proper   : Find embedded submanifolds whose "
-               "boundary is contained\n"
-               "                     entirely in the boundary of the ambient "
-               "triangulation\n";
-  std::cerr << "    --connected    : Same as --proper, but additionally "
-               "require at most one\n"
-               "                     boundary component of the embedded "
-               "submanifold per\n"
-               "                     boundary component of the ambient "
-               "triangulation\n\n";
-  std::cerr
-      << "    -v, --version  : Show which version of Regina is being used\n";
-  std::cerr << "    -h, --help     : Display this help\n";
-  exit(1);
+    std::cerr << "Usage:\n";
+    std::cerr << "    " << progName
+              << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
+                 "    "
+              << progName << " [ -v, --version | -h, --help ]\n\n";
+    std::cerr
+        << "    -a, --all      : Find all embedded submanifolds, regardless of "
+           "boundary\n                     conditions (default)\n";
+    std::cerr
+        << "    -c, --closed   : Find only closed embedded submanifolds\n";
+    std::cerr << "    -p, --proper   : Find embedded submanifolds whose "
+                 "boundary is contained\n"
+                 "                     entirely in the boundary of the ambient "
+                 "triangulation\n";
+    std::cerr << "    --connected    : Same as --proper, but additionally "
+                 "require at most one\n"
+                 "                     boundary component of the embedded "
+                 "submanifold per\n"
+                 "                     boundary component of the ambient "
+                 "triangulation\n\n";
+    std::cerr
+        << "    -v, --version  : Show which version of Regina is being used\n";
+    std::cerr << "    -h, --help     : Display this help\n";
+    exit(1);
 }
 
 // template <int dim>
@@ -124,176 +125,176 @@ void usage(const char *progName, const std::string &error = std::string()) {
 } // namespace
 
 int main(int argc, char *argv[]) {
-  BoundaryCondition cond = BoundaryCondition::all;
+    BoundaryCondition cond = BoundaryCondition::all;
 
-  // Check for standard arguments:
-  for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
-    if (arg == "-h" || arg == "--help")
-      usage(argv[0]);
-    if (arg == "-v" || arg == "--version") {
-      if (argc != 2)
-        usage(argv[0], "Option --version cannot be used with "
-                       "any other arguments.");
+    // Check for standard arguments:
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help")
+            usage(argv[0]);
+        if (arg == "-v" || arg == "--version") {
+            if (argc != 2)
+                usage(argv[0], "Option --version cannot be used with "
+                               "any other arguments.");
+        }
+        if (arg == "-a" || arg == "--all")
+            cond = BoundaryCondition::all;
+        else if (arg == "-c" || arg == "--closed")
+            cond = BoundaryCondition::closed;
+        else if (arg == "-p" || arg == "--proper")
+            cond = BoundaryCondition::proper;
+        else if (arg == "--connected")
+            cond = BoundaryCondition::connected;
     }
-    if (arg == "-a" || arg == "--all")
-      cond = BoundaryCondition::all;
-    else if (arg == "-c" || arg == "--closed")
-      cond = BoundaryCondition::closed;
-    else if (arg == "-p" || arg == "--proper")
-      cond = BoundaryCondition::proper;
-    else if (arg == "--connected")
-      cond = BoundaryCondition::connected;
-  }
 
-  std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
-  knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-  auto [t2, edges0] = knotbuilder::buildLink(pdcode);
-  Link l(t2, edges0);
-  std::cout << "Link complement = " << l.buildComplement().isoSig() << "\n";
-  //auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
-  //std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
-  CobordismBuilder cob(t2);
-  cob.thicken(3);
-  regina::Triangulation<4> tri = cob.cone();
-  std::cout << tri.isoSig() << "\n";
-  std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
+    std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
+    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+    Link l(t2, edges0);
+    std::cout << "Link complement = " << l.buildComplement().isoSig() << "\n";
+    // auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
+    // std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
+    CobordismBuilder cob(t2);
+    regina::Triangulation<4> tri = cob.thicken(2);
+    //= cob.cone();
+    // std::cout << tri.isoSig() << "\n";
+    std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
 
-  Skeleton<4, 2> skel(tri);
-  ////std::cout << skel << "\n";
+    Skeleton<4, 2> skel(tri);
+    ////std::cout << skel << "\n";
 
-  unsigned numThreads = tri.countTriangles();
-  // unsigned numThreads = tri.countTriangles();
-  if (numThreads == 0)
-    numThreads = 1;
-  std::cerr << "Running with " << numThreads
-            << " threads, condition = " << boundaryConditionName(cond)
-            << "\n\n";
-  SurfaceSearch e(tri);
-  e.search(numThreads, cond);
+    unsigned numThreads = tri.countTriangles();
+    // unsigned numThreads = tri.countTriangles();
+    if (numThreads == 0)
+        numThreads = 1;
+    std::cerr << "Running with " << numThreads
+              << " threads, condition = " << boundaryConditionName(cond)
+              << "\n\n";
+    SurfaceSearch e(tri);
+    e.search(numThreads, cond);
 
-  // regina::Triangulation<4> tri;
-  // BoundaryCondition cond = BoundaryCondition::boundary;
-  //// std::vector<regina::Triangle<4> *> startingTriangles;
+    // regina::Triangulation<4> tri;
+    // BoundaryCondition cond = BoundaryCondition::boundary;
+    //// std::vector<regina::Triangle<4> *> startingTriangles;
 
-  // if (argc == 2) {
-  //     regina::Triangulation<3> threeMfld;
-  //     std::string pdcode_str = argv[1];
-  //     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-  //     std::vector<const regina::Edge<3> *> linkEdges;
-  //     knotbuilder::buildLink(threeMfld, pdcode, linkEdges);
-  //     Link bdry(threeMfld, linkEdges);
+    // if (argc == 2) {
+    //     regina::Triangulation<3> threeMfld;
+    //     std::string pdcode_str = argv[1];
+    //     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+    //     std::vector<const regina::Edge<3> *> linkEdges;
+    //     knotbuilder::buildLink(threeMfld, pdcode, linkEdges);
+    //     Link bdry(threeMfld, linkEdges);
 
-  //    CobordismBuilder<3> cob(threeMfld);
+    //    CobordismBuilder<3> cob(threeMfld);
 
-  //    tri = cob.thicken();
-  //} else if (argc == 3) {
-  //    std::string arg = argv[1];
-  //    std::string isoSig = argv[2];
+    //    tri = cob.thicken();
+    //} else if (argc == 3) {
+    //    std::string arg = argv[1];
+    //    std::string isoSig = argv[2];
 
-  //    if (arg == "-a" || arg == "--all") {
-  //        cond = BoundaryCondition::all;
-  //    } else if (arg == "-b" || arg == "--boundary" || arg == "-l" ||
-  //               arg == "--links") {
-  //        cond = BoundaryCondition::boundary;
-  //    } else if (arg == "-c" || arg == "--closed") {
-  //        cond = BoundaryCondition::closed;
-  //    } else {
-  //        usage(argv[0], "Please specify a valid surface condition.");
-  //    }
+    //    if (arg == "-a" || arg == "--all") {
+    //        cond = BoundaryCondition::all;
+    //    } else if (arg == "-b" || arg == "--boundary" || arg == "-l" ||
+    //               arg == "--links") {
+    //        cond = BoundaryCondition::boundary;
+    //    } else if (arg == "-c" || arg == "--closed") {
+    //        cond = BoundaryCondition::closed;
+    //    } else {
+    //        usage(argv[0], "Please specify a valid surface condition.");
+    //    }
 
-  //    tri = regina::Triangulation<4>(isoSig);
-  //} else {
+    //    tri = regina::Triangulation<4>(isoSig);
+    //} else {
 
-  //    usage(argv[0], "Please specify a surface condition and provide an "
-  //                   "isomorphism signature.");
-  //}
+    //    usage(argv[0], "Please specify a surface condition and provide an "
+    //                   "isomorphism signature.");
+    //}
 
-  //// regina::Triangulation<3> tri("caba");
-  //// for (const regina::Tetrahedron<3> *tet : tri.tetrahedra()) {
-  ////     std::cout << "Tetrahedron " << tet->index() << "\n";
-  ////     for (int i = 0; i < 4; ++i) {
-  ////         std::cout << "Vertex " << i << " = " << tet->vertex(i)->index()
-  ////                   << "\n";
-  ////     }
-  ////     std::cout << "\n";
-  //// }
-  //// std::vector<int> edgeIndices = {2, 0, 7, 8, 5};
-  //// Curve<3> c;
-  //// for (int i : edgeIndices) {
-  ////     c.push_back(tri.edge(i));
-  //// }
-  //// Knot k(tri, c);
-  //// std::cout << k << "\n";
-  //// k.simplify();
-  //// std::cout << k;
+    //// regina::Triangulation<3> tri("caba");
+    //// for (const regina::Tetrahedron<3> *tet : tri.tetrahedra()) {
+    ////     std::cout << "Tetrahedron " << tet->index() << "\n";
+    ////     for (int i = 0; i < 4; ++i) {
+    ////         std::cout << "Vertex " << i << " = " << tet->vertex(i)->index()
+    ////                   << "\n";
+    ////     }
+    ////     std::cout << "\n";
+    //// }
+    //// std::vector<int> edgeIndices = {2, 0, 7, 8, 5};
+    //// Curve<3> c;
+    //// for (int i : edgeIndices) {
+    ////     c.push_back(tri.edge(i));
+    //// }
+    //// Knot k(tri, c);
+    //// std::cout << k << "\n";
+    //// k.simplify();
+    //// std::cout << k;
 
-  //// std::cout << "Original = " << tri.isoSig() << "\n";
-  //// Knot k = {tri, {}};
-  //// std::vector<regina::Tetrahedron<3> *> tets;
-  //// for (regina::Tetrahedron<3> *tet : k.tri_.tetrahedra()) {
-  ////     tets.push_back(tet);
-  //// }
+    //// std::cout << "Original = " << tri.isoSig() << "\n";
+    //// Knot k = {tri, {}};
+    //// std::vector<regina::Tetrahedron<3> *> tets;
+    //// for (regina::Tetrahedron<3> *tet : k.tri_.tetrahedra()) {
+    ////     tets.push_back(tet);
+    //// }
 
-  //// k.subdivideSharedVertexSequence_(tets);
-  //// std::cout << "Subdivided = " << k.tri_.isoSig() << "\n";
-  ////  tri.newSimplex();
+    //// k.subdivideSharedVertexSequence_(tets);
+    //// std::cout << "Subdivided = " << k.tri_.isoSig() << "\n";
+    ////  tri.newSimplex();
 
-  //// regina::Triangulation<2> tri = regina::Example<2>::orientable(6, 0);
-  //// tri.newSimplex();
-  //// tri.subdivide();
-  //// tri.subdivide();
-  ////    tri.subdivide();
+    //// regina::Triangulation<2> tri = regina::Example<2>::orientable(6, 0);
+    //// tri.newSimplex();
+    //// tri.subdivide();
+    //// tri.subdivide();
+    ////    tri.subdivide();
 
-  // std::cout << "[*] Building gluing graph...\n";
-  // SurfaceFinder finder(tri, cond);
-  // std::cout << "[+] Total gluing graph nodes = " << finder.countNodes()
-  //           << "\n"
-  //           << "[+] Total gluing graph edges = " << finder.countEdges()
-  //           << "\n";
-  ////<< "[+] Graph = \n" << finder << "\n";
+    // std::cout << "[*] Building gluing graph...\n";
+    // SurfaceFinder finder(tri, cond);
+    // std::cout << "[+] Total gluing graph nodes = " << finder.countNodes()
+    //           << "\n"
+    //           << "[+] Total gluing graph edges = " << finder.countEdges()
+    //           << "\n";
+    ////<< "[+] Graph = \n" << finder << "\n";
 
-  // auto &surfaces = finder.findSurfaces();
+    // auto &surfaces = finder.findSurfaces();
 
-  // surfacesDetail(surfaces, cond);
+    // surfacesDetail(surfaces, cond);
 
-  //// for (const auto *comp : tri.boundaryComponents()) {
-  ////     for (const auto *v : comp->vertices()) {
-  ////         std::cout << v->index() << " ";
-  ////     }
-  ////     std::cout << "\n";
-  //// }
-  //// std::cout << "\n";
+    //// for (const auto *comp : tri.boundaryComponents()) {
+    ////     for (const auto *v : comp->vertices()) {
+    ////         std::cout << v->index() << " ";
+    ////     }
+    ////     std::cout << "\n";
+    //// }
+    //// std::cout << "\n";
 
-  // std::vector<std::tuple<size_t, Link, const KnottedSurface<4> *>>
-  // boundaries; for (const auto &surface : surfaces) {
-  //     if (surface.isClosed())
-  //         continue;
+    // std::vector<std::tuple<size_t, Link, const KnottedSurface<4> *>>
+    // boundaries; for (const auto &surface : surfaces) {
+    //     if (surface.isClosed())
+    //         continue;
 
-  //    for (auto &[component, link] : surface.boundary()) {
-  //        boundaries.emplace_back(component, std::move(link), &surface);
-  //    }
-  //}
+    //    for (auto &[component, link] : surface.boundary()) {
+    //        boundaries.emplace_back(component, std::move(link), &surface);
+    //    }
+    //}
 
-  // std::cout << "[+] Found " << boundaries.size() << " total boundary
-  // links\n"; std::cout << "[*] Sorting links by complexity...\n";
+    // std::cout << "[+] Found " << boundaries.size() << " total boundary
+    // links\n"; std::cout << "[*] Sorting links by complexity...\n";
 
-  // std::sort(boundaries.begin(), boundaries.end(),
-  //           [](const auto &b1, const auto &b2) {
-  //               return std::get<1>(b2) < std::get<1>(b1);
-  //           });
+    // std::sort(boundaries.begin(), boundaries.end(),
+    //           [](const auto &b1, const auto &b2) {
+    //               return std::get<1>(b2) < std::get<1>(b1);
+    //           });
 
-  // int count = 0;
-  // if (cond == BoundaryCondition::boundary) {
-  //     for (const auto &[component, l, s] : boundaries) {
-  //         if (count > 10)
-  //             break;
-  //         std::cout << s->detail() << " has boundary " << l
-  //                   << " (boundary component " << component << ")\n";
-  //         l.recognizeComplement();
-  //         ++count;
-  //     }
-  // }
+    // int count = 0;
+    // if (cond == BoundaryCondition::boundary) {
+    //     for (const auto &[component, l, s] : boundaries) {
+    //         if (count > 10)
+    //             break;
+    //         std::cout << s->detail() << " has boundary " << l
+    //                   << " (boundary component " << component << ")\n";
+    //         l.recognizeComplement();
+    //         ++count;
+    //     }
+    // }
 
-  return 0;
+    return 0;
 }
