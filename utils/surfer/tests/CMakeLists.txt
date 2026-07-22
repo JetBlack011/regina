@@ -33,3 +33,11 @@ set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
 #   ./triangulate_knot_table pd_codes.csv
 add_executable(triangulate_knot_table triangulate_knot_table.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
 target_link_libraries(triangulate_knot_table ${ENGINE_LIBRARY})
+
+# Standalone profiling driver (see profile_driver.cpp) -- not a CTest test.
+add_executable(profile_driver profile_driver.cpp
+  ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp
+  ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp
+  ../linkcomplement.cpp ../enumerate_cis.cpp)
+target_link_libraries(profile_driver ${ENGINE_LIBRARY})
+target_compile_options(profile_driver PRIVATE -g)

@@ -9,8 +9,8 @@
 //   "A linear delay algorithm for enumerating all connected induced subgraphs",
 //   BMC Bioinformatics 20(Suppl 12):319, 2019.
 
+#include <cstdint>
 #include <functional>
-#include <list>
 #include <vector>
 
 // A stateful, backtrackable predicate -- for use when checking whether a
@@ -40,8 +40,9 @@ class ConnectedInducedSubgraphEnumerator {
   public:
     ConnectedInducedSubgraphEnumerator(int n,
                                        const std::vector<std::vector<int>> &adj)
-        : n(n), adj(adj), dist(n + 1, -1), parentOf(n + 1, 0),
-          inU(n + 1, false), inC(n + 1, false), itOf(n + 1) {}
+        : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
+          dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1) {}
 
     // Calls visit(U) once for every non-empty connected induced subgraph of
     // the graph, where U is given as a vertex list (in discovery order).
@@ -102,14 +103,53 @@ class ConnectedInducedSubgraphEnumerator {
     const std::vector<std::vector<int>> &adj;
 
     std::vector<int> U; // current connected vertex set (insertion order)
-    std::list<int> C;   // current candidate vertices (extension frontier)
+
+    // Candidate set C (extension frontier), stored as an intrusive doubly
+    // linked list over preallocated arrays keyed by vertex id, rather than
+    // std::list<int>: candidates are added/removed extremely often (once per
+    // DFS node visited, of which there can be astronomically many), and a
+    // node-based std::list heap-allocates/frees on every single insert/erase.
+    // Index 0 is a sentinel: candNext[0]/candPrev[0] are the list's
+    // head/tail, so an empty list is candNext[0] == 0.
+    std::vector<int> candNext, candPrev;
+    void listPushBack(int v) {
+        int tail = candPrev[0];
+        candNext[tail] = v;
+        candPrev[v] = tail;
+        candNext[v] = 0;
+        candPrev[0] = v;
+    }
+    void listErase(int v) {
+        int p = candPrev[v], nx = candNext[v];
+        candNext[p] = nx;
+        candPrev[nx] = p;
+    }
+    int listFront() const { return candNext[0]; }
+    bool listEmpty() const { return candNext[0] == 0; }
+
     std::vector<int>
         dist; // dist[v]: distance from anchor(U); valid for v in U or C
     std::vector<int>
         parentOf; // parentOf[v]: vertex of U that first discovered v
-    std::vector<bool> inU, inC;
-    std::vector<std::list<int>::iterator> itOf;
+    // Plain byte flags, not std::vector<bool>: these are read twice per
+    // candidate neighbor in extend()/extendFiltered()'s innermost loop (the
+    // busiest loop in the whole search), and std::vector<bool>'s bit-packed
+    // storage turns each read into a shift/mask/test sequence instead of a
+    // single byte load -- measurable under profiling as one of the largest
+    // remaining self-time contributors. The extra memory (bytes instead of
+    // bits, per graph node) is negligible.
+    std::vector<uint8_t> inU, inC;
     const std::function<void(const std::vector<int> &)> *report = nullptr;
+
+    // Reusable per-depth scratch buffers for extend()/extendFiltered(),
+    // indexed by the current recursion depth (U.size()) -- replaces two
+    // heap allocations that used to happen on every single recursive call
+    // (the "siblings" snapshot of C, and the "introduced" list per
+    // candidate). Depth never repeats concurrently within one enumerator
+    // instance (recursion is strictly sequential and depth strictly
+    // increases on descent/decreases on backtrack), so each depth's buffer
+    // is safe to clear and reuse across calls instead of reallocating.
+    std::vector<std::vector<int>> siblingBuf, introducedBuf;
 
     // Adapts a stateless whole-U predicate into the ConditionalPredicate
     // interface, so the stateless

@@ -19,8 +19,8 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRoot(
 
     extend(s);
 
-    while (!C.empty())
-        removeCandidate(C.front()); // reset before next root
+    while (!listEmpty())
+        removeCandidate(listFront()); // reset before next root
     U.pop_back();
     inU[s] = false;
     dist[s] = -1;
@@ -44,8 +44,8 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
 
         extendFiltered(s, predicate);
 
-        while (!C.empty())
-            removeCandidate(C.front()); // reset before next root
+        while (!listEmpty())
+            removeCandidate(listFront()); // reset before next root
         predicate.undo(s);
     }
 
@@ -58,19 +58,18 @@ void ConnectedInducedSubgraphEnumerator::addCandidate(int v, int par, int d) {
     inC[v] = true;
     dist[v] = d;
     parentOf[v] = par;
-    C.push_back(v);
-    itOf[v] = std::prev(C.end());
+    listPushBack(v);
 }
 
 void ConnectedInducedSubgraphEnumerator::removeCandidate(int v) {
-    C.erase(itOf[v]);
+    listErase(v);
     inC[v] = false;
     dist[v] = -1;
     parentOf[v] = 0;
 }
 
 void ConnectedInducedSubgraphEnumerator::detachToU(int v) {
-    C.erase(itOf[v]);
+    listErase(v);
     inC[v] = false;
 }
 
@@ -80,8 +79,13 @@ void ConnectedInducedSubgraphEnumerator::extend(int s) {
 
     // Freeze the sibling list: vertices discovered while branching into
     // one candidate belong to a deeper recursion level and must not be
-    // tried as siblings at this level.
-    std::vector<int> siblings(C.begin(), C.end());
+    // tried as siblings at this level. Reuse this depth's scratch buffer
+    // (see siblingBuf's declaration) instead of heap-allocating a fresh
+    // vector on every call.
+    std::vector<int> &siblings = siblingBuf[U.size()];
+    siblings.clear();
+    for (int v = candNext[0]; v != 0; v = candNext[v])
+        siblings.push_back(v);
 
     for (int w : siblings) {
         const int dw = dist[w];
@@ -97,7 +101,8 @@ void ConnectedInducedSubgraphEnumerator::extend(int s) {
         U.push_back(w);
         inU[w] = true;
 
-        std::vector<int> introduced;
+        std::vector<int> &introduced = introducedBuf[U.size()];
+        introduced.clear();
         for (int x : adj[w])
             if (x > s && !inU[x] && !inC[x]) {
                 addCandidate(x, w, wDist + 1);
@@ -122,7 +127,12 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
     const int u = U.back();
     const int du = dist[u];
 
-    std::vector<int> siblings(C.begin(), C.end());
+    // See extend()'s identical snapshot for why this is a reused per-depth
+    // buffer rather than a fresh std::vector<int>(C.begin(), C.end()).
+    std::vector<int> &siblings = siblingBuf[U.size()];
+    siblings.clear();
+    for (int v = candNext[0]; v != 0; v = candNext[v])
+        siblings.push_back(v);
 
     for (int w : siblings) {
         const int dw = dist[w];
@@ -137,7 +147,8 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
         U.push_back(w);
         inU[w] = true;
 
-        std::vector<int> introduced;
+        std::vector<int> &introduced = introducedBuf[U.size()];
+        introduced.clear();
         for (int x : adj[w])
             if (x > s && !inU[x] && !inC[x]) {
                 addCandidate(x, w, wDist + 1);
