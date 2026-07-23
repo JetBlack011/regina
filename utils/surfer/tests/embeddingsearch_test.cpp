@@ -10,6 +10,7 @@
 // the DFS graph entirely -- see hasIrreparableSelfFold() in
 // embeddingsearch.h).
 
+#include <algorithm>
 #include <iostream>
 #include <maths/perm.h>
 #include <sstream>
@@ -326,6 +327,117 @@ void test_boundary_link_batch_recognizes_unknot() {
               "the unknot was recorded as bounding (at least) a Disc");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ConnectedInducedSubgraphEnumerator's seeded mode, directly, on a small
+// hand-built graph: 1 (seed) -- 3 -- 2, i.e. adj[1]={3}, adj[3]={1,2},
+// adj[2]={3}. This is exactly the shape that would defeat a naive
+// "just call enumerateFromRoot(w, visit) on each sibling" implementation:
+// vertex 2 is only reachable through sibling root w=3, and 2 < 3, so an
+// implementation that (incorrectly) re-anchors at w=3 would floor new
+// candidates at "> 3" and never discover 2 at all. The correct
+// implementation keeps the seed (vertex 1) as the anchor throughout, so 2
+// must still be found.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_seeded_enumerator_preserves_anchor() {
+    std::cout << "\n--- ConnectedInducedSubgraphEnumerator: seeded mode "
+                 "keeps the seed as anchor, not the sibling ---\n";
+
+    std::vector<std::vector<int>> adj(4);
+    adj[1] = {3};
+    adj[3] = {1, 2};
+    adj[2] = {3};
+
+    ConnectedInducedSubgraphEnumerator enumerator(3, adj, /*isSeeded=*/true);
+    EXPECT_EQ(enumerator.getRoots().size(), 1ULL,
+              "vertex 1's only neighbor (3) is its only root");
+    EXPECT_EQ(enumerator.getRoots()[0], 3,
+              "the single root is vertex 3");
+
+    std::vector<std::vector<int>> results;
+    enumerator.enumerate(
+        [&](const std::vector<int> &U) { results.push_back(U); });
+
+    bool foundSeedPlusThree = false, foundAll = false;
+    for (auto &U : results) {
+        std::vector<int> sorted = U;
+        std::sort(sorted.begin(), sorted.end());
+        if (sorted == std::vector<int>{1, 3})
+            foundSeedPlusThree = true;
+        if (sorted == std::vector<int>{1, 2, 3})
+            foundAll = true;
+    }
+    EXPECT_EQ(results.size(), 2ULL,
+              "exactly 2 connected supersets of the seed are found");
+    EXPECT_EQ(foundSeedPlusThree, true, "{1,3} is found");
+    EXPECT_EQ(foundAll, true,
+              "{1,2,3} is found -- vertex 2 is reachable via sibling 3 "
+              "despite 2 < 3, because the seed (not the sibling) stays the "
+              "anchor throughout");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EmbeddingSearch's seeded constructor, on the same B³ single tetrahedron as
+// test_tetrahedron_boundary_conditions (K4 gluing graph among its 4
+// triangle faces, so every non-empty subset is connected). Seeding with one
+// face restricts results to connected subsets CONTAINING that face: exactly
+// the 2^3 = 8 subsets of the other 3 faces union the seed. Of those, only
+// the full 4-face set closes into S². This also exercises the "seed alone"
+// special case in search() (the seed-only 1-face result can only be
+// produced by that code path, never by any root's subtree).
+// ─────────────────────────────────────────────────────────────────────────────
+void test_seeded_search_tetrahedron() {
+    std::cout << "\n--- B³ (single tetrahedron): seeded search from one "
+                 "face ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+    std::vector<int> seed = {static_cast<int>(ball.triangle(0)->index())};
+
+    EmbeddingSearch<3, 2> all(ball, seed);
+    EXPECT_EQ(runFilteredCount(all, 1, BoundaryCondition::all), 8LL,
+              "--all finds all 8 connected supersets of the seed face");
+
+    EmbeddingSearch<3, 2> closed(ball, seed);
+    EXPECT_EQ(runFilteredCount(closed, 1, BoundaryCondition::closed), 1LL,
+              "--closed finds only the full 4-face set");
+
+    EmbeddingSearch<3, 2> proper(ball, seed);
+    EXPECT_EQ(runFilteredCount(proper, 1, BoundaryCondition::proper), 8LL,
+              "--proper finds all 8 (every ambient edge is boundary)");
+
+    EmbeddingSearch<3, 2> connected(ball, seed);
+    EXPECT_EQ(runFilteredCount(connected, 2, BoundaryCondition::connected),
+              8LL,
+              "--connected finds all 8, using multiple threads over the "
+              "seed's siblings");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A seed face excluded by buildGraph_'s pre-filter (the triple self-fold
+// from test_triple_self_fold_excluded) must be rejected immediately by
+// EmbeddingSearch's seeded constructor, not discovered later inside
+// search().
+// ─────────────────────────────────────────────────────────────────────────────
+void test_seeded_search_rejects_invalid_seed() {
+    std::cout << "\n--- Seeded EmbeddingSearch: invalid seed face throws at "
+                 "construction ---\n";
+
+    regina::Triangulation<3> tri;
+    auto *t = tri.newTetrahedron();
+    t->join(0, t, regina::Perm<4>(1, 2, 0, 3));
+    t->join(2, t, regina::Perm<4>(0, 2, 3, 1));
+
+    bool threw = false;
+    try {
+        EmbeddingSearch<3, 2> search(tri, {0});
+    } catch (const regina::InvalidArgument &) {
+        threw = true;
+    }
+    EXPECT_EQ(threw, true,
+              "constructing with an excluded face as the seed throws "
+              "regina::InvalidArgument");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -346,6 +458,11 @@ int main() {
     run("test_triple_self_fold_excluded", test_triple_self_fold_excluded);
     run("test_boundary_link_batch_recognizes_unknot",
         test_boundary_link_batch_recognizes_unknot);
+    run("test_seeded_enumerator_preserves_anchor",
+        test_seeded_enumerator_preserves_anchor);
+    run("test_seeded_search_tetrahedron", test_seeded_search_tetrahedron);
+    run("test_seeded_search_rejects_invalid_seed",
+        test_seeded_search_rejects_invalid_seed);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

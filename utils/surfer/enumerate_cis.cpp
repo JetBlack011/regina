@@ -4,8 +4,123 @@
 
 #include "enumerate_cis.h"
 
+#include <algorithm>
+#include <cassert>
+#include <queue>
+#include <set>
+#include <unordered_set>
+
+ConnectedInducedSubgraphEnumerator::SeededGraph
+ConnectedInducedSubgraphEnumerator::contractSeed(
+    int origN, const std::vector<std::vector<int>> &origAdj,
+    const std::vector<int> &seed) {
+    std::unordered_set<int> S(seed.begin(), seed.end());
+
+    // Sanity check: seed must be connected as an induced subgraph.
+    {
+        std::vector<char> seen(origN + 1, 0);
+        std::queue<int> q;
+        seen[seed[0]] = 1;
+        q.push(seed[0]);
+        int count = 1;
+        while (!q.empty()) {
+            int u = q.front();
+            q.pop();
+            for (int v : origAdj[u])
+                if (S.count(v) && !seen[v]) {
+                    seen[v] = 1;
+                    ++count;
+                    q.push(v);
+                }
+        }
+        assert(count == (int)seed.size() &&
+              "seed must be a connected induced subgraph");
+    }
+
+    // External vertices, in a fixed (ascending) order -> new ids 2..n'
+    std::vector<int> externalVerts;
+    for (int v = 1; v <= origN; ++v)
+        if (!S.count(v))
+            externalVerts.push_back(v);
+
+    std::vector<int> newIdOf(origN + 1, 0); // original id -> new id (external only)
+    for (size_t i = 0; i < externalVerts.size(); ++i)
+        newIdOf[externalVerts[i]] = (int)i + 2;
+
+    int nPrime = 1 + (int)externalVerts.size();
+    SeededGraph g;
+    g.n = nPrime;
+    g.adj.assign(nPrime + 1, {});
+    g.originalOf.assign(nPrime + 1, -1); // originalOf[1] left as -1: "this is the seed"
+    for (size_t i = 0; i < externalVerts.size(); ++i)
+        g.originalOf[i + 2] = externalVerts[i];
+
+    // Seed (vertex 1) <-> external neighbors: union over all seed vertices,
+    // deduplicated (a vertex adjacent to several seed members still only
+    // gets ONE edge to the contracted vertex).
+    std::set<int> seedNeighbors;
+    for (int v : seed)
+        for (int u : origAdj[v])
+            if (!S.count(u))
+                seedNeighbors.insert(newIdOf[u]);
+    for (int u : seedNeighbors) {
+        g.adj[1].push_back(u);
+        g.adj[u].push_back(1);
+    }
+
+    // External <-> external edges: unchanged, just relabeled.
+    for (int v : externalVerts) {
+        int vNew = newIdOf[v];
+        for (int u : origAdj[v]) {
+            if (S.count(u))
+                continue; // handled above
+            int uNew = newIdOf[u];
+            if (uNew > vNew) {
+                g.adj[vNew].push_back(uNew);
+                g.adj[uNew].push_back(vNew);
+            }
+        }
+    }
+    for (auto &lst : g.adj) {
+        std::sort(lst.begin(), lst.end());
+        lst.erase(std::unique(lst.begin(), lst.end()), lst.end());
+    }
+    return g;
+}
+
 void ConnectedInducedSubgraphEnumerator::enumerateFromRoot(
     int s, const std::function<void(const std::vector<int> &)> &visit) {
+    if (isSeeded_) {
+        // s is a sibling of the seed, already sitting in the candidate list
+        // from seedFastForward_(). Anchor stays 1 throughout -- see
+        // seedFastForward_'s comment and the class-level isSeeded_ comment.
+        report = &visit;
+        const int w = s;
+
+        detachToU(w);
+        U.push_back(w);
+        inU[w] = true;
+
+        std::vector<int> &introduced = introducedBuf[U.size()];
+        introduced.clear();
+        for (int x : adj[w])
+            if (x > 1 && !inU[x] && !inC[x]) {
+                addCandidate(x, w, dist[w] + 1);
+                introduced.push_back(x);
+            }
+
+        (*report)(U);
+        extend(1);
+
+        for (int x : introduced)
+            removeCandidate(x);
+        U.pop_back();
+        inU[w] = false;
+        addCandidate(w, 1, 1); // restore as a candidate for the next root
+
+        return;
+    }
+
     report = &visit;
 
     U.push_back(s);
@@ -29,6 +144,37 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRoot(
 void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     int s, const std::function<void(const std::vector<int> &)> &visit,
     ConditionalPredicate &predicate) {
+    if (isSeeded_) {
+        report = &visit;
+        const int w = s;
+
+        detachToU(w);
+        U.push_back(w);
+        inU[w] = true;
+
+        std::vector<int> &introduced = introducedBuf[U.size()];
+        introduced.clear();
+        for (int x : adj[w])
+            if (x > 1 && !inU[x] && !inC[x]) {
+                addCandidate(x, w, dist[w] + 1);
+                introduced.push_back(x);
+            }
+
+        if (predicate.tryAdd(w)) {
+            (*report)(U);
+            extendFiltered(1, predicate);
+            predicate.undo(w);
+        }
+
+        for (int x : introduced)
+            removeCandidate(x);
+        U.pop_back();
+        inU[w] = false;
+        addCandidate(w, 1, 1); // restore as a candidate for the next root
+
+        return;
+    }
+
     report = &visit;
 
     U.push_back(s);
@@ -52,6 +198,40 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     U.pop_back();
     inU[s] = false;
     dist[s] = -1;
+}
+
+void ConnectedInducedSubgraphEnumerator::seedFastForward_(
+    ConditionalPredicate *predicate) {
+    U.push_back(1);
+    inU[1] = true;
+    dist[1] = 0;
+
+    if (predicate) {
+        // The caller (e.g. EmbeddingSearch) is expected to have already
+        // validated that the seed can jointly be committed before ever
+        // constructing a seeded enumerator -- see EmbeddingSearch's seeded
+        // constructor, which does exactly this validation eagerly. This is
+        // a defensive check for standalone/direct use of this class, not
+        // the primary place that validation happens.
+        [[maybe_unused]] bool committed = predicate->tryAdd(1);
+        assert(committed && "seed must be jointly committable via tryAdd(1)");
+    }
+
+    for (int w : adj[1])
+        if (w > 1 && !inU[w] && !inC[w])
+            addCandidate(w, 1, 1);
+
+    roots_.clear();
+    for (int w = candNext[0]; w != 0; w = candNext[w]) {
+        if (!predicate) {
+            roots_.push_back(w);
+            continue;
+        }
+        if (predicate->tryAdd(w)) {
+            predicate->undo(w);
+            roots_.push_back(w);
+        }
+    }
 }
 
 void ConnectedInducedSubgraphEnumerator::addCandidate(int v, int par, int d) {

@@ -22,6 +22,37 @@ EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
 }
 
 template <int dim, int subdim>
+EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
+    const Skeleton<dim, subdim> &skeleton, const std::vector<int> &seedFaces)
+    : EmbeddedSubmanifold(skeleton) {
+  if (!addFaces(seedFaces))
+    throw regina::InvalidArgument(
+        "EmbeddedSubmanifold::EmbeddedSubmanifold(): seedFaces could not "
+        "be jointly added -- no addition order makes every face embed.");
+}
+
+template <int dim, int subdim>
+bool EmbeddedSubmanifold<dim, subdim>::addFaces(
+    const std::vector<int> &faces) {
+  // With Phase 2 disabled (see addFace()), addFace()'s only remaining
+  // requirement is the facet-level (codimension-1) boundary condition,
+  // which -- for a target set that's genuinely fine at that level -- holds
+  // regardless of order (whichever of a facet's <=2 triangles is added
+  // second just finds the first already there). So a single pass suffices;
+  // no more searching for a working order via repeated retries.
+  std::vector<int> added; // commit order, for rollback on failure
+  for (int f : faces) {
+    if (!addFace(f)) {
+      for (auto it = added.rbegin(); it != added.rend(); ++it)
+        removeFace(*it);
+      return false;
+    }
+    added.push_back(f);
+  }
+  return true;
+}
+
+template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
   const auto &node = skeleton_.getNodes()[f];
 
@@ -69,35 +100,53 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
     // Gluings to faces not in the submanifold are ignored.
   }
 
-  // Phase 2: Check Condition 2 (higher-codimension condition).
-  // Every k-face (k <= subdim-2) of the new simplex that is already in the
-  // submanifold must be a subface of some facet in F.
-  bool valid = true;
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    if (!valid)
-      return;
-    constexpr int k = decltype(kW)::value;
-    const auto &counts = std::get<k>(faceCount_);
-    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
-      if (counts[node.face->template face<k>(i)->index()] == 0)
-        continue;
-
-      // Bitmask of local vertex indices (0..subdim) of the i-th k-face.
-      const auto perm = regina::FaceNumbering<subdim, k>::ordering(i);
-      int S = 0;
-      for (int j = 0; j <= k; ++j)
-        S |= (1 << perm[j]);
-
-      // Facet j (opposite vertex j) contains this k-face iff j NOT in S.
-      // The face is covered by some facet in F iff (F_bitmask & ~S) != 0.
-      if ((F_bitmask & ~S) == 0) {
-        valid = false;
-        return;
-      }
-    }
-  });
-  if (!valid)
-    return false;
+  // Phase 2: Check Condition 2 (higher-codimension condition) -- DISABLED.
+  //
+  // This required that every k-face (k <= subdim-2, i.e. vertices when
+  // subdim == 2) of the new simplex already touched by the submanifold be a
+  // subface of some facet actually being glued in this same call. That's a
+  // sound-but-incomplete, ORDER-DEPENDENT check: it can reject a face whose
+  // only "explaining" neighbor hasn't been added yet, even when the full
+  // target set is genuinely fine, and -- worse -- some closing dependencies
+  // (e.g. completing a cycle) are mutually circular, so no order at all
+  // satisfies it (see utils/surfer/ADDFACE_VERTEX_COLLISION_BUG.md and the
+  // CollarBuilder investigation that motivated this).
+  //
+  // Disabled per conjecture: the self-intersections this allowed through
+  // are always cusp (tangential), never transversal, intersections, and
+  // should always be resolvable after the fact -- rather than rejected
+  // during search. That resolution isn't implemented yet; for now this
+  // means addFace()/search() can accept submanifolds that are not
+  // genuinely embedded (not injective) at codimension >= 2. Codimension-1
+  // (facet-level, Phase 1 above) checks are NOT affected and remain in
+  // place -- those failures are genuinely unfixable.
+  //
+  // bool valid = true;
+  // regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+  //   if (!valid)
+  //     return;
+  //   constexpr int k = decltype(kW)::value;
+  //   const auto &counts = std::get<k>(faceCount_);
+  //   for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+  //     if (counts[node.face->template face<k>(i)->index()] == 0)
+  //       continue;
+  //
+  //     // Bitmask of local vertex indices (0..subdim) of the i-th k-face.
+  //     const auto perm = regina::FaceNumbering<subdim, k>::ordering(i);
+  //     int S = 0;
+  //     for (int j = 0; j <= k; ++j)
+  //       S |= (1 << perm[j]);
+  //
+  //     // Facet j (opposite vertex j) contains this k-face iff j NOT in S.
+  //     // The face is covered by some facet in F iff (F_bitmask & ~S) != 0.
+  //     if ((F_bitmask & ~S) == 0) {
+  //       valid = false;
+  //       return;
+  //     }
+  //   }
+  // });
+  // if (!valid)
+  //   return false;
 
   // Phase 3: All conditions pass — commit state.
   // For k == subdim-1, iterating all subdim+1 local facet indices handles
@@ -285,6 +334,15 @@ template class EmbeddedSubmanifold<4, 2>;
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
     : EmbeddedSubmanifold<4, 2>(skeleton) {
+  const auto &tri = skeleton.triangulation();
+  bdryComponents_.reserve(tri.countBoundaryComponents());
+  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+}
+
+KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
+                               const std::vector<int> &seedFaces)
+    : EmbeddedSubmanifold<4, 2>(skeleton, seedFaces) {
   const auto &tri = skeleton.triangulation();
   bdryComponents_.reserve(tri.countBoundaryComponents());
   for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)

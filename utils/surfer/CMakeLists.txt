@@ -8,7 +8,7 @@ set(triangulateknot_EXTRA_SOURCES knotbuilder.cpp cobordismbuilder.cpp simplicia
 set(surfer_EXTRA_SOURCES
   knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp linkcomplement.cpp
-  enumerate_cis.cpp)
+  enumerate_cis.cpp collar.cpp)
 
 foreach(EXE ${UTILS})
   add_executable(${EXE} ${EXE}.cpp ${${EXE}_EXTRA_SOURCES})

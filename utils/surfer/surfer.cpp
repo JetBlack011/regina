@@ -11,6 +11,7 @@
 #include <triangulation/example4.h>
 
 #include "cobordismbuilder.h"
+#include "collar.h"
 #include "embeddingsearch.h"
 #include "knotbuilder.h"
 #include "skeleton.h"
@@ -154,23 +155,55 @@ int main(int argc, char *argv[]) {
     std::cout << "Link complement = " << l.buildComplement().isoSig() << "\n";
     // auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
     // std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
-    CobordismBuilder cob(t2);
-    regina::Triangulation<4> tri = cob.thicken(2);
+
+    // Indices are preserved across CobordismBuilder's internal copy/reorder
+    // of t2 (see CobordismBuilder::baseTriangulation()'s doc comment), so
+    // edges0's indices (taken from t2) still identify the same edges in
+    // cob.baseTriangulation().
+    std::vector<int> edgeIndices;
+    edgeIndices.reserve(edges0.size());
+    for (const regina::Edge<3> *e : edges0)
+        edgeIndices.push_back(static_cast<int>(e->index()));
+
+    // thicken() must be called one layer at a time (rather than
+    // thicken(2)), since CollarBuilder can only see the most-recently-built
+    // layer's prisms -- see CobordismBuilder::currentTopSimplex()'s doc
+    // comment. The cobordism itself is still built out to numLayers, but
+    // the seed only traces the collar swept out by the FIRST layer --
+    // everything above that (the second layer, and however much of the
+    // first layer's own "loose" boundary isn't already pinned down by the
+    // seed) is left for the search to actually explore, rather than being
+    // pre-committed as part of a fixed seed.
+    constexpr int numLayers = 2;
+    constexpr int seedLayers = 1;
+    CobordismBuilder<3> cob(t2);
+    CollarBuilder collarBuilder(edgeIndices);
+    for (int i = 0; i < numLayers; ++i) {
+        cob.thicken();
+        if (i < seedLayers)
+            collarBuilder.addLayer(cob);
+    }
+    regina::Triangulation<4> tri = cob.getCobordism();
     //= cob.cone();
     // std::cout << tri.isoSig() << "\n";
     std::cerr << "Num triangles = " << tri.countTriangles() << "\n";
 
+    std::vector<int> seedFaces;
+    for (regina::Triangle<4> *t : collarBuilder.resolve())
+        seedFaces.push_back(static_cast<int>(t->index()));
+    std::cerr << "Collar seed faces = " << seedFaces.size() << "\n";
+
     Skeleton<4, 2> skel(tri);
     ////std::cout << skel << "\n";
 
-    unsigned numThreads = tri.countTriangles();
+    unsigned numThreads = 132;
     // unsigned numThreads = tri.countTriangles();
     if (numThreads == 0)
         numThreads = 1;
     std::cerr << "Running with " << numThreads
               << " threads, condition = " << boundaryConditionName(cond)
               << "\n\n";
-    SurfaceSearch e(tri);
+    SurfaceSearch e(tri, seedFaces);
     e.search(numThreads, cond);
 
     // regina::Triangulation<4> tri;

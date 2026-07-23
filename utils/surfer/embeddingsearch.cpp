@@ -8,6 +8,8 @@
 #include <atomic>
 #include <cassert>
 #include <iomanip>
+#include <numeric>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -52,17 +54,28 @@ const char *boundaryConditionName(BoundaryCondition cond) {
 template <int dim, int subdim>
 EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::EmbeddednessPredicate(
     EmbeddedSubmanifold<dim, subdim> &embedding,
-    const std::vector<int> &graphToSkel)
+    const std::vector<std::vector<int>> &graphToSkel)
     : embedding_(embedding), graphToSkel_(graphToSkel) {}
 
 template <int dim, int subdim>
 bool EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::tryAdd(int v) {
-    return embedding_.addFace(graphToSkel_[v - 1]);
+    const auto &faces = graphToSkel_[v - 1];
+    // Every non-seed node maps to exactly one face, where addFace() alone
+    // is already correct (and this is the hot path -- called once per DFS
+    // node visited) -- only a seeded graph's node 1 (the whole seed) can
+    // have more than one, where addFaces()'s order search is needed. See
+    // addFaces() for why: addFace() is order-sensitive, and the seed's
+    // faces don't generally arrive in a directly-addable order.
+    if (faces.size() == 1)
+        return embedding_.addFace(faces[0]);
+    return embedding_.addFaces(faces);
 }
 
 template <int dim, int subdim>
 void EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::undo(int v) {
-    embedding_.removeFace(graphToSkel_[v - 1]);
+    const auto &faces = graphToSkel_[v - 1];
+    for (auto it = faces.rbegin(); it != faces.rend(); ++it)
+        embedding_.removeFace(*it);
 }
 
 template <int dim, int subdim>
@@ -71,33 +84,90 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
     : skeleton_(tri), graph_(buildGraph_(skeleton_)) {}
 
 template <int dim, int subdim>
+EmbeddingSearch<dim, subdim>::EmbeddingSearch(
+    const regina::Triangulation<dim> &tri, const std::vector<int> &seedFaces)
+    : skeleton_(tri), graph_(buildSeededGraph_(skeleton_, seedFaces)),
+      isSeeded_(true) {
+    // Eagerly validate that seedFaces is jointly addable in *some* order
+    // (not just individually embeddable -- buildSeededGraph_ already
+    // checked that) from an empty submanifold. Throws
+    // regina::InvalidArgument on failure. Discarded immediately -- this is
+    // purely a fail-fast check so a bad seed is caught here, at
+    // construction, rather than later inside a worker thread during
+    // search().
+    EmbeddedSubmanifold<dim, subdim>(skeleton_, seedFaces);
+}
+
+template <int dim, int subdim>
 void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                                           BoundaryCondition cond) {
     const auto searchStart = std::chrono::steady_clock::now();
-    std::atomic<int> nextRoot{1}; // shared dynamic work queue over s = 1..n
+
+    // Shared dynamic work queue over roots. Unseeded: every graph vertex,
+    // unconditionally (matches the old s = 1..n sweep exactly). Seeded:
+    // every sibling of the seed surviving the predicate, via one prototype
+    // embedding/enumerator built once here on the calling thread -- which
+    // also lets us handle the "seed alone, no additional faces" result
+    // here, since no root's subtree can ever produce it (every root
+    // requires descending into at least one more face).
+    std::vector<int> roots;
+    long long seedFoundCount = 0;
+    long long seedSubgraphCount = 0;
+    long long seedMaxFaces = 0;
+    if (isSeeded_) {
+        EmbeddedSubmanifold<dim, subdim> protoEmbedding(skeleton_);
+        EmbeddednessPredicate protoPredicate(protoEmbedding,
+                                             graph_.graphToSkel);
+        ConnectedInducedSubgraphEnumerator protoEnumerator(
+            graph_.adjList.first, graph_.adjList.second, true, protoPredicate);
+        roots = protoEnumerator.getRoots();
+
+        seedFoundCount = 1;
+        if (protoEmbedding.satisfies(cond)) {
+            seedSubgraphCount = 1;
+            seedMaxFaces = static_cast<long long>(
+                protoEmbedding.triangulation().size());
+        }
+    } else {
+        roots.resize(graph_.adjList.first);
+        std::iota(roots.begin(), roots.end(), 1);
+    }
+    const size_t totalRoots = roots.size();
+
+    std::atomic<size_t> nextRootIdx{0};
     std::vector<long long> perThreadCount(numThreads, 0);
 
-    std::atomic<long long> globalFoundCount{0};
-    std::atomic<long long> globalSubgraphCount{0};
-    std::atomic<long long> globalMaxFaces{0};
-    std::atomic<int> rootsCompleted{0};
+    std::atomic<long long> globalFoundCount{seedFoundCount};
+    std::atomic<long long> globalSubgraphCount{seedSubgraphCount};
+    std::atomic<long long> globalMaxFaces{seedMaxFaces};
+    std::atomic<size_t> rootsCompleted{0};
     std::atomic<bool> workersFinished{false};
     std::vector<long long> perThreadFoundCount(numThreads, 0);
 
     auto worker = [&](unsigned tid) {
-        ConnectedInducedSubgraphEnumerator localEnumerator(
-            graph_.adjList.first, graph_.adjList.second);
         EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
+        // ConnectedInducedSubgraphEnumerator holds a reference member, so
+        // it isn't assignable -- construct it in place via optional rather
+        // than choosing between two constructor calls via assignment.
+        std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
+        if (isSeeded_)
+            localEnumeratorOpt.emplace(graph_.adjList.first,
+                                       graph_.adjList.second, true, predicate);
+        else
+            localEnumeratorOpt.emplace(graph_.adjList.first,
+                                       graph_.adjList.second);
+        auto &localEnumerator = *localEnumeratorOpt;
         long long localCount = 0;
         long long sinceFlush = 0;
         long long localFoundCount = 0;
         long long sinceFlushFound = 0;
 
         while (true) {
-            int s = nextRoot.fetch_add(1);
-            if (s > graph_.adjList.first)
+            size_t idx = nextRootIdx.fetch_add(1);
+            if (idx >= totalRoots)
                 break;
+            int s = roots[idx];
             localEnumerator.enumerateFromRootFiltered(
                 s,
                 [&](const std::vector<int> &) {
@@ -152,7 +222,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                                     searchStart)
                    << "\n";
             report << "[+] roots completed: " << rootsCompleted.load() << "/"
-                   << graph_.adjList.first
+                   << totalRoots
                    << "  | million embedded submanifolds found so far: "
                    << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
             report << "[+] million embedded submanifolds satisfying boundary "
@@ -183,10 +253,10 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
     workersFinished.store(true, std::memory_order_relaxed);
     reporter.join();
 
-    long long total = 0;
+    long long total = seedSubgraphCount;
     for (long long c : perThreadCount)
         total += c;
-    long long totalFound = 0;
+    long long totalFound = seedFoundCount;
     for (long long c : perThreadFoundCount)
         totalFound += c;
     std::cerr << "\n\nTotal elapsed: "
@@ -209,23 +279,30 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
     const Skeleton<dim, subdim> &skeleton) {
     const auto &nodes = skeleton.getNodes();
 
-    std::vector<int> graphToSkel;
+    std::vector<int> skelOf; // dense graph index -> skeleton index
     std::vector<int> skelToGraph(nodes.size(), -1);
     for (size_t i = 0; i < nodes.size(); ++i) {
         if (EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
-                nodes[i].gluings) ||
-            EmbeddedSubmanifold<dim, subdim>::hasUnexplainedSelfCollision(
-                nodes[i].face, nodes[i].gluings))
+                nodes[i].gluings)
+            // hasUnexplainedSelfCollision() filters codimension >= 2
+            // (vertex-level) self-collisions -- disabled along with Phase 2
+            // in addFace() (embeddedsubmanifold.cpp), per the conjecture
+            // that these are always resolvable cusp intersections. Only
+            // the codimension-1 (facet-level) exclusion above remains.
+            //
+            // || EmbeddedSubmanifold<dim, subdim>::hasUnexplainedSelfCollision(
+            //        nodes[i].face, nodes[i].gluings)
+        )
             continue;
-        skelToGraph[i] = static_cast<int>(graphToSkel.size());
-        graphToSkel.push_back(static_cast<int>(i));
+        skelToGraph[i] = static_cast<int>(skelOf.size());
+        skelOf.push_back(static_cast<int>(i));
     }
 
-    int n = static_cast<int>(graphToSkel.size());
+    int n = static_cast<int>(skelOf.size());
     // 1-indexed, as the enumerator expects
     std::vector<std::vector<int>> adj(n + 1);
     for (int graphIdx = 0; graphIdx < n; ++graphIdx) {
-        int i = graphToSkel[graphIdx];
+        int i = skelOf[graphIdx];
         std::set<int> neighbors; // dedupes parallel gluings
         for (const auto &g : nodes[i].gluings) {
             assert(g.srcIndex == static_cast<size_t>(i));
@@ -240,7 +317,65 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
         for (int denseU : neighbors)
             adj[graphIdx + 1].push_back(denseU + 1);
     }
+
+    std::vector<std::vector<int>> graphToSkel;
+    graphToSkel.reserve(n);
+    for (int skelIdx : skelOf)
+        graphToSkel.push_back({skelIdx});
+
     return {AdjacencyList{n, std::move(adj)}, std::move(graphToSkel)};
+}
+
+template <int dim, int subdim>
+typename EmbeddingSearch<dim, subdim>::Graph
+EmbeddingSearch<dim, subdim>::buildSeededGraph_(
+    const Skeleton<dim, subdim> &skeleton, const std::vector<int> &seedFaces) {
+    Graph base = buildGraph_(skeleton);
+
+    // Invert base.graphToSkel: skeleton index -> graph id (1-indexed).
+    std::vector<int> skelToGraph(skeleton.numFaces(), -1);
+    for (int i = 0; i < base.adjList.first; ++i)
+        skelToGraph[base.graphToSkel[i][0]] = i + 1;
+
+    std::vector<int> seedGraphIds;
+    seedGraphIds.reserve(seedFaces.size());
+    for (int f : seedFaces) {
+        int gid = skelToGraph[f];
+        if (gid == -1) {
+            const auto &node = skeleton.getNodes()[f];
+            std::ostringstream reason;
+            if (EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
+                    node.gluings))
+                reason << "an irreparable self-gluing";
+            // hasUnexplainedSelfCollision() usage disabled along with
+            // Phase 2 in addFace() -- see buildGraph_() above.
+            //
+            // else if (EmbeddedSubmanifold<dim, subdim>::
+            //              hasUnexplainedSelfCollision(node.face, node.gluings))
+            //     reason << "an unexplained self-collision";
+            else
+                reason << "an unknown reason"; // shouldn't happen
+            throw regina::InvalidArgument(
+                "EmbeddingSearch: seed face " + std::to_string(f) +
+                " is not embeddable (excluded by buildGraph_'s pre-filter: " +
+                reason.str() + ")");
+        }
+        seedGraphIds.push_back(gid);
+    }
+
+    ConnectedInducedSubgraphEnumerator::SeededGraph sg =
+        ConnectedInducedSubgraphEnumerator::contractSeed(
+            base.adjList.first, base.adjList.second, seedGraphIds);
+
+    Graph result;
+    result.adjList = AdjacencyList{sg.n, std::move(sg.adj)};
+    result.graphToSkel.resize(sg.n);
+    result.graphToSkel[0] = seedFaces; // vertex 1 -> the whole seed
+    for (int i = 1; i < sg.n; ++i) {
+        int oldGraphId = sg.originalOf[i + 1];
+        result.graphToSkel[i] = base.graphToSkel[oldGraphId - 1];
+    }
+    return result;
 }
 
 template class EmbeddingSearch<3, 2>;
@@ -438,25 +573,69 @@ void SurfaceSearch::processBatchRange_(
 
 void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
     const auto searchStart = std::chrono::steady_clock::now();
-    std::atomic<int> nextRoot{1}; // shared dynamic work queue over s = 1..n
-    std::vector<long long> perThreadCount(numThreads, 0);
-
-    std::atomic<long long> globalFoundCount{0};
-    std::atomic<long long> globalSubgraphCount{0};
-    std::atomic<long long> globalMaxFaces{0};
-    std::atomic<int> rootsCompleted{0};
-    std::atomic<bool> workersFinished{false};
-    SurfaceTypeTally surfaceTally;
-    std::vector<long long> perThreadFoundCount(numThreads, 0);
 
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
+    // See EmbeddingSearch<dim,subdim>::search() for the rationale -- shared
+    // root work-list built once, up front, also handling the "seed alone"
+    // result here since no root's subtree can ever produce it.
+    std::vector<int> roots;
+    long long seedFoundCount = 0;
+    long long seedSubgraphCount = 0;
+    long long seedMaxFaces = 0;
+    std::map<SurfaceTypeKey, long long> seedTypeCounts;
+    std::vector<std::pair<std::string, SurfaceTypeKey>> seedLinks;
+    if (isSeeded_) {
+        KnottedSurface protoEmbedding(skeleton_);
+        EmbeddednessPredicate protoPredicate(protoEmbedding,
+                                             graph_.graphToSkel);
+        ConnectedInducedSubgraphEnumerator protoEnumerator(
+            graph_.adjList.first, graph_.adjList.second, true, protoPredicate);
+        roots = protoEnumerator.getRoots();
+
+        seedFoundCount = 1;
+        if (protoEmbedding.satisfies(cond)) {
+            seedSubgraphCount = 1;
+            seedMaxFaces = static_cast<long long>(
+                protoEmbedding.triangulation().size());
+            SurfaceTypeKey type = protoEmbedding.surfaceType();
+            ++seedTypeCounts[type];
+            if (wantLinks)
+                for (auto &[component, link] : protoEmbedding.boundaryLinks())
+                    seedLinks.emplace_back(link.identify(), type);
+        }
+    } else {
+        roots.resize(graph_.adjList.first);
+        std::iota(roots.begin(), roots.end(), 1);
+    }
+    const size_t totalRoots = roots.size();
+
+    std::atomic<size_t> nextRootIdx{0};
+    std::vector<long long> perThreadCount(numThreads, 0);
+
+    std::atomic<long long> globalFoundCount{seedFoundCount};
+    std::atomic<long long> globalSubgraphCount{seedSubgraphCount};
+    std::atomic<long long> globalMaxFaces{seedMaxFaces};
+    std::atomic<size_t> rootsCompleted{0};
+    std::atomic<bool> workersFinished{false};
+    SurfaceTypeTally surfaceTally;
+    surfaceTally.merge(seedTypeCounts);
+    for (auto &[linkName, type] : seedLinks)
+        linkTally_.record(linkName, type);
+    std::vector<long long> perThreadFoundCount(numThreads, 0);
+
     auto worker = [&](unsigned tid) {
-        ConnectedInducedSubgraphEnumerator localEnumerator(
-            graph_.adjList.first, graph_.adjList.second);
         EmbeddedSubmanifold<4, 2> embedding(skeleton_);
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
+        std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
+        if (isSeeded_)
+            localEnumeratorOpt.emplace(graph_.adjList.first,
+                                       graph_.adjList.second, true, predicate);
+        else
+            localEnumeratorOpt.emplace(graph_.adjList.first,
+                                       graph_.adjList.second);
+        auto &localEnumerator = *localEnumeratorOpt;
         long long localCount = 0;
         long long sinceFlush = 0;
         long long localFoundCount = 0;
@@ -465,9 +644,10 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
         std::vector<std::vector<int>> localPending;
 
         while (true) {
-            int s = nextRoot.fetch_add(1);
-            if (s > graph_.adjList.first)
+            size_t idx = nextRootIdx.fetch_add(1);
+            if (idx >= totalRoots)
                 break;
+            int s = roots[idx];
             localEnumerator.enumerateFromRootFiltered(
                 s,
                 [&](const std::vector<int> &U) {
@@ -483,10 +663,9 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
                             embedding.triangulation())];
                         if (wantLinks) {
                             std::vector<int> faceIndices;
-                            faceIndices.reserve(U.size());
                             for (int v : U)
-                                faceIndices.push_back(
-                                    graph_.graphToSkel[v - 1]);
+                                for (int f : graph_.graphToSkel[v - 1])
+                                    faceIndices.push_back(f);
                             localPending.push_back(std::move(faceIndices));
                         }
                         if (++sinceFlush >= FLUSH_EVERY_BDRY) {
@@ -538,7 +717,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
                                     searchStart)
                    << "\n";
             report << "[+] roots completed: " << rootsCompleted.load() << "/"
-                   << graph_.adjList.first
+                   << totalRoots
                    << "  | million embedded submanifolds found so far: "
                    << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
             report << "[+] million embedded submanifolds satisfying boundary "
@@ -591,10 +770,10 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
         processRemainingSurfaceBoundaries(numThreads);
     }
 
-    long long total = 0;
+    long long total = seedSubgraphCount;
     for (long long c : perThreadCount)
         total += c;
-    long long totalFound = 0;
+    long long totalFound = seedFoundCount;
     for (long long c : perThreadFoundCount)
         totalFound += c;
     std::cerr << "\n\nTotal elapsed: "

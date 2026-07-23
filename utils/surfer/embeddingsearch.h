@@ -23,11 +23,11 @@ template <int dim, int subdim> class EmbeddingSearch {
 protected:
   class EmbeddednessPredicate : public ConditionalPredicate {
     EmbeddedSubmanifold<dim, subdim> &embedding_;
-    const std::vector<int> &graphToSkel_;
+    const std::vector<std::vector<int>> &graphToSkel_;
 
   public:
     EmbeddednessPredicate(EmbeddedSubmanifold<dim, subdim> &embedding,
-                          const std::vector<int> &graphToSkel);
+                          const std::vector<std::vector<int>> &graphToSkel);
 
     bool tryAdd(int v) override;
 
@@ -36,17 +36,31 @@ protected:
 
   struct Graph {
     AdjacencyList adjList;
-    std::vector<int> graphToSkel;
+    // graphToSkel[v-1] is the list of skeleton face indices graph vertex v
+    // corresponds to. Every vertex has a singleton list, except an
+    // unseeded graph's vertex 1 has none: in the seeded case (see
+    // buildSeededGraph_ below), vertex 1 is the contracted seed and maps to
+    // every one of its skeleton faces at once.
+    std::vector<std::vector<int>> graphToSkel;
   };
 
   const Skeleton<dim, subdim> skeleton_;
   const Graph graph_;
+  const bool isSeeded_ = false;
 
 private:
   std::vector<EmbeddedSubmanifold<dim, subdim>> valid_embeddings_;
 
 public:
   EmbeddingSearch(const regina::Triangulation<dim> &tri);
+
+  // Seeded search: seedFaces (skeleton face indices) must be a connected,
+  // jointly-addable set of faces (e.g. the output of CollarBuilder,
+  // translated to skeleton indices via Triangle::index()) -- checked
+  // eagerly here, throwing regina::InvalidArgument on an invalid seed
+  // rather than deferring discovery to search().
+  EmbeddingSearch(const regina::Triangulation<dim> &tri,
+                  const std::vector<int> &seedFaces);
 
   size_t numEmbeddableFaces() const { return graph_.graphToSkel.size(); }
 
@@ -55,6 +69,15 @@ public:
 
 private:
   static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton);
+
+  // Builds the graph as buildGraph_ does, then contracts seedFaces into a
+  // single vertex (always ending up with the globally-smallest id, 1) via
+  // ConnectedInducedSubgraphEnumerator::contractSeed(), composing its id
+  // mapping with buildGraph_'s own graphToSkel to produce a Graph whose
+  // vertex 1 maps to the whole seed and every other vertex maps to a single
+  // skeleton face, exactly as buildGraph_ would have.
+  static Graph buildSeededGraph_(const Skeleton<dim, subdim> &skeleton,
+                                 const std::vector<int> &seedFaces);
 };
 
 extern template class EmbeddingSearch<3, 2>;

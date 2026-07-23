@@ -38,17 +38,92 @@ class ConditionalPredicate {
 
 class ConnectedInducedSubgraphEnumerator {
   public:
+    // A graph obtained by contracting a connected seed set of some original
+    // graph into a single vertex, always given the globally-smallest id
+    // (1) -- see contractSeed() and the seeded constructors below, which
+    // rely on this convention: enumerateFromRoot(s, ...) finds every
+    // connected set anchored at s (i.e. whose smallest-id member is s), so
+    // if s is the smallest id in the whole graph, "anchored at s" and
+    // "contains s" coincide, and enumerateFromRoot(1, ...) on a SeededGraph
+    // finds exactly the connected supersets of the original seed.
+    struct SeededGraph {
+        int n; // vertex count of the contracted graph
+        std::vector<std::vector<int>> adj; // 1-indexed; vertex 1 = seed
+        // originalOf[i], for i >= 2: original graph id of contracted vertex
+        // i. originalOf[1] is unused (-1): vertex 1 is the whole seed, not
+        // a single original vertex.
+        std::vector<int> originalOf;
+    };
+
+    // Contracts `seed` (which must be a connected induced subgraph of
+    // (origN, origAdj) -- checked via assert) into a single vertex,
+    // producing a SeededGraph as described above.
+    static SeededGraph
+    contractSeed(int origN, const std::vector<std::vector<int>> &origAdj,
+                const std::vector<int> &seed);
+
     ConnectedInducedSubgraphEnumerator(int n,
                                        const std::vector<std::vector<int>> &adj)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1) {}
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1) {
+        initUnseededRoots_();
+    }
+
+    // Seeded variant: treats vertex 1 as a pre-contracted seed (see
+    // contractSeed() above -- the seed always ends up as the
+    // globally-smallest id, vertex 1, precisely so that "anchored at 1" and
+    // "contains the seed" coincide) and fast-forwards this instance's state
+    // to exactly where
+    // enumerateFromRootFiltered(1, ...) would be right before its first call
+    // to extendFiltered(): U = {1}, with the seed already committed via
+    // predicate.tryAdd(1) and the candidate set populated with every
+    // neighbor of 1. roots_ is then populated with every such neighbor that
+    // individually passes predicate.tryAdd/undo (tested and immediately
+    // reverted -- these are independent, mutually exclusive branches, not a
+    // commitment), ready to be handed out as independent units of work (see
+    // enumerateFromRoot/enumerateFromRootFiltered below, which are seed-aware
+    // when isSeeded is set).
+    ConnectedInducedSubgraphEnumerator(int n,
+                                       const std::vector<std::vector<int>> &adj,
+                                       bool isSeeded,
+                                       ConditionalPredicate &predicate)
+        : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
+          dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          isSeeded_(isSeeded) {
+        if (isSeeded_)
+            seedFastForward_(&predicate);
+        else
+            initUnseededRoots_();
+    }
+
+    // Same, but with no predicate: roots_ is every neighbor of the seed,
+    // unfiltered.
+    ConnectedInducedSubgraphEnumerator(int n,
+                                       const std::vector<std::vector<int>> &adj,
+                                       bool isSeeded)
+        : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
+          dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          isSeeded_(isSeeded) {
+        if (isSeeded_)
+            seedFastForward_(nullptr);
+        else
+            initUnseededRoots_();
+    }
+
+    // Elements of roots_ are exactly the values it is valid to call
+    // enumerateFromRoot()/enumerateFromRootFiltered() on: every graph vertex
+    // when unseeded, or every seed-neighbor surviving the predicate (if one
+    // was given at construction) when seeded.
+    const std::vector<int> &getRoots() const { return roots_; }
 
     // Calls visit(U) once for every non-empty connected induced subgraph of
     // the graph, where U is given as a vertex list (in discovery order).
     // Sequential entry point -- just walks every root.
     void enumerate(const std::function<void(const std::vector<int> &)> &visit) {
-        for (int s = 1; s <= n; ++s)
+        for (int s : roots_)
             enumerateFromRoot(s, visit);
     }
 
@@ -90,7 +165,7 @@ class ConnectedInducedSubgraphEnumerator {
     void enumerateFiltered(
         const std::function<void(const std::vector<int> &)> &visit,
         ConditionalPredicate &predicate) {
-        for (int s = 1; s <= n; ++s)
+        for (int s : roots_)
             enumerateFromRootFiltered(s, visit, predicate);
     }
 
@@ -140,6 +215,33 @@ class ConnectedInducedSubgraphEnumerator {
     // bits, per graph node) is negligible.
     std::vector<uint8_t> inU, inC;
     const std::function<void(const std::vector<int> &)> *report = nullptr;
+
+    // See the seeded constructors above. When isSeeded_ is set, vertex 1 is
+    // a pre-contracted seed, U/dist/inU/candidates are already
+    // fast-forwarded to reflect it, and enumerateFromRoot/
+    // enumerateFromRootFiltered reinterpret their vertex argument as "which
+    // already-populated candidate (sibling of the seed) to descend into",
+    // always keeping vertex 1 -- not the sibling -- as the true anchor
+    // passed to extend()/extendFiltered(). When false, everything behaves
+    // exactly as it always has.
+    bool isSeeded_ = false;
+
+    // Elements are exactly the values valid to call enumerateFromRoot()/
+    // enumerateFromRootFiltered() on -- see getRoots() above.
+    std::vector<int> roots_;
+
+    // Populates roots_ with every vertex 1..n (the unseeded case).
+    void initUnseededRoots_() {
+        roots_.resize(n);
+        for (int s = 1; s <= n; ++s)
+            roots_[s - 1] = s;
+    }
+
+    // Fast-forwards state to treat vertex 1 as a seed already anchored in U
+    // (see the seeded constructors above for the full contract). predicate
+    // may be nullptr, in which case the seed is not validated/committed
+    // against anything and roots_ is every neighbor of 1, unfiltered.
+    void seedFastForward_(ConditionalPredicate *predicate);
 
     // Reusable per-depth scratch buffers for extend()/extendFiltered(),
     // indexed by the current recursion depth (U.size()) -- replaces two

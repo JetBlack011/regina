@@ -35,11 +35,33 @@ private:
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton);
 
+  // Seeded constructor: starts from the same empty state as above, then adds
+  // every face in seedFaces via addFace(), in the given order. seedFaces is
+  // a precondition assumed valid by the caller (a connected, jointly
+  // addable set of faces): if any addFace() call fails, throws
+  // regina::InvalidArgument rather than silently leaving a partial result.
+  EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton,
+                      const std::vector<int> &seedFaces);
+
   // Attempts to add face f to the current submanifold. This fails if adding the
   // face results in something which is not embedded, and returns false.
   // Otherwise, returns true and updates the state of the current submanifold
   // triangulation.
+  //
+  // NOTE: as of the Phase 2 check being disabled (see addFace()'s
+  // definition), this only guarantees genuine embeddedness at the
+  // facet (codimension-1) level -- it may accept faces whose addition
+  // produces a submanifold that is not injective at codimension >= 2
+  // (self-touching vertices/edges below the facet level, always cusp
+  // rather than transversal intersections). See
+  // utils/surfer/ADDFACE_VERTEX_COLLISION_BUG.md.
   bool addFace(int f);
+
+  // Attempts to add every face in `faces`, in the given order, via
+  // addFace(). Transactional like addFace(): on success, every face in
+  // `faces` is committed and this returns true; on failure, rolls back
+  // everything added during this call and returns false.
+  bool addFaces(const std::vector<int> &faces);
 
   void removeFace(int f);
 
@@ -94,6 +116,9 @@ private:
 
 public:
   KnottedSurface(const Skeleton<4, 2> &skeleton);
+
+  KnottedSurface(const Skeleton<4, 2> &skeleton,
+                 const std::vector<int> &seedFaces);
 
   std::vector<std::pair<size_t, Link>> boundaryLinks() const;
 
