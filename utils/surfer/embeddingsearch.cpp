@@ -316,7 +316,14 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
         while (!workersFinished.load(std::memory_order_relaxed)) {
             std::this_thread::sleep_for(1s);
 
+            // extraReportLines() (surface-type/boundary tallies) goes
+            // first, status/elapsed/ETA last: the tallies can grow into a
+            // long list, and keeping the status lines below it means
+            // they're always the last thing printed -- right above the
+            // cursor -- instead of getting pushed off-screen above a long
+            // list.
             std::ostringstream report;
+            report << extraReportLines();
             report << "[+] elapsed: "
                    << formatElapsed(std::chrono::steady_clock::now() -
                                     searchStart)
@@ -346,7 +353,6 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
                        << ") found so far: " << std::fixed
                        << std::setprecision(2) << avg << "\n";
             }
-            report << extraReportLines();
             std::string text = report.str();
 
             if (prevLines > 0)
@@ -392,7 +398,13 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
     long long totalFaceSum = seedFaceSum;
     for (long long c : perThreadFaceSum)
         totalFaceSum += c;
-    std::cerr << "\n\nTotal elapsed: "
+    // extraReportLines() first, totals last -- same reasoning as the live
+    // reporter above: keeps the totals visible right above the cursor
+    // instead of pushed off-screen above a long tally list.
+    std::string extra = extraReportLines();
+    if (!extra.empty())
+        std::cerr << "\n" << extra;
+    std::cerr << "\nTotal elapsed: "
               << formatElapsed(std::chrono::steady_clock::now() - searchStart)
               << "\n";
     std::cerr << "Total embedded submanifolds found: " << totalFound
@@ -408,9 +420,6 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
                                   static_cast<double>(total)
                             : 0.0)
               << "\n";
-    std::string extra = extraReportLines();
-    if (!extra.empty())
-        std::cerr << extra << "\n";
 
     assert(globalFoundCount.load() == totalFound);
     assert(globalSubgraphCount.load() == total);
@@ -753,7 +762,13 @@ void SurfaceSearch::processBatchParallel_(std::vector<std::vector<int>> batch,
                     .count();
             size_t processed = processedCount.load();
 
+            // linkTally_.summary() (the potentially long boundary list)
+            // first, elapsed/processed/ETA last -- see runSearch_'s live
+            // reporter for the same reasoning: keeps status visible right
+            // above the cursor instead of pushed off-screen above a long
+            // list.
             std::ostringstream report;
+            report << linkTally_.summary();
             report << "[+] elapsed: " << formatElapsed(elapsed) << "\n";
             report << "[+] boundaries processed: " << processed << "/"
                    << total << " (" << std::fixed << std::setprecision(2)
@@ -769,7 +784,6 @@ void SurfaceSearch::processBatchParallel_(std::vector<std::vector<int>> batch,
                        << formatElapsed(std::chrono::seconds(etaSeconds))
                        << "\n";
             }
-            report << linkTally_.summary();
             std::string text = report.str();
 
             if (prevLines > 0)
