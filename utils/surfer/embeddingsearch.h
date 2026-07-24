@@ -94,6 +94,14 @@ protected:
   //                        a default-constructed, non-joinable
   //                        std::thread if none is needed); afterJoin() runs
   //                        once that thread has been joined.
+  //
+  // SIGINT handling: for the duration of this call, Ctrl+C sets a shared
+  // stop flag (see EmbeddednessPredicate) that prunes the DFS everywhere,
+  // so the worker threads wind down quickly and control falls through to
+  // whatever auxHooks.afterJoin() does next (e.g. SurfaceSearch's boundary
+  // batch processing) instead of continuing to search. A second Ctrl+C --
+  // at any point until this call returns, including during afterJoin() --
+  // terminates the process immediately.
   template <typename ThreadHookFactory, typename OnSeedFound,
             typename ExtraReportLines, typename AuxHooks>
   void runSearch_(unsigned numThreads, BoundaryCondition cond,

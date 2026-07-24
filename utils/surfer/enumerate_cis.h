@@ -9,6 +9,7 @@
 //   "A linear delay algorithm for enumerating all connected induced subgraphs",
 //   BMC Bioinformatics 20(Suppl 12):319, 2019.
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -34,6 +35,34 @@ class ConditionalPredicate {
     virtual bool tryAdd(int v) = 0;
     virtual void undo(int v) = 0;
     virtual ~ConditionalPredicate() = default;
+};
+
+// Decorates another ConditionalPredicate with an external stop signal:
+// once *stopRequested is set, every tryAdd() is rejected outright (inner is
+// never even consulted), so a caller enumerating with this predicate prunes
+// everywhere and unwinds -- an early, cooperative exit from an otherwise
+// unbounded DFS. Knows nothing about why the flag might be set (a signal
+// handler, another thread, a timeout, ...) or what `inner` actually checks;
+// it only adds interruptibility on top.
+class InterruptiblePredicate : public ConditionalPredicate {
+    ConditionalPredicate &inner_;
+    const std::atomic<bool> &stopRequested_;
+
+  public:
+    InterruptiblePredicate(ConditionalPredicate &inner,
+                           const std::atomic<bool> &stopRequested)
+        : inner_(inner), stopRequested_(stopRequested) {}
+
+    bool tryAdd(int v) override {
+        if (stopRequested_.load(std::memory_order_relaxed))
+            return false;
+        return inner_.tryAdd(v);
+    }
+
+    // Only called when the matching tryAdd(v) returned true (per
+    // ConditionalPredicate's contract), which only happens by delegating to
+    // inner_ above -- so this can unconditionally delegate too.
+    void undo(int v) override { inner_.undo(v); }
 };
 
 class ConnectedInducedSubgraphEnumerator {

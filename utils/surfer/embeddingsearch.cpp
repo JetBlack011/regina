@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <csignal>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <numeric>
 #include <optional>
@@ -26,6 +28,49 @@
 // satisfying cond), so it's flushed to the atomic less often to keep
 // contention down
 #define FLUSH_EVERY_FOUND 10'000
+
+namespace {
+// Ctrl+C handling for runSearch_() (embeddingsearch.h's doc comment on that
+// method has the user-facing contract). g_stopRequested/g_sigintCount are
+// process-wide, not per-search -- signals are inherently process-wide too,
+// and this tool only ever runs one search at a time, so that's not a
+// practical limitation here.
+//
+// handleSigint only calls std::atomic<bool>::store (on an
+// always-lock-free-in-practice atomic) and std::_Exit -- per
+// [support.signal], these are among the few operations the standard
+// actually guarantees are safe to perform from within a signal handler.
+std::atomic<bool> *g_stopRequested = nullptr;
+std::atomic<int> g_sigintCount{0};
+
+void handleSigint(int) {
+    if (g_sigintCount.fetch_add(1, std::memory_order_relaxed) > 0)
+        std::_Exit(130); // 128 + SIGINT, the usual shell convention
+    if (g_stopRequested)
+        g_stopRequested->store(true, std::memory_order_relaxed);
+}
+
+// RAII: installs handleSigint for SIGINT for the lifetime of one
+// runSearch_() call (constructed/destroyed on the calling thread only,
+// before any worker thread exists/after they've all joined), restoring
+// whatever handler was previously in place afterward.
+class SigintScope {
+    using Handler = void (*)(int);
+    Handler previous_;
+
+  public:
+    explicit SigintScope(std::atomic<bool> &flag) {
+        g_stopRequested = &flag;
+        g_sigintCount.store(0, std::memory_order_relaxed);
+        previous_ = std::signal(SIGINT, handleSigint);
+    }
+
+    ~SigintScope() {
+        std::signal(SIGINT, previous_);
+        g_stopRequested = nullptr;
+    }
+};
+} // namespace
 
 std::string formatElapsed(std::chrono::steady_clock::duration d) {
     using namespace std::chrono;
@@ -117,6 +162,14 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
     ExtraReportLines extraReportLines, AuxHooks auxHooks) {
     const auto searchStart = std::chrono::steady_clock::now();
 
+    // See this method's doc comment (embeddingsearch.h) for the SIGINT
+    // contract. Constructed before the seeded proto-embedding check below
+    // and destroyed only once this whole function returns, so a Ctrl+C
+    // during that check, the worker threads, or auxHooks.afterJoin() is all
+    // handled uniformly.
+    std::atomic<bool> stopRequested{false};
+    SigintScope sigintScope(stopRequested);
+
     // Shared dynamic work queue over roots. Unseeded: every graph vertex,
     // unconditionally (matches the old s = 1..n sweep exactly). Seeded:
     // every sibling of the seed surviving the predicate, via one prototype
@@ -133,8 +186,11 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
         EmbeddedSubmanifold<dim, subdim> protoEmbedding(skeleton_);
         EmbeddednessPredicate protoPredicate(protoEmbedding,
                                              graph_.graphToSkel);
+        InterruptiblePredicate protoInterruptible(protoPredicate,
+                                                  stopRequested);
         ConnectedInducedSubgraphEnumerator protoEnumerator(
-            graph_.adjList.first, graph_.adjList.second, true, protoPredicate);
+            graph_.adjList.first, graph_.adjList.second, true,
+            protoInterruptible);
         roots = protoEnumerator.getRoots();
 
         seedFoundCount = 1;
@@ -168,13 +224,15 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
     auto worker = [&](unsigned tid) {
         EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
+        InterruptiblePredicate interruptible(predicate, stopRequested);
         // ConnectedInducedSubgraphEnumerator holds a reference member, so
         // it isn't assignable -- construct it in place via optional rather
         // than choosing between two constructor calls via assignment.
         std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
         if (isSeeded_)
             localEnumeratorOpt.emplace(graph_.adjList.first,
-                                       graph_.adjList.second, true, predicate);
+                                       graph_.adjList.second, true,
+                                       interruptible);
         else
             localEnumeratorOpt.emplace(graph_.adjList.first,
                                        graph_.adjList.second);
@@ -188,6 +246,12 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
         auto threadHook = makeThreadHook();
 
         while (true) {
+            // Once interrupted, InterruptiblePredicate already prunes any
+            // root already in progress down to nothing -- this just skips
+            // starting fresh roots too, instead of doing so only to have
+            // them immediately rejected.
+            if (stopRequested.load(std::memory_order_relaxed))
+                break;
             size_t idx = nextRootIdx.fetch_add(1);
             if (idx >= totalRoots)
                 break;
@@ -226,7 +290,7 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
                             ;
                     }
                 },
-                predicate);
+                interruptible);
             rootsCompleted.fetch_add(1, std::memory_order_relaxed);
         }
         // flush this thread's remainder so the global count ends up
@@ -300,6 +364,11 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
         threads.emplace_back(worker, t);
     for (auto &th : threads)
         th.join();
+
+    if (stopRequested.load(std::memory_order_relaxed))
+        std::cerr << "\n[!] Interrupted -- moving on to whatever comes next "
+                     "with what was found so far (Ctrl+C again to quit "
+                     "immediately)\n";
 
     workersFinished.store(true, std::memory_order_relaxed);
     reporter.join();
