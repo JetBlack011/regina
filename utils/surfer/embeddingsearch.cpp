@@ -666,7 +666,7 @@ std::thread SurfaceSearch::AuxHooks::spawn(std::atomic<bool> &workersFinished) {
             std::this_thread::sleep_for(100ms);
             if (std::chrono::steady_clock::now() - lastProcessed < 10s)
                 continue;
-            owner_.processSurfaceBoundaries();
+            owner_.processSurfaceBoundaries(numThreads_);
             lastProcessed = std::chrono::steady_clock::now();
         }
     });
@@ -676,17 +676,17 @@ void SurfaceSearch::AuxHooks::afterJoin() {
     owner_.processRemainingSurfaceBoundaries(numThreads_);
 }
 
-void SurfaceSearch::processSurfaceBoundaries() {
-    auto batch = pendingSurfaces_.drain();
-    if (batch.empty())
-        return;
-
-    KnottedSurface embedding(skeleton_);
-    processBatchRange_(embedding, batch, 0, batch.size());
+void SurfaceSearch::processSurfaceBoundaries(unsigned numThreads) {
+    processBatchParallel_(pendingSurfaces_.drain(), numThreads, false);
 }
 
 void SurfaceSearch::processRemainingSurfaceBoundaries(unsigned numThreads) {
-    auto batch = pendingSurfaces_.drain();
+    processBatchParallel_(pendingSurfaces_.drain(), numThreads, true);
+}
+
+void SurfaceSearch::processBatchParallel_(std::vector<std::vector<int>> batch,
+                                          unsigned numThreads,
+                                          bool announce) {
     if (batch.empty())
         return;
 
@@ -695,52 +695,56 @@ void SurfaceSearch::processRemainingSurfaceBoundaries(unsigned numThreads) {
     const unsigned workerCount =
         static_cast<unsigned>(std::min<size_t>(numThreads, total));
 
-    std::cerr << "\n[*] Search complete; processing " << total
-              << " remaining surface boundaries with " << workerCount
-              << " threads...\n";
+    if (announce)
+        std::cerr << "\n[*] Search complete; processing " << total
+                  << " remaining surface boundaries with " << workerCount
+                  << " threads...\n";
 
     constexpr size_t CHUNK = 64;
     std::atomic<size_t> nextIndex{0};
     std::atomic<size_t> processedCount{0};
     std::atomic<bool> done{false};
 
-    std::thread reporter([&]() {
-        using namespace std::chrono_literals;
-        size_t prevLines = 0;
-        while (!done.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(1s);
+    std::thread reporter;
+    if (announce) {
+        reporter = std::thread([&]() {
+            using namespace std::chrono_literals;
+            size_t prevLines = 0;
+            while (!done.load(std::memory_order_relaxed)) {
+                std::this_thread::sleep_for(1s);
 
-            auto elapsed = std::chrono::steady_clock::now() - phaseStart;
-            long long elapsedSeconds =
-                std::chrono::duration_cast<std::chrono::seconds>(elapsed)
-                    .count();
-            size_t processed = processedCount.load();
+                auto elapsed = std::chrono::steady_clock::now() - phaseStart;
+                long long elapsedSeconds =
+                    std::chrono::duration_cast<std::chrono::seconds>(elapsed)
+                        .count();
+                size_t processed = processedCount.load();
 
-            std::ostringstream report;
-            report << "[+] elapsed: " << formatElapsed(elapsed) << "\n";
-            report << "[+] boundaries processed: " << processed << "/" << total
-                   << " (" << std::fixed << std::setprecision(2)
-                   << (total > 0 ? 100.0 * static_cast<double>(processed) /
-                                       static_cast<double>(total)
-                                 : 0.0)
-                   << "%)\n";
-            if (processed > 0 && processed < total && elapsedSeconds > 0) {
-                long long etaSeconds =
-                    elapsedSeconds * static_cast<long long>(total - processed) /
-                    static_cast<long long>(processed);
-                report << "[+] ETA: "
-                       << formatElapsed(std::chrono::seconds(etaSeconds))
-                       << "\n";
+                std::ostringstream report;
+                report << "[+] elapsed: " << formatElapsed(elapsed) << "\n";
+                report << "[+] boundaries processed: " << processed << "/"
+                       << total << " (" << std::fixed << std::setprecision(2)
+                       << (total > 0 ? 100.0 * static_cast<double>(processed) /
+                                           static_cast<double>(total)
+                                     : 0.0)
+                       << "%)\n";
+                if (processed > 0 && processed < total && elapsedSeconds > 0) {
+                    long long etaSeconds = elapsedSeconds *
+                                           static_cast<long long>(total - processed) /
+                                           static_cast<long long>(processed);
+                    report << "[+] ETA: "
+                           << formatElapsed(std::chrono::seconds(etaSeconds))
+                           << "\n";
+                }
+                report << linkTally_.summary();
+                std::string text = report.str();
+
+                if (prevLines > 0)
+                    std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
+                std::cerr << text;
+                prevLines = std::count(text.begin(), text.end(), '\n');
             }
-            report << linkTally_.summary();
-            std::string text = report.str();
-
-            if (prevLines > 0)
-                std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
-            std::cerr << text;
-            prevLines = std::count(text.begin(), text.end(), '\n');
-        }
-    });
+        });
+    }
 
     auto worker = [&]() {
         KnottedSurface embedding(skeleton_);
@@ -763,12 +767,14 @@ void SurfaceSearch::processRemainingSurfaceBoundaries(unsigned numThreads) {
         th.join();
 
     done.store(true, std::memory_order_relaxed);
-    reporter.join();
-
-    std::cerr << "\n[+] Finished processing remaining surface "
-                 "boundaries in "
-              << formatElapsed(std::chrono::steady_clock::now() - phaseStart)
-              << "\n";
+    if (announce) {
+        reporter.join();
+        std::cerr << "\n[+] Finished processing remaining surface "
+                     "boundaries in "
+                  << formatElapsed(std::chrono::steady_clock::now() -
+                                   phaseStart)
+                  << "\n";
+    }
 }
 
 void SurfaceSearch::processBatchRange_(
