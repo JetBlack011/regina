@@ -117,8 +117,10 @@ extern template class EmbeddingSearch<3, 2>;
 extern template class EmbeddingSearch<4, 2>;
 
 // A search over KnottedSurfaces (EmbeddedSubmanifold<4, 2>) that
-// additionally recognizes the link bounded by each found surface's
-// boundary, tallying which surface types bound which links. This has its
+// additionally recognizes each found surface's boundary curves, per ambient
+// boundary component they lie in (individually, plus the whole link within
+// that component when it holds more than one curve), tallying which surface
+// types have which per-component boundary identifications. This has its
 // own search() (rather than delegating to EmbeddingSearch<4,2>::search())
 // so that surface-type tallying and boundary-link batching can be
 // interleaved into the same DFS pass and the same once-a-second progress
@@ -151,14 +153,18 @@ private:
     std::vector<std::vector<int>> drain();
   };
 
+  // Tallies, per boundary descriptor (see describeBoundary_ below -- one
+  // string capturing the identification of every curve in every ambient
+  // boundary component a surface's boundary touches), how many surfaces of
+  // each type were found with that exact descriptor.
   class LinkBoundaryTally {
   private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::map<SurfaceTypeKey, long long>>
-        linkSurfaceTypes_;
+        descriptorSurfaceTypes_;
 
   public:
-    void record(const std::string &linkName, const SurfaceTypeKey &type);
+    void record(const std::string &descriptor, const SurfaceTypeKey &type);
 
     std::string summary() const;
   };
@@ -221,13 +227,23 @@ private:
   // Replays batch[begin, end) into embedding (via addFace(), in the exact
   // order the DFS originally discovered each entry -- deterministic, since
   // it's the same skeleton_), extracts its boundary Link(s), and records
-  // what surface type each recognized link bounds into linkTally_.
-  // embedding is reused across the whole range so its bdryComponents_
-  // cache (see KnottedSurface's constructor) is only built once, not once
-  // per queued surface.
+  // one boundary descriptor (see describeBoundary_) per surface, tagged
+  // with its surface type, into linkTally_. embedding is reused across the
+  // whole range so its bdryComponents_ cache (see KnottedSurface's
+  // constructor) is only built once, not once per queued surface.
   void processBatchRange_(KnottedSurface &embedding,
                           const std::vector<std::vector<int>> &batch,
                           size_t begin, size_t end);
+
+  // Builds one human-readable descriptor of a surface's whole boundary from
+  // boundaryLinks() (already grouped and sorted by ambient boundary
+  // component index): for each component, "<component+1>: " followed by
+  // the comma-joined identify() of every curve of that component's Link,
+  // followed by " (<link.identify()>)" only when that component holds more
+  // than one curve -- and the per-component entries themselves joined by
+  // ", ". E.g. "1: figure-eight, 2: unknot, unknot (Hopf link)".
+  static std::string
+  describeBoundary_(const std::vector<std::pair<size_t, Link>> &links);
 };
 
 #endif // EMBEDDINGSEARCH_H

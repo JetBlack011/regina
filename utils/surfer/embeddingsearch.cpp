@@ -510,29 +510,30 @@ std::vector<std::vector<int>> SurfaceSearch::PendingSurfaceBatch::drain() {
     return out;
 }
 
-void SurfaceSearch::LinkBoundaryTally::record(const std::string &linkName,
+void SurfaceSearch::LinkBoundaryTally::record(const std::string &descriptor,
                                               const SurfaceTypeKey &type) {
     std::lock_guard<std::mutex> lock(mutex_);
-    ++linkSurfaceTypes_[linkName][type];
+    ++descriptorSurfaceTypes_[descriptor][type];
 }
 
 std::string SurfaceSearch::LinkBoundaryTally::summary() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
-    out << "Links found in surface boundaries:\n";
-    if (linkSurfaceTypes_.empty()) {
+    out << "Surface boundaries found:\n";
+    if (descriptorSurfaceTypes_.empty()) {
         out << "  (none yet)\n";
     } else {
-        std::vector<std::string> names;
-        names.reserve(linkSurfaceTypes_.size());
-        for (const auto &[name, _] : linkSurfaceTypes_)
-            names.push_back(name);
-        std::sort(names.begin(), names.end());
+        std::vector<std::string> descriptors;
+        descriptors.reserve(descriptorSurfaceTypes_.size());
+        for (const auto &[descriptor, _] : descriptorSurfaceTypes_)
+            descriptors.push_back(descriptor);
+        std::sort(descriptors.begin(), descriptors.end());
 
-        for (const std::string &name : names) {
-            out << "  " << name << " bounds: ";
+        for (const std::string &descriptor : descriptors) {
+            out << "  " << descriptor << " - ";
             bool first = true;
-            for (const auto &[type, count] : linkSurfaceTypes_.at(name)) {
+            for (const auto &[type, count] :
+                 descriptorSurfaceTypes_.at(descriptor)) {
                 if (!first)
                     out << ", ";
                 out << KnottedSurface::formatSurfaceType(type) << " (" << count
@@ -541,6 +542,29 @@ std::string SurfaceSearch::LinkBoundaryTally::summary() const {
             }
             out << "\n";
         }
+    }
+    return out.str();
+}
+
+std::string SurfaceSearch::describeBoundary_(
+    const std::vector<std::pair<size_t, Link>> &links) {
+    std::ostringstream out;
+    bool firstComponent = true;
+    for (const auto &[component, link] : links) {
+        if (!firstComponent)
+            out << ", ";
+        firstComponent = false;
+
+        out << (component + 1) << ": ";
+        bool firstCurve = true;
+        for (const Knot &curve : link.comps_) {
+            if (!firstCurve)
+                out << ", ";
+            firstCurve = false;
+            out << curve.identify();
+        }
+        if (link.comps_.size() > 1)
+            out << " (" << link.identify() << ")";
     }
     return out.str();
 }
@@ -688,8 +712,9 @@ void SurfaceSearch::processBatchRange_(
             embedding.addFace(idx);
 
         SurfaceTypeKey type = embedding.surfaceType();
-        for (auto &[component, link] : embedding.boundaryLinks())
-            linkTally_.record(link.identify(), type);
+        auto links = embedding.boundaryLinks();
+        if (!links.empty())
+            linkTally_.record(describeBoundary_(links), type);
 
         // Reverse order, mirroring how the DFS itself would back out --
         // resets embedding to empty for the next item in the batch.
@@ -718,9 +743,11 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
             SurfaceTypeKey type = probe.surfaceType();
             std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
             surfaceTally.merge(seedTypeCounts);
-            if (wantLinks)
-                for (auto &[component, link] : probe.boundaryLinks())
-                    linkTally_.record(link.identify(), type);
+            if (wantLinks) {
+                auto links = probe.boundaryLinks();
+                if (!links.empty())
+                    linkTally_.record(describeBoundary_(links), type);
+            }
         },
         [this, &surfaceTally, wantLinks] {
             std::string out = surfaceTally.summary();
