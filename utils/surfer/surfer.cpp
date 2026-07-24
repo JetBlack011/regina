@@ -150,13 +150,14 @@ int main(int argc, char *argv[]) {
             cond = BoundaryCondition::connected;
     }
 
-    std::string pdcode_str = "[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]";
+    std::string pdcode_str = "(3,1,4,6),(1,5,2,4),(5,3,6,2)]";
+    // [[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
-    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
-    Link l(t2, edges0);
+    auto [t2, edges2] = knotbuilder::buildLink(pdcode);
+    //auto [t2, edges2] = knotbuilder::reduceVertices(t, edges);
+    Link l(t2, edges2);
 
     std::cout << "Link complement = " << l.buildComplement().isoSig() << "\n";
-    // auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
     // std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
 
     // Indices are preserved across CobordismBuilder's internal copy/reorder
@@ -164,8 +165,8 @@ int main(int argc, char *argv[]) {
     // edges0's indices (taken from t2) still identify the same edges in
     // cob.baseTriangulation().
     std::vector<int> edgeIndices;
-    edgeIndices.reserve(edges0.size());
-    for (const regina::Edge<3> *e : edges0)
+    edgeIndices.reserve(edges2.size());
+    for (const regina::Edge<3> *e : edges2)
         edgeIndices.push_back(static_cast<int>(e->index()));
 
     constexpr int numLayers = 1;
@@ -177,7 +178,7 @@ int main(int argc, char *argv[]) {
         if (i < seedLayers)
             collarBuilder.addLayer(cob);
     }
-    cob.cone();
+    //cob.cone();
     regina::Triangulation<4> tri = cob.getCobordism();
     //= cob.cone();
     // std::cout << tri.isoSig() << "\n";
@@ -192,7 +193,7 @@ int main(int argc, char *argv[]) {
     ////std::cout << skel << "\n";
 
     //unsigned numThreads = std::thread::hardware_concurrency();
-    unsigned numThreads = 112;
+    unsigned numThreads = 132;
     if (numThreads == 0)
         numThreads = 1;
     std::cerr << "Running with " << numThreads
