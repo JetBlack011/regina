@@ -213,7 +213,12 @@ private:
 
     std::thread spawn(std::atomic<bool> &workersFinished);
 
-    void afterJoin();
+    // workersFinished is passed through (rather than assumed true) purely
+    // so afterJoin() can hand it to processRemainingSurfaceBoundaries() by
+    // the same reference spawn()'s periodic calls used -- see
+    // processBatchParallel_'s doc comment for why that reference is what
+    // actually matters, not which of these two call sites is calling.
+    void afterJoin(const std::atomic<bool> &workersFinished);
   };
 
   PendingSurfaceBatch pendingSurfaces_;
@@ -230,33 +235,35 @@ public:
   // Drains pendingSurfaces_ and processes whatever was there across up to
   // numThreads worker threads. Called periodically (every ~10s) by the
   // aux thread spawned during search() while the DFS is still running, to
-  // keep pendingSurfaces_ from growing unbounded -- previously did this
-  // single-threaded, which on a large enough search could let a single
-  // call's backlog take minutes on one core while the rest sat idle (and,
-  // since aux.join() in runSearch_ can't return until that call finishes,
-  // made a SIGINT-requested stop look hung with no visible progress).
-  void processSurfaceBoundaries(unsigned numThreads);
+  // keep pendingSurfaces_ from growing unbounded.
+  void processSurfaceBoundaries(unsigned numThreads,
+                                const std::atomic<bool> &workersFinished);
 
   // Same processing, called once after every worker thread (and the aux
-  // thread above) has finished, to drain whatever's left. Unlike the
-  // periodic calls above, this one announces itself and reports live
-  // progress/ETA, since by this point it's the last thing standing between
-  // the caller and a finished search.
-  void processRemainingSurfaceBoundaries(unsigned numThreads);
+  // thread above) has finished, to drain whatever's left.
+  void processRemainingSurfaceBoundaries(
+      unsigned numThreads, const std::atomic<bool> &workersFinished);
 
 private:
   // Shared implementation behind processSurfaceBoundaries() and
-  // processRemainingSurfaceBoundaries(): splits `batch` into CHUNK-sized
-  // slices off a shared atomic cursor, processed by up to
-  // min(numThreads, batch.size()) worker threads (each with its own reused
-  // KnottedSurface, via processBatchRange_). `announce`, set only by
-  // processRemainingSurfaceBoundaries(), additionally prints the
-  // "processing N remaining..." banner, a once-a-second progress/ETA
-  // report, and a "Finished processing..." banner on completion -- the
-  // periodic mid-search calls stay silent instead, since a still-running
-  // search's own progress report already covers this.
+  // processRemainingSurfaceBoundaries(). Always processes `batch` across up
+  // to min(numThreads, batch.size()) worker threads (each with its own
+  // reused KnottedSurface, via processBatchRange_), but stays silent until
+  // workersFinished reads true -- checked live, once a second, by this
+  // call's own reporter thread, NOT decided once up front.
+  //
+  // That live check is what lets a periodic mid-search call (still
+  // silent, so it doesn't fight the search's own progress report for the
+  // terminal) become the visible "processing remaining boundaries" report
+  // mid-flight, the moment the DFS actually finishes or is interrupted,
+  // continuing the very same batch it already grabbed instead of staying
+  // silent until done and only then handing off to a separate, second,
+  // newly-announced call -- which is what used to leave the terminal
+  // looking hung (with real parallel work happening, just invisibly) for
+  // however long that in-flight call took to finish on its own.
   void processBatchParallel_(std::vector<std::vector<int>> batch,
-                            unsigned numThreads, bool announce);
+                            unsigned numThreads,
+                            const std::atomic<bool> &workersFinished);
 
   // Replays batch[begin, end) into embedding (via addFace(), in the exact
   // order the DFS originally discovered each entry -- deterministic, since
