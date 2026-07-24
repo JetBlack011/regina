@@ -152,6 +152,7 @@ int main(int argc, char *argv[]) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
     auto [t2, edges0] = knotbuilder::buildLink(pdcode);
     Link l(t2, edges0);
+
     std::cout << "Link complement = " << l.buildComplement().isoSig() << "\n";
     // auto [t, edges] = knotbuilder::reduceVertices(t2, edges0);
     // std::cout << "Reduced vertices isosig = " << t.isoSig() << "\n";
@@ -165,16 +166,7 @@ int main(int argc, char *argv[]) {
     for (const regina::Edge<3> *e : edges0)
         edgeIndices.push_back(static_cast<int>(e->index()));
 
-    // thicken() must be called one layer at a time (rather than
-    // thicken(2)), since CollarBuilder can only see the most-recently-built
-    // layer's prisms -- see CobordismBuilder::currentTopSimplex()'s doc
-    // comment. The cobordism itself is still built out to numLayers, but
-    // the seed only traces the collar swept out by the FIRST layer --
-    // everything above that (the second layer, and however much of the
-    // first layer's own "loose" boundary isn't already pinned down by the
-    // seed) is left for the search to actually explore, rather than being
-    // pre-committed as part of a fixed seed.
-    constexpr int numLayers = 2;
+    constexpr int numLayers = 1;
     constexpr int seedLayers = 1;
     CobordismBuilder<3> cob(t2);
     CollarBuilder collarBuilder(edgeIndices);

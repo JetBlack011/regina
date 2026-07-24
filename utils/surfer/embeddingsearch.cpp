@@ -18,11 +18,11 @@
 #include <triangulation/dim4.h>
 
 // batch size for progress report
-#define FLUSH_EVERY_BDRY 100
+#define FLUSH_EVERY_BDRY 1
 // the found-count fires on every callback invocation (not just those
 // satisfying cond), so it's flushed to the atomic less often to keep
 // contention down
-#define FLUSH_EVERY_FOUND 100000
+#define FLUSH_EVERY_FOUND 1000000
 
 std::string formatElapsed(std::chrono::steady_clock::duration d) {
     using namespace std::chrono;
