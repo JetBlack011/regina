@@ -159,6 +159,14 @@ private:
     void merge(std::vector<std::vector<int>> &local);
 
     std::vector<std::vector<int>> drain();
+
+    // Pops up to maxCount entries in one lock acquisition (fewer if that's
+    // all that's available, none if empty) -- used by the continuous
+    // background worker (see backgroundDrainLoop_) so it never claims more
+    // than a small, bounded amount of work out of the shared queue at
+    // once, keeping it quick to hand the rest off the moment the search
+    // ends.
+    std::vector<std::vector<int>> popSome(size_t maxCount);
   };
 
   // Tallies, per boundary descriptor (see describeBoundary_ below -- one
@@ -199,9 +207,10 @@ private:
     void onFlush();
   };
 
-  // Aux-thread hook passed to runSearch_(): periodically drains
-  // pendingSurfaces_ into boundary links while the search runs, then
-  // processes whatever is left once the workers finish.
+  // Aux-thread hook passed to runSearch_(): continuously drains
+  // pendingSurfaces_ into boundary links, in small increments, for as long
+  // as the search runs (see backgroundDrainLoop_), then hands off whatever
+  // it hasn't gotten to once the workers finish.
   class AuxHooks {
     SurfaceSearch &owner_;
     unsigned numThreads_;
@@ -213,12 +222,7 @@ private:
 
     std::thread spawn(std::atomic<bool> &workersFinished);
 
-    // workersFinished is passed through (rather than assumed true) purely
-    // so afterJoin() can hand it to processRemainingSurfaceBoundaries() by
-    // the same reference spawn()'s periodic calls used -- see
-    // processBatchParallel_'s doc comment for why that reference is what
-    // actually matters, not which of these two call sites is calling.
-    void afterJoin(const std::atomic<bool> &workersFinished);
+    void afterJoin();
   };
 
   PendingSurfaceBatch pendingSurfaces_;
@@ -232,46 +236,52 @@ public:
   void search(unsigned numThreads,
               BoundaryCondition cond = BoundaryCondition::all);
 
-  // Drains pendingSurfaces_ and processes whatever was there across up to
-  // numThreads worker threads. Called periodically (every ~10s) by the
-  // aux thread spawned during search() while the DFS is still running, to
-  // keep pendingSurfaces_ from growing unbounded.
-  void processSurfaceBoundaries(unsigned numThreads,
-                                const std::atomic<bool> &workersFinished);
-
-  // Same processing, called once after every worker thread (and the aux
-  // thread above) has finished, to drain whatever's left.
-  void processRemainingSurfaceBoundaries(
-      unsigned numThreads, const std::atomic<bool> &workersFinished);
+  // Called once after every DFS worker thread (and the background drain
+  // loop below) has finished, to process whatever's left across up to
+  // numThreads worker threads. Always announces itself (banner, live
+  // progress/ETA, a "Finished..." trailer) since by construction this is
+  // the sole, complete pass over anything not already handled by
+  // backgroundDrainLoop_ -- see that method's doc comment for why there's
+  // no longer any question of this racing a still-in-flight earlier batch.
+  void processRemainingSurfaceBoundaries(unsigned numThreads);
 
 private:
-  // Shared implementation behind processSurfaceBoundaries() and
-  // processRemainingSurfaceBoundaries(). Always processes `batch` across up
-  // to min(numThreads, batch.size()) worker threads (each with its own
-  // reused KnottedSurface, via processBatchRange_), but stays silent until
-  // workersFinished reads true -- checked live, once a second, by this
-  // call's own reporter thread, NOT decided once up front.
-  //
-  // That live check is what lets a periodic mid-search call (still
-  // silent, so it doesn't fight the search's own progress report for the
-  // terminal) become the visible "processing remaining boundaries" report
-  // mid-flight, the moment the DFS actually finishes or is interrupted,
-  // continuing the very same batch it already grabbed instead of staying
-  // silent until done and only then handing off to a separate, second,
-  // newly-announced call -- which is what used to leave the terminal
-  // looking hung (with real parallel work happening, just invisibly) for
-  // however long that in-flight call took to finish on its own.
-  void processBatchParallel_(std::vector<std::vector<int>> batch,
-                            unsigned numThreads,
-                            const std::atomic<bool> &workersFinished);
+  // Runs on the aux thread for as long as search() (with boundary links
+  // wanted) is active: continuously pops and processes small batches (via
+  // popSome(), never the whole queue) so pendingSurfaces_ never grows
+  // unbounded, silently since the search's own once-a-second report
+  // already reflects linkTally_'s growth. Checks workersFinished between
+  // every individual entry (not just between batches), so once the DFS
+  // itself finishes or is interrupted, this stops within roughly one
+  // entry's processing time -- handing back any unprocessed remainder of
+  // its current small batch to pendingSurfaces_ rather than finishing it
+  // out -- instead of a large already-claimed batch silently grinding on
+  // for however long it takes (the earlier failure mode this replaces).
+  // processRemainingSurfaceBoundaries() then picks up everything left, in
+  // one clean pass, once this has returned.
+  void backgroundDrainLoop_(const std::atomic<bool> &workersFinished);
 
-  // Replays batch[begin, end) into embedding (via addFace(), in the exact
-  // order the DFS originally discovered each entry -- deterministic, since
-  // it's the same skeleton_), extracts its boundary Link(s), and records
-  // one boundary descriptor (see describeBoundary_) per surface, tagged
-  // with its surface type, into linkTally_. embedding is reused across the
-  // whole range so its bdryComponents_ cache (see KnottedSurface's
-  // constructor) is only built once, not once per queued surface.
+  // Shared parallel-processing core behind processRemainingSurfaceBoundaries():
+  // splits `batch` into CHUNK-sized slices off a shared atomic cursor,
+  // processed by up to min(numThreads, batch.size()) worker threads (each
+  // with its own reused KnottedSurface, via processBatchRange_), reporting
+  // a banner, live progress/ETA, and a "Finished..." trailer throughout.
+  void processBatchParallel_(std::vector<std::vector<int>> batch,
+                            unsigned numThreads);
+
+  // Runs the addFace/boundaryLinks/record/removeFace sequence for one
+  // queued surface's face indices against `embedding` (reused by the
+  // caller across many entries), recording one boundary descriptor (see
+  // describeBoundary_) into linkTally_ if the surface has any boundary at
+  // all (closed surfaces contribute nothing here).
+  void processEntry_(KnottedSurface &embedding,
+                     const std::vector<int> &faceIndices);
+
+  // Replays batch[begin, end) via processEntry_, in the exact order the
+  // DFS originally discovered each entry -- deterministic, since it's the
+  // same skeleton_. embedding is reused across the whole range so its
+  // bdryComponents_ cache (see KnottedSurface's constructor) is only built
+  // once, not once per queued surface.
   void processBatchRange_(KnottedSurface &embedding,
                           const std::vector<std::vector<int>> &batch,
                           size_t begin, size_t end);

@@ -380,7 +380,7 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
 
     if (aux.joinable()) {
         aux.join();
-        auxHooks.afterJoin(workersFinished);
+        auxHooks.afterJoin();
     }
 
     long long total = seedSubgraphCount;
@@ -427,7 +427,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
     };
     struct NoopAuxHooks {
         std::thread spawn(std::atomic<bool> &) { return {}; }
-        void afterJoin(const std::atomic<bool> &) {}
+        void afterJoin() {}
     };
     runSearch_(
         numThreads, cond, [] { return NoopThreadHook{}; },
@@ -584,6 +584,18 @@ std::vector<std::vector<int>> SurfaceSearch::PendingSurfaceBatch::drain() {
     return out;
 }
 
+std::vector<std::vector<int>>
+SurfaceSearch::PendingSurfaceBatch::popSome(size_t maxCount) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    size_t count = std::min(maxCount, pending_.size());
+    std::vector<std::vector<int>> out;
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        out.push_back(std::move(pending_[pending_.size() - count + i]));
+    pending_.resize(pending_.size() - count);
+    return out;
+}
+
 void SurfaceSearch::LinkBoundaryTally::record(const std::string &descriptor,
                                               const SurfaceTypeKey &type) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -666,38 +678,52 @@ std::thread SurfaceSearch::AuxHooks::spawn(std::atomic<bool> &workersFinished) {
     if (!wantLinks_)
         return {};
     return std::thread([this, &workersFinished]() {
-        using namespace std::chrono_literals;
-        auto lastProcessed = std::chrono::steady_clock::now();
-        while (!workersFinished.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(100ms);
-            if (std::chrono::steady_clock::now() - lastProcessed < 10s)
-                continue;
-            owner_.processSurfaceBoundaries(numThreads_, workersFinished);
-            lastProcessed = std::chrono::steady_clock::now();
-        }
+        owner_.backgroundDrainLoop_(workersFinished);
     });
 }
 
-void SurfaceSearch::AuxHooks::afterJoin(
+void SurfaceSearch::AuxHooks::afterJoin() {
+    owner_.processRemainingSurfaceBoundaries(numThreads_);
+}
+
+void SurfaceSearch::backgroundDrainLoop_(
     const std::atomic<bool> &workersFinished) {
-    owner_.processRemainingSurfaceBoundaries(numThreads_, workersFinished);
+    using namespace std::chrono_literals;
+    // Matches processBatchParallel_'s own CHUNK size -- not load-bearing
+    // that they're equal, just a reasonable shared "small batch" constant.
+    constexpr size_t POP_BATCH = 64;
+    KnottedSurface embedding(skeleton_);
+    while (!workersFinished.load(std::memory_order_relaxed)) {
+        auto items = pendingSurfaces_.popSome(POP_BATCH);
+        if (items.empty()) {
+            std::this_thread::sleep_for(20ms);
+            continue;
+        }
+        for (size_t i = 0; i < items.size(); ++i) {
+            if (workersFinished.load(std::memory_order_relaxed)) {
+                // The search ended partway through this small batch: hand
+                // the unprocessed remainder back to the shared queue --
+                // popSome() already removed it from pending_, so
+                // processRemainingSurfaceBoundaries()'s drain() would
+                // never otherwise see it.
+                std::vector<std::vector<int>> remainder(
+                    std::make_move_iterator(items.begin() +
+                                            static_cast<ptrdiff_t>(i)),
+                    std::make_move_iterator(items.end()));
+                pendingSurfaces_.merge(remainder);
+                return;
+            }
+            processEntry_(embedding, items[i]);
+        }
+    }
 }
 
-void SurfaceSearch::processSurfaceBoundaries(
-    unsigned numThreads, const std::atomic<bool> &workersFinished) {
-    processBatchParallel_(pendingSurfaces_.drain(), numThreads,
-                         workersFinished);
+void SurfaceSearch::processRemainingSurfaceBoundaries(unsigned numThreads) {
+    processBatchParallel_(pendingSurfaces_.drain(), numThreads);
 }
 
-void SurfaceSearch::processRemainingSurfaceBoundaries(
-    unsigned numThreads, const std::atomic<bool> &workersFinished) {
-    processBatchParallel_(pendingSurfaces_.drain(), numThreads,
-                         workersFinished);
-}
-
-void SurfaceSearch::processBatchParallel_(
-    std::vector<std::vector<int>> batch, unsigned numThreads,
-    const std::atomic<bool> &workersFinished) {
+void SurfaceSearch::processBatchParallel_(std::vector<std::vector<int>> batch,
+                                          unsigned numThreads) {
     if (batch.empty())
         return;
 
@@ -706,38 +732,20 @@ void SurfaceSearch::processBatchParallel_(
     const unsigned workerCount =
         static_cast<unsigned>(std::min<size_t>(numThreads, total));
 
+    std::cerr << "\n[*] Search complete; processing " << total
+              << " remaining surface boundaries with " << workerCount
+              << " threads...\n";
+
     constexpr size_t CHUNK = 64;
     std::atomic<size_t> nextIndex{0};
     std::atomic<size_t> processedCount{0};
     std::atomic<bool> done{false};
-    // Written only by reporter (below) and read only after reporter.join(),
-    // so a plain bool -- not std::atomic -- is fine: join() is itself a
-    // synchronizes-with edge.
-    bool everAnnounced = false;
 
     std::thread reporter([&]() {
         using namespace std::chrono_literals;
         size_t prevLines = 0;
-        bool announced = false;
         while (!done.load(std::memory_order_relaxed)) {
             std::this_thread::sleep_for(1s);
-
-            // Stay silent -- and don't disturb whatever's currently on
-            // screen, e.g. the search's own once-a-second progress report
-            // -- until the DFS has actually finished. The moment it has,
-            // mid-batch or not, start reporting THIS batch's progress right
-            // where it stands, rather than only becoming visible on a
-            // brand new call started after this one finishes on its own.
-            if (!workersFinished.load(std::memory_order_relaxed))
-                continue;
-
-            if (!announced) {
-                std::cerr << "\n[*] Search complete; processing " << total
-                          << " remaining surface boundaries with "
-                          << workerCount << " threads...\n";
-                announced = true;
-                everAnnounced = true;
-            }
 
             auto elapsed = std::chrono::steady_clock::now() - phaseStart;
             long long elapsedSeconds =
@@ -793,32 +801,33 @@ void SurfaceSearch::processBatchParallel_(
 
     done.store(true, std::memory_order_relaxed);
     reporter.join();
-    if (everAnnounced)
-        std::cerr << "\n[+] Finished processing remaining surface "
-                     "boundaries in "
-                  << formatElapsed(std::chrono::steady_clock::now() -
-                                   phaseStart)
-                  << "\n";
+    std::cerr << "\n[+] Finished processing remaining surface "
+                 "boundaries in "
+              << formatElapsed(std::chrono::steady_clock::now() - phaseStart)
+              << "\n";
+}
+
+void SurfaceSearch::processEntry_(KnottedSurface &embedding,
+                                  const std::vector<int> &faceIndices) {
+    for (int idx : faceIndices)
+        embedding.addFace(idx);
+
+    SurfaceTypeKey type = embedding.surfaceType();
+    auto links = embedding.boundaryLinks();
+    if (!links.empty())
+        linkTally_.record(describeBoundary_(links), type);
+
+    // Reverse order, mirroring how the DFS itself would back out --
+    // resets embedding to empty for the next entry.
+    for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
+        embedding.removeFace(*it);
 }
 
 void SurfaceSearch::processBatchRange_(
     KnottedSurface &embedding, const std::vector<std::vector<int>> &batch,
     size_t begin, size_t end) {
-    for (size_t i = begin; i < end; ++i) {
-        const auto &faceIndices = batch[i];
-        for (int idx : faceIndices)
-            embedding.addFace(idx);
-
-        SurfaceTypeKey type = embedding.surfaceType();
-        auto links = embedding.boundaryLinks();
-        if (!links.empty())
-            linkTally_.record(describeBoundary_(links), type);
-
-        // Reverse order, mirroring how the DFS itself would back out --
-        // resets embedding to empty for the next item in the batch.
-        for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
-            embedding.removeFace(*it);
-    }
+    for (size_t i = begin; i < end; ++i)
+        processEntry_(embedding, batch[i]);
 }
 
 void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
