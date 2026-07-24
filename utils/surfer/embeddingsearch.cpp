@@ -104,13 +104,7 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
     const regina::Triangulation<dim> &tri, const std::vector<int> &seedFaces)
     : skeleton_(tri), graph_(buildSeededGraph_(skeleton_, seedFaces)),
       isSeeded_(true) {
-    // Eagerly validate that seedFaces is jointly addable in *some* order
-    // (not just individually embeddable -- buildSeededGraph_ already
-    // checked that) from an empty submanifold. Throws
-    // regina::InvalidArgument on failure. Discarded immediately -- this is
-    // purely a fail-fast check so a bad seed is caught here, at
-    // construction, rather than later inside a worker thread during
-    // search().
+
     EmbeddedSubmanifold<dim, subdim>(skeleton_, seedFaces);
 }
 

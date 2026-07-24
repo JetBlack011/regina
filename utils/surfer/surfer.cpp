@@ -177,6 +177,7 @@ int main(int argc, char *argv[]) {
         if (i < seedLayers)
             collarBuilder.addLayer(cob);
     }
+    cob.cone();
     regina::Triangulation<4> tri = cob.getCobordism();
     //= cob.cone();
     // std::cout << tri.isoSig() << "\n";
@@ -190,7 +191,8 @@ int main(int argc, char *argv[]) {
     Skeleton<4, 2> skel(tri);
     ////std::cout << skel << "\n";
 
-    unsigned numThreads = std::thread::hardware_concurrency();
+    //unsigned numThreads = std::thread::hardware_concurrency();
+    unsigned numThreads = 112;
     if (numThreads == 0)
         numThreads = 1;
     std::cerr << "Running with " << numThreads
