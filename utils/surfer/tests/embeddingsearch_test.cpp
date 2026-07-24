@@ -11,10 +11,9 @@
 // embeddingsearch.h).
 
 #include <algorithm>
+#include <exception>
 #include <iostream>
 #include <maths/perm.h>
-#include <sstream>
-#include <stdexcept>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/example2.h>
@@ -60,23 +59,9 @@ std::ostream &resetColor(std::ostream &os) {
     } while (0)
 
 namespace {
-// search() only ever reports its result via std::cerr (it's still a pure
-// counting pass -- see embeddingsearch.h); capture that here and pull the
-// "Total embedded submanifolds (<cond>): N" line back out as a count.
 long long runFilteredCount(EmbeddingSearch<3, 2> &e, unsigned numThreads,
                            BoundaryCondition cond) {
-    std::ostringstream captured;
-    std::streambuf *oldBuf = std::cerr.rdbuf(captured.rdbuf());
-    e.search(numThreads, cond);
-    std::cerr.rdbuf(oldBuf);
-
-    std::string out = captured.str();
-    auto tPos = out.rfind("Total embedded submanifolds (");
-    if (tPos == std::string::npos)
-        throw std::runtime_error(
-            "runFilteredCount(): search() did not print a total count line");
-    auto colonPos = out.find("): ", tPos);
-    return std::stoll(out.substr(colonPos + 3));
+    return e.search(numThreads, cond).satisfyingCount;
 }
 } // namespace
 

@@ -10,13 +10,13 @@
 //    ./profile_driver isosig4 <isosig> <cond> <threads>
 //    ./profile_driver pipeline <pdcode> <thickenLayers> <cond> <threads>
 //
-//  cond in {all, closed, proper, connected}. The reporter thread's periodic
-//  stderr output is suppressed so it doesn't pollute perf's view of steady
-//  -state work.
+//  cond in {all, closed, proper, connected}. search() no longer prints
+//  anything on its own -- passing no callbacks (as every mode but
+//  pipeline-loud does) means steady-state work runs with no output at all,
+//  so there's nothing left to suppress for perf's benefit.
 
 #include <chrono>
 #include <iostream>
-#include <sstream>
 #include <string>
 
 #include <triangulation/dim3.h>
@@ -40,17 +40,13 @@ BoundaryCondition parseCond(const std::string &s) {
   throw std::runtime_error("Unknown condition: " + s);
 }
 
-// Silences search()'s once-a-second progress reports (written to std::cerr)
-// for the duration of the call, so perf's samples aren't spent on
-// terminal-escape formatting rather than the actual search.
+// Times search(), passing no callbacks -- so it runs with no output at all,
+// keeping perf's samples on the actual search rather than any reporting.
 template <typename Search>
-void runSilently(Search &search, unsigned threads, BoundaryCondition cond) {
-  std::ostringstream sink;
-  std::streambuf *old = std::cerr.rdbuf(sink.rdbuf());
+void runTimed(Search &search, unsigned threads, BoundaryCondition cond) {
   const auto start = std::chrono::steady_clock::now();
   search.search(threads, cond);
   const auto elapsed = std::chrono::steady_clock::now() - start;
-  std::cerr.rdbuf(old);
   std::cerr << "[driver] wall time: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
                    .count()
@@ -133,7 +129,7 @@ int main(int argc, char *argv[]) {
     EmbeddingSearch<3, 2> search(tri);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
-    runSilently(search, threads, cond);
+    runTimed(search, threads, cond);
   } else if (mode == "bary4") {
     int subdivisions = std::stoi(argv[2]);
     BoundaryCondition cond = parseCond(argv[3]);
@@ -150,7 +146,7 @@ int main(int argc, char *argv[]) {
     SurfaceSearch search(tri);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
-    runSilently(search, threads, cond);
+    runTimed(search, threads, cond);
   } else if (mode == "isosig4") {
     std::string isosig = argv[2];
     BoundaryCondition cond = parseCond(argv[3]);
@@ -163,7 +159,7 @@ int main(int argc, char *argv[]) {
     SurfaceSearch search(tri);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
-    runSilently(search, threads, cond);
+    runTimed(search, threads, cond);
   } else if (mode == "pipeline" || mode == "pipeline-loud") {
     std::string pdcodeStr = argv[2];
     int layers = std::stoi(argv[3]);
@@ -184,10 +180,18 @@ int main(int argc, char *argv[]) {
     SurfaceSearch search(tri);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
-    if (mode == "pipeline-loud")
-      search.search(threads, cond); // don't suppress stderr progress reports
-    else
-      runSilently(search, threads, cond);
+    if (mode == "pipeline-loud") {
+      SurfaceSearchCallbacks callbacks;
+      callbacks.onProgress = [](const SearchStats &stats) {
+        std::cerr << "[driver] elapsed=" << formatElapsed(stats.elapsed)
+                  << " roots=" << stats.rootsCompleted << "/"
+                  << stats.totalRoots << " found=" << stats.foundCount
+                  << " satisfying=" << stats.satisfyingCount << "\n";
+      };
+      search.search(threads, cond, callbacks); // live progress reports
+    } else {
+      runTimed(search, threads, cond);
+    }
   } else if (mode == "diag") {
     std::string pdcodeStr = argv[2];
     int layers = std::stoi(argv[3]);
