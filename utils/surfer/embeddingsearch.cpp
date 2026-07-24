@@ -25,7 +25,7 @@
 // the found-count fires on every callback invocation (not just those
 // satisfying cond), so it's flushed to the atomic less often to keep
 // contention down
-#define FLUSH_EVERY_FOUND 1000000
+#define FLUSH_EVERY_FOUND 10'000
 
 std::string formatElapsed(std::chrono::steady_clock::duration d) {
     using namespace std::chrono;
@@ -259,9 +259,8 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
                    << "\n";
             report << "[+] roots completed: " << rootsCompleted.load() << "/"
                    << totalRoots
-                   << "  | embedded submanifolds found so far"
-                   << scaleLabel(FLUSH_EVERY_FOUND) << ": "
-                   << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
+                   << "  | embedded submanifolds found so far" << ": "
+                   << globalFoundCount.load() << "\n";
             report << "[+] embedded submanifolds satisfying boundary "
                       "condition ("
                    << boundaryConditionName(cond) << ") found so far"
