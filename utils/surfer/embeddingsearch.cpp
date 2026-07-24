@@ -365,13 +365,19 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
     for (auto &th : threads)
         th.join();
 
+    workersFinished.store(true, std::memory_order_relaxed);
+    reporter.join();
+
+    // Printed only after reporter.join(), not before: the reporter thread
+    // may already be past its own workersFinished check (asleep mid-tick)
+    // when that flag flips, so it can still fire one more ANSI-erasing
+    // redraw afterward -- printing this message any earlier meant that
+    // redraw would immediately wipe it out.
     if (stopRequested.load(std::memory_order_relaxed))
         std::cerr << "\n[!] Interrupted -- moving on to whatever comes next "
                      "with what was found so far (Ctrl+C again to quit "
                      "immediately)\n";
 
-    workersFinished.store(true, std::memory_order_relaxed);
-    reporter.join();
     if (aux.joinable()) {
         aux.join();
         auxHooks.afterJoin(workersFinished);
