@@ -115,8 +115,12 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
 }
 
 template <int dim, int subdim>
-void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
-                                          BoundaryCondition cond) {
+template <typename ThreadHookFactory, typename OnSeedFound,
+          typename ExtraReportLines, typename AuxHooks>
+void EmbeddingSearch<dim, subdim>::runSearch_(
+    unsigned numThreads, BoundaryCondition cond,
+    ThreadHookFactory makeThreadHook, OnSeedFound onSeedFound,
+    ExtraReportLines extraReportLines, AuxHooks auxHooks) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     // Shared dynamic work queue over roots. Unseeded: every graph vertex,
@@ -145,6 +149,9 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
             seedFaceSum = seedMaxFaces;
+            // graph_.graphToSkel[0] is the whole seed -- see
+            // buildSeededGraph_.
+            onSeedFound(graph_.graphToSkel[0]);
         }
     } else {
         roots.resize(graph_.adjList.first);
@@ -184,6 +191,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         long long sinceFlushFound = 0;
         long long localFaceSum = 0;
         long long sinceFlushFaceSum = 0;
+        auto threadHook = makeThreadHook();
 
         while (true) {
             size_t idx = nextRootIdx.fetch_add(1);
@@ -192,7 +200,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
             int s = roots[idx];
             localEnumerator.enumerateFromRootFiltered(
                 s,
-                [&](const std::vector<int> &) {
+                [&](const std::vector<int> &U) {
                     ++localFoundCount;
                     if (++sinceFlushFound >= FLUSH_EVERY_FOUND) {
                         globalFoundCount.fetch_add(sinceFlushFound,
@@ -203,6 +211,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                         ++localCount;
                         long long faceCount = static_cast<long long>(
                             embedding.triangulation().size());
+                        threadHook.onFound(embedding, U, faceCount);
                         localFaceSum += faceCount;
                         sinceFlushFaceSum += faceCount;
                         if (++sinceFlush >= FLUSH_EVERY_BDRY) {
@@ -212,6 +221,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                                 sinceFlushFaceSum, std::memory_order_relaxed);
                             sinceFlush = 0;
                             sinceFlushFaceSum = 0;
+                            threadHook.onFlush();
                         }
                         auto prevMax =
                             globalMaxFaces.load(std::memory_order_relaxed);
@@ -236,6 +246,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         if (sinceFlushFound > 0)
             globalFoundCount.fetch_add(sinceFlushFound,
                                        std::memory_order_relaxed);
+        threadHook.onFlush();
         perThreadCount[tid] = localCount;
         perThreadFoundCount[tid] = localFoundCount;
         perThreadFaceSum[tid] = localFaceSum;
@@ -278,6 +289,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                        << ") found so far: " << std::fixed
                        << std::setprecision(2) << avg << "\n";
             }
+            report << extraReportLines();
             std::string text = report.str();
 
             if (prevLines > 0)
@@ -286,6 +298,8 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
             prevLines = std::count(text.begin(), text.end(), '\n');
         }
     });
+
+    std::thread aux = auxHooks.spawn(workersFinished);
 
     std::vector<std::thread> threads;
     threads.reserve(numThreads);
@@ -296,6 +310,10 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
 
     workersFinished.store(true, std::memory_order_relaxed);
     reporter.join();
+    if (aux.joinable()) {
+        aux.join();
+        auxHooks.afterJoin();
+    }
 
     long long total = seedSubgraphCount;
     for (long long c : perThreadCount)
@@ -322,10 +340,31 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                                   static_cast<double>(total)
                             : 0.0)
               << "\n";
+    std::string extra = extraReportLines();
+    if (!extra.empty())
+        std::cerr << extra << "\n";
 
     assert(globalFoundCount.load() == totalFound);
     assert(globalSubgraphCount.load() == total);
     assert(globalFaceSum.load() == totalFaceSum);
+}
+
+template <int dim, int subdim>
+void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
+                                          BoundaryCondition cond) {
+    struct NoopThreadHook {
+        void onFound(EmbeddedSubmanifold<dim, subdim> &,
+                    const std::vector<int> &, long long) {}
+        void onFlush() {}
+    };
+    struct NoopAuxHooks {
+        std::thread spawn(std::atomic<bool> &) { return {}; }
+        void afterJoin() {}
+    };
+    runSearch_(
+        numThreads, cond, [] { return NoopThreadHook{}; },
+        [](const std::vector<int> &) {}, [] { return std::string(); },
+        NoopAuxHooks{});
 }
 
 template <int dim, int subdim>
@@ -512,6 +551,45 @@ std::string SurfaceSearch::LinkBoundaryTally::summary() const {
     return out.str();
 }
 
+void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
+                                        const std::vector<int> &U,
+                                        long long) {
+    ++localTypeCounts_[KnottedSurface::surfaceTypeKey(embedding.triangulation())];
+    if (wantLinks_) {
+        std::vector<int> faceIndices;
+        for (int v : U)
+            for (int f : owner_.graph_.graphToSkel[v - 1])
+                faceIndices.push_back(f);
+        localPending_.push_back(std::move(faceIndices));
+    }
+}
+
+void SurfaceSearch::ThreadHook::onFlush() {
+    tally_.merge(localTypeCounts_);
+    if (wantLinks_)
+        owner_.pendingSurfaces_.merge(localPending_);
+}
+
+std::thread SurfaceSearch::AuxHooks::spawn(std::atomic<bool> &workersFinished) {
+    if (!wantLinks_)
+        return {};
+    return std::thread([this, &workersFinished]() {
+        using namespace std::chrono_literals;
+        auto lastProcessed = std::chrono::steady_clock::now();
+        while (!workersFinished.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(100ms);
+            if (std::chrono::steady_clock::now() - lastProcessed < 10s)
+                continue;
+            owner_.processSurfaceBoundaries();
+            lastProcessed = std::chrono::steady_clock::now();
+        }
+    });
+}
+
+void SurfaceSearch::AuxHooks::afterJoin() {
+    owner_.processRemainingSurfaceBoundaries(numThreads_);
+}
+
 void SurfaceSearch::processSurfaceBoundaries() {
     auto batch = pendingSurfaces_.drain();
     if (batch.empty())
@@ -627,262 +705,34 @@ void SurfaceSearch::processBatchRange_(
 }
 
 void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
-    const auto searchStart = std::chrono::steady_clock::now();
-
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
-
-    // See EmbeddingSearch<dim,subdim>::search() for the rationale -- shared
-    // root work-list built once, up front, also handling the "seed alone"
-    // result here since no root's subtree can ever produce it.
-    std::vector<int> roots;
-    long long seedFoundCount = 0;
-    long long seedSubgraphCount = 0;
-    long long seedMaxFaces = 0;
-    long long seedFaceSum = 0;
-    std::map<SurfaceTypeKey, long long> seedTypeCounts;
-    std::vector<std::pair<std::string, SurfaceTypeKey>> seedLinks;
-    if (isSeeded_) {
-        KnottedSurface protoEmbedding(skeleton_);
-        EmbeddednessPredicate protoPredicate(protoEmbedding,
-                                             graph_.graphToSkel);
-        ConnectedInducedSubgraphEnumerator protoEnumerator(
-            graph_.adjList.first, graph_.adjList.second, true, protoPredicate);
-        roots = protoEnumerator.getRoots();
-
-        seedFoundCount = 1;
-        if (protoEmbedding.isEmbedded() && protoEmbedding.satisfies(cond)) {
-            seedSubgraphCount = 1;
-            seedMaxFaces = static_cast<long long>(
-                protoEmbedding.triangulation().size());
-            seedFaceSum = seedMaxFaces;
-            SurfaceTypeKey type = protoEmbedding.surfaceType();
-            ++seedTypeCounts[type];
-            if (wantLinks)
-                for (auto &[component, link] : protoEmbedding.boundaryLinks())
-                    seedLinks.emplace_back(link.identify(), type);
-        }
-    } else {
-        roots.resize(graph_.adjList.first);
-        std::iota(roots.begin(), roots.end(), 1);
-    }
-    const size_t totalRoots = roots.size();
-
-    std::atomic<size_t> nextRootIdx{0};
-    std::vector<long long> perThreadCount(numThreads, 0);
-
-    std::atomic<long long> globalFoundCount{seedFoundCount};
-    std::atomic<long long> globalSubgraphCount{seedSubgraphCount};
-    std::atomic<long long> globalMaxFaces{seedMaxFaces};
-    std::atomic<long long> globalFaceSum{seedFaceSum};
-    std::atomic<size_t> rootsCompleted{0};
-    std::atomic<bool> workersFinished{false};
     SurfaceTypeTally surfaceTally;
-    surfaceTally.merge(seedTypeCounts);
-    for (auto &[linkName, type] : seedLinks)
-        linkTally_.record(linkName, type);
-    std::vector<long long> perThreadFoundCount(numThreads, 0);
-    std::vector<long long> perThreadFaceSum(numThreads, 0);
 
-    auto worker = [&](unsigned tid) {
-        EmbeddedSubmanifold<4, 2> embedding(skeleton_);
-        EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
-        std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
-        if (isSeeded_)
-            localEnumeratorOpt.emplace(graph_.adjList.first,
-                                       graph_.adjList.second, true, predicate);
-        else
-            localEnumeratorOpt.emplace(graph_.adjList.first,
-                                       graph_.adjList.second);
-        auto &localEnumerator = *localEnumeratorOpt;
-        long long localCount = 0;
-        long long sinceFlush = 0;
-        long long localFoundCount = 0;
-        long long sinceFlushFound = 0;
-        long long localFaceSum = 0;
-        long long sinceFlushFaceSum = 0;
-        std::map<SurfaceTypeKey, long long> localTypeCounts;
-        std::vector<std::vector<int>> localPending;
-
-        while (true) {
-            size_t idx = nextRootIdx.fetch_add(1);
-            if (idx >= totalRoots)
-                break;
-            int s = roots[idx];
-            localEnumerator.enumerateFromRootFiltered(
-                s,
-                [&](const std::vector<int> &U) {
-                    ++localFoundCount;
-                    if (++sinceFlushFound >= FLUSH_EVERY_FOUND) {
-                        globalFoundCount.fetch_add(sinceFlushFound,
-                                                   std::memory_order_relaxed);
-                        sinceFlushFound = 0;
-                    }
-                    if (embedding.isEmbedded() && embedding.satisfies(cond)) {
-                        ++localCount;
-                        ++localTypeCounts[KnottedSurface::surfaceTypeKey(
-                            embedding.triangulation())];
-                        if (wantLinks) {
-                            std::vector<int> faceIndices;
-                            for (int v : U)
-                                for (int f : graph_.graphToSkel[v - 1])
-                                    faceIndices.push_back(f);
-                            localPending.push_back(std::move(faceIndices));
-                        }
-                        long long faceCount = static_cast<long long>(
-                            embedding.triangulation().size());
-                        localFaceSum += faceCount;
-                        sinceFlushFaceSum += faceCount;
-                        if (++sinceFlush >= FLUSH_EVERY_BDRY) {
-                            globalSubgraphCount.fetch_add(
-                                sinceFlush, std::memory_order_relaxed);
-                            globalFaceSum.fetch_add(
-                                sinceFlushFaceSum, std::memory_order_relaxed);
-                            sinceFlush = 0;
-                            sinceFlushFaceSum = 0;
-                            surfaceTally.merge(localTypeCounts);
-                            if (wantLinks)
-                                pendingSurfaces_.merge(localPending);
-                        }
-                        auto prevMax =
-                            globalMaxFaces.load(std::memory_order_relaxed);
-                        while (faceCount > prevMax &&
-                               !globalMaxFaces.compare_exchange_weak(
-                                   prevMax, faceCount,
-                                   std::memory_order_relaxed))
-                            ;
-                    }
-                },
-                predicate);
-            rootsCompleted.fetch_add(1, std::memory_order_relaxed);
-        }
-        // flush this thread's remainder so the global count ends up
-        // exact
-        if (sinceFlush > 0) {
-            globalSubgraphCount.fetch_add(sinceFlush,
-                                          std::memory_order_relaxed);
-            globalFaceSum.fetch_add(sinceFlushFaceSum,
-                                    std::memory_order_relaxed);
-        }
-        if (sinceFlushFound > 0)
-            globalFoundCount.fetch_add(sinceFlushFound,
-                                       std::memory_order_relaxed);
-        surfaceTally.merge(localTypeCounts);
-        if (wantLinks)
-            pendingSurfaces_.merge(localPending);
-        perThreadCount[tid] = localCount;
-        perThreadFoundCount[tid] = localFoundCount;
-        perThreadFaceSum[tid] = localFaceSum;
-    };
-
-    std::thread reporter([&]() {
-        using namespace std::chrono_literals;
-        size_t prevLines = 0;
-        while (!workersFinished.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(1s);
-
-            std::ostringstream report;
-            report << "[+] elapsed: "
-                   << formatElapsed(std::chrono::steady_clock::now() -
-                                    searchStart)
-                   << "\n";
-            report << "[+] roots completed: " << rootsCompleted.load() << "/"
-                   << totalRoots
-                   << "  | embedded submanifolds found so far"
-                   << scaleLabel(FLUSH_EVERY_FOUND) << ": "
-                   << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
-            report << "[+] embedded submanifolds satisfying boundary "
-                      "condition ("
-                   << boundaryConditionName(cond) << ") found so far"
-                   << scaleLabel(FLUSH_EVERY_BDRY) << ": "
-                   << (globalSubgraphCount.load() / FLUSH_EVERY_BDRY) << "\n";
-            report << "[+] largest embedded submanifold satisfying boundary "
-                      "condition ("
-                   << boundaryConditionName(cond)
-                   << ") found so far: " << globalMaxFaces.load()
-                   << " faces\n";
-            {
-                long long n = globalSubgraphCount.load();
-                double avg = n > 0 ? static_cast<double>(globalFaceSum.load()) /
-                                         static_cast<double>(n)
-                                   : 0.0;
-                report << "[+] average faces per embedded submanifold "
-                          "satisfying boundary condition ("
-                       << boundaryConditionName(cond)
-                       << ") found so far: " << std::fixed
-                       << std::setprecision(2) << avg << "\n";
-            }
-            report << surfaceTally.summary();
+    runSearch_(
+        numThreads, cond,
+        [this, &surfaceTally, wantLinks] {
+            return ThreadHook(*this, surfaceTally, wantLinks);
+        },
+        [this, &surfaceTally, wantLinks](const std::vector<int> &seedFaces) {
+            // One-off, not hot-path: rebuilds the seed as a KnottedSurface
+            // (rather than reusing runSearch_'s generic proto embedding) to
+            // get at surfaceType()/boundaryLinks(), which only KnottedSurface
+            // exposes. seedFaces is added in the same order used to validate
+            // it originally (see buildSeededGraph_), so this always embeds.
+            KnottedSurface probe(skeleton_, seedFaces);
+            SurfaceTypeKey type = probe.surfaceType();
+            std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
+            surfaceTally.merge(seedTypeCounts);
             if (wantLinks)
-                report << linkTally_.summary();
-            std::string text = report.str();
-
-            if (prevLines > 0)
-                std::cerr << "\x1b[" << prevLines << "F\x1b[0J";
-            std::cerr << text;
-            prevLines = std::count(text.begin(), text.end(), '\n');
-        }
-    });
-
-    std::thread boundaryProcessor;
-    if (wantLinks) {
-        boundaryProcessor = std::thread([&]() {
-            using namespace std::chrono_literals;
-            auto lastProcessed = std::chrono::steady_clock::now();
-            while (!workersFinished.load(std::memory_order_relaxed)) {
-                std::this_thread::sleep_for(100ms);
-                if (std::chrono::steady_clock::now() - lastProcessed < 10s)
-                    continue;
-                processSurfaceBoundaries();
-                lastProcessed = std::chrono::steady_clock::now();
-            }
-        });
-    }
-
-    std::vector<std::thread> threads;
-    threads.reserve(numThreads);
-    for (unsigned t = 0; t < numThreads; ++t)
-        threads.emplace_back(worker, t);
-    for (auto &th : threads)
-        th.join();
-
-    workersFinished.store(true, std::memory_order_relaxed);
-    reporter.join();
-    if (boundaryProcessor.joinable()) {
-        boundaryProcessor.join();
-        processRemainingSurfaceBoundaries(numThreads);
-    }
-
-    long long total = seedSubgraphCount;
-    for (long long c : perThreadCount)
-        total += c;
-    long long totalFound = seedFoundCount;
-    for (long long c : perThreadFoundCount)
-        totalFound += c;
-    long long totalFaceSum = seedFaceSum;
-    for (long long c : perThreadFaceSum)
-        totalFaceSum += c;
-    std::cerr << "\n\nTotal elapsed: "
-              << formatElapsed(std::chrono::steady_clock::now() - searchStart)
-              << "\n";
-    std::cerr << "Total embedded submanifolds found: " << totalFound
-              << " (across " << numThreads << " threads)\n";
-    std::cerr << "Total embedded submanifolds (" << boundaryConditionName(cond)
-              << "): " << total << " (across " << numThreads << " threads)\n";
-    std::cerr << "Largest embedded submanifold (" << boundaryConditionName(cond)
-              << "): " << globalMaxFaces.load() << " faces\n";
-    std::cerr << "Average faces per embedded submanifold ("
-              << boundaryConditionName(cond) << "): " << std::fixed
-              << std::setprecision(2)
-              << (total > 0 ? static_cast<double>(totalFaceSum) /
-                                  static_cast<double>(total)
-                            : 0.0)
-              << "\n";
-    std::cerr << surfaceTally.summary() << "\n";
-    if (wantLinks)
-        std::cerr << linkTally_.summary() << "\n";
-
-    assert(globalFoundCount.load() == totalFound);
-    assert(globalSubgraphCount.load() == total);
-    assert(globalFaceSum.load() == totalFaceSum);
+                for (auto &[component, link] : probe.boundaryLinks())
+                    linkTally_.record(link.identify(), type);
+        },
+        [this, &surfaceTally, wantLinks] {
+            std::string out = surfaceTally.summary();
+            if (wantLinks)
+                out += linkTally_.summary();
+            return out;
+        },
+        AuxHooks(*this, numThreads, wantLinks));
 }

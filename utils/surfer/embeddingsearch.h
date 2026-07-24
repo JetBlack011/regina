@@ -2,9 +2,11 @@
 
 #define EMBEDDINGSEARCH_H
 
+#include <atomic>
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <thread>
 
 #include <triangulation/dim2.h>
 #include <unordered_map>
@@ -67,6 +69,37 @@ public:
   void search(const unsigned numThreads,
               BoundaryCondition cond = BoundaryCondition::all);
 
+protected:
+  // Shared harness behind both EmbeddingSearch::search() and
+  // SurfaceSearch::search(): the two differ only in a handful of injection
+  // points, all threaded through here so the threading/atomics/reporting
+  // code (the bulk of either function) exists exactly once. Each hook
+  // parameter is a compile-time (lambda/functor) type, not a virtual call,
+  // so the no-op hooks EmbeddingSearch::search() passes cost nothing in the
+  // per-candidate hot path.
+  //
+  //   makeThreadHook()  -- factory called once per worker thread, returning
+  //                        an object with onFound(embedding, U, faceCount)
+  //                        (called for each candidate satisfying cond) and
+  //                        onFlush() (called whenever that thread's counters
+  //                        flush to the globals, including its final
+  //                        flush -- the place to merge thread-local state
+  //                        into shared accumulators).
+  //   onSeedFound(seedFaces) -- called at most once, if isSeeded_ and the
+  //                        seed alone already satisfies cond.
+  //   extraReportLines()  -- extra text appended to both the once-a-second
+  //                        progress report and the final summary.
+  //   auxHooks            -- spawn(workersFinished) starts an optional
+  //                        thread running alongside the workers (returning
+  //                        a default-constructed, non-joinable
+  //                        std::thread if none is needed); afterJoin() runs
+  //                        once that thread has been joined.
+  template <typename ThreadHookFactory, typename OnSeedFound,
+            typename ExtraReportLines, typename AuxHooks>
+  void runSearch_(unsigned numThreads, BoundaryCondition cond,
+                  ThreadHookFactory makeThreadHook, OnSeedFound onSeedFound,
+                  ExtraReportLines extraReportLines, AuxHooks auxHooks);
+
 private:
   static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton);
 
@@ -128,6 +161,45 @@ private:
     void record(const std::string &linkName, const SurfaceTypeKey &type);
 
     std::string summary() const;
+  };
+
+  // Per-worker-thread hook passed to runSearch_(): tallies surface types
+  // and (when boundary links are wanted) batches each find's face indices
+  // for later link identification, merging into the owning SurfaceSearch's
+  // shared accumulators whenever the harness flushes this thread's
+  // counters.
+  class ThreadHook {
+    SurfaceSearch &owner_;
+    SurfaceTypeTally &tally_;
+    bool wantLinks_;
+    std::map<SurfaceTypeKey, long long> localTypeCounts_;
+    std::vector<std::vector<int>> localPending_;
+
+  public:
+    ThreadHook(SurfaceSearch &owner, SurfaceTypeTally &tally, bool wantLinks)
+        : owner_(owner), tally_(tally), wantLinks_(wantLinks) {}
+
+    void onFound(EmbeddedSubmanifold<4, 2> &embedding,
+                const std::vector<int> &U, long long faceCount);
+
+    void onFlush();
+  };
+
+  // Aux-thread hook passed to runSearch_(): periodically drains
+  // pendingSurfaces_ into boundary links while the search runs, then
+  // processes whatever is left once the workers finish.
+  class AuxHooks {
+    SurfaceSearch &owner_;
+    unsigned numThreads_;
+    bool wantLinks_;
+
+  public:
+    AuxHooks(SurfaceSearch &owner, unsigned numThreads, bool wantLinks)
+        : owner_(owner), numThreads_(numThreads), wantLinks_(wantLinks) {}
+
+    std::thread spawn(std::atomic<bool> &workersFinished);
+
+    void afterJoin();
   };
 
   PendingSurfaceBatch pendingSurfaces_;
