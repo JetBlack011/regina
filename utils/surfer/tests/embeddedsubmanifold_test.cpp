@@ -1,17 +1,22 @@
 // embeddedsubmanifold_test.cpp
 //
-// Tests whether EmbeddedSubmanifold<4,2>::addFace() (inherited verbatim by
-// KnottedSurface) ever returns true for a face whose addition makes the
-// growing subcomplex NOT genuinely embedded -- i.e. the realization map
-// from subtri_'s cells into the ambient Triangulation<4>'s cells fails to
-// be injective on some open cell.
+// Tests whether EmbeddedSubmanifold<4,2>::isEmbedded() (inherited verbatim
+// by KnottedSurface) accurately tracks whether the realization map from
+// subtri_'s cells into the ambient Triangulation<4>'s cells is injective on
+// every open cell. Since Phase 2 (addFace()'s codimension->=2 gating check)
+// was disabled, addFace() legitimately accepts faces that leave the growing
+// subcomplex NOT genuinely embedded -- that's expected, not a bug; what must
+// hold is that isEmbedded() correctly reports false whenever that's true,
+// and true only when the subcomplex is genuinely embedded.
 //
 // The check used here (isGenuinelyEmbedded(), below) is deliberately built
 // from scratch against only the PUBLIC API of EmbeddedSubmanifold/
 // KnottedSurface (addFace(), removeFace(), triangulation(), boundaryLinks())
 // -- it never touches faceCount_ (private) or even faces_ (protected), so it
-// shares none of addFace()'s own bookkeeping and can catch bugs in that
-// bookkeeping rather than just re-deriving them.
+// shares none of addFace()'s/isEmbedded()'s own bookkeeping and can catch
+// bugs in that bookkeeping rather than just re-deriving them. The audit
+// (EmbeddednessAuditor, below) flags a violation exactly when isEmbedded()
+// disagrees with this ground truth at any point along the DFS.
 //
 // Two independent verification strategies are used:
 //   1. isGenuinelyEmbedded(): a brute-force pointwise-injectivity check,
@@ -22,7 +27,9 @@
 //      CobordismBuilder<3>::cone() (so their boundary is S^3), any proper
 //      connected embedded surface's boundary is a knot/link in that S^3, and
 //      an n-component link complement always has H_1 = Z^n -- an algebraic
-//      invariant with nothing to do with addFace()'s internals.
+//      invariant with nothing to do with addFace()'s internals. Only
+//      evaluated at states where isEmbedded() holds, since it presumes a
+//      genuinely embedded surface.
 
 #include <algorithm>
 #include <chrono>
@@ -214,9 +221,25 @@ class EmbeddednessAuditor : public ConditionalPredicate {
         skelIndexToSimplex_[f] = simplex;
         path_.push_back(f);
 
+        // The real thing under test: does isEmbedded() -- addFace()'s O(1)
+        // incremental tracking -- agree with the brute-force ground truth?
+        // A disagreement in EITHER direction is a bug: isEmbedded()==true
+        // while genuinely not embedded is unsound (callers would wrongly
+        // trust a singular subcomplex); isEmbedded()==false while genuinely
+        // embedded is incomplete (a real result would be silently dropped
+        // by EmbeddingSearch's output gating).
         std::string why;
-        if (!isGenuinelyEmbedded(correspondence_, &why))
-            violations_->push_back({path_, why});
+        bool genuinelyEmbedded = isGenuinelyEmbedded(correspondence_, &why);
+        if (embedding_.isEmbedded() != genuinelyEmbedded) {
+            std::ostringstream reason;
+            reason << "isEmbedded() reports "
+                   << (embedding_.isEmbedded() ? "true" : "false")
+                   << " but ground truth is "
+                   << (genuinelyEmbedded ? "true" : "false");
+            if (!genuinelyEmbedded)
+                reason << " (" << why << ")";
+            violations_->push_back({path_, reason.str()});
+        }
 
         return true;
     }
@@ -304,6 +327,8 @@ AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
         ++result.subgraphsVisited;
         if (!checkBoundaryHomology)
             return;
+        if (!embedding.isEmbedded())
+            return; // not genuinely embedded; boundaryLinks() presumes it is
         if (embedding.isClosed())
             return;
         if (!embedding.isProper() || !embedding.boundaryComponentsMapInjectively())
@@ -625,6 +650,91 @@ void test_buildgraph_known_incompleteness() {
               "unreachable by the search since 6 is dropped from the graph");
 }
 
+// The false->true direction of isEmbedded()'s tracking: face 6's own local
+// vertices 0 and 1 collide at the same ambient point with no self-gluing
+// entry explaining it (see test_single_face_internal_vertex_collision and
+// test_has_unexplained_self_collision), so isEmbedded() must be false right
+// after addFace(6) alone. test_buildgraph_known_incompleteness already
+// established that {6, 7} together IS genuinely embedded (face 7's own
+// legitimate self-gluing ends up identifying face 6's two colliding
+// preimages in subtri_ once both are joined), so isEmbedded() must flip back
+// to true once face 7 is added on top.
+void test_isembedded_false_to_true_transition() {
+    std::cout
+        << "\n--- isEmbedded(): false->true transition (faces 6, 7) ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    Skeleton<4, 2> skeleton(tri);
+    KnottedSurface embedding(skeleton);
+
+    bool added6 = embedding.addFace(6);
+    EXPECT_EQ(added6, true,
+              "addFace(6) is accepted (Condition 1 doesn't catch this "
+              "collision)");
+    EXPECT_EQ(embedding.isEmbedded(), false,
+              "isEmbedded() is false right after adding the self-colliding "
+              "face 6 alone");
+
+    bool added7 = embedding.addFace(7);
+    EXPECT_EQ(added7, true, "addFace(7) is accepted");
+    EXPECT_EQ(embedding.isEmbedded(), true,
+              "isEmbedded() flips back to true once face 7's self-gluing "
+              "identifies face 6's two colliding preimages in subtri_");
+}
+
+// LIFO stress test: addFace()/removeFace() must exactly restore
+// isEmbedded()'s internal tracking (not just its boolean value) across
+// repeated add/remove/re-add cycles, since removeFace()'s rollback replays
+// the matching addFace()'s undo log rather than recomputing from scratch.
+void test_isembedded_lifo_add_remove_add() {
+    std::cout << "\n--- isEmbedded(): LIFO add/remove/re-add stress test "
+                 "(faces 6, 7) ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    Skeleton<4, 2> skeleton(tri);
+    KnottedSurface embedding(skeleton);
+
+    EXPECT_EQ(embedding.isEmbedded(), true,
+              "freshly constructed embedding is trivially embedded");
+
+    embedding.addFace(6);
+    EXPECT_EQ(embedding.isEmbedded(), false, "false after adding face 6 alone");
+
+    embedding.addFace(7);
+    EXPECT_EQ(embedding.isEmbedded(), true, "true again after adding face 7");
+    size_t sizeAfterBoth = embedding.triangulation().size();
+
+    embedding.removeFace(7);
+    EXPECT_EQ(embedding.isEmbedded(), false,
+              "removing face 7 restores the singularity it had resolved");
+
+    // Re-add face 7: must reproduce the identical state, not just the same
+    // boolean -- if removeFace()'s rollback under- or over-corrected the
+    // DSU/registry state, a second addFace(7) could behave differently the
+    // second time around (e.g. spuriously merge/not-merge).
+    embedding.addFace(7);
+    EXPECT_EQ(embedding.isEmbedded(), true, "re-adding face 7 reproduces true");
+    EXPECT_EQ(embedding.triangulation().size(), sizeAfterBoth,
+              "re-adding face 7 reproduces the same subtri_ size");
+
+    embedding.removeFace(7);
+    embedding.removeFace(6);
+    EXPECT_EQ(embedding.isEmbedded(), true,
+              "back to a pristine empty state after removing both faces");
+    EXPECT_EQ(embedding.triangulation().size(), size_t{0},
+              "subtri_ is empty again");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Section D: CobordismBuilder/knotbuilder-derived 4-manifolds. Depth-capped,
 // but generously -- correctness coverage takes priority over speed here.
@@ -780,6 +890,9 @@ int main() {
         test_single_face_internal_vertex_collision);
     run("has_unexplained_self_collision", test_has_unexplained_self_collision);
     run("buildgraph_known_incompleteness", test_buildgraph_known_incompleteness);
+    run("isembedded_false_to_true_transition",
+        test_isembedded_false_to_true_transition);
+    run("isembedded_lifo_add_remove_add", test_isembedded_lifo_add_remove_add);
 
     run("cobordism_disc", test_cobordism_disc);
     run("cobordism_mobius", test_cobordism_mobius);

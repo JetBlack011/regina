@@ -123,7 +123,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         roots = protoEnumerator.getRoots();
 
         seedFoundCount = 1;
-        if (protoEmbedding.satisfies(cond)) {
+        if (protoEmbedding.isEmbedded() && protoEmbedding.satisfies(cond)) {
             seedSubgraphCount = 1;
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
@@ -177,7 +177,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                                                    std::memory_order_relaxed);
                         sinceFlushFound = 0;
                     }
-                    if (embedding.satisfies(cond)) {
+                    if (embedding.isEmbedded() && embedding.satisfies(cond)) {
                         ++localCount;
                         if (++sinceFlush >= FLUSH_EVERY_BDRY) {
                             globalSubgraphCount.fetch_add(
@@ -595,7 +595,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
         roots = protoEnumerator.getRoots();
 
         seedFoundCount = 1;
-        if (protoEmbedding.satisfies(cond)) {
+        if (protoEmbedding.isEmbedded() && protoEmbedding.satisfies(cond)) {
             seedSubgraphCount = 1;
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
@@ -657,7 +657,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
                                                    std::memory_order_relaxed);
                         sinceFlushFound = 0;
                     }
-                    if (embedding.satisfies(cond)) {
+                    if (embedding.isEmbedded() && embedding.satisfies(cond)) {
                         ++localCount;
                         ++localTypeCounts[KnottedSurface::surfaceTypeKey(
                             embedding.triangulation())];

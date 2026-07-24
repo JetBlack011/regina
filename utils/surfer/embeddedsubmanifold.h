@@ -12,6 +12,7 @@
 #include <utilities/typeutils.h>
 
 #include "linkcomplement.h"
+#include "rollbackunionfind.h"
 #include "skeleton.h"
 
 enum class BoundaryCondition : uint8_t { all, closed, proper, connected };
@@ -31,6 +32,62 @@ private:
   // ≥2 = interior. For k < subdim-1: positive iff the face is in the
   // submanifold.
   regina::TupleOverRange<0, subdim, LowDimVec> faceCount_;
+
+  // Tracking for isEmbedded(): whether the realization map subtri_ -> tri_
+  // is injective at codimension >= 2 (k in [0, subdim-2]). Facet-level
+  // (codimension-1) injectivity is already guaranteed structurally by
+  // addFace()'s Condition 1 above and needs no separate tracking.
+  //
+  // A "slot" is (ambient face index f, dimension k, local k-face index i),
+  // identified by the integer f * FaceNumbering<subdim,k>::nFaces + i.
+  // dsu_[k] unions slots that addFace()'s realized gluings have actually
+  // identified in subtri_. classRoots_[k][v] holds the currently-distinct
+  // DSU root ids, among slots mapping to ambient k-face v, that are
+  // presently registered -- |classRoots_[k][v]| >= 2 means v is a
+  // singularity (two or more genuinely distinct parts of the submanifold
+  // map to the same ambient k-face). singularCount_ is the number of (k, v)
+  // pairs currently in that state; isEmbedded_ := (singularCount_ == 0).
+  //
+  // Deliberately NOT derived from subtri_'s own Regina-computed skeleton:
+  // every join()/newSimplex()/removeSimplex() call destroys and marks
+  // uncomputed subtri_'s ENTIRE cached skeleton (see addFace()'s
+  // definition), so any Face<subdim,k>* obtained before such a call is
+  // unsafe to compare afterward, and re-deriving it costs a full rebuild
+  // proportional to subtri_'s current size -- unusable for a check meant to
+  // run once per addFace()/removeFace() call.
+  std::vector<std::vector<std::vector<int>>> classRoots_;
+  std::vector<RollbackUnionFind> dsu_;
+
+  struct RegistryUndoEntry {
+    size_t v;
+    int root;
+    bool wasInsert;    // true: undo by erasing root from classRoots_[k][v];
+                        // false: undo by re-inserting it.
+    int singularDelta; // exact singularCount_ change this event caused;
+                        // undone via singularCount_ -= singularDelta.
+  };
+  std::vector<std::vector<RegistryUndoEntry>> registryUndoLog_; // indexed [k]
+
+  struct Checkpoint {
+    std::vector<size_t> dsuMark;      // dsu_[k].checkpoint(), per k
+    std::vector<size_t> registryMark; // registryUndoLog_[k].size(), per k
+  };
+  std::vector<Checkpoint> checkpoints_; // indexed by ambient face index f
+
+  int singularCount_ = 0;
+  bool isEmbedded_ = true; // kept in lockstep with (singularCount_ == 0)
+
+  // Unions slot (f-implicit via caller, k, local index encoded in slotA)
+  // with slot (dst-implicit, k, local index encoded in slotB), both mapping
+  // to ambient k-face v. If this merges two previously-independently-
+  // registered classes at v, updates classRoots_[k][v]/singularCount_ and
+  // logs the change for removeFace() to undo.
+  void unite_(int k, size_t v, int slotA, int slotB);
+
+  // Registers slot r's current DSU root against ambient k-face v's set of
+  // known classes, if not already present. If this is the second distinct
+  // class registered at v, marks v as a new singularity.
+  void registerRoot_(int k, size_t v, int r);
 
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton);
@@ -53,8 +110,8 @@ public:
   // facet (codimension-1) level -- it may accept faces whose addition
   // produces a submanifold that is not injective at codimension >= 2
   // (self-touching vertices/edges below the facet level, always cusp
-  // rather than transversal intersections). See
-  // utils/surfer/ADDFACE_VERTEX_COLLISION_BUG.md.
+  // rather than transversal intersections). Use isEmbedded() to check
+  // codimension >= 2 injectivity of the current state.
   bool addFace(int f);
 
   // Attempts to add every face in `faces`, in the given order, via
@@ -74,6 +131,12 @@ public:
   bool isProper() const;
 
   bool boundaryComponentsMapInjectively() const;
+
+  // True iff the realization map subtri_ -> tri_ is injective on every face
+  // currently present, at every dimension -- not just facets (Phase 1 above
+  // already guarantees that structurally). Incrementally maintained by
+  // addFace()/removeFace(); O(1).
+  bool isEmbedded() const { return isEmbedded_; }
 
   bool satisfies(BoundaryCondition cond) const;
 

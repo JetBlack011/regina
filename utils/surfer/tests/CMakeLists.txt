@@ -3,11 +3,13 @@ set(TESTS
   cobordismbuilder_test
   knotbuilder_test
   embeddedsubmanifold_test
+  rollbackunionfind_test
 )
 set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../linkcomplement.cpp)
 set(cobordismbuilder_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp)
-set(embeddingsearch_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp ../linkcomplement.cpp ../enumerate_cis.cpp)
-set(embeddedsubmanifold_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../knotbuilder.cpp)
+set(embeddingsearch_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../rollbackunionfind.cpp)
+set(embeddedsubmanifold_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../knotbuilder.cpp ../rollbackunionfind.cpp)
+set(rollbackunionfind_test_EXTRA_SOURCES ../rollbackunionfind.cpp)
 
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})
@@ -38,6 +40,6 @@ target_link_libraries(triangulate_knot_table ${ENGINE_LIBRARY})
 add_executable(profile_driver profile_driver.cpp
   ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp
   ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp
-  ../linkcomplement.cpp ../enumerate_cis.cpp)
+  ../linkcomplement.cpp ../enumerate_cis.cpp ../rollbackunionfind.cpp)
 target_link_libraries(profile_driver ${ENGINE_LIBRARY})
 target_compile_options(profile_driver PRIVATE -g)

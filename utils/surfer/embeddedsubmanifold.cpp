@@ -4,6 +4,7 @@
 
 #include "embeddedsubmanifold.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <sstream>
@@ -13,12 +14,25 @@
 template <int dim, int subdim>
 EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     const Skeleton<dim, subdim> &skeleton)
-    : skeleton_(skeleton), faces_(skeleton.numFaces()) {
+    : skeleton_(skeleton), faces_(skeleton.numFaces()),
+      classRoots_(subdim - 1), registryUndoLog_(subdim - 1),
+      checkpoints_(skeleton.numFaces()) {
   const auto &tri = skeleton_.triangulation();
   regina::for_constexpr<0, subdim>([&](auto kW) {
     constexpr int k = decltype(kW)::value;
     std::get<k>(faceCount_).assign(tri.template countFaces<k>(), 0);
   });
+  dsu_.reserve(subdim - 1);
+  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+    constexpr int k = decltype(kW)::value;
+    classRoots_[k].assign(tri.template countFaces<k>(), {});
+    dsu_.emplace_back(skeleton_.numFaces() *
+                       regina::FaceNumbering<subdim, k>::nFaces);
+  });
+  for (auto &cp : checkpoints_) {
+    cp.dsuMark.assign(subdim - 1, 0);
+    cp.registryMark.assign(subdim - 1, 0);
+  }
 }
 
 template <int dim, int subdim>
@@ -159,6 +173,15 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
       counts[node.face->template face<k>(i)->index()]++;
   });
 
+  // Snapshot the isEmbedded()-tracking structures' undo points before
+  // touching them, so removeFace(f) can roll back exactly what this call
+  // does below (mirroring how faceCount_'s increments above are undone by
+  // symmetric decrements in removeFace()).
+  for (int k = 0; k < subdim - 1; ++k) {
+    checkpoints_[f].dsuMark[k] = dsu_[k].checkpoint();
+    checkpoints_[f].registryMark[k] = registryUndoLog_[k].size();
+  }
+
   auto *src = subtri_.newSimplex();
   faces_[f] = src;
 
@@ -167,8 +190,54 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
       continue;
     if (src->adjacentSimplex(g.srcFacet) != nullptr)
       continue; // already joined (second direction of a self-gluing)
+
+    // isEmbedded() tracking: this gluing identifies local facet g.srcFacet
+    // of the new simplex with the corresponding facet of faces_[g.dstIndex]
+    // via g.gluing. For k in [0, subdim-2], every local k-face of the new
+    // simplex properly contained in that facet (i.e. not touching the
+    // vertex opposite it, g.srcFacet) is thereby identified with its image
+    // under g.gluing on the dst side -- handles self-gluings
+    // (g.dstIndex == f) and external gluings uniformly, and this direction
+    // alone covers a self-gluing's reverse direction too (see the
+    // adjacentSimplex guard above).
+    regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+      constexpr int k = decltype(kW)::value;
+      for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+        auto S = regina::FaceNumbering<subdim, k>::ordering(i);
+        bool touchesGluedFacet = false;
+        for (int t = 0; t <= k; ++t)
+          if (S[t] == g.srcFacet) {
+            touchesGluedFacet = true;
+            break;
+          }
+        if (touchesGluedFacet)
+          continue; // this k-face isn't contained in the shared facet
+
+        int j = regina::FaceNumbering<subdim, k>::faceNumber(g.gluing * S);
+        size_t v = node.face->template face<k>(i)->index();
+        unite_(k, v,
+               f * regina::FaceNumbering<subdim, k>::nFaces + i,
+               static_cast<int>(g.dstIndex) *
+                       regina::FaceNumbering<subdim, k>::nFaces +
+                   j);
+      }
+    });
+
     src->join(g.srcFacet, faces_[g.dstIndex], g.gluing);
   }
+
+  // isEmbedded() tracking: register every local k-face slot of the new
+  // simplex against its ambient k-face's known classes, whether or not it
+  // participated in a gluing above -- an unregistered slot landing on an
+  // already-populated ambient k-face is exactly a new singularity.
+  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+    constexpr int k = decltype(kW)::value;
+    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+      size_t v = node.face->template face<k>(i)->index();
+      int r = dsu_[k].find(f * regina::FaceNumbering<subdim, k>::nFaces + i);
+      registerRoot_(k, v, r);
+    }
+  });
 
   return true;
 }
@@ -183,6 +252,29 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
 
   const auto &node = skeleton_.getNodes()[f];
 
+  // isEmbedded() tracking: undo, in strict reverse order, exactly what the
+  // matching addFace(f) logged -- both the registry (classRoots_/
+  // singularCount_) and the underlying DSU unions. Relies on the caller's
+  // LIFO discipline: removeFace() is only ever called on the most recently
+  // added face, so checkpoints_[f] is always this face's own contribution.
+  for (int k = 0; k < subdim - 1; ++k) {
+    auto &log = registryUndoLog_[k];
+    auto &roots = classRoots_[k];
+    while (log.size() > checkpoints_[f].registryMark[k]) {
+      const auto &e = log.back();
+      auto &rv = roots[e.v];
+      if (e.wasInsert) {
+        rv.erase(std::find(rv.begin(), rv.end(), e.root));
+      } else {
+        rv.push_back(e.root);
+      }
+      singularCount_ -= e.singularDelta;
+      isEmbedded_ = (singularCount_ == 0);
+      log.pop_back();
+    }
+    dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
+  }
+
   regina::for_constexpr<0, subdim>([&](auto kW) {
     constexpr int k = decltype(kW)::value;
     auto &counts = std::get<k>(faceCount_);
@@ -192,6 +284,51 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
 
   faces_[f] = nullptr;
   subtri_.removeSimplex(face);
+}
+
+template <int dim, int subdim>
+void EmbeddedSubmanifold<dim, subdim>::unite_(int k, size_t v, int slotA,
+                                              int slotB) {
+  auto &dsu = dsu_[k];
+  int rootABefore = dsu.find(slotA);
+  int rootBBefore = dsu.find(slotB);
+  if (rootABefore == rootBBefore)
+    return; // already identified
+
+  dsu.unite(slotA, slotB);
+  int survivor = dsu.find(slotA);
+  int absorbed = (survivor == rootABefore) ? rootBBefore : rootABefore;
+
+  // If `absorbed` was itself an already-registered class at v, this merge
+  // just identified two previously-independent classes -- if that leaves
+  // exactly one class behind, v just stopped being a singularity. If
+  // `absorbed` was never registered (e.g. it's the brand-new slot of the
+  // face currently being added), there's nothing to remove here; the
+  // survivor gets (re-)registered by registerRoot_()'s pass afterward.
+  auto &roots = classRoots_[k][v];
+  auto it = std::find(roots.begin(), roots.end(), absorbed);
+  if (it != roots.end()) {
+    roots.erase(it);
+    int delta = (roots.size() == 1) ? -1 : 0;
+    singularCount_ += delta;
+    isEmbedded_ = (singularCount_ == 0);
+    registryUndoLog_[k].push_back(
+        {.v = v, .root = absorbed, .wasInsert = false, .singularDelta = delta});
+  }
+}
+
+template <int dim, int subdim>
+void EmbeddedSubmanifold<dim, subdim>::registerRoot_(int k, size_t v, int r) {
+  auto &roots = classRoots_[k][v];
+  if (std::find(roots.begin(), roots.end(), r) != roots.end())
+    return; // already registered (e.g. the dst side of an external gluing)
+
+  roots.push_back(r);
+  int delta = (roots.size() == 2) ? 1 : 0;
+  singularCount_ += delta;
+  isEmbedded_ = (singularCount_ == 0);
+  registryUndoLog_[k].push_back(
+      {.v = v, .root = r, .wasInsert = true, .singularDelta = delta});
 }
 
 template <int dim, int subdim>
