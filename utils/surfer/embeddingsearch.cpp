@@ -203,7 +203,7 @@ void EmbeddingSearch<dim, subdim>::runSearch_(
                     }
                     if (embedding.isEmbedded() && embedding.satisfies(cond)) {
                         ++localCount;
-                        long long faceCount = static_cast<long long>(
+                        auto faceCount = static_cast<long long>(
                             embedding.triangulation().size());
                         threadHook.onFound(embedding, U, faceCount);
                         localFaceSum += faceCount;
