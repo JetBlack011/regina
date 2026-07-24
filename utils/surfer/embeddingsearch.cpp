@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <iomanip>
 #include <numeric>
 #include <optional>
@@ -17,7 +18,9 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-// batch size for progress report
+// satisfying-cond finds are rare relative to raw finds, so flush every one --
+// batching these hid live progress behind a threshold that was rarely
+// reached, making the rolling report look stuck at 0
 #define FLUSH_EVERY_BDRY 1
 // the found-count fires on every callback invocation (not just those
 // satisfying cond), so it's flushed to the atomic less often to keep
@@ -49,6 +52,19 @@ const char *boundaryConditionName(BoundaryCondition cond) {
         return "connected";
     }
     return "unknown";
+}
+
+// Labels a count that's been divided by `divisor` (a progress-report flush
+// batch size) with the scale actually applied, e.g. divisor=100000 gives
+// " (x10^5)". Returns "" for divisor <= 1, where the reported count is exact.
+static std::string scaleLabel(long long divisor) {
+    if (divisor <= 1)
+        return "";
+    int exponent =
+        static_cast<int>(std::llround(std::log10(static_cast<double>(divisor))));
+    std::ostringstream out;
+    out << " (x10^" << exponent << ")";
+    return out.str();
 }
 
 template <int dim, int subdim>
@@ -114,6 +130,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
     long long seedFoundCount = 0;
     long long seedSubgraphCount = 0;
     long long seedMaxFaces = 0;
+    long long seedFaceSum = 0;
     if (isSeeded_) {
         EmbeddedSubmanifold<dim, subdim> protoEmbedding(skeleton_);
         EmbeddednessPredicate protoPredicate(protoEmbedding,
@@ -127,6 +144,7 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
             seedSubgraphCount = 1;
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
+            seedFaceSum = seedMaxFaces;
         }
     } else {
         roots.resize(graph_.adjList.first);
@@ -140,9 +158,11 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
     std::atomic<long long> globalFoundCount{seedFoundCount};
     std::atomic<long long> globalSubgraphCount{seedSubgraphCount};
     std::atomic<long long> globalMaxFaces{seedMaxFaces};
+    std::atomic<long long> globalFaceSum{seedFaceSum};
     std::atomic<size_t> rootsCompleted{0};
     std::atomic<bool> workersFinished{false};
     std::vector<long long> perThreadFoundCount(numThreads, 0);
+    std::vector<long long> perThreadFaceSum(numThreads, 0);
 
     auto worker = [&](unsigned tid) {
         EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
@@ -162,6 +182,8 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         long long sinceFlush = 0;
         long long localFoundCount = 0;
         long long sinceFlushFound = 0;
+        long long localFaceSum = 0;
+        long long sinceFlushFaceSum = 0;
 
         while (true) {
             size_t idx = nextRootIdx.fetch_add(1);
@@ -179,13 +201,18 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                     }
                     if (embedding.isEmbedded() && embedding.satisfies(cond)) {
                         ++localCount;
+                        long long faceCount = static_cast<long long>(
+                            embedding.triangulation().size());
+                        localFaceSum += faceCount;
+                        sinceFlushFaceSum += faceCount;
                         if (++sinceFlush >= FLUSH_EVERY_BDRY) {
                             globalSubgraphCount.fetch_add(
                                 sinceFlush, std::memory_order_relaxed);
+                            globalFaceSum.fetch_add(
+                                sinceFlushFaceSum, std::memory_order_relaxed);
                             sinceFlush = 0;
+                            sinceFlushFaceSum = 0;
                         }
-                        long long faceCount = static_cast<long long>(
-                            embedding.triangulation().size());
                         auto prevMax =
                             globalMaxFaces.load(std::memory_order_relaxed);
                         while (faceCount > prevMax &&
@@ -200,14 +227,18 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         }
         // flush this thread's remainder so the global count ends up
         // exact
-        if (sinceFlush > 0)
+        if (sinceFlush > 0) {
             globalSubgraphCount.fetch_add(sinceFlush,
                                           std::memory_order_relaxed);
+            globalFaceSum.fetch_add(sinceFlushFaceSum,
+                                    std::memory_order_relaxed);
+        }
         if (sinceFlushFound > 0)
             globalFoundCount.fetch_add(sinceFlushFound,
                                        std::memory_order_relaxed);
         perThreadCount[tid] = localCount;
         perThreadFoundCount[tid] = localFoundCount;
+        perThreadFaceSum[tid] = localFaceSum;
     };
 
     std::thread reporter([&]() {
@@ -223,17 +254,30 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
                    << "\n";
             report << "[+] roots completed: " << rootsCompleted.load() << "/"
                    << totalRoots
-                   << "  | million embedded submanifolds found so far: "
+                   << "  | embedded submanifolds found so far"
+                   << scaleLabel(FLUSH_EVERY_FOUND) << ": "
                    << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
-            report << "[+] million embedded submanifolds satisfying boundary "
+            report << "[+] embedded submanifolds satisfying boundary "
                       "condition ("
-                   << boundaryConditionName(cond) << ") found so far: "
+                   << boundaryConditionName(cond) << ") found so far"
+                   << scaleLabel(FLUSH_EVERY_BDRY) << ": "
                    << (globalSubgraphCount.load() / FLUSH_EVERY_BDRY) << "\n";
             report << "[+] largest embedded submanifold satisfying boundary "
                       "condition ("
                    << boundaryConditionName(cond)
                    << ") found so far: " << globalMaxFaces.load()
                    << " faces\n";
+            {
+                long long n = globalSubgraphCount.load();
+                double avg = n > 0 ? static_cast<double>(globalFaceSum.load()) /
+                                         static_cast<double>(n)
+                                   : 0.0;
+                report << "[+] average faces per embedded submanifold "
+                          "satisfying boundary condition ("
+                       << boundaryConditionName(cond)
+                       << ") found so far: " << std::fixed
+                       << std::setprecision(2) << avg << "\n";
+            }
             std::string text = report.str();
 
             if (prevLines > 0)
@@ -259,6 +303,9 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
     long long totalFound = seedFoundCount;
     for (long long c : perThreadFoundCount)
         totalFound += c;
+    long long totalFaceSum = seedFaceSum;
+    for (long long c : perThreadFaceSum)
+        totalFaceSum += c;
     std::cerr << "\n\nTotal elapsed: "
               << formatElapsed(std::chrono::steady_clock::now() - searchStart)
               << "\n";
@@ -268,9 +315,17 @@ void EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
               << "): " << total << " (across " << numThreads << " threads)\n";
     std::cerr << "Largest embedded submanifold (" << boundaryConditionName(cond)
               << "): " << globalMaxFaces.load() << " faces\n";
+    std::cerr << "Average faces per embedded submanifold ("
+              << boundaryConditionName(cond) << "): " << std::fixed
+              << std::setprecision(2)
+              << (total > 0 ? static_cast<double>(totalFaceSum) /
+                                  static_cast<double>(total)
+                            : 0.0)
+              << "\n";
 
     assert(globalFoundCount.load() == totalFound);
     assert(globalSubgraphCount.load() == total);
+    assert(globalFaceSum.load() == totalFaceSum);
 }
 
 template <int dim, int subdim>
@@ -584,6 +639,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
     long long seedFoundCount = 0;
     long long seedSubgraphCount = 0;
     long long seedMaxFaces = 0;
+    long long seedFaceSum = 0;
     std::map<SurfaceTypeKey, long long> seedTypeCounts;
     std::vector<std::pair<std::string, SurfaceTypeKey>> seedLinks;
     if (isSeeded_) {
@@ -599,6 +655,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
             seedSubgraphCount = 1;
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
+            seedFaceSum = seedMaxFaces;
             SurfaceTypeKey type = protoEmbedding.surfaceType();
             ++seedTypeCounts[type];
             if (wantLinks)
@@ -617,6 +674,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
     std::atomic<long long> globalFoundCount{seedFoundCount};
     std::atomic<long long> globalSubgraphCount{seedSubgraphCount};
     std::atomic<long long> globalMaxFaces{seedMaxFaces};
+    std::atomic<long long> globalFaceSum{seedFaceSum};
     std::atomic<size_t> rootsCompleted{0};
     std::atomic<bool> workersFinished{false};
     SurfaceTypeTally surfaceTally;
@@ -624,6 +682,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
     for (auto &[linkName, type] : seedLinks)
         linkTally_.record(linkName, type);
     std::vector<long long> perThreadFoundCount(numThreads, 0);
+    std::vector<long long> perThreadFaceSum(numThreads, 0);
 
     auto worker = [&](unsigned tid) {
         EmbeddedSubmanifold<4, 2> embedding(skeleton_);
@@ -640,6 +699,8 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
         long long sinceFlush = 0;
         long long localFoundCount = 0;
         long long sinceFlushFound = 0;
+        long long localFaceSum = 0;
+        long long sinceFlushFaceSum = 0;
         std::map<SurfaceTypeKey, long long> localTypeCounts;
         std::vector<std::vector<int>> localPending;
 
@@ -668,16 +729,21 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
                                     faceIndices.push_back(f);
                             localPending.push_back(std::move(faceIndices));
                         }
+                        long long faceCount = static_cast<long long>(
+                            embedding.triangulation().size());
+                        localFaceSum += faceCount;
+                        sinceFlushFaceSum += faceCount;
                         if (++sinceFlush >= FLUSH_EVERY_BDRY) {
                             globalSubgraphCount.fetch_add(
                                 sinceFlush, std::memory_order_relaxed);
+                            globalFaceSum.fetch_add(
+                                sinceFlushFaceSum, std::memory_order_relaxed);
                             sinceFlush = 0;
+                            sinceFlushFaceSum = 0;
                             surfaceTally.merge(localTypeCounts);
                             if (wantLinks)
                                 pendingSurfaces_.merge(localPending);
                         }
-                        long long faceCount = static_cast<long long>(
-                            embedding.triangulation().size());
                         auto prevMax =
                             globalMaxFaces.load(std::memory_order_relaxed);
                         while (faceCount > prevMax &&
@@ -692,9 +758,12 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
         }
         // flush this thread's remainder so the global count ends up
         // exact
-        if (sinceFlush > 0)
+        if (sinceFlush > 0) {
             globalSubgraphCount.fetch_add(sinceFlush,
                                           std::memory_order_relaxed);
+            globalFaceSum.fetch_add(sinceFlushFaceSum,
+                                    std::memory_order_relaxed);
+        }
         if (sinceFlushFound > 0)
             globalFoundCount.fetch_add(sinceFlushFound,
                                        std::memory_order_relaxed);
@@ -703,6 +772,7 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
             pendingSurfaces_.merge(localPending);
         perThreadCount[tid] = localCount;
         perThreadFoundCount[tid] = localFoundCount;
+        perThreadFaceSum[tid] = localFaceSum;
     };
 
     std::thread reporter([&]() {
@@ -718,17 +788,30 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
                    << "\n";
             report << "[+] roots completed: " << rootsCompleted.load() << "/"
                    << totalRoots
-                   << "  | million embedded submanifolds found so far: "
+                   << "  | embedded submanifolds found so far"
+                   << scaleLabel(FLUSH_EVERY_FOUND) << ": "
                    << (globalFoundCount.load() / FLUSH_EVERY_FOUND) << "\n";
-            report << "[+] million embedded submanifolds satisfying boundary "
+            report << "[+] embedded submanifolds satisfying boundary "
                       "condition ("
-                   << boundaryConditionName(cond) << ") found so far: "
+                   << boundaryConditionName(cond) << ") found so far"
+                   << scaleLabel(FLUSH_EVERY_BDRY) << ": "
                    << (globalSubgraphCount.load() / FLUSH_EVERY_BDRY) << "\n";
             report << "[+] largest embedded submanifold satisfying boundary "
                       "condition ("
                    << boundaryConditionName(cond)
                    << ") found so far: " << globalMaxFaces.load()
                    << " faces\n";
+            {
+                long long n = globalSubgraphCount.load();
+                double avg = n > 0 ? static_cast<double>(globalFaceSum.load()) /
+                                         static_cast<double>(n)
+                                   : 0.0;
+                report << "[+] average faces per embedded submanifold "
+                          "satisfying boundary condition ("
+                       << boundaryConditionName(cond)
+                       << ") found so far: " << std::fixed
+                       << std::setprecision(2) << avg << "\n";
+            }
             report << surfaceTally.summary();
             if (wantLinks)
                 report << linkTally_.summary();
@@ -776,6 +859,9 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
     long long totalFound = seedFoundCount;
     for (long long c : perThreadFoundCount)
         totalFound += c;
+    long long totalFaceSum = seedFaceSum;
+    for (long long c : perThreadFaceSum)
+        totalFaceSum += c;
     std::cerr << "\n\nTotal elapsed: "
               << formatElapsed(std::chrono::steady_clock::now() - searchStart)
               << "\n";
@@ -785,10 +871,18 @@ void SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond) {
               << "): " << total << " (across " << numThreads << " threads)\n";
     std::cerr << "Largest embedded submanifold (" << boundaryConditionName(cond)
               << "): " << globalMaxFaces.load() << " faces\n";
+    std::cerr << "Average faces per embedded submanifold ("
+              << boundaryConditionName(cond) << "): " << std::fixed
+              << std::setprecision(2)
+              << (total > 0 ? static_cast<double>(totalFaceSum) /
+                                  static_cast<double>(total)
+                            : 0.0)
+              << "\n";
     std::cerr << surfaceTally.summary() << "\n";
     if (wantLinks)
         std::cerr << linkTally_.summary() << "\n";
 
     assert(globalFoundCount.load() == totalFound);
     assert(globalSubgraphCount.load() == total);
+    assert(globalFaceSum.load() == totalFaceSum);
 }

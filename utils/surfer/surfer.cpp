@@ -4,6 +4,8 @@
 //  Created by John Teague on 06/19/2024.
 //
 
+#include <thread>
+
 #include <maths/perm.h>
 #include <triangulation/dim4.h>
 #include <triangulation/example2.h>
@@ -188,8 +190,7 @@ int main(int argc, char *argv[]) {
     Skeleton<4, 2> skel(tri);
     ////std::cout << skel << "\n";
 
-    unsigned numThreads = 132;
-    // unsigned numThreads = tri.countTriangles();
+    unsigned numThreads = std::thread::hardware_concurrency();
     if (numThreads == 0)
         numThreads = 1;
     std::cerr << "Running with " << numThreads
