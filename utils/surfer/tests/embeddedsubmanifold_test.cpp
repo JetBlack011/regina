@@ -162,6 +162,27 @@ bool isGenuinelyEmbedded(const Correspondence &correspondence,
     return true;
 }
 
+// Independent ground truth for isProper(), which is now tracked
+// incrementally (see the class comments on facetIsAmbientBoundary_/
+// badProperCount_ in embeddedsubmanifold.h) rather than recomputed from
+// scratch on every call. This is literally the O(size-of-ambient-
+// triangulation) sweep the class used to perform, rewritten against
+// `correspondence` instead of the class's private faces_/skeleton_ -- an
+// oracle independent of the incremental bookkeeping under test, not a
+// re-derivation of it. (boundaryComponentsMapInjectively() is unchanged --
+// still the original O(n) sweep -- so it needs no such oracle.)
+bool bruteForceIsProper(const Correspondence &correspondence) {
+    for (const auto &[simplex, face] : correspondence) {
+        for (int i = 0; i < 3; ++i) {
+            if (simplex->adjacentSimplex(i) != nullptr)
+                continue; // internal facet of subtri_
+            if (!face->template face<1>(i)->isBoundary())
+                return false;
+        }
+    }
+    return true;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Section B: the auditor, driving addFace()/removeFace() through every
 // connected subset of the 2-face gluing graph via
@@ -239,6 +260,23 @@ class EmbeddednessAuditor : public ConditionalPredicate {
             if (!genuinelyEmbedded)
                 reason << " (" << why << ")";
             violations_->push_back({path_, reason.str()});
+        }
+
+        // Likewise for isProper(), now tracked incrementally (see
+        // bruteForceIsProper() above) instead of recomputed on every call.
+        // Unlike the isEmbedded() check above, this one is unconditional:
+        // badProperCount_ is driven purely by per-facet faceCount_
+        // transitions and facetIsAmbientBoundary_, neither of which depends
+        // on codimension>=2 injectivity, so it should hold even in
+        // !isEmbedded() states.
+        {
+            bool properOK = bruteForceIsProper(correspondence_);
+            if (embedding_.isProper() != properOK) {
+                std::ostringstream reason;
+                reason << "isProper() reports " << embedding_.isProper()
+                       << " but brute-force ground truth is " << properOK;
+                violations_->push_back({path_, reason.str()});
+            }
         }
 
         return true;

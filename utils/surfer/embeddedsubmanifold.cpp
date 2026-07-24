@@ -29,6 +29,11 @@ EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     dsu_.emplace_back(skeleton_.numFaces() *
                        regina::FaceNumbering<subdim, k>::nFaces);
   });
+
+  facetIsAmbientBoundary_.resize(tri.template countFaces<subdim - 1>());
+  for (size_t i = 0; i < facetIsAmbientBoundary_.size(); ++i)
+    facetIsAmbientBoundary_[i] = tri.template face<subdim - 1>(i)->isBoundary();
+
   for (auto &cp : checkpoints_) {
     cp.dsuMark.assign(subdim - 1, 0);
     cp.registryMark.assign(subdim - 1, 0);
@@ -166,7 +171,7 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
   // For k == subdim-1, iterating all subdim+1 local facet indices handles
   // self-gluings automatically: if two local facets share a tri_-face, its
   // count increments twice, making it interior immediately.
-  regina::for_constexpr<0, subdim>([&](auto kW) {
+  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
     constexpr int k = decltype(kW)::value;
     auto &counts = std::get<k>(faceCount_);
     for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
@@ -180,6 +185,30 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
   for (int k = 0; k < subdim - 1; ++k) {
     checkpoints_[f].dsuMark[k] = dsu_[k].checkpoint();
     checkpoints_[f].registryMark[k] = registryUndoLog_[k].size();
+  }
+
+  // k == subdim-1 (facets): increment counts[idx] one local facet at a time
+  // (rather than in the generic loop above), tracking each individual
+  // increment's before/after value -- self-gluings pass through count == 1
+  // transiently (0 -> 1 -> 2, both steps within this same loop, since both
+  // of a self-gluing pair's local facets map to the same ambient idx), and
+  // that transient state must both raise and then lower badProperCount_
+  // within this call, which a single post-hoc scan of the final counts
+  // can't distinguish from a facet that is genuinely staying at 1.
+  {
+    auto &counts = std::get<subdim - 1>(faceCount_);
+    for (int i = 0; i <= subdim; ++i) {
+      size_t idx = node.face->template face<subdim - 1>(i)->index();
+      int before = counts[idx]++;
+      int after = before + 1;
+
+      if (!facetIsAmbientBoundary_[idx]) {
+        if (after == 1)
+          badProperCount_++; // just became a boundary facet of subtri_
+        else if (after == 2)
+          badProperCount_--; // just got glued over (leaving boundary again)
+      }
+    }
   }
 
   auto *src = subtri_.newSimplex();
@@ -275,7 +304,26 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
     dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
   }
 
-  regina::for_constexpr<0, subdim>([&](auto kW) {
+  // isProper() tracking: mirror addFace()'s badProperCount_ update, one
+  // local facet at a time (decrementing counts[idx] here directly rather
+  // than in the generic loop below, for the same self-gluing transient-
+  // state reason documented in addFace() -- a self-gluing pair's shared
+  // idx passes through count == 1 transiently here too, in reverse).
+  {
+    auto &counts = std::get<subdim - 1>(faceCount_);
+    for (int i = 0; i <= subdim; ++i) {
+      size_t idx = node.face->template face<subdim - 1>(i)->index();
+      int before = counts[idx]--;
+      if (facetIsAmbientBoundary_[idx])
+        continue;
+      if (before == 1)
+        badProperCount_--; // leaving count 1 -> 0
+      else if (before == 2)
+        badProperCount_++; // leaving count 2 -> 1
+    }
+  }
+
+  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
     constexpr int k = decltype(kW)::value;
     auto &counts = std::get<k>(faceCount_);
     for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
@@ -333,22 +381,7 @@ void EmbeddedSubmanifold<dim, subdim>::registerRoot_(int k, size_t v, int r) {
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::isProper() const {
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue; // face f is not part of this embedding
-
-    for (int i = 0; i <= subdim; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue; // internal facet of subtri_
-
-      const auto *ambientFacet =
-          skeleton_.getNodes()[f].face->template face<subdim - 1>(i);
-      if (!ambientFacet->isBoundary())
-        return false;
-    }
-  }
-  return true;
+  return badProperCount_ == 0;
 }
 
 template <int dim, int subdim>

@@ -58,6 +58,18 @@ private:
   std::vector<std::vector<std::vector<int>>> classRoots_;
   std::vector<RollbackUnionFind> dsu_;
 
+  // Tracking for isProper(): whether every boundary facet of subtri_ (i.e.
+  // faceCount_[subdim-1][v] == 1) maps to a facet that is itself on the
+  // ambient triangulation's boundary. facetIsAmbientBoundary_ is static
+  // (ambient-boundary-ness of a facet never changes) and precomputed once;
+  // badProperCount_ counts ambient (subdim-1)-faces currently at count == 1
+  // with !facetIsAmbientBoundary_[idx] -- isProper() := (badProperCount_ ==
+  // 0). Maintained by the same faceCount_ increments/decrements already
+  // performed in addFace()/removeFace(), so it needs no rollback log of its
+  // own.
+  std::vector<bool> facetIsAmbientBoundary_;
+  int badProperCount_ = 0;
+
   struct RegistryUndoEntry {
     size_t v;
     int root;
