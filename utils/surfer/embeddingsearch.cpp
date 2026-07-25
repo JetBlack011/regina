@@ -127,38 +127,12 @@ const char *boundaryConditionName(BoundaryCondition cond) {
     return "unknown";
 }
 
-template <int dim, int subdim>
-template <typename EmbeddingT>
-EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<
-    EmbeddingT>::EmbeddednessPredicate(EmbeddingT &embedding,
-                                       const std::vector<std::vector<int>>
-                                           &graphToSkel)
-    : embedding_(embedding), graphToSkel_(graphToSkel) {}
-
-template <int dim, int subdim>
-template <typename EmbeddingT>
-bool EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<EmbeddingT>::tryAdd(
-    int v) {
-    const auto &faces = graphToSkel_[v - 1];
-    // Every non-seed node maps to exactly one face, where addFace() alone
-    // is already correct (and this is the hot path -- called once per DFS
-    // node visited) -- only a seeded graph's node 1 (the whole seed) can
-    // have more than one, where addFaces()'s order search is needed. See
-    // addFaces() for why: addFace() is order-sensitive, and the seed's
-    // faces don't generally arrive in a directly-addable order.
-    if (faces.size() == 1)
-        return embedding_.addFace(faces[0]);
-    return embedding_.addFaces(faces);
-}
-
-template <int dim, int subdim>
-template <typename EmbeddingT>
-void EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<EmbeddingT>::undo(
-    int v) {
-    const auto &faces = graphToSkel_[v - 1];
-    for (auto it = faces.rbegin(); it != faces.rend(); ++it)
-        embedding_.removeFace(*it);
-}
+// EmbeddednessPredicate's members are defined inline in embeddingsearch.h,
+// not here: it is a member *template*, so the explicit instantiations of
+// EmbeddingSearch<dim,subdim> at the bottom of this file do not force its
+// specializations out, and its trivial constructor gets inlined away rather
+// than emitted. Defining it here left any other translation unit that
+// constructs one (e.g. tests/profile_driver.cpp) unable to link.
 
 template <int dim, int subdim>
 EmbeddingSearch<dim, subdim>::EmbeddingSearch(

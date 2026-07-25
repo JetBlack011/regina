@@ -97,6 +97,15 @@ protected:
    * override requires the predicate's *declared* member type to already
    * be the derived type -- template argument deduction means callers
    * still never need to name EmbeddingT explicitly.
+   *
+   * \note The members below are defined inline here, deliberately, rather
+   * than out-of-line in embeddingsearch.cpp. Being a member template, its
+   * specializations are *not* produced by that file's explicit
+   * instantiations of EmbeddingSearch<dim,subdim> (explicitly instantiating
+   * a class template does not instantiate its member templates), and the
+   * trivial constructor is inlined at its call sites rather than emitted.
+   * Any other translation unit constructing one -- as
+   * tests/profile_driver.cpp does -- would then fail to link.
    */
   template <typename EmbeddingT>
   class EmbeddednessPredicate : public ConditionalPredicate {
@@ -106,11 +115,27 @@ protected:
   public:
     /** Drives `embedding` via the graph-to-skeleton-face mapping `graphToSkel` (see Graph). */
     EmbeddednessPredicate(EmbeddingT &embedding,
-                          const std::vector<std::vector<int>> &graphToSkel);
+                          const std::vector<std::vector<int>> &graphToSkel)
+        : embedding_(embedding), graphToSkel_(graphToSkel) {}
 
-    bool tryAdd(int v) override;
+    bool tryAdd(int v) override {
+      const auto &faces = graphToSkel_[v - 1];
+      // Every non-seed node maps to exactly one face, where addFace() alone
+      // is already correct (and this is the hot path -- called once per DFS
+      // node visited) -- only a seeded graph's node 1 (the whole seed) can
+      // have more than one, where addFaces()'s order search is needed. See
+      // addFaces() for why: addFace() is order-sensitive, and the seed's
+      // faces don't generally arrive in a directly-addable order.
+      if (faces.size() == 1)
+        return embedding_.addFace(faces[0]);
+      return embedding_.addFaces(faces);
+    }
 
-    void undo(int v) override;
+    void undo(int v) override {
+      const auto &faces = graphToSkel_[v - 1];
+      for (auto it = faces.rbegin(); it != faces.rend(); ++it)
+        embedding_.removeFace(*it);
+    }
   };
 
   /** The face-adjacency graph searched over, together with its vertex-to-skeleton-face mapping. */

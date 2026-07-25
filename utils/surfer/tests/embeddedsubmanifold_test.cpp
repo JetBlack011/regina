@@ -311,9 +311,16 @@ Graph buildTestGraph(const Skeleton<4, 2> &skeleton) {
     std::vector<int> skelToGraph(nodes.size(), -1);
     for (size_t i = 0; i < nodes.size(); ++i) {
         if (EmbeddedSubmanifold<4, 2>::hasIrreparableSelfGluing(
-                nodes[i].gluings) ||
-            EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
-                nodes[i].face, nodes[i].gluings))
+                nodes[i].gluings)
+            // hasUnexplainedSelfCollision() filters codimension >= 2
+            // (vertex-level) self-collisions -- disabled along with Phase 2
+            // in addFace() (embeddedsubmanifold.cpp), so it no longer
+            // exists to call. Mirrors buildGraph_() in embeddingsearch.cpp,
+            // which drops the same disjunct.
+            //
+            // || EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+            //        nodes[i].face, nodes[i].gluings)
+        )
             continue;
         skelToGraph[i] = static_cast<int>(graphToSkel.size());
         graphToSkel.push_back(static_cast<int>(i));
@@ -625,35 +632,41 @@ void test_single_face_internal_vertex_collision() {
 // self-gluing, facet 0 <-> 1) must NOT be -- pinning down both the fix and
 // the no-over-rejection guarantee without going through addFace() or the
 // search graph at all.
-void test_has_unexplained_self_collision() {
-    std::cout << "\n--- hasUnexplainedSelfCollision() unit check ---\n";
+//
+// Disabled along with hasUnexplainedSelfCollision() itself, which is
+// commented out in embeddedsubmanifold.cpp (Phase 2 of addFace()). Kept
+// here rather than deleted so it can be restored with the routine.
+//
+// void test_has_unexplained_self_collision() {
+//     std::cout << "\n--- hasUnexplainedSelfCollision() unit check ---\n";
+//
+//     regina::Triangulation<4> tri;
+//     auto *p = tri.newPentachoron();
+//     auto *q = tri.newPentachoron();
+//     p->join(4, q, regina::Perm<5>());
+//     q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+//
+//     Skeleton<4, 2> skeleton(tri);
+//     const auto &nodes = skeleton.getNodes();
+//
+//     EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+//                   nodes[6].face, nodes[6].gluings)),
+//               true, "face 6 (no self-gluing entry) IS flagged as an "
+//                     "unexplained collision");
+//     EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
+//                   nodes[7].face, nodes[7].gluings)),
+//               false, "face 7 (legitimate self-gluing facet 0<->1) is NOT "
+//                      "flagged");
+// }
 
-    regina::Triangulation<4> tri;
-    auto *p = tri.newPentachoron();
-    auto *q = tri.newPentachoron();
-    p->join(4, q, regina::Perm<5>());
-    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
-
-    Skeleton<4, 2> skeleton(tri);
-    const auto &nodes = skeleton.getNodes();
-
-    EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
-                  nodes[6].face, nodes[6].gluings)),
-              true, "face 6 (no self-gluing entry) IS flagged as an "
-                    "unexplained collision");
-    EXPECT_EQ((EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
-                  nodes[7].face, nodes[7].gluings)),
-              false, "face 7 (legitimate self-gluing facet 0<->1) is NOT "
-                     "flagged");
-}
-
-// Documents the accepted incompleteness of the buildGraph_ fix: face 6 is
-// now permanently excluded from the search graph (so the search will never
-// find it), even though {6, 7} together genuinely is embedded -- a real,
-// valid configuration that becomes unreachable because 6 itself is dropped.
-// This is intentional (see ADDFACE_VERTEX_COLLISION_BUG.md): the check is
-// sound (never accepts a bad configuration) but not complete (may drop good
-// ones that depend on a bridging face like 7 to explain 6's collision).
+// Documents that the incompleteness this test was originally written for is
+// GONE. It used to record that face 6 was permanently excluded from the
+// search graph by hasUnexplainedSelfCollision() (see
+// ADDFACE_VERTEX_COLLISION_BUG.md), making the genuinely-embedded pair
+// {6, 7} unreachable. That vertex-level filter has since been disabled along
+// with Phase 2 of addFace(), so face 6 is reachable again and the pair is no
+// longer lost. Both halves are asserted below, so this test now pins the
+// restored behaviour rather than the old gap.
 void test_buildgraph_known_incompleteness() {
     std::cout << "\n--- Known incompleteness: {6,7} unreachable despite "
                  "being genuinely embedded ---\n";
@@ -671,8 +684,9 @@ void test_buildgraph_known_incompleteness() {
     for (int skelIdx : graph.graphToSkel)
         if (skelIdx == 6)
             face6Reachable = true;
-    EXPECT_EQ(face6Reachable, false,
-              "face 6 is excluded from the search graph entirely");
+    EXPECT_EQ(face6Reachable, true,
+              "face 6 is reachable again now that the vertex-level "
+              "self-collision filter is disabled");
 
     // But {6, 7} really is genuinely embedded, outside the graph filter.
     KnottedSurface embedding(skeleton);
@@ -685,8 +699,8 @@ void test_buildgraph_known_incompleteness() {
         skeleton.getNodes()[7].face;
     bool ok = isGenuinelyEmbedded(correspondence);
     EXPECT_EQ(added6 && added7 && ok, true,
-              "{6, 7} together is genuinely embedded, but is now permanently "
-              "unreachable by the search since 6 is dropped from the graph");
+              "{6, 7} together is genuinely embedded, and is now reachable "
+              "by the search again");
 }
 
 // The false->true direction of isEmbedded()'s tracking: face 6's own local
@@ -896,6 +910,81 @@ void test_knotbuilder_hopflink_cone() {
 void test_knotbuilder_hopflink_cone_reduced() {
     auditKnotSurface("knotbuilder: Hopf link, reduceVertices() + cone()",
                      kHopfLinkPD, true);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section D2: direct unit tests of EdgeComplement::linkingNumberWith().
+//
+// Nothing else in this suite reaches that method: the cone audits above cap
+// at kKnotMaxDepth == 3 triangles, far too few to close a petal at the apex,
+// so addFace()'s transverse-self-intersection branch is never entered. That
+// is why linkingNumberWith() silently returned 0 for every link below --
+// drilling curve A leaves an ideal (torus-cusp) vertex, and the homology it
+// used to compute treated that vertex as an ordinary point, coning off the
+// cusp instead of truncating it and killing the very meridian class the
+// linking number is read from.
+//
+// These tests pin exact values rather than just "nonzero", so a future
+// change that gets the sign convention or the truncation subtly wrong is
+// caught rather than passing on a lucky !=0.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PD codes generated by Regina (regina::ExampleLink::torus(2,2n) / whitehead(),
+// via Link::pdData()), then checked to build a valid closed triangulation with
+// exactly 2 components.
+const char *kT24PD = "1 5 2 8 3 7 4 6 5 3 6 2 7 1 8 4"; // (2,4) torus, lk = 2
+const char *kT26PD = "1 7 2 12 3 9 4 8 5 11 6 10 7 3 8 2 9 5 10 4 11 1 12 6";
+                                                        // (2,6) torus, lk = 3
+const char *kWhiteheadPD = "1 7 2 8 3 10 4 9 5 2 6 3 8 5 9 4 10 6 7 1";
+                                                        // lk = 0, NOT split
+
+// `bothDirections` additionally checks lk(B,A), which exercises a genuinely
+// different code path (each side drills its own curve and tracks the other
+// through the drilling). It roughly doubles the cost, so it is enabled only
+// for the cheapest link here -- HomologicalData on the unsimplified drilled
+// complement is the dominant expense and grows steeply with triangulation
+// size (the (2,6) case below is ~17s on its own).
+void expectLinkingNumber(const char *label, const char *pdCode, long expected,
+                         bool bothDirections = false) {
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(pdCode));
+    Link link(result.tri, result.edges);
+
+    EXPECT_EQ(link.countComponents(), 2,
+              std::string(label) + ": builds a 2-component link");
+    if (link.countComponents() != 2)
+        return;
+
+    EXPECT_EQ(link.comps_[0].linkingNumberWith(link.comps_[1]), expected,
+              std::string(label) + ": lk(A,B)");
+    if (bothDirections)
+        EXPECT_EQ(link.comps_[1].linkingNumberWith(link.comps_[0]), expected,
+                  std::string(label) + ": lk(B,A) agrees");
+}
+
+void test_linking_number_hopf() {
+    std::cout << "\n--- linkingNumberWith(): Hopf link, lk = 1 ---\n";
+    expectLinkingNumber("Hopf", kHopfLinkPD, 1, /*bothDirections=*/true);
+}
+
+void test_linking_number_torus24() {
+    std::cout << "\n--- linkingNumberWith(): (2,4) torus link, lk = 2 ---\n";
+    expectLinkingNumber("(2,4) torus", kT24PD, 2);
+}
+
+void test_linking_number_torus26() {
+    std::cout << "\n--- linkingNumberWith(): (2,6) torus link, lk = 3 ---\n";
+    expectLinkingNumber("(2,6) torus", kT26PD, 3);
+}
+
+// The Whitehead link is the case that distinguishes "computes the linking
+// number" from "detects whether the pair is separable": its two components
+// are genuinely, inseparably linked, yet lk = 0. A correct linkingNumberWith()
+// must report 0 here -- under-reporting is what keeps addFace()'s rejection
+// sound (it never prunes a configuration it hasn't proved is transverse).
+void test_linking_number_whitehead() {
+    std::cout << "\n--- linkingNumberWith(): Whitehead link, lk = 0 "
+                 "(linked, but algebraically zero) ---\n";
+    expectLinkingNumber("Whitehead", kWhiteheadPD, 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1154,7 +1243,8 @@ int main() {
     run("foursphere_doubled_simplex", test_foursphere_doubled_simplex);
     run("single_face_internal_vertex_collision",
         test_single_face_internal_vertex_collision);
-    run("has_unexplained_self_collision", test_has_unexplained_self_collision);
+    // Disabled with hasUnexplainedSelfCollision() itself; see above.
+    // run("has_unexplained_self_collision", test_has_unexplained_self_collision);
     run("buildgraph_known_incompleteness", test_buildgraph_known_incompleteness);
     run("isembedded_false_to_true_transition",
         test_isembedded_false_to_true_transition);
@@ -1170,6 +1260,10 @@ int main() {
     run("knotbuilder_trefoil_cone_reduced", test_knotbuilder_trefoil_cone_reduced);
     run("knotbuilder_hopflink_cone", test_knotbuilder_hopflink_cone);
     run("knotbuilder_hopflink_cone_reduced", test_knotbuilder_hopflink_cone_reduced);
+    run("linking_number_hopf", test_linking_number_hopf);
+    run("linking_number_torus24", test_linking_number_torus24);
+    run("linking_number_torus26", test_linking_number_torus26);
+    run("linking_number_whitehead", test_linking_number_whitehead);
 
     run("cone_on_trefoil_rejected", test_cone_on_trefoil_rejected);
     run("cone_on_unknot_accepted", test_cone_on_unknot_accepted);

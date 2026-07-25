@@ -98,6 +98,11 @@ class EdgeComplement {
      * \pre This and `other` are disjoint simple closed curves in the same
      * ambient Triangulation<3>.
      *
+     * \exception InvalidArgument The precondition was violated in a way
+     * that is detectable here: either `other`'s edges do not form a single
+     * closed curve, or they meet the ideal vertex left behind by drilling
+     * this curve (which means the two curves are not disjoint).
+     *
      * \return |lk(A,B)|; only the magnitude is meaningful, since no
      * canonical orientation is imposed on either curve.
      */

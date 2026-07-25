@@ -9,6 +9,8 @@
 #include <iostream>
 #include <list>
 
+#include <triangulation/dim3/homologicaldata.h>
+
 std::mutex censusLookupMutex;
 
 EdgeComplement::EdgeComplement(
@@ -152,46 +154,57 @@ EdgeComplement::drillTrackingEdges_(
 long EdgeComplement::linkingNumberWith(const EdgeComplement &other) const {
     auto [complement, trackedOther] = drillTrackingEdges_(other.edges_);
 
-    // M (vertices x edges, signed vertex incidence) and N (edges x
-    // triangles, signed edge incidence) are boundary maps with
-    // H_1 = ker(M)/im(N).
+    // Drilling curve A collapses it to a single ideal vertex -- a torus
+    // cusp. H_1 must therefore be computed with that vertex *truncated*
+    // (a genuine torus boundary), not treated as an ordinary 0-cell:
+    // coning the cusp torus to a point kills every loop on it, including
+    // A's meridian, which is precisely the class the linking number is
+    // read off. A hand-rolled (vertices x edges, edges x triangles) pair
+    // of boundary maps does exactly that wrong thing, and used to make
+    // this routine return 0 for every link it was given.
     //
-    // Known limitation: drilling curve A leaves an ideal vertex, and
-    // computing H_1 correctly in its presence requires treating that
-    // vertex as truncated -- which this hand-rolled M/N does not do (and
-    // Regina's own truncating routines would invalidate trackedOther's
-    // tracked-edge descriptors). So h1.isZ() is used only as a confidence
-    // check: if it fails, this reports "no detected linking" (0) rather
-    // than risk a wrong nonzero value. That keeps the result sound (never
-    // falsely reports linking) but not complete (a real link can be
-    // missed).
-    regina::MatrixInt m(complement.countVertices(), complement.countEdges());
-    for (auto e : complement.edges()) {
-        m.entry(e->vertex(0)->index(), e->index()) -= 1;
-        m.entry(e->vertex(1)->index(), e->index()) += 1;
-    }
+    // HomologicalData computes the correctly-truncated group and, unlike
+    // Triangulation<3>::homology(), keeps it marked so a specific cycle
+    // can be located inside it. Its standard cellular coordinates order
+    // the 1-cells as "edges.begin() to edges.end(), followed by the ideal
+    // edges of faces" (see its class documentation), so the triangulation's
+    // own edges are a *prefix* of the coordinate space -- which is what
+    // lets curve B's edge-indexed cycle vector below be used as-is, padded
+    // with zeros over the trailing ideal-truncation cells.
+    regina::HomologicalData hd(complement);
+    const regina::MarkedAbelianGroup &h1 = hd.homology(1);
 
-    regina::MatrixInt n(complement.countEdges(), complement.countTriangles());
-    for (auto t : complement.triangles()) {
-        for (int j = 0; j < 3; ++j) {
-            size_t e = t->edge(j)->index();
-            if (t->edgeMapping(j).sign() > 0)
-                ++n.entry(e, t->index());
-            else
-                --n.entry(e, t->index());
-        }
-    }
-
-    regina::MarkedAbelianGroup h1(m, n);
+    // H_1 of a knot complement in S^3 is always Z, so this should now be
+    // unreachable; kept as a defensive check rather than an assertion,
+    // since reporting "no detected linking" stays sound (this routine
+    // never falsely reports linking) if the precondition is ever violated.
     if (!h1.isZ())
         return 0;
+
+    // Curve B must avoid the drilled cusp for the zero-padding described
+    // above to be valid: an edge ending at the ideal vertex terminates on
+    // one of the *new* truncation 0-cells instead of an ordinary vertex,
+    // so such a cycle would no longer close up in these coordinates and
+    // snfRep() would throw rather than return a wrong answer.
+    // Geometrically this cannot happen -- an edge of B running into the
+    // ideal vertex would mean B meets the drilled-out curve A,
+    // contradicting this method's disjointness precondition -- so it is
+    // checked, not assumed.
+    for (const regina::Edge<3> *e : trackedOther)
+        if (e->vertex(0)->isIdeal() || e->vertex(1)->isIdeal())
+            throw regina::InvalidArgument(
+                "EdgeComplement::linkingNumberWith(): other's curve meets "
+                "the drilled ideal vertex, so the two curves are not "
+                "disjoint");
 
     // Walk trackedOther's edges into an oriented cycle (the same
     // shared-vertex walk Link::Link() uses to split a multi-component edge
     // set into per-component knots), then read off its class in H_1. Only
     // the magnitude is meaningful, so no canonical orientation needs to be
-    // imposed: any consistent walk direction works.
-    regina::Vector<regina::Integer> cycle(complement.countEdges());
+    // imposed: any consistent walk direction works. The walk must be
+    // *oriented*: an unsigned sum of B's edges is not a cycle in these
+    // coordinates and snfRep() would reject it.
+    regina::Vector<regina::Integer> cycle(hd.countStandardCells(1));
     if (!trackedOther.empty()) {
         std::vector<const regina::Edge<3> *> remaining(trackedOther.begin(),
                                                         trackedOther.end());
