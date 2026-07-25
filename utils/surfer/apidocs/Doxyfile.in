@@ -1,0 +1,96 @@
+#
+# File Doxyfile  --  Doxygen configuration for utils/surfer.
+#
+# Modeled on apidocs/docs.conf.in (Regina's own engine documentation
+# config), scoped to utils/surfer instead of engine. HTML output only;
+# see apidocs/docs.conf.in if LaTeX/RTF/man output is ever wanted here too.
+#
+
+# General options
+
+PROJECT_NAME         = "Surfer @PACKAGE_VERSION@"
+PROJECT_BRIEF         = "Surface-in-4-manifold search tools (utils/surfer)"
+
+OUTPUT_DIRECTORY     = "@PROJECT_BINARY_DIR@/utils/surfer/apidocs"
+
+PAGE_OUTLINE_PANEL   = NO
+EXTRACT_ALL          = NO
+EXTRACT_PRIVATE      = NO
+EXTRACT_STATIC       = YES
+INLINE_INHERITED_MEMB = YES
+
+BRIEF_MEMBER_DESC    = YES
+JAVADOC_AUTOBRIEF    = YES
+REPEAT_BRIEF         = YES
+ALWAYS_DETAILED_SEC  = YES
+
+FULL_PATH_NAMES      = YES
+STRIP_FROM_PATH      = "@PROJECT_SOURCE_DIR@"
+STRIP_FROM_INC_PATH  = "@PROJECT_SOURCE_DIR@"
+
+SOURCE_BROWSER       = NO
+GENERATE_TODOLIST    = YES
+GENERATE_TESTLIST    = NO
+
+CASE_SENSE_NAMES     = YES
+VERBATIM_HEADERS     = NO
+
+# Warning and progress related options:
+
+QUIET                = YES
+WARNINGS             = YES
+WARN_IF_UNDOCUMENTED = YES
+
+# Input related options:
+
+INPUT = "@PROJECT_SOURCE_DIR@/utils/surfer"
+FILE_PATTERNS        = *.h
+RECURSIVE            = YES
+EXCLUDE = \
+    "@PROJECT_SOURCE_DIR@/utils/surfer/tests"
+
+# Alphabetical index options:
+
+ALPHABETICAL_INDEX   = YES
+
+# HTML related options:
+
+GENERATE_HTML        = YES
+HTML_OUTPUT          = .
+HTML_FOOTER          = "@PROJECT_SOURCE_DIR@/apidocs/doc-footer.html"
+GENERATE_HTMLHELP    = NO
+
+# All other output formats disabled -- HTML only for now.
+
+GENERATE_LATEX       = NO
+GENERATE_RTF         = NO
+GENERATE_MAN         = NO
+
+# Preprocessor related options:
+
+ENABLE_PREPROCESSING = YES
+MACRO_EXPANSION      = YES
+EXPAND_ONLY_PREDEF   = YES
+PREDEFINED           = \
+    __DOXYGEN \
+    __APIDOCS
+
+SEARCH_INCLUDES      = YES
+INCLUDE_PATH         = "@PROJECT_SOURCE_DIR@/engine"
+
+# External reference options:
+
+ALLEXTERNALS         = NO
+
+# Dot options:
+
+HAVE_DOT             = NO
+CLASS_GRAPH          = YES
+COLLABORATION_GRAPH  = YES
+INCLUDE_GRAPH        = NO
+INCLUDED_BY_GRAPH    = NO
+GRAPHICAL_HIERARCHY  = NO
+
+# Search engine options:
+
+SEARCHENGINE         = NO

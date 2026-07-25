@@ -21,3 +21,7 @@ install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Ru
 # #include "cobordismbuilder.h") against this directory.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(tests)
+
+if (REGINA_BUILD_ENGINE_DOCS)
+  add_subdirectory(apidocs)
+endif (REGINA_BUILD_ENGINE_DOCS)
