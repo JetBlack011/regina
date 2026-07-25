@@ -596,10 +596,27 @@ bool KnottedSurface::addFace(int f) {
   // Filter out surfaces which are not locally flat or have transverse
   // self-intersections
   const auto &node = skeleton_.getNodes()[f];
+
+  // On an early failure below, facesAtVertex_ may only have been pushed to
+  // for some of the 3 local vertices -- removeFace(f) unconditionally pops
+  // all 3, so calling it here would pop entries this call never pushed
+  // (corrupting an unrelated vertex's list, or underflowing an empty one).
+  // rollback() undoes exactly the `pushed` entries this call made, then
+  // reuses the base class's removeFace() for the rest of the undo.
+  int pushed = 0;
+  auto rollback = [&] {
+    for (int local = pushed - 1; local >= 0; --local) {
+      size_t v = node.face->face<0>(local)->index();
+      facesAtVertex_[v].pop_back();
+    }
+    EmbeddedSubmanifold<4, 2>::removeFace(f);
+  };
+
   for (int local = 0; local <= 2; ++local) {
     auto *ambientVertex = node.face->face<0>(local);
     size_t v = ambientVertex->index();
     facesAtVertex_[v].push_back({f, local});
+    pushed = local + 1;
 
     // Vertex<4>::buildLink() is a closed S^3 only for interior ambient
     // vertices, which is what the hereditary proofs below rely on; a
@@ -622,7 +639,7 @@ bool KnottedSurface::addFace(int f) {
       // shrink to an open arc on removal, never split into a smaller
       // closed loop -- arcs are never "knotted"), so safe to reject
       // permanently here rather than deferring to a post-hoc filter.
-      removeFace(f);
+      rollback();
       return false;
     }
 
@@ -636,7 +653,7 @@ bool KnottedSurface::addFace(int f) {
         // at v. Hereditary under removeFace() (the same isotopy that
         // would separate two petals still separates any subset of them),
         // so this can never resolve later -- safe to prune permanently.
-        removeFace(f);
+        rollback();
         return false;
       }
     }
