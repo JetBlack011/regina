@@ -2,13 +2,14 @@
 # File Doxyfile  --  Doxygen configuration for utils/surfer.
 #
 # Modeled on apidocs/docs.conf.in (Regina's own engine documentation
-# config), scoped to utils/surfer instead of engine. HTML output only;
-# see apidocs/docs.conf.in if LaTeX/RTF/man output is ever wanted here too.
+# config), scoped to utils/surfer instead of engine. HTML and LaTeX/PDF
+# output; see apidocs/docs.conf.in if RTF/man output is ever wanted here
+# too.
 #
 
 # General options
 
-PROJECT_NAME         = "Surfer @PACKAGE_VERSION@"
+PROJECT_NAME         = "Surfer"
 PROJECT_BRIEF         = "Surface-in-4-manifold search tools (utils/surfer)"
 
 OUTPUT_DIRECTORY     = "@PROJECT_BINARY_DIR@/utils/surfer/apidocs"
@@ -60,9 +61,10 @@ HTML_OUTPUT          = .
 HTML_FOOTER          = "@PROJECT_SOURCE_DIR@/apidocs/doc-footer.html"
 GENERATE_HTMLHELP    = NO
 
-# All other output formats disabled -- HTML only for now.
+# LaTeX/PDF output enabled; RTF and man pages remain disabled.
 
-GENERATE_LATEX       = NO
+GENERATE_LATEX       = YES
+USE_PDFLATEX         = YES
 GENERATE_RTF         = NO
 GENERATE_MAN         = NO
 
