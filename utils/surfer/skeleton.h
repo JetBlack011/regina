@@ -31,8 +31,8 @@
 template <int dim, int subdim>
 class Skeleton {
   public:
-    using Face = regina::SafeFace<dim, subdim>;
-    using Facet = regina::Face<dim, subdim - 1>;
+    using Face = regina::SafeFace<dim, subdim>; /**< A graph node: a subdim-face of the ambient triangulation. */
+    using Facet = regina::Face<dim, subdim - 1>; /**< A shared facet between two Faces. */
 
     /**
      * One shared facet between two subdim-faces, recorded as a directed

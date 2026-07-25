@@ -26,6 +26,7 @@
  *  \brief Parallel search over embedded subcomplexes of a triangulation.
  */
 
+/** A graph's vertex count, together with its 1-indexed adjacency list. */
 using AdjacencyList = std::pair<int, std::vector<std::vector<int>>>;
 
 /** Formats a duration for progress/summary output (e.g. "1h23m45s"). */
@@ -39,12 +40,12 @@ const char *boundaryConditionName(BoundaryCondition cond);
  * SearchCallbacks rather than printed directly.
  */
 struct SearchStats {
-  std::chrono::steady_clock::duration elapsed{};
-  size_t rootsCompleted = 0;
-  size_t totalRoots = 0;
+  std::chrono::steady_clock::duration elapsed{}; /**< Time elapsed since the search started. */
+  size_t rootsCompleted = 0; /**< The number of DFS roots fully explored so far. */
+  size_t totalRoots = 0; /**< The total number of DFS roots this search will explore. */
   long long foundCount = 0; /**< Raw candidates visited, regardless of BoundaryCondition. */
   long long satisfyingCount = 0; /**< Candidates satisfying the BoundaryCondition. */
-  long long satisfyingFaceSum = 0;
+  long long satisfyingFaceSum = 0; /**< The sum of face counts among satisfying finds. */
   long long largestSatisfying = 0; /**< The largest face count among satisfying finds. */
 
   /** Returns the average face count among satisfying finds, or 0 if there are none. */
@@ -103,6 +104,7 @@ protected:
     const std::vector<std::vector<int>> &graphToSkel_;
 
   public:
+    /** Drives `embedding` via the graph-to-skeleton-face mapping `graphToSkel` (see Graph). */
     EmbeddednessPredicate(EmbeddingT &embedding,
                           const std::vector<std::vector<int>> &graphToSkel);
 
@@ -111,8 +113,9 @@ protected:
     void undo(int v) override;
   };
 
+  /** The face-adjacency graph searched over, together with its vertex-to-skeleton-face mapping. */
   struct Graph {
-    AdjacencyList adjList;
+    AdjacencyList adjList; /**< The graph itself. */
     std::vector<std::vector<int>> graphToSkel;
         /**< graphToSkel[v-1]: the skeleton face indices graph vertex v
              corresponds to. Every vertex has a singleton list, except an
@@ -164,6 +167,9 @@ protected:
    * injection points, threaded through here so the bulk of either
    * function (threading, atomics, reporting) exists exactly once.
    *
+   * \param numThreads the number of worker threads to search with.
+   * \param cond restricts results to embeddings satisfying this
+   * condition.
    * \param makeEmbedding factory called once per worker thread (plus
    * once more for the seeded-root prototype), returning the embedding
    * object the DFS predicate drives. Defaults to
@@ -223,10 +229,10 @@ extern template class EmbeddingSearch<4, 2>;
  * SurfaceSearchCallbacks::onSurfaceFound.
  */
 struct SurfaceFoundInfo {
-  bool orientable;
-  int genus;
-  int punctures;
-  long long triangleCount;
+  bool orientable; /**< Whether the surface is orientable. */
+  int genus; /**< The surface's genus. */
+  int punctures; /**< The surface's number of punctures (boundary components). */
+  long long triangleCount; /**< The surface's number of triangles. */
   BoundaryCondition mostRestrictive;
       /**< The most restrictive BoundaryCondition this specific surface
            satisfies -- not necessarily the one the whole search was run
@@ -291,6 +297,7 @@ struct SurfaceSearchCallbacks : SearchCallbacks {
  */
 class SurfaceSearch : public EmbeddingSearch<4, 2> {
 public:
+  /** See KnottedSurface::SurfaceTypeKey. */
   using SurfaceTypeKey = KnottedSurface::SurfaceTypeKey;
 
 private:

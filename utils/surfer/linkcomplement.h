@@ -55,6 +55,7 @@ class EdgeComplement {
     EdgeComplement(const regina::Triangulation<3> &tri,
                    const std::vector<const regina::Edge<3> *> &edges);
 
+    /** Sets this to a copy of `other`. */
     EdgeComplement &operator=(const EdgeComplement &other);
 
     /**
@@ -102,8 +103,10 @@ class EdgeComplement {
      */
     long linkingNumberWith(const EdgeComplement &other) const;
 
+    /** Orders by edge count, for use in ordered containers. */
     friend bool operator<(const EdgeComplement &e1, const EdgeComplement &e2);
 
+    /** Writes the tracked edges' indices as `{i, j, ...}`. */
     friend std::ostream &operator<<(std::ostream &os, const EdgeComplement &e);
 
   private:
@@ -129,10 +132,12 @@ class EdgeComplement {
  */
 class Knot : public EdgeComplement {
   public:
+    /** Tracks the knot formed by `edges` inside `tri`. */
     Knot(const regina::Triangulation<3> &tri,
          const std::vector<const regina::Edge<3> *> &edges)
         : EdgeComplement(tri, edges) {}
 
+    /** Sets this to a copy of `other`. */
     Knot &operator=(const Knot &other) {
         if (this != &other) {
             EdgeComplement::operator=(other);
@@ -157,6 +162,7 @@ class Link : public EdgeComplement {
     Link(const regina::Triangulation<3> &tri,
          const std::vector<const regina::Edge<3> *> &edges);
 
+    /** Sets this to a copy of `other`. */
     Link &operator=(const Link &other);
 
     /** Builds the complement of a single component. */
@@ -175,8 +181,10 @@ class Link : public EdgeComplement {
     /** Prints whether each component's complement is recognized; see EdgeComplement::recognizeComplement(). */
     void recognizeComplement() const;
 
+    /** Orders by component count, then by edge count, for use in ordered containers. */
     friend bool operator<(const Link &l1, const Link &l2);
 
+    /** Writes each component's tracked edges as `[{...}, {...}, ...]`. */
     friend std::ostream &operator<<(std::ostream &os, const Link &l);
 };
 

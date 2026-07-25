@@ -59,6 +59,7 @@ protected:
   using Face = const typename Skeleton<dim, subdim>::Face;
       /**< A face of the ambient skeleton being tracked. */
   template <int k> using LowDimVec = std::vector<int>;
+      /**< A per-k-face vector, indexed by ambient k-face index; see faceCount_. */
 
   const Skeleton<dim, subdim> &skeleton_; /**< The ambient skeleton. */
   regina::Triangulation<subdim> subtri_;
@@ -273,6 +274,7 @@ extern template class EmbeddedSubmanifold<4, 2>;
  */
 class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
 public:
+  /** A surface's topology, as (orientable, genus, number of punctures); see surfaceTypeKey(). */
   using SurfaceTypeKey = std::tuple<bool, int, int>;
 
 private:
@@ -347,8 +349,10 @@ public:
    */
   bool addFace(int f);
 
+  /** As EmbeddedSubmanifold::addFaces(), using this class's addFace(). */
   bool addFaces(const std::vector<int> &faces);
 
+  /** As EmbeddedSubmanifold::removeFace(), also updating this class's own per-vertex tracking. */
   void removeFace(int f);
 
   /** Returns the knot/link bounded by each boundary component of the surface, keyed by boundary component index. */

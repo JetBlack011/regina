@@ -47,6 +47,7 @@ class Block {
     /** Returns the 3 edges of this crossing that trace the knot/link diagram through it. */
     const std::vector<regina::Edge<3> *> getLinkEdges() const;
 
+    /** Returns whether `lhs` and `rhs` are the same underlying gadget (same tetrahedra). */
     friend bool operator==(const Block &lhs, const Block &rhs) {
         return lhs.core_ == rhs.core_ && lhs.walls_ == rhs.walls_;
     }
@@ -54,8 +55,8 @@ class Block {
 
 /** A triangulation of S^3 together with the edges tracing a knot/link diagram within it. */
 struct TriangulationWithLink {
-    regina::Triangulation<3> tri;
-    std::vector<const regina::Edge<3> *> edges;
+    regina::Triangulation<3> tri; /**< The triangulation. */
+    std::vector<const regina::Edge<3> *> edges; /**< The edges tracing the knot/link diagram. */
 };
 
 /**
