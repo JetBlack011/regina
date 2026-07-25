@@ -1,6 +1,8 @@
 //
 //  embeddedsubmanifold.cpp
 //
+//  Created by John Teague on 07/21/2026.
+//
 
 #include "embeddedsubmanifold.h"
 
@@ -304,11 +306,9 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
     dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
   }
 
-  // isProper() tracking: mirror addFace()'s badProperCount_ update, one
-  // local facet at a time (decrementing counts[idx] here directly rather
-  // than in the generic loop below, for the same self-gluing transient-
-  // state reason documented in addFace() -- a self-gluing pair's shared
-  // idx passes through count == 1 transiently here too, in reverse).
+  // isProper() tracking: mirrors addFace()'s badProperCount_ update (see
+  // its comment for why self-gluings need this per-facet handling), just
+  // in reverse.
   {
     auto &counts = std::get<subdim - 1>(faceCount_);
     for (int i = 0; i <= subdim; ++i) {
@@ -594,17 +594,12 @@ bool KnottedSurface::addFace(int f) {
     size_t v = ambientVertex->index();
     facesAtVertex_[v].push_back({f, local});
 
-    // Vertex<4>::buildLink() is a closed S^3 only for INTERIOR ambient
-    // vertices -- the hereditary transverse-self-intersection/local-
-    // flatness proofs this feature relies on were specifically about that
-    // case. A boundary vertex's link has boundary itself (e.g. a 3-ball),
-    // where the EdgeComplement/Knot machinery's pinchEdge()-based drilling
-    // doesn't apply (pinchEdge() requires an internal edge) -- skipping
-    // entirely here is sound (not just expedient): under-checking can
-    // only miss a prune, never accept a state that isn't otherwise valid,
-    // and boundary-vertex flatness/transversality (relative to the
-    // surface's own boundary curves, already handled separately by
-    // boundaryLinks()) was never part of what was proven here.
+    // Vertex<4>::buildLink() is a closed S^3 only for interior ambient
+    // vertices, which is what the hereditary proofs below rely on; a
+    // boundary vertex's link has boundary itself. Skipping it here is
+    // sound, not just expedient: under-checking can only miss a prune,
+    // never accept an otherwise-invalid state, and boundary-vertex
+    // flatness is already handled separately by boundaryLinks().
     if (ambientVertex->isBoundary())
       continue;
 

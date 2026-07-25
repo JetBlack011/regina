@@ -1,6 +1,8 @@
 //
 //  collar.cpp
 //
+//  Created by John Teague on 07/21/2026.
+//
 
 #include "collar.h"
 
@@ -53,6 +55,11 @@ void CollarBuilder::addEdgeSweep_(const CobordismBuilder<3> &cob,
 }
 
 regina::Triangle<4> *CollarBuilder::resolveFace_(const FaceDesc &f) {
+    // Face<4,2>::faceNumber() identifies a triangle of a 4-simplex by a
+    // Perm<5> whose first 3 images are the triangle's vertices and whose
+    // last 2 are the simplex's other two vertices. Build one by placing
+    // f.verts first, then filling the remaining slots with whichever
+    // vertices weren't used, in ascending order.
     std::array<int, 5> full;
     std::unordered_set<int> used(f.verts.begin(), f.verts.end());
     full[0] = f.verts[0];

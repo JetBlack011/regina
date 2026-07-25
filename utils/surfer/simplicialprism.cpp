@@ -1,6 +1,8 @@
 //
 //  simplicialprism.cpp
 //
+//  Created by John Teague on 07/21/2026.
+//
 
 #include "simplicialprism.h"
 
@@ -43,12 +45,12 @@ void SimplicialPrism<dim>::glue(int facet, SimplicialPrism<dim> &other,
                 continue;
             }
 
-            // Decode local vertex m of simplices_[k] as (base vertex,
-            // is-top-copy), translate the base vertex across the
-            // (ordered) base gluing, then re-encode within
-            // other.simplices_[kOther]. The top/bottom level is
-            // unaffected by the gluing, since it only identifies the
-            // base simplices and acts as the identity on the I factor.
+            // Decode local vertex m as (base vertex, is-top-copy),
+            // translate the base vertex across the (ordered) base gluing,
+            // then re-encode within other.simplices_[kOther]. The top/
+            // bottom level is unaffected, since the gluing only
+            // identifies the base simplices and acts as the identity on
+            // the interval factor.
             auto [baseVertex, isTop] = decode_(k, m);
             int otherBaseVertex =
                 mapExcluding_(baseVertex, facet, otherFacet);
@@ -87,12 +89,18 @@ void SimplicialPrism<dim>::capTop(regina::Simplex<dim> *coneSimplex) {
 
 template <int dim>
 int SimplicialPrism<dim>::mapExcluding_(int x, int a, int b) {
+    // Re-rank x within {0,...,dim} with a removed (closing the gap left by
+    // a), then re-open a gap at b in the target set.
     int rank = (x < a) ? x : x - 1;
     return (rank < b) ? rank : rank + 1;
 }
 
 template <int dim>
 std::pair<int, bool> SimplicialPrism<dim>::decode_(int k, int m) {
+    // Local vertex `dim` of every simplices_[k] is reserved for the top
+    // copy of base vertex 0. Otherwise, local vertex m is the bottom copy
+    // of base vertex m when m >= k, and the top copy of base vertex m + 1
+    // when m < k.
     if (m == dim)
         return {0, true};
     if (k <= m)
@@ -102,6 +110,9 @@ std::pair<int, bool> SimplicialPrism<dim>::decode_(int k, int m) {
 
 template <int dim>
 int SimplicialPrism<dim>::encode_(int v, bool isTop) {
+    // Bottom copies keep their base vertex index as the local index. The
+    // top copy of base vertex 0 lives at local index dim (see decode_());
+    // every other top copy shifts down by one to make room for it.
     if (!isTop)
         return v;
     return v == 0 ? dim : v - 1;
@@ -109,6 +120,10 @@ int SimplicialPrism<dim>::encode_(int v, bool isTop) {
 
 template <int dim>
 int SimplicialPrism<dim>::wallFacet_(int k, int v) {
+    // See decode_(): base vertex v's bottom copy sits at local index v
+    // when k <= v, and its top copy at local index v - 1 (or dim, for
+    // v == 0) when k > v. The k != v precondition documented in the header
+    // guarantees exactly one of these applies.
     if (k < v)
         return v;
     return v == 0 ? dim : v - 1;

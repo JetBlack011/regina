@@ -1,6 +1,8 @@
 //
 //  linkcomplement.cpp
 //
+//  Created by John Teague on 07/21/2026.
+//
 
 #include "linkcomplement.h"
 
@@ -104,9 +106,8 @@ EdgeComplement::drillTrackingEdges_(
     const std::vector<const regina::Edge<3> *> &trackEdges) const {
     regina::Triangulation<3> complement(*tri_);
 
-    // Track trackEdges (curve B) via (Tetrahedron*, localEdge) descriptors,
-    // which stay valid across pinchEdge() -- see knotbuilder.cpp's
-    // EdgeDescriptor for the same pattern (pinchEdge() only ever appends
+    // trackEdges is tracked via (Tetrahedron*, localEdge) descriptors,
+    // which stay valid across pinchEdge() (pinchEdge() only ever appends
     // new tetrahedra, never removes or renumbers existing ones).
     std::vector<std::pair<regina::Tetrahedron<3> *, int>> trackedDescs;
     trackedDescs.reserve(trackEdges.size());
@@ -151,36 +152,19 @@ EdgeComplement::drillTrackingEdges_(
 long EdgeComplement::linkingNumberWith(const EdgeComplement &other) const {
     auto [complement, trackedOther] = drillTrackingEdges_(other.edges_);
 
-    // Chain complex boundary maps generalizing
-    // Triangulation<3>::longitudeCuts()'s pattern (engine/triangulation/
-    // dim3/knot.cpp) from its 1-vertex special case (where M is trivially
-    // zero, since every edge is a loop at the single vertex) to a real M:
-    // M is d1 (vertices x edges, signed vertex incidence), N is d2 (edges
-    // x triangles, signed edge incidence) -- H_1 = ker(M)/im(N).
+    // M (vertices x edges, signed vertex incidence) and N (edges x
+    // triangles, signed edge incidence) are boundary maps with
+    // H_1 = ker(M)/im(N).
     //
-    // KNOWN LIMITATION: drilling curve A leaves an IDEAL vertex (the cusp
-    // left behind), and computing H_1 *correctly* in its presence requires
-    // treating it as truncated (Triangulation<3>::homology() does this,
-    // confirmed against it during development), which this hand-rolled
-    // M/N does not attempt -- markedHomology() explicitly does NOT
-    // truncate ideal vertices either (see its own doc comment), and
-    // idealToFinite()/truncateIdeal() resubdivides every tetrahedron,
-    // which would invalidate trackedOther's (Tetrahedron*, localEdge)
-    // descriptors. Getting the truncated *marked* computation exactly
-    // right (tracking a specific cycle's class, not just the group) needs
-    // the same extra machinery Triangulation<3>::homologicalData() builds
-    // for exactly this purpose (see engine/triangulation/dim3/
-    // homologicaldata.cpp's sIEOE/sIEEOF-style bookkeeping) -- out of
-    // scope to fully replicate here. So: h1.isZ() is used only as a
-    // *confidence check*, not a hard precondition -- if it doesn't hold,
-    // this falls back to reporting "no detected linking" (0) rather than
-    // asserting a possibly-wrong nonzero value or throwing. This keeps
-    // the transverse-self-intersection check SOUND (it still rejects
-    // whenever it successfully computes a nonzero linking number) but not
-    // fully COMPLETE (a linked pair whose drilled complement isn't
-    // confidently Z here will be missed) -- an accepted, deliberate gap,
-    // matching this codebase's existing sound-but-incomplete precedents
-    // (see hasUnexplainedSelfCollision()'s own doc comment).
+    // Known limitation: drilling curve A leaves an ideal vertex, and
+    // computing H_1 correctly in its presence requires treating that
+    // vertex as truncated -- which this hand-rolled M/N does not do (and
+    // Regina's own truncating routines would invalidate trackedOther's
+    // tracked-edge descriptors). So h1.isZ() is used only as a confidence
+    // check: if it fails, this reports "no detected linking" (0) rather
+    // than risk a wrong nonzero value. That keeps the result sound (never
+    // falsely reports linking) but not complete (a real link can be
+    // missed).
     regina::MatrixInt m(complement.countVertices(), complement.countEdges());
     for (auto e : complement.edges()) {
         m.entry(e->vertex(0)->index(), e->index()) -= 1;
@@ -202,12 +186,11 @@ long EdgeComplement::linkingNumberWith(const EdgeComplement &other) const {
     if (!h1.isZ())
         return 0;
 
-    // Walk trackedOther's edges into an oriented cycle -- the same
-    // shared-vertex walk Link::Link() uses (above) to split a
-    // multi-component edge set into per-component knots -- then read off
-    // its class in H_1. Only the magnitude is meaningful (see
-    // linkingNumberWith()'s doc comment), so no canonical orientation
-    // needs to be imposed: any consistent walk direction works.
+    // Walk trackedOther's edges into an oriented cycle (the same
+    // shared-vertex walk Link::Link() uses to split a multi-component edge
+    // set into per-component knots), then read off its class in H_1. Only
+    // the magnitude is meaningful, so no canonical orientation needs to be
+    // imposed: any consistent walk direction works.
     regina::Vector<regina::Integer> cycle(complement.countEdges());
     if (!trackedOther.empty()) {
         std::vector<const regina::Edge<3> *> remaining(trackedOther.begin(),

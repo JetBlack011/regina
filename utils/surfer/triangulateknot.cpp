@@ -1,3 +1,9 @@
+//
+//  triangulateknot.cpp
+//
+//  Created by John Teague on 11/09/2025.
+//
+
 #include "cobordismbuilder.h"
 #include "knotbuilder.h"
 #include "linkcomplement.h"

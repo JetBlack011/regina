@@ -1,17 +1,32 @@
+//
+//  bogocheck.cpp
+//
+//  Created by John Teague on 07/18/2024.
+//
+//  Scratch tool: retriangulates a hardcoded 4-manifold triangulation via
+//  Pachner moves (see process()) and reports whether a strictly smaller
+//  triangulation exists. The configuration globals below are set directly
+//  in source; argc/argv are currently unused.
+//
+
 #include <link/link.h>
 
 std::mutex mutex;
 
-int argHeight = 2;
-long argThreads = 10;
+int argHeight = 2; // Pachner move search depth, passed to retriangulate()
+long argThreads = 10; // worker thread count, passed to retriangulate()
 enum {
     FLAVOUR_NONE = 0,
     FLAVOUR_DIM3 = 3,
     FLAVOUR_DIM4 = 4,
     FLAVOUR_KNOT = 100
-} flavour = FLAVOUR_NONE;
-bool internalSig = false;
+} flavour = FLAVOUR_NONE; // currently unused
+bool internalSig = false; // if true, print retriangulate()'s own signature instead of recomputing the classic isoSig
 
+// Searches (up to argHeight Pachner moves, using argThreads worker
+// threads) for a triangulation smaller than `tri` with the same topology,
+// printing every isomorphism signature visited along the way. Reports
+// whether a smaller triangulation was found, and if so, its signature.
 template <int dim>
 void process(const regina::Triangulation<dim>& tri) {
     unsigned long nSolns = 0;
@@ -62,6 +77,8 @@ void process(const regina::Triangulation<dim>& tri) {
 }
 
 int main(int argc, char* argv[]) {
+    // t1/t2 are currently unused -- kept here for quick swapping into the
+    // process() call below when trying a different triangulation.
     regina::Triangulation<4> t1(
         "6LvLLwvzzzQwvwzAPPMMLwMQPQMMAPLAvQMQQwQzQQLQQQQQQcbfigmqtmmlqzBBtpwypx"
         "pCxKALLKEwCMOMDDPJJPKISUUEYKROOMSIIYMYU1XX32SX1155WVZVZ3X22053354444aa"

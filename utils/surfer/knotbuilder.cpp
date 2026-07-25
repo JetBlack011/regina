@@ -27,6 +27,9 @@ knotbuilder::PDCode knotbuilder::parsePDCode(std::string pdcode_str) {
         pdlist.push_back(token);
     }
 
+    // PD codes conventionally 1-index strand labels; detect 0-indexed
+    // input (a literal 0 can only appear in that case) and normalize to
+    // 0-indexed internally either way.
     bool isZeroIndexed = false;
     if (std::ranges::find(pdlist, 0) != pdlist.end()) {
         isZeroIndexed = true;
@@ -50,6 +53,10 @@ knotbuilder::PDCode knotbuilder::parsePDCode(std::string pdcode_str) {
 }
 
 knotbuilder::Block::Block(regina::Triangulation<3> &tri) {
+    // Fixed 14-tetrahedron gluing pattern for one crossing: 6 "core"
+    // tetrahedra encoding the over/under strand crossing itself, plus 8
+    // "wall" tetrahedra (2 per side) forming the 4 walls glue() joins to
+    // neighboring Blocks.
     const regina::Perm<4> id;
     core_.reserve(6);
     for (int i = 0; i < 6; ++i) {
@@ -129,6 +136,8 @@ constexpr MiddleRole midRole[4] = {
     {3, 0, 2, 1},
 };
 
+// Builds the permutation identifying `mine`'s local vertices with
+// `theirs`', role-for-role.
 regina::Perm<4> matchCorner(const CornerRole &mine, const CornerRole &theirs) {
     std::array<int, 4> image;
     image[mine.excl] = theirs.excl;
@@ -138,6 +147,7 @@ regina::Perm<4> matchCorner(const CornerRole &mine, const CornerRole &theirs) {
     return regina::Perm<4>(image);
 }
 
+// As matchCorner(), for a wall's middle tetrahedron.
 regina::Perm<4> matchMiddle(const MiddleRole &mine, const MiddleRole &theirs) {
     std::array<int, 4> image;
     image[mine.excl] = theirs.excl;

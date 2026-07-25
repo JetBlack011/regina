@@ -1,6 +1,8 @@
 //
 //  embeddingsearch.cpp
 //
+//  Created by John Teague on 07/15/2026.
+//
 
 #include "embeddingsearch.h"
 
@@ -19,9 +21,8 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-// satisfying-cond finds are rare relative to raw finds, so flush every one --
-// batching these hid live progress behind a threshold that was rarely
-// reached, making the rolling report look stuck at 0
+// satisfying-cond finds are rare relative to raw finds, so flush every one
+// to keep the rolling progress report responsive.
 #define FLUSH_EVERY_BDRY 1
 // the found-count fires on every callback invocation (not just those
 // satisfying cond), so it's flushed to the atomic less often to keep
