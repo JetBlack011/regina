@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
@@ -898,6 +899,233 @@ void test_knotbuilder_hopflink_cone_reduced() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Section E: end-to-end regression test for the originally reported bug --
+// coning a triangulated S^3 traced by a non-slice knot to a point used to
+// produce an "embedded disk" bounded by that knot: topologically a disk
+// (cone on any knot is one), but not locally flat at the cone point, since
+// the disk's intersection with the apex's link is the knotted curve itself,
+// not an unknot. addFace() must now reject the last cone-triangle that
+// would close the apex's petal, rather than silently accepting the disk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Reconstructs the "coning surface" bounded by `edges` in coned -- one
+// triangle {apex, i, j} per edge {i, j}, in whichever original tetrahedron
+// each edge fronts -- and returns their ambient Skeleton<4,2> face indices,
+// in the same order as `edges`. Relies on CobordismBuilder<3>::cone()'s own
+// construction (see cobordismbuilder.cpp): one new pentachoron per original
+// tetrahedron, in matching index order, with local vertices 0..3 preserved
+// verbatim from the original tetrahedron and local vertex 4 always the
+// single shared apex.
+std::vector<int> coneTriangleIndices(const Skeleton<4, 2> &skeleton,
+                                     const regina::Triangulation<4> &coned,
+                                     const std::vector<const regina::Edge<3> *>
+                                         &edges) {
+    std::unordered_map<const regina::Face<4, 2> *, int> faceToSkelIdx;
+    for (size_t i = 0; i < skeleton.numFaces(); ++i)
+        faceToSkelIdx[skeleton.getNodes()[i].face] = static_cast<int>(i);
+
+    std::vector<int> result;
+    result.reserve(edges.size());
+    for (const regina::Edge<3> *e : edges) {
+        auto emb = e->front();
+        auto *pent = coned.simplex(emb.tetrahedron()->index());
+        regina::Perm<4> ordering =
+            regina::FaceNumbering<3, 1>::ordering(emb.edge());
+        int lv0 = ordering[0];
+        int lv1 = ordering[1];
+        int t = regina::FaceNumbering<4, 2>::triangleNumber[lv0][lv1][4];
+        const regina::Face<4, 2> *triangle = pent->triangle(t);
+        result.push_back(faceToSkelIdx.at(triangle));
+    }
+    return result;
+}
+
+void test_cone_on_trefoil_rejected() {
+    std::cout << "\n--- Coning the trefoil to a point: apex closure is "
+                 "rejected (non-locally-flat) ---\n";
+
+    auto pd = knotbuilder::parsePDCode(kTrefoilPD);
+    auto result = knotbuilder::buildLink(pd);
+
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+
+    Skeleton<4, 2> skeleton(coned);
+    KnottedSurface embedding(skeleton);
+
+    std::vector<int> coneFaces =
+        coneTriangleIndices(skeleton, coned, result.edges);
+    EXPECT_EQ(coneFaces.empty(), false,
+              "the trefoil's traced edges give at least one cone-triangle");
+
+    bool sawRejection = false;
+    for (int f : coneFaces) {
+        if (!embedding.addFace(f)) {
+            sawRejection = true;
+            break;
+        }
+    }
+    EXPECT_EQ(sawRejection, true,
+              "addFace() rejects one of the cone-triangles that would "
+              "close the apex's petal into the (knotted) trefoil curve");
+}
+
+// Same construction, but with the unknot: coning a genuine unknot to a
+// point IS locally flat everywhere (the cone point's link intersection is
+// an honest unknot), so every cone-triangle must be accepted.
+void test_cone_on_unknot_accepted() {
+    std::cout << "\n--- Coning the unknot to a point: apex closure is "
+                 "accepted (locally flat) ---\n";
+
+    // A single-crossing unknot diagram (a Reidemeister-1 kink), reusing
+    // knotbuilder's own PD-code conventions.
+    auto pd = knotbuilder::parsePDCode("1 2 2 1");
+    auto result = knotbuilder::buildLink(pd);
+
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+
+    Skeleton<4, 2> skeleton(coned);
+    KnottedSurface embedding(skeleton);
+
+    std::vector<int> coneFaces =
+        coneTriangleIndices(skeleton, coned, result.edges);
+
+    bool allAccepted = true;
+    for (int f : coneFaces) {
+        if (!embedding.addFace(f)) {
+            allAccepted = false;
+            break;
+        }
+    }
+    EXPECT_EQ(allAccepted, true,
+              "every cone-triangle over the unknot is accepted -- the apex "
+              "is genuinely locally flat");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section F: hereditariness stress test for the new checks. enumerate_cis.h's
+// filtered DFS *requires* the predicate be genuinely hereditary (for every
+// connected U* satisfying it, every connected subset of U* must too) --
+// a violation would silently drop results rather than just misclassify one
+// state, so this gets its own dedicated check: for every face accepted while
+// building up a random walk, removing it (if the remainder stays connected)
+// and re-adding it via the same overridden addFace() must also succeed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void test_hereditariness_stress() {
+    std::cout << "\n--- Hereditariness stress test: no accepted face's "
+                 "removal+re-add ever newly fails ---\n";
+
+    // Deliberately a small triangulation (not the trefoil's dense
+    // reduceVertices()+cone() graph, which is fast to audit exhaustively
+    // but too expensive to also replay through O(steps^2) addFace()/
+    // removeFace() calls here) -- a single-crossing unknot's cone still
+    // has a genuinely closing/reopening petal at the apex, which is what
+    // this stress test needs to exercise, without the cost of repeatedly
+    // recognizing a much larger knot complement.
+    auto pd = knotbuilder::parsePDCode("1 2 2 1");
+    auto result = knotbuilder::buildLink(pd);
+
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+
+    Skeleton<4, 2> skeleton(coned);
+    Graph graph = buildTestGraph(skeleton);
+    KnottedSurface embedding(skeleton);
+
+    std::mt19937 rng(12345);
+    std::vector<int> path; // skeleton face indices, in addition order
+
+    auto isStillConnected = [&](const std::vector<int> &faces) {
+        if (faces.size() <= 1)
+            return true;
+        std::unordered_set<int> faceSet(faces.begin(), faces.end());
+        std::unordered_set<int> reached{faces[0]};
+        std::vector<int> stack{faces[0]};
+        while (!stack.empty()) {
+            int f = stack.back();
+            stack.pop_back();
+            for (const auto &g : skeleton.getNodes()[f].gluings) {
+                int u = static_cast<int>(g.dstIndex);
+                if (faceSet.contains(u) && reached.insert(u).second)
+                    stack.push_back(u);
+            }
+        }
+        return reached.size() == faces.size();
+    };
+
+    int steps = 0, removalChecks = 0, attempts = 0;
+    while (steps < 20 && attempts < 2000) {
+        ++attempts;
+        // Try a random not-yet-present face adjacent to the current path
+        // (or any face, if path is empty); addFace()'s own Phase 1 rejects
+        // anything not actually addable, so a failed attempt just retries.
+        int candidate;
+        if (path.empty()) {
+            candidate =
+                static_cast<int>(rng() % skeleton.numFaces());
+        } else {
+            int anchor = path[rng() % path.size()];
+            const auto &gluings = skeleton.getNodes()[anchor].gluings;
+            if (gluings.empty())
+                break;
+            candidate =
+                static_cast<int>(gluings[rng() % gluings.size()].dstIndex);
+        }
+        if (std::ranges::find(path, candidate) != path.end())
+            continue;
+        if (!embedding.addFace(candidate))
+            continue;
+        path.push_back(candidate);
+        ++steps;
+
+        // Pick a random already-added face and check heredity: if removing
+        // it leaves the rest connected, re-adding it (after removing it)
+        // must succeed, since it was already known addable in a superset.
+        int idx = static_cast<int>(rng() % path.size());
+        int victim = path[idx];
+        std::vector<int> withoutVictim = path;
+        withoutVictim.erase(withoutVictim.begin() + idx);
+        if (!isStillConnected(withoutVictim))
+            continue;
+
+        // Roll back to just before victim was added (LIFO), removing
+        // everything added after it too, then replay everything except
+        // victim, then attempt to add victim back on top.
+        std::vector<int> after(path.begin() + idx + 1, path.end());
+        for (auto it = after.rbegin(); it != after.rend(); ++it)
+            embedding.removeFace(*it);
+        embedding.removeFace(victim);
+
+        ++removalChecks;
+        bool reAdded = embedding.addFace(victim);
+        EXPECT_EQ(reAdded, true,
+                  "removing an already-accepted face (leaving the rest "
+                  "connected) and re-adding it never newly fails");
+
+        if (!reAdded) {
+            // Restore path to a consistent (victim absent) state so the
+            // loop can keep going without redoing all the bookkeeping.
+            path.erase(path.begin() + idx);
+            for (int f : after) {
+                embedding.addFace(f);
+                path.push_back(f);
+            }
+            continue;
+        }
+
+        for (int f : after)
+            embedding.addFace(f);
+    }
+
+    EXPECT_EQ(removalChecks > 0, true,
+              "at least one removal+re-add heredity check actually ran");
+    std::cout << "  (" << steps << " random additions, " << removalChecks
+              << " heredity checks)\n";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 void run(const std::string &name, void (*fn)()) {
     std::cout << bold << "\n=== " << name << " ===" << resetColor << "\n";
@@ -942,6 +1170,10 @@ int main() {
     run("knotbuilder_trefoil_cone_reduced", test_knotbuilder_trefoil_cone_reduced);
     run("knotbuilder_hopflink_cone", test_knotbuilder_hopflink_cone);
     run("knotbuilder_hopflink_cone_reduced", test_knotbuilder_hopflink_cone_reduced);
+
+    run("cone_on_trefoil_rejected", test_cone_on_trefoil_rejected);
+    run("cone_on_unknot_accepted", test_cone_on_unknot_accepted);
+    run("hereditariness_stress", test_hereditariness_stress);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

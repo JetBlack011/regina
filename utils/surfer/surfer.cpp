@@ -12,6 +12,7 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 #include <thread>
 
@@ -67,15 +68,21 @@ std::string csvRow(bool orientable, int genus, int punctures,
   return row.str();
 }
 
-// Buffers CSV rows per calling thread (one shard file per distinct thread
-// that ever calls writeRow(), created lazily on first use) so concurrent
-// writers -- the DFS workers, the background boundary-link drain thread,
-// and the final boundary-batch-processing workers -- never contend on a
-// lock or file handle while writing rows. finalize() concatenates every
-// shard into the requested output path (header first) and removes the
-// shard files -- call it once, single-threaded, only after every thread
-// that might call writeRow() has already joined (i.e. after search()
-// itself has returned).
+// Buffers CSV rows, distributing writers across a small, bounded pool of
+// shard files (at most MAX_SHARDS, and never more than numThreads) rather
+// than one shard per thread -- --threads can be set far higher than the
+// system's open-file-descriptor limit (ulimit -n), and one persistently-
+// open file handle per thread risks exhausting it (silently, before this
+// fix: failed opens/writes went unchecked, so hitting the limit meant rows
+// -- or the entire output -- vanished with no error, just a misleading
+// "Wrote CSV output" message). Threads sharing a shard are serialized by
+// that shard's own mutex, which only contends among threads mapped to the
+// same shard, not globally.
+//
+// finalize() concatenates every shard into the requested output path
+// (header first) and removes the shard files -- call it once,
+// single-threaded, only after every thread that might call writeRow() has
+// already joined (i.e. after search() itself has returned).
 //
 // shardForThisThread() caches its result in a thread_local, function-static
 // pointer -- correct as long as at most one CsvWriter is ever alive per
@@ -83,29 +90,47 @@ std::string csvRow(bool orientable, int genus, int punctures,
 // once per run, in runSearch()).
 class CsvWriter {
 public:
-  CsvWriter(std::filesystem::path outputPath, std::string headerLine)
+  CsvWriter(std::filesystem::path outputPath, std::string headerLine,
+           unsigned numThreads)
       : outputPath_(std::move(outputPath)),
-        headerLine_(std::move(headerLine)) {}
+        headerLine_(std::move(headerLine)),
+        maxShards_(std::max<unsigned>(1, std::min(numThreads, MAX_SHARDS))) {}
 
   void writeRow(const std::string &row) {
     Shard &shard = shardForThisThread();
+    std::lock_guard<std::mutex> lock(shard.mutex);
     shard.buffer += row;
     shard.buffer += '\n';
     if (shard.buffer.size() >= FLUSH_THRESHOLD)
       flush(shard);
   }
 
+  // Any failure here (opening the final output, reading a shard back,
+  // writing to it) throws rather than limping on -- a partially-written
+  // CSV that looks complete but silently isn't is worse than a loud
+  // failure that makes clear the run needs to be retried (e.g. with a
+  // lower --threads, or a raised ulimit -n).
   void finalize() {
     std::ofstream out(outputPath_, std::ios::trunc);
+    if (!out)
+      throw std::runtime_error("CsvWriter: failed to open " +
+                               outputPath_.string() + " for writing");
     out << headerLine_ << "\n";
     for (auto &shard : shards_) {
+      std::lock_guard<std::mutex> lock(shard->mutex);
       flush(*shard);
       shard->file.close();
       std::ifstream in(shard->path);
+      if (!in)
+        throw std::runtime_error("CsvWriter: failed to reopen " +
+                                 shard->path.string() + " for consolidation");
       out << in.rdbuf();
       in.close();
       std::filesystem::remove(shard->path);
     }
+    if (!out)
+      throw std::runtime_error("CsvWriter: failed while writing " +
+                               outputPath_.string());
     std::cerr << "[+] Wrote CSV output to " << outputPath_.string() << "\n";
   }
 
@@ -114,14 +139,20 @@ private:
     std::filesystem::path path;
     std::ofstream file;
     std::string buffer;
+    std::mutex mutex;
   };
 
   static constexpr size_t FLUSH_THRESHOLD = 1 << 16; // ~64KB
+  static constexpr unsigned MAX_SHARDS = 64;
 
+  // Caller must hold shard.mutex.
   static void flush(Shard &shard) {
     if (shard.buffer.empty())
       return;
     shard.file << shard.buffer;
+    if (!shard.file)
+      throw std::runtime_error("CsvWriter: failed writing to " +
+                               shard.path.string());
     shard.buffer.clear();
   }
 
@@ -130,19 +161,26 @@ private:
     if (cached)
       return *cached;
     std::lock_guard<std::mutex> lock(registryMutex_);
-    auto shard = std::make_unique<Shard>();
-    shard->path = outputPath_.string() + ".tmp." +
-                 std::to_string(getpid()) + ".shard" +
-                 std::to_string(shards_.size());
-    shard->file.open(shard->path, std::ios::trunc);
-    shards_.push_back(std::move(shard));
-    cached = shards_.back().get();
+    if (shards_.size() < maxShards_) {
+      auto shard = std::make_unique<Shard>();
+      shard->path = outputPath_.string() + ".tmp." +
+                   std::to_string(getpid()) + ".shard" +
+                   std::to_string(shards_.size());
+      shard->file.open(shard->path, std::ios::trunc);
+      if (!shard->file)
+        throw std::runtime_error("CsvWriter: failed to open " +
+                                 shard->path.string() + " for writing");
+      shards_.push_back(std::move(shard));
+    }
+    cached = shards_[nextShard_++ % shards_.size()].get();
     return *cached;
   }
 
   std::filesystem::path outputPath_;
   std::string headerLine_;
+  unsigned maxShards_;
   std::mutex registryMutex_;
+  size_t nextShard_ = 0; // guarded by registryMutex_
   std::vector<std::unique_ptr<Shard>> shards_;
 };
 
@@ -352,7 +390,8 @@ void runSearch(const regina::Triangulation<4> &tri,
     writer.emplace(
         *outputPath,
         wantLinks ? "orientable,genus,punctures,triangles,condition,boundary"
-                 : "orientable,genus,punctures,triangles,condition");
+                 : "orientable,genus,punctures,triangles,condition",
+        numThreads);
 
     callbacks.onSurfaceFound = [&](const SurfaceFoundInfo &info) {
       writer->writeRow(csvRow(info.orientable, info.genus, info.punctures,

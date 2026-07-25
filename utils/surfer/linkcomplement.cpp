@@ -95,6 +95,156 @@ std::string EdgeComplement::identify() const {
     return complement.isoSig();
 }
 
+bool EdgeComplement::isUnknot() const {
+    return buildComplement().recogniseHandlebody() == 1;
+}
+
+std::pair<regina::Triangulation<3>, std::vector<const regina::Edge<3> *>>
+EdgeComplement::drillTrackingEdges_(
+    const std::vector<const regina::Edge<3> *> &trackEdges) const {
+    regina::Triangulation<3> complement(*tri_);
+
+    // Track trackEdges (curve B) via (Tetrahedron*, localEdge) descriptors,
+    // which stay valid across pinchEdge() -- see knotbuilder.cpp's
+    // EdgeDescriptor for the same pattern (pinchEdge() only ever appends
+    // new tetrahedra, never removes or renumbers existing ones).
+    std::vector<std::pair<regina::Tetrahedron<3> *, int>> trackedDescs;
+    trackedDescs.reserve(trackEdges.size());
+    for (const regina::Edge<3> *e : trackEdges) {
+        auto emb = e->front();
+        trackedDescs.emplace_back(
+            complement.tetrahedron(emb.tetrahedron()->index()), emb.edge());
+    }
+
+    // Drill this object's own edges_ -- identical loop to
+    // buildComplement(), just without simplify(): homology doesn't need
+    // simplification, and simplifying would make tracking trackedDescs
+    // through it intractable.
+    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
+        complementTetEdges;
+    for (const auto &[tet, edges] : tetEdges_)
+        complementTetEdges.emplace(complement.tetrahedron(tet->index()),
+                                   edges);
+
+    while (!complementTetEdges.empty()) {
+        auto &[tet, edges] = *complementTetEdges.begin();
+        regina::Edge<3> *e = tet->edge(*edges.begin());
+
+        for (const regina::EdgeEmbedding<3> &emb : e->embeddings()) {
+            regina::Tetrahedron<3> *embTet = emb.tetrahedron();
+            complementTetEdges[embTet].erase(emb.face());
+            if (complementTetEdges[embTet].empty()) {
+                complementTetEdges.erase(embTet);
+            }
+        }
+        complement.pinchEdge(e);
+    }
+
+    std::vector<const regina::Edge<3> *> tracked;
+    tracked.reserve(trackedDescs.size());
+    for (const auto &[tet, localEdge] : trackedDescs)
+        tracked.push_back(tet->edge(localEdge));
+
+    return {std::move(complement), std::move(tracked)};
+}
+
+long EdgeComplement::linkingNumberWith(const EdgeComplement &other) const {
+    auto [complement, trackedOther] = drillTrackingEdges_(other.edges_);
+
+    // Chain complex boundary maps generalizing
+    // Triangulation<3>::longitudeCuts()'s pattern (engine/triangulation/
+    // dim3/knot.cpp) from its 1-vertex special case (where M is trivially
+    // zero, since every edge is a loop at the single vertex) to a real M:
+    // M is d1 (vertices x edges, signed vertex incidence), N is d2 (edges
+    // x triangles, signed edge incidence) -- H_1 = ker(M)/im(N).
+    //
+    // KNOWN LIMITATION: drilling curve A leaves an IDEAL vertex (the cusp
+    // left behind), and computing H_1 *correctly* in its presence requires
+    // treating it as truncated (Triangulation<3>::homology() does this,
+    // confirmed against it during development), which this hand-rolled
+    // M/N does not attempt -- markedHomology() explicitly does NOT
+    // truncate ideal vertices either (see its own doc comment), and
+    // idealToFinite()/truncateIdeal() resubdivides every tetrahedron,
+    // which would invalidate trackedOther's (Tetrahedron*, localEdge)
+    // descriptors. Getting the truncated *marked* computation exactly
+    // right (tracking a specific cycle's class, not just the group) needs
+    // the same extra machinery Triangulation<3>::homologicalData() builds
+    // for exactly this purpose (see engine/triangulation/dim3/
+    // homologicaldata.cpp's sIEOE/sIEEOF-style bookkeeping) -- out of
+    // scope to fully replicate here. So: h1.isZ() is used only as a
+    // *confidence check*, not a hard precondition -- if it doesn't hold,
+    // this falls back to reporting "no detected linking" (0) rather than
+    // asserting a possibly-wrong nonzero value or throwing. This keeps
+    // the transverse-self-intersection check SOUND (it still rejects
+    // whenever it successfully computes a nonzero linking number) but not
+    // fully COMPLETE (a linked pair whose drilled complement isn't
+    // confidently Z here will be missed) -- an accepted, deliberate gap,
+    // matching this codebase's existing sound-but-incomplete precedents
+    // (see hasUnexplainedSelfCollision()'s own doc comment).
+    regina::MatrixInt m(complement.countVertices(), complement.countEdges());
+    for (auto e : complement.edges()) {
+        m.entry(e->vertex(0)->index(), e->index()) -= 1;
+        m.entry(e->vertex(1)->index(), e->index()) += 1;
+    }
+
+    regina::MatrixInt n(complement.countEdges(), complement.countTriangles());
+    for (auto t : complement.triangles()) {
+        for (int j = 0; j < 3; ++j) {
+            size_t e = t->edge(j)->index();
+            if (t->edgeMapping(j).sign() > 0)
+                ++n.entry(e, t->index());
+            else
+                --n.entry(e, t->index());
+        }
+    }
+
+    regina::MarkedAbelianGroup h1(m, n);
+    if (!h1.isZ())
+        return 0;
+
+    // Walk trackedOther's edges into an oriented cycle -- the same
+    // shared-vertex walk Link::Link() uses (above) to split a
+    // multi-component edge set into per-component knots -- then read off
+    // its class in H_1. Only the magnitude is meaningful (see
+    // linkingNumberWith()'s doc comment), so no canonical orientation
+    // needs to be imposed: any consistent walk direction works.
+    regina::Vector<regina::Integer> cycle(complement.countEdges());
+    if (!trackedOther.empty()) {
+        std::vector<const regina::Edge<3> *> remaining(trackedOther.begin(),
+                                                        trackedOther.end());
+        const regina::Edge<3> *first = remaining.front();
+        const regina::Vertex<3> *currVert = first->vertex(1);
+        cycle[first->index()] += 1;
+        remaining.erase(remaining.begin());
+
+        while (!remaining.empty()) {
+            bool found = false;
+            for (size_t i = 0; i < remaining.size(); ++i) {
+                const regina::Edge<3> *e = remaining[i];
+                if (e->vertex(0) == currVert) {
+                    cycle[e->index()] += 1;
+                    currVert = e->vertex(1);
+                } else if (e->vertex(1) == currVert) {
+                    cycle[e->index()] -= 1;
+                    currVert = e->vertex(0);
+                } else {
+                    continue;
+                }
+                remaining.erase(remaining.begin() +
+                                static_cast<ptrdiff_t>(i));
+                found = true;
+                break;
+            }
+            if (!found)
+                throw regina::InvalidArgument(
+                    "EdgeComplement::linkingNumberWith(): other's edges do "
+                    "not form a single closed curve");
+        }
+    }
+
+    return h1.snfRep(cycle)[0].abs().safeValue<long>();
+}
+
 bool operator<(const EdgeComplement &e1, const EdgeComplement &e2) {
     return e1.edges_.size() < e2.edges_.size();
 }

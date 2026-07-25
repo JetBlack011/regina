@@ -2,8 +2,11 @@
 
 #define EMBEDDEDSUBMANIFOLD_H
 
+#include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <triangulation/dim2.h>
@@ -101,6 +104,25 @@ private:
   // class registered at v, marks v as a new singularity.
   void registerRoot_(int k, size_t v, int r);
 
+protected:
+  // Read-only access to isEmbedded()-tracking DSU/faceCount_ state, for
+  // subclasses layering additional codimension-2 checks (e.g.
+  // KnottedSurface's transverse-self-intersection/local-flatness checks) on
+  // top of this purely combinatorial machinery. vertexClassRoot() is
+  // meaningful only while f is currently present (faces_[f] != nullptr).
+  int vertexClassRoot(int f, int localVertex) const {
+    return dsu_[0].find(f * regina::FaceNumbering<subdim, 0>::nFaces +
+                        localVertex);
+  }
+
+  const std::vector<int> &registeredClassRoots(size_t v) const {
+    return classRoots_[0][v];
+  }
+
+  int facetCount(size_t ambientFacetIdx) const {
+    return std::get<subdim - 1>(faceCount_)[ambientFacetIdx];
+  }
+
 public:
   EmbeddedSubmanifold(const Skeleton<dim, subdim> &skeleton);
 
@@ -154,22 +176,6 @@ public:
 
   static bool hasIrreparableSelfGluing(
       const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
-
-  // True iff `face` has two of its own local k-subfaces (k <= subdim-2, i.e.
-  // vertices when subdim == 2) coinciding as the same ambient object WITHOUT
-  // this being forced by one of face's own facet-level self-gluing entries
-  // in `gluings`. A collision that IS explained by a self-gluing entry (e.g.
-  // a one-triangle Mobius band self-fold) is legitimate: addFace()'s Phase 3
-  // self-joins mirror it inside subtri_ too, keeping the realization map
-  // injective. An unexplained one means subtri_ would keep the two abstract
-  // objects distinct while the ambient triangulation has already identified
-  // them -- not a valid embedding on its own, regardless of the rest of the
-  // subcomplex (though it may become valid in combination with other faces
-  // not present here; this check is deliberately a sound-but-incomplete,
-  // single-face-only approximation, not a full hereditary characterization).
-  static bool hasUnexplainedSelfCollision(
-      const typename Skeleton<dim, subdim>::Face *face,
-      const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings);
 };
 
 extern template class EmbeddedSubmanifold<3, 2>;
@@ -189,11 +195,73 @@ public:
 private:
   std::vector<regina::Triangulation<3>> bdryComponents_;
 
+  // (ambient face index, local vertex index) pairs of S currently touching
+  // ambient vertex v, in insertion order. Stored as a pair (not just the
+  // face index) because a face can legitimately touch v via more than one
+  // of its own local vertices (an already-handled self-collision case --
+  // see hasUnexplainedSelfCollision()/Phase 3's self-joins) -- each such
+  // occurrence has its OWN local vertex and hence its own distinct
+  // opposite edge in Lk(v), so the local index can't be safely re-derived
+  // from the face alone. Maintained by this class's own addFace/
+  // removeFace overrides below (not by the base class) via push_back()/
+  // pop_back() -- valid with no extra bookkeeping because removeFace() is
+  // only ever called on the most-recently-added face (the same
+  // global-LIFO discipline the base class's own removeFace() already
+  // requires), and a statically-filtered subsequence of a LIFO-only-
+  // unwound stack is itself LIFO-only-unwound.
+  std::vector<std::vector<std::pair<int, int>>> facesAtVertex_;
+
+  // Per ambient vertex (lazy): (pentachoron index * 5 + local vertex index)
+  // -> index into that vertex's own embeddings()/buildLink() tetrahedron
+  // numbering. A vertex's link never changes shape across a search, so
+  // this is safe to memoize for the instance's lifetime. mutable so
+  // linkEdgeForTriangle_() can stay const (matching Regina's own
+  // construct-on-demand caching style, e.g. Face<4,0>::buildLink()).
+  mutable std::vector<std::optional<std::unordered_map<uint64_t, size_t>>>
+      vertexEmbedIndexCache_;
+
+  // Translates ambient triangle f's local vertex `localVertex` (which must
+  // equal ambientVertex) into the corresponding edge of
+  // ambientVertex->buildLink() -- the edge traced by f in the vertex link,
+  // i.e. f's facet opposite localVertex. Lazily populates
+  // vertexEmbedIndexCache_ for ambientVertex on first use.
+  const regina::Edge<3> *linkEdgeForTriangle_(
+      const regina::Vertex<4> *ambientVertex, int f, int localVertex) const;
+
+  // True iff the DSU class `root` at ambient vertex v is currently closed:
+  // every spoke edge among its member triangles is at facetCount() == 2.
+  // O(facesAtVertex_[v].size()) -- bounded by v's current local degree,
+  // not global surface size.
+  bool isPetalClosed_(size_t v, int root) const;
+
+  // Unordered edge list of the closed petal `root` at v (order doesn't
+  // matter -- Knot's constructor and isUnknot() don't care, and
+  // linkingNumberWith() derives its own orientation internally).
+  std::vector<const regina::Edge<3> *>
+  closedPetalCurve_(const regina::Vertex<4> *ambientVertex, size_t v,
+                    int root) const;
+
 public:
   KnottedSurface(const Skeleton<4, 2> &skeleton);
 
   KnottedSurface(const Skeleton<4, 2> &skeleton,
                  const std::vector<int> &seedFaces);
+
+  // Overrides (name-hides, non-virtual) the base class's addFace(): calls
+  // EmbeddedSubmanifold<4,2>::addFace(f) first (unchanged facet-level
+  // check + commit); if that fails, returns false immediately, before any
+  // vertex-link work is touched. On success, checks whether f's own petal
+  // just closed at any of its <=3 touched ambient vertices, and if so,
+  // rejects (rolling back via removeFace(f)) when the closed curve is
+  // knotted (non-local-flatness) or nonzero-linked with another
+  // already-closed petal at the same vertex (transverse self-
+  // intersection) -- both conditions proven hereditary under removeFace(),
+  // so safe to enforce as a hard, permanent rejection during the search.
+  bool addFace(int f);
+
+  bool addFaces(const std::vector<int> &faces);
+
+  void removeFace(int f);
 
   std::vector<std::pair<size_t, Link>> boundaryLinks() const;
 

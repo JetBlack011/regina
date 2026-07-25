@@ -127,13 +127,17 @@ const char *boundaryConditionName(BoundaryCondition cond) {
 }
 
 template <int dim, int subdim>
-EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::EmbeddednessPredicate(
-    EmbeddedSubmanifold<dim, subdim> &embedding,
-    const std::vector<std::vector<int>> &graphToSkel)
+template <typename EmbeddingT>
+EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<
+    EmbeddingT>::EmbeddednessPredicate(EmbeddingT &embedding,
+                                       const std::vector<std::vector<int>>
+                                           &graphToSkel)
     : embedding_(embedding), graphToSkel_(graphToSkel) {}
 
 template <int dim, int subdim>
-bool EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::tryAdd(int v) {
+template <typename EmbeddingT>
+bool EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<EmbeddingT>::tryAdd(
+    int v) {
     const auto &faces = graphToSkel_[v - 1];
     // Every non-seed node maps to exactly one face, where addFace() alone
     // is already correct (and this is the hot path -- called once per DFS
@@ -147,7 +151,9 @@ bool EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::tryAdd(int v) {
 }
 
 template <int dim, int subdim>
-void EmbeddingSearch<dim, subdim>::EmbeddednessPredicate::undo(int v) {
+template <typename EmbeddingT>
+void EmbeddingSearch<dim, subdim>::EmbeddednessPredicate<EmbeddingT>::undo(
+    int v) {
     const auto &faces = graphToSkel_[v - 1];
     for (auto it = faces.rbegin(); it != faces.rend(); ++it)
         embedding_.removeFace(*it);
@@ -168,11 +174,13 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
 }
 
 template <int dim, int subdim>
-template <typename ThreadHookFactory, typename OnSeedFound, typename AuxHooks>
+template <typename EmbeddingFactory, typename ThreadHookFactory,
+          typename OnSeedFound, typename AuxHooks>
 SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     unsigned numThreads, BoundaryCondition cond,
-    ThreadHookFactory makeThreadHook, OnSeedFound onSeedFound,
-    const SearchCallbacks &callbacks, AuxHooks auxHooks) {
+    EmbeddingFactory makeEmbedding, ThreadHookFactory makeThreadHook,
+    OnSeedFound onSeedFound, const SearchCallbacks &callbacks,
+    AuxHooks auxHooks) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     // See this method's doc comment (embeddingsearch.h) for the SIGINT
@@ -196,7 +204,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     long long seedMaxFaces = 0;
     long long seedFaceSum = 0;
     if (isSeeded_) {
-        EmbeddedSubmanifold<dim, subdim> protoEmbedding(skeleton_);
+        auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
                                              graph_.graphToSkel);
         InterruptiblePredicate protoInterruptible(protoPredicate,
@@ -231,7 +239,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     std::vector<WorkerStats> perThreadStats(numThreads);
 
     auto worker = [&](unsigned tid) {
-        EmbeddedSubmanifold<dim, subdim> embedding(skeleton_);
+        auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
         InterruptiblePredicate interruptible(predicate, stopRequested);
         // ConnectedInducedSubgraphEnumerator holds a reference member, so
@@ -399,7 +407,9 @@ SearchStats EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         void afterJoin() {}
     };
     return runSearch_(
-        numThreads, cond, [] { return NoopThreadHook{}; },
+        numThreads, cond,
+        [this] { return EmbeddedSubmanifold<dim, subdim>(skeleton_); },
+        [] { return NoopThreadHook{}; },
         [](const std::vector<int> &) {}, callbacks, NoopAuxHooks{});
 }
 
@@ -510,6 +520,18 @@ EmbeddingSearch<dim, subdim>::buildSeededGraph_(
 
 template class EmbeddingSearch<3, 2>;
 template class EmbeddingSearch<4, 2>;
+
+SurfaceSearch::SurfaceSearch(const regina::Triangulation<4> &tri,
+                             const std::vector<int> &seedFaces)
+    : EmbeddingSearch<4, 2>(tri, seedFaces) {
+    // Additional validation beyond the base class's own (facet-level-only)
+    // seeded-constructor check above: KnottedSurface's seeded constructor
+    // runs the enhanced addFace()/addFaces() (transverse-self-intersection/
+    // local-flatness checks included), throwing regina::InvalidArgument if
+    // any face fails them -- this temporary exists purely for that side
+    // effect.
+    KnottedSurface(skeleton_, seedFaces);
+}
 
 void SurfaceSearch::SurfaceTypeTally::merge(
     std::map<SurfaceTypeKey, long long> &local) {
@@ -634,6 +656,15 @@ BoundaryCondition SurfaceSearch::classifyByLinks_(
     return connected ? BoundaryCondition::connected : BoundaryCondition::proper;
 }
 
+BoundaryCondition
+SurfaceSearch::classifyCheaply_(const EmbeddedSubmanifold<4, 2> &embedding) {
+    if (embedding.isClosed())
+        return BoundaryCondition::closed;
+    if (embedding.isProper())
+        return BoundaryCondition::proper;
+    return BoundaryCondition::all;
+}
+
 void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
                                         const std::vector<int> &U,
                                         long long faceCount) {
@@ -652,8 +683,7 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
             .genus = genus,
             .punctures = punctures,
             .triangleCount = faceCount,
-            .mostRestrictive = embedding.isClosed() ? BoundaryCondition::closed
-                                                    : BoundaryCondition::all});
+            .mostRestrictive = classifyCheaply_(embedding)});
     }
 }
 
@@ -815,8 +845,21 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
+    // Thread safety, not just performance: Vertex<4>::buildLink() caches
+    // its result as a plain, unsynchronized lazily-constructed pointer
+    // (see engine/triangulation/dim4/vertex4.cpp) -- since every worker
+    // thread below shares the same ambient Triangulation<4> (and hence the
+    // same Vertex<4> objects) even though each has its own KnottedSurface,
+    // two workers concurrently reaching faces around the same ambient
+    // vertex could otherwise race on that cache. Forcing every vertex's
+    // link to build once, single-threaded, here -- before runSearch_
+    // spawns any worker thread -- means every later call (even
+    // concurrent) only ever takes the already-built, read-only path.
+    for (auto v : skeleton_.triangulation().vertices())
+        v->buildLink();
+
     return runSearch_(
-        numThreads, cond,
+        numThreads, cond, [this] { return KnottedSurface(skeleton_); },
         [this, wantLinks, &callbacks] {
             return ThreadHook(*this, surfaceTypeTally_, wantLinks, callbacks);
         },
@@ -854,9 +897,7 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                     .genus = genus,
                     .punctures = punctures,
                     .triangleCount = triangleCount,
-                    .mostRestrictive = probe.isClosed()
-                                          ? BoundaryCondition::closed
-                                          : BoundaryCondition::all});
+                    .mostRestrictive = classifyCheaply_(probe)});
             }
         },
         callbacks, AuxHooks(*this, numThreads, wantLinks, callbacks));

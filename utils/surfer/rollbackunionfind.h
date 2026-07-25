@@ -18,6 +18,8 @@ public:
 
   // Merges the sets containing x and y. Returns false (no-op, nothing
   // logged) if they were already in the same set.
+  //
+  // ...union is a keyword 😭
   bool unite(int x, int y);
 
   size_t checkpoint() const { return log_.size(); }

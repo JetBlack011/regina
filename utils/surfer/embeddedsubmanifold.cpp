@@ -463,41 +463,41 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
   return false;
 }
 
-template <int dim, int subdim>
-bool EmbeddedSubmanifold<dim, subdim>::hasUnexplainedSelfCollision(
-    const typename Skeleton<dim, subdim>::Face *face,
-    const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
-  // explained[i][j]: true iff face's own local facets i and j are directly
-  // self-glued to each other, i.e. literally the same ambient (subdim-1)-face
-  // object. For subdim == 2, this is the ONLY way two of face's own local
-  // vertices can legitimately coincide as the same ambient object: two
-  // distinct edges of a triangle share exactly one vertex, so if they're the
-  // same ambient edge, their other two (non-shared) vertices are forced to
-  // coincide too -- and that identification is exactly what addFace()'s
-  // Phase 3 self-join reproduces inside subtri_.
-  std::array<std::array<bool, subdim + 1>, subdim + 1> explained{};
-  for (const auto &g : gluings)
-    if (g.srcIndex == g.dstIndex)
-      explained[g.srcFacet][g.gluing[g.srcFacet]] = true;
-
-  bool unexplained = false;
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    if (unexplained)
-      return;
-    constexpr int k = decltype(kW)::value;
-    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces && !unexplained; ++i) {
-      for (int j = i + 1; j < regina::FaceNumbering<subdim, k>::nFaces; ++j) {
-        if (face->template face<k>(i) != face->template face<k>(j))
-          continue;
-        if (k == 0 && explained[i][j])
-          continue; // legitimately explained by this face's own self-gluing
-        unexplained = true;
-        break;
-      }
-    }
-  });
-  return unexplained;
-}
+//template <int dim, int subdim>
+//bool EmbeddedSubmanifold<dim, subdim>::hasUnexplainedSelfCollision(
+//    const typename Skeleton<dim, subdim>::Face *face,
+//    const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
+//  // explained[i][j]: true iff face's own local facets i and j are directly
+//  // self-glued to each other, i.e. literally the same ambient (subdim-1)-face
+//  // object. For subdim == 2, this is the ONLY way two of face's own local
+//  // vertices can legitimately coincide as the same ambient object: two
+//  // distinct edges of a triangle share exactly one vertex, so if they're the
+//  // same ambient edge, their other two (non-shared) vertices are forced to
+//  // coincide too -- and that identification is exactly what addFace()'s
+//  // Phase 3 self-join reproduces inside subtri_.
+//  std::array<std::array<bool, subdim + 1>, subdim + 1> explained{};
+//  for (const auto &g : gluings)
+//    if (g.srcIndex == g.dstIndex)
+//      explained[g.srcFacet][g.gluing[g.srcFacet]] = true;
+//
+//  bool unexplained = false;
+//  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+//    if (unexplained)
+//      return;
+//    constexpr int k = decltype(kW)::value;
+//    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces && !unexplained; ++i) {
+//      for (int j = i + 1; j < regina::FaceNumbering<subdim, k>::nFaces; ++j) {
+//        if (face->template face<k>(i) != face->template face<k>(j))
+//          continue;
+//        if (k == 0 && explained[i][j])
+//          continue; // legitimately explained by this face's own self-gluing
+//        unexplained = true;
+//        break;
+//      }
+//    }
+//  });
+//  return unexplained;
+//}
 
 template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
@@ -508,15 +508,160 @@ KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
   bdryComponents_.reserve(tri.countBoundaryComponents());
   for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
     bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+  facesAtVertex_.resize(tri.countVertices());
+  vertexEmbedIndexCache_.resize(tri.countVertices());
 }
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                const std::vector<int> &seedFaces)
-    : EmbeddedSubmanifold<4, 2>(skeleton, seedFaces) {
+    : EmbeddedSubmanifold<4, 2>(skeleton) {
   const auto &tri = skeleton.triangulation();
   bdryComponents_.reserve(tri.countBoundaryComponents());
   for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
     bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+  facesAtVertex_.resize(tri.countVertices());
+  vertexEmbedIndexCache_.resize(tri.countVertices());
+
+  if (!addFaces(seedFaces))
+    throw regina::InvalidArgument(
+        "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
+        "added -- no addition order makes every face embed without "
+        "creating a transverse self-intersection or non-locally-flat "
+        "point.");
+}
+
+const regina::Edge<3> *KnottedSurface::linkEdgeForTriangle_(
+    const regina::Vertex<4> *ambientVertex, int f, int localVertex) const {
+  size_t v = ambientVertex->index();
+  auto &cache = vertexEmbedIndexCache_[v];
+  if (!cache) {
+    cache.emplace();
+    size_t i = 0;
+    for (const auto &emb : ambientVertex->embeddings())
+      (*cache)[static_cast<uint64_t>(emb.simplex()->index()) * 5 +
+               static_cast<uint64_t>(emb.face())] = i++;
+  }
+
+  const auto *triangle = skeleton_.getNodes()[f].face;
+  auto emb = triangle->front();
+  auto *pent = emb.simplex();
+  regina::Perm<5> perm = emb.vertices();
+  int vLocal = perm[localVertex];
+  int w1 = perm[(localVertex + 1) % 3];
+  int w2 = perm[(localVertex + 2) % 3];
+
+  size_t idx = cache->at(static_cast<uint64_t>(pent->index()) * 5 +
+                        static_cast<uint64_t>(vLocal));
+  auto *tet = ambientVertex->buildLink().tetrahedron(idx);
+  regina::Perm<5> inv = pent->tetrahedronMapping(vLocal).inverse();
+  return tet->edge(inv[w1], inv[w2]);
+}
+
+bool KnottedSurface::isPetalClosed_(size_t v, int root) const {
+  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+    if (vertexClassRoot(f, localVertex) != root)
+      continue;
+
+    const auto *face = skeleton_.getNodes()[f].face;
+    for (int i = 0; i <= 2; ++i) {
+      if (i == localVertex)
+        continue; // the opposite edge, not a spoke
+      if (facetCount(face->face<1>(i)->index()) != 2)
+        return false;
+    }
+  }
+  return true;
+}
+
+std::vector<const regina::Edge<3> *> KnottedSurface::closedPetalCurve_(
+    const regina::Vertex<4> *ambientVertex, size_t v, int root) const {
+  std::vector<const regina::Edge<3> *> curve;
+  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+    if (vertexClassRoot(f, localVertex) != root)
+      continue;
+    curve.push_back(linkEdgeForTriangle_(ambientVertex, f, localVertex));
+  }
+  return curve;
+}
+
+bool KnottedSurface::addFace(int f) {
+  if (!EmbeddedSubmanifold<4, 2>::addFace(f))
+    return false;
+
+  const auto &node = skeleton_.getNodes()[f];
+  for (int local = 0; local <= 2; ++local) {
+    auto *ambientVertex = node.face->face<0>(local);
+    size_t v = ambientVertex->index();
+    facesAtVertex_[v].push_back({f, local});
+
+    // Vertex<4>::buildLink() is a closed S^3 only for INTERIOR ambient
+    // vertices -- the hereditary transverse-self-intersection/local-
+    // flatness proofs this feature relies on were specifically about that
+    // case. A boundary vertex's link has boundary itself (e.g. a 3-ball),
+    // where the EdgeComplement/Knot machinery's pinchEdge()-based drilling
+    // doesn't apply (pinchEdge() requires an internal edge) -- skipping
+    // entirely here is sound (not just expedient): under-checking can
+    // only miss a prune, never accept a state that isn't otherwise valid,
+    // and boundary-vertex flatness/transversality (relative to the
+    // surface's own boundary curves, already handled separately by
+    // boundaryLinks()) was never part of what was proven here.
+    if (ambientVertex->isBoundary())
+      continue;
+
+    int root = vertexClassRoot(f, local);
+    if (!isPetalClosed_(v, root))
+      continue;
+
+    auto curve = closedPetalCurve_(ambientVertex, v, root);
+    Knot knotA(ambientVertex->buildLink(), curve);
+    if (!knotA.isUnknot()) {
+      // Non-locally-flat: this petal just closed into a knotted circle in
+      // Lk(v). Hereditary under removeFace() (a closed curve can only
+      // shrink to an open arc on removal, never split into a smaller
+      // closed loop -- arcs are never "knotted"), so safe to reject
+      // permanently here rather than deferring to a post-hoc filter.
+      removeFace(f);
+      return false;
+    }
+
+    for (int other : registeredClassRoots(v)) {
+      if (other == root || !isPetalClosed_(v, other))
+        continue;
+      Knot knotB(ambientVertex->buildLink(),
+                closedPetalCurve_(ambientVertex, v, other));
+      if (knotA.linkingNumberWith(knotB) != 0) {
+        // Transverse self-intersection: two closed, nonzero-linked petals
+        // at v. Hereditary under removeFace() (the same isotopy that
+        // would separate two petals still separates any subset of them),
+        // so this can never resolve later -- safe to prune permanently.
+        removeFace(f);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool KnottedSurface::addFaces(const std::vector<int> &faces) {
+  std::vector<int> added;
+  for (int f : faces) {
+    if (!addFace(f)) {
+      for (auto it = added.rbegin(); it != added.rend(); ++it)
+        removeFace(*it);
+      return false;
+    }
+    added.push_back(f);
+  }
+  return true;
+}
+
+void KnottedSurface::removeFace(int f) {
+  const auto &node = skeleton_.getNodes()[f];
+  EmbeddedSubmanifold<4, 2>::removeFace(f);
+  for (int local = 0; local <= 2; ++local) {
+    size_t v = node.face->face<0>(local)->index();
+    facesAtVertex_[v].pop_back();
+  }
 }
 
 std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {

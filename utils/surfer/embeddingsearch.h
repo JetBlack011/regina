@@ -58,12 +58,25 @@ struct SearchCallbacks {
 
 template <int dim, int subdim> class EmbeddingSearch {
 protected:
+  // Generic over the embedding type so that SurfaceSearch can supply
+  // KnottedSurface (whose addFace()/addFaces()/removeFace() override --
+  // name-hide, non-virtually -- the base EmbeddedSubmanifold<4,2>'s to add
+  // transverse-self-intersection/local-flatness checks) while
+  // EmbeddingSearch<dim,subdim> itself never has to reference
+  // KnottedSurface: since nothing here is virtual, resolving to the
+  // override requires the predicate's *declared* member type to already
+  // be the derived type, not just the object underneath it. C++17 class
+  // template argument deduction means every existing construction call
+  // site (`EmbeddednessPredicate predicate(embedding, ...)`) still needs
+  // no explicit template argument -- EmbeddingT is deduced from whatever
+  // makeEmbedding() (see runSearch_ below) returned.
+  template <typename EmbeddingT>
   class EmbeddednessPredicate : public ConditionalPredicate {
-    EmbeddedSubmanifold<dim, subdim> &embedding_;
+    EmbeddingT &embedding_;
     const std::vector<std::vector<int>> &graphToSkel_;
 
   public:
-    EmbeddednessPredicate(EmbeddedSubmanifold<dim, subdim> &embedding,
+    EmbeddednessPredicate(EmbeddingT &embedding,
                           const std::vector<std::vector<int>> &graphToSkel);
 
     bool tryAdd(int v) override;
@@ -116,6 +129,17 @@ protected:
   // are plain std::functions, since their overhead is irrelevant at that
   // rate.
   //
+  //   makeEmbedding()   -- factory called once per worker thread (plus once
+  //                        more for the seeded-root prototype below),
+  //                        returning the embedding object the DFS predicate
+  //                        drives. Defaults to EmbeddedSubmanifold<dim,subdim>
+  //                        (see EmbeddingSearch::search()); SurfaceSearch
+  //                        supplies KnottedSurface instead, alongside its
+  //                        other hooks below -- this is the only place
+  //                        EmbeddingSearch<dim,subdim> would otherwise need
+  //                        to know KnottedSurface exists, so it's injected
+  //                        the same way as the other three hooks rather
+  //                        than referenced directly.
   //   makeThreadHook()  -- factory called once per worker thread, returning
   //                        an object with onFound(embedding, U, faceCount)
   //                        (called for each candidate satisfying cond) and
@@ -142,9 +166,10 @@ protected:
   // batch processing) instead of continuing to search. A second Ctrl+C --
   // at any point until this call returns, including during afterJoin() --
   // terminates the process immediately.
-  template <typename ThreadHookFactory, typename OnSeedFound,
-            typename AuxHooks>
+  template <typename EmbeddingFactory, typename ThreadHookFactory,
+            typename OnSeedFound, typename AuxHooks>
   SearchStats runSearch_(unsigned numThreads, BoundaryCondition cond,
+                         EmbeddingFactory makeEmbedding,
                          ThreadHookFactory makeThreadHook,
                          OnSeedFound onSeedFound,
                          const SearchCallbacks &callbacks, AuxHooks auxHooks);
@@ -175,9 +200,10 @@ struct SurfaceFoundInfo {
   long long triangleCount;
   // The most restrictive BoundaryCondition this specific surface satisfies
   // -- not necessarily the one the whole search was run under. Only
-  // isClosed() (O(1)) is checked here, not isProper()/
-  // boundaryComponentsMapInjectively() (each O(size of the whole ambient
-  // triangulation)) -- see onSurfaceFound's doc comment below for why.
+  // isClosed() and isProper() (both O(1)) are checked here, not
+  // boundaryComponentsMapInjectively() (O(size of the whole ambient
+  // triangulation)) -- so this is never "connected", only all/closed/proper
+  // -- see onSurfaceFound's doc comment below for why.
   BoundaryCondition mostRestrictive;
 };
 
@@ -334,6 +360,15 @@ private:
 public:
   using EmbeddingSearch<4, 2>::EmbeddingSearch;
 
+  // Shadows (hides) the inherited seeded constructor of the same
+  // signature: EmbeddingSearch<4,2>'s own seeded constructor only
+  // validates the seed at the facet level, via a temporary
+  // EmbeddedSubmanifold<4,2> -- this additionally validates it via a
+  // temporary KnottedSurface, so a seed baked with an illegal crossing/
+  // knot (not just a facet-level collision) is caught eagerly too.
+  SurfaceSearch(const regina::Triangulation<4> &tri,
+               const std::vector<int> &seedFaces);
+
   const LinkBoundaryTally &linkTally() const { return linkTally_; }
 
   const SurfaceTypeTally &surfaceTypeTally() const {
@@ -420,6 +455,14 @@ private:
   // two never drift apart on how this is computed.
   static BoundaryCondition
   classifyByLinks_(const std::vector<std::pair<size_t, Link>> &links);
+
+  // The most restrictive BoundaryCondition a surface satisfies, using only
+  // isClosed()/isProper() (both O(1)) -- never "connected", since that
+  // needs boundaryComponentsMapInjectively() (O(size of the whole ambient
+  // triangulation), deliberately not paid in the hot path this feeds).
+  // Shared by ThreadHook::onFound and search()'s onSeedFound.
+  static BoundaryCondition
+  classifyCheaply_(const EmbeddedSubmanifold<4, 2> &embedding);
 };
 
 #endif // EMBEDDINGSEARCH_H
