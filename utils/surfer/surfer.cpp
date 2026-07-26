@@ -196,8 +196,8 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ] <isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
-         "    [ --threads N ] [ --layers N ] [ --cone | --no-cone ]\n"
-         "    [ --collar | --no-collar ]\n"
+         "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
+         "    [ --collar-layers N ]\n"
          "    [ --iddfs-iterations N --iddfs-step D ] [ --iddfs-start N ]\n"
          "    [ --iddfs-final-threads N ] --pd <pdcode>\n\n"
       << "    " << progName << " [ -v, --version | -h, --help ]\n\n";
@@ -300,19 +300,29 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "instead of\n"
          "                     a bare isosig. Mutually exclusive with "
          "<isosig>.\n";
-  std::cerr << "    --layers N     : Number of times to thicken() the "
-               "cobordism (default: 1;\n"
-               "                     only valid with --pd)\n";
+  std::cerr << "    --thicken-layers N : Number of times to thicken() the "
+               "cobordism\n"
+               "                     (default: 1; only valid with --pd)\n";
   std::cerr
       << "    --cone, --no-cone      : Whether to cap the cobordism with "
          "cone()\n"
          "                     (default: --cone; only valid with --pd)\n";
   std::cerr
-      << "    --collar, --no-collar  : Whether to seed the search with a "
-         "collar\n"
-         "                     traced through the link's edges (default: "
-         "--collar;\n"
-         "                     only valid with --pd)\n\n";
+      << "    --collar-layers N : Number of thickening layers the search is "
+         "seeded\n"
+         "                     with a collar traced through the link's "
+         "edges,\n"
+         "                     starting from the base link (default: 1; 0 "
+         "disables\n"
+         "                     the collar seed entirely; only valid with "
+         "--pd, and\n"
+         "                     cannot exceed --thicken-layers). Layers "
+         "beyond N are\n"
+         "                     still thickened, just not covered by the "
+         "collar, which\n"
+         "                     is useful when it's not best for the collar "
+         "to be\n"
+         "                     contained in every layer.\n\n";
   std::cerr
       << "    -v, --version  : Show which version of Regina is being used\n";
   std::cerr << "    -h, --help     : Display this help\n";
@@ -555,10 +565,10 @@ int main(int argc, char *argv[]) {
 
   std::optional<std::string> outputPath;
 
-  int layers = 1;
+  int thickenLayers = 1;
   bool useCone = true;
-  bool useCollar = true;
-  bool sawLayers = false, sawCone = false, sawCollar = false;
+  int collarLayers = 1;
+  bool sawThickenLayers = false, sawCone = false, sawCollarLayers = false;
 
   unsigned iddfsIterations = 0;
   long long iddfsStep = 0;
@@ -600,27 +610,30 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "--pd requires a value.");
       pdCode = argv[++i];
       havePD = true;
-    } else if (arg == "--layers") {
+    } else if (arg == "--thicken-layers") {
       if (i + 1 >= argc)
-        usage(argv[0], "--layers requires a value.");
+        usage(argv[0], "--thicken-layers requires a value.");
       try {
-        layers = std::stoi(argv[++i]);
+        thickenLayers = std::stoi(argv[++i]);
       } catch (const std::exception &) {
-        usage(argv[0], "--layers requires an integer value.");
+        usage(argv[0], "--thicken-layers requires an integer value.");
       }
-      sawLayers = true;
+      sawThickenLayers = true;
     } else if (arg == "--cone") {
       useCone = true;
       sawCone = true;
     } else if (arg == "--no-cone") {
       useCone = false;
       sawCone = true;
-    } else if (arg == "--collar") {
-      useCollar = true;
-      sawCollar = true;
-    } else if (arg == "--no-collar") {
-      useCollar = false;
-      sawCollar = true;
+    } else if (arg == "--collar-layers") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--collar-layers requires a value.");
+      try {
+        collarLayers = std::stoi(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--collar-layers requires an integer value.");
+      }
+      sawCollarLayers = true;
     } else if (arg == "--iddfs-iterations") {
       if (i + 1 >= argc)
         usage(argv[0], "--iddfs-iterations requires a value.");
@@ -667,9 +680,13 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--pd and an isosig are mutually exclusive.");
   if (!havePD && !haveIsoSig)
     usage(argv[0], "Please specify an isosig or --pd <pdcode>.");
-  if (!havePD && (sawLayers || sawCone || sawCollar))
-    usage(argv[0], "--layers, --cone/--no-cone, and --collar/--no-collar "
+  if (!havePD && (sawThickenLayers || sawCone || sawCollarLayers))
+    usage(argv[0], "--thicken-layers, --cone/--no-cone, and --collar-layers "
                    "are only valid with --pd.");
+  if (havePD && collarLayers < 0)
+    usage(argv[0], "--collar-layers requires a value >= 0.");
+  if (havePD && collarLayers > thickenLayers)
+    usage(argv[0], "--collar-layers cannot exceed --thicken-layers.");
   if (iddfsIterations > 0 && iddfsStep <= 0)
     usage(argv[0], "--iddfs-iterations > 0 requires --iddfs-step > 0.");
   if (iddfsStart && *iddfsStart <= 0)
@@ -706,13 +723,14 @@ int main(int argc, char *argv[]) {
 
     CobordismBuilder<3> cob(t2);
     CollarBuilder collarBuilder(edgeIndices);
-    for (int i = 0; i < layers; ++i) {
+    for (int i = 0; i < thickenLayers; ++i) {
       cob.thicken();
-      // Must run every layer, not just the first: CollarBuilder::addLayer
-      // only captures the most-recently-built thickening layer's prisms, so
-      // tracing the collar all the way from the link's original position up
-      // through every layer requires calling it once per thicken().
-      if (useCollar)
+      // Must run every layer the collar is meant to cover, not just the
+      // first: CollarBuilder::addLayer only captures the most-recently-built
+      // thickening layer's prisms, so tracing the collar all the way from
+      // the link's original position up through --collar-layers layers
+      // requires calling it once per thicken() up to that point.
+      if (i < collarLayers)
         collarBuilder.addLayer(cob);
     }
     if (useCone)
@@ -720,7 +738,7 @@ int main(int argc, char *argv[]) {
     regina::Triangulation<4> tri = cob.getCobordism();
 
     std::vector<int> seedFaces;
-    if (useCollar) {
+    if (collarLayers > 0) {
       for (regina::Triangle<4> *t : collarBuilder.resolve())
         seedFaces.push_back(static_cast<int>(t->index()));
       std::cerr << "[+] Collar seed faces = " << seedFaces.size() << "\n";
