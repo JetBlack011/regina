@@ -296,6 +296,30 @@ void runSearch(const regina::Triangulation<4> &tri,
     return out;
   };
 
+  // How much recomputation the shared PetalCache (see vertexlinks.h) is
+  // actually avoiding -- one cache shared across every search thread, so
+  // this is already the full aggregate, not a per-thread slice.
+  auto petalCacheText = [&] {
+    PetalCache::Stats s = e.petalCacheStats();
+    auto hitRate = [](long long hits, long long checks) {
+      return checks > 0 ? 100.0 * static_cast<double>(hits) /
+                               static_cast<double>(checks)
+                        : 0.0;
+    };
+    std::ostringstream out;
+    out << "[+] petal cache: isUnknot checks=" << s.unknotChecks
+        << " hits=" << s.unknotCacheHits << " (" << std::fixed
+        << std::setprecision(1) << hitRate(s.unknotCacheHits, s.unknotChecks)
+        << "% hit rate), linking checks=" << s.linkingChecks
+        << " hits=" << s.linkingCacheHits << " (" << std::fixed
+        << std::setprecision(1)
+        << hitRate(s.linkingCacheHits, s.linkingChecks) << "% hit rate)\n";
+    out << "[+] rejected for non-local-flatness: " << s.localFlatnessRejections
+        << " | rejected for a transverse self-intersection: "
+        << s.transverseRejections << "\n";
+    return out.str();
+  };
+
   RollingReport searchReport;
   RollingReport boundaryReport;
   SurfaceSearchCallbacks callbacks;
@@ -318,6 +342,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               "boundary condition ("
            << boundaryConditionName(cond) << ") found so far: " << std::fixed
            << std::setprecision(2) << stats.averageSatisfyingFaces() << "\n";
+    report << petalCacheText();
     searchReport.draw(report.str());
   };
 
@@ -343,6 +368,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               << boundaryConditionName(cond) << "): " << std::fixed
               << std::setprecision(2) << stats.averageSatisfyingFaces()
               << "\n";
+    std::cerr << petalCacheText();
   };
 
   callbacks.onBoundaryProcessingStarted = [](size_t total,

@@ -506,7 +506,18 @@ template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
-    : EmbeddedSubmanifold<4, 2>(skeleton) {
+    : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(ownedPetalCache_) {
+  const auto &tri = skeleton.triangulation();
+  bdryComponents_.reserve(tri.countBoundaryComponents());
+  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+  facesAtVertex_.resize(tri.countVertices());
+  vertexEmbedIndexCache_.resize(tri.countVertices());
+}
+
+KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
+                               PetalCache &petalCache)
+    : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(petalCache) {
   const auto &tri = skeleton.triangulation();
   bdryComponents_.reserve(tri.countBoundaryComponents());
   for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
@@ -517,14 +528,19 @@ KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                const std::vector<int> &seedFaces)
-    : EmbeddedSubmanifold<4, 2>(skeleton) {
-  const auto &tri = skeleton.triangulation();
-  bdryComponents_.reserve(tri.countBoundaryComponents());
-  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
-  facesAtVertex_.resize(tri.countVertices());
-  vertexEmbedIndexCache_.resize(tri.countVertices());
+    : KnottedSurface(skeleton) {
+  if (!addFaces(seedFaces))
+    throw regina::InvalidArgument(
+        "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
+        "added -- no addition order makes every face embed without "
+        "creating a transverse self-intersection or non-locally-flat "
+        "point.");
+}
 
+KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
+                               PetalCache &petalCache,
+                               const std::vector<int> &seedFaces)
+    : KnottedSurface(skeleton, petalCache) {
   if (!addFaces(seedFaces))
     throw regina::InvalidArgument(
         "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
@@ -589,6 +605,17 @@ KnottedSurface::closedPetalCurve_(const regina::Vertex<4> *ambientVertex,
   return curve;
 }
 
+std::vector<PetalCache::Corner>
+KnottedSurface::petalCorners_(size_t v, int root) const {
+  std::vector<PetalCache::Corner> corners;
+  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+    if (vertexClassRoot(f, localVertex) != root)
+      continue;
+    corners.emplace_back(f, localVertex);
+  }
+  return corners;
+}
+
 bool KnottedSurface::addFace(int f) {
   if (!EmbeddedSubmanifold<4, 2>::addFace(f))
     return false;
@@ -631,14 +658,40 @@ bool KnottedSurface::addFace(int f) {
     if (!isPetalClosed_(v, root))
       continue;
 
-    auto curve = closedPetalCurve_(ambientVertex, v, root);
-    Knot knotA(ambientVertex->buildLink(), curve);
-    if (!knotA.isUnknot()) {
+    // Petal identity (which triangle-corners are in this DSU class) is a
+    // pure function of which triangles are currently present at v -- never
+    // of anything else in the submanifold (see addFace()'s DSU-union logic
+    // above) -- so the same petal recurring across different DFS
+    // branches/backtracks always has the same isUnknot()/linkingNumberWith()
+    // answer. petalCache_ memoizes those answers by petal identity, so a
+    // repeat occurrence costs a cache lookup instead of rebuilding a Knot
+    // and calling into Regina's isSolidTorus()/HomologicalData machinery.
+    int idA = petalCache_.internPetal(petalCorners_(v, root));
+
+    // Built lazily: only needed on an actual cache miss below.
+    std::optional<Knot> knotA;
+    auto ensureKnotA = [&]() -> Knot & {
+      if (!knotA)
+        knotA.emplace(ambientVertex->buildLink(),
+                      closedPetalCurve_(ambientVertex, v, root));
+      return *knotA;
+    };
+
+    auto cachedUnknot = petalCache_.lookupUnknot(idA);
+    bool isUnknot;
+    if (cachedUnknot) {
+      isUnknot = *cachedUnknot;
+    } else {
+      isUnknot = ensureKnotA().isUnknot();
+      petalCache_.recordUnknot(idA, isUnknot);
+    }
+    if (!isUnknot) {
       // Non-locally-flat: this petal just closed into a knotted circle in
       // Lk(v). Hereditary under removeFace() (a closed curve can only
       // shrink to an open arc on removal, never split into a smaller
       // closed loop -- arcs are never "knotted"), so safe to reject
       // permanently here rather than deferring to a post-hoc filter.
+      petalCache_.recordLocalFlatnessRejection();
       rollback();
       return false;
     }
@@ -646,13 +699,24 @@ bool KnottedSurface::addFace(int f) {
     for (int other : registeredClassRoots(v)) {
       if (other == root || !isPetalClosed_(v, other))
         continue;
-      Knot knotB(ambientVertex->buildLink(),
-                 closedPetalCurve_(ambientVertex, v, other));
-      if (knotA.linkingNumberWith(knotB) != 0) {
+
+      int idB = petalCache_.internPetal(petalCorners_(v, other));
+      auto cachedLink = petalCache_.lookupLinksNonzero(idA, idB);
+      bool nonzero;
+      if (cachedLink) {
+        nonzero = *cachedLink;
+      } else {
+        Knot knotB(ambientVertex->buildLink(),
+                   closedPetalCurve_(ambientVertex, v, other));
+        nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
+        petalCache_.recordLinksNonzero(idA, idB, nonzero);
+      }
+      if (nonzero) {
         // Transverse self-intersection: two closed, nonzero-linked petals
         // at v. Hereditary under removeFace() (the same isotopy that
         // would separate two petals still separates any subset of them),
         // so this can never resolve later -- safe to prune permanently.
+        petalCache_.recordTransverseRejection();
         rollback();
         return false;
       }

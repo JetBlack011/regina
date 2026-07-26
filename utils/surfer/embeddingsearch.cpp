@@ -505,7 +505,7 @@ SurfaceSearch::SurfaceSearch(const regina::Triangulation<4> &tri,
     // local-flatness checks included), throwing regina::InvalidArgument if
     // any face fails them -- this temporary exists purely for that side
     // effect.
-    KnottedSurface(skeleton_, seedFaces);
+    KnottedSurface(skeleton_, petalCache_, seedFaces);
 }
 
 void SurfaceSearch::SurfaceTypeTally::merge(
@@ -687,7 +687,7 @@ void SurfaceSearch::backgroundDrainLoop_(
     // Matches processBatchParallel_'s own CHUNK size -- not load-bearing
     // that they're equal, just a reasonable shared "small batch" constant.
     constexpr size_t POP_BATCH = 64;
-    KnottedSurface embedding(skeleton_);
+    KnottedSurface embedding(skeleton_, petalCache_);
     while (!workersFinished.load(std::memory_order_relaxed)) {
         auto items = pendingSurfaces_.popSome(POP_BATCH);
         if (items.empty()) {
@@ -750,7 +750,7 @@ void SurfaceSearch::processBatchParallel_(
     });
 
     auto worker = [&]() {
-        KnottedSurface embedding(skeleton_);
+        KnottedSurface embedding(skeleton_, petalCache_);
         while (true) {
             size_t begin =
                 nextIndex.fetch_add(CHUNK, std::memory_order_relaxed);
@@ -834,7 +834,8 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
         v->buildLink();
 
     return runSearch_(
-        numThreads, cond, [this] { return KnottedSurface(skeleton_); },
+        numThreads, cond,
+        [this] { return KnottedSurface(skeleton_, petalCache_); },
         [this, wantLinks, &callbacks] {
             return ThreadHook(*this, surfaceTypeTally_, wantLinks, callbacks);
         },
@@ -844,7 +845,7 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
             // get at surfaceType()/boundaryLinks(), which only KnottedSurface
             // exposes. seedFaces is added in the same order used to validate
             // it originally (see buildSeededGraph_), so this always embeds.
-            KnottedSurface probe(skeleton_, seedFaces);
+            KnottedSurface probe(skeleton_, petalCache_, seedFaces);
             SurfaceTypeKey type = probe.surfaceType();
             std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
             surfaceTypeTally_.merge(seedTypeCounts);

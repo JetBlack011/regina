@@ -439,6 +439,15 @@ private:
   LinkBoundaryTally linkTally_; /**< See linkTally(). */
   SurfaceTypeTally surfaceTypeTally_; /**< See surfaceTypeTally(). */
 
+  /**
+   * Shared across every KnottedSurface this search constructs (the main
+   * DFS workers, the seed-validation/surfaceType probes, and the
+   * boundary-link-processing workers) -- see PetalCache and
+   * KnottedSurface's external-cache constructors. One instance regardless
+   * of thread count, rather than one full cache per thread.
+   */
+  PetalCache petalCache_;
+
 public:
   using EmbeddingSearch<4, 2>::EmbeddingSearch;
 
@@ -459,6 +468,15 @@ public:
   const SurfaceTypeTally &surfaceTypeTally() const {
     return surfaceTypeTally_;
   }
+
+  /**
+   * Returns a snapshot of the shared PetalCache's current hit/miss
+   * counters (see PetalCache::Stats) -- how much recomputation memoizing
+   * addFace()'s local-flatness/transverse-self-intersection checks is
+   * actually avoiding, aggregated across every thread since they all share
+   * this one cache.
+   */
+  PetalCache::Stats petalCacheStats() const { return petalCache_.stats(); }
 
   /** As EmbeddingSearch::search(), reporting through `callbacks`. */
   SearchStats search(unsigned numThreads,

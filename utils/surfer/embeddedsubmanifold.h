@@ -23,6 +23,7 @@
 #include "linkcomplement.h"
 #include "rollbackunionfind.h"
 #include "skeleton.h"
+#include "vertexlinks.h"
 
 /*! \file utils/surfer/embeddedsubmanifold.h
  *  \brief Incrementally tracks an embedded subcomplex of a triangulation.
@@ -330,12 +331,48 @@ private:
   closedPetalCurve_(const regina::Vertex<4> *ambientVertex, size_t v,
                     int root) const;
 
+  /**
+   * Returns the (unordered) (ambient face, local vertex) corner list of the
+   * closed petal `root` at `v` -- the same members closedPetalCurve_()
+   * walks, as PetalCache's petal-identity input rather than an edge list.
+   */
+  std::vector<PetalCache::Corner> petalCorners_(size_t v, int root) const;
+
+  /**
+   * Memoizes addFace()'s isUnknot()/linkingNumberWith() checks by petal
+   * identity; see PetalCache.
+   *
+   * ownedPetalCache_ is always constructed (cheap -- empty containers plus
+   * a mutex) but only actually used when no external cache is supplied at
+   * construction; petalCache_ is a reference to whichever one this
+   * instance actually uses, so addFace() never needs to branch on which
+   * case it is. This lets SurfaceSearch share one PetalCache (via the
+   * external-cache constructors below) across every worker thread's
+   * KnottedSurface -- avoiding one full cache copy per thread, which
+   * otherwise multiplies with thread count -- while standalone/test use
+   * (the single-argument constructors) keeps working unchanged with a
+   * private, unshared cache.
+   */
+  PetalCache ownedPetalCache_;
+  PetalCache &petalCache_;
+
 public:
-  /** Creates an empty tracked surface over `skeleton`. */
+  /** Creates an empty tracked surface over `skeleton`, with a private, unshared PetalCache. */
   KnottedSurface(const Skeleton<4, 2> &skeleton);
 
   /** As above, then adds every face in `seedFaces`; see the base class's seeded constructor. */
   KnottedSurface(const Skeleton<4, 2> &skeleton,
+                 const std::vector<int> &seedFaces);
+
+  /**
+   * As above, but memoizing addFace()'s checks through `petalCache` instead
+   * of a private instance -- `petalCache` must outlive this KnottedSurface.
+   * Used by SurfaceSearch to share one cache across every worker thread.
+   */
+  KnottedSurface(const Skeleton<4, 2> &skeleton, PetalCache &petalCache);
+
+  /** As above, then adds every face in `seedFaces`; see the base class's seeded constructor. */
+  KnottedSurface(const Skeleton<4, 2> &skeleton, PetalCache &petalCache,
                  const std::vector<int> &seedFaces);
 
   /**
@@ -366,6 +403,16 @@ public:
 
   /** Returns this surface's own SurfaceTypeKey. */
   SurfaceTypeKey surfaceType() const { return surfaceTypeKey(triangulation()); }
+
+  /**
+   * Returns this instance's shared PetalCache's stats -- memoization
+   * hit/miss counters, plus how many addFace() calls have been rejected
+   * for non-local-flatness/a transverse self-intersection; see
+   * PetalCache::Stats. Aggregated across every KnottedSurface sharing the
+   * same cache, not just this instance, when constructed with an external
+   * PetalCache (e.g. via SurfaceSearch).
+   */
+  PetalCache::Stats petalCacheStats() const { return petalCache_.stats(); }
 };
 
 #endif // EMBEDDEDSUBMANIFOLD_H
