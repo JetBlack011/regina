@@ -13,6 +13,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 #include <triangulation/dim2.h>
@@ -48,6 +49,21 @@ struct SearchStats {
   long long satisfyingCount = 0; /**< Candidates satisfying isEmbedded() and the BoundaryCondition. */
   long long satisfyingFaceSum = 0; /**< The sum of face counts among satisfying finds. */
   long long largestSatisfying = 0; /**< The largest face count among satisfying finds. */
+
+  unsigned iddfsRound = 1;
+      /**< The iterative-deepening round currently running (1-indexed);
+           see iddfsTotalRounds. */
+  unsigned iddfsTotalRounds = 1;
+      /**< The total number of iterative-deepening rounds this search will
+           run: iddfsIterations capped passes, plus one final unbounded
+           pass. 1 when iddfsIterations == 0 (the default, i.e. iterative
+           deepening isn't in use). */
+  bool iddfsCapped = false;
+      /**< Whether the current round (see iddfsRound) is a capped pass, as
+           opposed to the final unbounded one. */
+  long long iddfsCap = 0;
+      /**< The current round's face-count cap; only meaningful when
+           iddfsCapped is true. */
 
   /** Returns the average face count among satisfying finds, or 0 if there are none. */
   double averageSatisfyingFaces() const {
@@ -181,10 +197,22 @@ public:
   /**
    * Runs the search using `numThreads` worker threads, restricted to
    * embeddings satisfying `cond`, reporting through `callbacks`.
+   *
+   * \param iddfsIterations if greater than 0, runs this many capped
+   * "fast sweep" passes over every root before the final unbounded pass,
+   * with pass `i`'s cap set to `i * iddfsStep` faces (see runSearch_).
+   * Defaults to 0 (a single unbounded pass, this method's original
+   * behavior).
+   * \param iddfsStep the face-count increment per capped pass; only
+   * consulted when `iddfsIterations > 0`.
+   * \param finalThreads the number of threads to use for the final
+   * unbounded pass; defaults to `numThreads` when not given.
    */
   SearchStats search(const unsigned numThreads,
                      BoundaryCondition cond = BoundaryCondition::all,
-                     const SearchCallbacks &callbacks = {});
+                     const SearchCallbacks &callbacks = {},
+                     unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                     std::optional<unsigned> finalThreads = std::nullopt);
 
 protected:
   /**
@@ -213,6 +241,11 @@ protected:
    * running alongside the workers (returning a default-constructed,
    * non-joinable std::thread if none is needed); `afterJoin()` runs once
    * that thread has been joined.
+   * \param iddfsIterations see EmbeddingSearch::search(); 0 (the default)
+   * means a single unbounded pass, this method's original behavior.
+   * \param iddfsStep see EmbeddingSearch::search().
+   * \param finalThreads see EmbeddingSearch::search(); defaults to
+   * `numThreads` when not given.
    *
    * \note Each hot-path hook is a compile-time (lambda/functor) type,
    * not a virtual call, so the no-op hooks EmbeddingSearch::search()
@@ -231,7 +264,9 @@ protected:
                          EmbeddingFactory makeEmbedding,
                          ThreadHookFactory makeThreadHook,
                          OnSeedFound onSeedFound,
-                         const SearchCallbacks &callbacks, AuxHooks auxHooks);
+                         const SearchCallbacks &callbacks, AuxHooks auxHooks,
+                         unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                         std::optional<unsigned> finalThreads = std::nullopt);
 
 private:
   /** Builds the face-adjacency graph of `skeleton`'s subdim-faces (unseeded). */
@@ -482,7 +517,9 @@ public:
   /** As EmbeddingSearch::search(), reporting through `callbacks`. */
   SearchStats search(unsigned numThreads,
                      BoundaryCondition cond = BoundaryCondition::all,
-                     const SurfaceSearchCallbacks &callbacks = {});
+                     const SurfaceSearchCallbacks &callbacks = {},
+                     unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                     std::optional<unsigned> finalThreads = std::nullopt);
 
   /**
    * Processes whatever boundary-link work is left after every DFS

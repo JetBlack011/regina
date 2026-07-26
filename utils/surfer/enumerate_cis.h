@@ -11,6 +11,7 @@
 //    subgraphs", BMC Bioinformatics 20(Suppl 12):319, 2019.
 //
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -71,6 +72,44 @@ class InterruptiblePredicate : public ConditionalPredicate {
     // A successful tryAdd(v) always delegates to inner_, so undo(v) --
     // called only after such a tryAdd() -- can delegate unconditionally.
     void undo(int v) override { inner_.undo(v); }
+};
+
+/**
+ * Decorates another ConditionalPredicate with a hard cap on the number of
+ * currently-nested successful tryAdd() calls -- once at the cap, every
+ * further tryAdd() is rejected without consulting \a inner, pruning descent
+ * everywhere beyond that depth. Used to run a bounded "fast sweep" pass
+ * before an unbounded one (see EmbeddingSearch::runSearch_'s
+ * iterative-deepening round loop).
+ *
+ * `maxDepth` is clamped to at least 1: seeded searches unconditionally
+ * commit the seed itself via one tryAdd() before any root is explored (see
+ * ConnectedInducedSubgraphEnumerator::seedFastForward_), and that commit
+ * must always be allowed to succeed.
+ */
+class DepthCappedPredicate : public ConditionalPredicate {
+    ConditionalPredicate &inner_; /**< The predicate being decorated. */
+    int maxDepth_; /**< The cap on nested successful tryAdd() calls. */
+    int depth_ = 0; /**< The number of currently-nested successful tryAdd() calls. */
+
+  public:
+    /** Wraps `inner`, capping nested successful tryAdd()s at `maxDepth` (clamped to >= 1). */
+    DepthCappedPredicate(ConditionalPredicate &inner, int maxDepth)
+        : inner_(inner), maxDepth_(std::max(1, maxDepth)) {}
+
+    bool tryAdd(int v) override {
+        if (depth_ >= maxDepth_)
+            return false;
+        if (!inner_.tryAdd(v))
+            return false;
+        ++depth_;
+        return true;
+    }
+
+    void undo(int v) override {
+        --depth_;
+        inner_.undo(v);
+    }
 };
 
 /**

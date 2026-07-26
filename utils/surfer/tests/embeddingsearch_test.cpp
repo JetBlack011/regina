@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <exception>
 #include <iostream>
+#include <sstream>
 #include <maths/perm.h>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
@@ -423,6 +424,219 @@ void test_seeded_search_rejects_invalid_seed() {
               "regina::InvalidArgument");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DepthCappedPredicate, directly, on a hand-built path graph 1-2-3-4-5
+// (adj[1]={2}, adj[2]={1,3}, adj[3]={2,4}, adj[4]={3,5}, adj[5]={4}).
+// Wrapped around a trivial always-succeeding predicate, a cap of maxDepth
+// should permit exactly the connected induced subgraphs of size <=
+// maxDepth and reject any attempt to grow one larger -- this is the
+// mechanism EmbeddingSearch::runSearch_'s iterative-deepening round loop
+// relies on to guarantee every capped pass finishes quickly regardless of
+// thread count (see enumerate_cis.h).
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+class AlwaysTruePredicate : public ConditionalPredicate {
+  public:
+    bool tryAdd(int) override { return true; }
+    void undo(int) override {}
+};
+} // namespace
+
+void test_depth_capped_predicate_bounds_depth() {
+    std::cout
+        << "\n--- DepthCappedPredicate: bounds enumerated subgraph size ---\n";
+
+    std::vector<std::vector<int>> adj(6);
+    adj[1] = {2};
+    adj[2] = {1, 3};
+    adj[3] = {2, 4};
+    adj[4] = {3, 5};
+    adj[5] = {4};
+
+    ConnectedInducedSubgraphEnumerator enumerator(5, adj);
+
+    AlwaysTruePredicate inner;
+    DepthCappedPredicate capped(inner, 3);
+
+    size_t maxSize = 0;
+    size_t countAtCap = 0;
+    enumerator.enumerateFiltered(
+        [&](const std::vector<int> &U) {
+            maxSize = std::max(maxSize, U.size());
+            if (U.size() == 3)
+                ++countAtCap;
+        },
+        capped);
+
+    EXPECT_EQ(maxSize, 3ULL, "no reported subgraph exceeds the cap");
+    // Connected induced subgraphs of size exactly 3 in this path: {1,2,3},
+    // {2,3,4}, {3,4,5} -- 3 of them.
+    EXPECT_EQ(countAtCap, 3ULL,
+              "every size-3 connected subgraph is still found");
+}
+
+void test_depth_capped_predicate_clamps_to_one() {
+    std::cout
+        << "\n--- DepthCappedPredicate: clamps maxDepth to at least 1 ---\n";
+
+    AlwaysTruePredicate inner;
+    DepthCappedPredicate zeroCapped(inner, 0);
+    EXPECT_EQ(zeroCapped.tryAdd(1), true,
+              "a maxDepth <= 0 is clamped to 1, so the first tryAdd still "
+              "succeeds -- required for seeded searches, whose seed commit "
+              "must always be allowed through (see seedFastForward_)");
+    EXPECT_EQ(zeroCapped.tryAdd(2), false,
+              "the second tryAdd is rejected once the (clamped) cap of 1 is "
+              "reached");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// End-to-end iterative deepening (search()'s iddfsIterations/iddfsStep
+// parameters, i.e. surfer's --iddfs-iterations/--iddfs-step): running the
+// same B³ tetrahedron search (see test_tetrahedron_boundary_conditions,
+// whose K4 gluing graph gives 15 connected embedded subsets) both without
+// and with iterative deepening enabled, across several (iterations, step)
+// combinations -- including a step so large the very first capped pass
+// already covers everything, and a cap that lands exactly on the total
+// face count -- must produce identical SearchStats in every case. The
+// capped passes plus the suppression guard in runSearch_'s round loop must
+// neither miss nor double-count anything, regardless of how many rounds
+// run or where the round boundaries fall.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_iddfs_matches_single_pass_unseeded() {
+    std::cout << "\n--- IDDFS: unseeded results match a single unbounded "
+                 "pass, for several (iterations, step) combinations ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+
+    EmbeddingSearch<3, 2> plain(ball);
+    SearchStats plainStats = plain.search(1, BoundaryCondition::all);
+    EXPECT_EQ(plainStats.satisfyingCount, 15LL,
+              "sanity check: a single pass finds all 15 connected subsets");
+
+    struct Combo {
+        unsigned iterations;
+        long long step;
+    };
+    std::vector<Combo> combos = {
+        {1, 1},   // cap=1: only single-face results in the capped pass
+        {2, 1},   // caps 1, 2
+        {1, 100}, // cap far exceeds every possible result -- the capped
+                  // pass alone finds everything; the final pass must then
+                  // find nothing new
+        {3, 2},   // caps 2, 4, 6 -- the second cap (4) lands exactly on
+                  // this graph's total face count
+    };
+
+    for (const auto &combo : combos) {
+        EmbeddingSearch<3, 2> iddfs(ball);
+        SearchStats iddfsStats = iddfs.search(
+            1, BoundaryCondition::all, {}, combo.iterations, combo.step);
+        std::ostringstream desc;
+        desc << "iterations=" << combo.iterations << " step=" << combo.step;
+        EXPECT_EQ(iddfsStats.satisfyingCount, plainStats.satisfyingCount,
+                  "satisfyingCount matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.foundCount, plainStats.foundCount,
+                  "foundCount matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.embeddedCount, plainStats.embeddedCount,
+                  "embeddedCount matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.satisfyingFaceSum, plainStats.satisfyingFaceSum,
+                  "satisfyingFaceSum matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.largestSatisfying, plainStats.largestSatisfying,
+                  "largestSatisfying matches (" + desc.str() + ")");
+    }
+}
+
+// As above, but seeded with 2 of the tetrahedron's 4 faces (seedFaceCount ==
+// 2), so the seeded face-count accounting formula in runSearch_'s worker
+// (faceCountOf(U) = seedFaceCount + U.size() - 1, rather than just
+// U.size()) is actually exercised, not just the seedFaceCount == 1 case
+// test_seeded_search_tetrahedron already covers.
+void test_iddfs_matches_single_pass_seeded() {
+    std::cout << "\n--- IDDFS: seeded results (seedFaceCount > 1) match a "
+                 "single unbounded pass ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+    std::vector<int> seed = {static_cast<int>(ball.triangle(0)->index()),
+                             static_cast<int>(ball.triangle(1)->index())};
+
+    EmbeddingSearch<3, 2> plain(ball, seed);
+    SearchStats plainStats = plain.search(1, BoundaryCondition::all);
+    EXPECT_EQ(plainStats.satisfyingCount, 4LL,
+              "sanity check: a 2-face seed out of 4 finds 2^(4-2) = 4 "
+              "connected supersets");
+
+    struct Combo {
+        unsigned iterations;
+        long long step;
+    };
+    std::vector<Combo> combos = {{1, 1}, {2, 1}, {1, 100}};
+
+    for (const auto &combo : combos) {
+        EmbeddingSearch<3, 2> iddfs(ball, seed);
+        SearchStats iddfsStats = iddfs.search(
+            2, BoundaryCondition::all, {}, combo.iterations, combo.step);
+        std::ostringstream desc;
+        desc << "iterations=" << combo.iterations << " step=" << combo.step;
+        EXPECT_EQ(iddfsStats.satisfyingCount, plainStats.satisfyingCount,
+                  "satisfyingCount matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.foundCount, plainStats.foundCount,
+                  "foundCount matches (" + desc.str() + ")");
+        EXPECT_EQ(iddfsStats.satisfyingFaceSum, plainStats.satisfyingFaceSum,
+                  "satisfyingFaceSum matches (" + desc.str() + ")");
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SearchStats::iddfsRound/iddfsTotalRounds/iddfsCapped: the default
+// (iddfsIterations == 0) must report exactly 1 (unbounded) round, matching
+// this method's behavior from before iterative deepening existed; with
+// iddfsIterations == N, the final SearchStats (as seen by
+// onSearchComplete) must report round N+1 of N+1, uncapped -- the final
+// pass, not one of the capped ones.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_iddfs_search_stats_fields() {
+    std::cout << "\n--- IDDFS: SearchStats round/cap fields ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+
+    {
+        EmbeddingSearch<3, 2> plain(ball);
+        SearchCallbacks callbacks;
+        SearchStats finalStats;
+        callbacks.onSearchComplete = [&](const SearchStats &s) {
+            finalStats = s;
+        };
+        plain.search(1, BoundaryCondition::all, callbacks);
+        EXPECT_EQ(finalStats.iddfsTotalRounds, 1U,
+                  "default (iddfsIterations=0) reports exactly 1 round");
+        EXPECT_EQ(finalStats.iddfsRound, 1U,
+                  "default's final round is round 1");
+        EXPECT_EQ(finalStats.iddfsCapped, false,
+                  "default's only round is the unbounded one");
+    }
+
+    {
+        EmbeddingSearch<3, 2> iddfs(ball);
+        SearchCallbacks callbacks;
+        SearchStats finalStats;
+        callbacks.onSearchComplete = [&](const SearchStats &s) {
+            finalStats = s;
+        };
+        iddfs.search(1, BoundaryCondition::all, callbacks,
+                    /*iddfsIterations=*/3, /*iddfsStep=*/1);
+        EXPECT_EQ(finalStats.iddfsTotalRounds, 4U,
+                  "3 capped passes + 1 final pass = 4 total rounds");
+        EXPECT_EQ(finalStats.iddfsRound, 4U,
+                  "final stats report the last round (the final pass)");
+        EXPECT_EQ(finalStats.iddfsCapped, false,
+                  "final stats' round is the unbounded one, not capped");
+    }
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -448,6 +662,15 @@ int main() {
     run("test_seeded_search_tetrahedron", test_seeded_search_tetrahedron);
     run("test_seeded_search_rejects_invalid_seed",
         test_seeded_search_rejects_invalid_seed);
+    run("test_depth_capped_predicate_bounds_depth",
+        test_depth_capped_predicate_bounds_depth);
+    run("test_depth_capped_predicate_clamps_to_one",
+        test_depth_capped_predicate_clamps_to_one);
+    run("test_iddfs_matches_single_pass_unseeded",
+        test_iddfs_matches_single_pass_unseeded);
+    run("test_iddfs_matches_single_pass_seeded",
+        test_iddfs_matches_single_pass_seeded);
+    run("test_iddfs_search_stats_fields", test_iddfs_search_stats_fields);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

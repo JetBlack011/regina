@@ -192,11 +192,14 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
-         "    [ --threads N ] <isosig>\n\n"
+         "    [ --threads N ] [ --iddfs-iterations N --iddfs-step D ]\n"
+         "    [ --iddfs-final-threads N ] <isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --layers N ] [ --cone | --no-cone ]\n"
-         "    [ --collar | --no-collar ] --pd <pdcode>\n\n"
+         "    [ --collar | --no-collar ]\n"
+         "    [ --iddfs-iterations N --iddfs-step D ]\n"
+         "    [ --iddfs-final-threads N ] --pd <pdcode>\n\n"
       << "    " << progName << " [ -v, --version | -h, --help ]\n\n";
   std::cerr
       << "    -a, --all      : Find all embedded submanifolds, regardless of "
@@ -217,6 +220,51 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "with (default: the\n"
                "                     number of hardware threads available)\n"
                "\n";
+  std::cerr
+      << "    --iddfs-iterations N : Run N capped \"fast sweep\" passes "
+         "over every\n"
+         "                     search root before the final, unbounded "
+         "pass, so\n"
+         "                     shallow (few-face) results are found "
+         "promptly even\n"
+         "                     when some roots' full search trees are very "
+         "deep or\n"
+         "                     effectively unbounded -- pass i is capped "
+         "at i *\n"
+         "                     --iddfs-step faces. Requires "
+         "--iddfs-step. Default:\n"
+         "                     0 (a single unbounded pass, as before this "
+         "option\n"
+         "                     existed). Too small a step wastes the "
+         "capped passes\n"
+         "                     (they find almost nothing new each time); "
+         "too large\n"
+         "                     a step makes each capped pass itself slow -- "
+         "a good\n"
+         "                     starting point is found empirically by "
+         "watching how\n"
+         "                     fast \"roots completed\" climbs through the "
+         "first\n"
+         "                     pass at a trial value.\n";
+  std::cerr << "    --iddfs-step D : Face-count increment per "
+               "--iddfs-iterations pass.\n"
+               "                     Only used when --iddfs-iterations > "
+               "0.\n";
+  std::cerr
+      << "    --iddfs-final-threads N : Number of threads to use for the "
+         "final,\n"
+         "                     unbounded pass after --iddfs-iterations "
+         "capped\n"
+         "                     passes (default: --threads). Since every "
+         "capped\n"
+         "                     pass is bounded and fast regardless of "
+         "thread count,\n"
+         "                     this only needs to be lower than --threads "
+         "if the\n"
+         "                     final unbounded pass is the one you want to "
+         "throttle,\n"
+         "                     e.g. to run longer with less memory "
+         "pressure.\n\n";
   std::cerr
       << "    -o, --output <path> : Also write one CSV row per found "
          "surface to <path>,\n"
@@ -267,7 +315,9 @@ void usage(const char *progName, const std::string &error = std::string()) {
 void runSearch(const regina::Triangulation<4> &tri,
               const std::vector<int> &seedFaces, BoundaryCondition cond,
               unsigned numThreads,
-              const std::optional<std::string> &outputPath) {
+              const std::optional<std::string> &outputPath,
+              unsigned iddfsIterations, long long iddfsStep,
+              std::optional<unsigned> iddfsFinalThreads) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -338,6 +388,14 @@ void runSearch(const regina::Triangulation<4> &tri,
     report << "[+] roots completed: " << stats.rootsCompleted << "/"
            << stats.totalRoots << "  | candidates examined so far: "
            << stats.foundCount << "\n";
+    if (stats.iddfsTotalRounds > 1) {
+      report << "[+] IDDFS pass " << stats.iddfsRound << "/"
+             << stats.iddfsTotalRounds;
+      if (stats.iddfsCapped)
+        report << " (capped at " << stats.iddfsCap << " faces)\n";
+      else
+        report << " (final, unbounded)\n";
+    }
 
     std::chrono::duration<double> tickDelta = stats.elapsed - lastElapsed;
     double embeddedRate =
@@ -461,7 +519,8 @@ void runSearch(const regina::Triangulation<4> &tri,
         };
   }
 
-  e.search(numThreads, cond, callbacks);
+  e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
+           iddfsFinalThreads);
 
   if (writer)
     writer->finalize();
@@ -486,6 +545,10 @@ int main(int argc, char *argv[]) {
   bool useCone = true;
   bool useCollar = true;
   bool sawLayers = false, sawCone = false, sawCollar = false;
+
+  unsigned iddfsIterations = 0;
+  long long iddfsStep = 0;
+  std::optional<unsigned> iddfsFinalThreads;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -543,6 +606,30 @@ int main(int argc, char *argv[]) {
     } else if (arg == "--no-collar") {
       useCollar = false;
       sawCollar = true;
+    } else if (arg == "--iddfs-iterations") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--iddfs-iterations requires a value.");
+      try {
+        iddfsIterations = static_cast<unsigned>(std::stoul(argv[++i]));
+      } catch (const std::exception &) {
+        usage(argv[0], "--iddfs-iterations requires an integer value.");
+      }
+    } else if (arg == "--iddfs-step") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--iddfs-step requires a value.");
+      try {
+        iddfsStep = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--iddfs-step requires an integer value.");
+      }
+    } else if (arg == "--iddfs-final-threads") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--iddfs-final-threads requires a value.");
+      try {
+        iddfsFinalThreads = static_cast<unsigned>(std::stoul(argv[++i]));
+      } catch (const std::exception &) {
+        usage(argv[0], "--iddfs-final-threads requires an integer value.");
+      }
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -560,6 +647,8 @@ int main(int argc, char *argv[]) {
   if (!havePD && (sawLayers || sawCone || sawCollar))
     usage(argv[0], "--layers, --cone/--no-cone, and --collar/--no-collar "
                    "are only valid with --pd.");
+  if (iddfsIterations > 0 && iddfsStep <= 0)
+    usage(argv[0], "--iddfs-iterations > 0 requires --iddfs-step > 0.");
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -612,7 +701,8 @@ int main(int argc, char *argv[]) {
       std::cerr << "[+] Collar seed faces = " << seedFaces.size() << "\n";
     }
 
-    runSearch(tri, seedFaces, cond, numThreads, outputPath);
+    runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
+             iddfsStep, iddfsFinalThreads);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -621,7 +711,8 @@ int main(int argc, char *argv[]) {
       usage(argv[0], std::string("Invalid isosig: ") + e.what());
     }
 
-    runSearch(tri, {}, cond, numThreads, outputPath);
+    runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
+             iddfsStep, iddfsFinalThreads);
   }
 
   return 0;

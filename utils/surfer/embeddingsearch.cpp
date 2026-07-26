@@ -167,7 +167,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     unsigned numThreads, BoundaryCondition cond,
     EmbeddingFactory makeEmbedding, ThreadHookFactory makeThreadHook,
     OnSeedFound onSeedFound, const SearchCallbacks &callbacks,
-    AuxHooks auxHooks) {
+    AuxHooks auxHooks, unsigned iddfsIterations, long long iddfsStep,
+    std::optional<unsigned> finalThreads) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     // See this method's doc comment (embeddingsearch.h) for the SIGINT
@@ -219,21 +220,63 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         roots.resize(graph_.adjList.first);
         std::iota(roots.begin(), roots.end(), 1);
     }
-    const size_t totalRoots = roots.size();
+
+    // Shallow-first: descending vertex id. Unseeded roots are provably
+    // bounded (extend()'s `w > s` rule means root s can only draw from
+    // {s+1..n}, so its subtree depth is bounded by n - s) -- this ordering
+    // guarantees the cheap, fast roots are claimed and drained first
+    // regardless of thread count, which is what prevents starvation.
+    // Seeded roots have no such bound (the seeded branch anchors at 1, not
+    // s), so this is a harmless heuristic there.
+    std::sort(roots.begin(), roots.end(), [](int a, int b) { return a > b; });
+
+    const size_t totalRootsPerPass = roots.size();
+
+    // Face-count accounting for the iterative-deepening cap: a seeded U's
+    // first member (vertex 1) is the whole contracted seed, contributing
+    // seedFaceCount faces in one commit; every subsequent member
+    // contributes exactly one face each (see Graph's doc comment).
+    // Unseeded, every member of U is exactly one face.
+    const long long seedFaceCount =
+        isSeeded_ ? static_cast<long long>(graph_.graphToSkel[0].size()) : 0;
+    const unsigned resolvedFinalThreads = finalThreads.value_or(numThreads);
 
     std::atomic<size_t> nextRootIdx{0};
     std::atomic<bool> workersFinished{false};
+    // Iterative-deepening progress, for SearchStats::iddfsRound/
+    // iddfsTotalRounds/iddfsCapped/iddfsCap -- set right before each
+    // round's threads are spawned (see the round loop below), so the
+    // reporter thread (polling once a second) always sees which round is
+    // currently in flight.
+    std::atomic<unsigned> currentIddfsRound{1};
+    std::atomic<bool> currentIddfsCapped{false};
+    std::atomic<long long> currentIddfsCap{0};
     AtomicSearchStats stats{.foundCount = seedFoundCount,
                             .embeddedCount = seedEmbeddedCount,
                             .satisfyingCount = seedSubgraphCount,
                             .largestSatisfying = seedMaxFaces,
                             .satisfyingFaceSum = seedFaceSum};
-    std::vector<WorkerStats> perThreadStats(numThreads);
+    std::vector<WorkerStats> perThreadStats(
+        std::max(numThreads, resolvedFinalThreads));
 
-    auto worker = [&](unsigned tid) {
+    auto worker = [&](unsigned tid, std::optional<long long> capFaces,
+                      long long suppressBelow) {
         auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
         InterruptiblePredicate interruptible(predicate, stopRequested);
+        // Only constructed for a capped (iterative-deepening) round; see
+        // DepthCappedPredicate. Kept alive for the whole round exactly like
+        // `interruptible` above, since it must see the seeded case's
+        // one-time seed commit (inside the enumerator constructor below)
+        // as well as every root's own tryAdd/undo calls.
+        std::optional<DepthCappedPredicate> cappedOpt;
+        ConditionalPredicate *activePredicate = &interruptible;
+        if (capFaces) {
+            long long maxDepth = isSeeded_ ? (*capFaces - seedFaceCount + 1)
+                                           : *capFaces;
+            cappedOpt.emplace(interruptible, static_cast<int>(maxDepth));
+            activePredicate = &*cappedOpt;
+        }
         // ConnectedInducedSubgraphEnumerator holds a reference member, so
         // it isn't assignable -- construct it in place via optional rather
         // than choosing between two constructor calls via assignment.
@@ -241,7 +284,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         if (isSeeded_)
             localEnumeratorOpt.emplace(graph_.adjList.first,
                                        graph_.adjList.second, true,
-                                       interruptible);
+                                       *activePredicate);
         else
             localEnumeratorOpt.emplace(graph_.adjList.first,
                                        graph_.adjList.second);
@@ -257,12 +300,26 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             if (stopRequested.load(std::memory_order_relaxed))
                 break;
             size_t idx = nextRootIdx.fetch_add(1);
-            if (idx >= totalRoots)
+            if (idx >= totalRootsPerPass)
                 break;
             int s = roots[idx];
             localEnumerator.enumerateFromRootFiltered(
                 s,
                 [&](const std::vector<int> &U) {
+                    // Already fully reported in an earlier (shallower)
+                    // iterative-deepening round -- see the round loop
+                    // below. Suppresses everything for this U, including
+                    // the raw/embedded counters, since those were already
+                    // counted in that earlier round too.
+                    if (suppressBelow > 0) {
+                        long long uFaceCount =
+                            isSeeded_
+                                ? seedFaceCount +
+                                      static_cast<long long>(U.size()) - 1
+                                : static_cast<long long>(U.size());
+                        if (uFaceCount <= suppressBelow)
+                            return;
+                    }
                     ++local.foundCount;
                     if (++local.pendingFoundCount >= FLUSH_EVERY_FOUND) {
                         stats.foundCount.fetch_add(local.pendingFoundCount,
@@ -304,7 +361,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                         }
                     }
                 },
-                interruptible);
+                *activePredicate);
             stats.rootsCompleted.fetch_add(1, std::memory_order_relaxed);
         }
         // flush this thread's remainder so the global count ends up
@@ -329,13 +386,23 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         SearchStats result;
         result.elapsed = std::chrono::steady_clock::now() - searchStart;
         result.rootsCompleted = stats.rootsCompleted.load(std::memory_order_relaxed);
-        result.totalRoots = totalRoots;
+        // Every iterative-deepening round (each capped round, plus the
+        // final unbounded one) claims every root once, so the denominator
+        // scales accordingly -- see the round loop below. With
+        // iddfsIterations == 0 (the default), this is just
+        // totalRootsPerPass, unchanged from before this feature existed.
+        result.totalRoots = totalRootsPerPass * (iddfsIterations + 1);
         result.foundCount = foundCount;
         result.embeddedCount = embeddedCount;
         result.satisfyingCount = satisfyingCount;
         result.satisfyingFaceSum = faceSum;
         result.largestSatisfying =
             stats.largestSatisfying.load(std::memory_order_relaxed);
+        result.iddfsRound = currentIddfsRound.load(std::memory_order_relaxed);
+        result.iddfsTotalRounds = iddfsIterations + 1;
+        result.iddfsCapped =
+            currentIddfsCapped.load(std::memory_order_relaxed);
+        result.iddfsCap = currentIddfsCap.load(std::memory_order_relaxed);
         return result;
     };
 
@@ -356,10 +423,41 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     std::thread aux = auxHooks.spawn(workersFinished);
 
+    // Iterative deepening: iddfsIterations capped passes (cap = iter *
+    // iddfsStep faces each), each guaranteed fast per-root since every
+    // root's subtree is bounded -- this is what guarantees shallow results
+    // are found promptly regardless of how deep/unbounded some roots'
+    // true subtrees are -- followed by one final, fully unbounded pass
+    // that only reports what the capped passes hadn't already reached.
+    // With iddfsIterations == 0 (the default), the loop below never runs
+    // and this degenerates to exactly one unbounded pass over every root,
+    // identical to this function's behavior before this feature existed.
+    long long prevCap = 0;
+    for (unsigned iter = 1; iter <= iddfsIterations; ++iter) {
+        long long cap = static_cast<long long>(iter) * iddfsStep;
+        currentIddfsRound.store(iter, std::memory_order_relaxed);
+        currentIddfsCapped.store(true, std::memory_order_relaxed);
+        currentIddfsCap.store(cap, std::memory_order_relaxed);
+        nextRootIdx.store(0, std::memory_order_relaxed);
+        std::vector<std::thread> roundThreads;
+        roundThreads.reserve(numThreads);
+        for (unsigned t = 0; t < numThreads; ++t)
+            roundThreads.emplace_back(worker, t, cap, prevCap);
+        for (auto &th : roundThreads)
+            th.join();
+        if (stopRequested.load(std::memory_order_relaxed))
+            break;
+        prevCap = cap;
+    }
+
+    currentIddfsRound.store(iddfsIterations + 1, std::memory_order_relaxed);
+    currentIddfsCapped.store(false, std::memory_order_relaxed);
+    currentIddfsCap.store(0, std::memory_order_relaxed);
+    nextRootIdx.store(0, std::memory_order_relaxed);
     std::vector<std::thread> threads;
-    threads.reserve(numThreads);
-    for (unsigned t = 0; t < numThreads; ++t)
-        threads.emplace_back(worker, t);
+    threads.reserve(resolvedFinalThreads);
+    for (unsigned t = 0; t < resolvedFinalThreads; ++t)
+        threads.emplace_back(worker, t, std::nullopt, prevCap);
     for (auto &th : threads)
         th.join();
 
@@ -404,9 +502,10 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 }
 
 template <int dim, int subdim>
-SearchStats EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
-                                                 BoundaryCondition cond,
-                                                 const SearchCallbacks &callbacks) {
+SearchStats EmbeddingSearch<dim, subdim>::search(
+    const unsigned numThreads, BoundaryCondition cond,
+    const SearchCallbacks &callbacks, unsigned iddfsIterations,
+    long long iddfsStep, std::optional<unsigned> finalThreads) {
     struct NoopThreadHook {
         void onFound(EmbeddedSubmanifold<dim, subdim> &,
                     const std::vector<int> &, long long) {}
@@ -420,7 +519,8 @@ SearchStats EmbeddingSearch<dim, subdim>::search(const unsigned numThreads,
         numThreads, cond,
         [this] { return EmbeddedSubmanifold<dim, subdim>(skeleton_); },
         [] { return NoopThreadHook{}; },
-        [](const std::vector<int> &) {}, callbacks, NoopAuxHooks{});
+        [](const std::vector<int> &) {}, callbacks, NoopAuxHooks{},
+        iddfsIterations, iddfsStep, finalThreads);
 }
 
 template <int dim, int subdim>
@@ -851,7 +951,9 @@ void SurfaceSearch::processBatchRange_(
 }
 
 SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
-                                  const SurfaceSearchCallbacks &callbacks) {
+                                  const SurfaceSearchCallbacks &callbacks,
+                                  unsigned iddfsIterations, long long iddfsStep,
+                                  std::optional<unsigned> finalThreads) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
@@ -911,5 +1013,6 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                     .mostRestrictive = classifyCheaply_(probe)});
             }
         },
-        callbacks, AuxHooks(*this, numThreads, wantLinks, callbacks));
+        callbacks, AuxHooks(*this, numThreads, wantLinks, callbacks),
+        iddfsIterations, iddfsStep, finalThreads);
 }
