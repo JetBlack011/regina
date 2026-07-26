@@ -24,6 +24,15 @@
 // satisfying-cond finds are rare relative to raw finds, so flush every one
 // to keep the rolling progress report responsive.
 #define FLUSH_EVERY_BDRY 1
+// Like satisfying-cond finds, isEmbedded()-true finds are rare relative to
+// raw finds (most incrementally-valid partial complexes still fail the
+// final global embeddedness check) and can be exactly as common as
+// satisfying-cond finds (e.g. under BoundaryCondition::all, satisfies() is
+// trivially true whenever isEmbedded() is) -- so this is flushed every one,
+// same as FLUSH_EVERY_BDRY, to keep the live embedded/sec rate accurate
+// rather than lagging behind the (immediately-flushed) satisfying-count
+// display.
+#define FLUSH_EVERY_EMBEDDED 1
 // the found-count fires on every callback invocation (not just those
 // satisfying cond), so it's flushed to the atomic less often to keep
 // contention down
@@ -79,6 +88,7 @@ class SigintScope {
 // easy to mix up individually.
 struct AtomicSearchStats {
     std::atomic<long long> foundCount;        // raw candidates visited, any cond
+    std::atomic<long long> embeddedCount;     // isEmbedded()==true, any cond
     std::atomic<long long> satisfyingCount;   // satisfying the BoundaryCondition
     std::atomic<long long> largestSatisfying; // max faces among satisfying finds
     std::atomic<long long> satisfyingFaceSum;
@@ -92,9 +102,11 @@ struct AtomicSearchStats {
 // read back after all threads join to compute the exact final totals.
 struct WorkerStats {
     long long foundCount = 0;
+    long long embeddedCount = 0;
     long long satisfyingCount = 0;
     long long satisfyingFaceSum = 0;
     long long pendingFoundCount = 0;
+    long long pendingEmbeddedCount = 0;
     long long pendingSatisfyingCount = 0;
     long long pendingFaceSum = 0;
 };
@@ -175,6 +187,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // requires descending into at least one more face).
     std::vector<int> roots;
     long long seedFoundCount = 0;
+    long long seedEmbeddedCount = 0;
     long long seedSubgraphCount = 0;
     long long seedMaxFaces = 0;
     long long seedFaceSum = 0;
@@ -190,14 +203,17 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         roots = protoEnumerator.getRoots();
 
         seedFoundCount = 1;
-        if (protoEmbedding.isEmbedded() && protoEmbedding.satisfies(cond)) {
-            seedSubgraphCount = 1;
-            seedMaxFaces = static_cast<long long>(
-                protoEmbedding.triangulation().size());
-            seedFaceSum = seedMaxFaces;
-            // graph_.graphToSkel[0] is the whole seed -- see
-            // buildSeededGraph_.
-            onSeedFound(graph_.graphToSkel[0]);
+        if (protoEmbedding.isEmbedded()) {
+            seedEmbeddedCount = 1;
+            if (protoEmbedding.satisfies(cond)) {
+                seedSubgraphCount = 1;
+                seedMaxFaces = static_cast<long long>(
+                    protoEmbedding.triangulation().size());
+                seedFaceSum = seedMaxFaces;
+                // graph_.graphToSkel[0] is the whole seed -- see
+                // buildSeededGraph_.
+                onSeedFound(graph_.graphToSkel[0]);
+            }
         }
     } else {
         roots.resize(graph_.adjList.first);
@@ -208,6 +224,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     std::atomic<size_t> nextRootIdx{0};
     std::atomic<bool> workersFinished{false};
     AtomicSearchStats stats{.foundCount = seedFoundCount,
+                            .embeddedCount = seedEmbeddedCount,
                             .satisfyingCount = seedSubgraphCount,
                             .largestSatisfying = seedMaxFaces,
                             .satisfyingFaceSum = seedFaceSum};
@@ -252,30 +269,39 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                                                    std::memory_order_relaxed);
                         local.pendingFoundCount = 0;
                     }
-                    if (embedding.isEmbedded() && embedding.satisfies(cond)) {
-                        ++local.satisfyingCount;
-                        auto faceCount = static_cast<long long>(
-                            embedding.triangulation().size());
-                        threadHook.onFound(embedding, U, faceCount);
-                        local.satisfyingFaceSum += faceCount;
-                        local.pendingFaceSum += faceCount;
-                        if (++local.pendingSatisfyingCount >= FLUSH_EVERY_BDRY) {
-                            stats.satisfyingCount.fetch_add(
-                                local.pendingSatisfyingCount,
+                    if (embedding.isEmbedded()) {
+                        ++local.embeddedCount;
+                        if (++local.pendingEmbeddedCount >= FLUSH_EVERY_EMBEDDED) {
+                            stats.embeddedCount.fetch_add(
+                                local.pendingEmbeddedCount,
                                 std::memory_order_relaxed);
-                            stats.satisfyingFaceSum.fetch_add(
-                                local.pendingFaceSum, std::memory_order_relaxed);
-                            local.pendingSatisfyingCount = 0;
-                            local.pendingFaceSum = 0;
-                            threadHook.onFlush();
+                            local.pendingEmbeddedCount = 0;
                         }
-                        auto prevMax =
-                            stats.largestSatisfying.load(std::memory_order_relaxed);
-                        while (faceCount > prevMax &&
-                               !stats.largestSatisfying.compare_exchange_weak(
-                                   prevMax, faceCount,
-                                   std::memory_order_relaxed))
-                            ;
+                        if (embedding.satisfies(cond)) {
+                            ++local.satisfyingCount;
+                            auto faceCount = static_cast<long long>(
+                                embedding.triangulation().size());
+                            threadHook.onFound(embedding, U, faceCount);
+                            local.satisfyingFaceSum += faceCount;
+                            local.pendingFaceSum += faceCount;
+                            if (++local.pendingSatisfyingCount >= FLUSH_EVERY_BDRY) {
+                                stats.satisfyingCount.fetch_add(
+                                    local.pendingSatisfyingCount,
+                                    std::memory_order_relaxed);
+                                stats.satisfyingFaceSum.fetch_add(
+                                    local.pendingFaceSum, std::memory_order_relaxed);
+                                local.pendingSatisfyingCount = 0;
+                                local.pendingFaceSum = 0;
+                                threadHook.onFlush();
+                            }
+                            auto prevMax = stats.largestSatisfying.load(
+                                std::memory_order_relaxed);
+                            while (faceCount > prevMax &&
+                                   !stats.largestSatisfying.compare_exchange_weak(
+                                       prevMax, faceCount,
+                                       std::memory_order_relaxed))
+                                ;
+                        }
                     }
                 },
                 interruptible);
@@ -289,19 +315,23 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             stats.satisfyingFaceSum.fetch_add(local.pendingFaceSum,
                                               std::memory_order_relaxed);
         }
+        if (local.pendingEmbeddedCount > 0)
+            stats.embeddedCount.fetch_add(local.pendingEmbeddedCount,
+                                          std::memory_order_relaxed);
         if (local.pendingFoundCount > 0)
             stats.foundCount.fetch_add(local.pendingFoundCount,
                                        std::memory_order_relaxed);
         threadHook.onFlush();
     };
 
-    auto snapshotStats = [&](long long foundCount, long long satisfyingCount,
-                             long long faceSum) {
+    auto snapshotStats = [&](long long foundCount, long long embeddedCount,
+                             long long satisfyingCount, long long faceSum) {
         SearchStats result;
         result.elapsed = std::chrono::steady_clock::now() - searchStart;
         result.rootsCompleted = stats.rootsCompleted.load(std::memory_order_relaxed);
         result.totalRoots = totalRoots;
         result.foundCount = foundCount;
+        result.embeddedCount = embeddedCount;
         result.satisfyingCount = satisfyingCount;
         result.satisfyingFaceSum = faceSum;
         result.largestSatisfying =
@@ -317,6 +347,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                 continue;
             callbacks.onProgress(snapshotStats(
                 stats.foundCount.load(std::memory_order_relaxed),
+                stats.embeddedCount.load(std::memory_order_relaxed),
                 stats.satisfyingCount.load(std::memory_order_relaxed) /
                     FLUSH_EVERY_BDRY,
                 stats.satisfyingFaceSum.load(std::memory_order_relaxed)));
@@ -350,18 +381,22 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     long long total = seedSubgraphCount;
     long long totalFound = seedFoundCount;
+    long long totalEmbedded = seedEmbeddedCount;
     long long totalFaceSum = seedFaceSum;
     for (const WorkerStats &local : perThreadStats) {
         total += local.satisfyingCount;
         totalFound += local.foundCount;
+        totalEmbedded += local.embeddedCount;
         totalFaceSum += local.satisfyingFaceSum;
     }
 
-    SearchStats finalStats = snapshotStats(totalFound, total, totalFaceSum);
+    SearchStats finalStats =
+        snapshotStats(totalFound, totalEmbedded, total, totalFaceSum);
     if (callbacks.onSearchComplete)
         callbacks.onSearchComplete(finalStats);
 
     assert(stats.foundCount.load() == totalFound);
+    assert(stats.embeddedCount.load() == totalEmbedded);
     assert(stats.satisfyingCount.load() == total);
     assert(stats.satisfyingFaceSum.load() == totalFaceSum);
 

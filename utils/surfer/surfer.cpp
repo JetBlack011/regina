@@ -324,13 +324,33 @@ void runSearch(const regina::Triangulation<4> &tri,
   RollingReport boundaryReport;
   SurfaceSearchCallbacks callbacks;
 
+  // Rate-tracking for the isEmbedded()-true counter: the embeddedCount and
+  // elapsed-duration seen on the previous onProgress tick, diffed against
+  // the current tick to compute a live "X/sec" rate. Both start at zero,
+  // which correctly reports rate=0 on the very first tick.
+  long long lastEmbeddedCount = 0;
+  std::chrono::steady_clock::duration lastElapsed{};
+
   callbacks.onProgress = [&](const SearchStats &stats) {
     std::ostringstream report;
     report << tallyText();
     report << "[+] elapsed: " << formatElapsed(stats.elapsed) << "\n";
     report << "[+] roots completed: " << stats.rootsCompleted << "/"
-           << stats.totalRoots << "  | embedded submanifolds found so far: "
+           << stats.totalRoots << "  | candidates examined so far: "
            << stats.foundCount << "\n";
+
+    std::chrono::duration<double> tickDelta = stats.elapsed - lastElapsed;
+    double embeddedRate =
+        tickDelta.count() > 0.0
+            ? static_cast<double>(stats.embeddedCount - lastEmbeddedCount) /
+                  tickDelta.count()
+            : 0.0;
+    report << "[+] embedded submanifolds found so far: " << stats.embeddedCount
+           << " (" << std::fixed << std::setprecision(1) << embeddedRate
+           << "/sec)\n";
+    lastEmbeddedCount = stats.embeddedCount;
+    lastElapsed = stats.elapsed;
+
     report << "[+] embedded submanifolds satisfying boundary condition ("
            << boundaryConditionName(cond)
            << ") found so far: " << stats.satisfyingCount << "\n";
@@ -357,8 +377,18 @@ void runSearch(const regina::Triangulation<4> &tri,
     if (!extra.empty())
       std::cerr << "\n" << extra;
     std::cerr << "\nTotal elapsed: " << formatElapsed(stats.elapsed) << "\n";
-    std::cerr << "Total embedded submanifolds found: " << stats.foundCount
+    std::cerr << "Total candidates examined: " << stats.foundCount
               << " (across " << numThreads << " threads)\n";
+
+    std::chrono::duration<double> totalElapsedSecs = stats.elapsed;
+    double avgEmbeddedRate = totalElapsedSecs.count() > 0.0
+                                 ? static_cast<double>(stats.embeddedCount) /
+                                       totalElapsedSecs.count()
+                                 : 0.0;
+    std::cerr << "Total embedded submanifolds found: " << stats.embeddedCount
+              << " (across " << numThreads << " threads, " << std::fixed
+              << std::setprecision(1) << avgEmbeddedRate << "/sec average)\n";
+
     std::cerr << "Total embedded submanifolds (" << boundaryConditionName(cond)
               << "): " << stats.satisfyingCount << " (across " << numThreads
               << " threads)\n";

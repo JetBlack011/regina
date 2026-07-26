@@ -44,7 +44,8 @@ struct SearchStats {
   size_t rootsCompleted = 0; /**< The number of DFS roots fully explored so far. */
   size_t totalRoots = 0; /**< The total number of DFS roots this search will explore. */
   long long foundCount = 0; /**< Raw candidates visited, regardless of BoundaryCondition. */
-  long long satisfyingCount = 0; /**< Candidates satisfying the BoundaryCondition. */
+  long long embeddedCount = 0; /**< Candidates satisfying isEmbedded(), regardless of BoundaryCondition. */
+  long long satisfyingCount = 0; /**< Candidates satisfying isEmbedded() and the BoundaryCondition. */
   long long satisfyingFaceSum = 0; /**< The sum of face counts among satisfying finds. */
   long long largestSatisfying = 0; /**< The largest face count among satisfying finds. */
 
