@@ -168,6 +168,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     EmbeddingFactory makeEmbedding, ThreadHookFactory makeThreadHook,
     OnSeedFound onSeedFound, const SearchCallbacks &callbacks,
     AuxHooks auxHooks, unsigned iddfsIterations, long long iddfsStep,
+    std::optional<long long> iddfsStart,
     std::optional<unsigned> finalThreads) {
     const auto searchStart = std::chrono::steady_clock::now();
 
@@ -423,18 +424,20 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     std::thread aux = auxHooks.spawn(workersFinished);
 
-    // Iterative deepening: iddfsIterations capped passes (cap = iter *
-    // iddfsStep faces each), each guaranteed fast per-root since every
-    // root's subtree is bounded -- this is what guarantees shallow results
-    // are found promptly regardless of how deep/unbounded some roots'
-    // true subtrees are -- followed by one final, fully unbounded pass
-    // that only reports what the capped passes hadn't already reached.
-    // With iddfsIterations == 0 (the default), the loop below never runs
-    // and this degenerates to exactly one unbounded pass over every root,
-    // identical to this function's behavior before this feature existed.
+    // Iterative deepening: iddfsIterations capped passes (pass i's cap =
+    // resolvedIddfsStart + (i - 1) * iddfsStep faces), each guaranteed
+    // fast per-root since every root's subtree is bounded -- this is what
+    // guarantees shallow results are found promptly regardless of how
+    // deep/unbounded some roots' true subtrees are -- followed by one
+    // final, fully unbounded pass that only reports what the capped
+    // passes hadn't already reached. With iddfsIterations == 0 (the
+    // default), the loop below never runs and this degenerates to exactly
+    // one unbounded pass over every root, identical to this function's
+    // behavior before this feature existed.
+    const long long resolvedIddfsStart = iddfsStart.value_or(iddfsStep);
     long long prevCap = 0;
     for (unsigned iter = 1; iter <= iddfsIterations; ++iter) {
-        long long cap = static_cast<long long>(iter) * iddfsStep;
+        long long cap = iddfsCapForRound(iter, resolvedIddfsStart, iddfsStep);
         currentIddfsRound.store(iter, std::memory_order_relaxed);
         currentIddfsCapped.store(true, std::memory_order_relaxed);
         currentIddfsCap.store(cap, std::memory_order_relaxed);
@@ -505,7 +508,8 @@ template <int dim, int subdim>
 SearchStats EmbeddingSearch<dim, subdim>::search(
     const unsigned numThreads, BoundaryCondition cond,
     const SearchCallbacks &callbacks, unsigned iddfsIterations,
-    long long iddfsStep, std::optional<unsigned> finalThreads) {
+    long long iddfsStep, std::optional<long long> iddfsStart,
+    std::optional<unsigned> finalThreads) {
     struct NoopThreadHook {
         void onFound(EmbeddedSubmanifold<dim, subdim> &,
                     const std::vector<int> &, long long) {}
@@ -520,7 +524,7 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
         [this] { return EmbeddedSubmanifold<dim, subdim>(skeleton_); },
         [] { return NoopThreadHook{}; },
         [](const std::vector<int> &) {}, callbacks, NoopAuxHooks{},
-        iddfsIterations, iddfsStep, finalThreads);
+        iddfsIterations, iddfsStep, iddfsStart, finalThreads);
 }
 
 template <int dim, int subdim>
@@ -953,6 +957,7 @@ void SurfaceSearch::processBatchRange_(
 SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   const SurfaceSearchCallbacks &callbacks,
                                   unsigned iddfsIterations, long long iddfsStep,
+                                  std::optional<long long> iddfsStart,
                                   std::optional<unsigned> finalThreads) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
@@ -1014,5 +1019,5 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
             }
         },
         callbacks, AuxHooks(*this, numThreads, wantLinks, callbacks),
-        iddfsIterations, iddfsStep, finalThreads);
+        iddfsIterations, iddfsStep, iddfsStart, finalThreads);
 }

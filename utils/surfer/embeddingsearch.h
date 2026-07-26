@@ -37,6 +37,17 @@ std::string formatElapsed(std::chrono::steady_clock::duration d);
 const char *boundaryConditionName(BoundaryCondition cond);
 
 /**
+ * The face-count cap for iterative-deepening pass `iter` (1-indexed): the
+ * first pass is capped at `start`, and each subsequent pass grows the cap
+ * by `step`. See EmbeddingSearch::search()'s iddfsStart/iddfsStep
+ * parameters.
+ */
+inline long long iddfsCapForRound(unsigned iter, long long start,
+                                  long long step) {
+  return start + static_cast<long long>(iter - 1) * step;
+}
+
+/**
  * A snapshot of a search() call's progress/results, handed to
  * SearchCallbacks rather than printed directly.
  */
@@ -200,10 +211,14 @@ public:
    *
    * \param iddfsIterations if greater than 0, runs this many capped
    * "fast sweep" passes over every root before the final unbounded pass,
-   * with pass `i`'s cap set to `i * iddfsStep` faces (see runSearch_).
-   * Defaults to 0 (a single unbounded pass, this method's original
-   * behavior).
-   * \param iddfsStep the face-count increment per capped pass; only
+   * with pass `i`'s cap set to `iddfsStart + (i - 1) * iddfsStep` faces
+   * (see runSearch_). Defaults to 0 (a single unbounded pass, this
+   * method's original behavior).
+   * \param iddfsStep the face-count increment per capped pass after the
+   * first; only consulted when `iddfsIterations > 0`.
+   * \param iddfsStart the first capped pass's face-count cap; defaults to
+   * `iddfsStep` when not given (i.e. pass `i`'s cap is `i * iddfsStep`,
+   * this parameter's original behavior before iddfsStart existed). Only
    * consulted when `iddfsIterations > 0`.
    * \param finalThreads the number of threads to use for the final
    * unbounded pass; defaults to `numThreads` when not given.
@@ -212,6 +227,7 @@ public:
                      BoundaryCondition cond = BoundaryCondition::all,
                      const SearchCallbacks &callbacks = {},
                      unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                     std::optional<long long> iddfsStart = std::nullopt,
                      std::optional<unsigned> finalThreads = std::nullopt);
 
 protected:
@@ -244,6 +260,8 @@ protected:
    * \param iddfsIterations see EmbeddingSearch::search(); 0 (the default)
    * means a single unbounded pass, this method's original behavior.
    * \param iddfsStep see EmbeddingSearch::search().
+   * \param iddfsStart see EmbeddingSearch::search(); defaults to
+   * `iddfsStep` when not given.
    * \param finalThreads see EmbeddingSearch::search(); defaults to
    * `numThreads` when not given.
    *
@@ -266,6 +284,7 @@ protected:
                          OnSeedFound onSeedFound,
                          const SearchCallbacks &callbacks, AuxHooks auxHooks,
                          unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                         std::optional<long long> iddfsStart = std::nullopt,
                          std::optional<unsigned> finalThreads = std::nullopt);
 
 private:
@@ -519,6 +538,7 @@ public:
                      BoundaryCondition cond = BoundaryCondition::all,
                      const SurfaceSearchCallbacks &callbacks = {},
                      unsigned iddfsIterations = 0, long long iddfsStep = 0,
+                     std::optional<long long> iddfsStart = std::nullopt,
                      std::optional<unsigned> finalThreads = std::nullopt);
 
   /**

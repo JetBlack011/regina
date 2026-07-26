@@ -518,23 +518,33 @@ void test_iddfs_matches_single_pass_unseeded() {
     struct Combo {
         unsigned iterations;
         long long step;
+        std::optional<long long> start = std::nullopt;
     };
     std::vector<Combo> combos = {
-        {1, 1},   // cap=1: only single-face results in the capped pass
-        {2, 1},   // caps 1, 2
-        {1, 100}, // cap far exceeds every possible result -- the capped
-                  // pass alone finds everything; the final pass must then
-                  // find nothing new
-        {3, 2},   // caps 2, 4, 6 -- the second cap (4) lands exactly on
-                  // this graph's total face count
+        {1, 1},        // cap=1: only single-face results in the capped pass
+        {2, 1},        // caps 1, 2 (iddfsStart unset -- defaults to step)
+        {1, 100},      // cap far exceeds every possible result -- the
+                       // capped pass alone finds everything; the final
+                       // pass must then find nothing new
+        {3, 2},        // caps 2, 4, 6 -- the second cap (4) lands exactly
+                       // on this graph's total face count
+        {2, 3, 1LL},   // explicit iddfsStart=1, step=3: caps 1, 4 -- a
+                       // different sequence than {2,3} (unset start) would
+                       // give (caps 3, 6), exercising --iddfs-start
+                       // specifically
+        {2, 1, 1LL},   // explicit iddfsStart == iddfsStep: must match the
+                       // unset-start case {2, 1} above exactly
     };
 
     for (const auto &combo : combos) {
         EmbeddingSearch<3, 2> iddfs(ball);
-        SearchStats iddfsStats = iddfs.search(
-            1, BoundaryCondition::all, {}, combo.iterations, combo.step);
+        SearchStats iddfsStats =
+            iddfs.search(1, BoundaryCondition::all, {}, combo.iterations,
+                        combo.step, combo.start);
         std::ostringstream desc;
-        desc << "iterations=" << combo.iterations << " step=" << combo.step;
+        desc << "iterations=" << combo.iterations << " step=" << combo.step
+             << " start=" << (combo.start ? std::to_string(*combo.start)
+                                          : std::string("unset"));
         EXPECT_EQ(iddfsStats.satisfyingCount, plainStats.satisfyingCount,
                   "satisfyingCount matches (" + desc.str() + ")");
         EXPECT_EQ(iddfsStats.foundCount, plainStats.foundCount,
@@ -637,6 +647,31 @@ void test_iddfs_search_stats_fields() {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// iddfsCapForRound(): the pure formula runSearch_'s round loop uses to turn
+// (iddfsStart, iddfsStep) into each capped pass's face-count cap. Tested
+// directly (the exact function runSearch_ calls, not a re-derivation of
+// it) since the aggregate SearchStats a full search produces are, by
+// design, invariant to exactly which cap sequence was used -- correctness
+// there doesn't depend on iddfsStart being wired through correctly, only
+// on the cap sequence being monotonically increasing. This is what
+// actually pins down that --iddfs-start controls the first pass's cap
+// (not --iddfs-step, which only sets the increment after it).
+// ─────────────────────────────────────────────────────────────────────────────
+void test_iddfs_cap_for_round_formula() {
+    std::cout << "\n--- iddfsCapForRound(): start + (iter - 1) * step ---\n";
+
+    EXPECT_EQ(iddfsCapForRound(1, 5, 3), 5LL,
+              "pass 1 is capped at exactly iddfsStart");
+    EXPECT_EQ(iddfsCapForRound(2, 5, 3), 8LL,
+              "pass 2 is capped at iddfsStart + 1 * iddfsStep");
+    EXPECT_EQ(iddfsCapForRound(3, 5, 3), 11LL,
+              "pass 3 is capped at iddfsStart + 2 * iddfsStep");
+    EXPECT_EQ(iddfsCapForRound(1, 1, 100), 1LL,
+              "a small iddfsStart caps pass 1 far below iddfsStep, "
+              "distinguishing --iddfs-start from --iddfs-step");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -671,6 +706,7 @@ int main() {
     run("test_iddfs_matches_single_pass_seeded",
         test_iddfs_matches_single_pass_seeded);
     run("test_iddfs_search_stats_fields", test_iddfs_search_stats_fields);
+    run("test_iddfs_cap_for_round_formula", test_iddfs_cap_for_round_formula);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

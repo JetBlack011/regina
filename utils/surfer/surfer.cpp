@@ -193,12 +193,12 @@ void usage(const char *progName, const std::string &error = std::string()) {
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --iddfs-iterations N --iddfs-step D ]\n"
-         "    [ --iddfs-final-threads N ] <isosig>\n\n"
+         "    [ --iddfs-start N ] [ --iddfs-final-threads N ] <isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar | --no-collar ]\n"
-         "    [ --iddfs-iterations N --iddfs-step D ]\n"
+         "    [ --iddfs-iterations N --iddfs-step D ] [ --iddfs-start N ]\n"
          "    [ --iddfs-final-threads N ] --pd <pdcode>\n\n"
       << "    " << progName << " [ -v, --version | -h, --help ]\n\n";
   std::cerr
@@ -230,26 +230,39 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     when some roots' full search trees are very "
          "deep or\n"
          "                     effectively unbounded -- pass i is capped "
-         "at i *\n"
-         "                     --iddfs-step faces. Requires "
-         "--iddfs-step. Default:\n"
-         "                     0 (a single unbounded pass, as before this "
-         "option\n"
-         "                     existed). Too small a step wastes the "
-         "capped passes\n"
-         "                     (they find almost nothing new each time); "
-         "too large\n"
-         "                     a step makes each capped pass itself slow -- "
-         "a good\n"
-         "                     starting point is found empirically by "
-         "watching how\n"
-         "                     fast \"roots completed\" climbs through the "
-         "first\n"
-         "                     pass at a trial value.\n";
+         "at\n"
+         "                     --iddfs-start + (i - 1) * --iddfs-step "
+         "faces. Requires\n"
+         "                     --iddfs-step. Default: 0 (a single "
+         "unbounded pass, as\n"
+         "                     before this option existed). Too small a "
+         "step wastes\n"
+         "                     the capped passes (they find almost "
+         "nothing new each\n"
+         "                     time); too large a step makes each capped "
+         "pass itself\n"
+         "                     slow -- a good starting point is found "
+         "empirically by\n"
+         "                     watching how fast \"roots completed\" "
+         "climbs through\n"
+         "                     the first pass at a trial value.\n";
   std::cerr << "    --iddfs-step D : Face-count increment per "
-               "--iddfs-iterations pass.\n"
-               "                     Only used when --iddfs-iterations > "
-               "0.\n";
+               "--iddfs-iterations pass\n"
+               "                     after the first. Only used when "
+               "--iddfs-iterations >\n"
+               "                     0.\n";
+  std::cerr
+      << "    --iddfs-start N : Face-count cap for the first "
+         "--iddfs-iterations pass\n"
+         "                     (default: --iddfs-step, i.e. pass i is "
+         "capped at i *\n"
+         "                     --iddfs-step, as before this option "
+         "existed). Useful\n"
+         "                     to start the very first pass smaller (or "
+         "larger) than\n"
+         "                     the step between later passes. Only used "
+         "when\n"
+         "                     --iddfs-iterations > 0.\n";
   std::cerr
       << "    --iddfs-final-threads N : Number of threads to use for the "
          "final,\n"
@@ -317,6 +330,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               unsigned numThreads,
               const std::optional<std::string> &outputPath,
               unsigned iddfsIterations, long long iddfsStep,
+              std::optional<long long> iddfsStart,
               std::optional<unsigned> iddfsFinalThreads) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
@@ -520,7 +534,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   }
 
   e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-           iddfsFinalThreads);
+           iddfsStart, iddfsFinalThreads);
 
   if (writer)
     writer->finalize();
@@ -548,6 +562,7 @@ int main(int argc, char *argv[]) {
 
   unsigned iddfsIterations = 0;
   long long iddfsStep = 0;
+  std::optional<long long> iddfsStart;
   std::optional<unsigned> iddfsFinalThreads;
 
   for (int i = 1; i < argc; ++i) {
@@ -622,6 +637,14 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--iddfs-step requires an integer value.");
       }
+    } else if (arg == "--iddfs-start") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--iddfs-start requires a value.");
+      try {
+        iddfsStart = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--iddfs-start requires an integer value.");
+      }
     } else if (arg == "--iddfs-final-threads") {
       if (i + 1 >= argc)
         usage(argv[0], "--iddfs-final-threads requires a value.");
@@ -649,6 +672,8 @@ int main(int argc, char *argv[]) {
                    "are only valid with --pd.");
   if (iddfsIterations > 0 && iddfsStep <= 0)
     usage(argv[0], "--iddfs-iterations > 0 requires --iddfs-step > 0.");
+  if (iddfsStart && *iddfsStart <= 0)
+    usage(argv[0], "--iddfs-start requires a value > 0.");
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -702,7 +727,7 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsFinalThreads);
+             iddfsStep, iddfsStart, iddfsFinalThreads);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -712,7 +737,7 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsFinalThreads);
+             iddfsStep, iddfsStart, iddfsFinalThreads);
   }
 
   return 0;
