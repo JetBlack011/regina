@@ -40,6 +40,14 @@ set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
 add_executable(triangulate_knot_table triangulate_knot_table.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
 target_link_libraries(triangulate_knot_table ${ENGINE_LIBRARY})
 
+# One-off generation utility -- not a CTest test: builds the Rolfsen <->
+# Regina-census-name correspondence data behind ../knot_census_names.csv.
+# Run it manually (see gen_knot_census_names.cpp for usage):
+#
+#   ./gen_knot_census_names pd_codes.csv > ../knot_census_names.csv
+add_executable(gen_knot_census_names gen_knot_census_names.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
+target_link_libraries(gen_knot_census_names ${ENGINE_LIBRARY})
+
 # Standalone profiling driver (see profile_driver.cpp) -- not a CTest test.
 add_executable(profile_driver profile_driver.cpp
   ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp

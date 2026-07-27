@@ -13,6 +13,8 @@
 #include <triangulation/dim3/homologicaldata.h>
 #include <snappea/snappeatriangulation.h>
 
+#include "rolfsentable.h"
+
 std::mutex censusLookupMutex;
 std::atomic<bool> simplifyComplements{true};
 
@@ -73,8 +75,13 @@ std::optional<std::string> censusLookupName(
     const regina::Triangulation<3> &complement) {
     std::lock_guard<std::mutex> lock(censusLookupMutex);
     std::list<regina::CensusHit> hits = regina::Census::lookup(complement);
-    return hits.empty() ? std::nullopt
-                        : std::make_optional(hits.front().name());
+    if (hits.empty())
+        return std::nullopt;
+
+    std::string raw = hits.front().name();
+    if (auto rolfsen = rolfsen::rolfsenName(raw))
+        return *rolfsen + " (" + raw + ")";
+    return raw;
 }
 
 // Fast, sound, one-sided proof that `t`'s genus is 1 (the unknot): its
