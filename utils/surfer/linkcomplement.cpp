@@ -8,10 +8,44 @@
 
 #include <iostream>
 #include <list>
+#include <optional>
 
 #include <triangulation/dim3/homologicaldata.h>
 
 std::mutex censusLookupMutex;
+
+namespace {
+
+// Memoizes regina::Census::lookup() by isomorphism signature. The same
+// boundary complement (e.g. a hyperbolic knot guaranteed to be a census
+// hit) tends to recur across many found surfaces, and every real lookup
+// reopens six on-disk census databases from scratch under
+// censusLookupMutex -- so caching turns "one lookup per surface" into "one
+// lookup per distinct complement", which is where nearly all of the
+// mutex's contention actually comes from. Guarded by censusLookupMutex
+// itself, which already has to serialize the underlying lookups.
+std::unordered_map<std::string, std::optional<std::string>> censusNameCache;
+
+// Returns the census name for `complement` (whose isoSig is `sig`), or
+// nullopt if it has no census hit. Must be called with the fast
+// recogniseHandlebody() path already ruled out by the caller.
+std::optional<std::string> cachedCensusLookupName(
+    const regina::Triangulation<3> &complement, const std::string &sig) {
+    std::lock_guard<std::mutex> lock(censusLookupMutex);
+
+    auto it = censusNameCache.find(sig);
+    if (it != censusNameCache.end())
+        return it->second;
+
+    std::list<regina::CensusHit> hits = regina::Census::lookup(complement);
+    std::optional<std::string> name =
+        hits.empty() ? std::nullopt
+                     : std::make_optional(hits.front().name());
+    censusNameCache.emplace(sig, name);
+    return name;
+}
+
+} // namespace
 
 EdgeComplement::EdgeComplement(
     const regina::Triangulation<3> &tri,
@@ -71,14 +105,9 @@ bool EdgeComplement::recognizeComplement() const {
         return true;
     }
 
-    std::list<regina::CensusHit> hits;
-    {
-        std::lock_guard<std::mutex> lock(censusLookupMutex);
-        hits = regina::Census::lookup(complement);
-    }
-    if (!hits.empty()) {
-        std::cout << "      recognized as " << hits.front().name() << ", "
-                  << complement.isoSig() << "\n";
+    std::string sig = complement.isoSig();
+    if (auto name = cachedCensusLookupName(complement, sig)) {
+        std::cout << "      recognized as " << *name << ", " << sig << "\n";
         return true;
     }
     return false;
@@ -89,14 +118,10 @@ std::string EdgeComplement::identify() const {
     if (complement.recogniseHandlebody() == 1)
         return "Unknot";
 
-    std::list<regina::CensusHit> hits;
-    {
-        std::lock_guard<std::mutex> lock(censusLookupMutex);
-        hits = regina::Census::lookup(complement);
-    }
-    if (!hits.empty())
-        return hits.front().name();
-    return complement.isoSig();
+    std::string sig = complement.isoSig();
+    if (auto name = cachedCensusLookupName(complement, sig))
+        return *name;
+    return sig;
 }
 
 bool EdgeComplement::isUnknot() const {
@@ -343,19 +368,13 @@ void Link::recognizeComplement() const {
             } else {
                 // Not any handlebody -- genuinely might be a census hit,
                 // so (unlike the genus >= 0 cases above) this is the one
-                // branch that actually needs the serialized lookup.
-                std::list<regina::CensusHit> hits;
-                {
-                    std::lock_guard<std::mutex> lock(censusLookupMutex);
-                    hits = regina::Census::lookup(complement);
-                }
-                if (!hits.empty()) {
-                    std::cout << "      recognized as "
-                              << hits.front().name() << ", "
-                              << complement.isoSig() << "\n";
+                // branch that actually needs the (cached) census lookup.
+                std::string sig = complement.isoSig();
+                if (auto name = cachedCensusLookupName(complement, sig)) {
+                    std::cout << "      recognized as " << *name << ", "
+                              << sig << "\n";
                 } else {
-                    std::cout << "NOT unknot, " << complement.isoSig()
-                              << "\n";
+                    std::cout << "NOT unknot, " << sig << "\n";
                 }
             }
         }

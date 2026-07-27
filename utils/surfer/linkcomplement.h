@@ -26,10 +26,12 @@
  */
 
 /**
- * A mutex serializing all calls to regina::Census::lookup(): Regina's
- * census database is not safe to query from more than one thread at a
- * time. Building or simplifying a complement is unaffected, and stays
- * parallel across callers.
+ * A mutex guarding regina::Census::lookup() and the memoized cache of its
+ * results (see linkcomplement.cpp): Regina's census databases are not safe
+ * to query from more than one thread at a time -- concurrent calls have been
+ * observed to crash outright (Tokyo Cabinet reports a "threading error"),
+ * not just contend. Building or simplifying a complement is unaffected, and
+ * stays parallel across callers.
  */
 extern std::mutex censusLookupMutex;
 
