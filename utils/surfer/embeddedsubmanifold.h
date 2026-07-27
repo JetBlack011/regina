@@ -222,6 +222,24 @@ public:
   const regina::Triangulation<subdim> &triangulation() const { return subtri_; }
 
   /**
+   * Returns the ambient face indices currently in the tracked subcomplex,
+   * in ascending order.
+   *
+   * This is the inverse of the seedFaces/addFaces() input: passing the
+   * result back to a fresh EmbeddedSubmanifold's addFaces() reconstructs an
+   * isomorphic tracked subcomplex (though not necessarily with identical
+   * subtri_ simplex numbering, since addFaces() commits in the given
+   * order).
+   */
+  std::vector<int> markedFaces() const {
+    std::vector<int> result;
+    for (size_t f = 0; f < faces_.size(); ++f)
+      if (faces_[f] != nullptr)
+        result.push_back(static_cast<int>(f));
+    return result;
+  }
+
+  /**
    * Returns whether the tracked subcomplex has no boundary.
    *
    * \note Implemented directly via hasBoundaryFacets() rather than

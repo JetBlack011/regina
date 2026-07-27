@@ -8,7 +8,8 @@ set(triangulateknot_EXTRA_SOURCES knotbuilder.cpp cobordismbuilder.cpp simplicia
 set(surfer_EXTRA_SOURCES
   knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp linkcomplement.cpp
-  enumerate_cis.cpp collar.cpp rollbackunionfind.cpp vertexlinks.cpp)
+  enumerate_cis.cpp collar.cpp rollbackunionfind.cpp vertexlinks.cpp
+  pairsig.cpp)
 
 foreach(EXE ${UTILS})
   add_executable(${EXE} ${EXE}.cpp ${${EXE}_EXTRA_SOURCES})
