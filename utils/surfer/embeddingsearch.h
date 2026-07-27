@@ -379,9 +379,12 @@ struct SurfaceSearchCallbacks : SearchCallbacks {
       onBoundaryProcessingProgress;
       /**< Fired roughly once a second while boundary-link
            post-processing runs. */
-  std::function<void(std::chrono::steady_clock::duration elapsed)>
+  std::function<void(size_t total, std::chrono::steady_clock::duration elapsed)>
       onBoundaryProcessingComplete;
-      /**< Fired once, when boundary-link post-processing finishes. */
+      /**< Fired once, when boundary-link post-processing finishes. `total`
+           is always the full batch size (processBatchParallel_ always
+           drains it completely once started), letting a caller report an
+           overall average rate. */
 };
 
 /**

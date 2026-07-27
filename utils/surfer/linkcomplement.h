@@ -8,7 +8,9 @@
 
 #define LINKCOMPLEMENT_H
 
+#include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -26,14 +28,85 @@
  */
 
 /**
- * A mutex guarding regina::Census::lookup() and the memoized cache of its
- * results (see linkcomplement.cpp): Regina's census databases are not safe
- * to query from more than one thread at a time -- concurrent calls have been
- * observed to crash outright (Tokyo Cabinet reports a "threading error"),
- * not just contend. Building or simplifying a complement is unaffected, and
- * stays parallel across callers.
+ * A mutex guarding only regina::Census::lookup() itself (see
+ * linkcomplement.cpp): Regina's census databases are not safe to query from
+ * more than one thread at a time -- concurrent calls have been observed to
+ * crash outright (Tokyo Cabinet reports a "threading error"), not just
+ * contend. Building or simplifying a complement is unaffected, and stays
+ * parallel across callers. The memoized cache of recognition results is
+ * guarded separately (see recognitionCacheMutex in linkcomplement.cpp), so
+ * a cache hit never blocks behind an in-flight lookup on another thread.
  */
 extern std::mutex censusLookupMutex;
+
+/**
+ * Whether EdgeComplement::buildComplement() should call
+ * Triangulation<3>::simplify() on the drilled complement before returning
+ * it. Defaults to \c true (existing behavior); set to \c false only for
+ * profiling -- skipping simplify() yields much larger triangulations whose
+ * isomorphism signatures rarely recur, so both the recognition cache below
+ * and Census::lookup() itself become far less effective, in exchange for a
+ * possibly much cheaper buildComplement().
+ *
+ * Set once, before any search worker thread is spawned, and never written
+ * again -- std::thread's constructor already establishes happens-before to
+ * every new thread, so a relaxed load here is safe.
+ */
+extern std::atomic<bool> simplifyComplements;
+
+/**
+ * The outcome of recognizing a complement, memoized by isomorphism
+ * signature (see linkcomplement.cpp's recognitionCache).
+ */
+struct RecognitionResult {
+    /**
+     * Triangulation<3>::recogniseHandlebody()'s result, if it has been
+     * computed for this isoSig: 1 means the unknot (a genus-1 handlebody),
+     * -1 means "not any handlebody" (the only case eligible for a census
+     * lookup), and any other value is the pre-existing "almost definitely a
+     * bug" case (see Link::recognizeComplement()). nullopt means not yet
+     * computed.
+     */
+    std::optional<ssize_t> genus;
+
+    /**
+     * Whether Census::lookup() has been run for this isoSig. Only ever
+     * attempted when genus == -1.
+     */
+    bool censusChecked = false;
+
+    /** The census hit's name, if censusChecked and a hit was found. */
+    std::optional<std::string> censusName;
+};
+
+/**
+ * Counters for how much recomputation the recognition cache is actually
+ * avoiding. See EdgeComplement::recognitionCacheStats().
+ */
+struct RecognitionCacheStats {
+    long long genusChecks = 0;
+    long long genusCacheHits = 0;
+    long long censusChecks = 0;
+    long long censusCacheHits = 0;
+
+    /**
+     * On a genus cache miss, how the genus was actually resolved: via the
+     * fast fundamental-group-is-Z check (proves genus == 1), the fast
+     * SnapPea hyperbolicity check (proves genus == -1), or the full
+     * recogniseHandlebody() fallback (neither fast check applied, e.g. a
+     * torus/satellite knot). These three always sum to
+     * genusChecks - genusCacheHits.
+     */
+    long long groupFastPathHits = 0;
+    long long snapPeaFastPathHits = 0;
+    long long recogniseHandlebodyFallbacks = 0;
+};
+
+/** A snapshot of the recognition cache's current hit/miss counters. */
+RecognitionCacheStats recognitionCacheStats();
+
+/** The recognition cache's current entry count (distinct isoSigs seen). */
+size_t recognitionCacheSize();
 
 /**
  * A set of edges in a Triangulation<3>, together with the ability to build

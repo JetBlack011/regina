@@ -24,6 +24,7 @@
 #include "collar.h"
 #include "embeddingsearch.h"
 #include "knotbuilder.h"
+#include "linkcomplement.h"
 
 namespace {
 
@@ -288,6 +289,21 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     boundary column when condition is --proper "
          "or --connected.\n\n";
   std::cerr
+      << "    --no-simplify  : Skip Triangulation<3>::simplify() when "
+         "building a\n"
+         "                     boundary complement (see linkcomplement.h). "
+         "Yields\n"
+         "                     much larger triangulations whose isomorphism "
+         "signatures\n"
+         "                     rarely recur, so the recognition cache and "
+         "census\n"
+         "                     lookups become far less effective -- a "
+         "profiling/\n"
+         "                     diagnostic option, trading recognition "
+         "quality for a\n"
+         "                     possibly much cheaper boundary-processing "
+         "phase.\n\n";
+  std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
          "input mode)\n\n";
@@ -402,6 +418,35 @@ void runSearch(const regina::Triangulation<4> &tri,
     return out.str();
   };
 
+  // How much recomputation the isoSig-keyed recognition cache (see
+  // linkcomplement.h/.cpp) is actually avoiding -- shared process-wide, so
+  // this is already the full aggregate across every search thread.
+  auto recognitionCacheText = [] {
+    RecognitionCacheStats s = recognitionCacheStats();
+    auto hitRate = [](long long hits, long long checks) {
+      return checks > 0 ? 100.0 * static_cast<double>(hits) /
+                               static_cast<double>(checks)
+                        : 0.0;
+    };
+    std::ostringstream out;
+    out << "[+] recognition cache: genus checks=" << s.genusChecks
+        << " hits=" << s.genusCacheHits << " (" << std::fixed
+        << std::setprecision(1) << hitRate(s.genusCacheHits, s.genusChecks)
+        << "% hit rate), census checks=" << s.censusChecks
+        << " hits=" << s.censusCacheHits << " (" << std::fixed
+        << std::setprecision(1)
+        << hitRate(s.censusCacheHits, s.censusChecks) << "% hit rate)\n";
+    out << "[+] recognition cache entries (distinct isoSigs seen): "
+        << recognitionCacheSize() << "\n";
+    long long misses = s.genusChecks - s.genusCacheHits;
+    out << "[+] genus cache misses resolved via: group-is-Z check="
+        << s.groupFastPathHits << ", SnapPea hyperbolicity check="
+        << s.snapPeaFastPathHits << ", recogniseHandlebody() fallback="
+        << s.recogniseHandlebodyFallbacks << " (of " << misses
+        << " misses)\n";
+    return out.str();
+  };
+
   RollingReport searchReport;
   RollingReport boundaryReport;
   SurfaceSearchCallbacks callbacks;
@@ -489,6 +534,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               << std::setprecision(2) << stats.averageSatisfyingFaces()
               << "\n";
     std::cerr << petalCacheText();
+    std::cerr << recognitionCacheText();
   };
 
   callbacks.onBoundaryProcessingStarted = [](size_t total,
@@ -525,10 +571,17 @@ void runSearch(const regina::Triangulation<4> &tri,
       };
 
   callbacks.onBoundaryProcessingComplete =
-      [](std::chrono::steady_clock::duration elapsed) {
-        std::cerr << "\n[+] Finished processing remaining surface "
-                     "boundaries in "
-                  << formatElapsed(elapsed) << "\n";
+      [&](size_t total, std::chrono::steady_clock::duration elapsed) {
+        std::chrono::duration<double> elapsedSecs = elapsed;
+        double avgRate = elapsedSecs.count() > 0.0
+                             ? static_cast<double>(total) / elapsedSecs.count()
+                             : 0.0;
+        std::cerr << "\n[+] Finished processing " << total
+                  << " remaining surface boundaries in "
+                  << formatElapsed(elapsed) << " (" << std::fixed
+                  << std::setprecision(2) << avgRate
+                  << " boundaries/sec average)\n";
+        std::cerr << recognitionCacheText();
       };
 
   std::optional<CsvWriter> writer;
@@ -674,6 +727,8 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--iddfs-final-threads requires an integer value.");
       }
+    } else if (arg == "--no-simplify") {
+      simplifyComplements = false;
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {

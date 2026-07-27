@@ -920,7 +920,7 @@ void SurfaceSearch::processBatchParallel_(
     reporter.join();
     if (callbacks.onBoundaryProcessingComplete)
         callbacks.onBoundaryProcessingComplete(
-            std::chrono::steady_clock::now() - phaseStart);
+            total, std::chrono::steady_clock::now() - phaseStart);
 }
 
 void SurfaceSearch::processEntry_(KnottedSurface &embedding,

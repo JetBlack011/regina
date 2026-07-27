@@ -11,41 +11,184 @@
 #include <optional>
 
 #include <triangulation/dim3/homologicaldata.h>
+#include <snappea/snappeatriangulation.h>
 
 std::mutex censusLookupMutex;
+std::atomic<bool> simplifyComplements{true};
 
 namespace {
 
-// Memoizes regina::Census::lookup() by isomorphism signature. The same
-// boundary complement (e.g. a hyperbolic knot guaranteed to be a census
-// hit) tends to recur across many found surfaces, and every real lookup
-// reopens six on-disk census databases from scratch under
-// censusLookupMutex -- so caching turns "one lookup per surface" into "one
-// lookup per distinct complement", which is where nearly all of the
-// mutex's contention actually comes from. Guarded by censusLookupMutex
-// itself, which already has to serialize the underlying lookups.
-std::unordered_map<std::string, std::optional<std::string>> censusNameCache;
+// Memoizes recognition results (both recogniseHandlebody()'s genus and, for
+// non-handlebody complements, Census::lookup()'s name) by isomorphism
+// signature. The same boundary complement (e.g. a hyperbolic knot
+// guaranteed to be a census hit) tends to recur across many found surfaces
+// -- every real Census::lookup() reopens six on-disk census databases from
+// scratch under censusLookupMutex, and recogniseHandlebody() itself is not
+// free either, so caching turns "one recognition per surface" into "one
+// recognition per distinct complement". Guarded by its own
+// recognitionCacheMutex, separate from censusLookupMutex, so that a cache
+// hit -- the common case once a search has been running a while, and the
+// only case EdgeComplement::isUnknot()'s hot path ever takes -- never
+// blocks behind a slow in-flight Census::lookup() on another thread.
+std::mutex recognitionCacheMutex;
+std::unordered_map<std::string, RecognitionResult> recognitionCache;
+RecognitionCacheStats recognitionStats;
 
-// Returns the census name for `complement` (whose isoSig is `sig`), or
-// nullopt if it has no census hit. Must be called with the fast
-// recogniseHandlebody() path already ruled out by the caller.
-std::optional<std::string> cachedCensusLookupName(
-    const regina::Triangulation<3> &complement, const std::string &sig) {
+// Returns a snapshot of sig's current cache entry, or nullopt if unseen.
+// By value, not by reference: another thread may concurrently complete
+// this same entry (e.g. filling in the census fields after this snapshot
+// was taken), so a reference into the map would be a data race on the
+// struct's fields even though the map itself never erases (and hence never
+// invalidates references to existing elements).
+std::optional<RecognitionResult> lookupRecognition(const std::string &sig) {
+    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    auto it = recognitionCache.find(sig);
+    if (it == recognitionCache.end())
+        return std::nullopt;
+    return it->second;
+}
+
+// Merges `update` into sig's entry monotonically -- genus, once computed,
+// is a deterministic function of sig, so first-write-wins is safe there;
+// censusChecked only ever moves false -> true. This is what keeps a thread
+// racing to complete an entry from clobbering another thread's already-
+// finished result. Returns the post-merge snapshot.
+RecognitionResult storeRecognition(const std::string &sig,
+                                    const RecognitionResult &update) {
+    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    RecognitionResult &entry = recognitionCache[sig];
+    if (update.genus && !entry.genus)
+        entry.genus = update.genus;
+    if (update.censusChecked && !entry.censusChecked) {
+        entry.censusChecked = true;
+        entry.censusName = update.censusName;
+    }
+    return entry;
+}
+
+// The actual (uncached) Census::lookup() call, serialized under
+// censusLookupMutex per its documented contract. No memoization here --
+// that's entirely recognitionCache's job now.
+std::optional<std::string> censusLookupName(
+    const regina::Triangulation<3> &complement) {
     std::lock_guard<std::mutex> lock(censusLookupMutex);
-
-    auto it = censusNameCache.find(sig);
-    if (it != censusNameCache.end())
-        return it->second;
-
     std::list<regina::CensusHit> hits = regina::Census::lookup(complement);
-    std::optional<std::string> name =
-        hits.empty() ? std::nullopt
-                     : std::make_optional(hits.front().name());
-    censusNameCache.emplace(sig, name);
-    return name;
+    return hits.empty() ? std::nullopt
+                        : std::make_optional(hits.front().name());
+}
+
+// Fast, sound, one-sided proof that `t`'s genus is 1 (the unknot): its
+// fundamental group is Z if and only if it's the unknot (Dehn's lemma).
+// group() already tries to simplify the presentation internally (same
+// idiom as engine/triangulation/dim3/knot.cpp's Poincare-conjecture
+// fast path), so a presentation of exactly one generator and no relations
+// -- i.e. <a|>, which *is* Z by construction -- is conclusive. A "false"
+// here is only ever inconclusive (simplify() didn't collapse it that far),
+// never a wrong answer: this can only shorten the path to genus == 1, so
+// it's always safe to fall back to recogniseHandlebody() when it fails.
+bool groupProvesUnknot(const regina::Triangulation<3> &t) {
+    const regina::GroupPresentation &g = t.group();
+    return g.countGenerators() == 1 && g.countRelations() == 0;
+}
+
+// Fast, sound, one-sided proof that `t`'s genus is -1 (not any
+// handlebody, of any genus): a genuine hyperbolic structure rules out
+// every handlebody by geometrization (no handlebody -- solid tori
+// included -- admits a complete hyperbolic structure, since its boundary
+// is compressible). Symmetric to groupProvesUnknot() above: a "false"
+// here is inconclusive, never wrong, so it's always safe to fall back to
+// recogniseHandlebody(). SnapPeaTriangulation's construction and
+// solutionType() are not documented thread-safe, but each caller here
+// builds one from its own local, independently-owned Triangulation<3> --
+// no state is shared across threads -- and this was stress-tested under
+// concurrent load (8 threads, thousands of calls) with no crashes or
+// inconsistent results.
+bool hyperbolicityProvesNotHandlebody(const regina::Triangulation<3> &t) {
+    regina::SnapPeaTriangulation snappea(t);
+    return snappea.solutionType() ==
+           regina::SnapPeaTriangulation::Solution::Geometric;
+}
+
+// Cached recogniseHandlebody(): never touches censusLookupMutex, so this is
+// safe to call from EdgeComplement::isUnknot()'s hot, highly-parallel path
+// without risking contention with an in-flight Census::lookup(). Tries the
+// two fast, sound one-sided checks above before falling back to the
+// expensive normal-surface-theory path -- both are cheap regardless of
+// outcome, and either resolving conclusively skips recogniseHandlebody()
+// entirely. Neither helps for knots that are neither the unknot nor
+// hyperbolic (torus/satellite knots), which still fall through to
+// recogniseHandlebody() same as before.
+ssize_t cachedGenus(const regina::Triangulation<3> &complement,
+                    const std::string &sig) {
+    {
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        ++recognitionStats.genusChecks;
+        auto it = recognitionCache.find(sig);
+        if (it != recognitionCache.end() && it->second.genus) {
+            ++recognitionStats.genusCacheHits;
+            return *it->second.genus;
+        }
+    }
+
+    ssize_t genus;
+    enum class Path { Group, SnapPea, Fallback } path;
+    if (groupProvesUnknot(complement)) {
+        genus = 1;
+        path = Path::Group;
+    } else if (hyperbolicityProvesNotHandlebody(complement)) {
+        genus = -1;
+        path = Path::SnapPea;
+    } else {
+        genus = complement.recogniseHandlebody();
+        path = Path::Fallback;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        if (path == Path::Group)
+            ++recognitionStats.groupFastPathHits;
+        else if (path == Path::SnapPea)
+            ++recognitionStats.snapPeaFastPathHits;
+        else
+            ++recognitionStats.recogniseHandlebodyFallbacks;
+    }
+    return *storeRecognition(sig, RecognitionResult{.genus = genus}).genus;
+}
+
+// Full resolution: genus, and (only if genus == -1) a census check.
+RecognitionResult resolveRecognition(const regina::Triangulation<3> &complement,
+                                     const std::string &sig) {
+    ssize_t genus = cachedGenus(complement, sig);
+    if (genus != -1)
+        return *lookupRecognition(sig); // fully resolved; census never applies
+
+    {
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        ++recognitionStats.censusChecks;
+        auto it = recognitionCache.find(sig);
+        if (it != recognitionCache.end() && it->second.censusChecked) {
+            ++recognitionStats.censusCacheHits;
+            return it->second;
+        }
+    }
+
+    auto name = censusLookupName(complement);
+    return storeRecognition(
+        sig, RecognitionResult{.genus = -1, .censusChecked = true,
+                               .censusName = name});
 }
 
 } // namespace
+
+RecognitionCacheStats recognitionCacheStats() {
+    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    return recognitionStats;
+}
+
+size_t recognitionCacheSize() {
+    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    return recognitionCache.size();
+}
 
 EdgeComplement::EdgeComplement(
     const regina::Triangulation<3> &tri,
@@ -93,21 +236,24 @@ regina::Triangulation<3> EdgeComplement::buildComplement() const {
     }
 
     // complement.idealToFinite();
-    complement.simplify();
+    if (simplifyComplements.load(std::memory_order_relaxed))
+        complement.simplify();
 
     return complement;
 }
 
 bool EdgeComplement::recognizeComplement() const {
     auto complement = buildComplement();
-    if (complement.recogniseHandlebody() == 1) {
-        std::cout << "      unknot, " << complement.isoSig() << "\n";
+    std::string sig = complement.isoSig();
+    RecognitionResult result = resolveRecognition(complement, sig);
+
+    if (result.genus == 1) {
+        std::cout << "      unknot, " << sig << "\n";
         return true;
     }
-
-    std::string sig = complement.isoSig();
-    if (auto name = cachedCensusLookupName(complement, sig)) {
-        std::cout << "      recognized as " << *name << ", " << sig << "\n";
+    if (result.censusName) {
+        std::cout << "      recognized as " << *result.censusName << ", "
+                  << sig << "\n";
         return true;
     }
     return false;
@@ -115,17 +261,19 @@ bool EdgeComplement::recognizeComplement() const {
 
 std::string EdgeComplement::identify() const {
     auto complement = buildComplement();
-    if (complement.recogniseHandlebody() == 1)
-        return "Unknot";
-
     std::string sig = complement.isoSig();
-    if (auto name = cachedCensusLookupName(complement, sig))
-        return *name;
+    RecognitionResult result = resolveRecognition(complement, sig);
+
+    if (result.genus == 1)
+        return "Unknot";
+    if (result.censusName)
+        return *result.censusName;
     return sig;
 }
 
 bool EdgeComplement::isUnknot() const {
-    return buildComplement().recogniseHandlebody() == 1;
+    auto complement = buildComplement();
+    return cachedGenus(complement, complement.isoSig()) == 1;
 }
 
 std::pair<regina::Triangulation<3>, std::vector<const regina::Edge<3> *>>
@@ -340,42 +488,43 @@ void Link::recognizeComplement() const {
         return;
     }
 
+    // buildComplement()/simplify() runs again here (EdgeComplement::
+    // recognizeComplement() above already built the same complement) --
+    // a pre-existing inefficiency this cache doesn't address, since
+    // simplify() has no isoSig to key off of until after it's run. The
+    // cache does at least make this second recogniseHandlebody() free.
     auto complement = buildComplement();
-    ssize_t genus = complement.recogniseHandlebody();
+    std::string sig = complement.isoSig();
+    ssize_t genus = cachedGenus(complement, sig);
     int numComponents = countComponents();
 
     if (genus != -1 && numComponents == 1) {
         std::cout << "[!] WARNING! Recognized as a genus " << genus
-                  << " handlebody, " << complement.isoSig() << "\n";
+                  << " handlebody, " << sig << "\n";
         std::cout << "[!] This is almost definitely a bug, please "
                      "report it!\n";
     } else if (numComponents == 1) {
-        std::cout << "      NOT unknot, " << complement.isoSig() << "\n";
+        std::cout << "      NOT unknot, " << sig << "\n";
     } else if (numComponents > 1) {
         for (int i = 0; i < numComponents; ++i) {
-            regina::Triangulation<3> complement = buildComplement(i);
-            ssize_t genus = complement.recogniseHandlebody();
+            regina::Triangulation<3> compI = buildComplement(i);
+            std::string sigI = compI.isoSig();
+            RecognitionResult result = resolveRecognition(compI, sigI);
 
             std::cout << "    Component " << i + 1 << ": ";
-            if (genus == 1) {
-                std::cout << "unknot, " << complement.isoSig() << "\n";
-            } else if (genus != -1) {
+            if (result.genus == 1) {
+                std::cout << "unknot, " << sigI << "\n";
+            } else if (result.genus && *result.genus != -1) {
                 std::cout << "\n[!] WARNING! Recognized as a genus "
-                          << genus << " handlebody, ";
+                          << *result.genus << " handlebody, ";
                 std::cout << "\n[!] This is almost definitely a bug, "
                              "please "
                              "report it!\n";
+            } else if (result.censusName) {
+                std::cout << "      recognized as " << *result.censusName
+                          << ", " << sigI << "\n";
             } else {
-                // Not any handlebody -- genuinely might be a census hit,
-                // so (unlike the genus >= 0 cases above) this is the one
-                // branch that actually needs the (cached) census lookup.
-                std::string sig = complement.isoSig();
-                if (auto name = cachedCensusLookupName(complement, sig)) {
-                    std::cout << "      recognized as " << *name << ", "
-                              << sig << "\n";
-                } else {
-                    std::cout << "NOT unknot, " << sig << "\n";
-                }
+                std::cout << "NOT unknot, " << sigI << "\n";
             }
         }
     }
