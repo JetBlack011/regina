@@ -697,10 +697,14 @@ SurfaceSearch::PendingSurfaceBatch::popSome(size_t maxCount) {
 void SurfaceSearch::LinkBoundaryTally::record(const std::string &descriptor,
                                               const SurfaceTypeKey &type) {
     std::lock_guard<std::mutex> lock(mutex_);
+    auto it = descriptorSurfaceTypes_.find(descriptor);
+    if (it == descriptorSurfaceTypes_.end())
+        order_.push_back(descriptor);
     ++descriptorSurfaceTypes_[descriptor][type];
 }
 
-std::string SurfaceSearch::LinkBoundaryTally::summary() const {
+std::string
+SurfaceSearch::LinkBoundaryTally::summary(std::optional<size_t> maxRecent) const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
     out << "Surface boundaries found:\n";
@@ -708,10 +712,20 @@ std::string SurfaceSearch::LinkBoundaryTally::summary() const {
         out << "  (none yet)\n";
     } else {
         std::vector<std::string> descriptors;
-        descriptors.reserve(descriptorSurfaceTypes_.size());
-        for (const auto &[descriptor, _] : descriptorSurfaceTypes_)
-            descriptors.push_back(descriptor);
-        std::sort(descriptors.begin(), descriptors.end());
+        if (maxRecent && *maxRecent < order_.size()) {
+            // Most recently *first-encountered* descriptors, oldest of the
+            // shown ones first -- discovery order, not alphabetical, so a
+            // live progress report reads as a log rather than reshuffling
+            // every time a new descriptor enters/leaves the window.
+            descriptors.assign(order_.end() - static_cast<long>(*maxRecent),
+                               order_.end());
+            out << "  (showing the " << *maxRecent << " most recently "
+                << "encountered of " << order_.size() << " distinct "
+                << "boundaries)\n";
+        } else {
+            descriptors = order_;
+            std::sort(descriptors.begin(), descriptors.end());
+        }
 
         for (const std::string &descriptor : descriptors) {
             out << "  " << descriptor << " - ";

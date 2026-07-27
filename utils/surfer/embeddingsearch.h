@@ -450,13 +450,27 @@ private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::map<SurfaceTypeKey, long long>>
         descriptorSurfaceTypes_;
+    std::vector<std::string> order_;
+        /**< Distinct descriptors, in the order record() first saw each one
+             -- lets summary(maxRecent) show only the most recently
+             encountered descriptors without an unbounded line count. */
 
   public:
     /** Records one surface of `type` found with boundary `descriptor`. */
     void record(const std::string &descriptor, const SurfaceTypeKey &type);
 
-    /** Returns a human-readable summary of the current tally. */
-    std::string summary() const;
+    /**
+     * Returns a human-readable summary of the current tally.
+     *
+     * With `maxRecent` unset, every distinct descriptor is listed,
+     * alphabetically -- suitable for a final, one-shot summary. With
+     * `maxRecent` set, only the `maxRecent` most recently *first*
+     * encountered descriptors are listed (in that discovery order, not
+     * alphabetically) -- suitable for a live, repeatedly-redrawn progress
+     * report, so its length stays bounded regardless of how many distinct
+     * boundaries a long search eventually turns up.
+     */
+    std::string summary(std::optional<size_t> maxRecent = std::nullopt) const;
   };
 
   /**

@@ -360,13 +360,21 @@ void runSearch(const regina::Triangulation<4> &tri,
   const bool wantLinks = cond == BoundaryCondition::proper ||
                          cond == BoundaryCondition::connected;
 
+  // Only bounded for the once-a-second progress report -- keeps its line
+  // count from growing without limit over a long search that turns up many
+  // distinct boundary types. The final summary (onSearchComplete) always
+  // passes std::nullopt, listing every boundary found.
+  static constexpr size_t ROLLING_BOUNDARY_LIMIT = 10;
+
   // Shared between the once-a-second progress report and the final summary:
-  // the surface-type tally, plus the boundary-link tally when it's being
-  // tracked at all.
-  auto tallyText = [&] {
-    std::string out = e.surfaceTypeTally().summary();
+  // the boundary-link tally when it's being tracked at all, plus the
+  // surface-type tally.
+  auto tallyText = [&](std::optional<size_t> maxRecentBoundaries =
+                          std::nullopt) {
+    std::string out;
     if (wantLinks)
-      out += e.linkTally().summary();
+      out += e.linkTally().summary(maxRecentBoundaries);
+    out += e.surfaceTypeTally().summary();
     return out;
   };
 
@@ -407,7 +415,7 @@ void runSearch(const regina::Triangulation<4> &tri,
 
   callbacks.onProgress = [&](const SearchStats &stats) {
     std::ostringstream report;
-    report << tallyText();
+    report << tallyText(ROLLING_BOUNDARY_LIMIT);
     report << "[+] elapsed: " << formatElapsed(stats.elapsed) << "\n";
     report << "[+] roots completed: " << stats.rootsCompleted << "/"
            << stats.totalRoots << "  | candidates examined so far: "
@@ -498,7 +506,7 @@ void runSearch(const regina::Triangulation<4> &tri,
                 .count();
 
         std::ostringstream report;
-        report << e.linkTally().summary();
+        report << e.linkTally().summary(ROLLING_BOUNDARY_LIMIT);
         report << "[+] elapsed: " << formatElapsed(elapsed) << "\n";
         report << "[+] boundaries processed: " << processed << "/" << total
                << " (" << std::fixed << std::setprecision(2)
