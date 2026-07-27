@@ -558,10 +558,10 @@ void test_iddfs_matches_single_pass_unseeded() {
     }
 }
 
-// As above, but seeded with 2 of the tetrahedron's 4 faces (seedFaceCount ==
-// 2), so the seeded face-count accounting formula in runSearch_'s worker
-// (faceCountOf(U) = seedFaceCount + U.size() - 1, rather than just
-// U.size()) is actually exercised, not just the seedFaceCount == 1 case
+// As above, but seeded with 2 of the tetrahedron's 4 faces (a seed with more
+// than one face), so the seeded added-face accounting in runSearch_'s
+// worker (addedFaceCount = U.size() - 1, rather than just U.size()) is
+// actually exercised, not just the single-face-seed case
 // test_seeded_search_tetrahedron already covers.
 void test_iddfs_matches_single_pass_seeded() {
     std::cout << "\n--- IDDFS: seeded results (seedFaceCount > 1) match a "
@@ -672,6 +672,31 @@ void test_iddfs_cap_for_round_formula() {
               "distinguishing --iddfs-start from --iddfs-step");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// iddfsMaxDepth(): the pure formula runSearch_'s worker uses to turn a
+// round's face-count cap into DepthCappedPredicate's maxDepth. Tested
+// directly for the same reason as iddfsCapForRound() above -- this pins
+// down that the seeded case adds exactly +1 (for the seed's one-time
+// tryAdd(), regardless of how many faces the seed itself contains), rather
+// than an offset derived from the seed's size (the earlier, buggy formula
+// this replaced -- see runSearch_'s worker before this fix, which computed
+// `capFaces - seedFaceCount + 1` and so wasted every round whose capFaces
+// was below the seed's face count).
+// ─────────────────────────────────────────────────────────────────────────────
+void test_iddfs_max_depth_formula() {
+    std::cout << "\n--- iddfsMaxDepth(): +1 for a seed's one-time commit, "
+                 "regardless of seed size ---\n";
+
+    EXPECT_EQ(iddfsMaxDepth(5, false), 5LL,
+              "unseeded: the cap applies directly, no offset");
+    EXPECT_EQ(iddfsMaxDepth(5, true), 6LL,
+              "seeded: +1 for the seed's single tryAdd(), independent of "
+              "the seed's own face count");
+    EXPECT_EQ(iddfsMaxDepth(1, true), 2LL,
+              "even a tiny cap (1) still gets exactly +1 when seeded -- "
+              "not clamped or scaled down by a large seed");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -707,6 +732,7 @@ int main() {
         test_iddfs_matches_single_pass_seeded);
     run("test_iddfs_search_stats_fields", test_iddfs_search_stats_fields);
     run("test_iddfs_cap_for_round_formula", test_iddfs_cap_for_round_formula);
+    run("test_iddfs_max_depth_formula", test_iddfs_max_depth_formula);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

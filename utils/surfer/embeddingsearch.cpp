@@ -233,13 +233,6 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     const size_t totalRootsPerPass = roots.size();
 
-    // Face-count accounting for the iterative-deepening cap: a seeded U's
-    // first member (vertex 1) is the whole contracted seed, contributing
-    // seedFaceCount faces in one commit; every subsequent member
-    // contributes exactly one face each (see Graph's doc comment).
-    // Unseeded, every member of U is exactly one face.
-    const long long seedFaceCount =
-        isSeeded_ ? static_cast<long long>(graph_.graphToSkel[0].size()) : 0;
     const unsigned resolvedFinalThreads = finalThreads.value_or(numThreads);
 
     std::atomic<size_t> nextRootIdx{0};
@@ -273,8 +266,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         std::optional<DepthCappedPredicate> cappedOpt;
         ConditionalPredicate *activePredicate = &interruptible;
         if (capFaces) {
-            long long maxDepth = isSeeded_ ? (*capFaces - seedFaceCount + 1)
-                                           : *capFaces;
+            long long maxDepth = iddfsMaxDepth(*capFaces, isSeeded_);
             cappedOpt.emplace(interruptible, static_cast<int>(maxDepth));
             activePredicate = &*cappedOpt;
         }
@@ -311,14 +303,16 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                     // iterative-deepening round -- see the round loop
                     // below. Suppresses everything for this U, including
                     // the raw/embedded counters, since those were already
-                    // counted in that earlier round too.
+                    // counted in that earlier round too. Counts only faces
+                    // *added* by the search (matching capFaces/suppressBelow's
+                    // units -- see iddfsMaxDepth), so a seeded U's one
+                    // contracted seed vertex doesn't count toward it.
                     if (suppressBelow > 0) {
-                        long long uFaceCount =
+                        long long addedFaceCount =
                             isSeeded_
-                                ? seedFaceCount +
-                                      static_cast<long long>(U.size()) - 1
+                                ? static_cast<long long>(U.size()) - 1
                                 : static_cast<long long>(U.size());
-                        if (uFaceCount <= suppressBelow)
+                        if (addedFaceCount <= suppressBelow)
                             return;
                     }
                     ++local.foundCount;

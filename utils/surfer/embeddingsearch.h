@@ -48,6 +48,25 @@ inline long long iddfsCapForRound(unsigned iter, long long start,
 }
 
 /**
+ * Converts a round's face-count cap into the DepthCappedPredicate maxDepth
+ * that enforces it.
+ *
+ * `capFaces` counts faces *added by the search*, never a seed's own faces:
+ * a seed (whatever its size) is committed via a single tryAdd() before any
+ * root is explored (see ConnectedInducedSubgraphEnumerator::
+ * seedFastForward_), so DepthCappedPredicate's nested-tryAdd() depth
+ * charges it exactly one unit regardless of how many faces it contains --
+ * every other commit corresponds to exactly one added face (see Graph's
+ * doc comment). So a seeded round needs `capFaces + 1`: one depth unit for
+ * that one-time seed commit, plus `capFaces` more for the search's own
+ * single-face additions. Unseeded, every commit is already a single added
+ * face, so the cap applies directly.
+ */
+inline long long iddfsMaxDepth(long long capFaces, bool isSeeded) {
+  return isSeeded ? capFaces + 1 : capFaces;
+}
+
+/**
  * A snapshot of a search() call's progress/results, handed to
  * SearchCallbacks rather than printed directly.
  */
