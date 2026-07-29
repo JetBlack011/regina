@@ -744,8 +744,25 @@ SurfaceSearch::LinkBoundaryTally::summary(std::optional<size_t> maxRecent) const
     return out.str();
 }
 
+void SurfaceSearch::ensureBoundarySigCaches_() const {
+    std::call_once(boundaryCachesOnce_, [this] {
+        const auto &tri = skeleton_.triangulation();
+        boundaryComponentTris_.reserve(tri.countBoundaryComponents());
+        for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+            boundaryComponentTris_.push_back(
+                tri.boundaryComponent(c)->build());
+
+        boundarySigCaches_.reserve(boundaryComponentTris_.size());
+        for (const auto &bc : boundaryComponentTris_)
+            boundarySigCaches_.push_back(
+                std::make_unique<BoundarySignatureCache>(bc));
+    });
+}
+
 std::string SurfaceSearch::describeBoundary_(
     const std::vector<std::pair<size_t, Link>> &links) {
+    ensureBoundarySigCaches_();
+
     std::ostringstream out;
     bool firstComponent = true;
     for (const auto &[component, link] : links) {
@@ -753,18 +770,43 @@ std::string SurfaceSearch::describeBoundary_(
             out << ", ";
         firstComponent = false;
 
+        BoundarySignatureCache &cache = *boundarySigCaches_[component];
+
         out << (component + 1) << ": ";
         bool firstCurve = true;
         for (const Knot &curve : link.comps_) {
             if (!firstCurve)
                 out << ", ";
             firstCurve = false;
-            out << curve.identify();
+            out << cache.identifyCached(curve.edgeIndices(),
+                                        [&curve] { return curve.identify(); });
         }
         if (link.comps_.size() > 1)
-            out << " (" << link.identify() << ")";
+            out << " (" << cache.identifyCached(
+                               link.edgeIndices(),
+                               [&link] { return link.identify(); })
+                << ")";
     }
     return out.str();
+}
+
+BoundarySignatureCacheStats SurfaceSearch::boundarySignatureCacheStats() const {
+    ensureBoundarySigCaches_();
+    BoundarySignatureCacheStats total;
+    for (const auto &cache : boundarySigCaches_) {
+        auto s = cache->stats();
+        total.checks += s.checks;
+        total.hits += s.hits;
+    }
+    return total;
+}
+
+size_t SurfaceSearch::boundarySignatureCacheSize() const {
+    ensureBoundarySigCaches_();
+    size_t total = 0;
+    for (const auto &cache : boundarySigCaches_)
+        total += cache->size();
+    return total;
 }
 
 BoundaryCondition SurfaceSearch::classifyByLinks_(

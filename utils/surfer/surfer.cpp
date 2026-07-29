@@ -447,6 +447,28 @@ void runSearch(const regina::Triangulation<4> &tri,
     return out.str();
   };
 
+  // How much recomputation the pre-triangulation boundary-signature cache
+  // (see BoundarySignatureCache in linkcomplement.h/.cpp) is actually
+  // avoiding -- one cache per ambient boundary component, shared across
+  // every search thread, so this is already the full aggregate. A high hit
+  // rate here means most boundary curves never reach
+  // EdgeComplement::identify()'s buildComplement()/simplify()/isoSig() at
+  // all, let alone the recognition cache or Census::lookup() above.
+  auto boundarySignatureCacheText = [&] {
+    BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
+    double hitRate = s.checks > 0 ? 100.0 * static_cast<double>(s.hits) /
+                                        static_cast<double>(s.checks)
+                                  : 0.0;
+    std::ostringstream out;
+    out << "[+] boundary signature cache: checks=" << s.checks
+        << " hits=" << s.hits << " (" << std::fixed << std::setprecision(1)
+        << hitRate << "% hit rate)\n";
+    out << "[+] boundary signature cache entries (distinct canonical "
+           "boundary signatures seen): "
+        << e.boundarySignatureCacheSize() << "\n";
+    return out.str();
+  };
+
   RollingReport searchReport;
   RollingReport boundaryReport;
   SurfaceSearchCallbacks callbacks;
@@ -535,6 +557,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               << "\n";
     std::cerr << petalCacheText();
     std::cerr << recognitionCacheText();
+    std::cerr << boundarySignatureCacheText();
   };
 
   callbacks.onBoundaryProcessingStarted = [](size_t total,
@@ -582,6 +605,7 @@ void runSearch(const regina::Triangulation<4> &tri,
                   << std::setprecision(2) << avgRate
                   << " boundaries/sec average)\n";
         std::cerr << recognitionCacheText();
+        std::cerr << boundarySignatureCacheText();
       };
 
   std::optional<CsvWriter> writer;

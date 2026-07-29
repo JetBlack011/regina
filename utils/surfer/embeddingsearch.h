@@ -12,6 +12,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -539,6 +540,45 @@ private:
    */
   PetalCache petalCache_;
 
+  /**
+   * mutable throughout: this whole group is a lazily-built cache (see
+   * ensureBoundarySigCaches_()), populated on first use regardless of
+   * whether that first use happens through a const accessor
+   * (boundarySignatureCacheStats()) or describeBoundary_() itself.
+   */
+  mutable std::once_flag boundaryCachesOnce_;
+
+  /**
+   * Copies of the ambient triangulation's boundary components, built once,
+   * lazily (see ensureBoundarySigCaches_()), and never modified again --
+   * the exact same BoundaryComponent::build() call KnottedSurface's own
+   * constructor uses for bdryComponents_, so boundarySigCaches_
+   * canonicalizes marked edge sets against the identical edge indexing
+   * boundaryLinks() itself produces them in.
+   */
+  mutable std::vector<regina::Triangulation<3>> boundaryComponentTris_;
+
+  /**
+   * One BoundarySignatureCache per entry of boundaryComponentTris_, shared
+   * across every worker thread the same way petalCache_ is -- see
+   * describeBoundary_(). unique_ptr since BoundarySignatureCache isn't
+   * default-constructible (it tracks a fixed triangulation from
+   * construction on) and must never be relocated once other threads may
+   * be holding a reference to it.
+   */
+  mutable std::vector<std::unique_ptr<BoundarySignatureCache>>
+      boundarySigCaches_;
+
+  /**
+   * Builds boundaryComponentTris_/boundarySigCaches_ on first use,
+   * regardless of which thread triggers it (std::once_flag) -- using the
+   * same BoundaryComponent::build() call KnottedSurface's constructor
+   * uses, so both stay in lockstep on edge indexing. const (like the
+   * members it populates are mutable) since a first call may come through
+   * either describeBoundary_() or the const stats accessors.
+   */
+  void ensureBoundarySigCaches_() const;
+
 public:
   using EmbeddingSearch<4, 2>::EmbeddingSearch;
 
@@ -568,6 +608,17 @@ public:
    * this one cache.
    */
   PetalCache::Stats petalCacheStats() const { return petalCache_.stats(); }
+
+  /**
+   * Returns the aggregated hit/miss counters of every boundary component's
+   * BoundarySignatureCache (see boundarySigCaches_) summed together -- how
+   * much recomputation the pre-triangulation boundary-signature cache is
+   * actually avoiding, across every search thread.
+   */
+  BoundarySignatureCacheStats boundarySignatureCacheStats() const;
+
+  /** As above, but the total number of distinct canonical boundary signatures seen across every boundary component. */
+  size_t boundarySignatureCacheSize() const;
 
   /** As EmbeddingSearch::search(), reporting through `callbacks`. */
   SearchStats search(unsigned numThreads,
@@ -651,8 +702,15 @@ private:
    * Link, followed by " (<link.identify()>)" only when that component
    * holds more than one curve -- with per-component entries joined by
    * ", ". E.g. "1: figure-eight, 2: unknot, unknot (Hopf link)".
+   *
+   * Each curve/link's identify() is resolved through this component's
+   * BoundarySignatureCache (see boundarySigCaches_), so a boundary already
+   * seen -- exactly, or up to a symmetry of its ambient boundary component
+   * -- never reaches EdgeComplement::identify()'s
+   * buildComplement()/simplify()/isoSig() at all. Not static (unlike
+   * before) precisely because it now needs boundarySigCaches_.
    */
-  static std::string
+  std::string
   describeBoundary_(const std::vector<std::pair<size_t, Link>> &links);
 
   /**

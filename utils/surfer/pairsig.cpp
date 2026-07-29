@@ -27,32 +27,18 @@ namespace {
 // delimiter can never collide with anything isoSigDetail() itself produces.
 constexpr char delimiter = regina::Base64Encoder::spare[0];
 
-// The image of a single marked face under psi0 alone (see pairSig()):
-// a destination simplex index in `canon`, plus a permutation whose first
-// subdim+1 images give that face's vertex subset in the destination
-// simplex's local numbering. Computed once per marked face, independent of
-// any automorphism of `canon`.
-template <int dim>
-struct FaceUnderPsi0 {
-    size_t destSimplex0;
-    regina::Perm<dim + 1> vertexPerm0;
-};
-
+// The image of every marked face under psi0 alone (see pairSig()), computed
+// once, independent of any automorphism of `canon`.
 template <int dim, int subdim>
-std::vector<FaceUnderPsi0<dim>> mapFacesThroughPsi0(
+std::vector<FaceDescriptor<dim>> mapFacesThroughPsi0(
         const regina::Triangulation<dim> &ambient,
         const regina::Isomorphism<dim> &psi0,
         const std::vector<int> &markedFaces) {
-    std::vector<FaceUnderPsi0<dim>> result;
+    std::vector<FaceDescriptor<dim>> result;
     result.reserve(markedFaces.size());
-    for (int f : markedFaces) {
-        const auto &emb = ambient.template face<subdim>(f)->front();
-        size_t srcSimplex = emb.simplex()->index();
-        regina::Perm<dim + 1> p = emb.vertices();
-        result.push_back({
-            static_cast<size_t>(psi0.simpImage(srcSimplex)),
-            psi0.facetPerm(srcSimplex) * p});
-    }
+    for (int f : markedFaces)
+        result.push_back(
+            applyIsomorphism(psi0, faceDescriptor<dim, subdim>(ambient, f)));
     return result;
 }
 
@@ -62,19 +48,12 @@ template <int dim, int subdim>
 std::vector<size_t> imageUnderAlpha(
         const regina::Triangulation<dim> &canon,
         const regina::Isomorphism<dim> &alpha,
-        const std::vector<FaceUnderPsi0<dim>> &underPsi0) {
+        const std::vector<FaceDescriptor<dim>> &underPsi0) {
     std::vector<size_t> image;
     image.reserve(underPsi0.size());
-    for (const auto &fu : underPsi0) {
-        auto destSimplex =
-            static_cast<size_t>(alpha.simpImage(fu.destSimplex0));
-        regina::Perm<dim + 1> q =
-            alpha.facetPerm(fu.destSimplex0) * fu.vertexPerm0;
-        int localFace = regina::FaceNumbering<dim, subdim>::faceNumber(q);
-        image.push_back(
-            canon.simplex(destSimplex)->template face<subdim>(localFace)
-                ->index());
-    }
+    for (const auto &fu : underPsi0)
+        image.push_back(resolveFaceIndex<dim, subdim>(
+            canon, applyIsomorphism(alpha, fu)));
     std::ranges::sort(image);
     return image;
 }

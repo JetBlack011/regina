@@ -6,6 +6,7 @@ set(TESTS
   rollbackunionfind_test
   vertexlinks_test
   pairsig_test
+  linkcomplement_test
 )
 set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../linkcomplement.cpp)
 set(cobordismbuilder_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp)
@@ -14,6 +15,7 @@ set(embeddedsubmanifold_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicial
 set(rollbackunionfind_test_EXTRA_SOURCES ../rollbackunionfind.cpp)
 set(vertexlinks_test_EXTRA_SOURCES ../vertexlinks.cpp)
 set(pairsig_test_EXTRA_SOURCES ../pairsig.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../knotbuilder.cpp ../rollbackunionfind.cpp ../vertexlinks.cpp)
+set(linkcomplement_test_EXTRA_SOURCES ../linkcomplement.cpp)
 
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})

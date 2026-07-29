@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include <triangulation/isomorphism.h>
+
 #include "embeddedsubmanifold.h"
 #include "skeleton.h"
 
@@ -34,6 +36,64 @@
  *  (isoSigDetail(), fromSig(), findAllIsomorphisms(), Isomorphism, and
  *  FaceEmbedding/FaceNumbering) -- no engine changes are required.
  */
+
+/**
+ * A subdim-face's image under a chain of isomorphisms, expressed as a
+ * (destination simplex, vertex permutation) pair rather than a resolved
+ * face index. This lets a face be pushed through several isomorphisms in
+ * sequence (e.g. ambient -> canon, then canon -> canon for each of canon's
+ * automorphisms) without resolving to a concrete face object until the
+ * final step -- what pairSig()'s per-automorphism inner loop relies on to
+ * stay cheap, and equally useful for canonicalizing a marked face set
+ * against a single fixed triangulation's own automorphism group (see
+ * BoundarySignatureCache in linkcomplement.h).
+ */
+template <int dim>
+struct FaceDescriptor {
+    size_t simplex;
+    regina::Perm<dim + 1> vertexPerm;
+};
+
+/**
+ * The descriptor for `ambient`'s own subdim-face `f` (index into
+ * `ambient`'s subdim-faces), before any isomorphism has been applied.
+ *
+ * Defined here (not in pairsig.cpp) so that any translation unit --
+ * including linkcomplement.cpp's BoundarySignatureCache, which has no
+ * other reason to link against pairsig.cpp's own explicit instantiations
+ * (pairSig()/fromPairSig() and everything they in turn pull in, e.g.
+ * EmbeddedSubmanifold/KnottedSurface/Skeleton's .cpp files) -- can
+ * instantiate it locally with no added link-time dependency.
+ */
+template <int dim, int subdim>
+FaceDescriptor<dim> faceDescriptor(const regina::Triangulation<dim> &ambient,
+                                    int f) {
+    const auto &emb = ambient.template face<subdim>(f)->front();
+    return {static_cast<size_t>(emb.simplex()->index()), emb.vertices()};
+}
+
+/** The descriptor of `desc`'s image under `iso`. See faceDescriptor() for why this is header-defined. */
+template <int dim>
+FaceDescriptor<dim> applyIsomorphism(const regina::Isomorphism<dim> &iso,
+                                      const FaceDescriptor<dim> &desc) {
+    return {static_cast<size_t>(iso.simpImage(desc.simplex)),
+            iso.facetPerm(desc.simplex) * desc.vertexPerm};
+}
+
+/**
+ * Resolves `desc` -- already expressed in `codomain`'s own numbering, e.g.
+ * as returned by applyIsomorphism() -- to a concrete subdim-face index of
+ * `codomain`. See faceDescriptor() for why this is header-defined.
+ */
+template <int dim, int subdim>
+size_t resolveFaceIndex(const regina::Triangulation<dim> &codomain,
+                         const FaceDescriptor<dim> &desc) {
+    int localFace =
+        regina::FaceNumbering<dim, subdim>::faceNumber(desc.vertexPerm);
+    return codomain.simplex(desc.simplex)
+        ->template face<subdim>(localFace)
+        ->index();
+}
 
 /**
  * Computes a pair signature for (`ambient`, `markedFaces`).
