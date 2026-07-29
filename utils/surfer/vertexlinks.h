@@ -55,26 +55,61 @@ public:
   using Corner = std::pair<int, int>;
 
   /**
-   * Interns `corners` as a petal, returning its id -- the same corner set
-   * always maps to the same id, regardless of insertion order (sorted
-   * internally) or whether it was already known.
+   * An interned petal's id, opaque outside this class: `(epoch << 32) |
+   * localId`. The epoch lets internPetal() clear this cache outright once
+   * it grows past setClearThreshold() (see that method) without risking a
+   * stale id silently colliding with an unrelated, numerically-coincident
+   * id minted after the clear -- every lookup/record call below checks the
+   * embedded epoch first, and treats a mismatch as "unrelated to anything
+   * currently cached" (a clean miss/no-op), never as a hit against the
+   * wrong petal. Callers should treat this purely as an id, never assume
+   * anything about its bit layout.
    */
-  int internPetal(std::vector<Corner> corners);
+  using PetalId = uint64_t;
 
-  /** Returns the cached isUnknot() result for petal `id`, if known. */
-  std::optional<bool> lookupUnknot(int id) const;
+  /**
+   * Interns `corners` as a petal, returning its id -- the same corner set
+   * always maps to the same id (within the current epoch; see PetalId),
+   * regardless of insertion order (sorted internally) or whether it was
+   * already known.
+   *
+   * If this cache has grown past its clear threshold (see
+   * setClearThreshold()), this is where that's actually enforced: this is
+   * the only method that ever mints a new id, so it's the only place that
+   * needs to check.
+   */
+  PetalId internPetal(std::vector<Corner> corners);
 
-  /** Records `id`'s isUnknot() result. */
-  void recordUnknot(int id, bool isUnknot);
+  /** Returns the cached isUnknot() result for petal `id`, if known and not stale (see PetalId). */
+  std::optional<bool> lookupUnknot(PetalId id) const;
+
+  /** Records `id`'s isUnknot() result. A stale `id` (see PetalId) is silently ignored. */
+  void recordUnknot(PetalId id, bool isUnknot);
 
   /**
    * Returns the cached (linkingNumberWith() != 0) result for the
-   * unordered pair {a, b}, if known.
+   * unordered pair {a, b}, if known and neither is stale (see PetalId).
    */
-  std::optional<bool> lookupLinksNonzero(int a, int b) const;
+  std::optional<bool> lookupLinksNonzero(PetalId a, PetalId b) const;
 
-  /** Records the unordered pair {a, b}'s (linkingNumberWith() != 0) result. */
-  void recordLinksNonzero(int a, int b, bool nonzero);
+  /**
+   * Records the unordered pair {a, b}'s (linkingNumberWith() != 0) result.
+   * Silently ignored if either is stale (see PetalId).
+   */
+  void recordLinksNonzero(PetalId a, PetalId b, bool nonzero);
+
+  /**
+   * Sets the entry-count threshold (counted against unknotById_, i.e.
+   * distinct petals interned since the last clear) past which
+   * internPetal() clears this cache outright before minting the next new
+   * id. Call before any worker thread starts using this cache; a call
+   * racing with in-flight searches only risks applying one clear-check
+   * late, which is harmless.
+   */
+  void setClearThreshold(size_t threshold);
+
+  /** This cache's current distinct-petal count (since the last clear, if any). */
+  size_t size() const;
 
   /**
    * Records that KnottedSurface::addFace() rejected a face for closing a
@@ -97,6 +132,7 @@ public:
     long long linkingCacheHits = 0;
     long long localFlatnessRejections = 0;
     long long transverseRejections = 0;
+    long long cacheResets = 0; /**< How many times this cache has been fully cleared after exceeding its clear threshold. */
   };
 
   /**
@@ -111,17 +147,31 @@ private:
     size_t operator()(const std::vector<Corner> &corners) const;
   };
 
-  /** Packs the unordered pair {a, b} into a single collision-free key. */
+  /** Packs the unordered pair of local ids {a, b} into a single collision-free key. */
   static uint64_t linkKey_(int a, int b);
+
+  static PetalId makeId_(uint64_t epoch, int localId) {
+    return (epoch << 32) | static_cast<uint32_t>(localId);
+  }
+  static uint64_t epochOf_(PetalId id) { return id >> 32; }
+  static int localIdOf_(PetalId id) {
+    return static_cast<int>(id & 0xFFFFFFFFu);
+  }
+
+  /** Default entry-count threshold; see setClearThreshold(). */
+  static constexpr size_t DEFAULT_CLEAR_THRESHOLD = 2'000'000;
 
   mutable std::mutex mutex_; /**< Guards every member below. */
 
   std::unordered_map<std::vector<Corner>, int, CornersHash> byCorners_;
-      /**< corners -> id; the interning table. */
+      /**< corners -> local id (current epoch only); the interning table. */
   std::vector<std::optional<bool>> unknotById_;
-      /**< isUnknot() result per petal id, indexed by id. */
+      /**< isUnknot() result per local id, indexed by local id (current epoch only). */
   std::unordered_map<uint64_t, bool> linkingCache_;
-      /**< (linkingNumberWith() != 0) result per unordered id pair. */
+      /**< (linkingNumberWith() != 0) result per unordered local-id pair (current epoch only). */
+
+  size_t clearThreshold_ = DEFAULT_CLEAR_THRESHOLD;
+  uint64_t epoch_ = 0; /**< Bumped every time this cache is cleared; see PetalId. */
 
   mutable Stats stats_; /**< Updated even by the "read-only" lookup methods, hence mutable. */
 };

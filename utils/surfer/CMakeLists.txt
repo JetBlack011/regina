@@ -1,19 +1,26 @@
+# Every utils/surfer executable (and test/utility under tests/) links
+# against some subset of these implementation files. Rather than each
+# target relisting its own subset by hand (which silently goes stale --
+# see surfacesearch.cpp needing to be added in three places at once), they
+# all just link this one static library: a traditional archive only pulls
+# in the .o members a given target's unresolved symbols actually need, so
+# e.g. a test that only exercises rollbackunionfind.cpp still ends up
+# linking just that, with no per-target bookkeeping required.
+add_library(surfer_common STATIC
+  knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
+  embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
+  linkcomplement.cpp enumerate_cis.cpp collar.cpp rollbackunionfind.cpp
+  vertexlinks.cpp pairsig.cpp)
+target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
+
 set(UTILS
   triangulateknot
   surfer
 )
 
-set(triangulateknot_EXTRA_SOURCES knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp linkcomplement.cpp)
-
-set(surfer_EXTRA_SOURCES
-  knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
-  embeddedsubmanifold.cpp embeddingsearch.cpp linkcomplement.cpp
-  enumerate_cis.cpp collar.cpp rollbackunionfind.cpp vertexlinks.cpp
-  pairsig.cpp)
-
 foreach(EXE ${UTILS})
-  add_executable(${EXE} ${EXE}.cpp ${${EXE}_EXTRA_SOURCES})
-  target_link_libraries(${EXE} ${ENGINE_LIBRARY})
+  add_executable(${EXE} ${EXE}.cpp)
+  target_link_libraries(${EXE} surfer_common)
 endforeach()
 
 install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Runtime)

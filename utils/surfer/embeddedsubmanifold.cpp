@@ -666,7 +666,7 @@ bool KnottedSurface::addFace(int f) {
     // answer. petalCache_ memoizes those answers by petal identity, so a
     // repeat occurrence costs a cache lookup instead of rebuilding a Knot
     // and calling into Regina's isSolidTorus()/HomologicalData machinery.
-    int idA = petalCache_.internPetal(petalCorners_(v, root));
+    auto idA = petalCache_.internPetal(petalCorners_(v, root));
 
     // Built lazily: only needed on an actual cache miss below.
     std::optional<Knot> knotA;
@@ -700,7 +700,7 @@ bool KnottedSurface::addFace(int f) {
       if (other == root || !isPetalClosed_(v, other))
         continue;
 
-      int idB = petalCache_.internPetal(petalCorners_(v, other));
+      auto idB = petalCache_.internPetal(petalCorners_(v, other));
       auto cachedLink = petalCache_.lookupLinksNonzero(idA, idB);
       bool nonzero;
       if (cachedLink) {

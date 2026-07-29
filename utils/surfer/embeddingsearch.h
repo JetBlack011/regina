@@ -11,14 +11,12 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <thread>
+#include <vector>
 
 #include <triangulation/dim2.h>
-#include <unordered_map>
 
 #include "embeddedsubmanifold.h"
 #include "enumerate_cis.h"
@@ -122,6 +120,54 @@ struct SearchCallbacks {
 };
 
 /**
+ * Per-worker-thread hook interface for EmbeddingSearch::runSearch_(): fired
+ * on each candidate satisfying the search's BoundaryCondition (onFound) and
+ * whenever a thread's counters flush to the shared accumulators, including
+ * its final flush (onFlush).
+ *
+ * A genuine virtual interface, unlike the embedding type itself
+ * (EmbeddednessPredicate's EmbeddingT, see below) -- onFound()/onFlush()
+ * never touch anything beyond EmbeddedSubmanifold<dim,subdim>'s own base
+ * methods (triangulation(), isClosed(), isProper()), regardless of whether
+ * the search is actually driving a plain EmbeddedSubmanifold or a
+ * KnottedSurface, so there's no correctness reason for this to be a
+ * template parameter. Making it virtual instead is what lets runSearch_()
+ * itself be templated on EmbeddingT alone (see its own doc comment) and
+ * hence explicitly instantiated in embeddingsearch.cpp for the small, fixed
+ * set of concrete embedding types actually used -- a real declaration in
+ * the header, a real definition in the .cpp, no lambda-closure-type
+ * visibility problem. The extra indirect call this costs only happens once
+ * per *satisfying* candidate (see FLUSH_EVERY_BDRY), not once per raw DFS
+ * candidate, so it's nowhere near the hot path EmbeddednessPredicate's
+ * addFace()/removeFace() calls are on.
+ */
+template <int dim, int subdim>
+class RunSearchThreadHook {
+public:
+  virtual void onFound(EmbeddedSubmanifold<dim, subdim> &embedding,
+                       const std::vector<int> &U, long long faceCount) = 0;
+  virtual void onFlush() = 0;
+  virtual ~RunSearchThreadHook() = default;
+};
+
+/**
+ * Aux-thread hook interface for EmbeddingSearch::runSearch_(): `spawn()`
+ * starts an optional thread running alongside the workers (returning a
+ * default-constructed, non-joinable std::thread if none is needed);
+ * `afterJoin()` runs once that thread has been joined. Never
+ * embedding-type-specific either (see RunSearchThreadHook for why that
+ * matters for runSearch_()'s own separate-compilation story) -- SurfaceSearch's
+ * own AuxHooks builds whatever KnottedSurface objects it needs internally,
+ * independent of runSearch_()'s own EmbeddingT.
+ */
+class RunSearchAuxHooks {
+public:
+  virtual std::thread spawn(std::atomic<bool> &workersFinished) = 0;
+  virtual void afterJoin() = 0;
+  virtual ~RunSearchAuxHooks() = default;
+};
+
+/**
  * Enumerates embedded subcomplexes (EmbeddedSubmanifold<dim, subdim>) of a
  * triangulation via a parallel depth-first search over its face-adjacency
  * graph (see Skeleton), reporting progress and results through
@@ -201,6 +247,30 @@ protected:
   const Graph graph_; /**< The face-adjacency graph searched over. */
   const bool isSeeded_ = false; /**< Whether this search was constructed seeded. */
 
+  /**
+   * Set for the duration of one runSearch_() call in response to SIGINT
+   * (see runSearch_'s SIGINT-handling doc note), reset to false at that
+   * call's start. A class member (not a runSearch_()-local variable) so
+   * SurfaceSearch's ThreadHook::onFlush() -- which only has access to
+   * *this via its owner_ reference, not to runSearch_'s own locals -- can
+   * check it too, to cut a full-drain-to-empty pass (see pauseRequested_
+   * below) short on interrupt rather than insisting on draining
+   * everything first.
+   */
+  std::atomic<bool> stopRequested_{false};
+
+  /**
+   * Sits alongside stopRequested_ but with different semantics: set (see
+   * SurfaceSearch::ThreadHook::onFlush()) while a full drain-to-empty pass
+   * of a pending-surface queue is in progress, so every DFS worker's
+   * tryAdd() *blocks* (not rejects -- see InterruptiblePredicate) until it
+   * clears, pausing candidate production without losing any embeddings a
+   * rejected tryAdd() would have permanently pruned. Always false, and
+   * never set by anyone, for the base EmbeddingSearch<dim,subdim>::search()
+   * itself -- only SurfaceSearch has a pending-surface queue to drain.
+   */
+  std::atomic<bool> pauseRequested_{false};
+
 private:
   std::vector<EmbeddedSubmanifold<dim, subdim>> valid_embeddings_; /**< Currently unused. */
 
@@ -257,26 +327,33 @@ protected:
    * injection points, threaded through here so the bulk of either
    * function (threading, atomics, reporting) exists exactly once.
    *
+   * \tparam EmbeddingT the concrete embedding type the DFS predicate drives
+   * (EmbeddedSubmanifold<dim,subdim> itself, see EmbeddingSearch::search(),
+   * or KnottedSurface, see SurfaceSearch::search()) -- genuinely a template
+   * parameter (not type-erased like the hook parameters below), since
+   * EmbeddednessPredicate<EmbeddingT> calls addFace()/removeFace()
+   * non-virtually; resolving to KnottedSurface's enhanced overrides
+   * requires EmbeddingT to already be the derived type at compile time.
+   * This is also runSearch_()'s *only* template parameter: declared here,
+   * defined (and explicitly instantiated for every EmbeddingT actually
+   * used) in embeddingsearch.cpp, exactly like any other member function
+   * of an explicitly-instantiated class template -- unlike the hook
+   * parameters below, EmbeddingT is a nameable, fixed set of concrete
+   * types, so this doesn't have the lambda-closure-visibility problem
+   * EmbeddednessPredicate's own doc comment describes.
+   *
    * \param numThreads the number of worker threads to search with.
    * \param cond restricts results to embeddings satisfying this
    * condition.
    * \param makeEmbedding factory called once per worker thread (plus
    * once more for the seeded-root prototype), returning the embedding
-   * object the DFS predicate drives. Defaults to
-   * EmbeddedSubmanifold<dim,subdim> (see EmbeddingSearch::search());
-   * SurfaceSearch supplies KnottedSurface instead.
+   * object the DFS predicate drives.
    * \param makeThreadHook factory called once per worker thread,
-   * returning an object with `onFound(embedding, U, faceCount)` (called
-   * for each candidate satisfying `cond`) and `onFlush()` (called
-   * whenever that thread's counters flush to the shared accumulators,
-   * including its final flush).
+   * returning a RunSearchThreadHook.
    * \param onSeedFound called at most once, if `isSeeded_` and the seed
    * alone already satisfies `cond`.
    * \param callbacks see SearchCallbacks.
-   * \param auxHooks `spawn(workersFinished)` starts an optional thread
-   * running alongside the workers (returning a default-constructed,
-   * non-joinable std::thread if none is needed); `afterJoin()` runs once
-   * that thread has been joined.
+   * \param auxHooks see RunSearchAuxHooks; must outlive this call.
    * \param iddfsIterations see EmbeddingSearch::search(); 0 (the default)
    * means a single unbounded pass, this method's original behavior.
    * \param iddfsStep see EmbeddingSearch::search().
@@ -285,10 +362,6 @@ protected:
    * \param finalThreads see EmbeddingSearch::search(); defaults to
    * `numThreads` when not given.
    *
-   * \note Each hot-path hook is a compile-time (lambda/functor) type,
-   * not a virtual call, so the no-op hooks EmbeddingSearch::search()
-   * passes cost nothing in the per-candidate hot path.
-   *
    * \note SIGINT handling: for the duration of this call, Ctrl+C sets a
    * shared stop flag (see EmbeddednessPredicate) that prunes the DFS
    * everywhere, so worker threads wind down quickly and control falls
@@ -296,16 +369,17 @@ protected:
    * second Ctrl+C -- at any point until this call returns, including
    * during afterJoin() -- terminates the process immediately.
    */
-  template <typename EmbeddingFactory, typename ThreadHookFactory,
-            typename OnSeedFound, typename AuxHooks>
-  SearchStats runSearch_(unsigned numThreads, BoundaryCondition cond,
-                         EmbeddingFactory makeEmbedding,
-                         ThreadHookFactory makeThreadHook,
-                         OnSeedFound onSeedFound,
-                         const SearchCallbacks &callbacks, AuxHooks auxHooks,
-                         unsigned iddfsIterations = 0, long long iddfsStep = 0,
-                         std::optional<long long> iddfsStart = std::nullopt,
-                         std::optional<unsigned> finalThreads = std::nullopt);
+  template <typename EmbeddingT>
+  SearchStats runSearch_(
+      unsigned numThreads, BoundaryCondition cond,
+      std::function<EmbeddingT()> makeEmbedding,
+      std::function<std::unique_ptr<RunSearchThreadHook<dim, subdim>>()>
+          makeThreadHook,
+      std::function<void(const std::vector<int> &)> onSeedFound,
+      const SearchCallbacks &callbacks, RunSearchAuxHooks &auxHooks,
+      unsigned iddfsIterations = 0, long long iddfsStep = 0,
+      std::optional<long long> iddfsStart = std::nullopt,
+      std::optional<unsigned> finalThreads = std::nullopt);
 
 private:
   /** Builds the face-adjacency graph of `skeleton`'s subdim-faces (unseeded). */
@@ -323,422 +397,32 @@ private:
 extern template class EmbeddingSearch<3, 2>;
 extern template class EmbeddingSearch<4, 2>;
 
-/**
- * Everything needed to describe one found surface when no boundary-link
- * data is being tracked (BoundaryCondition::all/closed), handed to
- * SurfaceSearchCallbacks::onSurfaceFound.
- */
-struct SurfaceFoundInfo {
-  bool orientable; /**< Whether the surface is orientable. */
-  int genus; /**< The surface's genus. */
-  int punctures; /**< The surface's number of punctures (boundary components). */
-  long long triangleCount; /**< The surface's number of triangles. */
-  BoundaryCondition mostRestrictive;
-      /**< The most restrictive BoundaryCondition this specific surface
-           satisfies -- not necessarily the one the whole search was run
-           under. Only isClosed()/isProper() are checked (both O(1)), not
-           the O(ambient triangulation size)
-           boundaryComponentsMapInjectively(), so this is never
-           "connected". */
-};
-
-/**
- * SurfaceFoundInfo plus the boundary-link description, handed to
- * SurfaceSearchCallbacks::onSurfaceBoundaryProcessed once boundary links
- * are being tracked (BoundaryCondition::proper/connected).
- */
-struct SurfaceBoundaryInfo : SurfaceFoundInfo {
-  std::string boundaryDescription;
-      /**< A formatted description of the surface's boundary; empty if
-           the surface turned out closed. */
-};
-
-/**
- * SurfaceSearch's own callbacks: everything SearchCallbacks offers for
- * the main DFS phase, plus per-surface callbacks and three more for the
- * deferred boundary-link post-processing phase
- * (processRemainingSurfaceBoundaries) that runs after it.
- */
-struct SurfaceSearchCallbacks : SearchCallbacks {
-  std::function<void(const SurfaceFoundInfo &)> onSurfaceFound;
-      /**< Fired once per found surface when boundary links are not
-           being tracked (BoundaryCondition::all/closed), from the DFS
-           hot path itself -- deliberately cheap (see
-           SurfaceFoundInfo::mostRestrictive), since it can fire once per
-           DFS node visited under BoundaryCondition::all. */
-  std::function<void(const SurfaceBoundaryInfo &)> onSurfaceBoundaryProcessed;
-      /**< Fired once per found surface when boundary links are being
-           tracked (BoundaryCondition::proper/connected), from the
-           deferred boundary-link processing phase. Mutually exclusive
-           with onSurfaceFound: exactly one of the two fires per found
-           surface. */
-  std::function<void(size_t total, unsigned numThreads)>
-      onBoundaryProcessingStarted;
-      /**< Fired once, when boundary-link post-processing begins. */
-  std::function<void(size_t processed, size_t total,
-                     std::chrono::steady_clock::duration elapsed)>
-      onBoundaryProcessingProgress;
-      /**< Fired roughly once a second while boundary-link
-           post-processing runs. */
-  std::function<void(size_t total, std::chrono::steady_clock::duration elapsed)>
-      onBoundaryProcessingComplete;
-      /**< Fired once, when boundary-link post-processing finishes. `total`
-           is always the full batch size (processBatchParallel_ always
-           drains it completely once started), letting a caller report an
-           overall average rate. */
-};
-
-/**
- * A search over KnottedSurfaces that additionally recognizes each found
- * surface's boundary curves per ambient boundary component, tallying
- * which surface types have which per-component boundary identifications.
- *
- * This has its own search() (rather than delegating to
- * EmbeddingSearch<4,2>::search()) so that surface-type tallying and
- * boundary-link batching can be interleaved into the same DFS pass and
- * the same once-a-second progress report.
- */
-class SurfaceSearch : public EmbeddingSearch<4, 2> {
-public:
-  /** See KnottedSurface::SurfaceTypeKey. */
-  using SurfaceTypeKey = KnottedSurface::SurfaceTypeKey;
-
-private:
-  /** A thread-safe tally of how many surfaces of each SurfaceTypeKey were found. */
-  class SurfaceTypeTally {
-  private:
-    mutable std::mutex mutex_;
-    std::map<SurfaceTypeKey, long long> counts_;
-
-  public:
-    /** Merges `local`'s counts into this tally. */
-    void merge(std::map<SurfaceTypeKey, long long> &local);
-
-    /** Returns a human-readable summary of the current tally. */
-    std::string summary() const;
-  };
-
-  /** A thread-safe queue of surfaces (as face-index lists) awaiting boundary-link processing. */
-  class PendingSurfaceBatch {
-  private:
-    mutable std::mutex mutex_;
-    std::vector<std::vector<int>> pending_;
-
-  public:
-    /** Merges `local`'s entries into this batch. */
-    void merge(std::vector<std::vector<int>> &local);
-
-    /** Removes and returns every currently pending entry. */
-    std::vector<std::vector<int>> drain();
-
-    /**
-     * Removes and returns up to `maxCount` entries in one lock
-     * acquisition (fewer if that's all that's available, none if
-     * empty).
-     *
-     * Used by the background drain loop (see backgroundDrainLoop_) so
-     * it never claims more than a small, bounded amount of work at
-     * once, keeping it quick to hand the rest off once the search ends.
-     */
-    std::vector<std::vector<int>> popSome(size_t maxCount);
-  };
-
-  /**
-   * A thread-safe tally, per boundary descriptor (see describeBoundary_
-   * -- one string capturing the identification of every curve in every
-   * ambient boundary component a surface's boundary touches), of how
-   * many surfaces of each type were found with that exact descriptor.
-   */
-  class LinkBoundaryTally {
-  private:
-    mutable std::mutex mutex_;
-    std::unordered_map<std::string, std::map<SurfaceTypeKey, long long>>
-        descriptorSurfaceTypes_;
-    std::vector<std::string> order_;
-        /**< Distinct descriptors, in the order record() first saw each one
-             -- lets summary(maxRecent) show only the most recently
-             encountered descriptors without an unbounded line count. */
-
-  public:
-    /** Records one surface of `type` found with boundary `descriptor`. */
-    void record(const std::string &descriptor, const SurfaceTypeKey &type);
-
-    /**
-     * Returns a human-readable summary of the current tally.
-     *
-     * With `maxRecent` unset, every distinct descriptor is listed,
-     * alphabetically -- suitable for a final, one-shot summary. With
-     * `maxRecent` set, only the `maxRecent` most recently *first*
-     * encountered descriptors are listed (in that discovery order, not
-     * alphabetically) -- suitable for a live, repeatedly-redrawn progress
-     * report, so its length stays bounded regardless of how many distinct
-     * boundaries a long search eventually turns up.
-     */
-    std::string summary(std::optional<size_t> maxRecent = std::nullopt) const;
-  };
-
-  /**
-   * Per-worker-thread hook passed to runSearch_(): tallies surface types
-   * and (when boundary links are wanted) batches each find's face
-   * indices for later link identification, merging into the owning
-   * SurfaceSearch's shared accumulators whenever the harness flushes
-   * this thread's counters.
-   */
-  class ThreadHook {
-    SurfaceSearch &owner_;
-    SurfaceTypeTally &tally_;
-    bool wantLinks_;
-    const SurfaceSearchCallbacks &callbacks_;
-    std::map<SurfaceTypeKey, long long> localTypeCounts_;
-    std::vector<std::vector<int>> localPending_;
-
-  public:
-    ThreadHook(SurfaceSearch &owner, SurfaceTypeTally &tally, bool wantLinks,
-              const SurfaceSearchCallbacks &callbacks)
-        : owner_(owner), tally_(tally), wantLinks_(wantLinks),
-          callbacks_(callbacks) {}
-
-    void onFound(EmbeddedSubmanifold<4, 2> &embedding,
-                const std::vector<int> &U, long long faceCount);
-
-    void onFlush();
-  };
-
-  /**
-   * Aux-thread hook passed to runSearch_(): continuously drains
-   * pendingSurfaces_ into boundary links for as long as the search runs
-   * (see backgroundDrainLoop_), then hands off whatever it hasn't gotten
-   * to once the workers finish.
-   */
-  class AuxHooks {
-    SurfaceSearch &owner_;
-    unsigned numThreads_;
-    bool wantLinks_;
-    const SurfaceSearchCallbacks &callbacks_;
-
-  public:
-    AuxHooks(SurfaceSearch &owner, unsigned numThreads, bool wantLinks,
-             const SurfaceSearchCallbacks &callbacks)
-        : owner_(owner), numThreads_(numThreads), wantLinks_(wantLinks),
-          callbacks_(callbacks) {}
-
-    std::thread spawn(std::atomic<bool> &workersFinished);
-
-    void afterJoin();
-  };
-
-  PendingSurfaceBatch pendingSurfaces_; /**< Surfaces awaiting boundary-link processing. */
-  LinkBoundaryTally linkTally_; /**< See linkTally(). */
-  SurfaceTypeTally surfaceTypeTally_; /**< See surfaceTypeTally(). */
-
-  /**
-   * Shared across every KnottedSurface this search constructs (the main
-   * DFS workers, the seed-validation/surfaceType probes, and the
-   * boundary-link-processing workers) -- see PetalCache and
-   * KnottedSurface's external-cache constructors. One instance regardless
-   * of thread count, rather than one full cache per thread.
-   */
-  PetalCache petalCache_;
-
-  /**
-   * mutable throughout: this whole group is a lazily-built cache (see
-   * ensureBoundarySigCaches_()), populated on first use regardless of
-   * whether that first use happens through a const accessor
-   * (boundarySignatureCacheStats()) or describeBoundary_() itself.
-   */
-  mutable std::once_flag boundaryCachesOnce_;
-
-  /**
-   * Copies of the ambient triangulation's boundary components, built once,
-   * lazily (see ensureBoundarySigCaches_()), and never modified again --
-   * the exact same BoundaryComponent::build() call KnottedSurface's own
-   * constructor uses for bdryComponents_, so boundarySigCaches_
-   * canonicalizes marked edge sets against the identical edge indexing
-   * boundaryLinks() itself produces them in.
-   */
-  mutable std::vector<regina::Triangulation<3>> boundaryComponentTris_;
-
-  /**
-   * One BoundarySignatureCache per entry of boundaryComponentTris_, shared
-   * across every worker thread the same way petalCache_ is -- see
-   * describeBoundary_(). unique_ptr since BoundarySignatureCache isn't
-   * default-constructible (it tracks a fixed triangulation from
-   * construction on) and must never be relocated once other threads may
-   * be holding a reference to it.
-   */
-  mutable std::vector<std::unique_ptr<BoundarySignatureCache>>
-      boundarySigCaches_;
-
-  /**
-   * Builds boundaryComponentTris_/boundarySigCaches_ on first use,
-   * regardless of which thread triggers it (std::once_flag) -- using the
-   * same BoundaryComponent::build() call KnottedSurface's constructor
-   * uses, so both stay in lockstep on edge indexing. const (like the
-   * members it populates are mutable) since a first call may come through
-   * either describeBoundary_() or the const stats accessors.
-   */
-  void ensureBoundarySigCaches_() const;
-
-public:
-  using EmbeddingSearch<4, 2>::EmbeddingSearch;
-
-  /**
-   * As the inherited seeded constructor, but additionally validates the
-   * seed via a temporary KnottedSurface (not just a temporary
-   * EmbeddedSubmanifold<4,2>), so a seed baked with an illegal
-   * crossing/knot -- not just a facet-level collision -- is caught
-   * eagerly too.
-   */
-  SurfaceSearch(const regina::Triangulation<4> &tri,
-               const std::vector<int> &seedFaces);
-
-  /** Returns the current tally of found surfaces by boundary descriptor. */
-  const LinkBoundaryTally &linkTally() const { return linkTally_; }
-
-  /** Returns the current tally of found surfaces by SurfaceTypeKey. */
-  const SurfaceTypeTally &surfaceTypeTally() const {
-    return surfaceTypeTally_;
-  }
-
-  /**
-   * Returns a snapshot of the shared PetalCache's current hit/miss
-   * counters (see PetalCache::Stats) -- how much recomputation memoizing
-   * addFace()'s local-flatness/transverse-self-intersection checks is
-   * actually avoiding, aggregated across every thread since they all share
-   * this one cache.
-   */
-  PetalCache::Stats petalCacheStats() const { return petalCache_.stats(); }
-
-  /**
-   * Returns the aggregated hit/miss counters of every boundary component's
-   * BoundarySignatureCache (see boundarySigCaches_) summed together -- how
-   * much recomputation the pre-triangulation boundary-signature cache is
-   * actually avoiding, across every search thread.
-   */
-  BoundarySignatureCacheStats boundarySignatureCacheStats() const;
-
-  /** As above, but the total number of distinct canonical boundary signatures seen across every boundary component. */
-  size_t boundarySignatureCacheSize() const;
-
-  /** As EmbeddingSearch::search(), reporting through `callbacks`. */
-  SearchStats search(unsigned numThreads,
-                     BoundaryCondition cond = BoundaryCondition::all,
-                     const SurfaceSearchCallbacks &callbacks = {},
-                     unsigned iddfsIterations = 0, long long iddfsStep = 0,
-                     std::optional<long long> iddfsStart = std::nullopt,
-                     std::optional<unsigned> finalThreads = std::nullopt);
-
-  /**
-   * Processes whatever boundary-link work is left after every DFS
-   * worker thread (and the background drain loop) has finished, using
-   * up to `numThreads` threads.
-   *
-   * Always announces itself via the three onBoundaryProcessing*
-   * callbacks, since by construction this is the sole, complete pass
-   * over anything not already handled by backgroundDrainLoop_.
-   */
-  void processRemainingSurfaceBoundaries(
-      unsigned numThreads, const SurfaceSearchCallbacks &callbacks = {});
-
-private:
-  /**
-   * Runs on the aux thread for as long as search() (with boundary links
-   * wanted) is active: continuously pops and processes small batches
-   * (via popSome(), never the whole queue), so pendingSurfaces_ never
-   * grows unbounded and the once-a-second progress report keeps
-   * reflecting linkTally_'s growth.
-   *
-   * Checks `workersFinished` between every individual entry, not just
-   * between batches, so this stops within roughly one entry's
-   * processing time once the DFS finishes or is interrupted -- handing
-   * back any unprocessed remainder of its current batch to
-   * pendingSurfaces_ rather than finishing it out.
-   * processRemainingSurfaceBoundaries() then picks up everything left,
-   * in one clean pass, once this has returned.
-   */
-  void backgroundDrainLoop_(const std::atomic<bool> &workersFinished,
-                            const SurfaceSearchCallbacks &callbacks);
-
-  /**
-   * Shared parallel-processing core behind
-   * processRemainingSurfaceBoundaries(): splits `batch` into CHUNK-sized
-   * slices off a shared atomic cursor, processed by up to
-   * min(numThreads, batch.size()) worker threads (each with its own
-   * reused KnottedSurface, via processBatchRange_), reporting through
-   * the onBoundaryProcessing* callbacks throughout.
-   */
-  void processBatchParallel_(std::vector<std::vector<int>> batch,
-                            unsigned numThreads,
-                            const SurfaceSearchCallbacks &callbacks);
-
-  /**
-   * Runs the addFace/boundaryLinks/record/removeFace sequence for one
-   * queued surface's face indices against `embedding` (reused by the
-   * caller across many entries), recording one boundary descriptor (see
-   * describeBoundary_) into linkTally_ if the surface has any boundary
-   * at all, and firing `callbacks.onSurfaceBoundaryProcessed` with the
-   * same descriptor.
-   */
-  void processEntry_(KnottedSurface &embedding,
-                     const std::vector<int> &faceIndices,
-                     const SurfaceSearchCallbacks &callbacks);
-
-  /**
-   * Replays batch[begin, end) via processEntry_, in the exact order the
-   * DFS originally discovered each entry. `embedding` is reused across
-   * the whole range so its boundary-component cache is only built once,
-   * not once per queued surface.
-   */
-  void processBatchRange_(KnottedSurface &embedding,
-                          const std::vector<std::vector<int>> &batch,
-                          size_t begin, size_t end,
-                          const SurfaceSearchCallbacks &callbacks);
-
-  /**
-   * Builds one human-readable descriptor of a surface's whole boundary
-   * from `links` (already grouped and sorted by ambient boundary
-   * component index): for each component, "<component+1>: " followed by
-   * the comma-joined identify() of every curve of that component's
-   * Link, followed by " (<link.identify()>)" only when that component
-   * holds more than one curve -- with per-component entries joined by
-   * ", ". E.g. "1: figure-eight, 2: unknot, unknot (Hopf link)".
-   *
-   * Each curve/link's identify() is resolved through this component's
-   * BoundarySignatureCache (see boundarySigCaches_), so a boundary already
-   * seen -- exactly, or up to a symmetry of its ambient boundary component
-   * -- never reaches EdgeComplement::identify()'s
-   * buildComplement()/simplify()/isoSig() at all. Not static (unlike
-   * before) precisely because it now needs boundarySigCaches_.
-   */
-  std::string
-  describeBoundary_(const std::vector<std::pair<size_t, Link>> &links);
-
-  /**
-   * Returns the most restrictive BoundaryCondition a surface satisfies,
-   * given its already-computed `links` (see boundaryLinks()): closed (no
-   * boundary at all), connected (every ambient boundary component
-   * receives at most one of the surface's own boundary curves -- the
-   * same condition boundaryComponentsMapInjectively() checks, but free
-   * to compute here since `links` is already grouped by component), or
-   * proper (otherwise).
-   *
-   * Shared by processEntry_ and search()'s onSeedFound, so the two never
-   * drift apart on how this is computed.
-   */
-  static BoundaryCondition
-  classifyByLinks_(const std::vector<std::pair<size_t, Link>> &links);
-
-  /**
-   * As classifyByLinks_(), but computed from `embedding` directly using
-   * only isClosed()/isProper() (both O(1)) -- never "connected", since
-   * that needs boundaryComponentsMapInjectively() (O(ambient
-   * triangulation size)), deliberately not paid in the hot path this
-   * feeds.
-   *
-   * Shared by ThreadHook::onFound and search()'s onSeedFound.
-   */
-  static BoundaryCondition
-  classifyCheaply_(const EmbeddedSubmanifold<4, 2> &embedding);
-};
+// Explicit instantiations of runSearch_(), one per concrete EmbeddingT
+// actually used (see runSearch_()'s own doc comment for why this is
+// possible despite it being a member template): defined in
+// embeddingsearch.cpp, so any other translation unit calling search() --
+// e.g. surfacesearch.cpp, for SurfaceSearch<KnottedSurface> -- just needs
+// these declarations, not the ~350-line definition itself.
+extern template SearchStats
+EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
+    unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<3, 2>()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
+extern template SearchStats
+EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
+    unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
+extern template SearchStats
+EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
+    unsigned, BoundaryCondition, std::function<KnottedSurface()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
 
 #endif // EMBEDDINGSEARCH_H

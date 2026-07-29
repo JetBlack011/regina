@@ -12,6 +12,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <iomanip>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <set>
@@ -161,24 +162,32 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
 }
 
 template <int dim, int subdim>
-template <typename EmbeddingFactory, typename ThreadHookFactory,
-          typename OnSeedFound, typename AuxHooks>
+template <typename EmbeddingT>
 SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     unsigned numThreads, BoundaryCondition cond,
-    EmbeddingFactory makeEmbedding, ThreadHookFactory makeThreadHook,
-    OnSeedFound onSeedFound, const SearchCallbacks &callbacks,
-    AuxHooks auxHooks, unsigned iddfsIterations, long long iddfsStep,
+    std::function<EmbeddingT()> makeEmbedding,
+    std::function<std::unique_ptr<RunSearchThreadHook<dim, subdim>>()>
+        makeThreadHook,
+    std::function<void(const std::vector<int> &)> onSeedFound,
+    const SearchCallbacks &callbacks, RunSearchAuxHooks &auxHooks,
+    unsigned iddfsIterations, long long iddfsStep,
     std::optional<long long> iddfsStart,
     std::optional<unsigned> finalThreads) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     // See this method's doc comment (embeddingsearch.h) for the SIGINT
-    // contract. Constructed before the seeded proto-embedding check below
-    // and destroyed only once this whole function returns, so a Ctrl+C
-    // during that check, the worker threads, or auxHooks.afterJoin() is all
-    // handled uniformly.
-    std::atomic<bool> stopRequested{false};
-    SigintScope sigintScope(stopRequested);
+    // contract. stopRequested_/pauseRequested_ are class members (not
+    // locals here) so SurfaceSearch's ThreadHook::onFlush() -- which only
+    // has access to *this via its owner_ reference -- can also check/set
+    // them; reset to false here since a class member could otherwise carry
+    // a stale value from a previous search() call on the same instance.
+    // SigintScope is constructed before the seeded proto-embedding check
+    // below and destroyed only once this whole function returns, so a
+    // Ctrl+C during that check, the worker threads, or auxHooks.afterJoin()
+    // is all handled uniformly.
+    stopRequested_.store(false, std::memory_order_relaxed);
+    pauseRequested_.store(false, std::memory_order_relaxed);
+    SigintScope sigintScope(stopRequested_);
 
     // Shared dynamic work queue over roots. Unseeded: every graph vertex,
     // unconditionally (matches the old s = 1..n sweep exactly). Seeded:
@@ -197,8 +206,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
                                              graph_.graphToSkel);
-        InterruptiblePredicate protoInterruptible(protoPredicate,
-                                                  stopRequested);
+        InterruptiblePredicate protoInterruptible(
+            protoPredicate, stopRequested_, pauseRequested_);
         ConnectedInducedSubgraphEnumerator protoEnumerator(
             graph_.adjList.first, graph_.adjList.second, true,
             protoInterruptible);
@@ -257,7 +266,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                       long long suppressBelow) {
         auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
-        InterruptiblePredicate interruptible(predicate, stopRequested);
+        InterruptiblePredicate interruptible(predicate, stopRequested_,
+                                            pauseRequested_);
         // Only constructed for a capped (iterative-deepening) round; see
         // DepthCappedPredicate. Kept alive for the whole round exactly like
         // `interruptible` above, since it must see the seeded case's
@@ -290,7 +300,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             // root already in progress down to nothing -- this just skips
             // starting fresh roots too, instead of doing so only to have
             // them immediately rejected.
-            if (stopRequested.load(std::memory_order_relaxed))
+            if (stopRequested_.load(std::memory_order_relaxed))
                 break;
             size_t idx = nextRootIdx.fetch_add(1);
             if (idx >= totalRootsPerPass)
@@ -333,7 +343,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                             ++local.satisfyingCount;
                             auto faceCount = static_cast<long long>(
                                 embedding.triangulation().size());
-                            threadHook.onFound(embedding, U, faceCount);
+                            threadHook->onFound(embedding, U, faceCount);
                             local.satisfyingFaceSum += faceCount;
                             local.pendingFaceSum += faceCount;
                             if (++local.pendingSatisfyingCount >= FLUSH_EVERY_BDRY) {
@@ -344,7 +354,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                                     local.pendingFaceSum, std::memory_order_relaxed);
                                 local.pendingSatisfyingCount = 0;
                                 local.pendingFaceSum = 0;
-                                threadHook.onFlush();
+                                threadHook->onFlush();
                             }
                             auto prevMax = stats.largestSatisfying.load(
                                 std::memory_order_relaxed);
@@ -359,21 +369,33 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                 *activePredicate);
             stats.rootsCompleted.fetch_add(1, std::memory_order_relaxed);
         }
-        // flush this thread's remainder so the global count ends up
-        // exact
+        // Flush this thread's remainder so the global count ends up exact.
+        // Must reset each pending counter back to 0 after flushing it, not
+        // just when the in-loop threshold trips (above): perThreadStats[tid]
+        // is reused across iterative-deepening rounds (a fresh std::thread
+        // per round, but the same persistent WorkerStats slot for a given
+        // tid), so a nonzero remainder left un-reset here would otherwise
+        // get flushed a second time by a later round's own final flush,
+        // double-counting it into stats.*.
         if (local.pendingSatisfyingCount > 0) {
             stats.satisfyingCount.fetch_add(local.pendingSatisfyingCount,
                                             std::memory_order_relaxed);
             stats.satisfyingFaceSum.fetch_add(local.pendingFaceSum,
                                               std::memory_order_relaxed);
+            local.pendingSatisfyingCount = 0;
+            local.pendingFaceSum = 0;
         }
-        if (local.pendingEmbeddedCount > 0)
+        if (local.pendingEmbeddedCount > 0) {
             stats.embeddedCount.fetch_add(local.pendingEmbeddedCount,
                                           std::memory_order_relaxed);
-        if (local.pendingFoundCount > 0)
+            local.pendingEmbeddedCount = 0;
+        }
+        if (local.pendingFoundCount > 0) {
             stats.foundCount.fetch_add(local.pendingFoundCount,
                                        std::memory_order_relaxed);
-        threadHook.onFlush();
+            local.pendingFoundCount = 0;
+        }
+        threadHook->onFlush();
     };
 
     auto snapshotStats = [&](long long foundCount, long long embeddedCount,
@@ -442,7 +464,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             roundThreads.emplace_back(worker, t, cap, prevCap);
         for (auto &th : roundThreads)
             th.join();
-        if (stopRequested.load(std::memory_order_relaxed))
+        if (stopRequested_.load(std::memory_order_relaxed))
             break;
         prevCap = cap;
     }
@@ -466,7 +488,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // that flag flips, so it can still fire one more onProgress afterward --
     // firing this any earlier meant a caller redrawing in place on each
     // onProgress call would immediately overwrite it.
-    if (stopRequested.load(std::memory_order_relaxed) && callbacks.onInterrupted)
+    if (stopRequested_.load(std::memory_order_relaxed) && callbacks.onInterrupted)
         callbacks.onInterrupted();
 
     if (aux.joinable()) {
@@ -504,20 +526,21 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
     const SearchCallbacks &callbacks, unsigned iddfsIterations,
     long long iddfsStep, std::optional<long long> iddfsStart,
     std::optional<unsigned> finalThreads) {
-    struct NoopThreadHook {
+    struct NoopThreadHook : RunSearchThreadHook<dim, subdim> {
         void onFound(EmbeddedSubmanifold<dim, subdim> &,
-                    const std::vector<int> &, long long) {}
-        void onFlush() {}
+                    const std::vector<int> &, long long) override {}
+        void onFlush() override {}
     };
-    struct NoopAuxHooks {
-        std::thread spawn(std::atomic<bool> &) { return {}; }
-        void afterJoin() {}
+    struct NoopAuxHooks : RunSearchAuxHooks {
+        std::thread spawn(std::atomic<bool> &) override { return {}; }
+        void afterJoin() override {}
     };
-    return runSearch_(
+    NoopAuxHooks noopAuxHooks;
+    return runSearch_<EmbeddedSubmanifold<dim, subdim>>(
         numThreads, cond,
         [this] { return EmbeddedSubmanifold<dim, subdim>(skeleton_); },
-        [] { return NoopThreadHook{}; },
-        [](const std::vector<int> &) {}, callbacks, NoopAuxHooks{},
+        [] { return std::make_unique<NoopThreadHook>(); },
+        [](const std::vector<int> &) {}, callbacks, noopAuxHooks,
         iddfsIterations, iddfsStep, iddfsStart, finalThreads);
 }
 
@@ -629,445 +652,36 @@ EmbeddingSearch<dim, subdim>::buildSeededGraph_(
 template class EmbeddingSearch<3, 2>;
 template class EmbeddingSearch<4, 2>;
 
-SurfaceSearch::SurfaceSearch(const regina::Triangulation<4> &tri,
-                             const std::vector<int> &seedFaces)
-    : EmbeddingSearch<4, 2>(tri, seedFaces) {
-    // Additional validation beyond the base class's own (facet-level-only)
-    // seeded-constructor check above: KnottedSurface's seeded constructor
-    // runs the enhanced addFace()/addFaces() (transverse-self-intersection/
-    // local-flatness checks included), throwing regina::InvalidArgument if
-    // any face fails them -- this temporary exists purely for that side
-    // effect.
-    KnottedSurface(skeleton_, petalCache_, seedFaces);
-}
+// Explicit instantiations of runSearch_(), one per concrete EmbeddingT
+// actually used -- see the extern template declarations in
+// embeddingsearch.h (and runSearch_()'s own doc comment there) for why
+// this works despite runSearch_ being a member template: EmbeddingT is a
+// small, fixed, nameable set of concrete types (unlike the lambda-closure
+// types the other hook parameters used to be), so ordinary explicit
+// instantiation applies. KnottedSurface's full definition is visible here
+// via embeddedsubmanifold.h (included transitively through
+// embeddingsearch.h), so this instantiation -- used only by
+// SurfaceSearch::search(), in surfacesearch.cpp -- can live in this file
+// rather than surfacesearch.cpp itself.
+template SearchStats
+EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
+    unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<3, 2>()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
+template SearchStats
+EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
+    unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
+template SearchStats
+EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
+    unsigned, BoundaryCondition, std::function<KnottedSurface()>,
+    std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
+    std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
+    RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
+    std::optional<unsigned>);
 
-void SurfaceSearch::SurfaceTypeTally::merge(
-    std::map<SurfaceTypeKey, long long> &local) {
-    if (local.empty())
-        return;
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto &[key, n] : local)
-        counts_[key] += n;
-    local.clear();
-}
-
-std::string SurfaceSearch::SurfaceTypeTally::summary() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::ostringstream out;
-    out << "Number of surfaces found:\n";
-    if (counts_.empty()) {
-        out << "  (none yet)\n";
-    } else {
-        for (const auto &[key, n] : counts_)
-            out << "  " << KnottedSurface::formatSurfaceType(key) << " = " << n
-                << "\n";
-    }
-    return out.str();
-}
-
-void SurfaceSearch::PendingSurfaceBatch::merge(
-    std::vector<std::vector<int>> &local) {
-    if (local.empty())
-        return;
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto &faceIndices : local)
-        pending_.push_back(std::move(faceIndices));
-    local.clear();
-}
-
-std::vector<std::vector<int>> SurfaceSearch::PendingSurfaceBatch::drain() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<std::vector<int>> out;
-    std::swap(out, pending_);
-    return out;
-}
-
-std::vector<std::vector<int>>
-SurfaceSearch::PendingSurfaceBatch::popSome(size_t maxCount) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    size_t count = std::min(maxCount, pending_.size());
-    std::vector<std::vector<int>> out;
-    out.reserve(count);
-    for (size_t i = 0; i < count; ++i)
-        out.push_back(std::move(pending_[pending_.size() - count + i]));
-    pending_.resize(pending_.size() - count);
-    return out;
-}
-
-void SurfaceSearch::LinkBoundaryTally::record(const std::string &descriptor,
-                                              const SurfaceTypeKey &type) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto it = descriptorSurfaceTypes_.find(descriptor);
-    if (it == descriptorSurfaceTypes_.end())
-        order_.push_back(descriptor);
-    ++descriptorSurfaceTypes_[descriptor][type];
-}
-
-std::string
-SurfaceSearch::LinkBoundaryTally::summary(std::optional<size_t> maxRecent) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::ostringstream out;
-    out << "Surface boundaries found:\n";
-    if (descriptorSurfaceTypes_.empty()) {
-        out << "  (none yet)\n";
-    } else {
-        std::vector<std::string> descriptors;
-        if (maxRecent && *maxRecent < order_.size()) {
-            // Most recently *first-encountered* descriptors, oldest of the
-            // shown ones first -- discovery order, not alphabetical, so a
-            // live progress report reads as a log rather than reshuffling
-            // every time a new descriptor enters/leaves the window.
-            descriptors.assign(order_.end() - static_cast<long>(*maxRecent),
-                               order_.end());
-            out << "  (showing the " << *maxRecent << " most recently "
-                << "encountered of " << order_.size() << " distinct "
-                << "boundaries)\n";
-        } else {
-            descriptors = order_;
-            std::sort(descriptors.begin(), descriptors.end());
-        }
-
-        for (const std::string &descriptor : descriptors) {
-            out << "  " << descriptor << " - ";
-            bool first = true;
-            for (const auto &[type, count] :
-                 descriptorSurfaceTypes_.at(descriptor)) {
-                if (!first)
-                    out << ", ";
-                out << KnottedSurface::formatSurfaceType(type) << " (" << count
-                    << ")";
-                first = false;
-            }
-            out << "\n";
-        }
-    }
-    return out.str();
-}
-
-void SurfaceSearch::ensureBoundarySigCaches_() const {
-    std::call_once(boundaryCachesOnce_, [this] {
-        const auto &tri = skeleton_.triangulation();
-        boundaryComponentTris_.reserve(tri.countBoundaryComponents());
-        for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-            boundaryComponentTris_.push_back(
-                tri.boundaryComponent(c)->build());
-
-        boundarySigCaches_.reserve(boundaryComponentTris_.size());
-        for (const auto &bc : boundaryComponentTris_)
-            boundarySigCaches_.push_back(
-                std::make_unique<BoundarySignatureCache>(bc));
-    });
-}
-
-std::string SurfaceSearch::describeBoundary_(
-    const std::vector<std::pair<size_t, Link>> &links) {
-    ensureBoundarySigCaches_();
-
-    std::ostringstream out;
-    bool firstComponent = true;
-    for (const auto &[component, link] : links) {
-        if (!firstComponent)
-            out << ", ";
-        firstComponent = false;
-
-        BoundarySignatureCache &cache = *boundarySigCaches_[component];
-
-        out << (component + 1) << ": ";
-        bool firstCurve = true;
-        for (const Knot &curve : link.comps_) {
-            if (!firstCurve)
-                out << ", ";
-            firstCurve = false;
-            out << cache.identifyCached(curve.edgeIndices(),
-                                        [&curve] { return curve.identify(); });
-        }
-        if (link.comps_.size() > 1)
-            out << " (" << cache.identifyCached(
-                               link.edgeIndices(),
-                               [&link] { return link.identify(); })
-                << ")";
-    }
-    return out.str();
-}
-
-BoundarySignatureCacheStats SurfaceSearch::boundarySignatureCacheStats() const {
-    ensureBoundarySigCaches_();
-    BoundarySignatureCacheStats total;
-    for (const auto &cache : boundarySigCaches_) {
-        auto s = cache->stats();
-        total.checks += s.checks;
-        total.hits += s.hits;
-    }
-    return total;
-}
-
-size_t SurfaceSearch::boundarySignatureCacheSize() const {
-    ensureBoundarySigCaches_();
-    size_t total = 0;
-    for (const auto &cache : boundarySigCaches_)
-        total += cache->size();
-    return total;
-}
-
-BoundaryCondition SurfaceSearch::classifyByLinks_(
-    const std::vector<std::pair<size_t, Link>> &links) {
-    if (links.empty())
-        return BoundaryCondition::closed;
-    bool connected =
-        std::all_of(links.begin(), links.end(), [](const auto &entry) {
-            return entry.second.comps_.size() <= 1;
-        });
-    return connected ? BoundaryCondition::connected : BoundaryCondition::proper;
-}
-
-BoundaryCondition
-SurfaceSearch::classifyCheaply_(const EmbeddedSubmanifold<4, 2> &embedding) {
-    if (embedding.isClosed())
-        return BoundaryCondition::closed;
-    if (embedding.isProper())
-        return BoundaryCondition::proper;
-    return BoundaryCondition::all;
-}
-
-void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
-                                        const std::vector<int> &U,
-                                        long long faceCount) {
-    auto type = KnottedSurface::surfaceTypeKey(embedding.triangulation());
-    ++localTypeCounts_[type];
-    if (wantLinks_) {
-        std::vector<int> faceIndices;
-        for (int v : U)
-            for (int f : owner_.graph_.graphToSkel[v - 1])
-                faceIndices.push_back(f);
-        localPending_.push_back(std::move(faceIndices));
-    } else if (callbacks_.onSurfaceFound) {
-        auto [orientable, genus, punctures] = type;
-        callbacks_.onSurfaceFound(SurfaceFoundInfo{
-            .orientable = orientable,
-            .genus = genus,
-            .punctures = punctures,
-            .triangleCount = faceCount,
-            .mostRestrictive = classifyCheaply_(embedding)});
-    }
-}
-
-void SurfaceSearch::ThreadHook::onFlush() {
-    tally_.merge(localTypeCounts_);
-    if (wantLinks_)
-        owner_.pendingSurfaces_.merge(localPending_);
-}
-
-std::thread SurfaceSearch::AuxHooks::spawn(std::atomic<bool> &workersFinished) {
-    if (!wantLinks_)
-        return {};
-    return std::thread([this, &workersFinished]() {
-        owner_.backgroundDrainLoop_(workersFinished, callbacks_);
-    });
-}
-
-void SurfaceSearch::AuxHooks::afterJoin() {
-    owner_.processRemainingSurfaceBoundaries(numThreads_, callbacks_);
-}
-
-void SurfaceSearch::backgroundDrainLoop_(
-    const std::atomic<bool> &workersFinished,
-    const SurfaceSearchCallbacks &callbacks) {
-    using namespace std::chrono_literals;
-    // Matches processBatchParallel_'s own CHUNK size -- not load-bearing
-    // that they're equal, just a reasonable shared "small batch" constant.
-    constexpr size_t POP_BATCH = 64;
-    KnottedSurface embedding(skeleton_, petalCache_);
-    while (!workersFinished.load(std::memory_order_relaxed)) {
-        auto items = pendingSurfaces_.popSome(POP_BATCH);
-        if (items.empty()) {
-            std::this_thread::sleep_for(20ms);
-            continue;
-        }
-        for (size_t i = 0; i < items.size(); ++i) {
-            if (workersFinished.load(std::memory_order_relaxed)) {
-                // The search ended partway through this small batch: hand
-                // the unprocessed remainder back to the shared queue --
-                // popSome() already removed it from pending_, so
-                // processRemainingSurfaceBoundaries()'s drain() would
-                // never otherwise see it.
-                std::vector<std::vector<int>> remainder(
-                    std::make_move_iterator(items.begin() +
-                                            static_cast<ptrdiff_t>(i)),
-                    std::make_move_iterator(items.end()));
-                pendingSurfaces_.merge(remainder);
-                return;
-            }
-            processEntry_(embedding, items[i], callbacks);
-        }
-    }
-}
-
-void SurfaceSearch::processRemainingSurfaceBoundaries(
-    unsigned numThreads, const SurfaceSearchCallbacks &callbacks) {
-    processBatchParallel_(pendingSurfaces_.drain(), numThreads, callbacks);
-}
-
-void SurfaceSearch::processBatchParallel_(
-    std::vector<std::vector<int>> batch, unsigned numThreads,
-    const SurfaceSearchCallbacks &callbacks) {
-    if (batch.empty())
-        return;
-
-    const auto phaseStart = std::chrono::steady_clock::now();
-    const size_t total = batch.size();
-    const unsigned workerCount =
-        static_cast<unsigned>(std::min<size_t>(numThreads, total));
-
-    if (callbacks.onBoundaryProcessingStarted)
-        callbacks.onBoundaryProcessingStarted(total, workerCount);
-
-    constexpr size_t CHUNK = 64;
-    std::atomic<size_t> nextIndex{0};
-    std::atomic<size_t> processedCount{0};
-    std::atomic<bool> done{false};
-
-    std::thread reporter([&]() {
-        using namespace std::chrono_literals;
-        while (!done.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(1s);
-            if (!callbacks.onBoundaryProcessingProgress)
-                continue;
-            callbacks.onBoundaryProcessingProgress(
-                processedCount.load(std::memory_order_relaxed), total,
-                std::chrono::steady_clock::now() - phaseStart);
-        }
-    });
-
-    auto worker = [&]() {
-        KnottedSurface embedding(skeleton_, petalCache_);
-        while (true) {
-            size_t begin =
-                nextIndex.fetch_add(CHUNK, std::memory_order_relaxed);
-            if (begin >= total)
-                break;
-            size_t end = std::min(begin + CHUNK, total);
-            processBatchRange_(embedding, batch, begin, end, callbacks);
-            processedCount.fetch_add(end - begin, std::memory_order_relaxed);
-        }
-    };
-
-    std::vector<std::thread> threads;
-    threads.reserve(workerCount);
-    for (unsigned t = 0; t < workerCount; ++t)
-        threads.emplace_back(worker);
-    for (auto &th : threads)
-        th.join();
-
-    done.store(true, std::memory_order_relaxed);
-    reporter.join();
-    if (callbacks.onBoundaryProcessingComplete)
-        callbacks.onBoundaryProcessingComplete(
-            total, std::chrono::steady_clock::now() - phaseStart);
-}
-
-void SurfaceSearch::processEntry_(KnottedSurface &embedding,
-                                  const std::vector<int> &faceIndices,
-                                  const SurfaceSearchCallbacks &callbacks) {
-    for (int idx : faceIndices)
-        embedding.addFace(idx);
-
-    SurfaceTypeKey type = embedding.surfaceType();
-    auto links = embedding.boundaryLinks();
-    std::string descriptor;
-    if (!links.empty()) {
-        descriptor = describeBoundary_(links);
-        linkTally_.record(descriptor, type);
-    }
-
-    if (callbacks.onSurfaceBoundaryProcessed) {
-        auto [orientable, genus, punctures] = type;
-        callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
-            SurfaceFoundInfo{
-                .orientable = orientable,
-                .genus = genus,
-                .punctures = punctures,
-                .triangleCount = static_cast<long long>(faceIndices.size()),
-                .mostRestrictive = classifyByLinks_(links)},
-            descriptor});
-    }
-
-    // Reverse order, mirroring how the DFS itself would back out --
-    // resets embedding to empty for the next entry.
-    for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
-        embedding.removeFace(*it);
-}
-
-void SurfaceSearch::processBatchRange_(
-    KnottedSurface &embedding, const std::vector<std::vector<int>> &batch,
-    size_t begin, size_t end, const SurfaceSearchCallbacks &callbacks) {
-    for (size_t i = begin; i < end; ++i)
-        processEntry_(embedding, batch[i], callbacks);
-}
-
-SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
-                                  const SurfaceSearchCallbacks &callbacks,
-                                  unsigned iddfsIterations, long long iddfsStep,
-                                  std::optional<long long> iddfsStart,
-                                  std::optional<unsigned> finalThreads) {
-    const bool wantLinks = cond == BoundaryCondition::proper ||
-                           cond == BoundaryCondition::connected;
-
-    // Thread safety, not just performance: Vertex<4>::buildLink() caches
-    // its result as a plain, unsynchronized lazily-constructed pointer
-    // (see engine/triangulation/dim4/vertex4.cpp) -- since every worker
-    // thread below shares the same ambient Triangulation<4> (and hence the
-    // same Vertex<4> objects) even though each has its own KnottedSurface,
-    // two workers concurrently reaching faces around the same ambient
-    // vertex could otherwise race on that cache. Forcing every vertex's
-    // link to build once, single-threaded, here -- before runSearch_
-    // spawns any worker thread -- means every later call (even
-    // concurrent) only ever takes the already-built, read-only path.
-    for (auto v : skeleton_.triangulation().vertices())
-        v->buildLink();
-
-    return runSearch_(
-        numThreads, cond,
-        [this] { return KnottedSurface(skeleton_, petalCache_); },
-        [this, wantLinks, &callbacks] {
-            return ThreadHook(*this, surfaceTypeTally_, wantLinks, callbacks);
-        },
-        [this, wantLinks, &callbacks](const std::vector<int> &seedFaces) {
-            // One-off, not hot-path: rebuilds the seed as a KnottedSurface
-            // (rather than reusing runSearch_'s generic proto embedding) to
-            // get at surfaceType()/boundaryLinks(), which only KnottedSurface
-            // exposes. seedFaces is added in the same order used to validate
-            // it originally (see buildSeededGraph_), so this always embeds.
-            KnottedSurface probe(skeleton_, petalCache_, seedFaces);
-            SurfaceTypeKey type = probe.surfaceType();
-            std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
-            surfaceTypeTally_.merge(seedTypeCounts);
-            auto [orientable, genus, punctures] = type;
-            auto triangleCount = static_cast<long long>(seedFaces.size());
-            if (wantLinks) {
-                auto links = probe.boundaryLinks();
-                std::string descriptor;
-                if (!links.empty()) {
-                    descriptor = describeBoundary_(links);
-                    linkTally_.record(descriptor, type);
-                }
-                if (callbacks.onSurfaceBoundaryProcessed)
-                    callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
-                        SurfaceFoundInfo{.orientable = orientable,
-                                        .genus = genus,
-                                        .punctures = punctures,
-                                        .triangleCount = triangleCount,
-                                        .mostRestrictive =
-                                            classifyByLinks_(links)},
-                        descriptor});
-            } else if (callbacks.onSurfaceFound) {
-                callbacks.onSurfaceFound(SurfaceFoundInfo{
-                    .orientable = orientable,
-                    .genus = genus,
-                    .punctures = punctures,
-                    .triangleCount = triangleCount,
-                    .mostRestrictive = classifyCheaply_(probe)});
-            }
-        },
-        callbacks, AuxHooks(*this, numThreads, wantLinks, callbacks),
-        iddfsIterations, iddfsStep, iddfsStart, finalThreads);
-}

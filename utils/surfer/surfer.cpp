@@ -23,6 +23,7 @@
 #include "cobordismbuilder.h"
 #include "collar.h"
 #include "embeddingsearch.h"
+#include "surfacesearch.h"
 #include "knotbuilder.h"
 #include "linkcomplement.h"
 
@@ -31,16 +32,37 @@ namespace {
 // Redraws a block of text in place, using the same ANSI cursor-rewind
 // sequence the old inline reporters used, so each call's output overwrites
 // the previous one instead of scrolling the terminal.
+//
+// Thread-safe: draw() is normally called once a second from a single
+// dedicated reporter thread, but commitLine() (see below) can also fire
+// from an arbitrary worker thread at an arbitrary time relative to that
+// (e.g. SurfaceSearch's queue-drain-pause callbacks) -- both take the same
+// mutex, so two threads never interleave writes to std::cerr or race on
+// prevLines_.
 class RollingReport {
+  std::mutex mutex_;
   size_t prevLines_ = 0;
 
 public:
   void draw(const std::string &text) {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (prevLines_ > 0)
       std::cerr << "\x1b[" << prevLines_ << "F\x1b[0J";
     std::cerr << text;
     prevLines_ =
         static_cast<size_t>(std::count(text.begin(), text.end(), '\n'));
+  }
+
+  // Prints `text` as permanent output, then resets this report's own
+  // erase-tracking so its *next* draw() call redraws fresh underneath
+  // `text` instead of erasing it -- for messages that need to survive
+  // independently of this report's own periodic redraw cycle (e.g. a
+  // queue-drain-pause/resume notice fired from a worker thread), rather
+  // than being silently overwritten by the next draw().
+  void commitLine(const std::string &text) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::cerr << text;
+    prevLines_ = 0;
   }
 };
 
@@ -304,6 +326,60 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     possibly much cheaper boundary-processing "
          "phase.\n\n";
   std::cerr
+      << "    --pending-surface-cap N : Cap on how many found surfaces may "
+         "wait\n"
+         "                     for boundary-link processing at once "
+         "(default:\n"
+         "                     500000). Past this, DFS worker threads fully "
+         "drain\n"
+         "                     the backlog themselves (down to empty, not "
+         "just\n"
+         "                     back under cap) before continuing the "
+         "search --\n"
+         "                     bounds memory during a long --proper/"
+         "--connected\n"
+         "                     run at some throughput cost.\n";
+  std::cerr
+      << "    --petal-cache-limit N : Distinct-petal entry-count threshold "
+         "past\n"
+         "                     which the shared local-flatness/self-"
+         "intersection\n"
+         "                     memoization cache clears itself entirely "
+         "(default:\n"
+         "                     2000000). This cache grows with total DFS "
+         "candidates\n"
+         "                     examined, not just found surfaces, so it's "
+         "usually\n"
+         "                     the largest single contributor to unbounded "
+         "memory\n"
+         "                     growth on a long search.\n";
+  std::cerr
+      << "    --recognition-cache-limit N : Distinct-isoSig entry-count "
+         "threshold\n"
+         "                     past which the boundary-complement "
+         "recognition cache\n"
+         "                     (see linkcomplement.h) clears itself "
+         "entirely\n"
+         "                     (default: 200000).\n";
+  std::cerr
+      << "    --boundary-signature-cache-limit N : As above, for each "
+         "ambient\n"
+         "                     boundary component's pre-triangulation "
+         "signature\n"
+         "                     cache (default: 200000, per component).\n";
+  std::cerr
+      << "    --boundary-tally-cap N : Distinct-boundary-descriptor cap "
+         "past which\n"
+         "                     the live boundary tally stops recording "
+         "brand-new\n"
+         "                     descriptors (default: 1000000; surfaces with "
+         "an\n"
+         "                     already-seen boundary are still tallied). "
+         "This is a\n"
+         "                     reporting structure only, so nothing else "
+         "depends on\n"
+         "                     it.\n\n";
+  std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
          "input mode)\n\n";
@@ -357,7 +433,8 @@ void runSearch(const regina::Triangulation<4> &tri,
               const std::optional<std::string> &outputPath,
               unsigned iddfsIterations, long long iddfsStep,
               std::optional<long long> iddfsStart,
-              std::optional<unsigned> iddfsFinalThreads) {
+              std::optional<unsigned> iddfsFinalThreads,
+              const SurfaceSearchLimits &limits) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -372,6 +449,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   else
     eOpt.emplace(tri, seedFaces);
   SurfaceSearch &e = *eOpt;
+  e.configureLimits(limits);
 
   const bool wantLinks = cond == BoundaryCondition::proper ||
                          cond == BoundaryCondition::connected;
@@ -415,6 +493,8 @@ void runSearch(const regina::Triangulation<4> &tri,
     out << "[+] rejected for non-local-flatness: " << s.localFlatnessRejections
         << " | rejected for a transverse self-intersection: "
         << s.transverseRejections << "\n";
+    out << "[+] petal cache entries (distinct petals seen): "
+        << e.petalCacheSize() << " | full resets: " << s.cacheResets << "\n";
     return out.str();
   };
 
@@ -437,7 +517,8 @@ void runSearch(const regina::Triangulation<4> &tri,
         << std::setprecision(1)
         << hitRate(s.censusCacheHits, s.censusChecks) << "% hit rate)\n";
     out << "[+] recognition cache entries (distinct isoSigs seen): "
-        << recognitionCacheSize() << "\n";
+        << recognitionCacheSize() << " | full resets: " << s.cacheResets
+        << "\n";
     long long misses = s.genusChecks - s.genusCacheHits;
     out << "[+] genus cache misses resolved via: group-is-Z check="
         << s.groupFastPathHits << ", SnapPea hyperbolicity check="
@@ -465,7 +546,22 @@ void runSearch(const regina::Triangulation<4> &tri,
         << hitRate << "% hit rate)\n";
     out << "[+] boundary signature cache entries (distinct canonical "
            "boundary signatures seen): "
-        << e.boundarySignatureCacheSize() << "\n";
+        << e.boundarySignatureCacheSize() << " | full resets: "
+        << s.cacheResets << "\n";
+    return out.str();
+  };
+
+  // How saturated the surface-boundary-processing queue (pendingSurfaces_)
+  // is/has been -- directly shows whether the queue's cap and the "DFS
+  // worker threads help drain under pressure" backpressure mechanism (see
+  // SurfaceSearch::ThreadHook::onFlush()) are actually engaging on this run.
+  auto pendingSurfaceQueueText = [&] {
+    PendingSurfaceQueueStats s = e.pendingSurfaceQueueStats();
+    std::ostringstream out;
+    out << "[+] pending surface queue: size=" << s.currentSize << "/"
+        << s.cap << " (peak=" << s.peakSize << "), producer-helped drains="
+        << s.producerDrainEvents << " (" << s.producerDrainedEntries
+        << " entries)\n";
     return out.str();
   };
 
@@ -520,6 +616,8 @@ void runSearch(const regina::Triangulation<4> &tri,
            << boundaryConditionName(cond) << ") found so far: " << std::fixed
            << std::setprecision(2) << stats.averageSatisfyingFaces() << "\n";
     report << petalCacheText();
+    if (wantLinks)
+      report << pendingSurfaceQueueText();
     searchReport.draw(report.str());
   };
 
@@ -527,6 +625,31 @@ void runSearch(const regina::Triangulation<4> &tri,
     std::cerr << "\n[!] Interrupted -- moving on to whatever comes next "
                  "with what was found so far (Ctrl+C again to quit "
                  "immediately)\n";
+  };
+
+  callbacks.onQueueDrainPause = [&](size_t queueSize, size_t cap) {
+    // commitLine(), not a bare std::cerr print: this fires from a worker
+    // thread at an arbitrary time relative to the reporter thread's own
+    // once-a-second searchReport.draw() calls -- a plain print here would
+    // (a) risk interleaving with a concurrent draw() and (b) get silently
+    // erased by the very next draw(), since that call has no way to know
+    // an unrelated line was printed in between its own redraws.
+    std::ostringstream msg;
+    msg << "\n[*] Pending surface queue over cap (" << queueSize << "/" << cap
+        << "); pausing the search to fully drain it before continuing "
+           "(Ctrl+C to interrupt)...\n";
+    searchReport.commitLine(msg.str());
+  };
+
+  callbacks.onQueueDrainResume = [&](bool interrupted, size_t remaining) {
+    std::ostringstream msg;
+    if (interrupted)
+      msg << "[*] Interrupted while draining -- handing off " << remaining
+          << " remaining surface" << (remaining == 1 ? "" : "s")
+          << " to post-search processing instead\n";
+    else
+      msg << "[*] Queue fully drained; resuming search.\n";
+    searchReport.commitLine(msg.str());
   };
 
   callbacks.onSearchComplete = [&](const SearchStats &stats) {
@@ -556,6 +679,8 @@ void runSearch(const regina::Triangulation<4> &tri,
               << std::setprecision(2) << stats.averageSatisfyingFaces()
               << "\n";
     std::cerr << petalCacheText();
+    if (wantLinks)
+      std::cerr << pendingSurfaceQueueText();
     std::cerr << recognitionCacheText();
     std::cerr << boundarySignatureCacheText();
   };
@@ -590,6 +715,8 @@ void runSearch(const regina::Triangulation<4> &tri,
           report << "[+] ETA: "
                  << formatElapsed(std::chrono::seconds(etaSeconds)) << "\n";
         }
+        report << boundarySignatureCacheText();
+        report << recognitionCacheText();
         boundaryReport.draw(report.str());
       };
 
@@ -659,6 +786,9 @@ int main(int argc, char *argv[]) {
   long long iddfsStep = 0;
   std::optional<long long> iddfsStart;
   std::optional<unsigned> iddfsFinalThreads;
+
+  SurfaceSearchLimits limits;
+  size_t recognitionCacheLimitArg = recognitionCacheLimit.load();
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -753,6 +883,47 @@ int main(int argc, char *argv[]) {
       }
     } else if (arg == "--no-simplify") {
       simplifyComplements = false;
+    } else if (arg == "--pending-surface-cap") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--pending-surface-cap requires a value.");
+      try {
+        limits.pendingSurfaceCap = std::stoull(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--pending-surface-cap requires an integer value.");
+      }
+    } else if (arg == "--petal-cache-limit") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--petal-cache-limit requires a value.");
+      try {
+        limits.petalCacheLimit = std::stoull(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--petal-cache-limit requires an integer value.");
+      }
+    } else if (arg == "--recognition-cache-limit") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--recognition-cache-limit requires a value.");
+      try {
+        recognitionCacheLimitArg = std::stoull(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--recognition-cache-limit requires an integer value.");
+      }
+    } else if (arg == "--boundary-signature-cache-limit") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--boundary-signature-cache-limit requires a value.");
+      try {
+        limits.boundarySignatureCacheLimit = std::stoull(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0],
+              "--boundary-signature-cache-limit requires an integer value.");
+      }
+    } else if (arg == "--boundary-tally-cap") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--boundary-tally-cap requires a value.");
+      try {
+        limits.boundaryTallyCap = std::stoull(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--boundary-tally-cap requires an integer value.");
+      }
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -778,6 +949,18 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--iddfs-iterations > 0 requires --iddfs-step > 0.");
   if (iddfsStart && *iddfsStart <= 0)
     usage(argv[0], "--iddfs-start requires a value > 0.");
+  if (limits.pendingSurfaceCap == 0)
+    usage(argv[0], "--pending-surface-cap requires a value > 0.");
+  if (limits.petalCacheLimit == 0)
+    usage(argv[0], "--petal-cache-limit requires a value > 0.");
+  if (recognitionCacheLimitArg == 0)
+    usage(argv[0], "--recognition-cache-limit requires a value > 0.");
+  if (limits.boundarySignatureCacheLimit == 0)
+    usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
+  if (limits.boundaryTallyCap == 0)
+    usage(argv[0], "--boundary-tally-cap requires a value > 0.");
+  recognitionCacheLimit.store(recognitionCacheLimitArg,
+                             std::memory_order_relaxed);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -832,7 +1015,7 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsStart, iddfsFinalThreads);
+             iddfsStep, iddfsStart, iddfsFinalThreads, limits);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -842,7 +1025,7 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsStart, iddfsFinalThreads);
+             iddfsStep, iddfsStart, iddfsFinalThreads, limits);
   }
 
   return 0;

@@ -32,6 +32,7 @@
 
 #include "cobordismbuilder.h"
 #include "embeddingsearch.h"
+#include "surfacesearch.h"
 #include "knotbuilder.h"
 
 namespace {
@@ -300,7 +301,8 @@ VertexStats analyzeVertex(const regina::Vertex<4> *v, long long budget) {
 
   SpokeCountPredicate predicate(endpoints, stats.linkVertices);
   std::atomic<bool> stop{false};
-  InterruptiblePredicate interruptible(predicate, stop);
+  std::atomic<bool> pause{false}; // never set here; this driver has no pause/drain concept
+  InterruptiblePredicate interruptible(predicate, stop, pause);
   ConnectedInducedSubgraphEnumerator enumerator(static_cast<int>(stats.linkEdges),
                                                  graphAdj);
 

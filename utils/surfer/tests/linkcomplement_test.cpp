@@ -28,6 +28,7 @@
 #include <maths/perm.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
+#include <triangulation/example3.h>
 
 #include "../linkcomplement.h"
 
@@ -201,6 +202,72 @@ void test_automorphism_invariance() {
               "lookup)");
 }
 
+void test_boundary_signature_cache_clear_threshold() {
+    regina::Triangulation<3> boundary = testBoundary();
+    BoundarySignatureCache cache(boundary, /*clearThreshold=*/2);
+
+    int computeCalls = 0;
+    auto compute = [&] {
+        ++computeCalls;
+        return "r" + std::to_string(computeCalls);
+    };
+
+    // Edge sets of different sizes can never canonicalize to the same key
+    // (automorphisms are bijections, so they preserve cardinality) -- a
+    // simple, topology-agnostic way to force several genuinely distinct
+    // cache entries regardless of this boundary's own automorphism group.
+    cache.identifyCached({0}, compute);       // 1 edge -- distinct key
+    cache.identifyCached({0, 1}, compute);    // 2 edges -- distinct key; cache now at its threshold
+    EXPECT_EQ(cache.stats().cacheResets, 0LL,
+              "no reset yet -- the threshold is only checked before "
+              "admitting the NEXT new key");
+
+    cache.identifyCached({0, 1, 2}, compute); // 3 edges -- triggers the clear before inserting
+    EXPECT_EQ(cache.stats().cacheResets, 1LL,
+              "exactly one reset after exceeding the threshold");
+    EXPECT_EQ(cache.size(), static_cast<size_t>(1),
+              "post-reset, only the entry that triggered the reset is "
+              "present");
+
+    int callsBefore = computeCalls;
+    cache.identifyCached({0}, compute); // was evicted by the reset above
+    EXPECT_EQ(computeCalls, callsBefore + 1,
+              "a pre-reset key is looked up as a fresh miss after the "
+              "cache was cleared -- a clean miss, not a crash or a wrong "
+              "hit against an unrelated key (string-keyed, no id-reuse "
+              "risk)");
+}
+
+void test_recognition_cache_clear_threshold() {
+    // Unlike BoundarySignatureCache's pre-triangulation combinatorial key,
+    // recognitionCache is keyed by the drilled complement's POST-simplify
+    // isoSig -- a topological invariant of the resulting manifold, not of
+    // how many edges were drilled. So this needs two genuinely
+    // topologically distinct complements, not just different edge counts.
+    // Drilling no edges at all from a fixed triangulation just recognizes
+    // that triangulation itself (buildComplement()'s pinch loop is a no-op
+    // on an empty edge set) -- so pairing the trivial pentachoron-boundary
+    // case (an unknot complement, genus 1) with the figure-eight knot
+    // complement (genuinely hyperbolic, not any handlebody) guarantees two
+    // distinct isoSigs.
+    regina::Triangulation<3> boundary = testBoundary();
+    regina::Triangulation<3> figureEight = regina::Example<3>::figureEight();
+
+    resetRecognitionCacheForTesting();
+    size_t defaultLimit = recognitionCacheLimit.load();
+    recognitionCacheLimit.store(1);
+
+    EdgeComplement(boundary, {boundary.edge(0)}).identify();
+    EdgeComplement(figureEight, {}).identify();
+
+    EXPECT_EQ(recognitionCacheStats().cacheResets >= 1, true,
+              "recognitionCache reset at least once after exceeding its "
+              "(deliberately tiny) limit");
+
+    recognitionCacheLimit.store(defaultLimit);
+    resetRecognitionCacheForTesting();
+}
+
 } // namespace
 
 void run(const std::string &name, void (*fn)()) {
@@ -212,6 +279,10 @@ int main() {
     run("edge_indices", test_edge_indices);
     run("memoization", test_memoization);
     run("automorphism_invariance", test_automorphism_invariance);
+    run("boundary_signature_cache_clear_threshold",
+        test_boundary_signature_cache_clear_threshold);
+    run("recognition_cache_clear_threshold",
+        test_recognition_cache_clear_threshold);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

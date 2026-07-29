@@ -20,6 +20,7 @@
 
 std::mutex censusLookupMutex;
 std::atomic<bool> simplifyComplements{true};
+std::atomic<size_t> recognitionCacheLimit{200'000};
 
 namespace {
 
@@ -61,6 +62,12 @@ std::optional<RecognitionResult> lookupRecognition(const std::string &sig) {
 RecognitionResult storeRecognition(const std::string &sig,
                                     const RecognitionResult &update) {
     std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    if (recognitionCache.find(sig) == recognitionCache.end() &&
+            recognitionCache.size() >=
+                recognitionCacheLimit.load(std::memory_order_relaxed)) {
+        recognitionCache.clear();
+        ++recognitionStats.cacheResets;
+    }
     RecognitionResult &entry = recognitionCache[sig];
     if (update.genus && !entry.genus)
         entry.genus = update.genus;
@@ -198,6 +205,12 @@ RecognitionCacheStats recognitionCacheStats() {
 size_t recognitionCacheSize() {
     std::lock_guard<std::mutex> lock(recognitionCacheMutex);
     return recognitionCache.size();
+}
+
+void resetRecognitionCacheForTesting() {
+    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+    recognitionCache.clear();
+    recognitionStats = RecognitionCacheStats{};
 }
 
 EdgeComplement::EdgeComplement(
@@ -434,8 +447,8 @@ std::vector<size_t> EdgeComplement::edgeIndices() const {
 }
 
 BoundarySignatureCache::BoundarySignatureCache(
-    const regina::Triangulation<3> &boundary)
-    : boundary_(&boundary) {}
+    const regina::Triangulation<3> &boundary, size_t clearThreshold)
+    : boundary_(&boundary), clearThreshold_(clearThreshold) {}
 
 void BoundarySignatureCache::ensureAutomorphismGroup_() {
     std::call_once(groupOnce_, [this] {
@@ -503,6 +516,11 @@ std::string BoundarySignatureCache::identifyCached(
 
     {
         std::lock_guard<std::mutex> lock(cacheMutex_);
+        if (cache_.find(key) == cache_.end() &&
+                cache_.size() >= clearThreshold_) {
+            cache_.clear();
+            ++stats_.cacheResets;
+        }
         cache_.emplace(std::move(key), result);
     }
     return result;

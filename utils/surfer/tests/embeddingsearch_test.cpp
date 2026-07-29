@@ -22,6 +22,7 @@
 
 #include "cobordismbuilder.h"
 #include "embeddingsearch.h"
+#include "surfacesearch.h"
 
 static int passed = 0, failed_count = 0;
 
@@ -311,6 +312,57 @@ void test_boundary_link_batch_recognizes_unknot() {
               "links found");
     EXPECT_EQ(summary.find("Disc") != std::string::npos, true,
               "the unknot was recorded as bounding (at least) a Disc");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Memory-bounding regression: SurfaceSearchLimits::pendingSurfaceCap adds
+// backpressure (a DFS worker thread helps drain pendingSurfaces_ itself once
+// it's over cap -- see SurfaceSearch::ThreadHook::onFlush()) purely to bound
+// memory on a long search. This must never change *what* is found, only
+// when/by whom it gets processed: running the same search with a
+// deliberately tiny cap (forcing backpressure on nearly every find) must
+// produce byte-identical final tallies to running it with a large cap.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_backpressure_does_not_drop_or_double_count_surfaces() {
+    std::cout << "\n--- SurfaceSearch: pendingSurfaceCap backpressure changes "
+                 "timing only, never drops/double-counts a surface ---\n";
+
+    // Same fixture as test_boundary_link_batch_recognizes_unknot: a single
+    // pentachoron's boundary (S^3), which under --connected yields several
+    // distinct satisfying surfaces -- enough to exceed a cap of 1.
+    auto buildFourBall = [] {
+        regina::Triangulation<4> fourBall;
+        fourBall.newSimplex();
+        return fourBall;
+    };
+
+    regina::Triangulation<4> triLarge = buildFourBall();
+    SurfaceSearch large(triLarge);
+    large.configureLimits(SurfaceSearchLimits{}); // defaults (cap 20000)
+    SearchStats largeStats = large.search(1, BoundaryCondition::connected);
+
+    regina::Triangulation<4> triTiny = buildFourBall();
+    SurfaceSearch tiny(triTiny);
+    SurfaceSearchLimits tinyLimits;
+    tinyLimits.pendingSurfaceCap = 1; // forces backpressure on nearly every find
+    tiny.configureLimits(tinyLimits);
+    SearchStats tinyStats = tiny.search(1, BoundaryCondition::connected);
+
+    EXPECT_EQ(tinyStats.satisfyingCount, largeStats.satisfyingCount,
+              "a tiny pendingSurfaceCap finds the same number of satisfying "
+              "surfaces as a large one");
+    EXPECT_EQ(tinyStats.embeddedCount, largeStats.embeddedCount,
+              "...and the same total embedded-submanifold count");
+    EXPECT_EQ(tiny.linkTally().summary(), large.linkTally().summary(),
+              "...and an identical final boundary-link tally");
+    EXPECT_EQ(tiny.surfaceTypeTally().summary(),
+              large.surfaceTypeTally().summary(),
+              "...and an identical final surface-type tally");
+
+    EXPECT_EQ(tiny.pendingSurfaceQueueStats().producerDrainEvents > 0, true,
+              "the tiny cap actually triggered producer-side draining at "
+              "least once (otherwise this test isn't exercising "
+              "backpressure at all)");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,6 +767,8 @@ int main() {
     run("test_engineered_interior_edge_not_proper",
         test_engineered_interior_edge_not_proper);
     run("test_triple_self_fold_excluded", test_triple_self_fold_excluded);
+    run("test_backpressure_does_not_drop_or_double_count_surfaces",
+        test_backpressure_does_not_drop_or_double_count_surfaces);
     run("test_boundary_link_batch_recognizes_unknot",
         test_boundary_link_batch_recognizes_unknot);
     run("test_seeded_enumerator_preserves_anchor",

@@ -13,8 +13,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <thread>
 #include <vector>
 
 /*! \file utils/surfer/enumerate_cis.h
@@ -51,19 +53,39 @@ class ConditionalPredicate {
  * without consulting \a inner, so a caller enumerating with this predicate
  * prunes everywhere and unwinds -- an early, cooperative exit from an
  * otherwise unbounded DFS.
+ *
+ * Also decorates it with a separate, optional *pause* signal, with
+ * deliberately different semantics from the stop signal above: while
+ * `*pauseRequested` is set, tryAdd() *blocks* (spin-waits) rather than
+ * rejecting, so no in-progress DFS branch is permanently pruned by a
+ * temporary pause -- the enumerator has no notion of "reject now, retry
+ * later," so a rejection here would silently and irrecoverably drop
+ * whatever that branch would have found. Used by SurfaceSearch to halt
+ * every worker's candidate production while its own pending-surface queue
+ * is fully drained (see SurfaceSearch::ThreadHook::onFlush()), without
+ * losing any embeddings to a spurious prune. A blocked tryAdd() still
+ * unblocks promptly if `*stopRequested` fires (checked in the same wait
+ * loop), so Ctrl+C is never delayed behind a pause.
  */
 class InterruptiblePredicate : public ConditionalPredicate {
     ConditionalPredicate &inner_; /**< The predicate being decorated. */
     const std::atomic<bool> &stopRequested_;
         /**< External stop signal, checked on every tryAdd(). */
+    const std::atomic<bool> &pauseRequested_;
+        /**< External pause signal, blocking (not rejecting) tryAdd() while set. */
 
   public:
-    /** Wraps `inner`, checking `stopRequested` on every tryAdd(). */
+    /** Wraps `inner`, checking `stopRequested`/`pauseRequested` on every tryAdd(). */
     InterruptiblePredicate(ConditionalPredicate &inner,
-                           const std::atomic<bool> &stopRequested)
-        : inner_(inner), stopRequested_(stopRequested) {}
+                           const std::atomic<bool> &stopRequested,
+                           const std::atomic<bool> &pauseRequested)
+        : inner_(inner), stopRequested_(stopRequested),
+          pauseRequested_(pauseRequested) {}
 
     bool tryAdd(int v) override {
+        while (pauseRequested_.load(std::memory_order_relaxed) &&
+               !stopRequested_.load(std::memory_order_relaxed))
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         if (stopRequested_.load(std::memory_order_relaxed))
             return false;
         return inner_.tryAdd(v);

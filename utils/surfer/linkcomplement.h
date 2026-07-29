@@ -56,6 +56,18 @@ extern std::mutex censusLookupMutex;
 extern std::atomic<bool> simplifyComplements;
 
 /**
+ * Entry-count threshold past which recognitionCache (linkcomplement.cpp)
+ * clears itself entirely before admitting the next new isoSig -- keyed by
+ * content (an isoSig string), not a recyclable integer id, so a lookup
+ * racing a clear is simply a clean miss, never a wrong hit against an
+ * unrelated key (unlike PetalCache, no epoch-tagging is needed here).
+ *
+ * Set once, before any search worker thread is spawned, same contract as
+ * simplifyComplements above.
+ */
+extern std::atomic<size_t> recognitionCacheLimit;
+
+/**
  * The outcome of recognizing a complement, memoized by isomorphism
  * signature (see linkcomplement.cpp's recognitionCache).
  */
@@ -101,6 +113,9 @@ struct RecognitionCacheStats {
     long long groupFastPathHits = 0;
     long long snapPeaFastPathHits = 0;
     long long recogniseHandlebodyFallbacks = 0;
+
+    /** How many times recognitionCache has been fully cleared after exceeding recognitionCacheLimit. */
+    long long cacheResets = 0;
 };
 
 /** A snapshot of the recognition cache's current hit/miss counters. */
@@ -108,6 +123,13 @@ RecognitionCacheStats recognitionCacheStats();
 
 /** The recognition cache's current entry count (distinct isoSigs seen). */
 size_t recognitionCacheSize();
+
+/**
+ * Clears recognitionCache and its stats outright, ignoring
+ * recognitionCacheLimit. Test-only: production code should only ever see
+ * this cache clear itself automatically via recognitionCacheLimit.
+ */
+void resetRecognitionCacheForTesting();
 
 /**
  * A set of edges in a Triangulation<3>, together with the ability to build
@@ -219,6 +241,7 @@ class EdgeComplement {
 struct BoundarySignatureCacheStats {
     long long checks = 0;
     long long hits = 0;
+    long long cacheResets = 0; /**< How many times this cache has been fully cleared after exceeding its clear threshold. */
 };
 
 /**
@@ -253,8 +276,21 @@ struct BoundarySignatureCacheStats {
  */
 class BoundarySignatureCache {
   public:
-    /** Tracks `boundary`, which must outlive this cache. */
-    explicit BoundarySignatureCache(const regina::Triangulation<3> &boundary);
+    /** Default entry-count threshold; see the constructor's `clearThreshold` parameter. */
+    static constexpr size_t DEFAULT_CLEAR_THRESHOLD = 200'000;
+
+    /**
+     * Tracks `boundary`, which must outlive this cache. Once this cache
+     * holds `clearThreshold` distinct canonical signatures, it clears
+     * itself entirely before admitting the next new one -- unlike
+     * PetalCache, no epoch-tagging is needed here, since a cache_ entry is
+     * keyed by its canonical signature (content), not a recyclable integer
+     * id: a lookup racing a clear simply sees a clean miss, never a wrong
+     * hit against an unrelated key.
+     */
+    explicit BoundarySignatureCache(
+        const regina::Triangulation<3> &boundary,
+        size_t clearThreshold = DEFAULT_CLEAR_THRESHOLD);
 
     /**
      * Returns the identify() result for `edgeIndices` -- this boundary
@@ -288,6 +324,8 @@ class BoundarySignatureCache {
              synchronization (std::once_flag already establishes
              happens-before for every caller, not just the one that ran
              the initializer). */
+
+    size_t clearThreshold_;
 
     mutable std::mutex cacheMutex_; /**< Guards cache_ and stats_. */
     std::unordered_map<std::string, std::string> cache_;

@@ -27,47 +27,73 @@ uint64_t PetalCache::linkKey_(int a, int b) {
   return (static_cast<uint64_t>(hi) << 32) | lo;
 }
 
-int PetalCache::internPetal(std::vector<Corner> corners) {
+PetalCache::PetalId PetalCache::internPetal(std::vector<Corner> corners) {
   std::ranges::sort(corners);
 
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = byCorners_.find(corners);
   if (it != byCorners_.end())
-    return it->second;
+    return makeId_(epoch_, it->second);
+
+  if (unknotById_.size() >= clearThreshold_) {
+    byCorners_.clear();
+    unknotById_.clear();
+    linkingCache_.clear();
+    ++epoch_;
+    ++stats_.cacheResets;
+  }
 
   int id = static_cast<int>(unknotById_.size());
   unknotById_.emplace_back(std::nullopt);
   byCorners_.emplace(std::move(corners), id);
-  return id;
+  return makeId_(epoch_, id);
 }
 
-std::optional<bool> PetalCache::lookupUnknot(int id) const {
+std::optional<bool> PetalCache::lookupUnknot(PetalId id) const {
   std::lock_guard<std::mutex> lock(mutex_);
   ++stats_.unknotChecks;
-  const auto &cached = unknotById_[static_cast<size_t>(id)];
+  if (epochOf_(id) != epoch_)
+    return std::nullopt; // stale: a clear happened since id was interned
+  const auto &cached = unknotById_[static_cast<size_t>(localIdOf_(id))];
   if (cached)
     ++stats_.unknotCacheHits;
   return cached;
 }
 
-void PetalCache::recordUnknot(int id, bool isUnknot) {
+void PetalCache::recordUnknot(PetalId id, bool isUnknot) {
   std::lock_guard<std::mutex> lock(mutex_);
-  unknotById_[static_cast<size_t>(id)] = isUnknot;
+  if (epochOf_(id) != epoch_)
+    return; // stale: safe to drop -- the petal is simply re-interned fresh next time
+  unknotById_[static_cast<size_t>(localIdOf_(id))] = isUnknot;
 }
 
-std::optional<bool> PetalCache::lookupLinksNonzero(int a, int b) const {
+std::optional<bool> PetalCache::lookupLinksNonzero(PetalId a, PetalId b) const {
   std::lock_guard<std::mutex> lock(mutex_);
   ++stats_.linkingChecks;
-  auto it = linkingCache_.find(linkKey_(a, b));
+  if (epochOf_(a) != epoch_ || epochOf_(b) != epoch_)
+    return std::nullopt;
+  auto it = linkingCache_.find(linkKey_(localIdOf_(a), localIdOf_(b)));
   if (it == linkingCache_.end())
     return std::nullopt;
   ++stats_.linkingCacheHits;
   return it->second;
 }
 
-void PetalCache::recordLinksNonzero(int a, int b, bool nonzero) {
+void PetalCache::recordLinksNonzero(PetalId a, PetalId b, bool nonzero) {
   std::lock_guard<std::mutex> lock(mutex_);
-  linkingCache_[linkKey_(a, b)] = nonzero;
+  if (epochOf_(a) != epoch_ || epochOf_(b) != epoch_)
+    return;
+  linkingCache_[linkKey_(localIdOf_(a), localIdOf_(b))] = nonzero;
+}
+
+void PetalCache::setClearThreshold(size_t threshold) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  clearThreshold_ = threshold;
+}
+
+size_t PetalCache::size() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return byCorners_.size();
 }
 
 void PetalCache::recordLocalFlatnessRejection() {

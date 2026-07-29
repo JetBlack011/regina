@@ -8,18 +8,13 @@ set(TESTS
   pairsig_test
   linkcomplement_test
 )
-set(knotbuilder_test_EXTRA_SOURCES ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../linkcomplement.cpp)
-set(cobordismbuilder_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp)
-set(embeddingsearch_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../rollbackunionfind.cpp ../vertexlinks.cpp)
-set(embeddedsubmanifold_test_EXTRA_SOURCES ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../knotbuilder.cpp ../rollbackunionfind.cpp ../vertexlinks.cpp)
-set(rollbackunionfind_test_EXTRA_SOURCES ../rollbackunionfind.cpp)
-set(vertexlinks_test_EXTRA_SOURCES ../vertexlinks.cpp)
-set(pairsig_test_EXTRA_SOURCES ../pairsig.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp ../skeleton.cpp ../embeddedsubmanifold.cpp ../linkcomplement.cpp ../enumerate_cis.cpp ../knotbuilder.cpp ../rollbackunionfind.cpp ../vertexlinks.cpp)
-set(linkcomplement_test_EXTRA_SOURCES ../linkcomplement.cpp)
 
+# Every test just links surfer_common (defined in ../CMakeLists.txt) rather
+# than relisting its own subset of implementation files -- see that file's
+# comment on surfer_common for why.
 foreach(TEST ${TESTS})
-  add_executable(${TEST} ${TEST}.cpp ${${TEST}_EXTRA_SOURCES})
-  target_link_libraries(${TEST} ${ENGINE_LIBRARY})
+  add_executable(${TEST} ${TEST}.cpp)
+  target_link_libraries(${TEST} surfer_common)
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES
     LABELS "surfer"
@@ -39,22 +34,18 @@ set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
 # runs); run it manually instead:
 #
 #   ./triangulate_knot_table pd_codes.csv
-add_executable(triangulate_knot_table triangulate_knot_table.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
-target_link_libraries(triangulate_knot_table ${ENGINE_LIBRARY})
+add_executable(triangulate_knot_table triangulate_knot_table.cpp)
+target_link_libraries(triangulate_knot_table surfer_common)
 
 # One-off generation utility -- not a CTest test: builds the Rolfsen <->
 # Regina-census-name correspondence data behind ../knot_census_names.csv.
 # Run it manually (see gen_knot_census_names.cpp for usage):
 #
 #   ./gen_knot_census_names pd_codes.csv > ../knot_census_names.csv
-add_executable(gen_knot_census_names gen_knot_census_names.cpp ../knotbuilder.cpp ../linkcomplement.cpp)
-target_link_libraries(gen_knot_census_names ${ENGINE_LIBRARY})
+add_executable(gen_knot_census_names gen_knot_census_names.cpp)
+target_link_libraries(gen_knot_census_names surfer_common)
 
 # Standalone profiling driver (see profile_driver.cpp) -- not a CTest test.
-add_executable(profile_driver profile_driver.cpp
-  ../knotbuilder.cpp ../cobordismbuilder.cpp ../simplicialprism.cpp
-  ../skeleton.cpp ../embeddedsubmanifold.cpp ../embeddingsearch.cpp
-  ../linkcomplement.cpp ../enumerate_cis.cpp ../rollbackunionfind.cpp
-  ../vertexlinks.cpp)
-target_link_libraries(profile_driver ${ENGINE_LIBRARY})
+add_executable(profile_driver profile_driver.cpp)
+target_link_libraries(profile_driver surfer_common)
 target_compile_options(profile_driver PRIVATE -g)
