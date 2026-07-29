@@ -84,20 +84,20 @@ def dominant_surface_type(name, edges_by_node):
     return min(es[0]["types"]) if es[0]["types"] else 0
 
 
-def layout(nodes, degree, edges, hub_ring_count=40):
+def layout(nodes, degree, edges, hub, hub_ring_count=40):
     edges_by_node = defaultdict(list)
     for e in edges:
         edges_by_node[e["source"]].append(e)
         if e["target"] != e["source"]:
             edges_by_node[e["target"]].append(e)
 
-    others = [n for n in nodes if n != HUB_NAME]
+    others = [n for n in nodes if n != hub]
     others.sort(key=lambda n: -degree.get(n, 0))
 
     hub_ring_names = set(others[:hub_ring_count])
     leaves = [n for n in others if n not in hub_ring_names]
 
-    coords = {HUB_NAME: (0.0, 0.0)}
+    coords = {hub: (0.0, 0.0)}
 
     # Middle ring: secondary hubs, grouped by slice_status then sorted by degree.
     status_order = {"CONFIRMED_SLICE": 0, "OPEN": 1, "CONFIRMED_NOT_SLICE": 2, "UNKNOWN": 3}
@@ -150,13 +150,16 @@ def main():
     ap.add_argument("--template", default=TEMPLATE_HTML)
     ap.add_argument("--html-output", default=OUTPUT_HTML)
     ap.add_argument("--data-only", action="store_true", help="skip the HTML build, just write the JSON")
+    ap.add_argument("--hub", default=HUB_NAME, help="node id treated as the central hub")
     args = ap.parse_args()
 
     with open(args.input) as f:
         concordances = json.load(f)
 
     nodes, edges, degree, adjacency = build_graph(concordances)
-    coords, hub_ring_names = layout(nodes, degree, edges)
+    if args.hub not in nodes:
+        raise ValueError(f"hub {args.hub!r} not found among {len(nodes)} node names in {args.input}")
+    coords, hub_ring_names = layout(nodes, degree, edges, args.hub)
 
     out_nodes = []
     for name, info in nodes.items():
@@ -168,12 +171,12 @@ def main():
             "genus": info["genus"],
             "status": info["slice_status"],
             "degree": degree.get(name, 0),
-            "hub": name == HUB_NAME,
+            "hub": name == args.hub,
             "secondary_hub": name in hub_ring_names,
         })
 
     out = {
-        "hub": HUB_NAME,
+        "hub": args.hub,
         "surface_types": [
             {"orientable": o, "genus": g, "punctures": p} for (o, g, p) in SURFACE_TYPE_ORDER
         ],
