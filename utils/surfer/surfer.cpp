@@ -380,6 +380,19 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "depends on\n"
          "                     it.\n\n";
   std::cerr
+      << "    --census-mirror <path> : SQLite census mirror to check before "
+         "falling\n"
+         "                     back to the real (mutex-guarded) "
+         "Census::lookup()\n"
+         "                     (see linkcomplement.h and "
+         "tools/gen_census_mirror.py).\n"
+         "                     Default: utils/surfer/data/census-mirror."
+         "sqlite\n"
+         "                     alongside the source tree. A missing file is "
+         "not an\n"
+         "                     error -- the mirror is an optional "
+         "accelerator.\n\n";
+  std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
          "input mode)\n\n";
@@ -525,6 +538,11 @@ void runSearch(const regina::Triangulation<4> &tri,
         << s.snapPeaFastPathHits << ", recogniseHandlebody() fallback="
         << s.recogniseHandlebodyFallbacks << " (of " << misses
         << " misses)\n";
+    out << "[+] census mirror: checks=" << s.mirrorChecks << " hits="
+        << s.mirrorHits << " (" << std::fixed << std::setprecision(1)
+        << hitRate(s.mirrorHits, s.mirrorChecks)
+        << "% hit rate) -- misses fall through to the real, "
+           "mutex-guarded Census::lookup()\n";
     return out.str();
   };
 
@@ -789,6 +807,7 @@ int main(int argc, char *argv[]) {
 
   SurfaceSearchLimits limits;
   size_t recognitionCacheLimitArg = recognitionCacheLimit.load();
+  std::string censusMirrorPath = SURFER_CENSUS_MIRROR_PATH;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -924,6 +943,10 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--boundary-tally-cap requires an integer value.");
       }
+    } else if (arg == "--census-mirror") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--census-mirror requires a value.");
+      censusMirrorPath = argv[++i];
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -961,6 +984,7 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
   recognitionCacheLimit.store(recognitionCacheLimitArg,
                              std::memory_order_relaxed);
+  bool censusMirrorLoaded = setCensusMirrorPath(censusMirrorPath);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -970,6 +994,11 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "------ SurFer (Surface Finder) \U0001F30A ------\n\n";
+
+  std::cout << (censusMirrorLoaded ? "[+] census mirror: loaded from "
+                                   : "[+] census mirror: not found at ")
+            << censusMirrorPath
+            << (censusMirrorLoaded ? "\n\n" : ", skipping\n\n");
 
   if (havePD) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdCode);

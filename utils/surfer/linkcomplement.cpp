@@ -7,10 +7,14 @@
 #include "linkcomplement.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <list>
 #include <optional>
 #include <sstream>
+
+#include <sqlite3.h>
 
 #include <triangulation/dim3/homologicaldata.h>
 #include <snappea/snappeatriangulation.h>
@@ -93,6 +97,74 @@ std::optional<std::string> censusLookupName(
         return *rolfsen + " (" + raw + ")";
     return raw;
 }
+
+// Guards censusMirrorPathOverride_ -- touched only by setCensusMirrorPath()
+// (effectively write-once, before any search worker thread is spawned; see
+// its header doc comment) and by MirrorConnection_::ensureCurrent() below
+// when a thread lazily (re)opens its connection, which happens far less
+// often than mirror lookups themselves.
+std::mutex censusMirrorConfigMutex_;
+std::string censusMirrorPathOverride_;
+
+// Bumped by setCensusMirrorPath(), so every thread's already-open
+// MirrorConnection_ notices its path is stale and reopens lazily on its
+// next lookup, rather than every thread needing to be told directly.
+std::atomic<uint64_t> censusMirrorGeneration_{0};
+
+// One read-only SQLite connection (plus its one prepared statement) per
+// thread, opened lazily on first use -- unlike censusLookupMutex's single
+// serialized regina::Census::lookup(), SQLite's read-only mode supports
+// many concurrent readers natively, so no cross-thread locking is needed
+// here at all.
+struct MirrorConnection_ {
+    uint64_t generation = static_cast<uint64_t>(-1);
+    sqlite3 *conn = nullptr;
+    sqlite3_stmt *stmt = nullptr;
+
+    ~MirrorConnection_() { close(); }
+
+    void close() {
+        if (stmt) {
+            sqlite3_finalize(stmt);
+            stmt = nullptr;
+        }
+        if (conn) {
+            sqlite3_close(conn);
+            conn = nullptr;
+        }
+    }
+
+    // Reopens against the current path override (or the compiled-in
+    // default) if `gen` is newer than what this connection last opened
+    // against. A failed open (e.g. the mirror hasn't been generated yet)
+    // just leaves stmt null -- mirrorCensusLookup() treats that as a
+    // permanent miss until the next generation bump, not an error.
+    void ensureCurrent(uint64_t gen) {
+        if (generation == gen)
+            return;
+        close();
+        generation = gen;
+
+        std::string path;
+        {
+            std::lock_guard<std::mutex> lock(censusMirrorConfigMutex_);
+            path = censusMirrorPathOverride_.empty()
+                       ? SURFER_CENSUS_MIRROR_PATH
+                       : censusMirrorPathOverride_;
+        }
+
+        if (sqlite3_open_v2(path.c_str(), &conn, SQLITE_OPEN_READONLY,
+                            nullptr) != SQLITE_OK) {
+            close();
+            return;
+        }
+        if (sqlite3_prepare_v2(conn,
+                "SELECT name, source FROM census WHERE isosig = ?1", -1,
+                &stmt, nullptr) != SQLITE_OK) {
+            close();
+        }
+    }
+};
 
 // Fast, sound, one-sided proof that `t`'s genus is 1 (the unknot): its
 // fundamental group is Z if and only if it's the unknot (Dehn's lemma).
@@ -189,13 +261,69 @@ RecognitionResult resolveRecognition(const regina::Triangulation<3> &complement,
         }
     }
 
-    auto name = censusLookupName(complement);
+    {
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        ++recognitionStats.mirrorChecks;
+    }
+    auto name = mirrorCensusLookup(sig);
+    if (name) {
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        ++recognitionStats.mirrorHits;
+    } else {
+        name = censusLookupName(complement);
+    }
     return storeRecognition(
         sig, RecognitionResult{.genus = -1, .censusChecked = true,
                                .censusName = name});
 }
 
 } // namespace
+
+bool setCensusMirrorPath(const std::string &path) {
+    {
+        std::lock_guard<std::mutex> lock(censusMirrorConfigMutex_);
+        censusMirrorPathOverride_ = path;
+    }
+    censusMirrorGeneration_.fetch_add(1, std::memory_order_relaxed);
+    return std::ifstream(path).good();
+}
+
+void resetCensusMirrorForTesting() {
+    setCensusMirrorPath("/nonexistent-census-mirror-for-testing.sqlite");
+}
+
+std::optional<std::string> mirrorCensusLookup(const std::string &sig) {
+    thread_local MirrorConnection_ mc;
+    mc.ensureCurrent(censusMirrorGeneration_.load(std::memory_order_relaxed));
+    if (!mc.stmt)
+        return std::nullopt;
+
+    sqlite3_reset(mc.stmt);
+    sqlite3_clear_bindings(mc.stmt);
+    sqlite3_bind_text(mc.stmt, 1, sig.c_str(), static_cast<int>(sig.size()),
+                      SQLITE_TRANSIENT);
+
+    if (sqlite3_step(mc.stmt) != SQLITE_ROW)
+        return std::nullopt;
+
+    std::string rawName(
+        reinterpret_cast<const char *>(sqlite3_column_text(mc.stmt, 0)));
+    std::string source(
+        reinterpret_cast<const char *>(sqlite3_column_text(mc.stmt, 1)));
+
+    // Regina-sourced rows store the raw census hit name, same as
+    // censusLookupName() gets from CensusHit::name() -- format it
+    // identically for byte-identical output. SnapPy-sourced rows already
+    // store a best-effort pretty name (Rolfsen/Thistlethwaite, see
+    // identify_boundaries.py's _pick_best_name()), not a raw census name,
+    // so rolfsenName() would just miss on those -- return as-is.
+    if (source == "regina") {
+        if (auto rolfsen = rolfsen::rolfsenName(rawName))
+            return *rolfsen + " (" + rawName + ")";
+        return rawName;
+    }
+    return rawName;
+}
 
 RecognitionCacheStats recognitionCacheStats() {
     std::lock_guard<std::mutex> lock(recognitionCacheMutex);

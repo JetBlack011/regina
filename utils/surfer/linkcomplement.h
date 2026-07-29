@@ -41,6 +41,43 @@
 extern std::mutex censusLookupMutex;
 
 /**
+ * Looks up `sig` (an isoSig, e.g. from EdgeComplement::buildComplement()'s
+ * result) in the SQLite census mirror -- a local copy of the 3 census
+ * databases that can ever match a cusped boundary complement, plus any
+ * SnapPy-identified isoSigs Regina's own census misses (see
+ * tools/gen_census_mirror.py). Unlike censusLookupName(), needs no mutex:
+ * each thread lazily opens its own read-only connection, and SQLite
+ * supports many concurrent readers natively.
+ *
+ * Returns nullopt on a miss (isoSig not in the mirror, or the mirror file
+ * isn't present at all -- e.g. a fresh checkout that hasn't run the
+ * generator yet); callers should fall through to censusLookupName() in
+ * that case, exactly as if the mirror didn't exist.
+ */
+std::optional<std::string> mirrorCensusLookup(const std::string &sig);
+
+/**
+ * Sets the path mirrorCensusLookup() opens. Every thread's cached
+ * connection is invalidated and lazily reopened against the new path on
+ * its next lookup. Returns whether a file currently exists at `path`, so
+ * callers can report the mirror as loaded/skipped without a second
+ * existence check.
+ *
+ * Set once, before any search worker thread is spawned (see surfer.cpp's
+ * --census-mirror flag, defaulting to the SURFER_CENSUS_MIRROR_PATH
+ * compile definition from CMakeLists.txt) -- same contract as
+ * simplifyComplements/recognitionCacheLimit below.
+ */
+bool setCensusMirrorPath(const std::string &path);
+
+/**
+ * Points mirrorCensusLookup() at a path guaranteed not to exist, so it
+ * always misses. Test-only: production code should only ever call
+ * setCensusMirrorPath() once, at startup.
+ */
+void resetCensusMirrorForTesting();
+
+/**
  * Whether EdgeComplement::buildComplement() should call
  * Triangulation<3>::simplify() on the drilled complement before returning
  * it. Defaults to \c true (existing behavior); set to \c false only for
@@ -113,6 +150,15 @@ struct RecognitionCacheStats {
     long long groupFastPathHits = 0;
     long long snapPeaFastPathHits = 0;
     long long recogniseHandlebodyFallbacks = 0;
+
+    /**
+     * How many times the SQLite census mirror (mirrorCensusLookup()) was
+     * checked on a census cache miss, and how many of those were hits --
+     * a mirror hit skips the mutex-guarded, on-disk-database-reopening
+     * real Census::lookup() entirely. Always <= censusChecks - censusCacheHits.
+     */
+    long long mirrorChecks = 0;
+    long long mirrorHits = 0;
 
     /** How many times recognitionCache has been fully cleared after exceeding recognitionCacheLimit. */
     long long cacheResets = 0;
