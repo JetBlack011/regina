@@ -1,0 +1,5 @@
+loaded 12467 genus entries
+processed 3012942 rows -> 4683 unique pairs, 4054 unique identities
+identities using raw-isosig fallback (unresolved): 378
+identified knot names with no genus-table hit: 74
+wrote 4683 concordance entries -> concordances.json
