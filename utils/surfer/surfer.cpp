@@ -86,13 +86,15 @@ void usage(const char *progName, const std::string &error = std::string()) {
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --iddfs-iterations N --iddfs-step D ]\n"
-         "    [ --iddfs-start N ] [ --iddfs-final-threads N ] <isosig>\n\n"
+         "    [ --iddfs-start N ] [ --iddfs-final-threads N ] "
+         "[ --orientable-only ] <isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ]\n"
          "    [ --iddfs-iterations N --iddfs-step D ] [ --iddfs-start N ]\n"
-         "    [ --iddfs-final-threads N ] --pd <pdcode>\n\n"
+         "    [ --iddfs-final-threads N ] [ --orientable-only ] --pd "
+         "<pdcode>\n\n"
       << "    " << progName << " [ -v, --version | -h, --help ]\n\n";
   std::cerr
       << "    -a, --all      : Find all embedded submanifolds, regardless of "
@@ -109,6 +111,11 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "submanifold per\n"
                "                     boundary component of the ambient "
                "triangulation\n\n";
+  std::cerr << "    --orientable-only : Prune any branch the instant it "
+               "becomes\n"
+               "                     non-orientable, rather than reporting "
+               "non-orientable\n"
+               "                     results (default: off).\n\n";
   std::cerr << "    --threads N    : Number of worker threads to search "
                "with (default: the\n"
                "                     number of hardware threads available)\n"
@@ -277,6 +284,28 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "miss;\n"
          "                     off by default.\n\n";
   std::cerr
+      << "    --retriangulate-height N : Pachner-move search depth per "
+         "identification\n"
+         "                     attempt when --retriangulate-on-miss is set "
+         "(default: 2).\n"
+         "                     retriangulate()'s candidate count grows "
+         "roughly\n"
+         "                     exponentially in this -- the main lever if "
+         "boundary/link\n"
+         "                     identification throughput matters more than "
+         "catching\n"
+         "                     every non-canonically-triangulated match.\n";
+  std::cerr
+      << "    --retriangulate-candidate-budget N : Max candidate "
+         "triangulations tried\n"
+         "                     per identification attempt before giving up "
+         "(default:\n"
+         "                     8000).\n";
+  std::cerr
+      << "    --retriangulate-time-budget S : Wall-clock cap (seconds) per "
+         "identification\n"
+         "                     attempt before giving up (default: 20).\n\n";
+  std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
          "input mode)\n\n";
@@ -331,7 +360,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               unsigned iddfsIterations, long long iddfsStep,
               std::optional<long long> iddfsStart,
               std::optional<unsigned> iddfsFinalThreads,
-              const SurfaceSearchLimits &limits) {
+              const SurfaceSearchLimits &limits, bool orientableOnly) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -658,7 +687,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   }
 
   e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-           iddfsStart, iddfsFinalThreads);
+           iddfsStart, iddfsFinalThreads, orientableOnly);
 
   if (writer)
     writer->finalize();
@@ -689,9 +718,16 @@ int main(int argc, char *argv[]) {
   std::optional<long long> iddfsStart;
   std::optional<unsigned> iddfsFinalThreads;
 
+  bool orientableOnly = false;
+
   SurfaceSearchLimits limits;
   size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
   std::string censusPath = SURFER_CENSUS_PATH;
+  int retriangulateHeightArg = census::retriangulateHeight.load();
+  size_t retriangulateCandidateBudgetArg =
+      census::retriangulateCandidateBudget.load();
+  long long retriangulateTimeBudgetArg =
+      census::retriangulateTimeBudgetSeconds.load();
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -711,6 +747,8 @@ int main(int argc, char *argv[]) {
       cond = BoundaryCondition::proper;
     } else if (arg == "--connected") {
       cond = BoundaryCondition::connected;
+    } else if (arg == "--orientable-only") {
+      orientableOnly = true;
     } else if (arg == "--threads") {
       if (i + 1 >= argc)
         usage(argv[0], "--threads requires a value.");
@@ -833,6 +871,34 @@ int main(int argc, char *argv[]) {
       censusPath = argv[++i];
     } else if (arg == "--retriangulate-on-miss") {
       census::retriangulateOnMiss.store(true, std::memory_order_relaxed);
+    } else if (arg == "--retriangulate-height") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--retriangulate-height requires a value.");
+      try {
+        retriangulateHeightArg = std::stoi(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--retriangulate-height requires an integer value.");
+      }
+    } else if (arg == "--retriangulate-candidate-budget") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--retriangulate-candidate-budget requires a value.");
+      try {
+        retriangulateCandidateBudgetArg =
+            static_cast<size_t>(std::stoul(argv[++i]));
+      } catch (const std::exception &) {
+        usage(argv[0],
+              "--retriangulate-candidate-budget requires an integer value.");
+      }
+    } else if (arg == "--retriangulate-time-budget") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--retriangulate-time-budget requires a value.");
+      try {
+        retriangulateTimeBudgetArg = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0],
+              "--retriangulate-time-budget requires an integer (seconds) "
+              "value.");
+      }
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -868,8 +934,20 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
+  if (retriangulateHeightArg < 0)
+    usage(argv[0], "--retriangulate-height requires a value >= 0.");
+  if (retriangulateCandidateBudgetArg == 0)
+    usage(argv[0], "--retriangulate-candidate-budget requires a value > 0.");
+  if (retriangulateTimeBudgetArg <= 0)
+    usage(argv[0], "--retriangulate-time-budget requires a value > 0.");
   identify::recognitionCacheLimit.store(recognitionCacheLimitArg,
                                         std::memory_order_relaxed);
+  census::retriangulateHeight.store(retriangulateHeightArg,
+                                    std::memory_order_relaxed);
+  census::retriangulateCandidateBudget.store(retriangulateCandidateBudgetArg,
+                                             std::memory_order_relaxed);
+  census::retriangulateTimeBudgetSeconds.store(retriangulateTimeBudgetArg,
+                                               std::memory_order_relaxed);
   bool censusLoaded = census::setCensusPath(censusPath);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
@@ -930,7 +1008,8 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsStart, iddfsFinalThreads, limits);
+             iddfsStep, iddfsStart, iddfsFinalThreads, limits,
+             orientableOnly);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -940,7 +1019,8 @@ int main(int argc, char *argv[]) {
     }
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
-             iddfsStep, iddfsStart, iddfsFinalThreads, limits);
+             iddfsStep, iddfsStart, iddfsFinalThreads, limits,
+             orientableOnly);
   }
 
   return 0;

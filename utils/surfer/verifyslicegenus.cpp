@@ -67,13 +67,16 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e) {
 
 // Fired from callbacks.onBoundaryProcessingProgress once per second during
 // the post-search boundary-identification phase (processRemainingSurfaceBoundaries).
-// `resolved` reflects the driver's own resolvedThisRow for the knot
-// currently being processed, so it's visible whether the goal (matching
-// the literature slice genus) has already been met even while this phase
-// is still churning through whatever else was queued.
+// `resolvedGenus`, if set, reflects the driver's own resolvedThisRow/target
+// for the knot currently being processed (resolution is all-or-nothing --
+// see resolvesNow's own comment -- so there is no partial/intermediate
+// genus value to show, only "not yet" vs. the exact target once hit), so
+// it's visible at a glance how the current genus stands against the
+// literature target even while this phase is still churning through
+// whatever else was queued.
 void printBoundaryProgress(size_t processed, size_t total,
                            std::chrono::steady_clock::duration elapsed,
-                           bool resolved) {
+                           std::optional<int> resolvedGenus, int target) {
   double elapsedSec = std::chrono::duration<double>(elapsed).count();
   double rate = (elapsedSec > 0.0) ? static_cast<double>(processed) / elapsedSec
                                    : 0.0;
@@ -88,8 +91,10 @@ void printBoundaryProgress(size_t processed, size_t total,
     report << " | ETA " << formatElapsed(eta);
   }
   report << "\n";
-  report << "[+] goal (literature slice genus) "
-         << (resolved ? "ACHIEVED" : "not yet achieved") << "\n";
+  report << "[+] slice genus: "
+         << (resolvedGenus ? std::to_string(*resolvedGenus) : "?") << "/"
+         << target << " (literature target)"
+         << (resolvedGenus ? " -- ACHIEVED" : "") << "\n";
   redrawProgressBlock(report.str());
 }
 
@@ -972,8 +977,10 @@ int main(int argc, char *argv[]) {
         callbacks.onBoundaryProcessingProgress =
             [&](size_t processed, size_t total,
                 std::chrono::steady_clock::duration elapsed) {
-              printBoundaryProgress(processed, total, elapsed,
-                                   resolvedThisRow);
+              printBoundaryProgress(
+                  processed, total, elapsed,
+                  resolvedThisRow ? std::optional<int>(target) : std::nullopt,
+                  target);
             };
         callbacks.onBoundaryProcessingComplete =
             [&](size_t total, std::chrono::steady_clock::duration elapsed) {
