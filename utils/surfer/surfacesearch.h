@@ -14,6 +14,7 @@
 
 #include "embeddingsearch.h"
 #include "embeddedsubmanifold.h"
+#include "identifycomplement.h"
 
 /**
  * Everything needed to describe one found surface when no boundary-link
@@ -32,6 +33,30 @@ struct SurfaceFoundInfo {
            the O(ambient triangulation size)
            boundaryComponentsMapInjectively(), so this is never
            "connected". */
+  std::function<std::string()> capturePairSig;
+      /**< Computes (or returns the already-cached) reproducible
+           isomorphism signature for this surface -- see
+           EmbeddedSubmanifold::pairSig(). Only set (a non-empty
+           std::function) when SurfaceSearchLimits::capturePairSig is
+           true; call `static_cast<bool>(info.capturePairSig)` to check
+           before calling.
+
+           Deliberately lazy, not a precomputed string: pairSig() searches
+           an automorphism group over the WHOLE ambient triangulation, so
+           it's genuinely expensive (profiling verifyslicegenus showed
+           this dominating >95% of its post-search boundary-processing
+           time when every found surface's pairSig was captured
+           unconditionally, even though almost none of them were ever
+           read) -- callers should only invoke this for the rare surface
+           they've actually decided is worth recording, never
+           unconditionally for every found surface.
+
+           \warning Only valid to call synchronously, within the callback
+           this SurfaceFoundInfo/SurfaceBoundaryInfo was passed to: it
+           closes over the embedding by reference, which the caller may
+           mutate (removeFace()'s unwind) or reuse for the next entry
+           immediately after the callback returns. Safe to call more than
+           once within that window (pairSig() itself is cached). */
 };
 
 /**
@@ -122,8 +147,8 @@ struct PendingSurfaceQueueStats {
  * across its worker threads (see SurfaceSearch::configureLimits()) --
  * without these, a long-running search can grow memory without bound,
  * since candidates/finds vastly outnumber any small fixed set of distinct
- * outcomes. recognitionCacheLimit (linkcomplement.h) is deliberately not
- * here: that cache is global/process-wide, not owned by any one
+ * outcomes. identify::recognitionCacheLimit (identifycomplement.h) is
+ * deliberately not here: that cache is global/process-wide, not owned by any one
  * SurfaceSearch, so it's set directly (e.g. in surfer.cpp's main(), the
  * same way --no-simplify sets simplifyComplements).
  */
@@ -133,9 +158,15 @@ struct SurfaceSearchLimits {
   /** See PetalCache::setClearThreshold(). */
   size_t petalCacheLimit = 2'000'000;
   /** See BoundarySignatureCache's clearThreshold constructor parameter. */
-  size_t boundarySignatureCacheLimit = BoundarySignatureCache::DEFAULT_CLEAR_THRESHOLD;
+  size_t boundarySignatureCacheLimit = identify::BoundarySignatureCache::DEFAULT_CLEAR_THRESHOLD;
   /** See SurfaceSearch::LinkBoundaryTally::setCap(). */
   size_t boundaryTallyCap = 1'000'000;
+  bool capturePairSig = false;
+      /**< Whether onSurfaceFound/onSurfaceBoundaryProcessed populate
+           SurfaceFoundInfo::pairSig (via the found embedding's own
+           EmbeddedSubmanifold::pairSig()). Off by default so existing
+           callers (surfer.cpp) pay no extra cost -- pairSig() runs a
+           nontrivial automorphism search. */
 };
 
 class SurfaceSearch : public EmbeddingSearch<4, 2> {
@@ -331,6 +362,22 @@ private:
   SurfaceTypeTally surfaceTypeTally_; /**< See surfaceTypeTally(). */
 
   /**
+   * Deliberately separate from EmbeddingSearch::stopRequested_ (which
+   * SIGINT also sets, via SigintScope): stopRequested_ stopping the final
+   * drain too would mean a plain Ctrl+C silently drops whatever was still
+   * queued but not yet identified, contradicting the "moving on to
+   * whatever comes next with what was found so far" contract callers like
+   * surfer.cpp's onInterrupted message promise (and requestStop()'s own
+   * doc comment: it does NOT interrupt processRemainingSurfaceBoundaries()).
+   * This flag exists for the narrower case a caller's own
+   * onSurfaceBoundaryProcessed callback actually wants: "I've already
+   * decided this search is satisfied, don't bother identifying the rest of
+   * what's still queued" -- set only via skipRemainingBoundaryProcessing(),
+   * never by SIGINT. See processBatchParallel_'s use of this.
+   */
+  std::atomic<bool> skipRemainingDrain_{false};
+
+  /**
    * Shared across every KnottedSurface this search constructs (the main
    * DFS workers, the seed-validation/surfaceType probes, and the
    * boundary-link-processing workers) -- see PetalCache and
@@ -374,7 +421,7 @@ private:
    * construction on) and must never be relocated once other threads may
    * be holding a reference to it.
    */
-  mutable std::vector<std::unique_ptr<BoundarySignatureCache>>
+  mutable std::vector<std::unique_ptr<identify::BoundarySignatureCache>>
       boundarySigCaches_;
 
   /**
@@ -444,7 +491,7 @@ public:
    * much recomputation the pre-triangulation boundary-signature cache is
    * actually avoiding, across every search thread.
    */
-  BoundarySignatureCacheStats boundarySignatureCacheStats() const;
+  identify::BoundarySignatureCacheStats boundarySignatureCacheStats() const;
 
   /** As above, but the total number of distinct canonical boundary signatures seen across every boundary component. */
   size_t boundarySignatureCacheSize() const;
@@ -455,7 +502,25 @@ public:
                      const SurfaceSearchCallbacks &callbacks = {},
                      unsigned iddfsIterations = 0, long long iddfsStep = 0,
                      std::optional<long long> iddfsStart = std::nullopt,
-                     std::optional<unsigned> finalThreads = std::nullopt);
+                     std::optional<unsigned> finalThreads = std::nullopt,
+                     bool orientableOnly = false);
+
+  /**
+   * Requests that processRemainingSurfaceBoundaries() abandon whatever is
+   * still queued rather than identifying it, the next time (or currently,
+   * if already running) it drains pendingSurfaces_. Unlike requestStop()
+   * (which only stops the DFS itself, and is deliberately indistinguishable
+   * from a real SIGINT -- see its own doc comment), this is never set by
+   * SIGINT: call it only when a callback has independently decided this
+   * search's purpose is already satisfied and the remaining queued
+   * surfaces genuinely don't need identifying (e.g. verifyslicegenus,
+   * once a resolving cobordism is found, has no use for identifying
+   * whatever else happened to also queue up). Combine with requestStop()
+   * to also stop the DFS from producing more work in the first place.
+   */
+  void skipRemainingBoundaryProcessing() {
+    skipRemainingDrain_.store(true, std::memory_order_relaxed);
+  }
 
   /**
    * Processes whatever boundary-link work is left after every DFS
@@ -495,6 +560,13 @@ private:
    * min(numThreads, batch.size()) worker threads (each with its own
    * reused KnottedSurface, via processBatchRange_), reporting through
    * the onBoundaryProcessing* callbacks throughout.
+   *
+   * Each worker also checks skipRemainingDrain_ before claiming its next
+   * chunk (see skipRemainingBoundaryProcessing()) -- deliberately not
+   * stopRequested_/SIGINT, which stops the DFS but must NOT silently drop
+   * whatever this drain has left to identify -- at CHUNK granularity, so
+   * up to CHUNK already-claimed entries per thread still finish rather
+   * than being abandoned mid-processing.
    */
   void processBatchParallel_(std::vector<std::vector<int>> batch,
                             unsigned numThreads,
@@ -517,11 +589,20 @@ private:
    * DFS originally discovered each entry. `embedding` is reused across
    * the whole range so its boundary-component cache is only built once,
    * not once per queued surface.
+   *
+   * `processedCounter`, if given, is incremented by one after each
+   * individual entry (not once for the whole range) -- per-entry cost
+   * here is not uniform or necessarily cheap (identify()/pairSig() can
+   * each cost real seconds), so onBoundaryProcessingProgress's once-a-
+   * second reporting would otherwise sit frozen at a stale count for as
+   * long as a single CHUNK-sized range takes a worker thread to finish,
+   * rather than reflecting genuinely-live progress.
    */
   void processBatchRange_(KnottedSurface &embedding,
                           const std::vector<std::vector<int>> &batch,
                           size_t begin, size_t end,
-                          const SurfaceSearchCallbacks &callbacks);
+                          const SurfaceSearchCallbacks &callbacks,
+                          std::atomic<size_t> *processedCounter = nullptr);
 
   /**
    * Builds one human-readable descriptor of a surface's whole boundary

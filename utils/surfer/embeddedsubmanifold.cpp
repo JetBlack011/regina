@@ -6,6 +6,9 @@
 
 #include "embeddedsubmanifold.h"
 
+#include "identifycomplement.h"
+#include "pairsig.h"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -17,7 +20,8 @@ template <int dim, int subdim>
 EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     const Skeleton<dim, subdim> &skeleton)
     : skeleton_(skeleton), faces_(skeleton.numFaces()), classRoots_(subdim - 1),
-      registryUndoLog_(subdim - 1), checkpoints_(skeleton.numFaces()) {
+      registryUndoLog_(subdim - 1), checkpoints_(skeleton.numFaces()),
+      orientationDsu_(skeleton.numFaces()) {
   const auto &tri = skeleton_.triangulation();
   regina::for_constexpr<0, subdim>([&](auto kW) {
     constexpr int k = decltype(kW)::value;
@@ -190,6 +194,7 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
     checkpoints_[f].dsuMark[k] = dsu_[k].checkpoint();
     checkpoints_[f].registryMark[k] = registryUndoLog_[k].size();
   }
+  checkpoints_[f].orientationDsuMark = orientationDsu_.checkpoint();
 
   // k == subdim-1 (facets): increment counts[idx] one local facet at a time
   // (rather than in the generic loop above), tracking each individual
@@ -218,11 +223,42 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
   auto *src = subtri_.newSimplex();
   faces_[f] = src;
 
+  bool thisFaceViolatesOrientability = false;
   for (const auto &g : node.gluings) {
     if (faces_[g.dstIndex] == nullptr)
       continue;
     if (src->adjacentSimplex(g.srcFacet) != nullptr)
       continue; // already joined (second direction of a self-gluing)
+
+    // Orientability tracking: incrementally maintains isOrientable_ via a
+    // union-find-with-parity (orientationDsu_, one node per ambient
+    // subdim-face) over this same set of gluing events, rather than a
+    // second walk over node.gluings. A complex admits a consistent
+    // orientation iff each simplex can be assigned a +1/-1 label such
+    // that every gluing's required same/different relationship (derived
+    // from g.gluing's sign) is satisfiable -- exactly what
+    // RollbackUnionFind's parity tracking checks. The specific mapping
+    // from sign() to "sameOrientation" below is an arbitrary-but-fixed
+    // convention: detecting a *contradiction* is invariant under globally
+    // relabelling which sign means "same", so it doesn't need to match
+    // any external convention (e.g. Regina's own), only be applied
+    // consistently here.
+    bool sameOrientation = g.gluing.sign() < 0;
+    if (g.dstIndex == static_cast<size_t>(f)) {
+      // Self-gluing: f related to itself. Requiring "different" from
+      // itself is an immediate contradiction; requiring "same" is
+      // trivially satisfied (nothing to unite).
+      if (!sameOrientation)
+        thisFaceViolatesOrientability = true;
+    } else {
+      int other = static_cast<int>(g.dstIndex);
+      if (orientationDsu_.find(f) == orientationDsu_.find(other)) {
+        if (orientationDsu_.sameOrientation(f, other) != sameOrientation)
+          thisFaceViolatesOrientability = true;
+      } else {
+        orientationDsu_.unite(f, other, sameOrientation);
+      }
+    }
 
     // isEmbedded() tracking: this gluing identifies local facet g.srcFacet
     // of the new simplex with the corresponding facet of faces_[g.dstIndex]
@@ -258,6 +294,16 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
     src->join(g.srcFacet, faces_[g.dstIndex], g.gluing);
   }
 
+  // Mirrors singularCount_/isEmbedded_'s pattern: a per-face flag (not a
+  // full undo log) suffices, since removeFace() always undoes the most
+  // recently added face (LIFO), so exactly one addFace()/removeFace() pair
+  // ever contributes/retracts a given face's count -- no need to track
+  // *how many* individual gluings this face violated, only whether it
+  // violated any.
+  checkpoints_[f].causedOrientationViolation = thisFaceViolatesOrientability;
+  if (thisFaceViolatesOrientability)
+    ++orientationViolationCount_;
+
   // isEmbedded() tracking: register every local k-face slot of the new
   // simplex against its ambient k-face's known classes, whether or not it
   // participated in a gluing above -- an unregistered slot landing on an
@@ -271,6 +317,7 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
     }
   });
 
+  cachedPairSig_.reset(); // see pairSig(): the tracked subcomplex just changed
   return true;
 }
 
@@ -306,6 +353,9 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
     }
     dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
   }
+  orientationDsu_.rollbackTo(checkpoints_[f].orientationDsuMark);
+  if (checkpoints_[f].causedOrientationViolation)
+    --orientationViolationCount_;
 
   // isProper() tracking: mirrors addFace()'s badProperCount_ update (see
   // its comment for why self-gluings need this per-facet handling), just
@@ -333,6 +383,7 @@ void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
 
   faces_[f] = nullptr;
   subtri_.removeSimplex(face);
+  cachedPairSig_.reset(); // see pairSig(): the tracked subcomplex just changed
 }
 
 template <int dim, int subdim>
@@ -501,6 +552,13 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
 //   });
 //   return unexplained;
 // }
+
+template <int dim, int subdim>
+const std::string &EmbeddedSubmanifold<dim, subdim>::pairSig() const {
+  if (!cachedPairSig_)
+    cachedPairSig_ = ::pairSig<dim, subdim>(skeleton_, *this);
+  return *cachedPairSig_;
+}
 
 template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
@@ -682,7 +740,7 @@ bool KnottedSurface::addFace(int f) {
     if (cachedUnknot) {
       isUnknot = *cachedUnknot;
     } else {
-      isUnknot = ensureKnotA().isUnknot();
+      isUnknot = identify::isUnknot(ensureKnotA());
       petalCache_.recordUnknot(idA, isUnknot);
     }
     if (!isUnknot) {

@@ -198,6 +198,15 @@ regina::Triangulation<dim + 1> &CobordismBuilder<dim>::thicken_() {
         for (const auto *s : tri_.simplices()) {
             topPrisms_.at(s).stitchTop(newPrisms.at(s));
         }
+    } else {
+        // First layer only: see baseBoundaryComponent()'s doc comment.
+        // simplex(0) of any base simplex's prism holds every one of that
+        // base simplex's own "bottom" vertices plus the "top" copy of
+        // base vertex 0 -- captured here since this is the only point at
+        // which the *first* layer's own prisms are directly at hand
+        // (topPrisms_ is overwritten wholesale by every later call).
+        const regina::Simplex<dim> *anyBase = *tri_.simplices().begin();
+        baseBoundaryFacetSimplex_ = newPrisms.at(anyBase).simplex(0);
     }
 
     topPrisms_ = std::move(newPrisms);
@@ -212,6 +221,17 @@ regina::Triangulation<dim + 1> &CobordismBuilder<dim>::thicken_() {
            "valid.");
 
     return cob_;
+}
+
+template <int dim>
+regina::BoundaryComponent<dim + 1> *
+CobordismBuilder<dim>::baseBoundaryComponent() const {
+    if (!baseBoundaryFacetSimplex_)
+        throw regina::InvalidArgument(
+            "CobordismBuilder::baseBoundaryComponent(): no thicken() call "
+            "has been made");
+    return baseBoundaryFacetSimplex_->template face<dim>(dim + 1)
+        ->boundaryComponent();
 }
 
 template class CobordismBuilder<2>;

@@ -126,11 +126,32 @@ private:
   struct Checkpoint {
     std::vector<size_t> dsuMark; /**< dsu_[k].checkpoint(), per k. */
     std::vector<size_t> registryMark; /**< registryUndoLog_[k].size(), per k. */
+    size_t orientationDsuMark = 0; /**< orientationDsu_.checkpoint(); see isOrientable(). */
+    bool causedOrientationViolation = false;
+        /**< Whether this face's own addFace() call incremented
+             orientationViolationCount_ -- see isOrientable(). */
   };
   std::vector<Checkpoint> checkpoints_; /**< Indexed by ambient face index f. */
 
   int singularCount_ = 0;
   bool isEmbedded_ = true; /**< Kept in lockstep with (singularCount_ == 0). */
+
+  /**
+   * Union-find-with-parity over ambient subdim-faces, incrementally
+   * tracking whether the tracked subcomplex admits a consistent
+   * orientation; see isOrientable() and addFace()'s orientability
+   * tracking comment.
+   */
+  RollbackUnionFind orientationDsu_;
+  int orientationViolationCount_ = 0;
+      /**< The number of currently-present faces whose own addFace() call
+           found a same/different-orientation contradiction (see
+           Checkpoint::causedOrientationViolation) -- mirrors
+           singularCount_/isEmbedded_'s pattern exactly.
+           isOrientable() := (orientationViolationCount_ == 0). */
+
+  mutable std::optional<std::string> cachedPairSig_;
+      /**< See pairSig(). Reset by any successful addFace()/removeFace(). */
 
   /**
    * Unions the DSU slot for (implicit ambient face, k, `slotA`) with the
@@ -240,6 +261,21 @@ public:
   }
 
   /**
+   * Returns (computing and caching on first call) this submanifold's
+   * pairSig -- a full isomorphism invariant of (ambient triangulation,
+   * marked faces); see pairsig.h. Expensive (searches the canonical
+   * triangulation's automorphism group) -- only call once a caller has
+   * actually decided this specific state is worth recording, never from a
+   * hot path.
+   *
+   * Defined out-of-line in embeddedsubmanifold.cpp (not inline here):
+   * pairsig.h itself includes this header (for EmbeddedSubmanifold), so
+   * calling the pairSig<dim,subdim>() free function from here would be
+   * circular.
+   */
+  const std::string &pairSig() const;
+
+  /**
    * Returns whether the tracked subcomplex has no boundary.
    *
    * \note Implemented directly via hasBoundaryFacets() rather than
@@ -268,6 +304,20 @@ public:
    * O(1): incrementally maintained by addFace()/removeFace().
    */
   bool isEmbedded() const { return isEmbedded_; }
+
+  /**
+   * Returns whether the tracked subcomplex currently admits a consistent
+   * orientation.
+   *
+   * O(1): incrementally maintained by addFace()/removeFace() via
+   * orientationDsu_, a union-find-with-parity over ambient subdim-faces
+   * (see addFace()'s orientability-tracking comment for the derivation).
+   * Hereditary under taking connected subsets (restricting a consistent
+   * orientation to fewer simplices is still consistent), so it is safe to
+   * use as a pruning predicate during a DFS search that only builds up
+   * one face at a time -- see OrientabilityPredicate in embeddingsearch.h.
+   */
+  bool isOrientable() const { return orientationViolationCount_ == 0; }
 
   /** Returns whether the tracked subcomplex satisfies `cond`. */
   bool satisfies(BoundaryCondition cond) const;

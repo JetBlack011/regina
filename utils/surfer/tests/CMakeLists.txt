@@ -7,7 +7,8 @@ set(TESTS
   vertexlinks_test
   pairsig_test
   linkcomplement_test
-  census_mirror_test
+  identifycomplement_test
+  census_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather

@@ -172,7 +172,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     const SearchCallbacks &callbacks, RunSearchAuxHooks &auxHooks,
     unsigned iddfsIterations, long long iddfsStep,
     std::optional<long long> iddfsStart,
-    std::optional<unsigned> finalThreads) {
+    std::optional<unsigned> finalThreads, bool orientableOnly) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     // See this method's doc comment (embeddingsearch.h) for the SIGINT
@@ -206,8 +206,14 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
                                              graph_.graphToSkel);
+        std::optional<OrientabilityPredicate<EmbeddingT>> protoOrientOpt;
+        ConditionalPredicate *protoEmbeddingPredicate = &protoPredicate;
+        if (orientableOnly) {
+            protoOrientOpt.emplace(protoPredicate, protoEmbedding);
+            protoEmbeddingPredicate = &*protoOrientOpt;
+        }
         InterruptiblePredicate protoInterruptible(
-            protoPredicate, stopRequested_, pauseRequested_);
+            *protoEmbeddingPredicate, stopRequested_, pauseRequested_);
         ConnectedInducedSubgraphEnumerator protoEnumerator(
             graph_.adjList.first, graph_.adjList.second, true,
             protoInterruptible);
@@ -266,7 +272,13 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                       long long suppressBelow) {
         auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
-        InterruptiblePredicate interruptible(predicate, stopRequested_,
+        std::optional<OrientabilityPredicate<EmbeddingT>> orientOpt;
+        ConditionalPredicate *embeddingPredicate = &predicate;
+        if (orientableOnly) {
+            orientOpt.emplace(predicate, embedding);
+            embeddingPredicate = &*orientOpt;
+        }
+        InterruptiblePredicate interruptible(*embeddingPredicate, stopRequested_,
                                             pauseRequested_);
         // Only constructed for a capped (iterative-deepening) round; see
         // DepthCappedPredicate. Kept alive for the whole round exactly like
@@ -525,7 +537,7 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
     const unsigned numThreads, BoundaryCondition cond,
     const SearchCallbacks &callbacks, unsigned iddfsIterations,
     long long iddfsStep, std::optional<long long> iddfsStart,
-    std::optional<unsigned> finalThreads) {
+    std::optional<unsigned> finalThreads, bool orientableOnly) {
     struct NoopThreadHook : RunSearchThreadHook<dim, subdim> {
         void onFound(EmbeddedSubmanifold<dim, subdim> &,
                     const std::vector<int> &, long long) override {}
@@ -541,7 +553,7 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
         [this] { return EmbeddedSubmanifold<dim, subdim>(skeleton_); },
         [] { return std::make_unique<NoopThreadHook>(); },
         [](const std::vector<int> &) {}, callbacks, noopAuxHooks,
-        iddfsIterations, iddfsStep, iddfsStart, finalThreads);
+        iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly);
 }
 
 template <int dim, int subdim>
@@ -669,19 +681,19 @@ EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
     std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
     unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
     unsigned, BoundaryCondition, std::function<KnottedSurface()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 

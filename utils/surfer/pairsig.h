@@ -46,7 +46,7 @@
  * final step -- what pairSig()'s per-automorphism inner loop relies on to
  * stay cheap, and equally useful for canonicalizing a marked face set
  * against a single fixed triangulation's own automorphism group (see
- * BoundarySignatureCache in linkcomplement.h).
+ * identify::BoundarySignatureCache in identifycomplement.h).
  */
 template <int dim>
 struct FaceDescriptor {
@@ -59,7 +59,7 @@ struct FaceDescriptor {
  * `ambient`'s subdim-faces), before any isomorphism has been applied.
  *
  * Defined here (not in pairsig.cpp) so that any translation unit --
- * including linkcomplement.cpp's BoundarySignatureCache, which has no
+ * including identifycomplement.cpp's BoundarySignatureCache, which has no
  * other reason to link against pairsig.cpp's own explicit instantiations
  * (pairSig()/fromPairSig() and everything they in turn pull in, e.g.
  * EmbeddedSubmanifold/KnottedSurface/Skeleton's .cpp files) -- can

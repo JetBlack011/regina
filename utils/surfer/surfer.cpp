@@ -22,10 +22,12 @@
 
 #include "cobordismbuilder.h"
 #include "collar.h"
+#include "csvwriter.h"
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
 #include "knotbuilder.h"
 #include "linkcomplement.h"
+#include "identifycomplement.h"
 
 namespace {
 
@@ -66,22 +68,6 @@ public:
   }
 };
 
-// Escapes a single CSV field per RFC 4180: wraps in double quotes (doubling
-// any embedded quotes) only when the field contains a comma, quote, or
-// newline -- otherwise returned unquoted.
-std::string csvField(std::string_view s) {
-  if (s.find_first_of(",\"\n") == std::string_view::npos)
-    return std::string(s);
-  std::string out = "\"";
-  for (char c : s) {
-    if (c == '"')
-      out += '"';
-    out += c;
-  }
-  out += '"';
-  return out;
-}
-
 // The columns every CSV row shares regardless of BoundaryCondition.
 std::string csvRow(bool orientable, int genus, int punctures,
                    long long triangles, BoundaryCondition mostRestrictive) {
@@ -90,122 +76,6 @@ std::string csvRow(bool orientable, int genus, int punctures,
       << ',' << triangles << ',' << boundaryConditionName(mostRestrictive);
   return row.str();
 }
-
-// Buffers CSV rows, distributing writers across a small, bounded pool of
-// shard files (at most MAX_SHARDS, and never more than numThreads) rather
-// than one shard per thread -- --threads can be set far higher than the
-// system's open-file-descriptor limit (ulimit -n), and one persistently-
-// open file handle per thread risks exhausting it (silently, before this
-// fix: failed opens/writes went unchecked, so hitting the limit meant rows
-// -- or the entire output -- vanished with no error, just a misleading
-// "Wrote CSV output" message). Threads sharing a shard are serialized by
-// that shard's own mutex, which only contends among threads mapped to the
-// same shard, not globally.
-//
-// finalize() concatenates every shard into the requested output path
-// (header first) and removes the shard files -- call it once,
-// single-threaded, only after every thread that might call writeRow() has
-// already joined (i.e. after search() itself has returned).
-//
-// shardForThisThread() caches its result in a thread_local, function-static
-// pointer -- correct as long as at most one CsvWriter is ever alive per
-// process, which is exactly how surfer.cpp uses it (constructed at most
-// once per run, in runSearch()).
-class CsvWriter {
-public:
-  CsvWriter(std::filesystem::path outputPath, std::string headerLine,
-           unsigned numThreads)
-      : outputPath_(std::move(outputPath)),
-        headerLine_(std::move(headerLine)),
-        maxShards_(std::max<unsigned>(1, std::min(numThreads, MAX_SHARDS))) {}
-
-  void writeRow(const std::string &row) {
-    Shard &shard = shardForThisThread();
-    std::lock_guard<std::mutex> lock(shard.mutex);
-    shard.buffer += row;
-    shard.buffer += '\n';
-    if (shard.buffer.size() >= FLUSH_THRESHOLD)
-      flush(shard);
-  }
-
-  // Any failure here (opening the final output, reading a shard back,
-  // writing to it) throws rather than limping on -- a partially-written
-  // CSV that looks complete but silently isn't is worse than a loud
-  // failure that makes clear the run needs to be retried (e.g. with a
-  // lower --threads, or a raised ulimit -n).
-  void finalize() {
-    std::ofstream out(outputPath_, std::ios::trunc);
-    if (!out)
-      throw std::runtime_error("CsvWriter: failed to open " +
-                               outputPath_.string() + " for writing");
-    out << headerLine_ << "\n";
-    for (auto &shard : shards_) {
-      std::lock_guard<std::mutex> lock(shard->mutex);
-      flush(*shard);
-      shard->file.close();
-      std::ifstream in(shard->path);
-      if (!in)
-        throw std::runtime_error("CsvWriter: failed to reopen " +
-                                 shard->path.string() + " for consolidation");
-      out << in.rdbuf();
-      in.close();
-      std::filesystem::remove(shard->path);
-    }
-    if (!out)
-      throw std::runtime_error("CsvWriter: failed while writing " +
-                               outputPath_.string());
-    std::cerr << "[+] Wrote CSV output to " << outputPath_.string() << "\n";
-  }
-
-private:
-  struct Shard {
-    std::filesystem::path path;
-    std::ofstream file;
-    std::string buffer;
-    std::mutex mutex;
-  };
-
-  static constexpr size_t FLUSH_THRESHOLD = 1 << 16; // ~64KB
-  static constexpr unsigned MAX_SHARDS = 64;
-
-  // Caller must hold shard.mutex.
-  static void flush(Shard &shard) {
-    if (shard.buffer.empty())
-      return;
-    shard.file << shard.buffer;
-    if (!shard.file)
-      throw std::runtime_error("CsvWriter: failed writing to " +
-                               shard.path.string());
-    shard.buffer.clear();
-  }
-
-  Shard &shardForThisThread() {
-    static thread_local Shard *cached = nullptr;
-    if (cached)
-      return *cached;
-    std::lock_guard<std::mutex> lock(registryMutex_);
-    if (shards_.size() < maxShards_) {
-      auto shard = std::make_unique<Shard>();
-      shard->path = outputPath_.string() + ".tmp." +
-                   std::to_string(getpid()) + ".shard" +
-                   std::to_string(shards_.size());
-      shard->file.open(shard->path, std::ios::trunc);
-      if (!shard->file)
-        throw std::runtime_error("CsvWriter: failed to open " +
-                                 shard->path.string() + " for writing");
-      shards_.push_back(std::move(shard));
-    }
-    cached = shards_[nextShard_++ % shards_.size()].get();
-    return *cached;
-  }
-
-  std::filesystem::path outputPath_;
-  std::string headerLine_;
-  unsigned maxShards_;
-  std::mutex registryMutex_;
-  size_t nextShard_ = 0; // guarded by registryMutex_
-  std::vector<std::unique_ptr<Shard>> shards_;
-};
 
 void usage(const char *progName, const std::string &error = std::string()) {
   if (!error.empty())
@@ -358,7 +228,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "threshold\n"
          "                     past which the boundary-complement "
          "recognition cache\n"
-         "                     (see linkcomplement.h) clears itself "
+         "                     (see identifycomplement.h) clears itself "
          "entirely\n"
          "                     (default: 200000).\n";
   std::cerr
@@ -380,18 +250,32 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "depends on\n"
          "                     it.\n\n";
   std::cerr
-      << "    --census-mirror <path> : SQLite census mirror to check before "
+      << "    --census-db <path> : Local SQLite census to check before "
          "falling\n"
          "                     back to the real (mutex-guarded) "
          "Census::lookup()\n"
-         "                     (see linkcomplement.h and "
-         "tools/gen_census_mirror.py).\n"
-         "                     Default: utils/surfer/data/census-mirror."
+         "                     (see identifycomplement.h and "
+         "tools/gen_census.py).\n"
+         "                     Default: utils/surfer/data/census."
          "sqlite\n"
          "                     alongside the source tree. A missing file is "
          "not an\n"
-         "                     error -- the mirror is an optional "
+         "                     error -- the census is an optional "
          "accelerator.\n\n";
+  std::cerr
+      << "    --retriangulate-on-miss : When a boundary complement's "
+         "identification\n"
+         "                     misses both the local census and the real "
+         "Census::lookup(),\n"
+         "                     search a bounded neighborhood of alternate "
+         "triangulations\n"
+         "                     of the same manifold for a census match "
+         "(see\n"
+         "                     identifycomplement.h's "
+         "retriangulateAndLookup()). More\n"
+         "                     complete but materially more expensive on a "
+         "miss;\n"
+         "                     off by default.\n\n";
   std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
@@ -512,10 +396,10 @@ void runSearch(const regina::Triangulation<4> &tri,
   };
 
   // How much recomputation the isoSig-keyed recognition cache (see
-  // linkcomplement.h/.cpp) is actually avoiding -- shared process-wide, so
-  // this is already the full aggregate across every search thread.
+  // identifycomplement.h/.cpp) is actually avoiding -- shared process-wide,
+  // so this is already the full aggregate across every search thread.
   auto recognitionCacheText = [] {
-    RecognitionCacheStats s = recognitionCacheStats();
+    identify::RecognitionCacheStats s = identify::recognitionCacheStats();
     auto hitRate = [](long long hits, long long checks) {
       return checks > 0 ? 100.0 * static_cast<double>(hits) /
                                static_cast<double>(checks)
@@ -530,31 +414,31 @@ void runSearch(const regina::Triangulation<4> &tri,
         << std::setprecision(1)
         << hitRate(s.censusCacheHits, s.censusChecks) << "% hit rate)\n";
     out << "[+] recognition cache entries (distinct isoSigs seen): "
-        << recognitionCacheSize() << " | full resets: " << s.cacheResets
-        << "\n";
+        << identify::recognitionCacheSize() << " | full resets: "
+        << s.cacheResets << "\n";
     long long misses = s.genusChecks - s.genusCacheHits;
     out << "[+] genus cache misses resolved via: group-is-Z check="
         << s.groupFastPathHits << ", SnapPea hyperbolicity check="
         << s.snapPeaFastPathHits << ", recogniseHandlebody() fallback="
         << s.recogniseHandlebodyFallbacks << " (of " << misses
         << " misses)\n";
-    out << "[+] census mirror: checks=" << s.mirrorChecks << " hits="
-        << s.mirrorHits << " (" << std::fixed << std::setprecision(1)
-        << hitRate(s.mirrorHits, s.mirrorChecks)
+    out << "[+] local census: checks=" << s.localCensusChecks << " hits="
+        << s.localCensusHits << " (" << std::fixed << std::setprecision(1)
+        << hitRate(s.localCensusHits, s.localCensusChecks)
         << "% hit rate) -- misses fall through to the real, "
            "mutex-guarded Census::lookup()\n";
     return out.str();
   };
 
   // How much recomputation the pre-triangulation boundary-signature cache
-  // (see BoundarySignatureCache in linkcomplement.h/.cpp) is actually
-  // avoiding -- one cache per ambient boundary component, shared across
-  // every search thread, so this is already the full aggregate. A high hit
-  // rate here means most boundary curves never reach
-  // EdgeComplement::identify()'s buildComplement()/simplify()/isoSig() at
-  // all, let alone the recognition cache or Census::lookup() above.
+  // (see identify::BoundarySignatureCache in identifycomplement.h/.cpp) is
+  // actually avoiding -- one cache per ambient boundary component, shared
+  // across every search thread, so this is already the full aggregate. A
+  // high hit rate here means most boundary curves never reach
+  // identify::identify()'s buildComplement()/simplify()/isoSig() at all,
+  // let alone the recognition cache or Census::lookup() above.
   auto boundarySignatureCacheText = [&] {
-    BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
+    identify::BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
     double hitRate = s.checks > 0 ? 100.0 * static_cast<double>(s.hits) /
                                         static_cast<double>(s.checks)
                                   : 0.0;
@@ -806,8 +690,8 @@ int main(int argc, char *argv[]) {
   std::optional<unsigned> iddfsFinalThreads;
 
   SurfaceSearchLimits limits;
-  size_t recognitionCacheLimitArg = recognitionCacheLimit.load();
-  std::string censusMirrorPath = SURFER_CENSUS_MIRROR_PATH;
+  size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
+  std::string censusPath = SURFER_CENSUS_PATH;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -943,10 +827,12 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--boundary-tally-cap requires an integer value.");
       }
-    } else if (arg == "--census-mirror") {
+    } else if (arg == "--census-db") {
       if (i + 1 >= argc)
-        usage(argv[0], "--census-mirror requires a value.");
-      censusMirrorPath = argv[++i];
+        usage(argv[0], "--census-db requires a value.");
+      censusPath = argv[++i];
+    } else if (arg == "--retriangulate-on-miss") {
+      census::retriangulateOnMiss.store(true, std::memory_order_relaxed);
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -982,9 +868,9 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
-  recognitionCacheLimit.store(recognitionCacheLimitArg,
-                             std::memory_order_relaxed);
-  bool censusMirrorLoaded = setCensusMirrorPath(censusMirrorPath);
+  identify::recognitionCacheLimit.store(recognitionCacheLimitArg,
+                                        std::memory_order_relaxed);
+  bool censusLoaded = census::setCensusPath(censusPath);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -995,10 +881,10 @@ int main(int argc, char *argv[]) {
 
   std::cout << "------ SurFer (Surface Finder) \U0001F30A ------\n\n";
 
-  std::cout << (censusMirrorLoaded ? "[+] census mirror: loaded from "
-                                   : "[+] census mirror: not found at ")
-            << censusMirrorPath
-            << (censusMirrorLoaded ? "\n\n" : ", skipping\n\n");
+  std::cout << (censusLoaded ? "[+] census: loaded from "
+                            : "[+] census: not found at ")
+            << censusPath
+            << (censusLoaded ? "\n\n" : ", skipping\n\n");
 
   if (havePD) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdCode);

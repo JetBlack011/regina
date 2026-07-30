@@ -357,10 +357,17 @@ struct AuditResult {
 // additionally checks -- at every connected state that is non-closed and
 // properly/connectedly embedded -- that each boundary component's Link
 // complement has the homology of a genuine n-component link complement
-// (H_1 = Z^n).
+// (H_1 = Z^n). If checkOrientability is true, additionally cross-checks
+// -- at every embedded state -- that embedding.isOrientable() (the
+// incremental union-find-with-parity tracking in EmbeddedSubmanifold)
+// agrees with embedding.triangulation().isOrientable() (Regina's own,
+// independently implemented ground truth computed from scratch on the
+// assembled subtri_), catching any discrepancy across every connected
+// subcomplex actually reachable, not just one hand-picked example.
 AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
                                int maxDepth, bool checkBoundaryHomology = false,
-                               int violationCap = 25) {
+                               int violationCap = 25,
+                               bool checkOrientability = false) {
     Skeleton<4, 2> skeleton(tri);
     Graph graph = buildTestGraph(skeleton);
     KnottedSurface embedding(skeleton);
@@ -371,6 +378,17 @@ AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
 
     auto visit = [&](const std::vector<int> &) {
         ++result.subgraphsVisited;
+        if (checkOrientability && embedding.isEmbedded()) {
+            bool tracked = embedding.isOrientable();
+            bool actual = embedding.triangulation().isOrientable();
+            if (tracked != actual) {
+                std::ostringstream reason;
+                reason << "isOrientable() tracking mismatch: tracked="
+                      << tracked << " actual (Triangulation<2>::isOrientable())="
+                      << actual;
+                result.violations.push_back({auditor.path(), reason.str()});
+            }
+        }
         if (!checkBoundaryHomology)
             return;
         if (!embedding.isEmbedded())
@@ -822,7 +840,10 @@ void auditCobordismSurface(const std::string &label,
     if (cap)
         cob3.cone();
 
-    auto result = auditAllEmbeddings(cob3.getCobordism(), kDerivedMaxDepth);
+    auto result = auditAllEmbeddings(cob3.getCobordism(), kDerivedMaxDepth,
+                                     /*checkBoundaryHomology=*/false,
+                                     /*violationCap=*/25,
+                                     /*checkOrientability=*/true);
     reportAudit(label, result);
 }
 

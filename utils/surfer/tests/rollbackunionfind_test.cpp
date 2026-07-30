@@ -135,6 +135,66 @@ void test_reunite_after_rollback_behaves_fresh() {
               "rolled-back {0,1,2,3} merge");
 }
 
+void test_parity_basic() {
+    std::cout << "\n--- parity-aware unite()/sameOrientation() ---\n";
+
+    RollbackUnionFind dsu(4);
+    dsu.unite(0, 1, true); // 0 and 1: "same"
+    EXPECT_EQ(dsu.sameOrientation(0, 1), true,
+              "directly united with sameOrientation=true reports same");
+
+    dsu.unite(1, 2, false); // 1 and 2: "different"
+    EXPECT_EQ(dsu.sameOrientation(1, 2), false,
+              "directly united with sameOrientation=false reports different");
+    EXPECT_EQ(dsu.sameOrientation(0, 2), false,
+              "transitively: same(0,1) + different(1,2) => different(0,2)");
+
+    dsu.unite(2, 3, false); // 2 and 3: "different" -- so 0 and 3 should be "same"
+    EXPECT_EQ(dsu.sameOrientation(0, 3), true,
+              "transitively: different(0,2) + different(2,3) => same(0,3) "
+              "(two reversals cancel out)");
+}
+
+void test_parity_plain_unite_defaults_to_same() {
+    std::cout << "\n--- plain unite(x, y) is equivalent to unite(x, y, true) "
+                 "---\n";
+
+    RollbackUnionFind dsu(2);
+    dsu.unite(0, 1); // no explicit relationship given
+    EXPECT_EQ(dsu.sameOrientation(0, 1), true,
+              "unite(x, y) with no explicit relationship defaults to "
+              "sameOrientation=true");
+}
+
+void test_parity_rollback_restores_independence() {
+    std::cout << "\n--- rollback restores parity independence, not just "
+                 "connectivity ---\n";
+
+    RollbackUnionFind dsu(4);
+    size_t mark = dsu.checkpoint();
+    dsu.unite(0, 1, false);
+    dsu.unite(1, 2, false);
+    EXPECT_EQ(dsu.sameOrientation(0, 2), true,
+              "different(0,1) + different(1,2) => same(0,2), before rollback");
+
+    dsu.rollbackTo(mark);
+    EXPECT_EQ(dsu.find(0), 0, "0 is its own root again after rollback");
+
+    // Re-derive a DIFFERENT parity relationship after rollback, to confirm
+    // no stale parityToParent_ state leaks through (mirrors
+    // test_reunite_after_rollback_behaves_fresh's connectivity-only check).
+    dsu.unite(0, 1, true);
+    dsu.unite(1, 2, true);
+    EXPECT_EQ(dsu.sameOrientation(0, 2), true,
+              "same(0,1) + same(1,2) => same(0,2), in the new history");
+
+    dsu.rollbackTo(mark);
+    dsu.unite(0, 2, false);
+    EXPECT_EQ(dsu.sameOrientation(0, 2), false,
+              "a fresh, directly-conflicting relationship after rollback is "
+              "not corrupted by either prior history");
+}
+
 void run(const std::string &name, void (*fn)()) {
     std::cout << bold << "\n=== " << name << " ===" << resetColor << "\n";
     fn();
@@ -146,6 +206,11 @@ int main() {
     run("rollback_multiple_unions_lifo", test_rollback_multiple_unions_lifo);
     run("reunite_after_rollback_behaves_fresh",
         test_reunite_after_rollback_behaves_fresh);
+    run("parity_basic", test_parity_basic);
+    run("parity_plain_unite_defaults_to_same",
+        test_parity_plain_unite_defaults_to_same);
+    run("parity_rollback_restores_independence",
+        test_parity_rollback_restores_independence);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

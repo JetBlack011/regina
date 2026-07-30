@@ -232,6 +232,45 @@ protected:
     }
   };
 
+  /**
+   * Decorates another ConditionalPredicate (typically an
+   * EmbeddednessPredicate committing the actual face) with an
+   * orientability check: once `inner_.tryAdd(v)` has committed, rejects
+   * (and rolls back) if `embedding_.isOrientable()` is now false.
+   *
+   * Sound as a pruning predicate for
+   * ConnectedInducedSubgraphEnumerator::enumerateFiltered() because
+   * orientability is hereditary under taking connected subsets (see
+   * EmbeddedSubmanifold::isOrientable()'s doc comment): if a full result
+   * is orientable, every intermediate connected subset the DFS passes
+   * through on the way there is orientable too, so pruning the instant a
+   * face would break orientability never loses a valid result.
+   */
+  template <typename EmbeddingT>
+  class OrientabilityPredicate : public ConditionalPredicate {
+    ConditionalPredicate &inner_;
+    EmbeddingT &embedding_;
+
+  public:
+    /** Wraps `inner` (which must actually commit/undo the face on `embedding`), checking `embedding.isOrientable()` after each commit. */
+    OrientabilityPredicate(ConditionalPredicate &inner, EmbeddingT &embedding)
+        : inner_(inner), embedding_(embedding) {}
+
+    bool tryAdd(int v) override {
+      if (!inner_.tryAdd(v))
+        return false;
+      if (!embedding_.isOrientable()) {
+        inner_.undo(v);
+        return false;
+      }
+      return true;
+    }
+
+    // A successful tryAdd(v) always delegates to inner_, so undo(v) --
+    // called only after such a tryAdd() -- can delegate unconditionally.
+    void undo(int v) override { inner_.undo(v); }
+  };
+
   /** The face-adjacency graph searched over, together with its vertex-to-skeleton-face mapping. */
   struct Graph {
     AdjacencyList adjList; /**< The graph itself. */
@@ -312,13 +351,35 @@ public:
    * consulted when `iddfsIterations > 0`.
    * \param finalThreads the number of threads to use for the final
    * unbounded pass; defaults to `numThreads` when not given.
+   * \param orientableOnly if true, prunes any branch the instant it
+   * becomes non-orientable (see EmbeddedSubmanifold::isOrientable() and
+   * OrientabilityPredicate), rather than reporting non-orientable results
+   * and letting the caller filter them out afterward. Defaults to false
+   * (no behavior change for existing callers).
    */
   SearchStats search(const unsigned numThreads,
                      BoundaryCondition cond = BoundaryCondition::all,
                      const SearchCallbacks &callbacks = {},
                      unsigned iddfsIterations = 0, long long iddfsStep = 0,
                      std::optional<long long> iddfsStart = std::nullopt,
-                     std::optional<unsigned> finalThreads = std::nullopt);
+                     std::optional<unsigned> finalThreads = std::nullopt,
+                     bool orientableOnly = false);
+
+  /**
+   * Requests that the current (or next) search() call stop as soon as
+   * possible -- equivalent to a caught SIGINT, but callable
+   * programmatically from any thread, including from within a
+   * SearchCallbacks/SurfaceSearchCallbacks callback fired during search()
+   * itself. Every worker thread's tryAdd() checks stopRequested_ on every
+   * call (see InterruptiblePredicate), so already-in-flight DFS branches
+   * unwind within roughly one candidate step; onInterrupted still fires
+   * exactly as it would for a real SIGINT.
+   *
+   * \warning Does NOT interrupt
+   * SurfaceSearch::processRemainingSurfaceBoundaries()'s final drain pass
+   * -- see that method's own doc comment.
+   */
+  void requestStop() { stopRequested_.store(true, std::memory_order_relaxed); }
 
 protected:
   /**
@@ -361,6 +422,7 @@ protected:
    * `iddfsStep` when not given.
    * \param finalThreads see EmbeddingSearch::search(); defaults to
    * `numThreads` when not given.
+   * \param orientableOnly see EmbeddingSearch::search().
    *
    * \note SIGINT handling: for the duration of this call, Ctrl+C sets a
    * shared stop flag (see EmbeddednessPredicate) that prunes the DFS
@@ -379,7 +441,8 @@ protected:
       const SearchCallbacks &callbacks, RunSearchAuxHooks &auxHooks,
       unsigned iddfsIterations = 0, long long iddfsStep = 0,
       std::optional<long long> iddfsStart = std::nullopt,
-      std::optional<unsigned> finalThreads = std::nullopt);
+      std::optional<unsigned> finalThreads = std::nullopt,
+      bool orientableOnly = false);
 
 private:
   /** Builds the face-adjacency graph of `skeleton`'s subdim-faces (unseeded). */
@@ -409,20 +472,20 @@ EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
     std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
     unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
     unsigned, BoundaryCondition, std::function<KnottedSurface()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>);
+    std::optional<unsigned>, bool);
 
 #endif // EMBEDDINGSEARCH_H

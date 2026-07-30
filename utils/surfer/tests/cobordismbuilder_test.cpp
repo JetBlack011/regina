@@ -570,6 +570,98 @@ void test_dim2_cone_after_thicken() {
         true, "S²: remaining boundary component ≅ S²");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// baseBoundaryComponent(): identifies the bottom (untouched) boundary
+// component, not the top -- the hard case, since thicken() literally builds
+// (base) x [0,1], so bottom and top are always combinatorially *identical*
+// (isomorphic, in fact often isoSig-identical), meaning no external,
+// isomorphism-based test can ever tell "correctly identified the bottom"
+// apart from "happened to return a component isomorphic to the base" (both
+// would pass). This instead cross-checks against an ambient VERTEX
+// independently known to lie on the bottom: SimplicialPrism's own encoding
+// (see decode_()/encode_() in simplicialprism.cpp) places the bottom copy
+// of any base vertex v at local index v within simplex(v) of a layer's own
+// prism, and thicken_()'s wall-gluing never touches that specific local
+// vertex (only facets) -- so the *first* layer's own simplex(0)'s local
+// vertex 0, captured via currentTopSimplex() immediately after the first
+// thicken() call (before any later call overwrites it), is the base
+// tetrahedron's own unmoved vertex 0, on the permanently untouched bottom.
+// This uses a different access path (.vertex(0) on a directly-captured
+// Simplex<4>*) than baseBoundaryComponent()'s own implementation (.face<
+// dim>(dim+1) on a facet), so an indexing bug in either would show up as a
+// mismatch here.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_base_boundary_component_identifies_bottom_not_top() {
+    std::cout << "\n--- baseBoundaryComponent(): identifies bottom, not top, "
+                 "across multiple thickenings ---\n";
+
+    auto s3 = doubledTetrahedra();
+    CobordismBuilder<3> cob(s3);
+
+    bool threwBeforeAnyThicken = false;
+    try {
+        cob.baseBoundaryComponent();
+    } catch (const std::exception &) {
+        threwBeforeAnyThicken = true;
+    }
+    EXPECT_EQ(threwBeforeAnyThicken, true,
+              "throws if called before any thicken() call");
+
+    const regina::Simplex<3> *tet0 = cob.baseTriangulation().simplex(0);
+    cob.thicken(); // layer 1
+    regina::Simplex<4> *firstLayerSimplex0 = cob.currentTopSimplex(tet0, 0);
+
+    cob.thicken(2); // 2 more layers -- topPrisms_ now reflects layer 3, not layer 1
+    auto &result = cob.getCobordism();
+    EXPECT_EQ((int)result.countBoundaryComponents(), 2,
+              "3 layers, no cone(): 2 distinct (but isomorphic) boundary "
+              "components");
+
+    regina::BoundaryComponent<4> *base = cob.baseBoundaryComponent();
+    regina::Vertex<4> *bottomVertex = firstLayerSimplex0->vertex(0);
+
+    EXPECT_EQ(bottomVertex->boundaryComponent() == base, true,
+              "an ambient vertex independently known to lie on the "
+              "permanently untouched bottom is reported as being on "
+              "baseBoundaryComponent()");
+
+    // Sanity check in the opposite direction: a vertex from the *most
+    // recent* layer's own top-facing side should NOT be on the base
+    // boundary component (it's on the *other* one instead), confirming
+    // this isn't trivially true for every vertex.
+    const regina::Simplex<3> *tet1 = cob.baseTriangulation().simplex(1);
+    regina::Simplex<4> *lastLayerSimplex0 = cob.currentTopSimplex(tet1, 0);
+    // local vertex `dim+1` (= 4) is the TOP copy of base vertex 0 -- see
+    // decode_()'s m==dim case.
+    regina::Vertex<4> *topVertex = lastLayerSimplex0->vertex(4);
+    EXPECT_EQ(topVertex->boundaryComponent() == base, false,
+              "a vertex independently known to lie on the most recent "
+              "layer's top is NOT reported as being on "
+              "baseBoundaryComponent()");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// baseBoundaryComponent() with --cone (only one boundary component left):
+// the base is the sole remaining component, and cone() itself is already
+// proven (by the existing cone tests above) to cap the *top* specifically
+// -- so this is a simpler, confirmatory case rather than the hard one above.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_base_boundary_component_with_cone() {
+    std::cout << "\n--- baseBoundaryComponent() after thicken()+cone() ---\n";
+
+    auto s3 = doubledTetrahedra();
+    CobordismBuilder<3> cob(s3);
+    cob.thicken(2);
+    auto &result = cob.cone();
+
+    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
+              "thicken(2)+cone() leaves exactly 1 boundary component");
+    EXPECT_EQ(cob.baseBoundaryComponent()->index(),
+              result.boundaryComponent(0)->index(),
+              "baseBoundaryComponent() agrees with the sole remaining "
+              "boundary component");
+}
+
 template <typename F>
 void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
@@ -601,6 +693,10 @@ int main() {
     run("test_isOrdered_checks_every_facet", test_isOrdered_checks_every_facet);
     run("test_dim2_doubled_triangle", test_dim2_doubled_triangle);
     run("test_dim2_cone_after_thicken", test_dim2_cone_after_thicken);
+    run("test_base_boundary_component_identifies_bottom_not_top",
+        test_base_boundary_component_identifies_bottom_not_top);
+    run("test_base_boundary_component_with_cone",
+        test_base_boundary_component_with_cone);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

@@ -1,5 +1,7 @@
 #include "surfacesearch.h"
 
+#include "identifycomplement.h"
+
 SurfaceSearch::SurfaceSearch(const regina::Triangulation<4> &tri,
                              const std::vector<int> &seedFaces)
     : EmbeddingSearch<4, 2>(tri, seedFaces) {
@@ -182,8 +184,9 @@ void SurfaceSearch::ensureBoundarySigCaches_() const {
 
         boundarySigCaches_.reserve(boundaryComponentTris_.size());
         for (const auto &bc : boundaryComponentTris_)
-            boundarySigCaches_.push_back(std::make_unique<BoundarySignatureCache>(
-                bc, limits_.boundarySignatureCacheLimit));
+            boundarySigCaches_.push_back(
+                std::make_unique<identify::BoundarySignatureCache>(
+                    bc, limits_.boundarySignatureCacheLimit));
     });
 }
 
@@ -198,7 +201,7 @@ std::string SurfaceSearch::describeBoundary_(
             out << ", ";
         firstComponent = false;
 
-        BoundarySignatureCache &cache = *boundarySigCaches_[component];
+        identify::BoundarySignatureCache &cache = *boundarySigCaches_[component];
 
         out << (component + 1) << ": ";
         bool firstCurve = true;
@@ -206,21 +209,22 @@ std::string SurfaceSearch::describeBoundary_(
             if (!firstCurve)
                 out << ", ";
             firstCurve = false;
-            out << cache.identifyCached(curve.edgeIndices(),
-                                        [&curve] { return curve.identify(); });
+            out << cache.identifyCached(
+                curve.edgeIndices(),
+                [&curve] { return identify::identify(curve); });
         }
         if (link.comps_.size() > 1)
-            out << " (" << cache.identifyCached(
-                               link.edgeIndices(),
-                               [&link] { return link.identify(); })
+            out << " (" << cache.identifyCached(link.edgeIndices(),
+                               [&link] { return identify::identify(link); })
                 << ")";
     }
     return out.str();
 }
 
-BoundarySignatureCacheStats SurfaceSearch::boundarySignatureCacheStats() const {
+identify::BoundarySignatureCacheStats
+SurfaceSearch::boundarySignatureCacheStats() const {
     ensureBoundarySigCaches_();
-    BoundarySignatureCacheStats total;
+    identify::BoundarySignatureCacheStats total;
     for (const auto &cache : boundarySigCaches_) {
         auto s = cache->stats();
         total.checks += s.checks;
@@ -276,7 +280,12 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
             .genus = genus,
             .punctures = punctures,
             .triangleCount = faceCount,
-            .mostRestrictive = classifyCheaply_(embedding)});
+            .mostRestrictive = classifyCheaply_(embedding),
+            .capturePairSig =
+                owner_.limits_.capturePairSig
+                    ? std::function<std::string()>(
+                          [&embedding] { return embedding.pairSig(); })
+                    : std::function<std::string()>{}});
     }
 }
 
@@ -427,13 +436,29 @@ void SurfaceSearch::processBatchParallel_(
     auto worker = [&]() {
         KnottedSurface embedding(skeleton_, petalCache_);
         while (true) {
+            // Deliberately skipRemainingDrain_, not stopRequested_: the
+            // latter is also set by a plain SIGINT (see SigintScope), and
+            // this drain is exactly the "moving on to whatever comes next
+            // with what was found so far" work callers' onInterrupted
+            // messages promise still happens -- see
+            // skipRemainingBoundaryProcessing()'s own doc comment. Without
+            // this check at all, a caller stopping the search the instant
+            // it sees a qualifying surface would still have to wait for
+            // this entire batch (which can be as large as
+            // pendingSurfaceCap) to finish processing before search()
+            // returns. Coarser than the live-search predicate's per-face
+            // check (CHUNK-sized granularity, so up to CHUNK=64
+            // already-claimed entries per thread still finish), which is
+            // fine: the goal is bounding the tail, not zero latency.
+            if (skipRemainingDrain_.load(std::memory_order_relaxed))
+                break;
             size_t begin =
                 nextIndex.fetch_add(CHUNK, std::memory_order_relaxed);
             if (begin >= total)
                 break;
             size_t end = std::min(begin + CHUNK, total);
-            processBatchRange_(embedding, batch, begin, end, callbacks);
-            processedCount.fetch_add(end - begin, std::memory_order_relaxed);
+            processBatchRange_(embedding, batch, begin, end, callbacks,
+                               &processedCount);
         }
     };
 
@@ -467,13 +492,22 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
 
     if (callbacks.onSurfaceBoundaryProcessed) {
         auto [orientable, genus, punctures] = type;
+        // Lazy: the callback (called synchronously, below) must invoke
+        // this itself if it wants the pairSig -- the removeFace() unwind
+        // after this call returns invalidates embedding's cachedPairSig_,
+        // so it's only safe to call from within the callback, never after.
         callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
             SurfaceFoundInfo{
                 .orientable = orientable,
                 .genus = genus,
                 .punctures = punctures,
                 .triangleCount = static_cast<long long>(faceIndices.size()),
-                .mostRestrictive = classifyByLinks_(links)},
+                .mostRestrictive = classifyByLinks_(links),
+                .capturePairSig =
+                    limits_.capturePairSig
+                        ? std::function<std::string()>(
+                              [&embedding] { return embedding.pairSig(); })
+                        : std::function<std::string()>{}},
             descriptor});
     }
 
@@ -485,16 +519,21 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
 
 void SurfaceSearch::processBatchRange_(
     KnottedSurface &embedding, const std::vector<std::vector<int>> &batch,
-    size_t begin, size_t end, const SurfaceSearchCallbacks &callbacks) {
-    for (size_t i = begin; i < end; ++i)
+    size_t begin, size_t end, const SurfaceSearchCallbacks &callbacks,
+    std::atomic<size_t> *processedCounter) {
+    for (size_t i = begin; i < end; ++i) {
         processEntry_(embedding, batch[i], callbacks);
+        if (processedCounter)
+            processedCounter->fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   const SurfaceSearchCallbacks &callbacks,
                                   unsigned iddfsIterations, long long iddfsStep,
                                   std::optional<long long> iddfsStart,
-                                  std::optional<unsigned> finalThreads) {
+                                  std::optional<unsigned> finalThreads,
+                                  bool orientableOnly) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
@@ -508,8 +547,27 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
     // link to build once, single-threaded, here -- before runSearch_
     // spawns any worker thread -- means every later call (even
     // concurrent) only ever takes the already-built, read-only path.
+    //
+    // That cached link (a Triangulation<3>&, shared the same way the
+    // Vertex<4>* itself is) has its OWN independent lazily-computed
+    // skeleton (edges/tetrahedra/etc, gated by TriangulationBase's
+    // calculatedSkeleton_ flag -- see ensureSkeleton()/calculateSkeleton()
+    // in engine/triangulation/detail/skeleton-impl.h), separate from --
+    // and not forced by -- buildLink() itself just having been called.
+    // KnottedSurface::linkEdgeForTriangle_() reaches into this same shared
+    // link triangulation (tet->edge(...)) from every worker thread, so
+    // without also forcing its skeleton here, two threads reaching the
+    // same ambient vertex's link for the first time race on THAT
+    // computation instead -- and calculateSkeleton() sets
+    // calculatedSkeleton_ = true as its very first statement, before any
+    // of the skeleton is actually populated, so this isn't just a
+    // redundant-rebuild race: a second thread can see "already done" and
+    // read torn, half-populated skeleton data mid-computation. isValid()
+    // is a cheap way to force the same ensureSkeleton() call every other
+    // skeletal accessor uses internally (it's protected, so not callable
+    // directly).
     for (auto v : skeleton_.triangulation().vertices())
-        v->buildLink();
+        v->buildLink().isValid();
 
     // Same reasoning, for BoundaryComponent<4>::build(): every
     // KnottedSurface constructor independently calls
@@ -551,6 +609,11 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
             surfaceTypeTally_.merge(seedTypeCounts);
             auto [orientable, genus, punctures] = type;
             auto triangleCount = static_cast<long long>(seedFaces.size());
+            std::function<std::string()> capturePairSig =
+                limits_.capturePairSig
+                    ? std::function<std::string()>(
+                          [&probe] { return probe.pairSig(); })
+                    : std::function<std::string()>{};
             if (wantLinks) {
                 auto links = probe.boundaryLinks();
                 std::string descriptor;
@@ -565,7 +628,8 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                         .punctures = punctures,
                                         .triangleCount = triangleCount,
                                         .mostRestrictive =
-                                            classifyByLinks_(links)},
+                                            classifyByLinks_(links),
+                                        .capturePairSig = capturePairSig},
                         descriptor});
             } else if (callbacks.onSurfaceFound) {
                 callbacks.onSurfaceFound(SurfaceFoundInfo{
@@ -573,10 +637,11 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                     .genus = genus,
                     .punctures = punctures,
                     .triangleCount = triangleCount,
-                    .mostRestrictive = classifyCheaply_(probe)});
+                    .mostRestrictive = classifyCheaply_(probe),
+                    .capturePairSig = capturePairSig});
             }
         },
         callbacks, auxHooks,
-        iddfsIterations, iddfsStep, iddfsStart, finalThreads);
+        iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly);
 }
 

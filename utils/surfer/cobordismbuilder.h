@@ -48,6 +48,14 @@ class CobordismBuilder {
     regina::Triangulation<dim + 1> cob_;
         /**< The cobordism built so far; see getCobordism(). */
 
+    regina::Simplex<dim + 1> *baseBoundaryFacetSimplex_ = nullptr;
+        /**< Captured on the first thicken() call only; see
+             baseBoundaryComponent(). A raw Simplex<dim+1>* stays valid
+             across every later thicken()/cone() call (unlike
+             Face<dim,subdim>* -- see CollarBuilder's identical warning),
+             so it is safe to resolve into an actual boundary component
+             lazily, on demand, after construction is otherwise complete. */
+
   public:
     /**
      * Takes (and owns) a copy of `tri`, since thicken() requires an
@@ -149,6 +157,33 @@ class CobordismBuilder {
 
     /** Returns the cobordism built so far. */
     const regina::Triangulation<dim + 1> &getCobordism() const { return cob_; }
+
+    /**
+     * Returns the boundary component of getCobordism() corresponding to
+     * the original base triangulation -- thicken()'s "bottom", untouched
+     * by any thicken()/cone() call -- distinguishing it from any other
+     * boundary component the cobordism may have (e.g. a --no-cone
+     * cobordism's "top").
+     *
+     * Since thicken() literally builds (base triangulation) x [0,1],
+     * every boundary component this cobordism could ever have is
+     * topologically -- and combinatorially -- identical to the base
+     * triangulation, so isomorphism-signature matching alone can never
+     * distinguish "bottom" from "top". This instead resolves an actual
+     * ambient facet known, by construction, to lie on the untouched
+     * original copy specifically: SimplicialPrism's own encoding
+     * guarantees that simplex(0) of the very first thicken() layer holds
+     * every one of the base simplex's own "bottom" vertices (at local
+     * indices 0..dim) plus the "top" copy of base vertex 0 (at local
+     * index dim+1) -- so the facet omitting that last local vertex is
+     * exactly the base simplex's own untouched bottom facet, which stays
+     * permanently unglued (thicken_()'s own wall-gluing only ever touches
+     * *other* facets, and stitching/coning only ever touch the *top* of
+     * whichever layer is most recent).
+     *
+     * \throws regina::InvalidArgument if no thicken() call has been made.
+     */
+    regina::BoundaryComponent<dim + 1> *baseBoundaryComponent() const;
 
   private:
     /** Adds a single thickening layer; see thicken(). */

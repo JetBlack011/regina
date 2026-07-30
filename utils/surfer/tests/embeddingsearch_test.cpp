@@ -173,6 +173,42 @@ void test_thickened_annulus_proper_not_connected() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A thickened Mobius band: its own full "front copy" (mirroring
+// test_thickened_annulus_proper_not_connected's frontCopyIndices
+// construction) is a non-orientable embedded subcomplex reachable by an
+// unrestricted search, so orientableOnly=true must prune it (and, since
+// pruning happens the instant orientability first breaks, likely several of
+// its own connected subsets too) -- checked here via strictly-fewer
+// embedded results than an otherwise-identical unrestricted search, rather
+// than re-deriving which specific subsets should vanish (that correctness
+// is already exhaustively cross-checked against Regina's own
+// Triangulation<2>::isOrientable() in embeddedsubmanifold_test.cpp).
+// ─────────────────────────────────────────────────────────────────────────────
+void test_orientable_only_prunes_mobius() {
+    std::cout << "\n--- orientableOnly=true prunes a thickened Mobius band "
+                 "---\n";
+
+    auto mobius = regina::Example<2>::mobius();
+    CobordismBuilder<2> cob(mobius);
+    auto &thickened = cob.thicken();
+
+    EmbeddingSearch<3, 2> withoutPruning(thickened);
+    SearchStats statsWithout = withoutPruning.search(1, BoundaryCondition::all);
+
+    EmbeddingSearch<3, 2> withPruning(thickened);
+    SearchStats statsWith =
+        withPruning.search(1, BoundaryCondition::all, {}, 0, 0, std::nullopt,
+                           std::nullopt, /*orientableOnly=*/true);
+
+    EXPECT_EQ(statsWith.embeddedCount < statsWithout.embeddedCount, true,
+              "orientableOnly=true finds strictly fewer embedded "
+              "subcomplexes than an unrestricted search over the same "
+              "ambient triangulation (which must contain at least one "
+              "non-orientable embedded subcomplex -- the full front copy "
+              "of the Mobius band itself)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Three tetrahedra glued cyclically around one shared edge (vertices {2,3}
 // of each), so that edge is surrounded entirely by internal faces and is
 // never boundary, while each tetrahedron's faces 2 and 3 stay unglued. A
@@ -764,6 +800,8 @@ int main() {
         test_tetrahedron_boundary_conditions);
     run("test_thickened_annulus_proper_not_connected",
         test_thickened_annulus_proper_not_connected);
+    run("test_orientable_only_prunes_mobius",
+        test_orientable_only_prunes_mobius);
     run("test_engineered_interior_edge_not_proper",
         test_engineered_interior_edge_not_proper);
     run("test_triple_self_fold_excluded", test_triple_self_fold_excluded);
