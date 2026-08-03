@@ -18,7 +18,7 @@
 #include <snappea/snappeatriangulation.h>
 
 #include "pairsig.h"
-#include "rolfsentable.h"
+#include "linknames.h"
 
 std::mutex identify::censusLookupMutex;
 std::atomic<size_t> identify::recognitionCacheLimit{200'000};
@@ -103,8 +103,8 @@ std::optional<std::string> censusLookupName(
         return std::nullopt;
 
     std::string raw = hits.front().name();
-    if (auto rolfsen = rolfsen::rolfsenName(raw))
-        return *rolfsen + " (" + raw + ")";
+    if (auto classical = linknames::name(raw))
+        return *classical + " (" + raw + ")";
     return raw;
 }
 
@@ -188,6 +188,32 @@ struct CensusConnection_ {
 bool groupProvesUnknot(const regina::Triangulation<3> &t) {
     const regina::GroupPresentation &g = t.group();
     return g.countGenerators() == 1 && g.countRelations() == 0;
+}
+
+// Fast, sound, one-sided proof that `t` (a LINK complement, possibly
+// multiple components) is split -- i.e. `t` is identify(const Link&)'s
+// n-component-unlink case -- generalizing groupProvesUnknot() above from
+// n == 1 to any n. A presentation with zero relations is free by
+// construction (same "sound regardless of how simplify() got there"
+// argument as groupProvesUnknot()), and a free fundamental group forces a
+// link to be split: by Milnor's prime decomposition theorem, an orientable
+// 3-manifold's prime decomposition realizes the Grushko free-product
+// decomposition of its fundamental group, so a free pi_1 of rank k means
+// `t` splits along essential spheres into k pieces, each with a single
+// torus boundary component and pi_1 == Z -- which, by the exact same
+// Dehn's-lemma argument groupProvesUnknot() itself relies on, forces each
+// piece to be a solid torus. So `t` is the complement of k unknotted,
+// pairwise split components, i.e. the k-component unlink. (No need to
+// separately check k against the link's actual component count: a link
+// complement's H_1 always has rank == component count via Alexander
+// duality/meridians, regardless of link type, so if the group is ALSO
+// free, its rank -- which must match H_1's rank -- is automatically the
+// component count.) As with groupProvesUnknot(), a "false" here is only
+// ever inconclusive (simplify() didn't collapse the presentation that
+// far), never wrong -- always safe to fall through to the normal
+// resolveRecognition() path when it fails.
+bool groupProvesUnlink(const regina::Triangulation<3> &t) {
+    return t.group().countRelations() == 0;
 }
 
 // Fast, sound, one-sided proof that `t`'s genus is -1 (not any
@@ -308,6 +334,21 @@ resolveRecognition(const regina::Triangulation<3> &complement,
                  .retriangulateAttempted = retriangulateAttempted});
 }
 
+// Shared tail of identify(const EdgeComplement&)/identify(const Link&),
+// once a complement is already built and resolveRecognition() has already
+// run for it: turns the result into identify()'s final answer. Factored
+// out (rather than having identify(const Link&) just call identify(const
+// EdgeComplement&)) specifically so neither caller ever builds the same
+// complement twice -- buildComplement() is not cheap.
+std::string nameFromRecognition(const identify::RecognitionResult &result,
+                                const std::string &sig) {
+    if (result.genus == 1)
+        return "Unknot";
+    if (result.censusName)
+        return *result.censusName;
+    return sig;
+}
+
 } // namespace
 
 namespace identify {
@@ -332,12 +373,22 @@ std::string identify(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();
     RecognitionResult result = resolveRecognition(complement, sig);
+    return nameFromRecognition(result, sig);
+}
 
-    if (result.genus == 1)
-        return "Unknot";
-    if (result.censusName)
-        return *result.censusName;
-    return sig;
+std::string identify(const Link &l) {
+    auto complement = l.buildComplement();
+
+    if (l.countComponents() > 1 && groupProvesUnlink(complement))
+        return std::to_string(l.countComponents()) + "-component unlink";
+
+    std::string sig = complement.isoSig();
+    RecognitionResult result = resolveRecognition(complement, sig);
+    return nameFromRecognition(result, sig);
+}
+
+bool isOrientationSafeName(const std::string &name) {
+    return name == "Unknot" || name.ends_with("-component unlink");
 }
 
 bool recognizeComplement(const EdgeComplement &e) {
@@ -539,11 +590,11 @@ std::optional<std::string> localCensusLookup(const std::string &sig) {
     // censusLookupName() gets from CensusHit::name() -- format it
     // identically for byte-identical output. SnapPy/verifyslicegenus/
     // retriangulate-sourced rows already store a best-effort pretty name,
-    // not a raw census name, so rolfsenName() would just miss on those --
-    // return as-is.
+    // not a raw census name, so linknames::name() would just miss on those
+    // -- return as-is.
     if (source == "regina") {
-        if (auto rolfsen = rolfsen::rolfsenName(rawName))
-            return *rolfsen + " (" + rawName + ")";
+        if (auto classical = linknames::name(rawName))
+            return *classical + " (" + rawName + ")";
         return rawName;
     }
     return rawName;

@@ -32,6 +32,7 @@
 #include <triangulation/example3.h>
 
 #include "../identifycomplement.h"
+#include "../knotbuilder.h"
 #include "../linkcomplement.h"
 
 static int passed = 0, failed_count = 0;
@@ -245,6 +246,49 @@ void test_recognition_cache_clear_threshold() {
     identify::resetRecognitionCacheForTesting();
 }
 
+// identify::identify(const Link&): the split-unlink fast path
+// (groupProvesUnlink(), identifycomplement.cpp), generalizing
+// identify(const EdgeComplement&)'s genus-1/"Unknot" check from n == 1 to
+// any n via free-group recognition rather than a handlebody genus check
+// (a split n-component unlink's complement has n SEPARATE torus boundary
+// components, so -- unlike a solid torus -- it is never itself a
+// handlebody; recogniseHandlebody() correctly returns -1 for it, not n,
+// which is what makes a genus-based check wrong here).
+void test_identify_link_unlink() {
+    // The 2-component unlink: the Hopf link's shadow with crossing 1's
+    // tuple cyclically rotated by one position, flipping that crossing's
+    // over/under role -- the exact fixture knotbuilder_test.cpp's own
+    // "non-alternating regression" test uses, already independently
+    // checked there (isSphere(), 2 components) to be two split, unknotted
+    // loops.
+    knotbuilder::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
+    auto [tri, edges] = knotbuilder::buildLink(pd);
+    Link link(tri, edges);
+
+    EXPECT_EQ(link.countComponents(), 2,
+              "fixture sanity: the flipped Hopf shadow has 2 components");
+    EXPECT_EQ(identify::identify(link), std::string("2-component unlink"),
+              "identify(const Link&) names a split 2-component unlink via "
+              "the free-fundamental-group fast path, instead of falling "
+              "back to a bare isoSig");
+}
+
+// The flip side of the above: identify() must not mistake a genuinely
+// LINKED multi-component complement for a handlebody either. The
+// (unflipped) Hopf link has the same component count as the unlink fixture
+// above, but its complement (T^2 x I) is not a handlebody at all.
+void test_identify_link_hopf_not_unknot() {
+    knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
+    auto [tri, edges] = knotbuilder::buildLink(pd);
+    Link link(tri, edges);
+
+    EXPECT_EQ(link.countComponents(), 2,
+              "fixture sanity: the Hopf link has 2 components");
+    EXPECT_EQ(identify::identify(link) != "Unknot", true,
+              "the (linked) Hopf link's complement is not a handlebody, "
+              "so identify() must not call it \"Unknot\"");
+}
+
 } // namespace
 
 void run(const std::string &name, void (*fn)()) {
@@ -259,6 +303,8 @@ int main() {
         test_boundary_signature_cache_clear_threshold);
     run("recognition_cache_clear_threshold",
         test_recognition_cache_clear_threshold);
+    run("identify_link_unlink", test_identify_link_unlink);
+    run("identify_link_hopf_not_unknot", test_identify_link_hopf_not_unknot);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

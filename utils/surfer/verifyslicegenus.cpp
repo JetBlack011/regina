@@ -6,11 +6,11 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -24,6 +24,7 @@
 #include <triangulation/dim4.h>
 
 #include "cobordismbuilder.h"
+#include "cobordismgraph.h"
 #include "collar.h"
 #include "csvwriter.h"
 #include "embeddingsearch.h"
@@ -31,6 +32,8 @@
 #include "knotbuilder.h"
 #include "linkcomplement.h"
 #include "identifycomplement.h"
+
+using namespace cobordismgraph;
 
 namespace {
 
@@ -50,6 +53,71 @@ void redrawProgressBlock(const std::string &text) {
   std::cerr << text;
   progressPrevLines_ =
       static_cast<size_t>(std::count(text.begin(), text.end(), '\n'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Fatal-bug detection: a found surface implying a genus BELOW an already-
+// established true lower bound is a mathematical impossibility, not a data
+// problem -- it means the search/embedding library itself computed
+// something wrong (a bad genus, a false claim of embeddedness, etc.), and
+// nothing else this run subsequently reports can be trusted either. So
+// this halts the whole program, not just the current row.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Set (once) from inside a search worker thread's onSurfaceBoundaryProcessed
+// callback via flagFatalBug() below; only ever read/acted on back on the
+// main thread, after the offending search's e.search() call has returned
+// and any watchdog thread has joined -- never torn down the process from
+// within a callback, which may be running on one of several concurrent
+// worker threads.
+std::atomic<bool> fatalBugDetected_{false};
+std::mutex fatalBugMutex_;
+std::string fatalBugMessage_;
+
+// Records `message` as the reason for a fatal halt, if none has been
+// recorded yet (first detector wins; later ones are redundant once the
+// whole program is about to stop anyway). Safe to call from any thread.
+void flagFatalBug(std::string message) {
+  bool expected = false;
+  if (!fatalBugDetected_.compare_exchange_strong(expected, true))
+    return;
+  std::lock_guard<std::mutex> lock(fatalBugMutex_);
+  fatalBugMessage_ = std::move(message);
+}
+
+// Prints an unmissable banner and terminates the process (exit code 2,
+// distinct from usage()'s exit code 1) if flagFatalBug() was ever called.
+// Must only be called from the main thread with no search worker threads
+// still running -- see fatalBugDetected_'s own comment. Call this after
+// every e.search() this driver runs.
+void haltIfFatalBugDetected() {
+  if (!fatalBugDetected_.load())
+    return;
+  std::string message;
+  {
+    std::lock_guard<std::mutex> lock(fatalBugMutex_);
+    message = fatalBugMessage_;
+  }
+  std::cerr
+      << "\n\x1b[1;31m"
+      << "################################################################"
+         "################\n"
+         "#####  FATAL: SEARCH LIBRARY BUG DETECTED -- HALTING NOW  #####\n"
+         "################################################################"
+         "################\x1b[0m\n\n"
+      << message << "\n\n"
+      << "This is a mathematical impossibility, not a data or literature "
+         "issue -- it means\n"
+         "surfacesearch.h/embeddedsubmanifold.h computed something wrong "
+         "(a bad genus, a\n"
+         "false claim of embeddedness, etc.). Nothing else this run could "
+         "report from here\n"
+         "on can be trusted, so the program is stopping immediately rather "
+         "than continuing\n"
+         "to the next knot/link. Whatever was already durably written to "
+         "--output before\n"
+         "this point is unaffected and safe to keep.\n";
+  std::exit(2);
 }
 
 // Fired from callbacks.onProgress once per second while a knot's search runs.
@@ -106,14 +174,6 @@ void printBoundaryProgress(size_t processed, size_t total,
 // quoting appears in that file (PD Notation uses ';' internally, never a
 // literal comma), so a naive two-comma split suffices -- see the input
 // table's own format, confirmed during design.
-struct InputRow {
-  std::string name;
-  std::string pdNotation;
-  int lo = 0, hi = 0; // literature genus bounds; lo == hi except for a
-                      // handful of [lo;hi] range rows
-  int crossings = 0;
-};
-
 bool splitInputLine(const std::string &line, std::string &name,
                     std::string &pd, std::string &genusField) {
   size_t c1 = line.find(',');
@@ -141,15 +201,6 @@ void parseGenusField(const std::string &field, int &lo, int &hi) {
   }
 }
 
-// The leading digit run of `name` (e.g. "13n_1109" -> 13, "8_6" -> 8).
-int crossingsFromName(const std::string &name) {
-  size_t i = 0;
-  while (i < name.size() &&
-        std::isdigit(static_cast<unsigned char>(name[i])))
-    ++i;
-  return std::stoi(name.substr(0, i));
-}
-
 std::vector<InputRow> loadInputCsv(const std::filesystem::path &path) {
   std::ifstream in(path);
   if (!in)
@@ -168,7 +219,11 @@ std::vector<InputRow> loadInputCsv(const std::filesystem::path &path) {
     row.name = name;
     row.pdNotation = pd;
     parseGenusField(genusField, row.lo, row.hi);
-    row.crossings = crossingsFromName(name);
+    // Crossing count is derived from the PD code itself (works uniformly
+    // for both knot names like "13n_1109" and link names like "L10a1{0}",
+    // which have no leading digit run to parse) rather than from `name`.
+    row.crossings =
+        static_cast<int>(knotbuilder::parsePDCode(pd).size());
     rows.push_back(std::move(row));
   }
   return rows;
@@ -215,19 +270,6 @@ std::vector<std::string> parseCsvLine(const std::string &line) {
 // ─────────────────────────────────────────────────────────────────────────
 // Output CSV schema and resumable I/O
 // ─────────────────────────────────────────────────────────────────────────
-
-struct OutputRow {
-  std::string knot;
-  int resolvedGenus = 0;
-  std::string status;       // resolved | range | unresolved | skipped
-  std::string witnessKind;  // direct | cobordism | propagated | none
-  std::string witnessPairSig;
-  std::string viaKnot;
-  int viaEdgeGenus = 0;
-  std::string dependsOn;
-  int literatureLo = 0;
-  int literatureHi = 0;
-};
 
 constexpr const char *OUTPUT_HEADER =
     "knot,resolved_genus,status,witness_kind,witness_pairsig,via_knot,"
@@ -287,11 +329,23 @@ loadOutputCsv(const std::filesystem::path &path) {
   return result;
 }
 
-// Rewrites the whole --output file from `outputRows`, in `rows`' original
-// order (skipping any row not yet processed), via write-to-temp +
+// Rewrites the whole --output file from `outputRows` via write-to-temp +
 // atomic rename -- so a crash mid-write never corrupts the previous,
-// already-durable version. Called once per knot processed (resolved,
+// already-durable version. Called once per knot/link processed (resolved,
 // attempted-but-unresolved, skipped, or newly propagated).
+//
+// --output is a single unified table shared across every run ever pointed
+// at it, regardless of what any one run's --input covers -- e.g. a
+// knots-only run and a links-only run sharing the same --output file both
+// resume from and contribute to the same pool of results, so a cobordism
+// found this run between (say) a link and a not-yet-resolved knot from an
+// earlier knots-only run resolves that knot too (see propagateGraph()),
+// right here in the same file. So this writes every row currently in
+// `outputRows`, not just ones belonging to this run's own --input: `rows`
+// is used only to keep this run's own rows in their familiar
+// crossing-count order at the top of the file; every other row (from a
+// prior run's --input, sharing this --output) follows after, sorted by
+// name for a stable, diffable order.
 void writeOutputCsv(const std::filesystem::path &path,
                     const std::vector<InputRow> &rows,
                     const std::unordered_map<std::string, OutputRow>
@@ -304,176 +358,33 @@ void writeOutputCsv(const std::filesystem::path &path,
       throw std::runtime_error("Cannot open " + tmp.string() +
                                " for writing");
     out << OUTPUT_HEADER << "\n";
+
+    std::unordered_set<std::string> written;
+    written.reserve(outputRows.size());
     for (const auto &row : rows) {
       auto it = outputRows.find(row.name);
       if (it == outputRows.end())
         continue; // not yet processed
       out << formatOutputRow(it->second) << "\n";
+      written.insert(row.name);
     }
+
+    std::vector<std::string> others;
+    others.reserve(outputRows.size());
+    for (const auto &[name, unused] : outputRows)
+      if (!written.contains(name))
+        others.push_back(name);
+    std::sort(others.begin(), others.end());
+    for (const auto &name : others)
+      out << formatOutputRow(outputRows.at(name)) << "\n";
   }
   std::filesystem::rename(tmp, path);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// The genus-implication graph
-// ─────────────────────────────────────────────────────────────────────────
-
-struct GraphEdge {
-  std::string other;
-  int genus;
-  std::string pairSig;
-};
-
-using Graph = std::unordered_map<std::string, std::vector<GraphEdge>>;
-
-void addEdge(Graph &graph, const std::string &a, const std::string &b,
-            int genus, const std::string &pairSig) {
-  graph[a].push_back({b, genus, pairSig});
-  graph[b].push_back({a, genus, pairSig});
-}
-
-// Whether `graph` already has an (a, b) edge at exactly `genus` -- see the
-// caller for why exact-genus (not "any genus <= this one") is the right
-// dedup key: resolvable() checks an exact equality (target == g + h or
-// target == h - g), not an inequality, so two edges to the same neighbor
-// with different genus are NOT interchangeable, but two with the SAME
-// genus (however many redundant surfaces happened to witness it) are.
-bool hasEdgeWithGenus(const Graph &graph, const std::string &a,
-                      const std::string &b, int genus) {
-  auto it = graph.find(a);
-  if (it == graph.end())
-    return false;
-  for (const auto &e : it->second)
-    if (e.other == b && e.genus == genus)
-      return true;
-  return false;
-}
-
-struct ResolveInfo {
-  std::string viaKnot;
-  int viaEdgeGenus;
-  std::string pairSig; // the resolving edge's own pairSig, if any
-};
-
-// Returns the edge (if any) that pins `name`'s genus to exactly `target`,
-// given `knownGenus`'s currently-established values: an edge (name, other,
-// g) with other's genus known as h pins target only when target == g + h
-// (constructive direction) or target == h - g (contrapositive direction) --
-// merely falling inside [h-g, h+g] is consistent, not conclusive. See
-// identifycomplement.h-adjacent design notes (the plan document) for the
-// derivation.
-std::optional<ResolveInfo>
-resolvable(const std::string &name, int target, const Graph &graph,
-          const std::unordered_map<std::string, int> &knownGenus) {
-  auto it = graph.find(name);
-  if (it == graph.end())
-    return std::nullopt;
-  for (const auto &e : it->second) {
-    auto hIt = knownGenus.find(e.other);
-    if (hIt == knownGenus.end())
-      continue;
-    int h = hIt->second;
-    if (target == e.genus + h || target == h - e.genus)
-      return ResolveInfo{e.other, e.genus, e.pairSig};
-  }
-  return std::nullopt;
-}
-
-// Walks from `viaKnot` back through outputRows' own via_knot chain to
-// whatever ultimately bottomed out (a direct witness, or the Unknot, which
-// has no outputRows entry of its own), joining the path with ';'.
-std::string buildDependsOn(
-    const std::string &viaKnot,
-    const std::unordered_map<std::string, OutputRow> &outputRows) {
-  std::vector<std::string> chain;
-  std::unordered_set<std::string> seen;
-  std::string cur = viaKnot;
-  while (!cur.empty() && seen.insert(cur).second) {
-    chain.push_back(cur);
-    if (cur == "Unknot")
-      break;
-    auto it = outputRows.find(cur);
-    if (it == outputRows.end() || it->second.viaKnot.empty())
-      break;
-    cur = it->second.viaKnot;
-  }
-  std::ostringstream out;
-  for (size_t i = 0; i < chain.size(); ++i) {
-    if (i)
-      out << ';';
-    out << chain[i];
-  }
-  return out.str();
-}
-
-// Sweeps every still-pending row for new resolutions unlockable purely from
-// the current knownGenus/graph state, repeating until a full pass makes no
-// further progress. Each newly-resolved row is recorded with witness_kind
-// "propagated" (no search run for it this session).
-void propagateGraph(const std::vector<InputRow> &rows, const Graph &graph,
-                    std::unordered_map<std::string, int> &knownGenus,
-                    std::unordered_map<std::string, OutputRow> &outputRows) {
-  bool changed = true;
-  while (changed) {
-    changed = false;
-    for (const auto &row : rows) {
-      if (knownGenus.contains(row.name))
-        continue;
-      int target = row.hi;
-      auto info = resolvable(row.name, target, graph, knownGenus);
-      if (!info)
-        continue;
-
-      knownGenus[row.name] = target;
-      OutputRow out;
-      out.knot = row.name;
-      out.resolvedGenus = target;
-      out.status = (row.lo == row.hi) ? "resolved" : "range";
-      out.witnessKind = "propagated";
-      out.viaKnot = info->viaKnot;
-      out.viaEdgeGenus = info->viaEdgeGenus;
-      out.dependsOn = buildDependsOn(info->viaKnot, outputRows);
-      out.literatureLo = row.lo;
-      out.literatureHi = row.hi;
-      outputRows[row.name] = std::move(out);
-      changed = true;
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────
 // Boundary-component identification (--no-cone only)
 // ─────────────────────────────────────────────────────────────────────────
-
-// Splits a SurfaceBoundaryInfo::boundaryDescription string into
-// {ambient-component-number -> curve name}. Only valid when the search ran
-// under BoundaryCondition::connected AND the surface has exactly 2 of its
-// own boundary curves across exactly 2 ambient boundary components (our
-// --no-cone, punctures==2 case) -- connected's "each surface boundary
-// component maps to a distinct ambient one" guarantees each ambient
-// component's segment is then exactly one curve name, with no comma inside
-// it and no "(<link>)" parenthetical (that only appears when a component
-// holds more than one curve), so a top-level split on ", " is safe.
-std::unordered_map<int, std::string>
-parseTwoComponentBoundary(const std::string &desc) {
-  std::unordered_map<int, std::string> result;
-  size_t start = 0;
-  while (start <= desc.size()) {
-    size_t comma = desc.find(", ", start);
-    std::string piece = desc.substr(
-        start, comma == std::string::npos ? std::string::npos
-                                          : comma - start);
-    size_t colon = piece.find(": ");
-    if (colon != std::string::npos) {
-      int comp = std::stoi(piece.substr(0, colon));
-      result[comp] = piece.substr(colon + 2);
-    }
-    if (comma == std::string::npos)
-      break;
-    start = comma + 2;
-  }
-  return result;
-}
+// See cobordismgraph.h for BoundarySide/BoundarySplit/splitBoundary().
 
 // ─────────────────────────────────────────────────────────────────────────
 // usage()
@@ -506,16 +417,31 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr
       << "    --output <csv> : Required. Resumable result file -- rewritten "
          "after\n"
-         "                     every knot processed; already-resolved rows "
-         "from a\n"
+         "                     every knot/link processed; already-resolved "
+         "rows from a\n"
          "                     prior run are trusted directly and not "
-         "re-searched.\n";
+         "re-searched. A\n"
+         "                     single unified table, not scoped to any one "
+         "--input: rows\n"
+         "                     already here from a different --input (e.g. "
+         "a knots run's\n"
+         "                     --output reused for a links run) are kept "
+         "and can still be\n"
+         "                     resolved by cobordism propagation this run "
+         "even though\n"
+         "                     they're never re-searched -- point multiple "
+         "runs with\n"
+         "                     different --input tables at the same "
+         "--output to build one\n"
+         "                     shared knot+link genus table over time.\n";
   std::cerr
-      << "    --input <csv>  : The knot table (Name,PD Notation,Genus-4D). "
-         "Default:\n"
+      << "    --input <csv>  : The knot/link table (Name,PD Notation,"
+         "Genus-4D) to\n"
+         "                     search this run. Default:\n"
          "                     4d_smooth_slice_genus_13_crossings_pd_codes."
          "csv\n"
-         "                     alongside the source tree.\n";
+         "                     alongside the source tree. Never written "
+         "back to.\n";
   std::cerr << "    --max-crossings N : Skip rows whose crossing number "
                "exceeds N\n"
                "                     (default: 13).\n";
@@ -840,6 +766,17 @@ int main(int argc, char *argv[]) {
   std::cout << "[+] Loaded " << rows.size() << " knots from " << inputPath
             << "\n";
 
+  // Lets the incidental-observation path (onSurfaceBoundaryProcessed,
+  // below) look up an incidentally-discovered name's own literature
+  // bounds in O(1) -- built from the full `rows`, not just `pending`
+  // (rows within maxCrossings), so a name outside this run's own
+  // maxCrossings cutoff still isn't recorded against, matching that same
+  // cutoff's intent.
+  std::unordered_map<std::string, const InputRow *> nameToRow;
+  nameToRow.reserve(rows.size());
+  for (const auto &row : rows)
+    nameToRow[row.name] = &row;
+
   std::unordered_map<std::string, OutputRow> outputRows =
       loadOutputCsv(*outputPath);
   std::unordered_map<std::string, int> knownGenus;
@@ -916,6 +853,13 @@ int main(int argc, char *argv[]) {
 
       if (!buildFailed) {
         auto &[t2, edges2] = link;
+
+        // Splits edges2 into connected components -- 1 for an ordinary
+        // knot, >1 for a genuine multi-component link. Reused below both
+        // to pick the search's BoundaryCondition and to build the census
+        // complement.
+        Link linkGrouping(t2, edges2);
+        int componentCount = linkGrouping.countComponents();
 
         std::vector<int> edgeIndices;
         edgeIndices.reserve(edges2.size());
@@ -1003,85 +947,139 @@ int main(int argc, char *argv[]) {
 
               if (!info.orientable)
                 return; // defensive; orientableOnly=true already prunes these
-              if (resolvedThisRow)
+              if (!info.connected)
+                return; // a disconnected find isn't a valid single witness
+                        // surface -- info.genus has no real meaning for it
+                        // (see SurfaceFoundInfo::genus's own doc comment).
+                        // Most likely with componentCount > 1, since a
+                        // multi-component link's seeded collar starts out
+                        // as one disjoint piece per component and nothing
+                        // requires the search to ever bridge them.
+
+              auto capturePairSig = [&info] {
+                return info.capturePairSig ? info.capturePairSig()
+                                           : std::string{};
+              };
+              auto handleOutcome = [&](const WitnessOutcome &outcome) {
+                if (outcome.fatalBug) {
+                  flagFatalBug(outcome.fatalBugMessage);
+                  e.requestStop();
+                  e.skipRemainingBoundaryProcessing();
+                }
+              };
+              // Like handleOutcome, but also announces a genuine
+              // resolution -- unlike row.name's own resolution (announced
+              // separately, after e.search() returns, once this row's
+              // search has actually stopped), an incidental resolution has
+              // no other announcement point: this callback is the only
+              // place that ever learns about it.
+              auto handleIncidentalOutcome =
+                  [&](const std::string &name, const WitnessOutcome &outcome) {
+                    handleOutcome(outcome);
+                    if (outcome.resolved)
+                      std::cout << "\x1b[1;36m[+] " << name
+                                << ": resolved incidentally (genus "
+                                << knownGenus[name] << ") while searching "
+                                << row.name << "\x1b[0m\n";
+                  };
+
+              BoundarySplit split =
+                  splitBoundary(info.boundaryComponents, knotSideBC);
+
+              if (split.mineCurveCount == static_cast<size_t>(componentCount)) {
+                // This row's own diagram is fully witnessed -- the
+                // original reason this search is running.
+                if (!resolvedThisRow) {
+                  WitnessOutcome outcome;
+                  if (split.otherSides.empty()) {
+                    // Direct witness: generalizes the old punctures==1
+                    // knot-only case to any component count.
+                    outcome = recordWitness(row.name, row.lo, row.hi, target,
+                                            "", info.genus, capturePairSig,
+                                            "direct", graph, knownGenus,
+                                            outputRows);
+                  } else if (split.otherSides.size() == 1 &&
+                            split.otherSides.front().safe) {
+                    // Cobordism witness: generalizes the old punctures==2
+                    // knot-vs-knot case to fire for any component count on
+                    // either side. An unsafe (genuinely linked multi-
+                    // component) far side is skipped -- it's still shown
+                    // in boundaryDescription for a human to read, just
+                    // never used for a genus deduction (see
+                    // identify::isOrientationSafeName()).
+                    outcome = recordWitness(
+                        row.name, row.lo, row.hi, target,
+                        split.otherSides.front().name, info.genus,
+                        capturePairSig, "cobordism", graph, knownGenus,
+                        outputRows);
+                  }
+                  // More than one other side: an unhandled multi-way
+                  // cobordism -- skipped, not guessed at.
+                  handleOutcome(outcome);
+                  if (outcome.resolved) {
+                    resolvedThisRow = true;
+                    e.requestStop();
+                    e.skipRemainingBoundaryProcessing();
+                  }
+                }
                 return;
+              }
 
-              if (info.punctures == 1) {
-                if (info.genus == target) {
-                  knownGenus[row.name] = target;
-                  OutputRow out;
-                  out.knot = row.name;
-                  out.resolvedGenus = target;
-                  out.status = (row.lo == row.hi) ? "resolved" : "range";
-                  out.witnessKind = "direct";
-                  out.witnessPairSig =
-                      info.capturePairSig ? info.capturePairSig() : std::string{};
-                  out.literatureLo = row.lo;
-                  out.literatureHi = row.hi;
-                  outputRows[row.name] = std::move(out);
-                  resolvedThisRow = true;
-                  e.requestStop();
-                  e.skipRemainingBoundaryProcessing();
-                } else if (info.genus < row.lo) {
-                  std::cerr
-                      << "[!] " << row.name
-                      << ": found a direct genus-" << info.genus
-                      << " surface, BELOW the literature lower bound "
-                      << row.lo
-                      << " -- possible pipeline bug or literature error\n";
+              if (split.mineCurveCount != 0)
+                return; // partial "mine" presence isn't cleanly nameable
+
+              // Incidental observation: this row's own diagram is
+              // COMPLETELY absent from this surface's boundary -- a side
+              // effect of searching row.name's own cobordism, unrelated to
+              // it. describeBoundary_() already paid for identifying every
+              // side regardless of whether "mine" is present, so this is
+              // free information that would otherwise just be discarded;
+              // recording it here can let a LATER row's own search be
+              // skipped entirely (see the `if (knownGenus.contains(...))`
+              // check above the main loop, and propagateGraph(), which
+              // runs after every row and will pick up anything recorded
+              // here). Never calls e.requestStop() here except on a fatal
+              // bug -- this row's own search keeps running toward its own
+              // goal regardless of what gets harvested along the way.
+              if (split.otherSides.size() == 1 &&
+                  split.otherSides.front().safe) {
+                const std::string &y = split.otherSides.front().name;
+                auto it = nameToRow.find(y);
+                if (it != nameToRow.end()) {
+                  const InputRow &yRow = *it->second;
+                  handleIncidentalOutcome(
+                      y, recordWitness(y, yRow.lo, yRow.hi, yRow.hi, "",
+                                       info.genus, capturePairSig,
+                                       "incidental-direct", graph, knownGenus,
+                                       outputRows));
                 }
-              } else if (info.punctures == 2) {
-                auto parts = parseTwoComponentBoundary(info.boundaryDescription);
-                std::string farName;
-                for (const auto &[comp, nm] : parts)
-                  if (comp != static_cast<int>(knotSideBC) + 1)
-                    farName = nm;
-                if (farName.empty())
-                  return;
+              } else if (split.otherSides.size() == 2 &&
+                        split.otherSides[0].safe &&
+                        split.otherSides[1].safe) {
+                const std::string &y = split.otherSides[0].name;
+                const std::string &z = split.otherSides[1].name;
 
-                // Skip the (expensive -- see capturePairSig's own doc
-                // comment) pairSig capture entirely when it wouldn't teach
-                // the graph anything new: resolvable()'s check is an exact
-                // equality on genus, so two edges to the same neighbor at
-                // the SAME genus are fully interchangeable (whichever
-                // witness got recorded first is just as good), and with
-                // thousands of near-duplicate surfaces per knot pair, this
-                // is the overwhelmingly common case.
-                bool haveThisGenusEdge =
-                    hasEdgeWithGenus(graph, row.name, farName, info.genus);
-
-                auto hIt = knownGenus.find(farName);
-                bool resolvesNow =
-                    hIt != knownGenus.end() &&
-                    (target == info.genus + hIt->second ||
-                     target == hIt->second - info.genus);
-
-                if (haveThisGenusEdge && !resolvesNow)
-                  return;
-
-                std::string pairSig =
-                    info.capturePairSig ? info.capturePairSig() : std::string{};
-                if (!haveThisGenusEdge)
-                  addEdge(graph, row.name, farName, info.genus, pairSig);
-
-                if (resolvesNow) {
-                  knownGenus[row.name] = target;
-                  OutputRow out;
-                  out.knot = row.name;
-                  out.resolvedGenus = target;
-                  out.status = (row.lo == row.hi) ? "resolved" : "range";
-                  out.witnessKind = "cobordism";
-                  out.witnessPairSig = pairSig;
-                  out.viaKnot = farName;
-                  out.viaEdgeGenus = info.genus;
-                  out.dependsOn = buildDependsOn(farName, outputRows);
-                  out.literatureLo = row.lo;
-                  out.literatureHi = row.hi;
-                  outputRows[row.name] = std::move(out);
-                  resolvedThisRow = true;
-                  e.requestStop();
-                  e.skipRemainingBoundaryProcessing();
-                }
+                // Tries to resolve `subject` via a cobordism to `via`,
+                // only if `subject` is actually a tracked --input row.
+                // addEdge()'s own dedup (hasEdgeWithGenus(), inside
+                // recordWitness()) makes calling this for both directions
+                // a cheap no-op on the second call once the first has
+                // already recorded the edge.
+                auto tryDirection = [&](const std::string &subject,
+                                        const std::string &via) {
+                  auto it = nameToRow.find(subject);
+                  if (it == nameToRow.end())
+                    return false;
+                  const InputRow &subjectRow = *it->second;
+                  WitnessOutcome outcome = recordWitness(
+                      subject, subjectRow.lo, subjectRow.hi, subjectRow.hi,
+                      via, info.genus, capturePairSig, "incidental-cobordism",
+                      graph, knownGenus, outputRows);
+                  handleIncidentalOutcome(subject, outcome);
+                  return outcome.fatalBug;
+                };
+                if (!tryDirection(y, z))
+                  tryDirection(z, y);
               }
             };
 
@@ -1099,13 +1097,31 @@ int main(int argc, char *argv[]) {
           });
         }
 
-        e.search(numThreads, BoundaryCondition::connected, callbacks,
+        // A multi-component link's own boundary necessarily puts more than
+        // one of the surface's own boundary curves on the single knot-side
+        // ambient boundary component (see knotSideBC above) -- impossible
+        // under `connected`'s distinct-ambient-component-per-curve
+        // requirement, but exactly what `proper` allows. `connected` stays
+        // the (tighter-pruning) default for ordinary single-component
+        // knots.
+        BoundaryCondition cond = componentCount == 1
+                                     ? BoundaryCondition::connected
+                                     : BoundaryCondition::proper;
+        e.search(numThreads, cond, callbacks,
                 iddfsIterations, iddfsStep, iddfsStart, iddfsFinalThreads,
                 /*orientableOnly=*/true);
 
         searchDone.store(true, std::memory_order_relaxed);
         if (watchdog.joinable())
           watchdog.join();
+        if (fatalBugDetected_.load()) {
+          // Durably record whatever legitimate results already exist
+          // before halting -- the outer loop's own writeOutputCsv() call
+          // at the end of this row never runs, since
+          // haltIfFatalBugDetected() exits the process below.
+          writeOutputCsv(*outputPath, rows, outputRows);
+          haltIfFatalBugDetected();
+        }
         // Leave this knot's final progress block in place (rather than
         // erasing it on the next tick, which won't come until the *next*
         // knot's search starts) so the subsequent resolved/unresolved
@@ -1131,9 +1147,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (censusUpdates) {
-          EdgeComplement complementBuilder(t2, edges2);
-          regina::Triangulation<3> complement =
-              complementBuilder.buildComplement();
+          regina::Triangulation<3> complement = linkGrouping.buildComplement();
           census::insertCensusEntry(complement.isoSig(), row.name);
         }
       } else {
@@ -1147,7 +1161,11 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    propagateGraph(pending, graph, knownGenus, outputRows);
+    for (const std::string &name :
+        propagateGraph(pending, graph, knownGenus, outputRows))
+      std::cout << "\x1b[1;36m[+] " << name
+                << ": resolved incidentally (genus " << knownGenus[name]
+                << ") via graph propagation, no search needed\x1b[0m\n";
     writeOutputCsv(*outputPath, rows, outputRows);
     ++processedThisRun;
   }

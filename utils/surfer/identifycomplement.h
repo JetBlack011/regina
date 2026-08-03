@@ -144,6 +144,48 @@ extern std::mutex censusLookupMutex;
 std::string identify(const EdgeComplement &e);
 
 /**
+ * Non-printing identification of `l`'s complement (all of `l`'s components
+ * drilled together, i.e. Link::buildComplement()): `"<n>-component
+ * unlink"` if `l`'s complement is proven split (see
+ * identifycomplement.cpp's groupProvesUnlink() -- a fast, sound
+ * generalization of identify(const EdgeComplement&)'s genus-1/"Unknot"
+ * check to n > 1 components, via free-group recognition rather than a
+ * handlebody genus check: unlike a single unknotted curve, a split
+ * multi-component unlink's complement has multiple torus boundary
+ * components, so it is never itself a handlebody), the census name if
+ * recognized, "Unknot" if `l` is a single unknotted curve, or else the
+ * bare isoSig as a fallback identifier.
+ *
+ * A genuine overload, not virtual dispatch: since Link publicly inherits
+ * EdgeComplement, identify(const EdgeComplement&) would already run and
+ * build the right (possibly multi-cusp) complement if called with a Link,
+ * and (for n == 1) already returns exactly the same answer this does. This
+ * overload is picked automatically by ordinary overload resolution
+ * whenever the argument is a Link -- it only changes behavior for n > 1,
+ * by trying the split-unlink fast path first.
+ */
+std::string identify(const Link &l);
+
+/**
+ * Whether `name` (as returned by identify(const Link&)) is safe to use for
+ * a genus deduction regardless of which of the several oriented variants
+ * of a link the drilled curves actually were: true for `"Unknot"` and any
+ * `"<n>-component unlink"` result (a split unlink's components don't
+ * interact, so each bounds its own disk in B^4 regardless of orientation),
+ * false for any other (genuinely linked) multi-component result -- two
+ * differently-oriented variants of the same link can have very different
+ * true slice genus while sharing one complement, so a bare complement name
+ * alone never determines which oriented link was actually found. Single-
+ * curve names (from identify(const EdgeComplement&)) need no such check:
+ * a single component has no orientation ambiguity to begin with.
+ *
+ * Kept here, next to where these strings are actually produced, rather
+ * than pattern-matched elsewhere, so the two stay in sync if the format
+ * ever changes.
+ */
+bool isOrientationSafeName(const std::string &name);
+
+/**
  * Prints and returns whether `e`'s complement is recognized: either as a
  * genus-1 handlebody (the complement of a single unknotted component), or
  * as a census hit.

@@ -9,6 +9,7 @@ set(TESTS
   linkcomplement_test
   identifycomplement_test
   census_test
+  cobordismgraph_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather

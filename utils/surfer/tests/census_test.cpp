@@ -65,7 +65,7 @@ const char *FIXTURE_PATH = "census_test_fixture.sqlite";
 
 // Builds a tiny scratch census at FIXTURE_PATH: one source='regina' row
 // whose raw name (with a " : #N" suffix, matching CensusHit::name()'s real
-// format) has a known Rolfsen translation in rolfsentable.h, one whose raw
+// format) has a known classical translation in linknames.h, one whose raw
 // name doesn't, and one source='snappy' row with an already-pretty name
 // (as identify_boundaries.py's _pick_best_name() would produce).
 void buildFixture() {
@@ -78,33 +78,33 @@ void buildFixture() {
         "  isosig TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL"
         ");"
         "INSERT INTO census VALUES"
-        "  ('fake-sig-regina-rolfsen', 'L104001 : #1', 'regina'),"
-        "  ('fake-sig-regina-no-rolfsen', 'not-in-rolfsen-table', 'regina'),"
+        "  ('fake-sig-regina-linkname', 'L104001 : #1', 'regina'),"
+        "  ('fake-sig-regina-no-linkname', 'not-in-linknames-table', 'regina'),"
         "  ('fake-sig-snappy', 'K12n124', 'snappy');",
         nullptr, nullptr, nullptr);
     sqlite3_close(db);
 }
 
-void test_regina_hit_formats_via_rolfsen() {
+void test_regina_hit_formats_via_linknames() {
     buildFixture();
     census::setCensusPath(FIXTURE_PATH);
 
     EXPECT_EQ(
-        census::localCensusLookup("fake-sig-regina-rolfsen").value_or("<MISS>"),
+        census::localCensusLookup("fake-sig-regina-linkname").value_or("<MISS>"),
         std::string("4_1 (L104001 : #1)"),
-        "a source='regina' hit whose base name is in rolfsentable.h is "
+        "a source='regina' hit whose base name is in linknames.h is "
         "formatted the same way censusLookupName() formats a real "
         "Census::lookup() hit");
 }
 
-void test_regina_hit_raw_when_no_rolfsen_entry() {
+void test_regina_hit_raw_when_no_linknames_entry() {
     buildFixture();
     census::setCensusPath(FIXTURE_PATH);
 
     EXPECT_EQ(
-        census::localCensusLookup("fake-sig-regina-no-rolfsen").value_or("<MISS>"),
-        std::string("not-in-rolfsen-table"),
-        "a source='regina' hit with no rolfsentable.h entry returns the "
+        census::localCensusLookup("fake-sig-regina-no-linkname").value_or("<MISS>"),
+        std::string("not-in-linknames-table"),
+        "a source='regina' hit with no linknames.h entry returns the "
         "raw census name unchanged");
 }
 
@@ -115,8 +115,8 @@ void test_snappy_hit_returns_verbatim() {
     EXPECT_EQ(census::localCensusLookup("fake-sig-snappy").value_or("<MISS>"),
               std::string("K12n124"),
               "a source='snappy' hit is returned exactly as stored, never "
-              "passed through rolfsenName() (its name isn't a raw census "
-              "name, so that would only ever miss)");
+              "passed through linknames::name() (its name isn't a raw "
+              "census name, so that would only ever miss)");
 }
 
 void test_miss_returns_nullopt() {
@@ -132,7 +132,7 @@ void test_miss_returns_nullopt() {
 void test_missing_file_falls_through_cleanly() {
     census::resetCensusForTesting();
 
-    EXPECT_EQ(census::localCensusLookup("fake-sig-regina-rolfsen").has_value(),
+    EXPECT_EQ(census::localCensusLookup("fake-sig-regina-linkname").has_value(),
               false,
               "with no census file present at all, every lookup misses "
               "cleanly -- no crash, same as an isoSig genuinely absent "
@@ -224,9 +224,10 @@ void run(const std::string &name, void (*fn)()) {
 }
 
 int main() {
-    run("regina_hit_formats_via_rolfsen", test_regina_hit_formats_via_rolfsen);
-    run("regina_hit_raw_when_no_rolfsen_entry",
-        test_regina_hit_raw_when_no_rolfsen_entry);
+    run("regina_hit_formats_via_linknames",
+        test_regina_hit_formats_via_linknames);
+    run("regina_hit_raw_when_no_linknames_entry",
+        test_regina_hit_raw_when_no_linknames_entry);
     run("snappy_hit_returns_verbatim", test_snappy_hit_returns_verbatim);
     run("miss_returns_nullopt", test_miss_returns_nullopt);
     run("missing_file_falls_through_cleanly",

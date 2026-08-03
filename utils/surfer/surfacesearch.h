@@ -23,8 +23,23 @@
  */
 struct SurfaceFoundInfo {
   bool orientable; /**< Whether the surface is orientable. */
-  int genus; /**< The surface's genus. */
-  int punctures; /**< The surface's number of punctures (boundary components). */
+  int genus;
+      /**< Meaningful ONLY when `connected` is true: chi = 2 - 2g - punctures
+           (chi = 2 - g - punctures if non-orientable) is a statement about
+           one connected surface, so this field carries whatever that
+           formula evaluates to even when the surface is disconnected --
+           e.g. two disjoint genus-0 1-punctured pieces (two discs) comes
+           out as genus -1, not a real genus of anything. There's no single
+           number that would correctly summarize a disconnected surface's
+           genus for every purpose, so this deliberately isn't "fixed" to
+           produce one; callers that need per-component detail for a
+           disconnected find must decompose the surface themselves. Always
+           check `connected` before reading this field. */
+  int punctures;
+      /**< The surface's total number of punctures (boundary components),
+           across every connected piece if disconnected -- this count is
+           well-defined regardless of `connected`. */
+  bool connected; /**< Whether the surface is topologically connected -- see `genus`. */
   long long triangleCount; /**< The surface's number of triangles. */
   BoundaryCondition mostRestrictive;
       /**< The most restrictive BoundaryCondition this specific surface
@@ -64,10 +79,39 @@ struct SurfaceFoundInfo {
  * SurfaceSearchCallbacks::onSurfaceBoundaryProcessed once boundary links
  * are being tracked (BoundaryCondition::proper/connected).
  */
+/**
+ * One ambient boundary component's identification, as computed by
+ * describeBoundary_(): the per-curve names of every one of the surface's
+ * own boundary curves landing on that component, plus (when there's more
+ * than one) the whole-link name of all of them drilled together.
+ */
+struct BoundaryComponentNames {
+  size_t component; /**< Ambient boundary component index. */
+  std::vector<std::string> curveNames;
+      /**< The identify()'d name of each of this component's curves,
+           individually, in describeBoundary_'s order. */
+  std::optional<std::string> linkName;
+      /**< identify()'d name of all of this component's curves drilled
+           together (identify::identify() on the whole Link) -- the same
+           value describeBoundary_ already folds into the parenthetical in
+           boundaryDescription. Set if and only if curveNames.size() > 1;
+           for a single curve, curveNames.front() already names it and no
+           separate whole-link identification is meaningful. */
+};
+
 struct SurfaceBoundaryInfo : SurfaceFoundInfo {
   std::string boundaryDescription;
       /**< A formatted description of the surface's boundary; empty if
            the surface turned out closed. */
+  std::vector<BoundaryComponentNames> boundaryComponents;
+      /**< The same (ambient boundary component, curve names) grouping
+           boundaryDescription is flattened from -- one entry per ambient
+           boundary component the surface's boundary touches. Unlike
+           boundaryDescription, safe to consume programmatically even when
+           a component holds more than one curve (which boundaryDescription
+           can't be reliably split back apart in that case, since curve
+           names within a component and separate components are both
+           comma-joined). */
 };
 
 /**
@@ -619,8 +663,12 @@ private:
    * -- never reaches EdgeComplement::identify()'s
    * buildComplement()/simplify()/isoSig() at all. Not static (unlike
    * before) precisely because it now needs boundarySigCaches_.
+   *
+   * Returns both the flattened string and the same grouping structured (see
+   * SurfaceBoundaryInfo::boundaryComponents) -- built together in one pass,
+   * not two.
    */
-  std::string
+  std::pair<std::string, std::vector<BoundaryComponentNames>>
   describeBoundary_(const std::vector<std::pair<size_t, Link>> &links);
 
   /**

@@ -190,11 +190,14 @@ void SurfaceSearch::ensureBoundarySigCaches_() const {
     });
 }
 
-std::string SurfaceSearch::describeBoundary_(
+std::pair<std::string, std::vector<BoundaryComponentNames>>
+SurfaceSearch::describeBoundary_(
     const std::vector<std::pair<size_t, Link>> &links) {
     ensureBoundarySigCaches_();
 
     std::ostringstream out;
+    std::vector<BoundaryComponentNames> structured;
+    structured.reserve(links.size());
     bool firstComponent = true;
     for (const auto &[component, link] : links) {
         if (!firstComponent)
@@ -204,21 +207,30 @@ std::string SurfaceSearch::describeBoundary_(
         identify::BoundarySignatureCache &cache = *boundarySigCaches_[component];
 
         out << (component + 1) << ": ";
+        std::vector<std::string> curveNames;
+        curveNames.reserve(link.comps_.size());
         bool firstCurve = true;
         for (const Knot &curve : link.comps_) {
             if (!firstCurve)
                 out << ", ";
             firstCurve = false;
-            out << cache.identifyCached(
+            std::string name = cache.identifyCached(
                 curve.edgeIndices(),
                 [&curve] { return identify::identify(curve); });
+            out << name;
+            curveNames.push_back(std::move(name));
         }
-        if (link.comps_.size() > 1)
-            out << " (" << cache.identifyCached(link.edgeIndices(),
-                               [&link] { return identify::identify(link); })
-                << ")";
+        std::optional<std::string> linkName;
+        if (link.comps_.size() > 1) {
+            linkName = cache.identifyCached(
+                link.edgeIndices(),
+                [&link] { return identify::identify(link); });
+            out << " (" << *linkName << ")";
+        }
+        structured.push_back(BoundaryComponentNames{
+            component, std::move(curveNames), std::move(linkName)});
     }
-    return out.str();
+    return {out.str(), std::move(structured)};
 }
 
 identify::BoundarySignatureCacheStats
@@ -279,6 +291,7 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
             .orientable = orientable,
             .genus = genus,
             .punctures = punctures,
+            .connected = embedding.triangulation().isConnected(),
             .triangleCount = faceCount,
             .mostRestrictive = classifyCheaply_(embedding),
             .capturePairSig =
@@ -485,8 +498,9 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
     SurfaceTypeKey type = embedding.surfaceType();
     auto links = embedding.boundaryLinks();
     std::string descriptor;
+    std::vector<BoundaryComponentNames> boundaryComponents;
     if (!links.empty()) {
-        descriptor = describeBoundary_(links);
+        std::tie(descriptor, boundaryComponents) = describeBoundary_(links);
         linkTally_.record(descriptor, type);
     }
 
@@ -501,6 +515,7 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                 .orientable = orientable,
                 .genus = genus,
                 .punctures = punctures,
+                .connected = embedding.triangulation().isConnected(),
                 .triangleCount = static_cast<long long>(faceIndices.size()),
                 .mostRestrictive = classifyByLinks_(links),
                 .capturePairSig =
@@ -508,7 +523,7 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                         ? std::function<std::string()>(
                               [&embedding] { return embedding.pairSig(); })
                         : std::function<std::string()>{}},
-            descriptor});
+            descriptor, boundaryComponents});
     }
 
     // Reverse order, mirroring how the DFS itself would back out --
@@ -617,8 +632,10 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
             if (wantLinks) {
                 auto links = probe.boundaryLinks();
                 std::string descriptor;
+                std::vector<BoundaryComponentNames> boundaryComponents;
                 if (!links.empty()) {
-                    descriptor = describeBoundary_(links);
+                    std::tie(descriptor, boundaryComponents) =
+                        describeBoundary_(links);
                     linkTally_.record(descriptor, type);
                 }
                 if (callbacks.onSurfaceBoundaryProcessed)
@@ -626,16 +643,19 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                         SurfaceFoundInfo{.orientable = orientable,
                                         .genus = genus,
                                         .punctures = punctures,
+                                        .connected =
+                                            probe.triangulation().isConnected(),
                                         .triangleCount = triangleCount,
                                         .mostRestrictive =
                                             classifyByLinks_(links),
                                         .capturePairSig = capturePairSig},
-                        descriptor});
+                        descriptor, boundaryComponents});
             } else if (callbacks.onSurfaceFound) {
                 callbacks.onSurfaceFound(SurfaceFoundInfo{
                     .orientable = orientable,
                     .genus = genus,
                     .punctures = punctures,
+                    .connected = probe.triangulation().isConnected(),
                     .triangleCount = triangleCount,
                     .mostRestrictive = classifyCheaply_(probe),
                     .capturePairSig = capturePairSig});
