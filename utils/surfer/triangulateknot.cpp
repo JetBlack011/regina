@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     } catch (const regina::InvalidArgument &e) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
-    auto &[tri, edges] = result;
+    auto &[tri, edges, reversed] = result;
 
     std::cout << "[+] Number of edges in the link = " << edges.size() << "\n";
     std::cout << "\nTriangulation of S^3 = " << tri.isoSig() << "\n\n";

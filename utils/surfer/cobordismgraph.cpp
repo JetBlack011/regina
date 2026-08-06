@@ -273,22 +273,126 @@ WitnessOutcome recordWitness(
 
 BoundarySplit splitBoundary(
     const std::vector<BoundaryComponentNames> &boundaryComponents,
-    size_t knotSideBC) {
+    size_t searchSideBC, const std::string &rowOwnName) {
     BoundarySplit result;
     for (const auto &info : boundaryComponents) {
-        if (info.component == knotSideBC) {
-            result.mineCurveCount = info.curveNames.size();
-        } else if (info.curveNames.size() == 1) {
-            result.otherSides.push_back({info.curveNames.front(), true});
-        } else if (info.linkName) {
-            result.otherSides.push_back(
-                {*info.linkName,
-                 identify::isOrientationSafeName(*info.linkName)});
+        std::optional<std::string> name =
+            info.curveNames.size() == 1
+                ? std::optional<std::string>(info.curveNames.front())
+                : info.linkName;
+
+        // Only treat this as the search side if it's both geometrically
+        // this row's own ambient component AND its identified name
+        // actually matches this row's own link -- see splitBoundary()'s
+        // own doc comment for why the geometric check alone isn't enough.
+        if (info.component == searchSideBC && name && *name == rowOwnName) {
+            result.searchCurveCount = info.curveNames.size();
+            continue;
         }
-        // else: describeBoundary_() never leaves a multi-curve component
-        // without a linkName -- nothing to record if it somehow did.
+
+        if (!name)
+            continue; // describeBoundary_() never leaves a multi-curve
+                      // component without a linkName -- nothing to record
+                      // if it somehow did.
+
+        result.otherSides.push_back(
+            {*name, info.curveNames.size() == 1 ||
+                        identify::isOrientationSafeName(*name)});
     }
     return result;
+}
+
+namespace {
+// Maps ambient vertex `v` to its corresponding vertex in `dest`, via `iso`
+// (which must map `v`'s own triangulation to `dest`).
+size_t mapVertexIndex(const regina::Vertex<3> *v,
+                      const regina::Triangulation<3> &dest,
+                      const regina::Isomorphism<3> &iso) {
+    auto emb = v->front();
+    size_t destTet = iso.simpImage(emb.tetrahedron()->index());
+    int destLocal = iso.facetPerm(emb.tetrahedron()->index())[emb.vertex()];
+    return dest.tetrahedron(destTet)->vertex(destLocal)->index();
+}
+} // namespace
+
+RowOrientation buildRowOrientation(
+    const std::vector<const regina::Edge<3> *> &rowEdges,
+    const std::vector<bool> &rowReversed,
+    const regina::Triangulation<3> &searchSideTri) {
+    if (rowEdges.empty())
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): rowEdges must not be empty");
+
+    const regina::Triangulation<3> &rowTri = rowEdges.front()->triangulation();
+    std::optional<regina::Isomorphism<3>> iso =
+        rowTri.isIsomorphicTo(searchSideTri);
+    if (!iso)
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): the row's own triangulation is not "
+            "isomorphic to searchSideTri");
+
+    RowOrientation result;
+    for (size_t i = 0; i < rowEdges.size(); ++i) {
+        const regina::Vertex<3> *tail =
+            rowReversed[i] ? rowEdges[i]->vertex(1) : rowEdges[i]->vertex(0);
+        const regina::Vertex<3> *head =
+            rowReversed[i] ? rowEdges[i]->vertex(0) : rowEdges[i]->vertex(1);
+        result.headOf[mapVertexIndex(tail, searchSideTri, *iso)] =
+            mapVertexIndex(head, searchSideTri, *iso);
+    }
+    return result;
+}
+
+bool matchesRowOrientation(const RowOrientation &row,
+                           const std::vector<OrientedCurve> &curves) {
+    std::optional<bool> overallMatch;
+    for (const OrientedCurve &curve : curves) {
+        if (curve.empty())
+            continue;
+
+        std::optional<bool> curveMatch;
+        for (const OrientedEdge &oe : curve) {
+            const regina::Vertex<3> *tail =
+                oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
+            const regina::Vertex<3> *head =
+                oe.reversed ? oe.edge->vertex(0) : oe.edge->vertex(1);
+
+            bool edgeMatches;
+            auto it = row.headOf.find(tail->index());
+            if (it != row.headOf.end() && it->second == head->index()) {
+                edgeMatches = true;
+            } else {
+                auto it2 = row.headOf.find(head->index());
+                if (it2 != row.headOf.end() && it2->second == tail->index()) {
+                    edgeMatches = false;
+                } else {
+                    return false; // not one of the row's own tagged edges
+                }
+            }
+
+            if (!curveMatch)
+                curveMatch = edgeMatches;
+            else if (*curveMatch != edgeMatches)
+                return false; // shouldn't happen -- a single curve is
+                              // all-or-nothing (see this function's own doc
+                              // comment) -- but don't trust that blindly
+        }
+
+        if (!curveMatch)
+            continue;
+        if (!overallMatch)
+            overallMatch = curveMatch;
+        else if (*overallMatch != *curveMatch)
+            return false; // mixed pattern across components -- reject
+    }
+    // Reaching here means every curve's own match/mismatch bit agreed with
+    // every other's (any disagreement already returned false above) --
+    // accept regardless of whether that shared bit was "match" or
+    // "mismatch": a uniform mismatch is just the surface's other
+    // orientation choice, always allowed (see this function's own doc
+    // comment). overallMatch's own stored bool value is irrelevant here;
+    // only whether at least one real curve was actually checked matters.
+    return overallMatch.has_value();
 }
 
 } // namespace cobordismgraph

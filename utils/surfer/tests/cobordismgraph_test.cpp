@@ -12,6 +12,8 @@
 #include <string>
 #include <unistd.h>
 
+#include <triangulation/dim3.h>
+
 #include "../cobordismgraph.h"
 
 using namespace cobordismgraph;
@@ -254,10 +256,10 @@ void test_split_boundary_single_curve_is_safe() {
         BoundaryComponentNames{0, {"3_1"}, std::nullopt},
         BoundaryComponentNames{1, {"4_1"}, std::nullopt},
     };
-    BoundarySplit split = splitBoundary(components, 0);
+    BoundarySplit split = splitBoundary(components, 0, "3_1");
 
-    EXPECT_EQ(split.mineCurveCount, static_cast<size_t>(1),
-              "component 0 (== knotSideBC) is \"mine\"");
+    EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(1),
+              "component 0 (== searchSideBC) is the search side");
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
               "exactly one other side");
     EXPECT_EQ(split.otherSides[0].name, std::string("4_1"),
@@ -272,7 +274,7 @@ void test_split_boundary_unlink_is_safe() {
         BoundaryComponentNames{
             1, {"a", "b"}, std::optional<std::string>("2-component unlink")},
     };
-    BoundarySplit split = splitBoundary(components, 0);
+    BoundarySplit split = splitBoundary(components, 0, "3_1");
 
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1), "one other side");
     EXPECT_EQ(split.otherSides[0].name, std::string("2-component unlink"),
@@ -288,7 +290,7 @@ void test_split_boundary_linked_multicomponent_is_unsafe() {
         BoundaryComponentNames{1, {"a", "b"},
                                std::optional<std::string>("L6a3")},
     };
-    BoundarySplit split = splitBoundary(components, 0);
+    BoundarySplit split = splitBoundary(components, 0, "3_1");
 
     EXPECT_EQ(split.otherSides[0].name, std::string("L6a3"), "named");
     EXPECT_EQ(split.otherSides[0].safe, false,
@@ -299,17 +301,118 @@ void test_split_boundary_linked_multicomponent_is_unsafe() {
 
 void test_split_boundary_multiple_other_sides_not_collapsed() {
     std::vector<BoundaryComponentNames> components = {
-        BoundaryComponentNames{0, {"3_1"}, std::nullopt}, // mine
+        BoundaryComponentNames{0, {"3_1"}, std::nullopt}, // search side
         BoundaryComponentNames{1, {"4_1"}, std::nullopt}, // other #1
         BoundaryComponentNames{2, {"5_1"}, std::nullopt}, // other #2
     };
-    BoundarySplit split = splitBoundary(components, 0);
+    BoundarySplit split = splitBoundary(components, 0, "3_1");
 
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(2),
               "both other sides are kept -- neither silently overwrites the "
               "other (the old BoundarySplit collapsed multiple \"other\" "
               "components into a single farName, discarding all but the "
               "last)");
+}
+
+void test_split_boundary_search_side_name_mismatch_is_not_search_side() {
+    // Same shape as the real L6a3{0} fatal-bug repro: component 0 ==
+    // searchSideBC holds exactly as many curves as the row's own component
+    // count (2), but they don't actually identify as this row's own link
+    // -- the DFS wandered onto an unrelated 2-component link that just
+    // happens to have the same curve count. splitBoundary() must not
+    // trust the geometric position alone.
+    std::vector<BoundaryComponentNames> components = {
+        BoundaryComponentNames{0, {"Unknot", "Unknot"},
+                               std::optional<std::string>("L206001")},
+        BoundaryComponentNames{1, {"Unknot"}, std::nullopt},
+    };
+    BoundarySplit split = splitBoundary(components, 0, "L6a3{0}");
+
+    EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(0),
+              "component 0's identified name (L206001) doesn't match this "
+              "row's own name (L6a3{0}), so it is NOT treated as the search "
+              "side even though it's geometrically on searchSideBC and even "
+              "though its curve count matches this row's component count");
+    EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(2),
+              "both components are treated as \"other\" sides instead");
+    EXPECT_EQ(split.otherSides[0].name, std::string("L206001"),
+              "the mismatched component is named via its own linkName");
+    EXPECT_EQ(split.otherSides[0].safe, false,
+              "L206001 is a genuine (unproven-split) multi-component "
+              "linkName -- not safe for a deduction");
+    EXPECT_EQ(split.otherSides[1].name, std::string("Unknot"), "");
+    EXPECT_EQ(split.otherSides[1].safe, true, "a single curve is always safe");
+}
+
+void test_split_boundary_search_side_name_match_is_search_side() {
+    // Sanity check paired with the mismatch test above: when the name
+    // DOES match, component == searchSideBC is accepted as the search side
+    // exactly as before, even with more than one curve.
+    std::vector<BoundaryComponentNames> components = {
+        BoundaryComponentNames{0, {"Unknot", "Unknot"},
+                               std::optional<std::string>("L6a3{0}")},
+        BoundaryComponentNames{1, {"Unknot"}, std::nullopt},
+    };
+    BoundarySplit split = splitBoundary(components, 0, "L6a3{0}");
+
+    EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(2),
+              "component 0's name matches this row's own name, so it is "
+              "the search side despite holding more than one curve");
+    EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
+              "only the genuinely-other component remains");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// matchesRowOrientation()'s own decision logic, isolated from
+// buildRowOrientation()'s isomorphism/geometry machinery (validated
+// separately -- see this feature's own diagnostic and the end-to-end
+// L6a3{0}/L6a3{1} repro) by hand-constructing RowOrientation/OrientedCurve
+// directly against a single tetrahedron's own edges, rather than going
+// through a real knotbuilder+CobordismBuilder pipeline. Two of its own
+// edges stand in for two independent "components".
+// ─────────────────────────────────────────────────────────────────────────────
+void test_matches_row_orientation_logic() {
+    regina::Triangulation<3> tri;
+    tri.newTetrahedron(); // tetrahedron 0: e0, e1 below, kept vertex-disjoint
+    tri.newTetrahedron(); // tetrahedron 1, ungled to the first: fully
+                          // disjoint from it, for e2 below
+    // Regina's standard tetrahedron edge ordering is
+    // {(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)}, so edge 0 == (0,1) and edge 5
+    // == (2,3) of the same tetrahedron are its one pair of opposite
+    // (vertex-disjoint) edges -- needed so the two "components" below
+    // don't silently clobber each other's entry in
+    // RowOrientation::headOf (keyed by tail vertex index, so two edges
+    // sharing an endpoint would collide).
+    regina::Edge<3> *e0 = tri.tetrahedron(0)->edge(0);
+    regina::Edge<3> *e1 = tri.tetrahedron(0)->edge(5);
+    // A third edge from the other, entirely disjoint tetrahedron -- not
+    // one of the row's own tagged edges at all.
+    regina::Edge<3> *e2 = tri.tetrahedron(1)->edge(0);
+
+    RowOrientation row;
+    row.headOf[e0->vertex(0)->index()] = e0->vertex(1)->index();
+    row.headOf[e1->vertex(0)->index()] = e1->vertex(1)->index();
+
+    std::vector<OrientedCurve> allMatch = {{{e0, false}}, {{e1, false}}};
+    EXPECT_EQ(matchesRowOrientation(row, allMatch), true,
+              "every curve's induced direction agrees with the row's own "
+              "tag -- accepted");
+
+    std::vector<OrientedCurve> allFlipped = {{{e0, true}}, {{e1, true}}};
+    EXPECT_EQ(matchesRowOrientation(row, allFlipped), true,
+              "every curve's induced direction disagrees with the row's "
+              "own tag, but uniformly -- a global flip, always allowed "
+              "(it's just the surface's other orientation choice)");
+
+    std::vector<OrientedCurve> mixed = {{{e0, false}}, {{e1, true}}};
+    EXPECT_EQ(matchesRowOrientation(row, mixed), false,
+              "one component agrees, the other doesn't -- exactly the "
+              "L6a3{0}/L6a3{1} misattribution signature, rejected");
+
+    std::vector<OrientedCurve> unknownEdge = {{{e2, false}}};
+    EXPECT_EQ(matchesRowOrientation(row, unknownEdge), false,
+              "a curve edge that isn't one of the row's own tagged edges "
+              "at all is rejected, not silently ignored");
 }
 
 } // namespace
@@ -341,6 +444,11 @@ int main() {
         test_split_boundary_linked_multicomponent_is_unsafe);
     run("split_boundary_multiple_other_sides_not_collapsed",
         test_split_boundary_multiple_other_sides_not_collapsed);
+    run("split_boundary_search_side_name_mismatch_is_not_search_side",
+        test_split_boundary_search_side_name_mismatch_is_not_search_side);
+    run("split_boundary_search_side_name_match_is_search_side",
+        test_split_boundary_search_side_name_match_is_search_side);
+    run("matches_row_orientation_logic", test_matches_row_orientation_logic);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

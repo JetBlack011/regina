@@ -2,9 +2,10 @@
 
 #include "identifycomplement.h"
 
-SurfaceSearch::SurfaceSearch(const regina::Triangulation<4> &tri,
-                             const std::vector<int> &seedFaces)
-    : EmbeddingSearch<4, 2>(tri, seedFaces) {
+SurfaceSearch::SurfaceSearch(
+    const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,
+    std::optional<size_t> protectedBoundaryComponent)
+    : EmbeddingSearch<4, 2>(tri, seedFaces, protectedBoundaryComponent) {
     // Additional validation beyond the base class's own (facet-level-only)
     // seeded-constructor check above: KnottedSurface's seeded constructor
     // runs the enhanced addFace()/addFaces() (transverse-self-intersection/
@@ -523,7 +524,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                         ? std::function<std::string()>(
                               [&embedding] { return embedding.pairSig(); })
                         : std::function<std::string()>{}},
-            descriptor, boundaryComponents});
+            descriptor, boundaryComponents,
+            [&embedding] { return embedding.orientedBoundaryLinks(); }});
     }
 
     // Reverse order, mirroring how the DFS itself would back out --
@@ -649,7 +651,8 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                         .mostRestrictive =
                                             classifyByLinks_(links),
                                         .capturePairSig = capturePairSig},
-                        descriptor, boundaryComponents});
+                        descriptor, boundaryComponents,
+                        [&probe] { return probe.orientedBoundaryLinks(); }});
             } else if (callbacks.onSurfaceFound) {
                 callbacks.onSurfaceFound(SurfaceFoundInfo{
                     .orientable = orientable,

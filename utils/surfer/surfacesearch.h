@@ -112,6 +112,18 @@ struct SurfaceBoundaryInfo : SurfaceFoundInfo {
            can't be reliably split back apart in that case, since curve
            names within a component and separate components are both
            comma-joined). */
+  std::function<std::vector<std::pair<size_t, std::vector<OrientedCurve>>>()>
+      captureOrientedBoundaryLinks;
+      /**< Lazy, as capturePairSig above (and for the same reason: closes
+           over the embedding by reference, only valid to call synchronously
+           within the callback this SurfaceBoundaryInfo was passed to) --
+           calls KnottedSurface::orientedBoundaryLinks(). Always populated
+           (unlike capturePairSig, not gated behind a limits_ flag: no
+           search currently runs often enough for this to need capping),
+           but still a closure rather than a precomputed field, since most
+           callers never need it (only the orientation-tracking gate in
+           verifyslicegenus.cpp's own "search side, fully witnessed" branch
+           does) and it costs a boundary-facet walk to compute. */
 };
 
 /**
@@ -487,9 +499,13 @@ public:
    * EmbeddedSubmanifold<4,2>), so a seed baked with an illegal
    * crossing/knot -- not just a facet-level collision -- is caught
    * eagerly too.
+   *
+   * `protectedBoundaryComponent` is forwarded straight through to the
+   * base class constructor -- see EmbeddingSearch's own doc comment.
    */
-  SurfaceSearch(const regina::Triangulation<4> &tri,
-               const std::vector<int> &seedFaces);
+  SurfaceSearch(
+      const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,
+      std::optional<size_t> protectedBoundaryComponent = std::nullopt);
 
   /**
    * Applies `limits` to every otherwise-unbounded structure this search

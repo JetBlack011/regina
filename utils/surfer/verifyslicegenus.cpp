@@ -852,7 +852,7 @@ int main(int argc, char *argv[]) {
       }
 
       if (!buildFailed) {
-        auto &[t2, edges2] = link;
+        auto &[t2, edges2, reversed2] = link;
 
         // Splits edges2 into connected components -- 1 for an ordinary
         // knot, >1 for a genuine multi-component link. Reused below both
@@ -860,6 +860,16 @@ int main(int argc, char *argv[]) {
         // complement.
         Link linkGrouping(t2, edges2);
         int componentCount = linkGrouping.countComponents();
+
+        // This row's own true identity, computed once up front from its
+        // own diagram -- splitBoundary() below uses this to verify that a
+        // surface's search-side boundary (geometrically on searchSideBC)
+        // actually traces out row.name's own link, rather than trusting a
+        // bare curve-count match (see splitBoundary()'s own doc comment
+        // for why that's unsound: the DFS can extend beyond the seeded
+        // collar and land an unrelated curve set on the same ambient
+        // component).
+        std::string rowOwnName = identify::identify(linkGrouping);
 
         std::vector<int> edgeIndices;
         edgeIndices.reserve(edges2.size());
@@ -882,7 +892,7 @@ int main(int argc, char *argv[]) {
         // across the copy (same "indices are preserved" guarantee
         // CobordismBuilder::baseTriangulation()'s own doc comment relies
         // on elsewhere in this file).
-        size_t knotSideBC = cob.baseBoundaryComponent()->index();
+        size_t searchSideBC = cob.baseBoundaryComponent()->index();
 
         regina::Triangulation<4> tri = cob.getCobordism();
 
@@ -891,11 +901,25 @@ int main(int argc, char *argv[]) {
           for (regina::Triangle<4> *t : collarBuilder.resolve())
             seedFaces.push_back(static_cast<int>(t->index()));
 
+        // Orientation tracking (see cobordismgraph::RowOrientation/
+        // matchesRowOrientation()) only means anything when the search
+        // side's own edge set is actually kept fixed -- which requires a
+        // seed (EmbeddingSearch's protectedBoundaryComponent exemption is
+        // built around a seed to exempt; see its own doc comment). So both
+        // the protection and the orientation check below are gated behind
+        // `seedFaces` being non-empty; an unseeded search behaves exactly
+        // as it did before this feature existed.
+        std::optional<cobordismgraph::RowOrientation> rowOrientation;
+        if (!seedFaces.empty())
+          rowOrientation = cobordismgraph::buildRowOrientation(
+              edges2, reversed2,
+              tri.boundaryComponent(searchSideBC)->build());
+
         std::optional<SurfaceSearch> eOpt;
         if (seedFaces.empty())
           eOpt.emplace(tri);
         else
-          eOpt.emplace(tri, seedFaces);
+          eOpt.emplace(tri, seedFaces, searchSideBC);
         SurfaceSearch &e = *eOpt;
         e.configureLimits(limits);
 
@@ -983,10 +1007,42 @@ int main(int argc, char *argv[]) {
                                 << row.name << "\x1b[0m\n";
                   };
 
-              BoundarySplit split =
-                  splitBoundary(info.boundaryComponents, knotSideBC);
+              BoundarySplit split = splitBoundary(info.boundaryComponents,
+                                                  searchSideBC, rowOwnName);
 
-              if (split.mineCurveCount == static_cast<size_t>(componentCount)) {
+              if (split.searchCurveCount == static_cast<size_t>(componentCount)) {
+                // This row's own diagram is fully witnessed by count and
+                // name -- but that's not sufficient on its own: a mixed
+                // orientation match (some search-side components agree
+                // with this row's own PD-tagged direction, some don't)
+                // means the surface actually witnesses a different
+                // oriented variant of this same-complement diagram (see
+                // cobordismgraph::matchesRowOrientation()'s own doc
+                // comment -- this is exactly the L6a3{0}/L6a3{1}
+                // misattribution this feature exists to catch). Only
+                // checked when rowOrientation is set (requires a seed --
+                // see its own construction above); an unseeded search has
+                // no fixed search-side edge set to compare against, so it
+                // falls back to the pre-existing count/name-only behavior.
+                if (rowOrientation) {
+                  std::vector<OrientedCurve> searchSideCurves;
+                  bool foundSearchSide = false;
+                  for (auto &[c, curves] : info.captureOrientedBoundaryLinks()) {
+                    if (c == searchSideBC) {
+                      searchSideCurves = std::move(curves);
+                      foundSearchSide = true;
+                      break;
+                    }
+                  }
+                  if (!foundSearchSide ||
+                      !cobordismgraph::matchesRowOrientation(*rowOrientation,
+                                                             searchSideCurves))
+                    return; // orientation mismatch -- not a valid witness
+                            // for this row's own specific orientation; skip
+                            // exactly as an unsafe far-side name would be,
+                            // the search keeps running
+                }
+
                 // This row's own diagram is fully witnessed -- the
                 // original reason this search is running.
                 if (!resolvedThisRow) {
@@ -1025,15 +1081,15 @@ int main(int argc, char *argv[]) {
                 return;
               }
 
-              if (split.mineCurveCount != 0)
-                return; // partial "mine" presence isn't cleanly nameable
+              if (split.searchCurveCount != 0)
+                return; // partial search-side presence isn't cleanly nameable
 
               // Incidental observation: this row's own diagram is
               // COMPLETELY absent from this surface's boundary -- a side
               // effect of searching row.name's own cobordism, unrelated to
               // it. describeBoundary_() already paid for identifying every
-              // side regardless of whether "mine" is present, so this is
-              // free information that would otherwise just be discarded;
+              // side regardless of whether the search side is present, so
+              // this is free information that would otherwise just be discarded;
               // recording it here can let a LATER row's own search be
               // skipped entirely (see the `if (knownGenus.contains(...))`
               // check above the main loop, and propagateGraph(), which
@@ -1041,6 +1097,21 @@ int main(int argc, char *argv[]) {
               // here). Never calls e.requestStop() here except on a fatal
               // bug -- this row's own search keeps running toward its own
               // goal regardless of what gets harvested along the way.
+              //
+              // Only reachable at all when rowOrientation is unset (an
+              // unseeded --collar-layers 0 search, with no
+              // protectedBoundaryComponent): whenever a seed is present,
+              // it's the mandatory floor of every state the DFS reports
+              // (ConnectedInducedSubgraphEnumerator's seed-contraction
+              // guarantees this), and protectedBoundaryComponent forbids
+              // any other face from ever touching searchSideBC -- so
+              // split.searchCurveCount can never actually be 0 there, this
+              // whole branch is already unreachable in that case, and this
+              // check just makes that explicit rather than relying on it
+              // implicitly.
+              if (rowOrientation)
+                return;
+
               if (split.otherSides.size() == 1 &&
                   split.otherSides.front().safe) {
                 const std::string &y = split.otherSides.front().name;
@@ -1098,8 +1169,8 @@ int main(int argc, char *argv[]) {
         }
 
         // A multi-component link's own boundary necessarily puts more than
-        // one of the surface's own boundary curves on the single knot-side
-        // ambient boundary component (see knotSideBC above) -- impossible
+        // one of the surface's own boundary curves on the single search-side
+        // ambient boundary component (see searchSideBC above) -- impossible
         // under `connected`'s distinct-ambient-component-per-curve
         // requirement, but exactly what `proper` allows. `connected` stays
         // the (tighter-pruning) default for ordinary single-component

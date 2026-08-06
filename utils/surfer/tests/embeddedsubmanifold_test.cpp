@@ -367,7 +367,8 @@ struct AuditResult {
 AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
                                int maxDepth, bool checkBoundaryHomology = false,
                                int violationCap = 25,
-                               bool checkOrientability = false) {
+                               bool checkOrientability = false,
+                               bool checkOrientedBoundary = false) {
     Skeleton<4, 2> skeleton(tri);
     Graph graph = buildTestGraph(skeleton);
     KnottedSurface embedding(skeleton);
@@ -389,7 +390,7 @@ AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
                 result.violations.push_back({auditor.path(), reason.str()});
             }
         }
-        if (!checkBoundaryHomology)
+        if (!checkBoundaryHomology && !checkOrientedBoundary)
             return;
         if (!embedding.isEmbedded())
             return; // not genuinely embedded; boundaryLinks() presumes it is
@@ -398,16 +399,82 @@ AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
         if (!embedding.isProper() || !embedding.boundaryComponentsMapInjectively())
             return;
 
-        for (const auto &[component, link] : embedding.boundaryLinks()) {
-            regina::Triangulation<3> complement = link.buildComplement();
-            regina::AbelianGroup h1 = complement.homology();
-            if (!h1.isFree(link.countComponents())) {
-                std::ostringstream reason;
-                reason << "boundary component " << component
-                      << ": link complement H_1 is not Z^"
-                      << link.countComponents() << " (got " << h1.str()
-                      << ")";
-                result.violations.push_back({auditor.path(), reason.str()});
+        if (checkBoundaryHomology) {
+            for (const auto &[component, link] : embedding.boundaryLinks()) {
+                regina::Triangulation<3> complement = link.buildComplement();
+                regina::AbelianGroup h1 = complement.homology();
+                if (!h1.isFree(link.countComponents())) {
+                    std::ostringstream reason;
+                    reason << "boundary component " << component
+                          << ": link complement H_1 is not Z^"
+                          << link.countComponents() << " (got " << h1.str()
+                          << ")";
+                    result.violations.push_back({auditor.path(), reason.str()});
+                }
+            }
+        }
+
+        // orientedBoundaryLinks()'s own precondition: only meaningful on an
+        // orientable surface.
+        if (checkOrientedBoundary && embedding.isOrientable()) {
+            for (const auto &[component, curves] :
+                embedding.orientedBoundaryLinks()) {
+                for (const OrientedCurve &curve : curves) {
+                    if (curve.empty()) {
+                        result.violations.push_back(
+                            {auditor.path(),
+                            "orientedBoundaryLinks(): component " +
+                                std::to_string(component) +
+                                " produced an empty curve"});
+                        continue;
+                    }
+                    // Independently re-verify chainIntoCurves()'s own
+                    // invariant: each edge's head must be the next edge's
+                    // tail, and the last edge's head must close back onto
+                    // the first edge's own tail.
+                    bool headToTailOk = true;
+                    for (size_t i = 0; i < curve.size(); ++i) {
+                        const OrientedEdge &e = curve[i];
+                        const OrientedEdge &n = curve[(i + 1) % curve.size()];
+                        const regina::Vertex<3> *head =
+                            e.reversed ? e.edge->vertex(0) : e.edge->vertex(1);
+                        const regina::Vertex<3> *nextTail =
+                            n.reversed ? n.edge->vertex(1) : n.edge->vertex(0);
+                        if (head != nextTail)
+                            headToTailOk = false;
+                    }
+                    if (!headToTailOk) {
+                        result.violations.push_back(
+                            {auditor.path(),
+                            "orientedBoundaryLinks(): component " +
+                                std::to_string(component) +
+                                " produced a curve that doesn't close "
+                                "head-to-tail"});
+                    }
+                }
+
+                // Cross-check against boundaryLinks()'s own (undirected)
+                // edge count for the same component: orientedBoundaryLinks()
+                // must partition the exact same edge set, just with
+                // direction added, never dropping or duplicating an edge.
+                size_t directedEdgeCount = 0;
+                for (const OrientedCurve &curve : curves)
+                    directedEdgeCount += curve.size();
+                size_t undirectedEdgeCount = 0;
+                for (const auto &[c2, link] : embedding.boundaryLinks()) {
+                    if (c2 != component)
+                        continue;
+                    for (const auto &knot : link.comps_)
+                        undirectedEdgeCount += knot.edgeIndices().size();
+                }
+                if (directedEdgeCount != undirectedEdgeCount) {
+                    std::ostringstream reason;
+                    reason << "orientedBoundaryLinks(): component "
+                          << component << " has " << directedEdgeCount
+                          << " directed edges but boundaryLinks() has "
+                          << undirectedEdgeCount << " undirected edges";
+                    result.violations.push_back({auditor.path(), reason.str()});
+                }
             }
         }
     };
@@ -904,7 +971,10 @@ void auditKnotSurface(const std::string &label, const std::string &pdCode,
     cob.cone();
 
     auto audit = auditAllEmbeddings(cob.getCobordism(), kKnotMaxDepth,
-                                    /*checkBoundaryHomology=*/true);
+                                    /*checkBoundaryHomology=*/true,
+                                    /*violationCap=*/25,
+                                    /*checkOrientability=*/false,
+                                    /*checkOrientedBoundary=*/true);
     reportAudit(label, audit);
 }
 

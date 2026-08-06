@@ -162,6 +162,93 @@ void checkEdgesFormSimpleClosedLoops(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Directed analogue of checkEdgesFormSimpleClosedLoops(), driven by
+// buildLink()'s new `reversed` data: `edges[i]` runs vertex(1)->vertex(0)
+// iff `reversed[i]`. This is the diagnostic §2 of the orientation-tracking
+// plan calls for -- confirming the tagged directions produce one single,
+// genuinely closed, *consistently-signed* traversal per component, not
+// just that the code compiles and runs. If the wall/vertex correspondences
+// baked into Block::getLinkEdgeDirections(), or the PD-code walk in
+// computeStrandDirections(), were wrong -- even for just the understrand or
+// just the overstrand -- this is expected to fail sharply: a vertex would
+// end up with in-degree/out-degree other than exactly 1, since a genuine
+// per-crossing direction error breaks the head-to-tail chaining that a
+// purely undirected check (checkEdgesFormSimpleClosedLoops) can't see at
+// all.
+// ─────────────────────────────────────────────────────────────────────────────
+void checkEdgesFormDirectedClosedLoops(
+    const std::vector<const regina::Edge<3> *> &edges,
+    const std::vector<bool> &reversed, int expectedComponents,
+    const std::string &name) {
+    EXPECT_EQ(reversed.size(), edges.size(),
+              name + ": reversed has one entry per edge");
+
+    std::unordered_map<const regina::Edge<3> *, bool> reversedOf;
+    std::unordered_map<const regina::Vertex<3> *, const regina::Edge<3> *>
+        outEdgeFrom;
+    std::unordered_map<const regina::Vertex<3> *, int> inDegree, outDegree;
+    for (size_t i = 0; i < edges.size(); ++i) {
+        reversedOf[edges[i]] = reversed[i];
+        const regina::Vertex<3> *tail =
+            reversed[i] ? edges[i]->vertex(1) : edges[i]->vertex(0);
+        const regina::Vertex<3> *head =
+            reversed[i] ? edges[i]->vertex(0) : edges[i]->vertex(1);
+        outEdgeFrom[tail] = edges[i];
+        ++outDegree[tail];
+        ++inDegree[head];
+    }
+
+    bool allDegreeOne = true;
+    for (auto &[v, d] : outDegree)
+        if (d != 1)
+            allDegreeOne = false;
+    for (auto &[v, d] : inDegree)
+        if (d != 1)
+            allDegreeOne = false;
+    EXPECT_EQ(allDegreeOne, true,
+              name + ": every vertex has exactly one outgoing and one "
+                     "incoming directed edge (a per-crossing direction "
+                     "error would break this)");
+
+    std::unordered_set<const regina::Edge<3> *> visited;
+    int componentsFound = 0;
+    bool allClosed = true;
+    for (const regina::Edge<3> *startEdge : edges) {
+        if (visited.contains(startEdge))
+            continue;
+
+        const regina::Vertex<3> *startVertex =
+            reversedOf[startEdge] ? startEdge->vertex(1) : startEdge->vertex(0);
+        const regina::Vertex<3> *currVertex = startVertex;
+        bool closed = false;
+        for (size_t step = 0; step <= edges.size(); ++step) {
+            auto it = outEdgeFrom.find(currVertex);
+            if (it == outEdgeFrom.end())
+                break; // dangling: shouldn't happen given the degree check
+                       // above, but don't trust that blindly here.
+            const regina::Edge<3> *next = it->second;
+            visited.insert(next);
+            currVertex =
+                reversedOf[next] ? next->vertex(0) : next->vertex(1);
+            if (currVertex == startVertex) {
+                closed = true;
+                break;
+            }
+        }
+        if (!closed)
+            allClosed = false;
+        ++componentsFound;
+    }
+
+    EXPECT_EQ(allClosed, true,
+              name + ": every component closes up into a single directed "
+                     "loop (head-to-tail trace returns to its own start)");
+    EXPECT_EQ(componentsFound, expectedComponents,
+              name + ": directed edges trace exactly the expected number "
+                     "of components");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Layer 1: knotbuilder's raw output, on its own, independent of
 // CobordismBuilder. If buildLink() ever stops producing a valid closed S³
 // (e.g. a knotbuilder change breaks the block gluing pattern), this should
@@ -201,6 +288,71 @@ void test_knotbuilder_hopf_link_two_components() {
 
     Link link(tri, edges);
     EXPECT_EQ((int)link.comps_.size(), 2, "Hopf link has 2 components");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The orientation-tracking plan's own dedicated diagnostic: confirms
+// buildLink()'s new `reversed` data produces one single, genuinely closed,
+// consistently-signed directed traversal per component -- across a battery
+// of known knots/links, including L6a3{0} and L6a3{1} (the exact pair the
+// fix exists for). PD strings taken directly from
+// links_4d_smooth_slice_genus_11_crossings_pd_codes.csv; parsePDCode()
+// strips all non-digit characters, so the "PD[X[...]; ...]" KnotInfo
+// notation can be fed in as-is.
+// ─────────────────────────────────────────────────────────────────────────────
+const char *L6A3_0_PD = "PD[X[8;1;9;2];X[2;9;3;10];X[10;3;11;4];X[12;5;7;6];"
+                       "X[6;7;1;8];X[4;11;5;12]]";
+const char *L6A3_1_PD = "PD[X[10;2;11;1];X[2;10;3;9];X[8;4;9;3];X[12;6;7;5];"
+                       "X[6;12;1;11];X[4;8;5;7]]";
+
+void checkDirectedTraversal(const char *pd, int expectedComponents,
+                            const std::string &name) {
+    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
+    auto result = knotbuilder::buildLink(pdcode);
+
+    EXPECT_EQ(result.tri.isValid(), true, name + ": triangulation is valid");
+    EXPECT_EQ(result.tri.isSphere(), true, name + ": triangulation is S³");
+
+    checkEdgesFormDirectedClosedLoops(result.edges, result.reversed,
+                                      expectedComponents, name);
+}
+
+void test_knotbuilder_reversed_directions_are_consistent() {
+    std::cout << "\n--- knotbuilder: reversed[] forms one consistently-"
+                 "signed directed traversal per component ---\n";
+
+    checkDirectedTraversal(TREFOIL_PD, 1, "trefoil");
+    checkDirectedTraversal(HOPF_LINK_PD, 2, "Hopf link");
+    checkDirectedTraversal(FIGURE_EIGHT_PD, 1, "figure-8");
+    checkDirectedTraversal(L6A3_0_PD, 2, "L6a3{0}");
+    checkDirectedTraversal(L6A3_1_PD, 2, "L6a3{1}");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// L6a3{0} and L6a3{1} are the same diagram with one component's orientation
+// reversed -- the exact pair that motivated this feature (see the
+// orientation-tracking plan's Context). Their complements are identical
+// (identify() names them the same, "L206001"), so a complement-based check
+// can never distinguish them; this confirms buildLink()'s new `reversed`
+// tagging, driven purely by each PD code's own strand directions, actually
+// does.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_knotbuilder_l6a3_variants_tag_differently() {
+    std::cout << "\n--- knotbuilder: L6a3{0} and L6a3{1} produce genuinely "
+                 "different reversed[] tags ---\n";
+
+    auto result0 = knotbuilder::buildLink(knotbuilder::parsePDCode(L6A3_0_PD));
+    auto result1 = knotbuilder::buildLink(knotbuilder::parsePDCode(L6A3_1_PD));
+
+    EXPECT_EQ(result0.reversed.size(), result1.reversed.size(),
+              "both PD codes have the same crossing count, so the same "
+              "number of tagged edges");
+    EXPECT_EQ(result0.reversed != result1.reversed, true,
+              "L6a3{0}'s and L6a3{1}'s reversed[] sequences differ -- "
+              "reversing one component's orientation in the PD code "
+              "produces a genuinely different tagging under this one fixed "
+              "convention, exactly as the underlying links themselves "
+              "differ despite sharing a complement");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,7 +473,7 @@ void test_knotbuilder_nonalternating_regression() {
     // [1,3,0,2], flipping which pair of arms is the under-strand.
     knotbuilder::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
 
-    auto [tri, edges] = knotbuilder::buildLink(pd);
+    auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
 
     EXPECT_EQ(tri.isValid(), true,
               "non-alternating shadow: triangulation is valid");
@@ -561,6 +713,10 @@ int main() {
         test_knotbuilder_trefoil_is_valid_s3);
     run("test_knotbuilder_hopf_link_two_components",
         test_knotbuilder_hopf_link_two_components);
+    run("test_knotbuilder_reversed_directions_are_consistent",
+        test_knotbuilder_reversed_directions_are_consistent);
+    run("test_knotbuilder_l6a3_variants_tag_differently",
+        test_knotbuilder_l6a3_variants_tag_differently);
     run("test_knotbuilder_reduce_vertices", test_knotbuilder_reduce_vertices);
     run("test_knotbuilder_nonalternating_regression",
         test_knotbuilder_nonalternating_regression);

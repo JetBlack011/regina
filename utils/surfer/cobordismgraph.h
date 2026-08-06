@@ -161,11 +161,11 @@ struct WitnessOutcome {
  * duplicates of an edge already recorded at the same genus.
  *
  * Pure with respect to program control flow: never stops a search or
- * halts the program itself (unlike the "mine" branches this generalizes,
- * which additionally call e.requestStop()/e.skipRemainingBoundaryProcessing()
- * on the caller's SurfaceSearch when `subject` is the row currently being
- * searched) -- the caller decides what to do with a resolved/fatalBug
- * WitnessOutcome.
+ * halts the program itself (unlike the search-side branches this
+ * generalizes, which additionally call
+ * e.requestStop()/e.skipRemainingBoundaryProcessing() on the caller's
+ * SurfaceSearch when `subject` is the row currently being searched) --
+ * the caller decides what to do with a resolved/fatalBug WitnessOutcome.
  */
 WitnessOutcome recordWitness(
     const std::string &subject, int subjectLo, int subjectHi, int target,
@@ -176,7 +176,7 @@ WitnessOutcome recordWitness(
     std::unordered_map<std::string, OutputRow> &outputRows);
 
 /**
- * One non-"mine" ambient boundary component's identity, as classified by
+ * One non-search-side ambient boundary component's identity, as classified by
  * splitBoundary(): `name` is always populated (describeBoundary_()
  * guarantees either a single curve name or, for a multi-curve component,
  * a linkName -- never neither), but `safe` says whether that name is
@@ -197,20 +197,100 @@ struct BoundarySide {
 };
 
 /**
- * Splits a SurfaceBoundaryInfo::boundaryComponents grouping into "this
- * row's own side" (the ambient component == knotSideBC, identified
- * geometrically -- never by name, so it needs no safety check of its own)
- * and every other ambient boundary component the surface touches, each
- * classified via BoundarySide above.
+ * Splits a SurfaceBoundaryInfo::boundaryComponents grouping into "the
+ * search side" (this row's own side) and every other ambient boundary
+ * component the surface touches, each classified via BoundarySide above.
+ *
+ * The ambient component == searchSideBC is only accepted as the search
+ * side if its identified name (the single curve name, or -- for more than
+ * one curve -- the linkName) also equals `rowOwnName`. Geometric position
+ * (component == searchSideBC) alone is NOT sufficient: the DFS is free to
+ * add faces beyond the seeded collar that also touch that same ambient
+ * boundary component, so a surface can land the right *count* of curves
+ * there (matching this row's own component count) while actually tracing
+ * out a completely different, unrelated link -- silently misattributing
+ * that other link's genus to this row. `rowOwnName` (identify() run once
+ * on this row's own link, before searching) is the only way to catch
+ * that: if the names don't match, component == searchSideBC is treated as
+ * just another "other" side, exactly like any non-searchSideBC component.
  */
 struct BoundarySplit {
-  size_t mineCurveCount = 0; // 0 if this row's own side has no boundary here
+  size_t searchCurveCount = 0; // 0 if the search side has no boundary here
   std::vector<BoundarySide> otherSides;
 };
 
 BoundarySplit splitBoundary(
     const std::vector<BoundaryComponentNames> &boundaryComponents,
-    size_t knotSideBC);
+    size_t searchSideBC, const std::string &rowOwnName);
+
+/**
+ * A row's own PD-tagged diagram edges (knotbuilder::TriangulationWithLink's
+ * `edges`/`reversed`), translated into directed pairs of *vertex indices*
+ * within some triangulation combinatorially isomorphic to the row's own
+ * knotbuilder triangulation -- normally the ambient search-side boundary
+ * component, rebuilt via `BoundaryComponent<4>::build()` (see
+ * buildRowOrientation()).
+ *
+ * Keyed by vertex *index* rather than raw `Vertex<3>*`, since a found
+ * surface's own KnottedSurface instance builds its own independent copy of
+ * that boundary triangulation (`build()` is called once per KnottedSurface,
+ * not shared) -- confirmed empirically that separate `build()` calls on the
+ * same ambient boundary component are index-stable (same tetrahedron/vertex
+ * numbering every time), so an index survives across objects even though a
+ * pointer would not.
+ */
+struct RowOrientation {
+  std::unordered_map<size_t, size_t> headOf; // tail vertex index -> head vertex index
+};
+
+/**
+ * Builds `rowEdges`/`rowReversed`'s RowOrientation against `searchSideTri`.
+ *
+ * `searchSideTri` need not be, and normally is not, the same C++ object
+ * `rowEdges` themselves live in (typically `rowEdges` live in knotbuilder's
+ * own output triangulation, while `searchSideTri` is
+ * `ambientTri.boundaryComponent(searchSideBC)->build()`) -- they only need
+ * to be *combinatorially isomorphic*, which is established once here via
+ * `Triangulation<3>::isIsomorphicTo()` (confirmed empirically this session
+ * to correctly identify the row's own tagged edges' corresponding vertices
+ * in the rebuilt boundary triangulation -- raw edge/vertex *index*
+ * correspondence between the two does NOT hold in general, only up to this
+ * isomorphism). This computation is the expensive part of this feature
+ * (an isomorphism search), so it is deliberately factored out to run once
+ * per row rather than once per found surface -- matchesRowOrientation()
+ * below is then cheap.
+ *
+ * \throws regina::InvalidArgument if `rowEdges` is empty, or if its own
+ * triangulation is not isomorphic to `searchSideTri` (should not happen
+ * when `searchSideTri` is genuinely built from the ambient boundary
+ * component the row's diagram was seeded into).
+ */
+RowOrientation buildRowOrientation(
+    const std::vector<const regina::Edge<3> *> &rowEdges,
+    const std::vector<bool> &rowReversed,
+    const regina::Triangulation<3> &searchSideTri);
+
+/**
+ * Whether `curves` (one found surface's own induced boundary curves on the
+ * row's search-side ambient boundary component, from
+ * KnottedSurface::orientedBoundaryLinks(), for one arbitrary choice of the
+ * surface's two orientations) matches `row` -- either everywhere or
+ * nowhere, across every curve (component). A mixed pattern (some curves
+ * match, some don't) means the surface's own relative orientation between
+ * components doesn't match this row's PD convention, and is rejected here
+ * exactly as a fully-mismatched pattern would be reversed by simply
+ * picking the surface's other orientation -- see this feature's design
+ * notes for the full derivation of why "all or nothing" is the correct
+ * acceptance criterion.
+ *
+ * Also rejects (returns false) if any curve edge isn't one of `row`'s own
+ * tagged edges at all -- should not arise when the search's own protected-
+ * boundary-component mechanism (see EmbeddingSearch) has kept the search
+ * side's edge set fixed to exactly the row's own diagram, but checked
+ * defensively rather than assumed.
+ */
+bool matchesRowOrientation(const RowOrientation &row,
+                           const std::vector<OrientedCurve> &curves);
 
 } // namespace cobordismgraph
 

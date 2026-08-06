@@ -21,7 +21,9 @@
 #include <unistd.h>
 
 #include "cobordismbuilder.h"
+#include "collar.h"
 #include "embeddingsearch.h"
+#include "knotbuilder.h"
 #include "surfacesearch.h"
 
 static int passed = 0, failed_count = 0;
@@ -503,13 +505,114 @@ void test_seeded_search_rejects_invalid_seed() {
 
     bool threw = false;
     try {
-        EmbeddingSearch<3, 2> search(tri, {0});
+        // Disambiguates against EmbeddingSearch's other 2-arg constructor
+        // (tri, protectedBoundaryComponent) -- a bare {0} is ambiguous
+        // between std::vector<int>{0} and std::optional<size_t>{0}.
+        EmbeddingSearch<3, 2> search(tri, std::vector<int>{0});
     } catch (const regina::InvalidArgument &) {
         threw = true;
     }
     EXPECT_EQ(threw, true,
               "constructing with an excluded face as the seed throws "
               "regina::InvalidArgument");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// protectedBoundaryComponent (see EmbeddingSearch's own doc comment), built
+// on the real production pipeline (knotbuilder -> CobordismBuilder<3>
+// thicken() -> CollarBuilder) rather than a hand-rolled triangulation, so
+// this exercises the exact scenario caught in review: CollarBuilder's own
+// seed triangles touch the protected boundary component via a single edge
+// (the traced diagram edge) while not being boundary triangles themselves
+// -- exactly the case a face-level (rather than edge-level) exclusion, or a
+// missing seed exemption, would get wrong.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_protected_boundary_component_edge_level_and_seed_exemption() {
+    std::cout << "\n--- EmbeddingSearch: protectedBoundaryComponent is "
+                 "edge-level, and exempts its own seed ---\n";
+
+    const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3";
+    auto pdcode = knotbuilder::parsePDCode(TREFOIL_PD);
+    auto built = knotbuilder::buildLink(pdcode);
+
+    std::vector<int> edgeIndices;
+    for (const regina::Edge<3> *e : built.edges)
+        edgeIndices.push_back(static_cast<int>(e->index()));
+
+    CobordismBuilder<3> cob(built.tri);
+    CollarBuilder collarBuilder(edgeIndices);
+    const int thickenLayers = 2;
+    for (int i = 0; i < thickenLayers; ++i) {
+        cob.thicken();
+        collarBuilder.addLayer(cob);
+    }
+
+    size_t searchSideBC = cob.baseBoundaryComponent()->index();
+    regina::Triangulation<4> tri = cob.getCobordism();
+    EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
+              "no cone() -- search side and far side are both still open, "
+              "genuinely distinct ambient boundary components");
+
+    size_t farSideBC = (searchSideBC == 0) ? 1 : 0;
+
+    std::vector<int> seedFaces;
+    for (regina::Triangle<4> *t : collarBuilder.resolve())
+        seedFaces.push_back(static_cast<int>(t->index()));
+    EXPECT_EQ(seedFaces.empty(), false, "the collar produced a non-empty seed");
+
+    // At least one seed triangle is NOT itself a boundary triangle of
+    // searchSideBC (it's a "wall" triangle of the swept prism, interior to
+    // the cobordism) -- confirms this seed genuinely exercises the
+    // edge-level (not face-level) distinction, not just faces a naive
+    // face-level check would have handled correctly too.
+    bool someSeedFaceIsInterior = false;
+    for (int idx : seedFaces) {
+        if (tri.triangle(idx)->boundaryComponent() == nullptr) {
+            someSeedFaceIsInterior = true;
+            break;
+        }
+    }
+    EXPECT_EQ(someSeedFaceIsInterior, true,
+              "at least one seed triangle is interior (not itself a "
+              "boundary face) despite touching searchSideBC via an edge");
+
+    EmbeddingSearch<4, 2> unprotected(tri);
+    size_t baselineCount = unprotected.numEmbeddableFaces();
+
+    EmbeddingSearch<4, 2> protectedUnseeded(tri, searchSideBC);
+    EXPECT_EQ(protectedUnseeded.numEmbeddableFaces() < baselineCount, true,
+              "protecting searchSideBC strictly reduces the embeddable face "
+              "count -- the edge-level exclusion catches interior faces "
+              "with just one edge on it, not only its own boundary faces");
+
+    bool seededProtectedThrew = false;
+    try {
+        EmbeddingSearch<4, 2> seededProtected(tri, seedFaces, searchSideBC);
+    } catch (const regina::InvalidArgument &) {
+        seededProtectedThrew = true;
+    }
+    EXPECT_EQ(seededProtectedThrew, false,
+              "seeding with the collar's own faces under the same "
+              "protectedBoundaryComponent does NOT throw -- the seed is "
+              "correctly exempted from the exclusion it would otherwise "
+              "trigger (this is the exact bug caught in review)");
+
+    // The far side remains completely unrestricted when searchSideBC is
+    // protected: a single-face seed taken from the far boundary component
+    // embeds without issue.
+    int farFaceIdx =
+        static_cast<int>(tri.boundaryComponent(farSideBC)->triangle(0)->index());
+    bool farFaceThrew = false;
+    try {
+        EmbeddingSearch<4, 2> farSeeded(tri, std::vector<int>{farFaceIdx},
+                                        searchSideBC);
+    } catch (const regina::InvalidArgument &) {
+        farFaceThrew = true;
+    }
+    EXPECT_EQ(farFaceThrew, false,
+              "a far-side face is still a valid seed under searchSideBC "
+              "protection -- protecting one boundary component doesn't "
+              "restrict any other");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -814,6 +917,8 @@ int main() {
     run("test_seeded_search_tetrahedron", test_seeded_search_tetrahedron);
     run("test_seeded_search_rejects_invalid_seed",
         test_seeded_search_rejects_invalid_seed);
+    run("test_protected_boundary_component_edge_level_and_seed_exemption",
+        test_protected_boundary_component_edge_level_and_seed_exemption);
     run("test_depth_capped_predicate_bounds_depth",
         test_depth_capped_predicate_bounds_depth);
     run("test_depth_capped_predicate_clamps_to_one",

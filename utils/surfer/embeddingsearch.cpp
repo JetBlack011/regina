@@ -149,13 +149,18 @@ const char *boundaryConditionName(BoundaryCondition cond) {
 
 template <int dim, int subdim>
 EmbeddingSearch<dim, subdim>::EmbeddingSearch(
-    const regina::Triangulation<dim> &tri)
-    : skeleton_(tri), graph_(buildGraph_(skeleton_)) {}
+    const regina::Triangulation<dim> &tri,
+    std::optional<size_t> protectedBoundaryComponent)
+    : skeleton_(tri),
+      graph_(buildGraph_(skeleton_, protectedBoundaryComponent)) {}
 
 template <int dim, int subdim>
 EmbeddingSearch<dim, subdim>::EmbeddingSearch(
-    const regina::Triangulation<dim> &tri, const std::vector<int> &seedFaces)
-    : skeleton_(tri), graph_(buildSeededGraph_(skeleton_, seedFaces)),
+    const regina::Triangulation<dim> &tri, const std::vector<int> &seedFaces,
+    std::optional<size_t> protectedBoundaryComponent)
+    : skeleton_(tri),
+      graph_(buildSeededGraph_(skeleton_, seedFaces,
+                               protectedBoundaryComponent)),
       isSeeded_(true) {
 
     EmbeddedSubmanifold<dim, subdim>(skeleton_, seedFaces);
@@ -559,8 +564,13 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
 template <int dim, int subdim>
 typename EmbeddingSearch<dim, subdim>::Graph
 EmbeddingSearch<dim, subdim>::buildGraph_(
-    const Skeleton<dim, subdim> &skeleton) {
+    const Skeleton<dim, subdim> &skeleton,
+    std::optional<size_t> protectedBoundaryComponent,
+    const std::vector<int> &exemptSkeletonIndices) {
     const auto &nodes = skeleton.getNodes();
+
+    std::set<int> exempt(exemptSkeletonIndices.begin(),
+                         exemptSkeletonIndices.end());
 
     std::vector<int> skelOf; // dense graph index -> skeleton index
     std::vector<int> skelToGraph(nodes.size(), -1);
@@ -577,6 +587,32 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
             //        nodes[i].face, nodes[i].gluings)
         )
             continue;
+
+        // Reject any face with an edge on protectedBoundaryComponent,
+        // unless it's explicitly exempted (a seed face, which legitimately
+        // touches that boundary component by construction -- see
+        // buildSeededGraph_()'s doc comment). This is edge-level, not
+        // face-level: a face with just one edge on the protected
+        // component, while the face itself is interior, must be rejected
+        // too -- including it could turn one of that boundary's own edges
+        // into an interior edge of the constructed surface, silently
+        // changing which edges end up exposed as the surface's own
+        // boundary. A face that's itself entirely one of the protected
+        // component's own 2D faces trivially has all of its edges on that
+        // boundary too, so this one check subsumes both cases.
+        if (protectedBoundaryComponent && !exempt.contains(static_cast<int>(i))) {
+            bool touchesProtected = false;
+            for (int e = 0; e < 3; ++e) {
+                auto *bc = nodes[i].face->edge(e)->boundaryComponent();
+                if (bc && bc->index() == *protectedBoundaryComponent) {
+                    touchesProtected = true;
+                    break;
+                }
+            }
+            if (touchesProtected)
+                continue;
+        }
+
         skelToGraph[i] = static_cast<int>(skelOf.size());
         skelOf.push_back(static_cast<int>(i));
     }
@@ -612,8 +648,14 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
 template <int dim, int subdim>
 typename EmbeddingSearch<dim, subdim>::Graph
 EmbeddingSearch<dim, subdim>::buildSeededGraph_(
-    const Skeleton<dim, subdim> &skeleton, const std::vector<int> &seedFaces) {
-    Graph base = buildGraph_(skeleton);
+    const Skeleton<dim, subdim> &skeleton, const std::vector<int> &seedFaces,
+    std::optional<size_t> protectedBoundaryComponent) {
+    // seedFaces is forwarded as the exemption list -- see this function's
+    // own doc comment in embeddingsearch.h for why the seed must never be
+    // excluded by protectedBoundaryComponent even though it legitimately
+    // touches it.
+    Graph base =
+        buildGraph_(skeleton, protectedBoundaryComponent, seedFaces);
 
     // Invert base.graphToSkel: skeleton index -> graph id (1-indexed).
     std::vector<int> skelToGraph(skeleton.numFaces(), -1);

@@ -846,6 +846,122 @@ std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
   return result;
 }
 
+namespace {
+// Chains a flat set of directed edges head-to-tail into cyclic sequences --
+// the directed analogue of Link::Link()'s own arbitrary-direction
+// shared-vertex walk (linkcomplement.cpp), used here instead since that
+// walk doesn't track direction at all. Assumes (not re-checked here) that
+// every vertex touched has exactly one outgoing and one incoming directed
+// edge -- true for a genuine embedded surface's own boundary, since each
+// boundary curve is a simple closed curve; see the "shouldn't happen"
+// break below.
+std::vector<OrientedCurve>
+chainIntoCurves(const std::vector<OrientedEdge> &directed) {
+  std::unordered_map<const regina::Vertex<3> *, OrientedEdge> outFrom;
+  for (const auto &oe : directed) {
+    const regina::Vertex<3> *tail =
+        oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
+    outFrom[tail] = oe;
+  }
+
+  std::vector<OrientedCurve> curves;
+  std::unordered_set<const regina::Edge<3> *> visited;
+  for (const auto &oe : directed) {
+    if (visited.contains(oe.edge))
+      continue;
+
+    OrientedCurve curve;
+    const regina::Vertex<3> *start =
+        oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
+    const regina::Vertex<3> *curr = start;
+    for (size_t step = 0; step <= directed.size(); ++step) {
+      auto it = outFrom.find(curr);
+      if (it == outFrom.end())
+        break; // shouldn't happen -- see this function's own doc comment
+      const OrientedEdge &next = it->second;
+      visited.insert(next.edge);
+      curve.push_back(next);
+      curr = next.reversed ? next.edge->vertex(0) : next.edge->vertex(1);
+      if (curr == start)
+        break;
+    }
+    curves.push_back(std::move(curve));
+  }
+  return curves;
+}
+} // namespace
+
+std::vector<std::pair<size_t, std::vector<OrientedCurve>>>
+KnottedSurface::orientedBoundaryLinks() const {
+  std::vector<std::vector<OrientedEdge>> directedByComponent(
+      bdryComponents_.size());
+
+  for (size_t f = 0; f < faces_.size(); ++f) {
+    const auto *simplex = faces_[f];
+    if (simplex == nullptr)
+      continue;
+
+    // subtri_'s own per-triangle orientation: faces_[f]'s local vertex
+    // numbering is the ambient triangle's own local numbering directly (no
+    // permutation -- addFace() creates faces_[f] via subtri_.newSimplex(),
+    // unpermuted, and expresses every gluing via the ambient face's own
+    // relative gluing perm), so this sign tells us whether that same
+    // local order (0,1,2) is subtri_'s positive traversal (+1) or its
+    // reverse (-1).
+    int sign = simplex->orientation();
+
+    for (int i = 0; i <= 2; ++i) {
+      if (simplex->adjacentSimplex(i) != nullptr)
+        continue; // internal facet of subtri_
+
+      const auto *ambientTriangle = skeleton_.getNodes()[f].face;
+      const auto *ambientFacet = ambientTriangle->template face<1>(i);
+      const auto *ambientBC = ambientFacet->boundaryComponent();
+      if (ambientBC == nullptr)
+        continue; // shouldn't happen when cond is proper/connected
+
+      size_t c = ambientBC->index();
+
+      // Facet i excludes local vertex i; the other two, walked in the
+      // triangle's own positive cyclic order (0,1,2,0,...), give this
+      // facet's induced direction: tail -> head = (i+1)%3 -> (i+2)%3 when
+      // sign>0, reversed when sign<0.
+      int tailLocal = sign > 0 ? (i + 1) % 3 : (i + 2) % 3;
+      int headLocal = sign > 0 ? (i + 2) % 3 : (i + 1) % 3;
+
+      // Maps the ambient edge's own inherent vertex(0)/vertex(1) to the
+      // ambient triangle's local vertex numbering -- p[0]/p[1] are exactly
+      // {tailLocal, headLocal} in some order (CLAUDE.md's own note on
+      // Face<dim,subdim>::edgeMapping()); which order tells us whether our
+      // tail is the edge's vertex(0) or vertex(1).
+      regina::Perm<5> p = ambientTriangle->edgeMapping(i);
+      bool edgeReversed = (p[0] == headLocal); // tail is edge->vertex(1)
+
+      for (int k = 0; k < ambientBC->countEdges(); ++k) {
+        if (ambientBC->edge(k) == ambientFacet) {
+          // Same-indexed edges of bdryComponents_[c] and ambientBC are
+          // numbered the same way (BoundaryComponent<4>::build()'s own
+          // documented guarantee -- see this feature's design notes for
+          // the pinched-face exception, confirmed not applicable to this
+          // pipeline), so the direction transfers with no further
+          // correspondence work.
+          directedByComponent[c].push_back(
+              {bdryComponents_[c].edge(k), edgeReversed});
+          break;
+        }
+      }
+    }
+  }
+
+  std::vector<std::pair<size_t, std::vector<OrientedCurve>>> result;
+  for (size_t c = 0; c < directedByComponent.size(); ++c) {
+    if (directedByComponent[c].empty())
+      continue;
+    result.emplace_back(c, chainIntoCurves(directedByComponent[c]));
+  }
+  return result;
+}
+
 KnottedSurface::SurfaceTypeKey
 KnottedSurface::surfaceTypeKey(const regina::Triangulation<2> &surface) {
   bool isOrientable = surface.isOrientable();

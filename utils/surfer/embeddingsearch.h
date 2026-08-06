@@ -314,8 +314,17 @@ private:
   std::vector<EmbeddedSubmanifold<dim, subdim>> valid_embeddings_; /**< Currently unused. */
 
 public:
-  /** Creates an unseeded search over `tri`'s skeleton of subdim-faces. */
-  EmbeddingSearch(const regina::Triangulation<dim> &tri);
+  /**
+   * Creates an unseeded search over `tri`'s skeleton of subdim-faces.
+   *
+   * `protectedBoundaryComponent`, if set, excludes any face with an edge
+   * on that ambient boundary component from ever being added -- see
+   * buildGraph_()'s doc comment. Defaults to `std::nullopt` (no
+   * restriction), so every existing caller is unaffected.
+   */
+  EmbeddingSearch(
+      const regina::Triangulation<dim> &tri,
+      std::optional<size_t> protectedBoundaryComponent = std::nullopt);
 
   /**
    * Seeded search, restricted to embeddings containing every face in
@@ -325,11 +334,19 @@ public:
    * addable set of faces (e.g. the output of CollarBuilder, translated
    * to skeleton indices via Triangle::index()).
    *
+   * `protectedBoundaryComponent`, if set, excludes any *further* face
+   * with an edge on that ambient boundary component from being added
+   * during search -- `seedFaces` itself is always exempt (see
+   * buildSeededGraph_()'s doc comment). Defaults to `std::nullopt` (no
+   * restriction), so every existing caller is unaffected.
+   *
    * \throws regina::InvalidArgument if the precondition is violated,
    * checked eagerly here rather than deferring discovery to search().
    */
-  EmbeddingSearch(const regina::Triangulation<dim> &tri,
-                  const std::vector<int> &seedFaces);
+  EmbeddingSearch(
+      const regina::Triangulation<dim> &tri,
+      const std::vector<int> &seedFaces,
+      std::optional<size_t> protectedBoundaryComponent = std::nullopt);
 
   /** Returns the number of subdim-faces eligible to appear in an embedding. */
   size_t numEmbeddableFaces() const { return graph_.graphToSkel.size(); }
@@ -445,16 +462,38 @@ protected:
       bool orientableOnly = false);
 
 private:
-  /** Builds the face-adjacency graph of `skeleton`'s subdim-faces (unseeded). */
-  static Graph buildGraph_(const Skeleton<dim, subdim> &skeleton);
+  /**
+   * Builds the face-adjacency graph of `skeleton`'s subdim-faces (unseeded).
+   *
+   * If `protectedBoundaryComponent` is set, any candidate face with an
+   * edge on that ambient boundary component is excluded from the graph
+   * entirely (parallel to the existing hasIrreparableSelfGluing filter) --
+   * unless its skeleton index appears in `exemptSkeletonIndices`, which
+   * bypasses the exclusion regardless of what the face touches. See
+   * buildSeededGraph_()'s doc comment for why the exemption exists.
+   */
+  static Graph buildGraph_(
+      const Skeleton<dim, subdim> &skeleton,
+      std::optional<size_t> protectedBoundaryComponent = std::nullopt,
+      const std::vector<int> &exemptSkeletonIndices = {});
 
   /**
    * As buildGraph_(), then contracts `seedFaces` into a single vertex
    * (always ending up with the globally-smallest id, 1) via
    * ConnectedInducedSubgraphEnumerator::contractSeed().
+   *
+   * `seedFaces` is also forwarded as buildGraph_()'s exemption list: a
+   * seed built to trace this row's own diagram (e.g. CollarBuilder's
+   * output) legitimately has edges on `protectedBoundaryComponent` by
+   * construction (that's the whole point of seeding from it), so those
+   * specific faces must never be excluded even though the exclusion this
+   * parameter enables exists precisely to reject *further, uncontrolled*
+   * contact with that boundary component during search.
    */
-  static Graph buildSeededGraph_(const Skeleton<dim, subdim> &skeleton,
-                                 const std::vector<int> &seedFaces);
+  static Graph buildSeededGraph_(
+      const Skeleton<dim, subdim> &skeleton,
+      const std::vector<int> &seedFaces,
+      std::optional<size_t> protectedBoundaryComponent = std::nullopt);
 };
 
 extern template class EmbeddingSearch<3, 2>;

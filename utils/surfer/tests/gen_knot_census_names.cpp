@@ -171,7 +171,7 @@ std::string stripOrientationSuffix(const std::string &name) {
 // complements) and every regina::Census::lookup() hit against it.
 std::pair<std::string, std::list<regina::CensusHit>>
 censusHitsFor(const knotbuilder::PDCode &pdcode) {
-    auto [tri, edges] = knotbuilder::buildLink(pdcode);
+    auto [tri, edges, reversed] = knotbuilder::buildLink(pdcode);
     Link link(tri, edges);
     regina::Triangulation<3> complement = link.buildComplement();
     std::string isoSig = complement.isoSig();

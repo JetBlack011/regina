@@ -709,7 +709,7 @@ int main(int argc, char *argv[]) {
     unsigned threads = static_cast<unsigned>(std::stoi(argv[5]));
 
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
     CobordismBuilder<3> cob(t2);
     if (layers > 0)
@@ -741,7 +741,7 @@ int main(int argc, char *argv[]) {
     long long reportEvery = std::stoll(argv[5]);
 
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
     CobordismBuilder<3> cob(t2);
     if (layers > 0)
@@ -762,7 +762,7 @@ int main(int argc, char *argv[]) {
     long long reportEvery = std::stoll(argv[5]);
 
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
     CobordismBuilder<3> cob(t2);
     if (layers > 0)
@@ -805,7 +805,7 @@ int main(int argc, char *argv[]) {
       long long budget = std::stoll(argv[5]);
 
       knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-      auto [t2, edges0] = knotbuilder::buildLink(pdcode);
+      auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
       CobordismBuilder<3> cob(t2);
       if (layers > 0)

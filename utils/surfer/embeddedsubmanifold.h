@@ -335,6 +335,22 @@ extern template class EmbeddedSubmanifold<3, 2>;
 extern template class EmbeddedSubmanifold<4, 2>;
 
 /**
+ * One directed boundary edge, as induced by a surface's own orientation
+ * (see KnottedSurface::orientedBoundaryLinks()): `edge` runs
+ * `vertex(1)` -> `vertex(0)` iff `reversed` -- the same convention as
+ * knotbuilder::TriangulationWithLink::reversed, so a found surface's own
+ * induced direction and a row's PD-tagged direction can be compared
+ * directly, edge object for edge object.
+ */
+struct OrientedEdge {
+  const regina::Edge<3> *edge;
+  bool reversed;
+};
+
+/** One boundary curve, as a cyclic sequence of OrientedEdge, head-to-tail. */
+using OrientedCurve = std::vector<OrientedEdge>;
+
+/**
  * A surface embedded in a 4-manifold, in the sense of classical knotted
  * surface theory: EmbeddedSubmanifold<4, 2>, plus boundaryLinks() (which
  * identifies the knots/links bounded by the surface's boundary) and
@@ -462,6 +478,21 @@ public:
 
   /** Returns the knot/link bounded by each boundary component of the surface, keyed by boundary component index. */
   std::vector<std::pair<size_t, Link>> boundaryLinks() const;
+
+  /**
+   * As boundaryLinks(), but additionally derives each boundary curve's own
+   * induced direction from the surface's orientation, rather than just an
+   * unordered edge set -- one of the two possible orientations is picked
+   * arbitrarily (the surface itself, not any one boundary component,
+   * determines the choice, so it's consistent across every curve
+   * returned); see this feature's own design notes for why an arbitrary
+   * choice is fine for the comparison this exists to support.
+   *
+   * \pre The surface is orientable (Simplex<2>::orientation() is only
+   * meaningful within an orientable component).
+   */
+  std::vector<std::pair<size_t, std::vector<OrientedCurve>>>
+  orientedBoundaryLinks() const;
 
   /** Classifies `surface`'s topology as (orientable, genus, number of punctures). */
   static SurfaceTypeKey surfaceTypeKey(const regina::Triangulation<2> &surface);

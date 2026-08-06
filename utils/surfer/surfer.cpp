@@ -973,7 +973,7 @@ int main(int argc, char *argv[]) {
     } catch (const regina::InvalidArgument &e) {
       usage(argv[0], std::string("Invalid PD code: ") + e.what());
     }
-    auto &[t2, edges2] = link;
+    auto &[t2, edges2, reversed2] = link;
 
     // Indices are preserved across CobordismBuilder's internal copy/reorder
     // of t2 (see CobordismBuilder::baseTriangulation()'s doc comment), so

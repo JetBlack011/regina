@@ -47,6 +47,26 @@ class Block {
     /** Returns the 3 edges of this crossing that trace the knot/link diagram through it. */
     const std::vector<regina::Edge<3> *> getLinkEdges() const;
 
+    /**
+     * Returns the PD-intended "reversed" flags (see TriangulationWithLink::
+     * reversed) for getLinkEdges()'s 3 edges, in the same order.
+     *
+     * The understrand edge (getLinkEdges()[1], `core_[4]->edge(0,2)`) is
+     * unconditionally not reversed: PD position 0 is always the incoming
+     * understrand (true for every crossing, independent of the specific
+     * PD code -- see buildLink()'s own comment), and that edge's
+     * `vertex(0)` sits on the `walls_[0]` side, `vertex(1)` on the
+     * `walls_[2]` side, so the PD-intended direction is always
+     * `vertex(0)` -> `vertex(1)`.
+     *
+     * The overstrand's two edges (getLinkEdges()[0] and [2]) depend on
+     * `walls1IsEntry`: whether `walls_[1]` (rather than `walls_[3]`) is
+     * the PD-intended arrival end of the overstrand pass at this specific
+     * crossing -- not locally fixed like the understrand, so the caller
+     * must determine it via a walk over the PD code (see buildLink()).
+     */
+    std::vector<bool> getLinkEdgeDirections(bool walls1IsEntry) const;
+
     /** Returns whether `lhs` and `rhs` are the same underlying gadget (same tetrahedra). */
     friend bool operator==(const Block &lhs, const Block &rhs) {
         return lhs.core_ == rhs.core_ && lhs.walls_ == rhs.walls_;
@@ -57,6 +77,23 @@ class Block {
 struct TriangulationWithLink {
     regina::Triangulation<3> tri; /**< The triangulation. */
     std::vector<const regina::Edge<3> *> edges; /**< The edges tracing the knot/link diagram. */
+
+    /**
+     * A PD-derived direction for each of `edges`: `edges[i]` runs
+     * `vertex(1)` -> `vertex(0)` (the PD-intended direction) iff
+     * `reversed[i]`. Always populated, one entry per `edges` entry, same
+     * order.
+     *
+     * This is a fixed direction on `edges`, derived once here from
+     * `pdcode`'s own orientation convention (the same convention
+     * `regina::Link::fromPD` uses -- see `engine/link/pd-impl.h`, only
+     * referenced for its convention, never built or run against at
+     * runtime). It exists so a downstream comparison can check whether a
+     * *found* surface's own induced boundary direction agrees with this
+     * row's own diagram, everywhere or nowhere, without recomputing
+     * anything knot-theoretic at comparison time.
+     */
+    std::vector<bool> reversed;
 };
 
 /**

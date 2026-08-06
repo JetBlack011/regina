@@ -184,6 +184,84 @@ void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
                             matchMiddle(myMid, theirMid));
 }
 
+namespace {
+using Strands = std::vector<std::vector<std::pair<int, int>>>;
+using PDPos = std::pair<int, int>;
+
+// Mirrors regina::Link::fromPD's own dir[]/occ[] walk
+// (engine/link/pd-impl.h), adapted to run directly against knotbuilder's
+// own already-computed `strands` occurrences rather than building a
+// regina::Link. strands[label] plays the role of pd-impl.h's occ[label]
+// (occ[label].first/.second are strands[label][0]/[1]).
+//
+// dir[label] is 1 if the strand flows strands[label][0] -> strands[label][1]
+// (i.e. its first occurrence is where it *leaves* that strand, its second
+// where it *arrives*), or -1 for the reverse. Always populated (every
+// strand label appears exactly twice, checked by buildLink() before this
+// runs), since every component either passes under some crossing (handled
+// by the first loop below, seeded from that crossing's own predetermined
+// arrival at position 0) or -- for the rare case of a component that is
+// always the overcrossing, so the PD code doesn't define its own
+// orientation -- gets an arbitrary but still self-consistent direction
+// from the second loop, exactly as pd-impl.h does for the same case.
+std::vector<int> computeStrandDirections(const knotbuilder::PDCode &pdcode,
+                                         const Strands &strands) {
+    std::vector<int> dir(strands.size(), 0);
+
+    auto walk = [&](int start) {
+        int s = start;
+        PDPos pos;
+        while (true) {
+            pos = (dir[s] > 0) ? strands[s][1] : strands[s][0];
+            pos.second ^= 2; // same crossing's other half of this pass
+                              // (understrand: 0<->2, overstrand: 1<->3)
+            s = pdcode[pos.first][pos.second];
+            if (s == start)
+                break;
+            dir[s] = (strands[s][0] == pos) ? 1 : -1;
+        }
+    };
+
+    // Position 0 is always the incoming understrand -- the only locally
+    // predetermined direction (see the comment on buildLink()'s own use of
+    // this fact). Seed every component reachable this way.
+    for (int n = 0; n < static_cast<int>(pdcode.size()); ++n) {
+        int start = pdcode[n][0];
+        if (dir[start])
+            continue;
+        PDPos here{n, 0};
+        dir[start] = (strands[start][0] == here) ? -1 : 1;
+        walk(start);
+    }
+
+    // Any label still unresolved belongs to a component that never
+    // provides a position-0 anchor (every crossing it's involved in, it's
+    // always the overstrand) -- arbitrary but consistent, as pd-impl.h
+    // does for the same case.
+    for (int n = 0; n < static_cast<int>(pdcode.size()); ++n) {
+        int start = pdcode[n][1];
+        if (dir[start])
+            continue;
+        dir[start] = 1;
+        walk(start);
+    }
+
+    return dir;
+}
+
+// Whether position `pos` of crossing `n` is the PD-intended arrival point
+// of whichever strand label occupies it -- i.e. whether that strand's
+// directed span (per `dir`, computed above) ends rather than begins here.
+bool isEntry(const knotbuilder::PDCode &pdcode, const Strands &strands,
+            const std::vector<int> &dir, int n, int pos) {
+    int label = pdcode[n][pos];
+    PDPos here{n, pos};
+    int occIdx = (strands[label][0] == here) ? 0 : 1;
+    int arrivalIdx = (dir[label] > 0) ? 1 : 0;
+    return occIdx == arrivalIdx;
+}
+} // namespace
+
 knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
     size_t numCrossings = pdcode.size();
 
@@ -202,6 +280,12 @@ knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
                 "buildLink(): every PD code strand label must appear in "
                 "exactly two crossing slots");
     }
+
+    // PD-intended direction per crossing's overstrand pass: not locally
+    // fixed like the understrand (whose position-0-is-arrival rule holds
+    // unconditionally for every crossing -- see computeStrandDirections()'s
+    // own comment), so this walk is required to resolve it per crossing.
+    std::vector<int> dir = computeStrandDirections(pdcode, strands);
 
     regina::Triangulation<3> tri;
 
@@ -223,16 +307,44 @@ knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
     tri.finiteToIdeal();
 
     std::vector<const regina::Edge<3> *> edges;
-    for (const auto &block : blocks) {
-        const auto blockEdges = block.getLinkEdges();
+    std::vector<bool> reversed;
+    for (size_t n = 0; n < blocks.size(); ++n) {
+        const auto blockEdges = blocks[n].getLinkEdges();
+        bool walls1IsEntry =
+            isEntry(pdcode, strands, dir, static_cast<int>(n), 1);
+        const auto blockReversed =
+            blocks[n].getLinkEdgeDirections(walls1IsEntry);
         edges.insert(edges.begin(), blockEdges.begin(), blockEdges.end());
+        reversed.insert(reversed.begin(), blockReversed.begin(),
+                        blockReversed.end());
     }
 
-    return {std::move(tri), std::move(edges)};
+    return {std::move(tri), std::move(edges), std::move(reversed)};
 }
 
 const std::vector<regina::Edge<3> *> knotbuilder::Block::getLinkEdges() const {
     return {core_[4]->edge(1, 3), core_[4]->edge(0, 2), core_[5]->edge(1, 3)};
+}
+
+std::vector<bool>
+knotbuilder::Block::getLinkEdgeDirections(bool walls1IsEntry) const {
+    // Order matches getLinkEdges(): {core_[4]->edge(1,3), core_[4]->edge(0,2),
+    // core_[5]->edge(1,3)}.
+    //
+    // core_[4]->edge(0,2) (the understrand, == core_[5]->edge(0,2)):
+    // unconditionally not reversed -- see this method's own doc comment.
+    //
+    // Overstrand: the PD-intended traversal is walls_[1] -> apex ->
+    // walls_[3] when walls1IsEntry, or walls_[3] -> apex -> walls_[1]
+    // otherwise. core_[5]->edge(1,3) runs walls_[1]-side (vertex(0)) ->
+    // apex (vertex(1)); core_[4]->edge(1,3) runs walls_[3]-side
+    // (vertex(0)) -> apex (vertex(1)). So when walls1IsEntry,
+    // core_[5]->edge(1,3) already runs vertex(0)->vertex(1) (not
+    // reversed) while core_[4]->edge(1,3) runs against its own
+    // vertex(0)->vertex(1) (reversed) -- and vice versa otherwise.
+    return {/* core_[4]->edge(1,3) */ walls1IsEntry,
+            /* core_[4]->edge(0,2) */ false,
+            /* core_[5]->edge(1,3) */ !walls1IsEntry};
 }
 
 namespace {
