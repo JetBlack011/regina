@@ -7,7 +7,6 @@
 #include "pairsig.h"
 
 #include <algorithm>
-#include <cctype>
 #include <sstream>
 #include <utility>
 
@@ -61,7 +60,16 @@ std::vector<size_t> imageUnderAlpha(
 // Splits a pair signature into its isoSig prefix and marked-face index
 // list, then reconstructs the ambient triangulation. Shared by
 // fromPairSig() and fromKnottedSurfaceSig().
-template <int dim>
+//
+// The marked-face suffix is a sequence of fixed-width base64 fields (see
+// pairSig()): each entry uses w = Base64Encoder::integerWidth(M - 1)
+// characters, where M is the ambient's own subdim-face count -- the same
+// scheme IsoSigPrintable uses for isoSig()'s own gluing data, and why no
+// separators or explicit entry count are needed: w is recomputed here from
+// the already-reconstructed `ambient`, and the entry count falls out of
+// the suffix's total length, since this suffix is always the final
+// component of the string.
+template <int dim, int subdim>
 std::pair<std::unique_ptr<regina::Triangulation<dim>>, std::vector<int>>
 decodePairSigParts(const std::string &sigStr) {
     auto pos = sigStr.find(delimiter);
@@ -70,23 +78,31 @@ decodePairSigParts(const std::string &sigStr) {
             "fromPairSig(): missing delimiter in signature string");
 
     std::string sig = sigStr.substr(0, pos);
-    std::string indexList = sigStr.substr(pos + 1);
+    std::string suffix = sigStr.substr(pos + 1);
 
     auto ambient = std::make_unique<regina::Triangulation<dim>>(
         regina::Triangulation<dim>::fromSig(sig));
 
     std::vector<int> markedFaces;
-    if (!indexList.empty()) {
-        std::istringstream in(indexList);
-        std::string token;
-        while (std::getline(in, token, ',')) {
-            if (token.empty() ||
-                    !std::all_of(token.begin(), token.end(),
-                        [](unsigned char c) { return std::isdigit(c); }))
-                throw regina::InvalidArgument(
-                    "fromPairSig(): malformed face index in signature "
-                    "string");
-            markedFaces.push_back(std::stoi(token));
+    if (!suffix.empty()) {
+        size_t M = ambient->template countFaces<subdim>();
+        int w = regina::Base64Encoder::integerWidth(M == 0 ? 0 : M - 1);
+
+        if (suffix.size() % w != 0)
+            throw regina::InvalidArgument(
+                "fromPairSig(): malformed marked-face index list "
+                "(suffix length is not a multiple of the per-index width)");
+
+        try {
+            regina::Base64Decoder decoder(suffix.begin(), suffix.end());
+            size_t count = suffix.size() / w;
+            markedFaces.reserve(count);
+            for (size_t i = 0; i < count; ++i)
+                markedFaces.push_back(decoder.template decodeInt<int>(w));
+        } catch (const regina::InvalidInput &) {
+            throw regina::InvalidArgument(
+                "fromPairSig(): malformed marked-face index list "
+                "(invalid base64 character)");
         }
     }
 
@@ -129,17 +145,22 @@ std::string pairSig(const regina::Triangulation<dim> &ambient,
             return false; // keep enumerating every automorphism
         });
 
-    for (size_t i = 0; i < best.size(); ++i) {
-        if (i)
-            out << ',';
-        out << best[i];
-    }
+    // Encode the minimized index list the same way isoSig() itself encodes
+    // its gluing data: fixed-width base64 fields (IsoSigPrintable's own
+    // scheme, see utilities/sigutils.h), with no separators -- the decoder
+    // recomputes the same width w from the reconstructed ambient
+    // triangulation alone, and the entry count from the suffix's length.
+    size_t M = canon.template countFaces<subdim>();
+    int w = regina::Base64Encoder::integerWidth(M == 0 ? 0 : M - 1);
+    regina::Base64Encoder enc;
+    enc.encodeInts(best, w);
+    out << enc.str();
     return out.str();
 }
 
 template <int dim, int subdim>
 DecodedPairSig<dim, subdim> fromPairSig(const std::string &sigStr) {
-    auto [ambient, markedFaces] = decodePairSigParts<dim>(sigStr);
+    auto [ambient, markedFaces] = decodePairSigParts<dim, subdim>(sigStr);
     auto skeleton = std::make_unique<Skeleton<dim, subdim>>(*ambient);
     auto submanifold = std::make_unique<EmbeddedSubmanifold<dim, subdim>>(
         *skeleton, markedFaces);
@@ -149,7 +170,7 @@ DecodedPairSig<dim, subdim> fromPairSig(const std::string &sigStr) {
 }
 
 DecodedKnottedSurfaceSig fromKnottedSurfaceSig(const std::string &sigStr) {
-    auto [ambient, markedFaces] = decodePairSigParts<4>(sigStr);
+    auto [ambient, markedFaces] = decodePairSigParts<4, 2>(sigStr);
     auto skeleton = std::make_unique<Skeleton<4, 2>>(*ambient);
     auto surface = std::make_unique<KnottedSurface>(*skeleton, markedFaces);
     return DecodedKnottedSurfaceSig{

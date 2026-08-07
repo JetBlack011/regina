@@ -18,6 +18,14 @@
 // choice of delimiter -- acceptable here since the point of those tests is
 // to pin down fromPairSig()'s error handling given an already-known-bad
 // string, not to re-derive the delimiter from scratch.
+//
+// The marked-face suffix itself is fixed-width base64 (the same alphabet
+// and IsoSigPrintable-style scheme isoSig() uses for its own gluing data --
+// see pairSig()'s implementation), not decimal digits. Test 6's hand-built
+// suffixes are built accordingly: a base64 character does *not* mean what
+// its face value would in decimal (e.g. the character '0' decodes to 52,
+// not 0 -- 'a' is base64 for 0), and a suffix's length must be an exact
+// multiple of the per-index width w = Base64Encoder::integerWidth(M - 1).
 
 #include <iostream>
 #include <string>
@@ -26,6 +34,7 @@
 
 #include <maths/perm.h>
 #include <triangulation/dim3.h>
+#include <utilities/sigutils.h>
 #include <triangulation/dim4.h>
 
 #include "../pairsig.h"
@@ -274,13 +283,56 @@ void test_malformed_input() {
     }
     EXPECT_EQ(threw, true, "missing delimiter throws InvalidArgument");
 
+    // A character genuinely outside the base64 alphabet (a..zA..Z0..9+-):
+    // Base64Encoder::spare[1] ('.') is documented to never be one of those
+    // 64 characters, so this is guaranteed invalid regardless of `ball`'s
+    // own per-index width w.
     threw = false;
     try {
-        fromPairSig<3, 2>(plainSig + "_abc"); // non-numeric index
+        fromPairSig<3, 2>(
+            plainSig + "_" + std::string(1, regina::Base64Encoder::spare[1]));
     } catch (const regina::InvalidArgument &) {
         threw = true;
     }
-    EXPECT_EQ(threw, true, "non-numeric index throws InvalidArgument");
+    EXPECT_EQ(threw, true,
+              "a non-base64 character in the suffix throws InvalidArgument");
+
+    // A suffix whose length isn't a multiple of the per-index width w: for
+    // `ball` (only 4 triangles) w == 1, and every length is trivially a
+    // multiple of 1, so this failure mode needs a triangulation large
+    // enough that w >= 2. Chain enough tetrahedra together (each glued to
+    // the next along one facet) to push the triangle count past 64.
+    regina::Triangulation<3> big;
+    regina::Perm<4> swap01(1, 0, 2, 3);
+    auto *prev = big.newTetrahedron();
+    for (int i = 1; i < 25; ++i) {
+        // Facet 0 of `prev` (outgoing) glues to facet 1 of `next`
+        // (incoming), via a permutation swapping 0 and 1 -- keeping
+        // "incoming" and "outgoing" on distinct facet numbers so each
+        // interior tetrahedron's facet 0 is used exactly once, as the
+        // *next* link's outgoing facet.
+        auto *next = big.newTetrahedron();
+        prev->join(0, next, swap01);
+        prev = next;
+    }
+    std::string bigSig = big.isoSig();
+    size_t bigM = big.countFaces<2>();
+    int bigW = regina::Base64Encoder::integerWidth(bigM == 0 ? 0 : bigM - 1);
+    EXPECT_EQ(bigW >= 2, true,
+              "the chained triangulation has enough triangles that its "
+              "per-index width is at least 2 (a precondition for the next "
+              "check to be meaningful)");
+
+    threw = false;
+    try {
+        // A single base64 character: length 1, not a multiple of bigW.
+        fromPairSig<3, 2>(bigSig + "_a");
+    } catch (const regina::InvalidArgument &) {
+        threw = true;
+    }
+    EXPECT_EQ(threw, true,
+              "a suffix length that isn't a multiple of the per-index "
+              "width throws InvalidArgument");
 
     // A triple self-fold (all 3 edges of a triangle identified together):
     // both of its 2 triangles are irreparably self-folded (see
@@ -293,9 +345,19 @@ void test_malformed_input() {
     t->join(2, t, regina::Perm<4>(0, 2, 3, 1));
     std::string foldSig = foldTri.isoSig();
 
+    // Build a properly-encoded "index 0" suffix via Base64Encoder directly,
+    // rather than hand-guessing a literal character: this is exactly how
+    // pairSig() itself would encode index 0 for foldTri's own per-index
+    // width, whatever that happens to be.
+    size_t foldM = foldTri.countFaces<2>();
+    int foldW = regina::Base64Encoder::integerWidth(foldM == 0 ? 0 : foldM - 1);
+    regina::Base64Encoder foldEnc;
+    foldEnc.encodeInt(0, foldW);
+    std::string zeroSuffix = std::move(foldEnc).str();
+
     threw = false;
     try {
-        fromPairSig<3, 2>(foldSig + "_0");
+        fromPairSig<3, 2>(foldSig + "_" + zeroSuffix);
     } catch (const regina::InvalidArgument &) {
         threw = true;
     }

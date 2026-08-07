@@ -33,8 +33,10 @@
  *  isoSig-canonical reconstruction, not just one arbitrary relabelling).
  *
  *  All of this is built entirely from Regina's existing public API
- *  (isoSigDetail(), fromSig(), findAllIsomorphisms(), Isomorphism, and
- *  FaceEmbedding/FaceNumbering) -- no engine changes are required.
+ *  (isoSigDetail(), fromSig(), findAllIsomorphisms(), Isomorphism,
+ *  FaceEmbedding/FaceNumbering, and Base64Encoder/Base64Decoder for the
+ *  marked-face suffix -- see pairSig()'s implementation) -- no engine
+ *  changes are required.
  */
 
 /**
@@ -148,8 +150,10 @@ struct DecodedPairSig {
  * encoded by `sig`.
  *
  * \exception regina::InvalidArgument `sig` is malformed (missing
- * delimiter, an unparseable index list, or an index list that isn't
- * jointly addable -- see EmbeddedSubmanifold's seeded constructor).
+ * delimiter, a marked-face suffix whose length isn't a multiple of the
+ * per-index base64 width, a suffix containing a character outside
+ * Regina's base64 alphabet, or an index list that isn't jointly addable
+ * -- see EmbeddedSubmanifold's seeded constructor).
  */
 template <int dim, int subdim>
 DecodedPairSig<dim, subdim> fromPairSig(const std::string &sig);

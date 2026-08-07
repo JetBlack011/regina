@@ -1,0 +1,1156 @@
+<title>K13n65 Concordance Atlas</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f4ee;
+    --surface: #fbfaf6;
+    --surface-2: #f0ede4;
+    --text-primary: #14161f;
+    --text-secondary: #4c5064;
+    --text-muted: #8a8d9c;
+    --border: rgba(11, 11, 11, 0.10);
+    --border-strong: rgba(11, 11, 11, 0.18);
+
+    --status-good: #0b8f0b;
+    --status-warning: #b8791f;
+    --status-critical: #c73f3f;
+    --status-unknown: #9096a8;
+
+    --cat-1: #2a78d6;
+    --cat-2: #eb6834;
+    --cat-3: #1baf7a;
+    --cat-4: #b8860a;
+    --cat-5: #d1467e;
+    --cat-6: #1f7a1f;
+    --cat-7: #4a3aa7;
+
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #0b0e17;
+      --surface: #12151f;
+      --surface-2: #1a1e2c;
+      --text-primary: #eef0f6;
+      --text-secondary: #9aa0b4;
+      --text-muted: #5b6178;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+
+      --status-good: #0ca30c;
+      --status-warning: #fab219;
+      --status-critical: #d03b3b;
+      --status-unknown: #4a4f61;
+
+      --cat-1: #3987e5;
+      --cat-2: #d95926;
+      --cat-3: #199e70;
+      --cat-4: #c98500;
+      --cat-5: #d55181;
+      --cat-6: #2fae2f;
+      --cat-7: #9085e9;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0e17;
+    --surface: #12151f;
+    --surface-2: #1a1e2c;
+    --text-primary: #eef0f6;
+    --text-secondary: #9aa0b4;
+    --text-muted: #5b6178;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+    --status-unknown: #4a4f61;
+
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #2fae2f;
+    --cat-7: #9085e9;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f6f4ee;
+    --surface: #fbfaf6;
+    --surface-2: #f0ede4;
+    --text-primary: #14161f;
+    --text-secondary: #4c5064;
+    --text-muted: #8a8d9c;
+    --border: rgba(11, 11, 11, 0.10);
+    --border-strong: rgba(11, 11, 11, 0.18);
+
+    --status-good: #0b8f0b;
+    --status-warning: #b8791f;
+    --status-critical: #c73f3f;
+    --status-unknown: #9096a8;
+
+    --cat-1: #2a78d6;
+    --cat-2: #eb6834;
+    --cat-3: #1baf7a;
+    --cat-4: #b8860a;
+    --cat-5: #d1467e;
+    --cat-6: #1f7a1f;
+    --cat-7: #4a3aa7;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .brand .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .brand h1 .hub-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-warning);
+    margin-right: 7px;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--status-warning) 25%, transparent);
+  }
+
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 420px;
+  }
+  #search {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  #search:focus {
+    border-color: var(--status-warning);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--status-warning) 18%, transparent);
+  }
+  #search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+    z-index: 20;
+  }
+  #search-results.open { display: block; }
+  .search-hit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-hit:last-child { border-bottom: none; }
+  .search-hit:hover, .search-hit.active { background: var(--surface-2); }
+  .search-hit .status-chip { font-size: 10px; }
+
+  .header-stats {
+    display: flex;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .header-stats b { color: var(--text-secondary); font-weight: 600; }
+
+  .theme-toggle {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .theme-toggle:focus-visible, #search:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--status-warning);
+    outline-offset: 1px;
+  }
+
+  main {
+    position: relative;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 50% 45%, color-mix(in oklab, var(--status-warning) 5%, transparent), transparent 55%),
+      var(--bg);
+    overflow: hidden;
+  }
+  canvas { display: block; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+
+  .hint {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    background: color-mix(in oklab, var(--surface) 82%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  .zoom-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .zoom-controls button:hover { color: var(--text-primary); border-color: var(--status-warning); }
+
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    max-width: 300px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+    display: none;
+    z-index: 15;
+  }
+  #tooltip .t-name {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    word-break: break-all;
+  }
+  #tooltip .t-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 1.5px 0;
+  }
+  #tooltip .t-row b { color: var(--text-primary); font-weight: 600; }
+  #tooltip .t-surfaces {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  #tooltip .t-surface-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .swatch {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    flex: none;
+  }
+  .swatch.dot { border-radius: 50%; }
+
+  aside {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 9px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+  }
+  .legend-row:hover { background: var(--surface-2); }
+  .legend-row.off { opacity: 0.38; }
+  .legend-row .label { flex: 1; color: var(--text-secondary); }
+  .legend-row.off .label { text-decoration: line-through; }
+  .legend-row .count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+  .legend-row .name { color: var(--text-primary); font-weight: 600; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .switch {
+    position: relative;
+    width: 34px;
+    height: 19px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    cursor: pointer;
+    flex: none;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 1px; left: 1px;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .switch.on { border-color: var(--status-warning); }
+  .switch.on::after {
+    transform: translateX(15px);
+    background: var(--status-warning);
+  }
+
+  .selected-panel {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .selected-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .selected-name {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2.5px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+  }
+  .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .neighbor-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .neighbor-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 3px 4px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .neighbor-row:hover { background: var(--surface-2); color: var(--text-primary); }
+
+  footer.about {
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="eyebrow">Concordance atlas</span>
+      <h1><span class="hub-dot"></span>K13n65</h1>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="Find a knot or link by name (e.g. K12n23, L11n33, 4_1)..." autocomplete="off" />
+      <div id="search-results"></div>
+    </div>
+    <div class="header-stats">
+      <span><b id="stat-nodes">-</b> knots/links</span>
+      <span><b id="stat-edges">-</b> cobounding pairs</span>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button">Theme: auto</button>
+  </header>
+  <main>
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="tooltip"></div>
+      <div class="hint">drag to pan &middot; scroll/pinch to zoom &middot; click a node to pin details</div>
+      <div class="zoom-controls">
+        <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
+        <button id="zoom-reset" type="button" aria-label="Reset view">&#8634;</button>
+      </div>
+    </div>
+    <aside>
+      <div class="panel">
+        <h2>Smooth 4D slice status</h2>
+        <div id="status-legend"></div>
+      </div>
+      <div class="panel">
+        <h2>Cobounding surface type</h2>
+        <div id="surface-legend"></div>
+      </div>
+      <div class="panel">
+        <div class="toggle-row">
+          <span>Hide single-edge leaves</span>
+          <div class="switch" id="declutter-switch"></div>
+        </div>
+        <div class="toggle-row">
+          <span>Label secondary hubs</span>
+          <div class="switch on" id="labels-switch"></div>
+        </div>
+      </div>
+      <div class="panel selected-panel">
+        <h2>Selected</h2>
+        <div id="selected-content"><div class="selected-empty">Click any node in the graph, or search above, to inspect it &mdash; its slice status, degree, and the surfaces connecting it to its neighbors.</div></div>
+      </div>
+      <footer class="about">
+        K13n65's own smooth 4D slice genus is open (bracket = uncertain
+        range). An edge is a properly embedded surface in S&sup3;&times;I
+        cobounding the two knots/links it connects; a genus&#8209;0
+        orientable, 2&#8209;punctured edge is a genuine smooth concordance.
+      </footer>
+    </aside>
+  </main>
+</div>
+
+<script id="graph-data" type="application/json">{"hub":"5_1","surface_types":[{"orientable":true,"genus":0,"punctures":3},{"orientable":false,"genus":1,"punctures":3},{"orientable":true,"genus":0,"punctures":4},{"orientable":false,"genus":1,"punctures":2},{"orientable":false,"genus":2,"punctures":2},{"orientable":true,"genus":1,"punctures":2},{"orientable":true,"genus":0,"punctures":2}],"nodes":[{"id":"5_1","x":0.0,"y":0.0,"genus":null,"status":"UNKNOWN","degree":21,"hub":true,"secondary_hub":false},{"id":"eLMkbcdddaeexx","x":345.0,"y":0.0,"genus":null,"status":"UNKNOWN","degree":7,"hub":false,"secondary_hub":true},{"id":"eLAkbbcdddecdb","x":279.11,"y":202.79,"genus":null,"status":"UNKNOWN","degree":3,"hub":false,"secondary_hub":true},{"id":"L204001","x":432.73,"y":140.6,"genus":null,"status":"UNKNOWN","degree":7,"hub":false,"secondary_hub":true},{"id":"eLAkbccddeebdc","x":0.0,"y":455.0,"genus":null,"status":"UNKNOWN","degree":3,"hub":false,"secondary_hub":true},{"id":"L207007","x":106.61,"y":328.11,"genus":null,"status":"UNKNOWN","degree":3,"hub":false,"secondary_hub":true},{"id":"eLMkbbdddadett","x":267.44,"y":368.1,"genus":null,"status":"UNKNOWN","degree":3,"hub":false,"secondary_hub":true},{"id":"3_1","x":-279.11,"y":-202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbbcddpucdb","x":-345.0,"y":0.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLAPcabceeebrwccf","x":-279.11,"y":202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"cPcbbbadh","x":-267.44,"y":-368.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLAPcabceeebrwfcf","x":-432.73,"y":140.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLMkbbdddduapu","x":267.44,"y":-368.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"gLLAQcddcfffhssovvw","x":432.73,"y":-140.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLMkbbdddadelq","x":-0.0,"y":-455.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkccbdddecln","x":279.11,"y":-202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"gLALQbcbffefxxbltgt","x":-106.61,"y":328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLLQcbcdeeeabghah","x":-267.44,"y":368.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLLQcbdeeedafapun","x":106.61,"y":-328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"gLAMPabcdeffbrwpeic","x":-432.73,"y":-140.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLPkbcdddaffbf","x":-106.61,"y":-328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true}],"edges":[{"source":"5_1","target":"5_1","types":[6]},{"source":"5_1","target":"eLMkbcdddaeexx","types":[0]},{"source":"5_1","target":"eLAkbbcdddecdb","types":[0]},{"source":"5_1","target":"L204001","types":[0]},{"source":"5_1","target":"eLAkbccddeebdc","types":[0]},{"source":"5_1","target":"L207007","types":[0]},{"source":"5_1","target":"eLMkbbdddadett","types":[0]},{"source":"3_1","target":"5_1","types":[5]},{"source":"5_1","target":"eLAkbbcddpucdb","types":[0]},{"source":"L204001","target":"eLMkbcdddaeexx","types":[2]},{"source":"5_1","target":"fLAPcabceeebrwccf","types":[0]},{"source":"5_1","target":"cPcbbbadh","types":[5]},{"source":"5_1","target":"fLAPcabceeebrwfcf","types":[0]},{"source":"5_1","target":"eLMkbbdddduapu","types":[0]},{"source":"5_1","target":"gLLAQcddcfffhssovvw","types":[0]},{"source":"5_1","target":"eLMkbbdddadelq","types":[0]},{"source":"eLAkbbcdddecdb","target":"eLMkbcdddaeexx","types":[2]},{"source":"L204001","target":"eLMkbbdddadett","types":[2]},{"source":"L204001","target":"eLAkbccddeebdc","types":[2]},{"source":"eLAkbccddeebdc","target":"eLMkbcdddaeexx","types":[2]},{"source":"eLMkbcdddaeexx","target":"eLMkbcdddaeexx","types":[2]},{"source":"eLMkbbdddadett","target":"eLMkbcdddaeexx","types":[2]},{"source":"L207007","target":"eLMkbcdddaeexx","types":[2]},{"source":"L204001","target":"L204001","types":[2]},{"source":"L204001","target":"eLAkbbcdddecdb","types":[2]},{"source":"L204001","target":"L207007","types":[2]},{"source":"5_1","target":"eLAkccbdddecln","types":[0]},{"source":"5_1","target":"gLALQbcbffefxxbltgt","types":[0]},{"source":"5_1","target":"fLLQcbcdeeeabghah","types":[0]},{"source":"5_1","target":"fLLQcbdeeedafapun","types":[0]},{"source":"5_1","target":"gLAMPabcdeffbrwpeic","types":[0]},{"source":"5_1","target":"eLPkbcdddaffbf","types":[0]}]}</script>
+<script>
+(function () {
+  "use strict";
+
+  const DATA = JSON.parse(document.getElementById("graph-data").textContent);
+  const HUB = DATA.hub;
+
+  const STATUS_META = {
+    CONFIRMED_SLICE:     { label: "Confirmed slice",      varName: "--status-good" },
+    OPEN:                { label: "Open (uncertain)",     varName: "--status-warning" },
+    CONFIRMED_NOT_SLICE: { label: "Confirmed not slice",  varName: "--status-critical" },
+    UNKNOWN:             { label: "No genus data",        varName: "--status-unknown" },
+  };
+  const STATUS_ORDER = ["CONFIRMED_SLICE", "OPEN", "CONFIRMED_NOT_SLICE", "UNKNOWN"];
+
+  function surfaceLabel(s) {
+    const p = s.punctures;
+    const pw = ["", "once", "twice", "thrice", "4-", "5-", "6-"][p] || (p + "-");
+    const punctureWord = p <= 3 ? pw + "-punctured" : pw + "punctured";
+    if (s.orientable) {
+      if (s.genus === 0 && s.punctures === 2) return "Annulus (genuine concordance)";
+      if (s.genus === 0) return `${cap(punctureWord)} sphere` + (s.punctures === 3 ? " (pair of pants)" : "");
+      if (s.genus === 1) return `${cap(punctureWord)} torus`;
+      return `${cap(punctureWord)} genus-${s.genus} orientable surface`;
+    } else {
+      if (s.genus === 1) return `${cap(punctureWord)} projective plane`;
+      if (s.genus === 2) return `${cap(punctureWord)} Klein bottle`;
+      return `${cap(punctureWord)} non-orientable genus-${s.genus} surface`;
+    }
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  const CAT_VARS = ["--cat-1", "--cat-2", "--cat-3", "--cat-4", "--cat-5", "--cat-6", "--cat-7"];
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // ---- Index the data ----------------------------------------------------
+  const nodeById = new Map();
+  DATA.nodes.forEach(n => nodeById.set(n.id, n));
+
+  const edgesByNode = new Map();
+  DATA.nodes.forEach(n => edgesByNode.set(n.id, []));
+  DATA.edges.forEach(e => {
+    edgesByNode.get(e.source).push(e);
+    if (e.target !== e.source) edgesByNode.get(e.target).push(e);
+  });
+
+  const statusCounts = {};
+  STATUS_ORDER.forEach(s => statusCounts[s] = 0);
+  DATA.nodes.forEach(n => statusCounts[n.status]++);
+
+  const surfaceCounts = DATA.surface_types.map(() => 0);
+  DATA.edges.forEach(e => e.types.forEach(t => surfaceCounts[t]++));
+
+  document.getElementById("stat-nodes").textContent = DATA.nodes.length.toLocaleString();
+  document.getElementById("stat-edges").textContent = DATA.edges.length.toLocaleString();
+
+  // ---- Legends ------------------------------------------------------------
+  const activeSurfaceTypes = new Set(DATA.surface_types.map((_, i) => i));
+
+  const statusLegendEl = document.getElementById("status-legend");
+  STATUS_ORDER.forEach(status => {
+    const meta = STATUS_META[status];
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = `<span class="swatch dot" style="background:var(${meta.varName})"></span>
+      <span class="label">${meta.label}</span>
+      <span class="count">${statusCounts[status].toLocaleString()}</span>`;
+    statusLegendEl.appendChild(row);
+  });
+
+  const surfaceLegendEl = document.getElementById("surface-legend");
+  DATA.surface_types.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.dataset.idx = i;
+    row.innerHTML = `<span class="swatch" style="background:var(${CAT_VARS[i]})"></span>
+      <span class="label">${surfaceLabel(s)}</span>
+      <span class="count">${surfaceCounts[i].toLocaleString()}</span>`;
+    row.addEventListener("click", () => {
+      if (activeSurfaceTypes.has(i)) { activeSurfaceTypes.delete(i); row.classList.add("off"); }
+      else { activeSurfaceTypes.add(i); row.classList.remove("off"); }
+      requestDraw();
+    });
+    surfaceLegendEl.appendChild(row);
+  });
+
+  // ---- Canvas / camera ------------------------------------------------------
+  const canvasWrap = document.getElementById("canvas-wrap");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  let cam = { x: 0, y: 0, scale: 1 };
+  let declutter = false;
+  let showLabels = true;
+  let hoveredId = null;
+  let selectedId = null;
+
+  function resize() {
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvasWrap.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    requestDraw();
+  }
+  window.addEventListener("resize", resize);
+
+  function worldToScreen(x, y) {
+    const rect = canvas.getBoundingClientRect();
+    return [
+      rect.width / 2 + (x + cam.x) * cam.scale,
+      rect.height / 2 + (y + cam.y) * cam.scale,
+    ];
+  }
+  function screenToWorld(sx, sy) {
+    const rect = canvas.getBoundingClientRect();
+    return [
+      (sx - rect.width / 2) / cam.scale - cam.x,
+      (sy - rect.height / 2) / cam.scale - cam.y,
+    ];
+  }
+
+  function nodeRadius(n) {
+    if (n.hub) return 15;
+    if (n.secondary_hub) return 4 + Math.min(9, Math.log2(n.degree + 1) * 1.5);
+    return 2.6;
+  }
+
+  function resetView() {
+    cam = { x: 0, y: 0, scale: 0.4 };
+    requestDraw();
+  }
+
+  // ---- Draw ---------------------------------------------------------------
+  let drawQueued = false;
+  function requestDraw() {
+    if (drawQueued) return;
+    drawQueued = true;
+    requestAnimationFrame(() => { drawQueued = false; draw(); });
+  }
+
+  function edgeVisible(e) {
+    if (!e.types.some(t => activeSurfaceTypes.has(t))) return false;
+    if (declutter) {
+      const s = nodeById.get(e.source), t = nodeById.get(e.target);
+      const keep = n => n.hub || n.secondary_hub;
+      if (!(keep(s) && keep(t))) return false;
+    }
+    return true;
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const highlightSet = hoveredId || selectedId
+      ? new Set((edgesByNode.get(hoveredId || selectedId) || []).flatMap(e => [e.source, e.target]))
+      : null;
+
+    // Edges, batched by surface-type color for performance.
+    const catColor = CAT_VARS.map(cssVar);
+    for (let i = 0; i < DATA.surface_types.length; i++) {
+      if (!activeSurfaceTypes.has(i)) continue;
+      ctx.beginPath();
+      for (const e of DATA.edges) {
+        if (e.types[0] !== i) continue; // types[] is pre-sorted ascending; [0] is the primary type
+        if (!edgeVisible(e)) continue;
+        const s = nodeById.get(e.source), t = nodeById.get(e.target);
+        if (s === t) continue; // self-loop drawn separately
+        const dim = highlightSet && !(highlightSet.has(e.source) && highlightSet.has(e.target));
+        if (dim) continue;
+        const [x1, y1] = worldToScreen(s.x, s.y);
+        const [x2, y2] = worldToScreen(t.x, t.y);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.strokeStyle = catColor[i];
+      ctx.globalAlpha = highlightSet ? 0.9 : 0.5;
+      ctx.lineWidth = Math.max(0.5, Math.min(1.6, cam.scale * 0.9));
+      ctx.stroke();
+    }
+    // Faint pass of all non-highlighted edges when something is highlighted, and
+    // the base (non-hover) rendering when nothing is highlighted.
+    if (!highlightSet) {
+      // already drawn above at alpha .5
+    } else {
+      ctx.globalAlpha = 0.06;
+      for (let i = 0; i < DATA.surface_types.length; i++) {
+        if (!activeSurfaceTypes.has(i)) continue;
+        ctx.beginPath();
+        for (const e of DATA.edges) {
+          if (e.types[0] !== i) continue;
+          if (!edgeVisible(e)) continue;
+          const s = nodeById.get(e.source), t = nodeById.get(e.target);
+          if (s === t) continue;
+          if (highlightSet.has(e.source) && highlightSet.has(e.target)) continue;
+          const [x1, y1] = worldToScreen(s.x, s.y);
+          const [x2, y2] = worldToScreen(t.x, t.y);
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.strokeStyle = catColor[i];
+        ctx.lineWidth = Math.max(0.5, cam.scale * 0.7);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Nodes, batched by status color.
+    const statusColor = {};
+    STATUS_ORDER.forEach(s => statusColor[s] = cssVar(STATUS_META[s].varName));
+    const strokeCol = cssVar("--bg");
+
+    if (!declutter) {
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          const dim = highlightSet && !highlightSet.has(n.id) && n.id !== (hoveredId || selectedId);
+          if (dim) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          if (x < -20 || x > rect.width + 20 || y < -20 || y > rect.height + 20) continue;
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+    } else {
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (!(n.hub || n.secondary_hub)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+    }
+
+    // Dim overlay pass for non-highlighted nodes when something is hovered/selected
+    if (highlightSet) {
+      ctx.globalAlpha = 0.15;
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (declutter && !(n.hub || n.secondary_hub)) continue;
+          if (highlightSet.has(n.id)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          if (x < -20 || x > rect.width + 20 || y < -20 || y > rect.height + 20) continue;
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // redraw highlighted nodes crisp on top
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (!highlightSet.has(n.id)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          const r = nodeRadius(n) * 1.25;
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = strokeCol;
+        ctx.stroke();
+      }
+    }
+
+    // Stroke outlines for secondary hubs (visibility on any bg)
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeCol;
+    for (const n of DATA.nodes) {
+      if (!n.secondary_hub || n.hub) continue;
+      const [x, y] = worldToScreen(n.x, n.y);
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius(n), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Hub self-loop (its own annulus/pair-of-pants edges to itself), drawn as a small ring.
+    const hubNode = nodeById.get(HUB);
+    const [hx, hy] = worldToScreen(hubNode.x, hubNode.y);
+    const selfTypes = new Set();
+    (edgesByNode.get(HUB) || []).forEach(e => {
+      if (e.source === HUB && e.target === HUB) e.types.forEach(t => selfTypes.add(t));
+    });
+    let ringR = nodeRadius(hubNode) + 7;
+    for (const t of selfTypes) {
+      if (!activeSurfaceTypes.has(t)) continue;
+      ctx.beginPath();
+      ctx.arc(hx, hy, ringR, 0.3, Math.PI * 2 - 0.3);
+      ctx.strokeStyle = catColor[t];
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ringR += 4;
+    }
+    ctx.globalAlpha = 1;
+
+    // Hub marker: gold star ring, always on top.
+    ctx.beginPath();
+    ctx.arc(hx, hy, nodeRadius(hubNode), 0, Math.PI * 2);
+    ctx.fillStyle = statusColor.OPEN;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = strokeCol;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hx, hy, nodeRadius(hubNode) + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = statusColor.OPEN;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Labels: hub + secondary hubs (cheap: ~41 labels). Anchored radially
+    // outward from the hub -- nodes on the left half of the ring get their
+    // label drawn to the left (right-aligned), not always to the right,
+    // otherwise left-side labels point back toward the hub and pile up in
+    // the middle instead of radiating out into open space.
+    if (showLabels && cam.scale > 0.18) {
+      ctx.textBaseline = "middle";
+      const monoFace = cssVar("--font-mono").split(",")[0].trim() + ", monospace";
+      const bg = cssVar("--surface");
+      for (const n of DATA.nodes) {
+        if (!n.secondary_hub && !n.hub) continue;
+        const [x, y] = worldToScreen(n.x, n.y);
+        const r = nodeRadius(n);
+        const angle = n.hub ? 0 : Math.atan2(n.y, n.x);
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        const gap = r + 7;
+        const lx = x + cos * gap;
+        const ly = y + sin * gap * 0.6; // flatten vertical drift so rows stay readable
+        ctx.textAlign = cos >= 0 ? "left" : "right";
+        ctx.font = (n.hub ? "700 13px " : "600 11px ") + monoFace;
+
+        // Backdrop strip so labels stay legible over the edge traffic.
+        const w = ctx.measureText(n.id).width + 6;
+        ctx.fillStyle = bg;
+        ctx.globalAlpha = 0.78;
+        ctx.fillRect(cos >= 0 ? lx - 3 : lx - w + 3, ly - 7, w, 14);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = n.hub ? cssVar("--text-primary") : cssVar("--text-secondary");
+        ctx.fillText(n.id, lx, ly);
+      }
+      ctx.textAlign = "left";
+    }
+
+    ctx.restore();
+  }
+
+  // ---- Interaction: pan / zoom --------------------------------------------
+  let dragging = false, dragStart = null, camStart = null, dragged = false;
+  canvas.addEventListener("pointerdown", (ev) => {
+    dragging = true; dragged = false;
+    canvas.classList.add("dragging");
+    dragStart = [ev.clientX, ev.clientY];
+    camStart = { ...cam };
+    canvas.setPointerCapture(ev.pointerId);
+  });
+  canvas.addEventListener("pointermove", (ev) => {
+    if (dragging) {
+      const dx = ev.clientX - dragStart[0], dy = ev.clientY - dragStart[1];
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
+      cam.x = camStart.x + dx / cam.scale;
+      cam.y = camStart.y + dy / cam.scale;
+      requestDraw();
+      hideTooltip();
+      return;
+    }
+    handleHover(ev);
+  });
+  window.addEventListener("pointerup", () => { dragging = false; canvas.classList.remove("dragging"); });
+
+  canvas.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const [wx, wy] = screenToWorld(mx, my);
+    const factor = Math.exp(-ev.deltaY * 0.0016);
+    cam.scale = Math.min(14, Math.max(0.05, cam.scale * factor));
+    const [nx, ny] = screenToWorld(mx, my);
+    cam.x += nx - wx;
+    cam.y += ny - wy;
+    requestDraw();
+  }, { passive: false });
+
+  document.getElementById("zoom-in").addEventListener("click", () => { cam.scale = Math.min(14, cam.scale * 1.35); requestDraw(); });
+  document.getElementById("zoom-out").addEventListener("click", () => { cam.scale = Math.max(0.05, cam.scale / 1.35); requestDraw(); });
+  document.getElementById("zoom-reset").addEventListener("click", resetView);
+
+  function nearestNode(sx, sy) {
+    let best = null, bestD = Infinity;
+    for (const n of DATA.nodes) {
+      if (declutter && !(n.hub || n.secondary_hub)) continue;
+      const [x, y] = worldToScreen(n.x, n.y);
+      const d = (x - sx) ** 2 + (y - sy) ** 2;
+      const r = Math.max(nodeRadius(n), 6) + 3;
+      if (d < r * r && d < bestD) { bestD = d; best = n; }
+    }
+    return best;
+  }
+
+  const tooltip = document.getElementById("tooltip");
+  function handleHover(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+    const n = nearestNode(sx, sy);
+    if (n) {
+      hoveredId = n.id;
+      showTooltip(n, sx, sy, rect);
+      canvas.style.cursor = "pointer";
+    } else {
+      hoveredId = null;
+      hideTooltip();
+      canvas.style.cursor = "grab";
+    }
+    requestDraw();
+  }
+  canvas.addEventListener("pointerleave", () => { hoveredId = null; hideTooltip(); requestDraw(); });
+
+  canvas.addEventListener("click", (ev) => {
+    if (dragged) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+    const n = nearestNode(sx, sy);
+    selectedId = n ? n.id : null;
+    if (n) showSelected(n);
+    else document.getElementById("selected-content").innerHTML =
+      '<div class="selected-empty">Click any node in the graph, or search above, to inspect it.</div>';
+    requestDraw();
+  });
+
+  function genusText(g) {
+    if (g === null || g === undefined) return "no data";
+    if (Array.isArray(g)) return `open: ${g[0]}–${g[1]}`;
+    return String(g);
+  }
+
+  function showTooltip(n, sx, sy, rect) {
+    const meta = STATUS_META[n.status];
+    const es = edgesByNode.get(n.id) || [];
+    const typeSet = new Set();
+    es.forEach(e => e.types.forEach(t => typeSet.add(t)));
+    let html = `<div class="t-name">${n.id}${n.hub ? " &mdash; the open case" : ""}</div>
+      <div class="t-row"><span>4D slice genus</span><b>${genusText(n.genus)}</b></div>
+      <div class="t-row"><span>degree</span><b>${n.degree.toLocaleString()}</b></div>
+      <div class="t-row"><span>status</span><b>${meta.label}</b></div>`;
+    if (typeSet.size) {
+      html += '<div class="t-surfaces">';
+      [...typeSet].sort().forEach(t => {
+        html += `<div class="t-surface-row"><span class="swatch" style="background:${cssVar(CAT_VARS[t])}"></span>${surfaceLabel(DATA.surface_types[t])}</div>`;
+      });
+      html += "</div>";
+    }
+    tooltip.innerHTML = html;
+    tooltip.style.display = "block";
+    let left = sx + 16, top = sy + 12;
+    if (left + 300 > rect.width) left = sx - 316;
+    if (top + 200 > rect.height) top = sy - 200;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+  }
+  function hideTooltip() { tooltip.style.display = "none"; }
+
+  function showSelected(n) {
+    const meta = STATUS_META[n.status];
+    const es = edgesByNode.get(n.id) || [];
+    const neighborNames = new Map();
+    es.forEach(e => {
+      const other = e.source === n.id ? e.target : e.source;
+      if (!neighborNames.has(other)) neighborNames.set(other, []);
+      e.types.forEach(t => neighborNames.get(other).push(t));
+    });
+    let neighborsHtml = "";
+    const sortedNeighbors = [...neighborNames.keys()].sort((a, b) => (nodeById.get(b)?.degree || 0) - (nodeById.get(a)?.degree || 0)).slice(0, 60);
+    sortedNeighbors.forEach(nb => {
+      const nbNode = nodeById.get(nb);
+      const nbMeta = STATUS_META[nbNode.status];
+      neighborsHtml += `<div class="neighbor-row" data-id="${escAttr(nb)}">
+        <span class="swatch dot" style="background:var(${nbMeta.varName})"></span>${nb}</div>`;
+    });
+    if (neighborNames.size > 60) neighborsHtml += `<div class="neighbor-row" style="color:var(--text-muted)">&hellip; and ${neighborNames.size - 60} more</div>`;
+
+    document.getElementById("selected-content").innerHTML = `
+      <div class="selected-name">${n.id}</div>
+      <span class="status-chip" style="color:var(${meta.varName});border-color:color-mix(in oklab, var(${meta.varName}) 45%, transparent)">
+        <span class="dot" style="background:var(${meta.varName})"></span>${meta.label}
+      </span>
+      <div class="t-row" style="margin-top:10px"><span>4D slice genus</span><b>${genusText(n.genus)}</b></div>
+      <div class="t-row"><span>connections</span><b>${n.degree.toLocaleString()}</b></div>
+      <div class="neighbor-list">${neighborsHtml}</div>
+    `;
+    document.querySelectorAll(".neighbor-row[data-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.id;
+        focusNode(id);
+      });
+    });
+  }
+  function escAttr(s) { return s.replace(/"/g, "&quot;"); }
+
+  function focusNode(id) {
+    const n = nodeById.get(id);
+    if (!n) return;
+    selectedId = id;
+    cam.x = -n.x;
+    cam.y = -n.y;
+    cam.scale = Math.max(cam.scale, 1.4);
+    showSelected(n);
+    requestDraw();
+  }
+
+  // ---- Search ---------------------------------------------------------------
+  const searchInput = document.getElementById("search");
+  const searchResults = document.getElementById("search-results");
+  const allIds = DATA.nodes.map(n => n.id);
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { searchResults.classList.remove("open"); return; }
+    const hits = [];
+    for (const id of allIds) {
+      if (id.toLowerCase().includes(q)) {
+        hits.push(id);
+        if (hits.length >= 25) break;
+      }
+    }
+    hits.sort((a, b) => (nodeById.get(b).degree - nodeById.get(a).degree));
+    searchResults.innerHTML = hits.map(id => {
+      const n = nodeById.get(id);
+      const meta = STATUS_META[n.status];
+      return `<div class="search-hit" data-id="${escAttr(id)}">
+        <span style="display:flex;align-items:center;gap:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <span class="swatch dot" style="background:var(${meta.varName})"></span>${id}
+        </span>
+        <span class="status-chip" style="color:var(${meta.varName});border-color:color-mix(in oklab, var(${meta.varName}) 45%, transparent)">${n.degree}</span>
+      </div>`;
+    }).join("") || `<div class="search-hit" style="color:var(--text-muted)">No matches</div>`;
+    searchResults.classList.add("open");
+    searchResults.querySelectorAll(".search-hit[data-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        focusNode(el.dataset.id);
+        searchResults.classList.remove("open");
+        searchInput.value = el.dataset.id;
+      });
+    });
+  });
+  document.addEventListener("click", (ev) => {
+    if (!searchResults.contains(ev.target) && ev.target !== searchInput) searchResults.classList.remove("open");
+  });
+  searchInput.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { searchResults.classList.remove("open"); searchInput.blur(); }
+  });
+
+  // ---- Toggles ---------------------------------------------------------------
+  const declutterSwitch = document.getElementById("declutter-switch");
+  declutterSwitch.addEventListener("click", () => {
+    declutter = !declutter;
+    declutterSwitch.classList.toggle("on", declutter);
+    requestDraw();
+  });
+  const labelsSwitch = document.getElementById("labels-switch");
+  labelsSwitch.addEventListener("click", () => {
+    showLabels = !showLabels;
+    labelsSwitch.classList.toggle("on", showLabels);
+    requestDraw();
+  });
+
+  // ---- Theme ---------------------------------------------------------------
+  const themeBtn = document.getElementById("theme-toggle");
+  const themeOrder = ["auto", "dark", "light"];
+  let themeIdx = 0;
+  themeBtn.addEventListener("click", () => {
+    themeIdx = (themeIdx + 1) % themeOrder.length;
+    const mode = themeOrder[themeIdx];
+    if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+    themeBtn.textContent = "Theme: " + mode;
+    requestDraw();
+  });
+
+  // ---- Boot ---------------------------------------------------------------
+  resize();
+  resetView();
+})();
+</script>

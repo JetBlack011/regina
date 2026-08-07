@@ -1,0 +1,1156 @@
+<title>K13n65 Concordance Atlas</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f4ee;
+    --surface: #fbfaf6;
+    --surface-2: #f0ede4;
+    --text-primary: #14161f;
+    --text-secondary: #4c5064;
+    --text-muted: #8a8d9c;
+    --border: rgba(11, 11, 11, 0.10);
+    --border-strong: rgba(11, 11, 11, 0.18);
+
+    --status-good: #0b8f0b;
+    --status-warning: #b8791f;
+    --status-critical: #c73f3f;
+    --status-unknown: #9096a8;
+
+    --cat-1: #2a78d6;
+    --cat-2: #eb6834;
+    --cat-3: #1baf7a;
+    --cat-4: #b8860a;
+    --cat-5: #d1467e;
+    --cat-6: #1f7a1f;
+    --cat-7: #4a3aa7;
+
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #0b0e17;
+      --surface: #12151f;
+      --surface-2: #1a1e2c;
+      --text-primary: #eef0f6;
+      --text-secondary: #9aa0b4;
+      --text-muted: #5b6178;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+
+      --status-good: #0ca30c;
+      --status-warning: #fab219;
+      --status-critical: #d03b3b;
+      --status-unknown: #4a4f61;
+
+      --cat-1: #3987e5;
+      --cat-2: #d95926;
+      --cat-3: #199e70;
+      --cat-4: #c98500;
+      --cat-5: #d55181;
+      --cat-6: #2fae2f;
+      --cat-7: #9085e9;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0e17;
+    --surface: #12151f;
+    --surface-2: #1a1e2c;
+    --text-primary: #eef0f6;
+    --text-secondary: #9aa0b4;
+    --text-muted: #5b6178;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+    --status-unknown: #4a4f61;
+
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #2fae2f;
+    --cat-7: #9085e9;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f6f4ee;
+    --surface: #fbfaf6;
+    --surface-2: #f0ede4;
+    --text-primary: #14161f;
+    --text-secondary: #4c5064;
+    --text-muted: #8a8d9c;
+    --border: rgba(11, 11, 11, 0.10);
+    --border-strong: rgba(11, 11, 11, 0.18);
+
+    --status-good: #0b8f0b;
+    --status-warning: #b8791f;
+    --status-critical: #c73f3f;
+    --status-unknown: #9096a8;
+
+    --cat-1: #2a78d6;
+    --cat-2: #eb6834;
+    --cat-3: #1baf7a;
+    --cat-4: #b8860a;
+    --cat-5: #d1467e;
+    --cat-6: #1f7a1f;
+    --cat-7: #4a3aa7;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .brand .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .brand h1 .hub-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-warning);
+    margin-right: 7px;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--status-warning) 25%, transparent);
+  }
+
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 420px;
+  }
+  #search {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  #search:focus {
+    border-color: var(--status-warning);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--status-warning) 18%, transparent);
+  }
+  #search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+    z-index: 20;
+  }
+  #search-results.open { display: block; }
+  .search-hit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-hit:last-child { border-bottom: none; }
+  .search-hit:hover, .search-hit.active { background: var(--surface-2); }
+  .search-hit .status-chip { font-size: 10px; }
+
+  .header-stats {
+    display: flex;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .header-stats b { color: var(--text-secondary); font-weight: 600; }
+
+  .theme-toggle {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .theme-toggle:focus-visible, #search:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--status-warning);
+    outline-offset: 1px;
+  }
+
+  main {
+    position: relative;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 50% 45%, color-mix(in oklab, var(--status-warning) 5%, transparent), transparent 55%),
+      var(--bg);
+    overflow: hidden;
+  }
+  canvas { display: block; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+
+  .hint {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    background: color-mix(in oklab, var(--surface) 82%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  .zoom-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .zoom-controls button:hover { color: var(--text-primary); border-color: var(--status-warning); }
+
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    max-width: 300px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+    display: none;
+    z-index: 15;
+  }
+  #tooltip .t-name {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    word-break: break-all;
+  }
+  #tooltip .t-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 1.5px 0;
+  }
+  #tooltip .t-row b { color: var(--text-primary); font-weight: 600; }
+  #tooltip .t-surfaces {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  #tooltip .t-surface-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .swatch {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    flex: none;
+  }
+  .swatch.dot { border-radius: 50%; }
+
+  aside {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 9px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+  }
+  .legend-row:hover { background: var(--surface-2); }
+  .legend-row.off { opacity: 0.38; }
+  .legend-row .label { flex: 1; color: var(--text-secondary); }
+  .legend-row.off .label { text-decoration: line-through; }
+  .legend-row .count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+  .legend-row .name { color: var(--text-primary); font-weight: 600; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .switch {
+    position: relative;
+    width: 34px;
+    height: 19px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    cursor: pointer;
+    flex: none;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 1px; left: 1px;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .switch.on { border-color: var(--status-warning); }
+  .switch.on::after {
+    transform: translateX(15px);
+    background: var(--status-warning);
+  }
+
+  .selected-panel {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .selected-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .selected-name {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2.5px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+  }
+  .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .neighbor-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .neighbor-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 3px 4px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .neighbor-row:hover { background: var(--surface-2); color: var(--text-primary); }
+
+  footer.about {
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="eyebrow">Concordance atlas</span>
+      <h1><span class="hub-dot"></span>K13n65</h1>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="Find a knot or link by name (e.g. K12n23, L11n33, 4_1)..." autocomplete="off" />
+      <div id="search-results"></div>
+    </div>
+    <div class="header-stats">
+      <span><b id="stat-nodes">-</b> knots/links</span>
+      <span><b id="stat-edges">-</b> cobounding pairs</span>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button">Theme: auto</button>
+  </header>
+  <main>
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="tooltip"></div>
+      <div class="hint">drag to pan &middot; scroll/pinch to zoom &middot; click a node to pin details</div>
+      <div class="zoom-controls">
+        <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
+        <button id="zoom-reset" type="button" aria-label="Reset view">&#8634;</button>
+      </div>
+    </div>
+    <aside>
+      <div class="panel">
+        <h2>Smooth 4D slice status</h2>
+        <div id="status-legend"></div>
+      </div>
+      <div class="panel">
+        <h2>Cobounding surface type</h2>
+        <div id="surface-legend"></div>
+      </div>
+      <div class="panel">
+        <div class="toggle-row">
+          <span>Hide single-edge leaves</span>
+          <div class="switch" id="declutter-switch"></div>
+        </div>
+        <div class="toggle-row">
+          <span>Label secondary hubs</span>
+          <div class="switch on" id="labels-switch"></div>
+        </div>
+      </div>
+      <div class="panel selected-panel">
+        <h2>Selected</h2>
+        <div id="selected-content"><div class="selected-empty">Click any node in the graph, or search above, to inspect it &mdash; its slice status, degree, and the surfaces connecting it to its neighbors.</div></div>
+      </div>
+      <footer class="about">
+        K13n65's own smooth 4D slice genus is open (bracket = uncertain
+        range). An edge is a properly embedded surface in S&sup3;&times;I
+        cobounding the two knots/links it connects; a genus&#8209;0
+        orientable, 2&#8209;punctured edge is a genuine smooth concordance.
+      </footer>
+    </aside>
+  </main>
+</div>
+
+<script id="graph-data" type="application/json">{"hub":"6_1","surface_types":[{"orientable":true,"genus":0,"punctures":3},{"orientable":false,"genus":1,"punctures":3},{"orientable":true,"genus":0,"punctures":4},{"orientable":false,"genus":1,"punctures":2},{"orientable":false,"genus":2,"punctures":2},{"orientable":true,"genus":1,"punctures":2},{"orientable":true,"genus":0,"punctures":2}],"nodes":[{"id":"6_1","x":0.0,"y":0.0,"genus":0,"status":"CONFIRMED_SLICE","degree":510,"hub":true,"secondary_hub":false},{"id":"eLMkbcdddaeexx","x":106.61,"y":328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"L204001","x":-202.79,"y":-279.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbbcdddecdb","x":-71.18,"y":-449.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbbcddpucdb","x":-279.11,"y":-202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbccddeebdc","x":405.41,"y":206.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"Unknot","x":345.0,"y":0.0,"genus":0,"status":"CONFIRMED_SLICE","degree":1,"hub":false,"secondary_hub":true},{"id":"dLQacccbjkg","x":-321.73,"y":321.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLAMcbcbdeedlcdic","x":-321.73,"y":-321.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbbcddadbef","x":328.11,"y":-106.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkccbdddecln","x":206.57,"y":-405.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"L207007","x":-106.61,"y":328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLMkbbdddadett","x":-279.11,"y":202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"kLLLwAQkbcgfhigijjjaoaaoaoaaao","x":321.73,"y":-321.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"iLAzPMcccbeefghhdecvcvbub","x":-0.0,"y":-345.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"iLLLAQcbdeeehgghafaaalvfv","x":279.11,"y":202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"7^2_3","x":202.79,"y":279.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLAMcbcbdeedlcdmc","x":-328.11,"y":-106.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"eLAkbbcddadbdb","x":-71.18,"y":449.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLLLQPPbdeeefhgiiafaaafdfuv","x":202.79,"y":-279.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLAzPPPccbeefghiidecjbvvelc","x":328.11,"y":106.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLLLQPPccgggefhiiigmaioodlc","x":279.11,"y":-202.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLLLQPPbdeeefhgiiafaaafdfmo","x":-345.0,"y":0.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"kLLPAwAkcefeefgihjjaaaaaabjbic","x":-449.4,"y":71.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLAMcbcbdeedlcpio","x":206.57,"y":405.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLLPALQccdefehihiabbhubruvf","x":-202.79,"y":279.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"iLLLMQcbdfegfghhafaabfccf","x":71.18,"y":449.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"4_1","x":449.4,"y":71.18,"genus":1,"status":"CONFIRMED_NOT_SLICE","degree":1,"hub":false,"secondary_hub":true},{"id":"fLLQcbcceeemcoheu","x":-405.41,"y":206.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLALPLQbbceeghihiatgrvfllgg","x":-449.4,"y":-71.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"gLLPQccdefefabgaabg","x":-405.41,"y":-206.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"kLLAALMkcdcdefhijjjavgfvvoaavo","x":-206.57,"y":-405.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"fLLQcaceeedbgtmfb","x":-206.57,"y":405.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"kLLMAzAkaceeefghijjbghbbjooptf","x":-106.61,"y":-328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"lLAPLMLPccbbeefghjkjkidbbbgbljivg","x":0.0,"y":345.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"lLAwMMLMccbbdegfhijkkdmcpvlftgnlf","x":321.73,"y":321.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"lLLAMMLMccddcegfhijkktvnvoubpvwuv","x":405.41,"y":-206.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLAzALQccbefeihhidecjibekgc","x":-328.11,"y":106.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"iLAwPPcccbdfghhhdecabaacb","x":449.4,"y":-71.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"kLLAPLAkcbeeggghijjdjapanvvopb","x":106.61,"y":-328.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"jLLMALQaceeefhihibghbbjcmoc","x":71.18,"y":-449.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":true},{"id":"iLLLAQcbdeeeghghafaaakefv","x":34.82,"y":799.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLALPPcbccdgfhhhmagcdadaa","x":325.23,"y":730.91,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLALQccbffefdecimca","x":455.81,"y":657.45,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPALQccdefeihhiabbhubtfvf","x":-368.67,"y":-709.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLLwQAkcefgegghijjattlvvvvrtb","x":481.86,"y":-638.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPacceefghiibkgjjevrtb","x":-451.39,"y":660.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltbfklgb","x":-725.36,"y":-337.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALMkbcbefgggdlcgaagb","x":640.21,"y":479.71,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjovub","x":-477.57,"y":-641.82,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMwMkceceffgijijaavaavoktov","x":599.63,"y":-529.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLPQcceefhhgghaaadavvvr","x":-188.45,"y":777.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbdeeehgghafaaatvfv","x":24.11,"y":799.64,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAzAkccdefeghijjabbhubvvlec","x":687.86,"y":-408.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafiftb","x":-617.02,"y":-509.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"7^2_1","x":800.0,"y":0.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbefefhghhpaaaawccc","x":-18.75,"y":799.78,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPLQccbeeghiiidefwcbmasw","x":547.4,"y":583.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkccddffghijjdgrjjjhfbec","x":473.26,"y":645.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecvicjigc","x":-763.93,"y":237.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvldf","x":-790.52,"y":122.77,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabnbmg","x":633.73,"y":-488.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvpdb","x":-794.82,"y":90.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLALAMcccbefeghhdecjpfilf","x":354.33,"y":717.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfndf","x":120.12,"y":-790.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafdfpb","x":-643.41,"y":-475.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMwMkceceffgijijaavaavokiog","x":592.48,"y":-537.56,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAMwPMcceecffghjikklllvagbbdblf","x":759.0,"y":-252.81,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAMMLMccddcegfhijkkuobbvibuorpo","x":751.96,"y":-273.06,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMALQaceeefihhibghbbjpwoc","x":-519.46,"y":-608.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAPLMLPcbcbeefghjkjkdlcbbgbikiog","x":731.99,"y":-322.78,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAzAkccdefeghijjabbhubvvldf","x":682.32,"y":-417.66,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcddcffghijjlgfvggtfbdf","x":141.26,"y":-787.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooiec","x":-581.56,"y":-549.35,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALPkbbcefggghtgvxxcc","x":627.13,"y":496.69,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLPQccdefefabbhabg","x":682.32,"y":417.66,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcdeefffacaaiao","x":736.25,"y":312.94,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLPQccdfeefabbppoo","x":670.89,"y":435.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPAPPccdefeghiiabbhubvbub","x":-339.85,"y":-724.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAMQbegeehghiiaeaeebfbpf","x":-750.11,"y":-278.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPAPPacefffghiibgmjjkcbec","x":-359.13,"y":-714.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkadddffgihjjneapjjmfbdc","x":498.79,"y":625.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMALQaceeefhihibghbbjcioc","x":-535.57,"y":-594.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLAPcabceeebrwccf","x":799.35,"y":32.14,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLALPMcccbfefghhdecifdgmo","x":334.99,"y":726.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbccfeeghiialflbgvopb","x":-477.57,"y":641.82,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQacceefihhibkgjjhlvfv","x":-729.82,"y":327.67,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAzPMcccbeefghhdecjbvrtb","x":183.24,"y":778.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLAMQcbdefgfjkiijkafegfbdlvfbv","x":776.85,"y":-191.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabnbig","x":627.13,"y":-496.69,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabnbqv","x":640.21,"y":-479.71,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLMMQcbdfgfgjkiijkafaggghljfgv","x":785.97,"y":-149.17,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaioohdo","x":-610.15,"y":-517.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAzPMcccbeefghhdecjbvbpb","x":204.03,"y":773.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbdeeffhhhafaaafeed","x":2.68,"y":800.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcedghiiitbvdcbeeff","x":-250.27,"y":-759.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooidf","x":-588.87,"y":-541.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAPvLQkabceeihijijbwvbbuuucvv","x":-72.25,"y":-796.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfkhv","x":88.24,"y":-795.12,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcccggghffhigmaipnoc","x":-50.87,"y":798.38,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwPkceeeffgijijddeaeefwpbb","x":255.35,"y":-758.15,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbeeedfghijjmaamoapvrdb","x":34.82,"y":-799.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcdeghiiiibbotbeeff","x":-280.6,"y":-749.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAzPMcccbeefghhdecvcvrtb","x":162.31,"y":783.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLLQbccdeghihimagorceegg","x":-566.63,"y":564.74,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLAMcccbdeedecieb","x":799.71,"y":21.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjowmb","x":-468.93,"y":-648.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMALQaceeefihhibghbbjpnoc","x":-527.56,"y":-601.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLPQccdfeefdoflloo","x":664.99,"y":444.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLLQkacfdefggbggbggbg","x":577.87,"y":553.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAMQacffgfihhibgggjkmmcc","x":-760.68,"y":-247.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcdcdfffavvvcjs","x":751.96,"y":273.06,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLPPcdcdefghiiavvvtggitv","x":-209.21,"y":-772.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooiub","x":-566.63,"y":-564.74,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzwPQacceegihhibjkgggttff","x":-799.12,"y":37.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefeihhidecjibusgb","x":-778.11,"y":185.84,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecjibcqgb","x":-738.33,"y":308.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAzPMcccbeefghhdecvcvbpb","x":172.79,"y":781.12,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALzAQbbceehgiiipujwcabafb","x":-511.26,"y":615.32,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcadgfffghhbhpgsccig","x":-61.57,"y":797.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLAMPabcdeffbrwplmg","x":783.9,"y":159.68,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALMQbcddhghhiiacccaxdgkb","x":-792.1,"y":-112.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALMQbcddhhgihiacccaddkfb","x":-788.81,"y":-133.34,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfefgghhafatgocjf","x":-82.91,"y":795.69,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcefeihhiatgnlglsgc","x":-378.15,"y":704.98,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAALMkcddcefhijjjlvnvoncaacb","x":-18.75,"y":-799.78,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjonmb","x":-494.59,"y":-628.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLLwQAkcefgegghijjauupbvvvstb","x":490.37,"y":-632.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPALQacefffhihibgmjjkoico","x":-396.9,"y":-694.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjobub","x":-502.97,"y":-622.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMMLQaceeegihhibghbbhjjoo","x":-424.49,"y":-678.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLAQPcbdefgfjhikjkafhgjbifwlob","x":779.34,"y":-180.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLLQcaceeedbbupkb","x":797.42,"y":64.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQacffgiihhibgggsahhho","x":-695.93,"y":-394.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwMPcbcbdefhhhdlcpoownf","x":255.35,"y":758.15,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQacceefihhibjkggttvfv","x":-725.36,"y":337.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALAQcceefghhiiabaabcbfhb","x":-794.82,"y":-90.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjobpb","x":-511.26,"y":-615.32,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLLQbccdeghihimaggjceegg","x":-559.02,"y":572.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfegfghhafatgggvf","x":-114.82,"y":791.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfggfhghafatggvgf","x":-135.99,"y":788.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPALQccdefeihhiabbhublfvf","x":-378.15,"y":-704.98,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQacceefihhibjkggtlvfv","x":-720.78,"y":347.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPwAQcdcdfhghiitvvgfdefxc","x":-310.47,"y":-737.3,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefhihibjkgghopbb","x":-655.92,"y":458.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbccfeehihialflbgruvf","x":-396.9,"y":694.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQacceefihhibkgjjhtvfv","x":-734.14,"y":317.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzAzQacceefhihibkgjjhglff","x":-780.53,"y":175.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLMLQccecefhgghaavavvvvv","x":-240.07,"y":763.13,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkcdcdffghijjavvvvvxcjlv","x":354.33,"y":-717.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPAPPccdefeghiiabbhubvrtb","x":-330.11,"y":-728.71,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabcbtb","x":613.6,"y":-513.32,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbeeedfghijjmaamoapvbif","x":13.4,"y":-799.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcdfehihiadbbdccmgc","x":-339.85,"y":724.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMwPkceceffgjiijaavaavodnoc","x":606.67,"y":-521.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfkmo","x":109.51,"y":-792.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkceceffgihjjaavaavbnbmg","x":410.78,"y":-686.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafdfhv","x":-649.72,"y":-466.75,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecviccugf","x":-753.77,"y":268.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwMkceeeffgijijddeaeefntbv","x":193.65,"y":-776.21,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbeeedfghijjmaamoapvrhf","x":45.53,"y":-798.7,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcedghiiipbodcbeeff","x":-260.43,"y":-756.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefeihhidecjibdsgf","x":-770.02,"y":216.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfjec","x":77.58,"y":-796.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALMkbbcdegggttvfgonr","x":419.94,"y":680.92,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfadeac","x":-799.98,"y":-5.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLQLLMkcbcedghiijjtbvdcbdebxc","x":713.65,"y":-361.52,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALPkbcbefgfglefrxxoo","x":606.67,"y":521.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLAQvQcbcefgfhgkjjkagtlhgagpsgb","x":771.45,"y":-211.8,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbccfeeihhialflbglfvf","x":-415.37,"y":683.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAAQbddfghfiiiafbxgacagc","x":-767.04,"y":-227.26,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjooxpb","x":547.4,"y":-583.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQcbdddfhghhaffffeecc","x":120.12,"y":790.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfeadef","x":-799.12,"y":-37.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMLzQkbcdehgijhijabbdebppfff","x":562.84,"y":-568.52,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzMQccbeehhiiidecrfeqtuf","x":539.54,"y":590.68,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLzQbccedghiiimaoscfaagf","x":-596.07,"y":533.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbcddffghijjlvsvjjhfcef","x":490.37,"y":632.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfegfhhhafaakfnnn","x":-125.41,"y":790.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLPQccdfeefpovlloo","x":658.97,"y":453.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbcdefffakfaafn","x":765.5,"y":232.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeeefffauaaaap","x":703.71,"y":380.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeefeffmaaqlqq","x":687.86,"y":408.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAzPMcccbeefghhdecjbvbub","x":193.65,"y":776.21,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefihhibkgjjmpvbo","x":-679.51,"y":422.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPAPPccdefeghiiabbhubvbpb","x":-349.52,"y":-719.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLPzQccdcdfghhhtvvgfttvv","x":-280.6,"y":749.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQceeefffddealmp","x":723.08,"y":342.27,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcccgggfhfhigmaicioc","x":-29.47,"y":799.46,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQccdeeghghhavaavffff","x":98.88,"y":793.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQccdeehghghakaakffff","x":88.24,"y":795.12,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLAAkcdcdffggaooocgqo","x":392.24,"y":697.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeeefffahaadpd","x":708.75,"y":371.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAvQAkbdeeiiighjjafttuulfbec","x":446.96,"y":-663.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltsfcevf","x":-706.25,"y":-375.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALQPcdeefghhiiaoaaocogeg","x":-782.81,"y":-164.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAAQbddfghfiiiafbtgacagc","x":-770.02,"y":-216.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAzQvQccdedehggjkjkaspbblbgruvf","x":765.5,"y":-232.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALAQcdcdgghhiiagggaaickg","x":-793.53,"y":-101.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQacdefffbgabggg","x":718.43,"y":351.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAvQkbcddffjiijjxcccvvalllf","x":2.68,"y":-800.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAvPQcccbefgghhdecfdfwsv","x":285.61,"y":747.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLAPcabceeebrwfcf","x":798.85,"y":42.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwPkceeeffgijijddeaeefoxbb","x":245.17,"y":-761.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAPwAkceeeffghijjddeaeewvrdb","x":438.03,"y":-669.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMwMkceceffgijijaavaavojiog","x":585.23,"y":-545.45,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfbif","x":56.22,"y":-798.02,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwPkceeeffgijijddeaeefolbb","x":234.95,"y":-764.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkcdcdffghijjavvvvvxcblc","x":344.69,"y":-721.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcdfehihieabbefcmgc","x":-349.52,"y":719.61,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbeddfffaeggpjj","x":762.32,"y":242.62,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwMkceeeffgijijddeaeefnmbg","x":183.24,"y":-778.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooptf","x":-551.3,"y":-579.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecvicjegf","x":-760.68,"y":247.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAPwAkceeeffghijjddeaeewvjub","x":429.02,"y":-675.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwPkceeeffgijijddeaeefkpbb","x":224.68,"y":-767.8,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLPPcdcdefghiiavvvtggipo","x":-219.54,"y":-769.29,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecjibjigc","x":-746.32,"y":288.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkceceffgihjjaavaavbjbdb","x":392.24,"y":-697.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfblc","x":66.91,"y":-797.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaioohub","x":-596.07,"y":-533.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwMkceeeffgijijddeaeefnxbf","x":204.03,"y":-773.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLPwQccefeehgghaaaaavvvv","x":-260.43,"y":756.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALPMkbeedfighjijaeacbdfcdfb","x":315.41,"y":-735.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAwMMLMcbcbdefghijkkdlcpogmpvblc","x":744.37,"y":-293.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvPQacceegihhibkgjjjmmbb","x":-636.99,"y":483.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAvzQQccbeggiihidefcffwbow","x":-711.22,"y":366.29,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbbcdefghiittvfglobpb","x":-460.2,"y":654.38,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLvAPQcaefghhgghbaacaabbd","x":-320.32,"y":733.07,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAPvQkcdecffhjiijtvlvfflggff","x":419.94,"y":-680.92,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALPMkbedefighjijalgaftfwlfb","x":285.61,"y":-747.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAzQaceeefhihibghbbjgmog","x":-442.5,"y":-666.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwwQcaccdefhhhbngtffwok","x":224.68,"y":767.8,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwMkceeeffgijijddeaeefnlbf","x":172.79,"y":-781.12,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefeihhidecjibqsgc","x":-775.55,"y":196.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfkio","x":98.88,"y":-793.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvlec","x":-792.1,"y":112.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefeihhidecjibqkgc","x":-772.86,"y":206.62,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjoopdc","x":531.58,"y":-597.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLALPLPkbcbefggjiijelbbpagpwoc","x":-114.82,"y":-791.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaioohlv","x":-603.16,"y":-525.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjootib","x":539.54,"y":-590.68,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAPLMLMcbcbeegfhijkklefvvvcdfwpb","x":727.6,"y":-332.55,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvpic","x":-795.97,"y":80.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcaedfgghghbdagccpjc","x":56.22,"y":798.02,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQbdeehigghiafltblvfgv","x":-667.95,"y":-440.27,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzPPacceefhgiibkgjjmsbpf","x":-701.15,"y":385.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLAzQccdeeghghharaaaufuu","x":66.91,"y":797.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltbfcegf","x":-729.82,"y":-327.67,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwMPcaccdefhhhbkgevvscr","x":265.49,"y":754.66,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAPPaceeefghiibghbbjovpo","x":-486.12,"y":-635.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLAMPcbdddfghhhafffnaanf","x":77.58,"y":796.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkceceffgihjjaavaavbnbig","x":401.55,"y":-691.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabjbmc","x":620.42,"y":-505.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLAAPccdecffhhhlvlvlfrsb","x":555.17,"y":576.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLQLLMkcbcdegihijjdbootbddcxc","x":693.27,"y":-399.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLAALQceeefdhihiaiimacsuvf","x":-797.83,"y":-58.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMLAkbcdfegghijjavvltlffbdf","x":577.87,"y":-553.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQaefghhhgiibdtjdaijac","x":-685.1,"y":-413.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltsfbdvf","x":-716.06,"y":-356.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMLAQbeeefghhiiaeaaejcvqf","x":-433.54,"y":-672.34,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecjibcugf","x":-742.39,"y":298.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMMLQaceefghihibjmckdrrvv","x":-415.37,"y":-683.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLQLLMkcbcedghiijjlbvdcbdebxc","x":703.71,"y":-380.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAzAkacefffgihjjbgmjjkciclf","x":676.67,"y":-426.76,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALMkbbcdegggatvfgonr","x":429.02,"y":675.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLQLLMkcbcedghiijjpbodcbdebtc","x":708.75,"y":-371.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcdeghiiidbootbeeff","x":-290.61,"y":-745.35,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbccfeeihhialflsvlfvf","x":-424.49,"y":678.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAzQaceeefhihibghbbjgiog","x":-451.39,"y":-660.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPALQacefffihhibgmjjkdrco","x":-387.56,"y":-699.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjooixf","x":515.37,"y":-611.88,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefeihhidecjibdkgf","x":-767.04,"y":227.26,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAPLLAkbcbeegghijjtefvvvcvstb","x":-82.91,"y":-795.69,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAMzzAkccbdefghijjdecdipooiec","x":-104.2,"y":-793.19,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMLPMkcceefighjijabapvpvstob","x":555.17,"y":-576.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLLvQQkcefegghjiijaltvvvfvvvv","x":473.26,"y":-645.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeefeffaeapxee","x":693.27,"y":399.23,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjoohpo","x":498.79,"y":-625.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafhfef","x":-630.45,"y":-492.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjoompo","x":523.52,"y":-604.92,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLLQbccdegihhimaggjciigg","x":-574.15,"y":557.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbccfeehihialflsvruvf","x":-406.17,"y":689.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLQLLMkcbcdegihijjibbotbddcxc","x":698.55,"y":-389.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLLQbccdegihhimagorciigg","x":-581.56,"y":549.35,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAAQacfffhgiiibgkjkanagn","x":-772.86,"y":-206.62,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQacceefhihibjkggtkefv","x":-716.06,"y":356.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfefgghhafaafffff","x":-72.25,"y":796.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALMQcdeefggiiiavaavgbdde","x":-786.95,"y":-143.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALAQbcddgghhiiagggaaickg","x":-796.97,"y":-69.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLAQvQcbddfggfhkjjkafbxcccalrcv","x":774.22,"y":-201.44,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAMMvQccddcegfhjkjktvnvoubmjqgb","x":755.55,"y":-262.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQbdeehgighiafltbkefgv","x":-679.51,"y":-422.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLMQLPcbcgefhfgjkjkavatccvcndbv","x":795.41,"y":-85.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLPAvPQccdcdffijkikkdvogffqaafff","x":799.35,"y":-32.14,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQzPPacedefghiibjmhcdfklb","x":-157.06,"y":-784.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAAQbegeehghiiaeaeefcftc","x":-763.93,"y":-237.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfeaeec","x":-798.55,"y":-48.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzMQccbeehhiiidefwcepxuf","x":531.58,"y":597.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMLPkbcddffijjijagcgooaaaao","x":334.99,"y":-726.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvlpb","x":-793.53,"y":101.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLvQQcceeghhgghaaaiavvvs","x":-300.57,"y":741.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQcbcddghghhagggammmc","x":151.8,"y":785.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwPPcccbdfghhhdecebaacb","x":245.17,"y":761.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLAMkbeeeffggmaampufo","x":363.91,"y":712.44,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcedghiiiubbdcbeeff","x":-240.07,"y":-763.13,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvMQbccdehiihimaggjaaaac","x":-617.02,"y":509.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALzPQbbceehiihiatgrvaaaaf","x":-527.56,"y":601.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLMLQccecefghghaavavccvv","x":-229.82,"y":766.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQbdeehigghiafltstvfvv","x":-655.92,"y":-458.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLALPLAkbcbefgghijjdlcbpagonmb","x":-146.53,"y":-786.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLPAvPQccdcdffijkikkivbgffqaafff","x":799.71,"y":-21.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAwMLAkabcdefhhijjbropoofomtv","x":-50.87,"y":-798.38,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkceceffgihjjaavaavbcbuf","x":382.86,"y":-702.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkceceffgihjjaavaavbcbtb","x":373.42,"y":-707.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLMMQcbdfgfgjkiijkafaggghivfgb","x":783.9,"y":-159.68,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafhfdb","x":-636.99,"y":-483.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQccdeeghghhafaafffff","x":109.51,"y":792.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfefgghhafatgocog","x":-93.56,"y":794.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLLQQbdfgfgiihiafagggbscr","x":-734.14,"y":-317.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQbdeehgighiafltskefvv","x":-673.79,"y":-431.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfegfghhafaabfcff","x":-104.2,"y":793.19,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbdeeffhhhafaaafded","x":13.4,"y":799.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAzAkacefffgihjjbgmjjkcdclv","x":670.89,"y":-435.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLwQQbddfgfhihiafbxccmmff","x":-543.48,"y":-587.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvAQbccdeghiiimagorbaacb","x":-610.15,"y":517.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPwAQcdcdfhghiilvvgfdefuc","x":-320.32,"y":-733.07,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAvPQcccbefghhhdecfdcbff","x":275.57,"y":751.04,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLPzQccdcdfghhhlvvgfttvv","x":-270.54,"y":752.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhhiidecrfeadef","x":-799.84,"y":16.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLAMLkccbdegggdecdigcv","x":599.63,"y":529.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcefehihittgrlvcigc","x":-368.67,"y":709.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALPQcdcdgghhiiagggattfrv","x":-784.95,"y":-154.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzwAQacceeggiiibkgjjjjrvv","x":-797.83,"y":58.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLzAQcceegghhghaimaacgco","x":-310.47,"y":737.3,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzMQccbeehhiiidefwcmupuv","x":523.52,"y":604.92,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAMLMcccbdefghhdefalgkif","x":295.6,"y":743.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbccfeeghiialflsvvouv","x":-502.97,"y":622.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALMQbcddhghhiiacccaxdgob","x":-790.52,"y":-122.77,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLPAvPQccdcdffkijkkjivbgffttevvv","x":799.93,"y":-10.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAPzLAkacceefgihjjbkgjjmbxbmb","x":-61.57,"y":-797.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLALAQbcddghghiiagggaaagbg","x":-795.97,"y":-80.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkceeefdghijjaiamacdfjlc","x":151.8,"y":-785.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLLQkadeffgggbhaggbbb","x":570.4,"y":560.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALMkccbeegggdecrrvjj","x":410.78,"y":686.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQcbdddfghghaffffqqff","x":141.26,"y":787.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLPQcbdfhgfghhafaagggfg","x":-178.02,"y":779.94,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfatpib","x":-799.84,"y":-16.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAAwMMccdecffghijkklvlvlftvvpef","x":748.23,"y":-283.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefhihibjkgghoubv","x":-662.0,"y":449.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooiqc","x":-574.15,"y":-557.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecvicjdgb","x":-757.29,"y":257.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQzPPacedefghiibghhbdcjib","x":-167.55,"y":-782.26,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAPLLAkbcbeegghijjlefvvvcvstb","x":-93.56,"y":-794.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAPQbcefghighiagtlhiigff","x":-746.32,"y":-288.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLMMMLMcaceeefghijkkbbhbbgalvbpb","x":798.85,"y":-42.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALMMkcddcffhijjjlvnvnbbaaob","x":265.49,"y":-754.66,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLALAPcbccdffhhhmagcaaede","x":344.69,"y":721.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltsfwlvb","x":-701.15,"y":-385.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLLQcbcedghiiilbvdcbeeff","x":-270.54,"y":-752.87,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLPQPcbdggfjghikjkafaffqffwpfb","x":791.33,"y":-117.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcddefffaffmpff","x":744.37,"y":293.1,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcdceeffaovauob","x":748.23,"y":283.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLLQacbeeghiiibnnbbbddcc","x":-551.3,"y":579.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkcdcdffghijjavvvvvlfnpb","x":130.7,"y":-789.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvAQbccdeghiiimaggjbaacb","x":-603.16,"y":525.54,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcccgggfhfhigmaicmoc","x":-40.17,"y":798.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzALQccbefehihidecvicctgb","x":-750.11,"y":278.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcddefffaffqqff","x":740.38,"y":303.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcefehihittgnlgcigc","x":-359.13,"y":714.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvPQacceeghihibkgjjjuubb","x":-623.79,"y":500.88,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefhihibkgjjmopbb","x":-667.95,"y":440.27,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAAQacfffhgiiibggjkanagn","x":-775.55,"y":-196.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLLQcaceeedbjhtcb","x":796.48,"y":74.91,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLwQQcbddgfijjhkkkafvjgmiafggf","x":792.83,"y":-106.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLMzPQcbdeffgkhjkjkafatgkefbbbb","x":797.42,"y":-64.24,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfaddaf","x":-799.98,"y":5.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMLAkbceeffiiijjavaaavuuvuv","x":325.23,"y":-730.91,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPccgggefhiiigmaiooplf","x":-559.02,"y":-572.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLALQbbcefefatgkefv","x":794.19,"y":96.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLMzQbcdefffaeeddaa","x":652.84,"y":462.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALPMkbedefighjijalgavlfbdvf","x":295.6,"y":-743.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAPLMLPccbbeefghjkjkidbbbgbijmog","x":736.25,"y":-312.94,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALPMkbedefighjijalgavtfklvb","x":305.53,"y":-739.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPMPccbeegghiidecrffbdec","x":-786.95,"y":143.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPLzQbccdeghiiimaogbfaagf","x":-588.87,"y":541.51,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbccfeeghiialflsvvbub","x":-494.59,"y":628.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAwMwAkbcbdefghijjlefuogmfbdf","x":-29.47,"y":-799.46,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLAwMwAkbcbdefghijjdlcdcgivopb","x":-40.17,"y":-798.99,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabnbxf","x":652.84,"y":-462.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLAQvQcbcefgfhgjkjkagtlhgagjdgb","x":768.55,"y":-222.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLAMkbdeedgggmniioddx","x":382.86,"y":702.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLPPcdcdefghiiavvvtggilv","x":-229.82,"y":-766.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLQMcccgggefhhigmaiobub","x":-209.21,"y":772.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMAzQaceeefghiibghbbjooik","x":-460.2,"y":-654.38,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPLQccbeeghiiidefwcgtagg","x":-784.95,"y":154.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLPQPcbdggfjghikjkafaffqffkifo","x":787.9,"y":-138.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAMQbddgfhigiiafvhoaagog","x":-753.77,"y":-268.01,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLQPcbeegffghhalalllgag","x":-219.54,"y":769.29,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLAMkcdeeffggaoaatrwf","x":585.23,"y":545.45,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALzPQbcceegihhimigrcoiivv","x":-535.57,"y":594.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLAMkbdeedgggmniioima","x":373.42,"y":707.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefhihibkgjjmoubv","x":-673.79,"y":431.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvPQbccdehihiimaggjadddf","x":-643.41,"y":475.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLMALPMcacddffhjiikkbgabggjtlcdf","x":798.21,"y":-53.55,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzwAQacceeghiiibkgjjraajr","x":-798.55,"y":48.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbccfeeghiialflbgvstb","x":-486.12,"y":635.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMLPkbcddffhijijlgjwjjjttcc","x":464.57,"y":651.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLALQcbdddfhgghaffffaaff","x":130.7,"y":789.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvPQbccdehihiimagoradddf","x":-649.72,"y":466.75,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzLQacceefihhibkgjjmuvbb","x":-685.1,"y":413.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwzQcaccdefhhhbkgmbbgns","x":214.38,"y":770.74,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAMQbddgfhigiiafvdoaagog","x":-757.29,"y":-257.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzPPacceefhgiibjkgghnbpf","x":-690.58,"y":403.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltsfbevc","x":-711.22,"y":-366.29,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQzLQacedefhihibjmhcdkefv","x":-188.45,"y":-777.49,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzzQacceefhihibkgjjmsdbv","x":-706.25,"y":375.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPvPQacceegihhibjkgggaabb","x":-630.45,"y":492.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAMwAkcddcegfhijjlvnvoubfcdb","x":363.91,"y":-712.44,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLLAPAkbcefghigijjagtlhamgkug","x":455.81,"y":-657.45,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLALQbccfeefaefdfff","x":789.68,"y":128.06,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbcddfffajssvvw","x":774.22,"y":201.44,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLAPLkbbceeggghtgvvjrv","x":592.48,"y":537.56,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQccddfffabbbcfc","x":438.03,"y":669.42,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLAMPabcdeffbrwpemc","x":785.97,"y":149.17,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLQLMccdcdefghhavvvtgkif","x":-290.61,"y":745.35,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbcfegghghavatafavv","x":45.53,"y":798.7,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAPLMvQccbbeefghkjjkidbbbgbixnob","x":740.38,"y":-303.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLPQPcbdggfjghikjkafaffqffkxfb","x":789.68,"y":-128.06,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabrbtf","x":664.99,"y":-444.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMAQbdeehfgihiafltbfwlgb","x":-720.78,"y":-347.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbeeefffmaamppu","x":446.96,"y":663.5,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLMvQQacddhigiihbgabtiiooo","x":-406.17,"y":-689.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQacffhiihihbgggaahhhh","x":-690.58,"y":-403.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALPkbcbefgfgdlcbuucc","x":620.42,"y":505.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAALPkcdcdffijjijdvkgggalllv","x":507.13,"y":618.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabnbtv","x":646.58,"y":-471.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLALPPcccbfefhhhdecdfddda","x":315.41,"y":735.2,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbeddfffahgghbb","x":759.0,"y":252.81,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcdeefffaoaatlr","x":731.99,"y":322.78,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLLMMQcbdfgfgjikijkafaggghwxfgb","x":781.69,"y":-170.17,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLLQcacddeebjtmcf","x":798.21,"y":53.55,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAALPkbcddffijjijagbgbbauuuv","x":-8.04,"y":-799.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwPkceeeffgijijddeaeefkibo","x":214.38,"y":-770.74,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLMzPQcbdeffgjhkjkkafatgkafbfbc","x":796.48,"y":-74.91,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLAwQLMccedeehggijkklaftalkfvouv","x":762.32,"y":-242.62,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzzAQccbeehhihidecrfatuib","x":-799.55,"y":-26.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLALPLMkbcbegfgijijlefvatcomgo","x":-125.41,"y":-790.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLMzQbcdefffaeettaa","x":646.58,"y":471.09,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLAvQQcdeefhihiiuvauofpopp","x":-778.11,"y":-185.84,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMAzAkaceeefghijjbghbbjoohub","x":507.13,"y":-618.73,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdgefghhhafaafffff","x":-157.06,"y":784.43,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLPQcbddgfhgghafbccbccf","x":-167.55,"y":782.26,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQccedfffanenlnn","x":755.55,"y":262.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLAPLQacedfghihibjmhidttgg","x":-780.53,"y":-175.4,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcfeehihimagiwocigc","x":-387.56,"y":699.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzMzQacceeghiiibjkggoaaog","x":-782.81,"y":164.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLAzMkbbcdegggatvggsbk","x":401.55,"y":691.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"fLLQccceddeigijco","x":795.41,"y":85.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQaddefffbhahbgg","x":779.34,"y":180.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALMkbcbfegggdlcavabv","x":633.73,"y":488.25,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbeeedfghijjmaamoapvblc","x":24.11,"y":-799.64,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALzMQbbceehihiiatgrvaeeec","x":-519.46,"y":608.41,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAPPbccfeeghiialflbgvbub","x":-468.93,"y":648.16,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLAPQbcefgihghiagtlhttgff","x":-742.39,"y":-298.08,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLPwQccefeeghghaaaaaccvv","x":-250.27,"y":759.85,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLMPQbdeehigghiafltslvfvv","x":-662.0,"y":-449.18,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQLPPcdcdefghiiavvvtggiub","x":-198.85,"y":-774.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLPzAQcdcdfghhiilvvgfltfhg","x":-300.57,"y":-741.39,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLQzLQacedefhihibjmhcdwefv","x":-178.02,"y":-779.94,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"eLMkbbdddadelq","x":799.93,"y":10.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLALLQLMccbbfhhhgijkkdmcaqqovvopb","x":718.43,"y":-351.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPMPccbeegghiidecrfssdlv","x":-788.81,"y":133.34,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLLLQkbcfeffggacxlxrcv","x":562.84,"y":568.52,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLPQccdefefigveeoo","x":676.67,"y":426.76,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"hLALPkbcbefgfgelbbuucc","x":613.6,"y":513.32,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLPAwAkcefeefgihjjaaaaaabrbeb","x":658.97,"y":-453.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLMMLAkbcdfegghijjavvlllffwlb","x":570.4,"y":-560.93,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwAkbcddffgihjjmvfvsslfbeb","x":481.86,"y":638.6,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAwwQcaccdefhhhbkghffokw","x":234.95,"y":764.72,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLLAwQkceedgghijijlalglvtccvv","x":464.57,"y":-651.28,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALAMPbccdffghiimagcaavilf","x":-442.5,"y":666.48,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLALQbccefefaefcdfc","x":791.33,"y":117.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLALQbcceeffaeffcdc","x":792.83,"y":106.86,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLLQQbcfihifhihacxcgcccoc","x":-738.33,"y":-308.0,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbbcdefhihiatvfglcioc","x":-330.11,"y":728.71,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLPQcceeghhghgaaauavvbv","x":-198.85,"y":774.89,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLALPLAkbcbefgghijjelbbpagovub","x":-135.99,"y":-788.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLLLQPPbdeeefhgiiafaaafhftb","x":-623.79,"y":-500.88,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLMQcbdfghfgghafaafffff","x":-146.53,"y":786.47,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLAMLMcccbdefghhdecaigvtv","x":305.53,"y":739.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAAwMkceeeffgijijddeaeefnibg","x":162.31,"y":-783.36,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLALALQbccfeeihhillflsvtfvf","x":-433.54,"y":672.34,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAPzPPacceefhgiibkgjjmcbef","x":-695.93,"y":394.57,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeeefffauaaapp","x":698.55,"y":389.9,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLAMPabcdeffbrwpeic","x":787.9,"y":138.63,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLAPLMLMcbcbeegfhijkklefvvvcdfctb","x":723.08,"y":-342.27,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQaddefffbeaebff","x":781.69,"y":170.17,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"iLLLAQcbeeffhhghalallwngw","x":-8.04,"y":799.96,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"lLLLMMzQcaeeffggijkjkbdpggcggllcc","x":794.19,"y":-96.22,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLAALPkccddffhjiijdgrjjjjhhff","x":515.37,"y":611.88,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAMLPPccbdefghiidecaigglpb","x":-543.48,"y":587.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"kLLALPMkbedefighjijalgaflfklfb","x":275.57,"y":-751.04,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLMQbeeefffaeaalqq","x":713.65,"y":361.52,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbcddfffacccgog","x":776.85,"y":191.05,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbcdefffabblibb","x":771.45,"y":211.8,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQcdeefffaoaattr","x":727.6,"y":332.55,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzPPPccbeefghiidecjbvvpqb","x":-796.97,"y":69.58,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"gLLAQbcdefffabfaafb","x":768.55,"y":222.11,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false},{"id":"jLAzwPQacceehiihibkgjjauuug","x":-799.55,"y":26.79,"genus":null,"status":"UNKNOWN","degree":1,"hub":false,"secondary_hub":false}],"edges":[{"source":"6_1","target":"6_1","types":[5,6]},{"source":"6_1","target":"eLMkbcdddaeexx","types":[0]},{"source":"6_1","target":"L204001","types":[0]},{"source":"6_1","target":"eLAkbbcdddecdb","types":[0]},{"source":"6_1","target":"eLAkbbcddpucdb","types":[0]},{"source":"6_1","target":"eLAkbccddeebdc","types":[0]},{"source":"6_1","target":"Unknot","types":[5]},{"source":"6_1","target":"dLQacccbjkg","types":[0]},{"source":"6_1","target":"fLAMcbcbdeedlcdic","types":[0]},{"source":"6_1","target":"eLAkbbcddadbef","types":[0]},{"source":"6_1","target":"eLAkccbdddecln","types":[0]},{"source":"6_1","target":"L207007","types":[0]},{"source":"6_1","target":"eLMkbbdddadett","types":[0]},{"source":"6_1","target":"kLLLwAQkbcgfhigijjjaoaaoaoaaao","types":[2]},{"source":"6_1","target":"iLAzPMcccbeefghhdecvcvbub","types":[2]},{"source":"6_1","target":"iLLLAQcbdeeehgghafaaalvfv","types":[2]},{"source":"6_1","target":"7^2_3","types":[0]},{"source":"6_1","target":"fLAMcbcbdeedlcdmc","types":[0]},{"source":"6_1","target":"eLAkbbcddadbdb","types":[0]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafdfuv","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvelc","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaioodlc","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafdfmo","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabjbic","types":[2]},{"source":"6_1","target":"fLAMcbcbdeedlcpio","types":[0]},{"source":"6_1","target":"jLLPALQccdefehihiabbhubruvf","types":[2]},{"source":"6_1","target":"iLLLMQcbdfegfghhafaabfccf","types":[2]},{"source":"4_1","target":"6_1","types":[5]},{"source":"6_1","target":"fLLQcbcceeemcoheu","types":[0]},{"source":"6_1","target":"jLALPLQbbceeghihiatgrvfllgg","types":[2]},{"source":"6_1","target":"gLLPQccdefefabgaabg","types":[0]},{"source":"6_1","target":"kLLAALMkcdcdefhijjjavgfvvoaavo","types":[2]},{"source":"6_1","target":"fLLQcaceeedbgtmfb","types":[0]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjooptf","types":[2]},{"source":"6_1","target":"lLAPLMLPccbbeefghjkjkidbbbgbljivg","types":[2]},{"source":"6_1","target":"lLAwMMLMccbbdegfhijkkdmcpvlftgnlf","types":[2]},{"source":"6_1","target":"lLLAMMLMccddcegfhijkktvnvoubpvwuv","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibekgc","types":[2]},{"source":"6_1","target":"iLAwPPcccbdfghhhdecabaacb","types":[2]},{"source":"6_1","target":"kLLAPLAkcbeeggghijjdjapanvvopb","types":[0]},{"source":"6_1","target":"jLLMALQaceeefhihibghbbjcmoc","types":[2]},{"source":"6_1","target":"iLLLAQcbdeeeghghafaaakefv","types":[2]},{"source":"6_1","target":"iLALPPcbccdgfhhhmagcdadaa","types":[2]},{"source":"6_1","target":"gLALQccbffefdecimca","types":[2]},{"source":"6_1","target":"jLLPALQccdefeihhiabbhubtfvf","types":[2]},{"source":"6_1","target":"kLLLwQAkcefgegghijjattlvvvvrtb","types":[2]},{"source":"6_1","target":"jLALAPPacceefghiibkgjjevrtb","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltbfklgb","types":[2]},{"source":"6_1","target":"hLALMkbcbefgggdlcgaagb","types":[0]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjovub","types":[2]},{"source":"6_1","target":"kLLMMwMkceceffgijijaavaavoktov","types":[2]},{"source":"6_1","target":"iLLLPQcceefhhgghaaadavvvr","types":[2]},{"source":"6_1","target":"iLLLAQcbdeeehgghafaaatvfv","types":[2]},{"source":"6_1","target":"kLLPAzAkccdefeghijjabbhubvvlec","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafiftb","types":[2]},{"source":"6_1","target":"7^2_1","types":[0]},{"source":"6_1","target":"iLLLAQcbefefhghhpaaaawccc","types":[2]},{"source":"6_1","target":"jLAzPLQccbeeghiiidefwcbmasw","types":[0]},{"source":"6_1","target":"kLLAAwAkccddffghijjdgrjjjhfbec","types":[0]},{"source":"6_1","target":"jLAzALQccbefehihidecvicjigc","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvldf","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabnbmg","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvpdb","types":[2]},{"source":"6_1","target":"iLALAMcccbefeghhdecjpfilf","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfndf","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafdfpb","types":[2]},{"source":"6_1","target":"kLLMMwMkceceffgijijaavaavokiog","types":[2]},{"source":"6_1","target":"lLLAMwPMcceecffghjikklllvagbbdblf","types":[2]},{"source":"6_1","target":"lLLAMMLMccddcegfhijkkuobbvibuorpo","types":[2]},{"source":"6_1","target":"jLLMALQaceeefihhibghbbjpwoc","types":[2]},{"source":"6_1","target":"lLAPLMLPcbcbeefghjkjkdlcbbgbikiog","types":[2]},{"source":"6_1","target":"kLLPAzAkccdefeghijjabbhubvvldf","types":[2]},{"source":"6_1","target":"kLLAAwAkcddcffghijjlgfvggtfbdf","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooiec","types":[2]},{"source":"6_1","target":"hLALPkbbcefggghtgvxxcc","types":[0]},{"source":"6_1","target":"gLLPQccdefefabbhabg","types":[0]},{"source":"6_1","target":"gLLAQcdeefffacaaiao","types":[0]},{"source":"6_1","target":"gLLPQccdfeefabbppoo","types":[0]},{"source":"6_1","target":"jLLPAPPccdefeghiiabbhubvbub","types":[2]},{"source":"6_1","target":"jLLLAMQbegeehghiiaeaeebfbpf","types":[2]},{"source":"6_1","target":"jLLPAPPacefffghiibgmjjkcbec","types":[2]},{"source":"6_1","target":"kLLAAwAkadddffgihjjneapjjmfbdc","types":[0]},{"source":"6_1","target":"jLLMALQaceeefhihibghbbjcioc","types":[2]},{"source":"6_1","target":"fLAPcabceeebrwccf","types":[0]},{"source":"6_1","target":"iLALPMcccbfefghhdecifdgmo","types":[2]},{"source":"6_1","target":"jLALAPPbccfeeghiialflbgvopb","types":[2]},{"source":"6_1","target":"jLAzALQacceefihhibkgjjhlvfv","types":[2]},{"source":"6_1","target":"iLAzPMcccbeefghhdecjbvrtb","types":[2]},{"source":"6_1","target":"lLLLLAMQcbdefgfjkiijkafegfbdlvfbv","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabnbig","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabnbqv","types":[2]},{"source":"6_1","target":"lLLLLMMQcbdfgfgjkiijkafaggghljfgv","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaioohdo","types":[2]},{"source":"6_1","target":"iLAzPMcccbeefghhdecjbvbpb","types":[2]},{"source":"6_1","target":"iLLLAQcbdeeffhhhafaaafeed","types":[2]},{"source":"6_1","target":"jLLQLLQcbcedghiiitbvdcbeeff","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooidf","types":[2]},{"source":"6_1","target":"kLAPvLQkabceeihijijbwvbbuuucvv","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfkhv","types":[2]},{"source":"6_1","target":"iLLLAQcccggghffhigmaipnoc","types":[2]},{"source":"6_1","target":"kLLAAwPkceeeffgijijddeaeefwpbb","types":[2]},{"source":"6_1","target":"kLLAAwAkbeeedfghijjmaamoapvrdb","types":[2]},{"source":"6_1","target":"jLLQLLQcbcdeghiiiibbotbeeff","types":[2]},{"source":"6_1","target":"iLAzPMcccbeefghhdecvcvrtb","types":[2]},{"source":"6_1","target":"jLAPLLQbccdeghihimagorceegg","types":[2]},{"source":"6_1","target":"fLAMcccbdeedecieb","types":[0]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjowmb","types":[2]},{"source":"6_1","target":"jLLMALQaceeefihhibghbbjpnoc","types":[2]},{"source":"6_1","target":"gLLPQccdfeefdoflloo","types":[0]},{"source":"6_1","target":"hLLLQkacfdefggbggbggbg","types":[0]},{"source":"6_1","target":"jLLLAMQacffgfihhibgggjkmmcc","types":[2]},{"source":"6_1","target":"gLLAQcdcdfffavvvcjs","types":[0]},{"source":"6_1","target":"jLLQLPPcdcdefghiiavvvtggitv","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooiub","types":[2]},{"source":"6_1","target":"jLAzwPQacceegihhibjkgggttff","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibusgb","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecjibcqgb","types":[2]},{"source":"6_1","target":"iLAzPMcccbeefghhdecvcvbpb","types":[2]},{"source":"6_1","target":"jLALzAQbbceehgiiipujwcabafb","types":[2]},{"source":"6_1","target":"iLLLMQcadgfffghhbhpgsccig","types":[2]},{"source":"6_1","target":"gLAMPabcdeffbrwplmg","types":[0]},{"source":"6_1","target":"jLLALMQbcddhghhiiacccaxdgkb","types":[2]},{"source":"6_1","target":"jLLALMQbcddhhgihiacccaddkfb","types":[2]},{"source":"6_1","target":"iLLLMQcbdfefgghhafatgocjf","types":[2]},{"source":"6_1","target":"jLALALQbbcefeihhiatgnlglsgc","types":[2]},{"source":"6_1","target":"kLLAALMkcddcefhijjjlvnvoncaacb","types":[2]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjonmb","types":[2]},{"source":"6_1","target":"kLLLwQAkcefgegghijjauupbvvvstb","types":[2]},{"source":"6_1","target":"jLLPALQacefffhihibgmjjkoico","types":[2]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjobub","types":[2]},{"source":"6_1","target":"jLLMMLQaceeegihhibghbbhjjoo","types":[2]},{"source":"6_1","target":"lLLLLAQPcbdefgfjhikjkafhgjbifwlob","types":[2]},{"source":"6_1","target":"fLLQcaceeedbbupkb","types":[0]},{"source":"6_1","target":"jLLLMPQacffgiihhibgggsahhho","types":[2]},{"source":"6_1","target":"iLAwMPcbcbdefhhhdlcpoownf","types":[2]},{"source":"6_1","target":"jLAzALQacceefihhibjkggttvfv","types":[2]},{"source":"6_1","target":"jLLALAQcceefghhiiabaabcbfhb","types":[2]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjobpb","types":[2]},{"source":"6_1","target":"jLAPLLQbccdeghihimaggjceegg","types":[2]},{"source":"6_1","target":"iLLLMQcbdfegfghhafatgggvf","types":[2]},{"source":"6_1","target":"iLLLMQcbdfggfhghafatggvgf","types":[2]},{"source":"6_1","target":"jLLPALQccdefeihhiabbhublfvf","types":[2]},{"source":"6_1","target":"jLAzALQacceefihhibjkggtlvfv","types":[2]},{"source":"6_1","target":"jLLPwAQcdcdfhghiitvvgfdefxc","types":[2]},{"source":"6_1","target":"jLAPzLQacceefhihibjkgghopbb","types":[2]},{"source":"6_1","target":"jLALALQbccfeehihialflbgruvf","types":[2]},{"source":"6_1","target":"jLAzALQacceefihhibkgjjhtvfv","types":[2]},{"source":"6_1","target":"jLAzAzQacceefhihibkgjjhglff","types":[2]},{"source":"6_1","target":"iLLMLQccecefhgghaavavvvvv","types":[2]},{"source":"6_1","target":"kLLAMwAkcdcdffghijjavvvvvxcjlv","types":[2]},{"source":"6_1","target":"jLLPAPPccdefeghiiabbhubvrtb","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabcbtb","types":[2]},{"source":"6_1","target":"kLLAAwAkbeeedfghijjmaamoapvbif","types":[2]},{"source":"6_1","target":"jLALALQbbcdfehihiadbbdccmgc","types":[2]},{"source":"6_1","target":"kLLMMwPkceceffgjiijaavaavodnoc","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfkmo","types":[2]},{"source":"6_1","target":"kLLAMwAkceceffgihjjaavaavbnbmg","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafdfhv","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecviccugf","types":[2]},{"source":"6_1","target":"kLLAAwMkceeeffgijijddeaeefntbv","types":[2]},{"source":"6_1","target":"kLLAAwAkbeeedfghijjmaamoapvrhf","types":[2]},{"source":"6_1","target":"jLLQLLQcbcedghiiipbodcbeeff","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibdsgf","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfjec","types":[2]},{"source":"6_1","target":"hLALMkbbcdegggttvfgonr","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfadeac","types":[2]},{"source":"6_1","target":"kLLQLLMkcbcedghiijjtbvdcbdebxc","types":[2]},{"source":"6_1","target":"hLALPkbcbefgfglefrxxoo","types":[0]},{"source":"6_1","target":"lLLLAQvQcbcefgfhgkjjkagtlhgagpsgb","types":[2]},{"source":"6_1","target":"jLALALQbccfeeihhialflbglfvf","types":[2]},{"source":"6_1","target":"jLLLAAQbddfghfiiiafbxgacagc","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjooxpb","types":[2]},{"source":"6_1","target":"iLLALQcbdddfhghhaffffeecc","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfeadef","types":[2]},{"source":"6_1","target":"kLLMLzQkbcdehgijhijabbdebppfff","types":[2]},{"source":"6_1","target":"jLAzzMQccbeehhiiidecrfeqtuf","types":[0]},{"source":"6_1","target":"jLAPLzQbccedghiiimaoscfaagf","types":[2]},{"source":"6_1","target":"kLLAAwAkbcddffghijjlvsvjjhfcef","types":[0]},{"source":"6_1","target":"iLLLMQcbdfegfhhhafaakfnnn","types":[2]},{"source":"6_1","target":"gLLPQccdfeefpovlloo","types":[0]},{"source":"6_1","target":"gLLAQbcdefffakfaafn","types":[0]},{"source":"6_1","target":"gLLMQbeeefffauaaaap","types":[0]},{"source":"6_1","target":"gLLMQbeefeffmaaqlqq","types":[0]},{"source":"6_1","target":"iLAzPMcccbeefghhdecjbvbub","types":[2]},{"source":"6_1","target":"jLAPzLQacceefihhibkgjjmpvbo","types":[2]},{"source":"6_1","target":"jLLPAPPccdefeghiiabbhubvbpb","types":[2]},{"source":"6_1","target":"iLLPzQccdcdfghhhtvvgfttvv","types":[2]},{"source":"6_1","target":"gLLAQceeefffddealmp","types":[0]},{"source":"6_1","target":"iLLLAQcccgggfhfhigmaicioc","types":[2]},{"source":"6_1","target":"iLLALQccdeeghghhavaavffff","types":[2]},{"source":"6_1","target":"iLLALQccdeehghghakaakffff","types":[2]},{"source":"6_1","target":"hLLAAkcdcdffggaooocgqo","types":[2]},{"source":"6_1","target":"gLLMQbeeefffahaadpd","types":[0]},{"source":"6_1","target":"kLLAvQAkbdeeiiighjjafttuulfbec","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltsfcevf","types":[2]},{"source":"6_1","target":"jLLALQPcdeefghhiiaoaaocogeg","types":[2]},{"source":"6_1","target":"jLLLAAQbddfghfiiiafbtgacagc","types":[2]},{"source":"6_1","target":"lLLAzQvQccdedehggjkjkaspbblbgruvf","types":[2]},{"source":"6_1","target":"jLLALAQcdcdgghhiiagggaaickg","types":[2]},{"source":"6_1","target":"gLLMQacdefffbgabggg","types":[0]},{"source":"6_1","target":"kLLAAvQkbcddffjiijjxcccvvalllf","types":[2]},{"source":"6_1","target":"iLAvPQcccbefgghhdecfdfwsv","types":[2]},{"source":"6_1","target":"fLAPcabceeebrwfcf","types":[0]},{"source":"6_1","target":"kLLAAwPkceeeffgijijddeaeefoxbb","types":[2]},{"source":"6_1","target":"kLLAPwAkceeeffghijjddeaeewvrdb","types":[2]},{"source":"6_1","target":"kLLMMwMkceceffgijijaavaavojiog","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfbif","types":[2]},{"source":"6_1","target":"kLLAAwPkceeeffgijijddeaeefolbb","types":[2]},{"source":"6_1","target":"kLLAMwAkcdcdffghijjavvvvvxcblc","types":[2]},{"source":"6_1","target":"jLALALQbbcdfehihieabbefcmgc","types":[2]},{"source":"6_1","target":"gLLAQbeddfffaeggpjj","types":[0]},{"source":"6_1","target":"kLLAAwMkceeeffgijijddeaeefnmbg","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooptf","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecvicjegf","types":[2]},{"source":"6_1","target":"kLLAPwAkceeeffghijjddeaeewvjub","types":[2]},{"source":"6_1","target":"kLLAAwPkceeeffgijijddeaeefkpbb","types":[2]},{"source":"6_1","target":"jLLQLPPcdcdefghiiavvvtggipo","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecjibjigc","types":[2]},{"source":"6_1","target":"kLLAMwAkceceffgihjjaavaavbjbdb","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfblc","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaioohub","types":[2]},{"source":"6_1","target":"kLLAAwMkceeeffgijijddeaeefnxbf","types":[2]},{"source":"6_1","target":"iLLPwQccefeehgghaaaaavvvv","types":[2]},{"source":"6_1","target":"kLLALPMkbeedfighjijaeacbdfcdfb","types":[2]},{"source":"6_1","target":"lLAwMMLMcbcbdefghijkkdlcpogmpvblc","types":[2]},{"source":"6_1","target":"jLAPvPQacceegihhibkgjjjmmbb","types":[2]},{"source":"6_1","target":"jLAvzQQccbeggiihidefcffwbow","types":[2]},{"source":"6_1","target":"jLALAPPbbcdefghiittvfglobpb","types":[2]},{"source":"6_1","target":"iLvAPQcaefghhgghbaacaabbd","types":[2]},{"source":"6_1","target":"kLLAPvQkcdecffhjiijtvlvfflggff","types":[2]},{"source":"6_1","target":"kLLALPMkbedefighjijalgaftfwlfb","types":[2]},{"source":"6_1","target":"jLLMAzQaceeefhihibghbbjgmog","types":[2]},{"source":"6_1","target":"iLAwwQcaccdefhhhbngtffwok","types":[2]},{"source":"6_1","target":"kLLAAwMkceeeffgijijddeaeefnlbf","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibqsgc","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfkio","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvlec","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibqkgc","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjoopdc","types":[2]},{"source":"6_1","target":"kLALPLPkbcbefggjiijelbbpagpwoc","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaioohlv","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjootib","types":[2]},{"source":"6_1","target":"lLAPLMLMcbcbeegfhijkklefvvvcdfwpb","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvpic","types":[2]},{"source":"6_1","target":"iLLLAQcaedfgghghbdagccpjc","types":[2]},{"source":"6_1","target":"jLLLMPQbdeehigghiafltblvfgv","types":[2]},{"source":"6_1","target":"jLAPzPPacceefhgiibkgjjmsbpf","types":[2]},{"source":"6_1","target":"iLLAzQccdeeghghharaaaufuu","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltbfcegf","types":[2]},{"source":"6_1","target":"iLAwMPcaccdefhhhbkgevvscr","types":[2]},{"source":"6_1","target":"jLLMAPPaceeefghiibghbbjovpo","types":[2]},{"source":"6_1","target":"iLLAMPcbdddfghhhafffnaanf","types":[2]},{"source":"6_1","target":"kLLAMwAkceceffgihjjaavaavbnbig","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabjbmc","types":[2]},{"source":"6_1","target":"iLLAAPccdecffhhhlvlvlfrsb","types":[0]},{"source":"6_1","target":"kLLQLLMkcbcdegihijjdbootbddcxc","types":[2]},{"source":"6_1","target":"jLLAALQceeefdhihiaiimacsuvf","types":[2]},{"source":"6_1","target":"kLLMMLAkbcdfegghijjavvltlffbdf","types":[2]},{"source":"6_1","target":"jLLLMPQaefghhhgiibdtjdaijac","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltsfbdvf","types":[2]},{"source":"6_1","target":"jLLMLAQbeeefghhiiaeaaejcvqf","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecjibcugf","types":[2]},{"source":"6_1","target":"jLLMMLQaceefghihibjmckdrrvv","types":[2]},{"source":"6_1","target":"kLLQLLMkcbcedghiijjlbvdcbdebxc","types":[2]},{"source":"6_1","target":"kLLPAzAkacefffgihjjbgmjjkciclf","types":[2]},{"source":"6_1","target":"hLALMkbbcdegggatvfgonr","types":[2]},{"source":"6_1","target":"kLLQLLMkcbcedghiijjpbodcbdebtc","types":[2]},{"source":"6_1","target":"jLLQLLQcbcdeghiiidbootbeeff","types":[2]},{"source":"6_1","target":"jLALALQbccfeeihhialflsvlfvf","types":[2]},{"source":"6_1","target":"jLLMAzQaceeefhihibghbbjgiog","types":[2]},{"source":"6_1","target":"jLLPALQacefffihhibgmjjkdrco","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjooixf","types":[2]},{"source":"6_1","target":"jLAzALQccbefeihhidecjibdkgf","types":[2]},{"source":"6_1","target":"kLAPLLAkbcbeegghijjtefvvvcvstb","types":[2]},{"source":"6_1","target":"kLAMzzAkccbdefghijjdecdipooiec","types":[2]},{"source":"6_1","target":"kLLMLPMkcceefighjijabapvpvstob","types":[2]},{"source":"6_1","target":"kLLLvQQkcefegghjiijaltvvvfvvvv","types":[2]},{"source":"6_1","target":"gLLMQbeefeffaeapxee","types":[0]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjoohpo","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafhfef","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjoompo","types":[2]},{"source":"6_1","target":"jLAPLLQbccdegihhimaggjciigg","types":[2]},{"source":"6_1","target":"jLALALQbccfeehihialflsvruvf","types":[2]},{"source":"6_1","target":"kLLQLLMkcbcdegihijjibbotbddcxc","types":[2]},{"source":"6_1","target":"jLAPLLQbccdegihhimagorciigg","types":[2]},{"source":"6_1","target":"jLLLAAQacfffhgiiibgkjkanagn","types":[2]},{"source":"6_1","target":"jLAzALQacceefhihibjkggtkefv","types":[2]},{"source":"6_1","target":"iLLLMQcbdfefgghhafaafffff","types":[2]},{"source":"6_1","target":"jLLALMQcdeefggiiiavaavgbdde","types":[2]},{"source":"6_1","target":"jLLALAQbcddgghhiiagggaaickg","types":[2]},{"source":"6_1","target":"lLLLAQvQcbddfggfhkjjkafbxcccalrcv","types":[2]},{"source":"6_1","target":"lLLAMMvQccddcegfhjkjktvnvoubmjqgb","types":[2]},{"source":"6_1","target":"jLLLMPQbdeehgighiafltbkefgv","types":[2]},{"source":"6_1","target":"lLLLMQLPcbcgefhfgjkjkavatccvcndbv","types":[2]},{"source":"6_1","target":"lLLPAvPQccdcdffijkikkdvogffqaafff","types":[2]},{"source":"6_1","target":"jLLQzPPacedefghiibjmhcdfklb","types":[2]},{"source":"6_1","target":"jLLLAAQbegeehghiiaeaeefcftc","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfeaeec","types":[2]},{"source":"6_1","target":"jLAzzMQccbeehhiiidefwcepxuf","types":[0]},{"source":"6_1","target":"kLLAMLPkbcddffijjijagcgooaaaao","types":[2]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvlpb","types":[2]},{"source":"6_1","target":"iLLvQQcceeghhgghaaaiavvvs","types":[2]},{"source":"6_1","target":"iLLALQcbcddghghhagggammmc","types":[2]},{"source":"6_1","target":"iLAwPPcccbdfghhhdecebaacb","types":[2]},{"source":"6_1","target":"hLLAMkbeeeffggmaampufo","types":[2]},{"source":"6_1","target":"jLLQLLQcbcedghiiiubbdcbeeff","types":[2]},{"source":"6_1","target":"jLAPvMQbccdehiihimaggjaaaac","types":[2]},{"source":"6_1","target":"jLALzPQbbceehiihiatgrvaaaaf","types":[2]},{"source":"6_1","target":"iLLMLQccecefghghaavavccvv","types":[2]},{"source":"6_1","target":"jLLLMPQbdeehigghiafltstvfvv","types":[2]},{"source":"6_1","target":"kLALPLAkbcbefgghijjdlcbpagonmb","types":[2]},{"source":"6_1","target":"lLLPAvPQccdcdffijkikkivbgffqaafff","types":[2]},{"source":"6_1","target":"kLAwMLAkabcdefhhijjbropoofomtv","types":[2]},{"source":"6_1","target":"kLLAMwAkceceffgihjjaavaavbcbuf","types":[2]},{"source":"6_1","target":"kLLAMwAkceceffgihjjaavaavbcbtb","types":[2]},{"source":"6_1","target":"lLLLLMMQcbdfgfgjkiijkafaggghivfgb","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafhfdb","types":[2]},{"source":"6_1","target":"iLLALQccdeeghghhafaafffff","types":[2]},{"source":"6_1","target":"iLLLMQcbdfefgghhafatgocog","types":[2]},{"source":"6_1","target":"jLLLLQQbdfgfgiihiafagggbscr","types":[2]},{"source":"6_1","target":"jLLLMPQbdeehgighiafltskefvv","types":[2]},{"source":"6_1","target":"iLLLMQcbdfegfghhafaabfcff","types":[2]},{"source":"6_1","target":"iLLLAQcbdeeffhhhafaaafded","types":[2]},{"source":"6_1","target":"kLLPAzAkacefffgihjjbgmjjkcdclv","types":[2]},{"source":"6_1","target":"jLLLwQQbddfgfhihiafbxccmmff","types":[2]},{"source":"6_1","target":"jLAPvAQbccdeghiiimagorbaacb","types":[2]},{"source":"6_1","target":"jLLPwAQcdcdfhghiilvvgfdefuc","types":[2]},{"source":"6_1","target":"iLAvPQcccbefghhhdecfdcbff","types":[2]},{"source":"6_1","target":"iLLPzQccdcdfghhhlvvgfttvv","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhhiidecrfeadef","types":[2]},{"source":"6_1","target":"hLAMLkccbdegggdecdigcv","types":[0]},{"source":"6_1","target":"jLALALQbbcefehihittgrlvcigc","types":[2]},{"source":"6_1","target":"jLLALPQcdcdgghhiiagggattfrv","types":[2]},{"source":"6_1","target":"jLAzwAQacceeggiiibkgjjjjrvv","types":[2]},{"source":"6_1","target":"iLLzAQcceegghhghaimaacgco","types":[2]},{"source":"6_1","target":"jLAzzMQccbeehhiiidefwcmupuv","types":[0]},{"source":"6_1","target":"iLAMLMcccbdefghhdefalgkif","types":[2]},{"source":"6_1","target":"jLALAPPbccfeeghiialflsvvouv","types":[2]},{"source":"6_1","target":"jLLALMQbcddhghhiiacccaxdgob","types":[2]},{"source":"6_1","target":"lLLPAvPQccdcdffkijkkjivbgffttevvv","types":[2]},{"source":"6_1","target":"kLAPzLAkacceefgihjjbkgjjmbxbmb","types":[2]},{"source":"6_1","target":"jLLALAQbcddghghiiagggaaagbg","types":[2]},{"source":"6_1","target":"kLLAAwAkceeefdghijjaiamacdfjlc","types":[2]},{"source":"6_1","target":"hLLLQkadeffgggbhaggbbb","types":[0]},{"source":"6_1","target":"hLALMkccbeegggdecrrvjj","types":[2]},{"source":"6_1","target":"iLLALQcbdddfghghaffffqqff","types":[2]},{"source":"6_1","target":"iLLLPQcbdfhgfghhafaagggfg","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfatpib","types":[2]},{"source":"6_1","target":"lLLAAwMMccdecffghijkklvlvlftvvpef","types":[2]},{"source":"6_1","target":"jLAPzLQacceefhihibjkgghoubv","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooiqc","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecvicjdgb","types":[2]},{"source":"6_1","target":"jLLQzPPacedefghiibghhbdcjib","types":[2]},{"source":"6_1","target":"kLAPLLAkbcbeegghijjlefvvvcvstb","types":[2]},{"source":"6_1","target":"jLLLAPQbcefghighiagtlhiigff","types":[2]},{"source":"6_1","target":"lLLMMMLMcaceeefghijkkbbhbbgalvbpb","types":[2]},{"source":"6_1","target":"kLLALMMkcddcffhijjjlvnvnbbaaob","types":[2]},{"source":"6_1","target":"iLALAPcbccdffhhhmagcaaede","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltsfwlvb","types":[2]},{"source":"6_1","target":"jLLQLLQcbcedghiiilbvdcbeeff","types":[2]},{"source":"6_1","target":"lLLLLPQPcbdggfjghikjkafaffqffwpfb","types":[2]},{"source":"6_1","target":"gLLAQcddefffaffmpff","types":[0]},{"source":"6_1","target":"gLLAQcdceeffaovauob","types":[0]},{"source":"6_1","target":"jLAPLLQacbeeghiiibnnbbbddcc","types":[2]},{"source":"6_1","target":"kLLAAwAkcdcdffghijjavvvvvlfnpb","types":[2]},{"source":"6_1","target":"jLAPvAQbccdeghiiimaggjbaacb","types":[2]},{"source":"6_1","target":"iLLLAQcccgggfhfhigmaicmoc","types":[2]},{"source":"6_1","target":"jLAzALQccbefehihidecvicctgb","types":[2]},{"source":"6_1","target":"gLLAQcddefffaffqqff","types":[0]},{"source":"6_1","target":"jLALALQbbcefehihittgnlgcigc","types":[2]},{"source":"6_1","target":"jLAPvPQacceeghihibkgjjjuubb","types":[2]},{"source":"6_1","target":"jLAPzLQacceefhihibkgjjmopbb","types":[2]},{"source":"6_1","target":"jLLLAAQacfffhgiiibggjkanagn","types":[2]},{"source":"6_1","target":"fLLQcaceeedbjhtcb","types":[0]},{"source":"6_1","target":"lLLLLwQQcbddgfijjhkkkafvjgmiafggf","types":[2]},{"source":"6_1","target":"lLLLMzPQcbdeffgkhjkjkafatgkefbbbb","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfaddaf","types":[2]},{"source":"6_1","target":"kLLAMLAkbceeffiiijjavaaavuuvuv","types":[2]},{"source":"6_1","target":"jLLLQPPccgggefhiiigmaiooplf","types":[2]},{"source":"6_1","target":"gLALQbbcefefatgkefv","types":[0]},{"source":"6_1","target":"gLMzQbcdefffaeeddaa","types":[0]},{"source":"6_1","target":"kLLALPMkbedefighjijalgavlfbdvf","types":[2]},{"source":"6_1","target":"lLAPLMLPccbbeefghjkjkidbbbgbijmog","types":[2]},{"source":"6_1","target":"kLLALPMkbedefighjijalgavtfklvb","types":[2]},{"source":"6_1","target":"jLAzPMPccbeegghiidecrffbdec","types":[2]},{"source":"6_1","target":"jLAPLzQbccdeghiiimaogbfaagf","types":[2]},{"source":"6_1","target":"jLALAPPbccfeeghiialflsvvbub","types":[2]},{"source":"6_1","target":"kLAwMwAkbcbdefghijjlefuogmfbdf","types":[2]},{"source":"6_1","target":"kLAwMwAkbcbdefghijjdlcdcgivopb","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabnbxf","types":[2]},{"source":"6_1","target":"lLLLAQvQcbcefgfhgjkjkagtlhgagjdgb","types":[2]},{"source":"6_1","target":"hLLAMkbdeedgggmniioddx","types":[2]},{"source":"6_1","target":"jLLQLPPcdcdefghiiavvvtggilv","types":[2]},{"source":"6_1","target":"iLLLQMcccgggefhhigmaiobub","types":[2]},{"source":"6_1","target":"jLLMAzQaceeefghiibghbbjooik","types":[2]},{"source":"6_1","target":"jLAzPLQccbeeghiiidefwcgtagg","types":[2]},{"source":"6_1","target":"lLLLLPQPcbdggfjghikjkafaffqffkifo","types":[2]},{"source":"6_1","target":"jLLLAMQbddgfhigiiafvhoaagog","types":[2]},{"source":"6_1","target":"iLLLQPcbeegffghhalalllgag","types":[2]},{"source":"6_1","target":"hLLAMkcdeeffggaoaatrwf","types":[0]},{"source":"6_1","target":"jLALzPQbcceegihhimigrcoiivv","types":[2]},{"source":"6_1","target":"hLLAMkbdeedgggmniioima","types":[2]},{"source":"6_1","target":"jLAPzLQacceefhihibkgjjmoubv","types":[2]},{"source":"6_1","target":"jLAPvPQbccdehihiimaggjadddf","types":[2]},{"source":"6_1","target":"lLLMALPMcacddffhjiikkbgabggjtlcdf","types":[2]},{"source":"6_1","target":"jLAzwAQacceeghiiibkgjjraajr","types":[2]},{"source":"6_1","target":"jLALAPPbccfeeghiialflbgvstb","types":[2]},{"source":"6_1","target":"kLLAMLPkbcddffhijijlgjwjjjttcc","types":[0]},{"source":"6_1","target":"iLLALQcbdddfhgghaffffaaff","types":[2]},{"source":"6_1","target":"jLAPvPQbccdehihiimagoradddf","types":[2]},{"source":"6_1","target":"jLAPzLQacceefihhibkgjjmuvbb","types":[2]},{"source":"6_1","target":"iLAwzQcaccdefhhhbkgmbbgns","types":[2]},{"source":"6_1","target":"jLLLAMQbddgfhigiiafvdoaagog","types":[2]},{"source":"6_1","target":"jLAPzPPacceefhgiibjkgghnbpf","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltsfbevc","types":[2]},{"source":"6_1","target":"jLLQzLQacedefhihibjmhcdkefv","types":[2]},{"source":"6_1","target":"jLAPzzQacceefhihibkgjjmsdbv","types":[2]},{"source":"6_1","target":"jLAPvPQacceegihhibjkgggaabb","types":[2]},{"source":"6_1","target":"kLLAMwAkcddcegfhijjlvnvoubfcdb","types":[2]},{"source":"6_1","target":"kLLLAPAkbcefghigijjagtlhamgkug","types":[2]},{"source":"6_1","target":"gLALQbccfeefaefdfff","types":[0]},{"source":"6_1","target":"gLLAQbcddfffajssvvw","types":[0]},{"source":"6_1","target":"hLAPLkbbceeggghtgvvjrv","types":[0]},{"source":"6_1","target":"gLLAQccddfffabbbcfc","types":[2]},{"source":"6_1","target":"gLAMPabcdeffbrwpemc","types":[0]},{"source":"6_1","target":"iLLQLMccdcdefghhavvvtgkif","types":[2]},{"source":"6_1","target":"iLLLAQcbcfegghghavatafavv","types":[2]},{"source":"6_1","target":"lLAPLMvQccbbeefghkjjkidbbbgbixnob","types":[2]},{"source":"6_1","target":"lLLLLPQPcbdggfjghikjkafaffqffkxfb","types":[2]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabrbtf","types":[2]},{"source":"6_1","target":"jLLLMAQbdeehfgihiafltbfwlgb","types":[2]},{"source":"6_1","target":"gLLAQbeeefffmaamppu","types":[2]},{"source":"6_1","target":"jLLMvQQacddhigiihbgabtiiooo","types":[2]},{"source":"6_1","target":"jLLLMPQacffhiihihbgggaahhhh","types":[2]},{"source":"6_1","target":"hLALPkbcbefgfgdlcbuucc","types":[0]},{"source":"6_1","target":"kLLAALPkcdcdffijjijdvkgggalllv","types":[0]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabnbtv","types":[2]},{"source":"6_1","target":"iLALPPcccbfefhhhdecdfddda","types":[2]},{"source":"6_1","target":"gLLAQbeddfffahgghbb","types":[0]},{"source":"6_1","target":"gLLAQcdeefffaoaatlr","types":[0]},{"source":"6_1","target":"lLLLLMMQcbdfgfgjikijkafaggghwxfgb","types":[2]},{"source":"6_1","target":"fLLQcacddeebjtmcf","types":[0]},{"source":"6_1","target":"kLLAALPkbcddffijjijagbgbbauuuv","types":[2]},{"source":"6_1","target":"kLLAAwPkceeeffgijijddeaeefkibo","types":[2]},{"source":"6_1","target":"lLLLMzPQcbdeffgjhkjkkafatgkafbfbc","types":[2]},{"source":"6_1","target":"lLLAwQLMccedeehggijkklaftalkfvouv","types":[2]},{"source":"6_1","target":"jLAzzAQccbeehhihidecrfatuib","types":[2]},{"source":"6_1","target":"kLALPLMkbcbegfgijijlefvatcomgo","types":[2]},{"source":"6_1","target":"gLMzQbcdefffaeettaa","types":[0]},{"source":"6_1","target":"jLLAvQQcdeefhihiiuvauofpopp","types":[2]},{"source":"6_1","target":"kLLMAzAkaceeefghijjbghbbjoohub","types":[2]},{"source":"6_1","target":"iLLLMQcbdgefghhhafaafffff","types":[2]},{"source":"6_1","target":"iLLLPQcbddgfhgghafbccbccf","types":[2]},{"source":"6_1","target":"gLLAQccedfffanenlnn","types":[0]},{"source":"6_1","target":"jLLAPLQacedfghihibjmhidttgg","types":[2]},{"source":"6_1","target":"jLALALQbbcfeehihimagiwocigc","types":[2]},{"source":"6_1","target":"jLAzMzQacceeghiiibjkggoaaog","types":[2]},{"source":"6_1","target":"hLAzMkbbcdegggatvggsbk","types":[2]},{"source":"6_1","target":"fLLQccceddeigijco","types":[0]},{"source":"6_1","target":"gLLAQaddefffbhahbgg","types":[0]},{"source":"6_1","target":"hLALMkbcbfegggdlcavabv","types":[0]},{"source":"6_1","target":"kLLAAwAkbeeedfghijjmaamoapvblc","types":[2]},{"source":"6_1","target":"jLALzMQbbceehihiiatgrvaeeec","types":[2]},{"source":"6_1","target":"jLALAPPbccfeeghiialflbgvbub","types":[2]},{"source":"6_1","target":"jLLLAPQbcefgihghiagtlhttgff","types":[2]},{"source":"6_1","target":"iLLPwQccefeeghghaaaaaccvv","types":[2]},{"source":"6_1","target":"jLLLMPQbdeehigghiafltslvfvv","types":[2]},{"source":"6_1","target":"jLLQLPPcdcdefghiiavvvtggiub","types":[2]},{"source":"6_1","target":"jLLPzAQcdcdfghhiilvvgfltfhg","types":[2]},{"source":"6_1","target":"jLLQzLQacedefhihibjmhcdwefv","types":[2]},{"source":"6_1","target":"eLMkbbdddadelq","types":[0]},{"source":"6_1","target":"lLALLQLMccbbfhhhgijkkdmcaqqovvopb","types":[2]},{"source":"6_1","target":"jLAzPMPccbeegghiidecrfssdlv","types":[2]},{"source":"6_1","target":"hLLLQkbcfeffggacxlxrcv","types":[0]},{"source":"6_1","target":"gLLPQccdefefigveeoo","types":[0]},{"source":"6_1","target":"hLALPkbcbefgfgelbbuucc","types":[0]},{"source":"6_1","target":"kLLPAwAkcefeefgihjjaaaaaabrbeb","types":[2]},{"source":"6_1","target":"kLLMMLAkbcdfegghijjavvlllffwlb","types":[2]},{"source":"6_1","target":"kLLAAwAkbcddffgihjjmvfvsslfbeb","types":[0]},{"source":"6_1","target":"iLAwwQcaccdefhhhbkghffokw","types":[2]},{"source":"6_1","target":"kLLLAwQkceedgghijijlalglvtccvv","types":[2]},{"source":"6_1","target":"jLALAMPbccdffghiimagcaavilf","types":[2]},{"source":"6_1","target":"gLALQbccefefaefcdfc","types":[0]},{"source":"6_1","target":"gLALQbcceeffaeffcdc","types":[0]},{"source":"6_1","target":"jLLLLQQbcfihifhihacxcgcccoc","types":[2]},{"source":"6_1","target":"jLALALQbbcdefhihiatvfglcioc","types":[2]},{"source":"6_1","target":"iLLLPQcceeghhghgaaauavvbv","types":[2]},{"source":"6_1","target":"kLALPLAkbcbefgghijjelbbpagovub","types":[2]},{"source":"6_1","target":"jLLLQPPbdeeefhgiiafaaafhftb","types":[2]},{"source":"6_1","target":"iLLLMQcbdfghfgghafaafffff","types":[2]},{"source":"6_1","target":"iLAMLMcccbdefghhdecaigvtv","types":[2]},{"source":"6_1","target":"kLLAAwMkceeeffgijijddeaeefnibg","types":[2]},{"source":"6_1","target":"jLALALQbccfeeihhillflsvtfvf","types":[2]},{"source":"6_1","target":"jLAPzPPacceefhgiibkgjjmcbef","types":[2]},{"source":"6_1","target":"gLLMQbeeefffauaaapp","types":[0]},{"source":"6_1","target":"gLAMPabcdeffbrwpeic","types":[0]},{"source":"6_1","target":"lLAPLMLMcbcbeegfhijkklefvvvcdfctb","types":[2]},{"source":"6_1","target":"gLLAQaddefffbeaebff","types":[0]},{"source":"6_1","target":"iLLLAQcbeeffhhghalallwngw","types":[2]},{"source":"6_1","target":"lLLLMMzQcaeeffggijkjkbdpggcggllcc","types":[2]},{"source":"6_1","target":"kLLAALPkccddffhjiijdgrjjjjhhff","types":[0]},{"source":"6_1","target":"jLAMLPPccbdefghiidecaigglpb","types":[2]},{"source":"6_1","target":"kLLALPMkbedefighjijalgaflfklfb","types":[2]},{"source":"6_1","target":"gLLMQbeeefffaeaalqq","types":[0]},{"source":"6_1","target":"gLLAQbcddfffacccgog","types":[0]},{"source":"6_1","target":"gLLAQbcdefffabblibb","types":[0]},{"source":"6_1","target":"gLLAQcdeefffaoaattr","types":[0]},{"source":"6_1","target":"jLAzPPPccbeefghiidecjbvvpqb","types":[2]},{"source":"6_1","target":"gLLAQbcdefffabfaafb","types":[0]},{"source":"6_1","target":"jLAzwPQacceehiihibkgjjauuug","types":[2]}]}</script>
+<script>
+(function () {
+  "use strict";
+
+  const DATA = JSON.parse(document.getElementById("graph-data").textContent);
+  const HUB = DATA.hub;
+
+  const STATUS_META = {
+    CONFIRMED_SLICE:     { label: "Confirmed slice",      varName: "--status-good" },
+    OPEN:                { label: "Open (uncertain)",     varName: "--status-warning" },
+    CONFIRMED_NOT_SLICE: { label: "Confirmed not slice",  varName: "--status-critical" },
+    UNKNOWN:             { label: "No genus data",        varName: "--status-unknown" },
+  };
+  const STATUS_ORDER = ["CONFIRMED_SLICE", "OPEN", "CONFIRMED_NOT_SLICE", "UNKNOWN"];
+
+  function surfaceLabel(s) {
+    const p = s.punctures;
+    const pw = ["", "once", "twice", "thrice", "4-", "5-", "6-"][p] || (p + "-");
+    const punctureWord = p <= 3 ? pw + "-punctured" : pw + "punctured";
+    if (s.orientable) {
+      if (s.genus === 0 && s.punctures === 2) return "Annulus (genuine concordance)";
+      if (s.genus === 0) return `${cap(punctureWord)} sphere` + (s.punctures === 3 ? " (pair of pants)" : "");
+      if (s.genus === 1) return `${cap(punctureWord)} torus`;
+      return `${cap(punctureWord)} genus-${s.genus} orientable surface`;
+    } else {
+      if (s.genus === 1) return `${cap(punctureWord)} projective plane`;
+      if (s.genus === 2) return `${cap(punctureWord)} Klein bottle`;
+      return `${cap(punctureWord)} non-orientable genus-${s.genus} surface`;
+    }
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  const CAT_VARS = ["--cat-1", "--cat-2", "--cat-3", "--cat-4", "--cat-5", "--cat-6", "--cat-7"];
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // ---- Index the data ----------------------------------------------------
+  const nodeById = new Map();
+  DATA.nodes.forEach(n => nodeById.set(n.id, n));
+
+  const edgesByNode = new Map();
+  DATA.nodes.forEach(n => edgesByNode.set(n.id, []));
+  DATA.edges.forEach(e => {
+    edgesByNode.get(e.source).push(e);
+    if (e.target !== e.source) edgesByNode.get(e.target).push(e);
+  });
+
+  const statusCounts = {};
+  STATUS_ORDER.forEach(s => statusCounts[s] = 0);
+  DATA.nodes.forEach(n => statusCounts[n.status]++);
+
+  const surfaceCounts = DATA.surface_types.map(() => 0);
+  DATA.edges.forEach(e => e.types.forEach(t => surfaceCounts[t]++));
+
+  document.getElementById("stat-nodes").textContent = DATA.nodes.length.toLocaleString();
+  document.getElementById("stat-edges").textContent = DATA.edges.length.toLocaleString();
+
+  // ---- Legends ------------------------------------------------------------
+  const activeSurfaceTypes = new Set(DATA.surface_types.map((_, i) => i));
+
+  const statusLegendEl = document.getElementById("status-legend");
+  STATUS_ORDER.forEach(status => {
+    const meta = STATUS_META[status];
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = `<span class="swatch dot" style="background:var(${meta.varName})"></span>
+      <span class="label">${meta.label}</span>
+      <span class="count">${statusCounts[status].toLocaleString()}</span>`;
+    statusLegendEl.appendChild(row);
+  });
+
+  const surfaceLegendEl = document.getElementById("surface-legend");
+  DATA.surface_types.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.dataset.idx = i;
+    row.innerHTML = `<span class="swatch" style="background:var(${CAT_VARS[i]})"></span>
+      <span class="label">${surfaceLabel(s)}</span>
+      <span class="count">${surfaceCounts[i].toLocaleString()}</span>`;
+    row.addEventListener("click", () => {
+      if (activeSurfaceTypes.has(i)) { activeSurfaceTypes.delete(i); row.classList.add("off"); }
+      else { activeSurfaceTypes.add(i); row.classList.remove("off"); }
+      requestDraw();
+    });
+    surfaceLegendEl.appendChild(row);
+  });
+
+  // ---- Canvas / camera ------------------------------------------------------
+  const canvasWrap = document.getElementById("canvas-wrap");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  let cam = { x: 0, y: 0, scale: 1 };
+  let declutter = false;
+  let showLabels = true;
+  let hoveredId = null;
+  let selectedId = null;
+
+  function resize() {
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvasWrap.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    requestDraw();
+  }
+  window.addEventListener("resize", resize);
+
+  function worldToScreen(x, y) {
+    const rect = canvas.getBoundingClientRect();
+    return [
+      rect.width / 2 + (x + cam.x) * cam.scale,
+      rect.height / 2 + (y + cam.y) * cam.scale,
+    ];
+  }
+  function screenToWorld(sx, sy) {
+    const rect = canvas.getBoundingClientRect();
+    return [
+      (sx - rect.width / 2) / cam.scale - cam.x,
+      (sy - rect.height / 2) / cam.scale - cam.y,
+    ];
+  }
+
+  function nodeRadius(n) {
+    if (n.hub) return 15;
+    if (n.secondary_hub) return 4 + Math.min(9, Math.log2(n.degree + 1) * 1.5);
+    return 2.6;
+  }
+
+  function resetView() {
+    cam = { x: 0, y: 0, scale: 0.4 };
+    requestDraw();
+  }
+
+  // ---- Draw ---------------------------------------------------------------
+  let drawQueued = false;
+  function requestDraw() {
+    if (drawQueued) return;
+    drawQueued = true;
+    requestAnimationFrame(() => { drawQueued = false; draw(); });
+  }
+
+  function edgeVisible(e) {
+    if (!e.types.some(t => activeSurfaceTypes.has(t))) return false;
+    if (declutter) {
+      const s = nodeById.get(e.source), t = nodeById.get(e.target);
+      const keep = n => n.hub || n.secondary_hub;
+      if (!(keep(s) && keep(t))) return false;
+    }
+    return true;
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const highlightSet = hoveredId || selectedId
+      ? new Set((edgesByNode.get(hoveredId || selectedId) || []).flatMap(e => [e.source, e.target]))
+      : null;
+
+    // Edges, batched by surface-type color for performance.
+    const catColor = CAT_VARS.map(cssVar);
+    for (let i = 0; i < DATA.surface_types.length; i++) {
+      if (!activeSurfaceTypes.has(i)) continue;
+      ctx.beginPath();
+      for (const e of DATA.edges) {
+        if (e.types[0] !== i) continue; // types[] is pre-sorted ascending; [0] is the primary type
+        if (!edgeVisible(e)) continue;
+        const s = nodeById.get(e.source), t = nodeById.get(e.target);
+        if (s === t) continue; // self-loop drawn separately
+        const dim = highlightSet && !(highlightSet.has(e.source) && highlightSet.has(e.target));
+        if (dim) continue;
+        const [x1, y1] = worldToScreen(s.x, s.y);
+        const [x2, y2] = worldToScreen(t.x, t.y);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.strokeStyle = catColor[i];
+      ctx.globalAlpha = highlightSet ? 0.9 : 0.5;
+      ctx.lineWidth = Math.max(0.5, Math.min(1.6, cam.scale * 0.9));
+      ctx.stroke();
+    }
+    // Faint pass of all non-highlighted edges when something is highlighted, and
+    // the base (non-hover) rendering when nothing is highlighted.
+    if (!highlightSet) {
+      // already drawn above at alpha .5
+    } else {
+      ctx.globalAlpha = 0.06;
+      for (let i = 0; i < DATA.surface_types.length; i++) {
+        if (!activeSurfaceTypes.has(i)) continue;
+        ctx.beginPath();
+        for (const e of DATA.edges) {
+          if (e.types[0] !== i) continue;
+          if (!edgeVisible(e)) continue;
+          const s = nodeById.get(e.source), t = nodeById.get(e.target);
+          if (s === t) continue;
+          if (highlightSet.has(e.source) && highlightSet.has(e.target)) continue;
+          const [x1, y1] = worldToScreen(s.x, s.y);
+          const [x2, y2] = worldToScreen(t.x, t.y);
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.strokeStyle = catColor[i];
+        ctx.lineWidth = Math.max(0.5, cam.scale * 0.7);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Nodes, batched by status color.
+    const statusColor = {};
+    STATUS_ORDER.forEach(s => statusColor[s] = cssVar(STATUS_META[s].varName));
+    const strokeCol = cssVar("--bg");
+
+    if (!declutter) {
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          const dim = highlightSet && !highlightSet.has(n.id) && n.id !== (hoveredId || selectedId);
+          if (dim) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          if (x < -20 || x > rect.width + 20 || y < -20 || y > rect.height + 20) continue;
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+    } else {
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (!(n.hub || n.secondary_hub)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+    }
+
+    // Dim overlay pass for non-highlighted nodes when something is hovered/selected
+    if (highlightSet) {
+      ctx.globalAlpha = 0.15;
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (declutter && !(n.hub || n.secondary_hub)) continue;
+          if (highlightSet.has(n.id)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          if (x < -20 || x > rect.width + 20 || y < -20 || y > rect.height + 20) continue;
+          const r = nodeRadius(n);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // redraw highlighted nodes crisp on top
+      for (const status of STATUS_ORDER) {
+        ctx.beginPath();
+        for (const n of DATA.nodes) {
+          if (n.status !== status || n.hub) continue;
+          if (!highlightSet.has(n.id)) continue;
+          const [x, y] = worldToScreen(n.x, n.y);
+          const r = nodeRadius(n) * 1.25;
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = statusColor[status];
+        ctx.fill();
+        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = strokeCol;
+        ctx.stroke();
+      }
+    }
+
+    // Stroke outlines for secondary hubs (visibility on any bg)
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeCol;
+    for (const n of DATA.nodes) {
+      if (!n.secondary_hub || n.hub) continue;
+      const [x, y] = worldToScreen(n.x, n.y);
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius(n), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Hub self-loop (its own annulus/pair-of-pants edges to itself), drawn as a small ring.
+    const hubNode = nodeById.get(HUB);
+    const [hx, hy] = worldToScreen(hubNode.x, hubNode.y);
+    const selfTypes = new Set();
+    (edgesByNode.get(HUB) || []).forEach(e => {
+      if (e.source === HUB && e.target === HUB) e.types.forEach(t => selfTypes.add(t));
+    });
+    let ringR = nodeRadius(hubNode) + 7;
+    for (const t of selfTypes) {
+      if (!activeSurfaceTypes.has(t)) continue;
+      ctx.beginPath();
+      ctx.arc(hx, hy, ringR, 0.3, Math.PI * 2 - 0.3);
+      ctx.strokeStyle = catColor[t];
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ringR += 4;
+    }
+    ctx.globalAlpha = 1;
+
+    // Hub marker: gold star ring, always on top.
+    ctx.beginPath();
+    ctx.arc(hx, hy, nodeRadius(hubNode), 0, Math.PI * 2);
+    ctx.fillStyle = statusColor.OPEN;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = strokeCol;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hx, hy, nodeRadius(hubNode) + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = statusColor.OPEN;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Labels: hub + secondary hubs (cheap: ~41 labels). Anchored radially
+    // outward from the hub -- nodes on the left half of the ring get their
+    // label drawn to the left (right-aligned), not always to the right,
+    // otherwise left-side labels point back toward the hub and pile up in
+    // the middle instead of radiating out into open space.
+    if (showLabels && cam.scale > 0.18) {
+      ctx.textBaseline = "middle";
+      const monoFace = cssVar("--font-mono").split(",")[0].trim() + ", monospace";
+      const bg = cssVar("--surface");
+      for (const n of DATA.nodes) {
+        if (!n.secondary_hub && !n.hub) continue;
+        const [x, y] = worldToScreen(n.x, n.y);
+        const r = nodeRadius(n);
+        const angle = n.hub ? 0 : Math.atan2(n.y, n.x);
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        const gap = r + 7;
+        const lx = x + cos * gap;
+        const ly = y + sin * gap * 0.6; // flatten vertical drift so rows stay readable
+        ctx.textAlign = cos >= 0 ? "left" : "right";
+        ctx.font = (n.hub ? "700 13px " : "600 11px ") + monoFace;
+
+        // Backdrop strip so labels stay legible over the edge traffic.
+        const w = ctx.measureText(n.id).width + 6;
+        ctx.fillStyle = bg;
+        ctx.globalAlpha = 0.78;
+        ctx.fillRect(cos >= 0 ? lx - 3 : lx - w + 3, ly - 7, w, 14);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = n.hub ? cssVar("--text-primary") : cssVar("--text-secondary");
+        ctx.fillText(n.id, lx, ly);
+      }
+      ctx.textAlign = "left";
+    }
+
+    ctx.restore();
+  }
+
+  // ---- Interaction: pan / zoom --------------------------------------------
+  let dragging = false, dragStart = null, camStart = null, dragged = false;
+  canvas.addEventListener("pointerdown", (ev) => {
+    dragging = true; dragged = false;
+    canvas.classList.add("dragging");
+    dragStart = [ev.clientX, ev.clientY];
+    camStart = { ...cam };
+    canvas.setPointerCapture(ev.pointerId);
+  });
+  canvas.addEventListener("pointermove", (ev) => {
+    if (dragging) {
+      const dx = ev.clientX - dragStart[0], dy = ev.clientY - dragStart[1];
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
+      cam.x = camStart.x + dx / cam.scale;
+      cam.y = camStart.y + dy / cam.scale;
+      requestDraw();
+      hideTooltip();
+      return;
+    }
+    handleHover(ev);
+  });
+  window.addEventListener("pointerup", () => { dragging = false; canvas.classList.remove("dragging"); });
+
+  canvas.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const [wx, wy] = screenToWorld(mx, my);
+    const factor = Math.exp(-ev.deltaY * 0.0016);
+    cam.scale = Math.min(14, Math.max(0.05, cam.scale * factor));
+    const [nx, ny] = screenToWorld(mx, my);
+    cam.x += nx - wx;
+    cam.y += ny - wy;
+    requestDraw();
+  }, { passive: false });
+
+  document.getElementById("zoom-in").addEventListener("click", () => { cam.scale = Math.min(14, cam.scale * 1.35); requestDraw(); });
+  document.getElementById("zoom-out").addEventListener("click", () => { cam.scale = Math.max(0.05, cam.scale / 1.35); requestDraw(); });
+  document.getElementById("zoom-reset").addEventListener("click", resetView);
+
+  function nearestNode(sx, sy) {
+    let best = null, bestD = Infinity;
+    for (const n of DATA.nodes) {
+      if (declutter && !(n.hub || n.secondary_hub)) continue;
+      const [x, y] = worldToScreen(n.x, n.y);
+      const d = (x - sx) ** 2 + (y - sy) ** 2;
+      const r = Math.max(nodeRadius(n), 6) + 3;
+      if (d < r * r && d < bestD) { bestD = d; best = n; }
+    }
+    return best;
+  }
+
+  const tooltip = document.getElementById("tooltip");
+  function handleHover(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+    const n = nearestNode(sx, sy);
+    if (n) {
+      hoveredId = n.id;
+      showTooltip(n, sx, sy, rect);
+      canvas.style.cursor = "pointer";
+    } else {
+      hoveredId = null;
+      hideTooltip();
+      canvas.style.cursor = "grab";
+    }
+    requestDraw();
+  }
+  canvas.addEventListener("pointerleave", () => { hoveredId = null; hideTooltip(); requestDraw(); });
+
+  canvas.addEventListener("click", (ev) => {
+    if (dragged) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+    const n = nearestNode(sx, sy);
+    selectedId = n ? n.id : null;
+    if (n) showSelected(n);
+    else document.getElementById("selected-content").innerHTML =
+      '<div class="selected-empty">Click any node in the graph, or search above, to inspect it.</div>';
+    requestDraw();
+  });
+
+  function genusText(g) {
+    if (g === null || g === undefined) return "no data";
+    if (Array.isArray(g)) return `open: ${g[0]}–${g[1]}`;
+    return String(g);
+  }
+
+  function showTooltip(n, sx, sy, rect) {
+    const meta = STATUS_META[n.status];
+    const es = edgesByNode.get(n.id) || [];
+    const typeSet = new Set();
+    es.forEach(e => e.types.forEach(t => typeSet.add(t)));
+    let html = `<div class="t-name">${n.id}${n.hub ? " &mdash; the open case" : ""}</div>
+      <div class="t-row"><span>4D slice genus</span><b>${genusText(n.genus)}</b></div>
+      <div class="t-row"><span>degree</span><b>${n.degree.toLocaleString()}</b></div>
+      <div class="t-row"><span>status</span><b>${meta.label}</b></div>`;
+    if (typeSet.size) {
+      html += '<div class="t-surfaces">';
+      [...typeSet].sort().forEach(t => {
+        html += `<div class="t-surface-row"><span class="swatch" style="background:${cssVar(CAT_VARS[t])}"></span>${surfaceLabel(DATA.surface_types[t])}</div>`;
+      });
+      html += "</div>";
+    }
+    tooltip.innerHTML = html;
+    tooltip.style.display = "block";
+    let left = sx + 16, top = sy + 12;
+    if (left + 300 > rect.width) left = sx - 316;
+    if (top + 200 > rect.height) top = sy - 200;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+  }
+  function hideTooltip() { tooltip.style.display = "none"; }
+
+  function showSelected(n) {
+    const meta = STATUS_META[n.status];
+    const es = edgesByNode.get(n.id) || [];
+    const neighborNames = new Map();
+    es.forEach(e => {
+      const other = e.source === n.id ? e.target : e.source;
+      if (!neighborNames.has(other)) neighborNames.set(other, []);
+      e.types.forEach(t => neighborNames.get(other).push(t));
+    });
+    let neighborsHtml = "";
+    const sortedNeighbors = [...neighborNames.keys()].sort((a, b) => (nodeById.get(b)?.degree || 0) - (nodeById.get(a)?.degree || 0)).slice(0, 60);
+    sortedNeighbors.forEach(nb => {
+      const nbNode = nodeById.get(nb);
+      const nbMeta = STATUS_META[nbNode.status];
+      neighborsHtml += `<div class="neighbor-row" data-id="${escAttr(nb)}">
+        <span class="swatch dot" style="background:var(${nbMeta.varName})"></span>${nb}</div>`;
+    });
+    if (neighborNames.size > 60) neighborsHtml += `<div class="neighbor-row" style="color:var(--text-muted)">&hellip; and ${neighborNames.size - 60} more</div>`;
+
+    document.getElementById("selected-content").innerHTML = `
+      <div class="selected-name">${n.id}</div>
+      <span class="status-chip" style="color:var(${meta.varName});border-color:color-mix(in oklab, var(${meta.varName}) 45%, transparent)">
+        <span class="dot" style="background:var(${meta.varName})"></span>${meta.label}
+      </span>
+      <div class="t-row" style="margin-top:10px"><span>4D slice genus</span><b>${genusText(n.genus)}</b></div>
+      <div class="t-row"><span>connections</span><b>${n.degree.toLocaleString()}</b></div>
+      <div class="neighbor-list">${neighborsHtml}</div>
+    `;
+    document.querySelectorAll(".neighbor-row[data-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.id;
+        focusNode(id);
+      });
+    });
+  }
+  function escAttr(s) { return s.replace(/"/g, "&quot;"); }
+
+  function focusNode(id) {
+    const n = nodeById.get(id);
+    if (!n) return;
+    selectedId = id;
+    cam.x = -n.x;
+    cam.y = -n.y;
+    cam.scale = Math.max(cam.scale, 1.4);
+    showSelected(n);
+    requestDraw();
+  }
+
+  // ---- Search ---------------------------------------------------------------
+  const searchInput = document.getElementById("search");
+  const searchResults = document.getElementById("search-results");
+  const allIds = DATA.nodes.map(n => n.id);
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { searchResults.classList.remove("open"); return; }
+    const hits = [];
+    for (const id of allIds) {
+      if (id.toLowerCase().includes(q)) {
+        hits.push(id);
+        if (hits.length >= 25) break;
+      }
+    }
+    hits.sort((a, b) => (nodeById.get(b).degree - nodeById.get(a).degree));
+    searchResults.innerHTML = hits.map(id => {
+      const n = nodeById.get(id);
+      const meta = STATUS_META[n.status];
+      return `<div class="search-hit" data-id="${escAttr(id)}">
+        <span style="display:flex;align-items:center;gap:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <span class="swatch dot" style="background:var(${meta.varName})"></span>${id}
+        </span>
+        <span class="status-chip" style="color:var(${meta.varName});border-color:color-mix(in oklab, var(${meta.varName}) 45%, transparent)">${n.degree}</span>
+      </div>`;
+    }).join("") || `<div class="search-hit" style="color:var(--text-muted)">No matches</div>`;
+    searchResults.classList.add("open");
+    searchResults.querySelectorAll(".search-hit[data-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        focusNode(el.dataset.id);
+        searchResults.classList.remove("open");
+        searchInput.value = el.dataset.id;
+      });
+    });
+  });
+  document.addEventListener("click", (ev) => {
+    if (!searchResults.contains(ev.target) && ev.target !== searchInput) searchResults.classList.remove("open");
+  });
+  searchInput.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { searchResults.classList.remove("open"); searchInput.blur(); }
+  });
+
+  // ---- Toggles ---------------------------------------------------------------
+  const declutterSwitch = document.getElementById("declutter-switch");
+  declutterSwitch.addEventListener("click", () => {
+    declutter = !declutter;
+    declutterSwitch.classList.toggle("on", declutter);
+    requestDraw();
+  });
+  const labelsSwitch = document.getElementById("labels-switch");
+  labelsSwitch.addEventListener("click", () => {
+    showLabels = !showLabels;
+    labelsSwitch.classList.toggle("on", showLabels);
+    requestDraw();
+  });
+
+  // ---- Theme ---------------------------------------------------------------
+  const themeBtn = document.getElementById("theme-toggle");
+  const themeOrder = ["auto", "dark", "light"];
+  let themeIdx = 0;
+  themeBtn.addEventListener("click", () => {
+    themeIdx = (themeIdx + 1) % themeOrder.length;
+    const mode = themeOrder[themeIdx];
+    if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+    themeBtn.textContent = "Theme: " + mode;
+    requestDraw();
+  });
+
+  // ---- Boot ---------------------------------------------------------------
+  resize();
+  resetView();
+})();
+</script>
