@@ -373,6 +373,22 @@ public:
    * OrientabilityPredicate), rather than reporting non-orientable results
    * and letting the caller filter them out afterward. Defaults to false
    * (no behavior change for existing callers).
+   * \param hardFaceCap if set, caps the *final* pass at this many faces
+   * too, instead of running it unbounded. This is what makes a search
+   * terminate on its own: without it, the final pass enumerates every
+   * connected induced subgraph reachable from every root, and the only
+   * things that ever end it are requestStop() or a caught SIGINT. With it
+   * set, the search provably terminates and is exhaustive over exactly the
+   * embeddings the cap admits, with no loss below the cap (the capped
+   * rounds' own `suppressBelow` bookkeeping already prevents any embedding
+   * from being reported twice).
+   *
+   * \note Units match iddfsStep/iddfsStart, i.e. faces *added by the
+   * search*: for a seeded search (see the seeded constructor) the seed is
+   * one contracted graph vertex and does not count, so a cap of `F` admits
+   * exactly the embeddings consisting of the seed plus at most `F` further
+   * faces -- not embeddings of at most `F` faces in total. See
+   * iddfsMaxDepth().
    */
   SearchStats search(const unsigned numThreads,
                      BoundaryCondition cond = BoundaryCondition::all,
@@ -380,7 +396,8 @@ public:
                      unsigned iddfsIterations = 0, long long iddfsStep = 0,
                      std::optional<long long> iddfsStart = std::nullopt,
                      std::optional<unsigned> finalThreads = std::nullopt,
-                     bool orientableOnly = false);
+                     bool orientableOnly = false,
+                     std::optional<long long> hardFaceCap = std::nullopt);
 
   /**
    * Requests that the current (or next) search() call stop as soon as
@@ -440,6 +457,9 @@ protected:
    * \param finalThreads see EmbeddingSearch::search(); defaults to
    * `numThreads` when not given.
    * \param orientableOnly see EmbeddingSearch::search().
+   * \param hardFaceCap see EmbeddingSearch::search(); when set, the final
+   * pass is capped rather than unbounded, making this call terminate on
+   * its own.
    *
    * \note SIGINT handling: for the duration of this call, Ctrl+C sets a
    * shared stop flag (see EmbeddednessPredicate) that prunes the DFS
@@ -459,7 +479,8 @@ protected:
       unsigned iddfsIterations = 0, long long iddfsStep = 0,
       std::optional<long long> iddfsStart = std::nullopt,
       std::optional<unsigned> finalThreads = std::nullopt,
-      bool orientableOnly = false);
+      bool orientableOnly = false,
+      std::optional<long long> hardFaceCap = std::nullopt);
 
 private:
   /**
@@ -511,20 +532,20 @@ EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
     std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool);
+    std::optional<unsigned>, bool, std::optional<long long>);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
     unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool);
+    std::optional<unsigned>, bool, std::optional<long long>);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
     unsigned, BoundaryCondition, std::function<KnottedSurface()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool);
+    std::optional<unsigned>, bool, std::optional<long long>);
 
 #endif // EMBEDDINGSEARCH_H

@@ -229,6 +229,38 @@ std::vector<InputRow> loadInputCsv(const std::filesystem::path &path) {
   return rows;
 }
 
+// Loads a literature table for its names and bounds only, skipping the PD
+// code entirely. Used for tables that aren't this run's --input: we need
+// their names (to expand orientation-blind identifications into candidate
+// sets) and their bounds, but never build a triangulation from them, so
+// there is no reason to pay parsePDCode()'s cost across 12k+ rows.
+size_t loadNameTable(const std::filesystem::path &path,
+                     cobordismgraph::NameTable &names) {
+  std::ifstream in(path);
+  if (!in)
+    throw std::runtime_error("Cannot open name table: " + path.string());
+
+  size_t loaded = 0;
+  std::string line;
+  std::getline(in, line); // header
+  while (std::getline(in, line)) {
+    if (line.empty())
+      continue;
+    std::string name, pd, genusField;
+    if (!splitInputLine(line, name, pd, genusField))
+      continue;
+    int lo = 0, hi = 0;
+    try {
+      parseGenusField(genusField, lo, hi);
+    } catch (const std::exception &) {
+      continue;
+    }
+    names.addLiterature(name, lo, hi);
+    ++loaded;
+  }
+  return loaded;
+}
+
 // Minimal RFC-4180 field parser (quotes, doubled-quote escaping) -- needed
 // to read our OWN --output file back on resume, since witness_pairsig/
 // depends_on may have been written through csvField() and can contain
@@ -271,9 +303,50 @@ std::vector<std::string> parseCsvLine(const std::string &line) {
 // Output CSV schema and resumable I/O
 // ─────────────────────────────────────────────────────────────────────────
 
+// One row of --output: a name's current standing plus, when something was
+// derived, how. Lives here rather than in cobordismgraph.h because it is
+// purely this driver's file format -- the solver itself deals in
+// cobordismgraph::Bounds/Verdict and has no opinion about CSV.
+struct OutputRow {
+  std::string knot;
+  int resolvedGenus = 0;
+      /**< The established genus when `status` pins one; otherwise the best
+           derived upper bound, or 0. */
+  std::string status;
+      // verified | improved | pinned | bounded | unresolved | skipped
+  std::string witnessKind; // direct | cobordism | none
+  std::string witnessPairSig;
+  std::string viaKnot;
+  int viaEdgeGenus = 0;
+  std::string dependsOn;
+  int literatureLo = 0;
+  int literatureHi = 0;
+
+  // Added alongside the interval solver.
+  std::string derivedLo; // empty when no lower bound was derived
+  std::string derivedHi; // empty when no upper bound was derived
+  std::string witnessBasis; // constructive | literature-assisted | empty
+  bool tubed = false;
+      /**< Whether the witness surface was disconnected as found, with the
+           recorded genus being its tubed genus. */
+
+  // T5 bookkeeping: how hard this row was actually tried, so a later,
+  // bigger-budget pass knows what is worth re-searching and what is
+  // already settled. Without this a resume re-runs an identical search and
+  // learns nothing.
+  long long searchedFaces = 0; // the --max-faces used; 0 means unbounded
+  std::string searchOutcome;
+      // exhausted | timeout | quiescent | stopped | empty (never searched)
+};
+
+// Which BoundaryCondition to search a row under; see the switch in the
+// main loop for what each costs.
+enum class BoundaryConditionMode { automatic, connected, proper };
+
 constexpr const char *OUTPUT_HEADER =
     "knot,resolved_genus,status,witness_kind,witness_pairsig,via_knot,"
-    "via_edge_genus,depends_on,literature_lo,literature_hi";
+    "via_edge_genus,depends_on,literature_lo,literature_hi,"
+    "derived_lo,derived_hi,witness_basis,tubed,searched_faces,search_outcome";
 
 std::string formatOutputRow(const OutputRow &r) {
   std::ostringstream out;
@@ -281,7 +354,9 @@ std::string formatOutputRow(const OutputRow &r) {
       << r.witnessKind << ',' << csvField(r.witnessPairSig) << ','
       << csvField(r.viaKnot) << ',' << r.viaEdgeGenus << ','
       << csvField(r.dependsOn) << ',' << r.literatureLo << ','
-      << r.literatureHi;
+      << r.literatureHi << ',' << r.derivedLo << ',' << r.derivedHi << ','
+      << r.witnessBasis << ',' << (r.tubed ? "true" : "false") << ','
+      << r.searchedFaces << ',' << r.searchOutcome;
   return out.str();
 }
 
@@ -324,9 +399,124 @@ loadOutputCsv(const std::filesystem::path &path) {
     } catch (const std::exception &) {
       continue;
     }
+    // Columns beyond the original ten are optional, so a file written by
+    // an older build still loads (its rows simply carry no derived bounds
+    // and no search bookkeeping, which is exactly the truth about them).
+    if (f.size() > 10)
+      r.derivedLo = f[10];
+    if (f.size() > 11)
+      r.derivedHi = f[11];
+    if (f.size() > 12)
+      r.witnessBasis = f[12];
+    if (f.size() > 13)
+      r.tubed = f[13] == "true";
+    if (f.size() > 14) {
+      try {
+        r.searchedFaces = std::stoll(f[14]);
+      } catch (const std::exception &) {
+        r.searchedFaces = 0;
+      }
+    }
+    if (f.size() > 15)
+      r.searchOutcome = f[15];
     result[r.knot] = std::move(r);
   }
   return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Witness file (--cobordisms) I/O
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The point of persisting these separately from --output is that a witness
+// is a fact ("a surface with this boundary and this genus exists") while an
+// --output row is a conclusion. Conclusions get better whenever the solver,
+// the literature tables, or the identification improves; facts do not. So
+// every fact a search paid for is written here once and never re-searched,
+// and `--solve-only` re-derives all the conclusions from them in seconds.
+
+constexpr const char *COBORDISMS_HEADER =
+    "kind,subject,subject_components,other,other_candidates,other_components,"
+    "genus,tubed,pairsig,source_row,thicken_layers,max_faces";
+
+std::string formatWitness(const cobordismgraph::Witness &w) {
+  std::ostringstream candidates;
+  for (size_t i = 0; i < w.otherCandidates.size(); ++i) {
+    if (i)
+      candidates << ';';
+    candidates << w.otherCandidates[i];
+  }
+  std::ostringstream out;
+  out << (w.kind == cobordismgraph::WitnessKind::direct ? "direct"
+                                                        : "cobordism")
+      << ',' << csvField(w.subject) << ',' << w.subjectComponents << ','
+      << csvField(w.other) << ',' << csvField(candidates.str()) << ','
+      << w.otherComponents << ',' << w.genus << ','
+      << (w.tubed ? "true" : "false") << ',' << csvField(w.pairSig) << ','
+      << csvField(w.sourceRow) << ',' << w.thickenLayers << ',' << w.maxFaces;
+  return out.str();
+}
+
+std::vector<cobordismgraph::Witness>
+loadWitnesses(const std::filesystem::path &path) {
+  std::vector<cobordismgraph::Witness> result;
+  std::ifstream in(path);
+  if (!in)
+    return result;
+
+  std::string line;
+  std::getline(in, line); // header
+  while (std::getline(in, line)) {
+    if (line.empty())
+      continue;
+    auto f = parseCsvLine(line);
+    if (f.size() < 12)
+      continue;
+    cobordismgraph::Witness w;
+    w.kind = f[0] == "direct" ? cobordismgraph::WitnessKind::direct
+                              : cobordismgraph::WitnessKind::cobordism;
+    w.subject = f[1];
+    try {
+      w.subjectComponents = std::stoi(f[2]);
+      w.otherComponents = std::stoi(f[5]);
+      w.genus = std::stoi(f[6]);
+      w.thickenLayers = std::stoi(f[10]);
+      w.maxFaces = std::stoll(f[11]);
+    } catch (const std::exception &) {
+      continue;
+    }
+    w.other = f[3];
+    if (!f[4].empty()) {
+      std::istringstream candidates(f[4]);
+      std::string one;
+      while (std::getline(candidates, one, ';'))
+        if (!one.empty())
+          w.otherCandidates.push_back(one);
+    }
+    w.tubed = f[7] == "true";
+    w.pairSig = f[8];
+    w.sourceRow = f[9];
+    result.push_back(std::move(w));
+  }
+  return result;
+}
+
+// Rewrites the whole witness file via write-to-temp + atomic rename, the
+// same crash-safety pattern writeOutputCsv() uses.
+void writeWitnesses(const std::filesystem::path &path,
+                    const std::vector<cobordismgraph::Witness> &witnesses) {
+  std::filesystem::path tmp = path;
+  tmp += ".tmp";
+  {
+    std::ofstream out(tmp, std::ios::trunc);
+    if (!out)
+      throw std::runtime_error("Cannot open " + tmp.string() +
+                               " for writing");
+    out << COBORDISMS_HEADER << "\n";
+    for (const auto &w : witnesses)
+      out << formatWitness(w) << "\n";
+  }
+  std::filesystem::rename(tmp, path);
 }
 
 // Rewrites the whole --output file from `outputRows` via write-to-temp +
@@ -382,6 +572,77 @@ void writeOutputCsv(const std::filesystem::path &path,
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Turning the solver's verdicts into --output rows
+// ─────────────────────────────────────────────────────────────────────────
+
+const char *statusName(cobordismgraph::Status s) {
+  using S = cobordismgraph::Status;
+  switch (s) {
+  case S::verified:
+    return "verified";
+  case S::verifiedAssisted:
+    return "verified-assisted";
+  case S::improved:
+    return "improved";
+  case S::pinned:
+    return "pinned";
+  case S::bounded:
+    return "bounded";
+  case S::unresolved:
+    return "unresolved";
+  case S::contradiction:
+    return "contradiction";
+  }
+  return "unresolved";
+}
+
+// Rebuilds `name`'s output row from the solver's current verdict, keeping
+// whatever search bookkeeping (searchedFaces/searchOutcome) the row already
+// carried -- that records what we DID, which no amount of re-solving
+// changes, unlike everything else here.
+OutputRow rowFromVerdict(
+    const std::string &name, const cobordismgraph::Verdict &v,
+    const OutputRow *existing,
+    const std::unordered_map<std::string, cobordismgraph::Bounds> &bounds) {
+  OutputRow out;
+  out.knot = name;
+  out.status = statusName(v.status);
+  out.literatureLo = v.litLo;
+  out.literatureHi = v.litHi;
+  out.resolvedGenus = v.value;
+
+  const auto &b = v.bounds;
+  if (b.haveUpper()) {
+    out.derivedHi = std::to_string(b.hi);
+    out.witnessKind =
+        b.kind == cobordismgraph::WitnessKind::direct ? "direct" : "cobordism";
+    out.witnessPairSig = b.pairSig;
+    out.viaKnot = b.viaName;
+    out.viaEdgeGenus = b.viaGenus;
+    out.dependsOn = cobordismgraph::buildDependsOn(b.viaName, bounds);
+    out.witnessBasis = b.basis == cobordismgraph::Basis::constructive
+                           ? "constructive"
+                           : "literature-assisted";
+    out.tubed = b.tubed;
+  } else {
+    out.witnessKind = "none";
+  }
+  if (b.haveLower())
+    out.derivedLo = std::to_string(b.lo);
+
+  if (existing) {
+    out.searchedFaces = existing->searchedFaces;
+    out.searchOutcome = existing->searchOutcome;
+    // A row that was skipped for crossing count and has still never been
+    // searched keeps saying so, rather than being relabelled "unresolved"
+    // as though we had tried.
+    if (existing->status == "skipped" && !b.haveUpper() && !b.haveLower())
+      out.status = "skipped";
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Boundary-component identification (--no-cone only)
 // ─────────────────────────────────────────────────────────────────────────
 // See cobordismgraph.h for BoundarySide/BoundarySplit/splitBoundary().
@@ -397,6 +658,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr
       << "Usage:\n    " << progName
       << " --output <csv> [ --input <csv> ] [ --max-crossings N ]\n"
+         "    [ --cobordisms <csv> ] [ --solve-only ]\n"
+         "    [ --max-faces N ] [ --harvest ] [ --harvest-quiescence S ]\n"
+         "    [ --sweep-time-limit S ]\n"
+         "    [ --knot-table <csv> ] [ --link-table <csv> ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
@@ -442,6 +707,150 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "csv\n"
          "                     alongside the source tree. Never written "
          "back to.\n";
+  std::cerr
+      << "    --cobordisms <csv> : Durable record of every surface found "
+         "(default:\n"
+         "                     cobordisms.csv). A witness is a FACT (\"a "
+         "surface with\n"
+         "                     this boundary and this genus exists\"); an "
+         "--output row\n"
+         "                     is a CONCLUSION. Conclusions improve "
+         "whenever the\n"
+         "                     solver, the literature tables or the "
+         "identification\n"
+         "                     improve; facts don't. So searches append "
+         "here and are\n"
+         "                     never repeated, and --solve-only re-derives "
+         "every\n"
+         "                     conclusion from them in seconds.\n";
+  std::cerr
+      << "    --boundary-condition auto|connected|proper : How much boundary "
+         "freedom a\n"
+         "                     row's search allows (default: auto).\n"
+         "                       auto/connected -- a single-component knot "
+         "is searched\n"
+         "                     under `connected` (at most one surface "
+         "boundary curve per\n"
+         "                     ambient boundary component), which prunes "
+         "hard. Note it\n"
+         "                     caps the FAR side's curve count too, so such "
+         "a row can\n"
+         "                     only ever find single-curve far sides -- it "
+         "cannot\n"
+         "                     discover a knot-to-LINK cobordism at all. "
+         "Multi-component\n"
+         "                     rows always fall back to `proper`, which "
+         "they must.\n"
+         "                       proper -- every row uses `proper`, so knot "
+         "rows can\n"
+         "                     find link far sides and feed the "
+         "knot<->link chains\n"
+         "                     this whole approach leans on. Substantially "
+         "slower, since\n"
+         "                     `connected`'s pruning is what makes knot "
+         "rows cheap.\n"
+      << "    --skip-drain-on-timeout : When --per-knot-time-limit or "
+         "--harvest-\n"
+         "                     quiescence stops a row, ALSO abandon the "
+         "surfaces still\n"
+         "                     queued for boundary identification "
+         "(default: off, i.e.\n"
+         "                     the drain runs to completion and only the "
+         "SEARCH is\n"
+         "                     bounded).\n"
+         "                       Identification is the product: an "
+         "unidentified surface\n"
+         "                     says nothing about a slice genus. Cutting "
+         "the drain\n"
+         "                     short measured 1% identification on a run "
+         "that produced\n"
+         "                     1,216,027 qualifying surfaces -- 1.2 "
+         "million boundaries\n"
+         "                     discarded unexamined, which made that "
+         "run's \"found\n"
+         "                     nothing\" meaningless. Set this only when "
+         "throughput\n"
+         "                     genuinely matters more than knowing what "
+         "was found.\n"
+      << "    --solve-only   : Re-derive --output from --cobordisms and "
+         "exit. No\n"
+         "                     triangulations built, no searching. Run "
+         "after any\n"
+         "                     solver or literature-table change.\n";
+  std::cerr
+      << "    --max-faces N  : Hard cap on faces the search may add, "
+         "making it\n"
+         "                     terminate on its own. WITHOUT this the "
+         "final search\n"
+         "                     pass is unbounded and the only things that "
+         "end a row\n"
+         "                     are resolving it, --per-knot-time-limit, or "
+         "Ctrl+C.\n"
+         "                     With it, a row is finite and EXHAUSTIVE "
+         "over exactly\n"
+         "                     the surfaces the cap admits -- which is "
+         "also what\n"
+         "                     makes a result reproducible rather than "
+         "\"whatever we\n"
+         "                     found in ten minutes\".\n"
+         "                       Counts faces ADDED to the collar seed, "
+         "not the\n"
+         "                     surface's total triangle count (matching "
+         "--iddfs-step).\n"
+         "                       Recorded per row in --output's "
+         "searched_faces, so a\n"
+         "                     later run at a LARGER cap re-searches only "
+         "the rows\n"
+         "                     that could yield something new -- "
+         "progressive\n"
+         "                     deepening across the whole table (default: "
+         "unbounded).\n";
+  std::cerr
+      << "    --harvest      : Don't stop a row's search once that row is "
+         "settled;\n"
+         "                     keep recording every distinct cobordism it "
+         "finds. One\n"
+         "                     expensive search then yields many edges "
+         "instead of\n"
+         "                     one, and those edges bound OTHER rows via "
+         "the solver.\n"
+         "                     Requires a stopping rule (--max-faces, "
+         "--harvest-\n"
+         "                     quiescence, or --per-knot-time-limit), "
+         "since resolving\n"
+         "                     the row no longer ends it (default: off).\n";
+  std::cerr
+      << "    --harvest-quiescence S : Stop a row once no NEW witness has "
+         "been\n"
+         "                     recorded for S seconds -- it has stopped "
+         "teaching us\n"
+         "                     anything, so the rest of its budget is "
+         "better spent on\n"
+         "                     a row we know nothing about (default: "
+         "off).\n";
+  std::cerr
+      << "    --sweep-time-limit S : Wall-clock cap on the whole run, "
+         "checked\n"
+         "                     between rows. Everything is resumable via "
+         "--output and\n"
+         "                     --cobordisms, so a capped sweep loses no "
+         "work\n"
+         "                     (default: none).\n";
+  std::cerr
+      << "    --knot-table <csv>, --link-table <csv> : Literature tables "
+         "loaded for\n"
+         "                     names and bounds ONLY, regardless of which "
+         "one --input\n"
+         "                     searches. Needed because identify() names a "
+         "link by its\n"
+         "                     complement, which cannot see component "
+         "orientation: a\n"
+         "                     far side identified as \"L6a3\" could be "
+         "L6a3{0} (genus 2)\n"
+         "                     or L6a3{1} (genus 0), so the solver has to "
+         "know the full\n"
+         "                     set of oriented variants and bound over all "
+         "of them.\n";
   std::cerr << "    --max-crossings N : Skip rows whose crossing number "
                "exceeds N\n"
                "                     (default: 13).\n";
@@ -509,6 +918,23 @@ void usage(const char *progName, const std::string &error = std::string()) {
 int main(int argc, char *argv[]) {
   std::optional<std::string> outputPath;
   std::string inputPath = "4d_smooth_slice_genus_13_crossings_pd_codes.csv";
+  std::string cobordismsPath = "cobordisms.csv";
+  // Both literature tables are loaded for metadata regardless of which one
+  // --input searches; see the NameTable construction in the main body.
+  std::string knotTablePath =
+      "4d_smooth_slice_genus_13_crossings_pd_codes.csv";
+  std::string linkTablePath =
+      "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv";
+  std::optional<long long> maxFaces;
+  bool harvest = false;
+  std::optional<double> harvestQuiescence;
+  std::optional<double> sweepTimeLimit;
+  bool solveOnly = false;
+  // Identification is the product, so by default a timed-out row still drains
+  // its boundary queue to completion; only the SEARCH is bounded.
+  bool skipDrainOnTimeout = false;
+  BoundaryConditionMode boundaryConditionMode =
+      BoundaryConditionMode::automatic;
   int maxCrossings = 13;
   std::optional<double> perKnotTimeLimit;
   std::optional<std::string> surfaceLogPath;
@@ -550,6 +976,61 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--input requires a value.");
       inputPath = argv[++i];
+    } else if (arg == "--cobordisms") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--cobordisms requires a value.");
+      cobordismsPath = argv[++i];
+    } else if (arg == "--knot-table") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--knot-table requires a value.");
+      knotTablePath = argv[++i];
+    } else if (arg == "--link-table") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--link-table requires a value.");
+      linkTablePath = argv[++i];
+    } else if (arg == "--max-faces") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--max-faces requires a value.");
+      try {
+        maxFaces = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--max-faces requires an integer value.");
+      }
+    } else if (arg == "--harvest") {
+      harvest = true;
+    } else if (arg == "--harvest-quiescence") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--harvest-quiescence requires a value.");
+      try {
+        harvestQuiescence = std::stod(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--harvest-quiescence requires a numeric value.");
+      }
+    } else if (arg == "--sweep-time-limit") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--sweep-time-limit requires a value.");
+      try {
+        sweepTimeLimit = std::stod(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--sweep-time-limit requires a numeric value.");
+      }
+    } else if (arg == "--boundary-condition") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--boundary-condition requires a value.");
+      std::string mode = argv[++i];
+      if (mode == "auto")
+        boundaryConditionMode = BoundaryConditionMode::automatic;
+      else if (mode == "connected")
+        boundaryConditionMode = BoundaryConditionMode::connected;
+      else if (mode == "proper")
+        boundaryConditionMode = BoundaryConditionMode::proper;
+      else
+        usage(argv[0],
+              "--boundary-condition must be auto, connected or proper.");
+    } else if (arg == "--skip-drain-on-timeout") {
+      skipDrainOnTimeout = true;
+    } else if (arg == "--solve-only") {
+      solveOnly = true;
     } else if (arg == "--max-crossings") {
       if (i + 1 >= argc)
         usage(argv[0], "--max-crossings requires a value.");
@@ -734,6 +1215,19 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
+  if (maxFaces && *maxFaces <= 0)
+    usage(argv[0], "--max-faces requires a value > 0.");
+  if (harvestQuiescence && *harvestQuiescence <= 0)
+    usage(argv[0], "--harvest-quiescence requires a value > 0.");
+  if (sweepTimeLimit && *sweepTimeLimit <= 0)
+    usage(argv[0], "--sweep-time-limit requires a value > 0.");
+  if (harvest && !maxFaces && !harvestQuiescence && !perKnotTimeLimit)
+    usage(argv[0],
+          "--harvest needs a stopping rule: without --max-faces, "
+          "--harvest-quiescence or --per-knot-time-limit, a search has "
+          "nothing to end it (resolving the row no longer does, which is "
+          "the point of --harvest) and the sweep will never reach its "
+          "second row.");
   if (retriangulateHeightArg < 0)
     usage(argv[0], "--retriangulate-height requires a value >= 0.");
   if (retriangulateCandidateBudgetArg == 0)
@@ -777,17 +1271,44 @@ int main(int argc, char *argv[]) {
   for (const auto &row : rows)
     nameToRow[row.name] = &row;
 
+  // Literature metadata for every name that could ever appear in the
+  // graph, not just this run's --input. A knots run needs the links table
+  // to expand an orientation-blind far-side name like "L6a3" into the
+  // oriented variants it might be (see NameTable::candidates), and a links
+  // run needs the knots table for the same reason in reverse -- so both
+  // are always loaded, regardless of which one is being searched.
+  cobordismgraph::NameTable names;
+  size_t metadataRows = 0;
+  for (const auto &row : rows)
+    names.addLiterature(row.name, row.lo, row.hi);
+  for (const std::string &table : {knotTablePath, linkTablePath}) {
+    if (table.empty() || table == inputPath)
+      continue;
+    try {
+      metadataRows += loadNameTable(table, names);
+    } catch (const std::exception &e) {
+      std::cerr << "[!] could not load name table " << table << ": "
+                << e.what() << " (continuing without it)\n";
+    }
+  }
+  std::cout << "[+] Name table: " << names.size() << " names ("
+            << metadataRows << " from tables other than --input)\n";
+
   std::unordered_map<std::string, OutputRow> outputRows =
       loadOutputCsv(*outputPath);
-  std::unordered_map<std::string, int> knownGenus;
-  knownGenus["Unknot"] = 0;
-  for (const auto &[name, out] : outputRows)
-    if (out.status == "resolved" || out.status == "range")
-      knownGenus[name] = out.resolvedGenus;
-  std::cout << "[+] Resuming with " << knownGenus.size() - 1
-            << " already-resolved knots from " << *outputPath << "\n\n";
 
-  Graph graph;
+  std::vector<cobordismgraph::Witness> witnesses =
+      loadWitnesses(cobordismsPath);
+  std::cout << "[+] Resuming with " << witnesses.size()
+            << " previously-recorded witnesses from " << cobordismsPath
+            << "\n";
+
+  // Every conclusion is re-derived from the witness set on every run, so a
+  // solver fix or a literature-table update takes effect on rows that were
+  // searched long ago without re-searching any of them.
+  auto bounds = cobordismgraph::propagate(witnesses, names);
+  std::cout << "[+] Solver: derived bounds for " << bounds.size()
+            << " names\n\n";
 
   std::vector<InputRow> pending;
   pending.reserve(rows.size());
@@ -811,437 +1332,625 @@ int main(int argc, char *argv[]) {
                      return a.crossings < b.crossings;
                    });
 
+  // --solve-only: re-derive every conclusion from the witness file and
+  // stop. Emptying `pending` (rather than branching around the loop) means
+  // the final solve/write below is the single code path that produces
+  // --output, so a solve-only run and a search run can never disagree
+  // about how a given witness set is interpreted.
+  if (solveOnly) {
+    std::cout << "[+] --solve-only: re-deriving from " << witnesses.size()
+              << " witnesses, no searching.\n\n";
+    pending.clear();
+  }
+
+  // Re-solves from the full witness set and rewrites every affected output
+  // row. Cheap (pure integer relaxation over the witness list), so it runs
+  // after every row rather than only at the end -- which is what lets one
+  // row's harvested cobordisms settle a later row before it is ever
+  // searched.
+  auto resolveAll = [&]() -> std::vector<std::string> {
+    bounds = cobordismgraph::propagate(witnesses, names);
+    std::vector<std::string> contradictions;
+
+    // Every name that could need its row rewritten -- crucially including
+    // rows that currently HAVE a row but no longer have any derived bound.
+    // Iterating `bounds` alone would leave such a row frozen at whatever a
+    // previous (possibly buggier) solver wrote, which is exactly the case
+    // --solve-only exists to correct.
+    std::vector<std::string> toJudge;
+    toJudge.reserve(bounds.size() + outputRows.size());
+    for (const auto &[name, unused] : bounds)
+      toJudge.push_back(name);
+    for (const auto &[name, unused] : outputRows)
+      if (!bounds.contains(name))
+        toJudge.push_back(name);
+
+    for (const std::string &name : toJudge) {
+      cobordismgraph::Bounds b; // default = nothing derived
+      if (auto it = bounds.find(name); it != bounds.end())
+        b = it->second;
+      cobordismgraph::Verdict v = cobordismgraph::judge(name, b, names);
+      if (v.status == cobordismgraph::Status::contradiction)
+        contradictions.push_back(v.reason);
+      auto existing = outputRows.find(name);
+      // Only names we actually track get a row: the graph is full of
+      // incidental nodes (bare isoSigs, unlinks) that are useful for
+      // chaining but aren't results in their own right.
+      if (existing == outputRows.end() && !names.find(name))
+        continue;
+      OutputRow updated = rowFromVerdict(
+          name, v, existing == outputRows.end() ? nullptr : &existing->second,
+          bounds);
+      outputRows[name] = std::move(updated);
+    }
+    return contradictions;
+  };
+
+  // Records one witness if it's genuinely new, returning whether it was.
+  // The dedup matters a lot in --harvest mode: a single search reports
+  // thousands of near-identical surfaces, and capturing a pair signature
+  // for each would dominate the run (see SurfaceFoundInfo::capturePairSig).
+  std::mutex witnessMutex;
+  std::atomic<long long> lastNewWitnessTick{0};
+  auto tickNow = [] {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  };
+  auto recordWitness = [&](cobordismgraph::Witness w,
+                           const std::function<std::string()> &capturePairSig)
+      -> bool {
+    std::lock_guard<std::mutex> lock(witnessMutex);
+    if (cobordismgraph::haveWitness(witnesses, w))
+      return false;
+    if (capturePairSig)
+      w.pairSig = capturePairSig();
+    witnesses.push_back(std::move(w));
+    lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
+    return true;
+  };
+
+  const auto sweepStart = std::chrono::steady_clock::now();
   size_t processedThisRun = 0;
+  size_t searchedThisRun = 0;
+  bool sweepTimedOut = false;
+
   for (const auto &row : pending) {
-    if (knownGenus.contains(row.name))
-      continue;
+    if (sweepTimeLimit &&
+        std::chrono::steady_clock::now() - sweepStart >
+            std::chrono::duration<double>(*sweepTimeLimit)) {
+      sweepTimedOut = true;
+      break;
+    }
 
-    int target = row.hi;
-    bool resolvedThisRow = false;
-
-    if (auto info = resolvable(row.name, target, graph, knownGenus)) {
-      knownGenus[row.name] = target;
-      OutputRow out;
-      out.knot = row.name;
-      out.resolvedGenus = target;
-      out.status = (row.lo == row.hi) ? "resolved" : "range";
-      out.witnessKind = "propagated";
-      out.viaKnot = info->viaKnot;
-      out.viaEdgeGenus = info->viaEdgeGenus;
-      out.dependsOn = buildDependsOn(info->viaKnot, outputRows);
-      out.literatureLo = row.lo;
-      out.literatureHi = row.hi;
-      outputRows[row.name] = std::move(out);
-      resolvedThisRow = true;
-      std::cout << "[+] " << row.name
-                << ": resolved via propagation (genus " << target << ")\n";
-    } else {
-      std::cout << "[+] Searching " << row.name << " (target genus "
-                << target << ", " << row.crossings << " crossings)...\n";
-
-      knotbuilder::PDCode pdcode;
-      knotbuilder::TriangulationWithLink link;
-      bool buildFailed = false;
-      try {
-        pdcode = knotbuilder::parsePDCode(row.pdNotation);
-        link = knotbuilder::buildLink(pdcode);
-      } catch (const regina::InvalidArgument &e) {
-        std::cerr << "[!] " << row.name << ": failed to build from PD code ("
-                  << e.what() << "), skipping\n";
-        buildFailed = true;
+    // Already settled? `verified` means we constructed a surface meeting
+    // the literature's own lower bound, so there is nothing left to find.
+    {
+      auto it = outputRows.find(row.name);
+      if (it != outputRows.end() &&
+          (it->second.status == "verified" || it->second.status == "pinned")) {
+        continue;
       }
-
-      if (!buildFailed) {
-        auto &[t2, edges2, reversed2] = link;
-
-        // Splits edges2 into connected components -- 1 for an ordinary
-        // knot, >1 for a genuine multi-component link. Reused below both
-        // to pick the search's BoundaryCondition and to build the census
-        // complement.
-        Link linkGrouping(t2, edges2);
-        int componentCount = linkGrouping.countComponents();
-
-        // This row's own true identity, computed once up front from its
-        // own diagram -- splitBoundary() below uses this to verify that a
-        // surface's search-side boundary (geometrically on searchSideBC)
-        // actually traces out row.name's own link, rather than trusting a
-        // bare curve-count match (see splitBoundary()'s own doc comment
-        // for why that's unsound: the DFS can extend beyond the seeded
-        // collar and land an unrelated curve set on the same ambient
-        // component).
-        std::string rowOwnName = identify::identify(linkGrouping);
-
-        std::vector<int> edgeIndices;
-        edgeIndices.reserve(edges2.size());
-        for (const regina::Edge<3> *e : edges2)
-          edgeIndices.push_back(static_cast<int>(e->index()));
-
-        CobordismBuilder<3> cob(t2);
-        CollarBuilder collarBuilder(edgeIndices);
-        for (int i = 0; i < thickenLayers; ++i) {
-          cob.thicken();
-          if (i < collarLayers)
-            collarBuilder.addLayer(cob);
-        }
-        if (useCone)
-          cob.cone();
-
-        // Must be read before getCobordism() is copied into `tri` below:
-        // baseBoundaryComponent() resolves against cob's own internal
-        // triangulation, whose boundary-component indices are preserved
-        // across the copy (same "indices are preserved" guarantee
-        // CobordismBuilder::baseTriangulation()'s own doc comment relies
-        // on elsewhere in this file).
-        size_t searchSideBC = cob.baseBoundaryComponent()->index();
-
-        regina::Triangulation<4> tri = cob.getCobordism();
-
-        std::vector<int> seedFaces;
-        if (collarLayers > 0)
-          for (regina::Triangle<4> *t : collarBuilder.resolve())
-            seedFaces.push_back(static_cast<int>(t->index()));
-
-        // Orientation tracking (see cobordismgraph::RowOrientation/
-        // matchesRowOrientation()) only means anything when the search
-        // side's own edge set is actually kept fixed -- which requires a
-        // seed (EmbeddingSearch's protectedBoundaryComponent exemption is
-        // built around a seed to exempt; see its own doc comment). So both
-        // the protection and the orientation check below are gated behind
-        // `seedFaces` being non-empty; an unseeded search behaves exactly
-        // as it did before this feature existed.
-        std::optional<cobordismgraph::RowOrientation> rowOrientation;
-        if (!seedFaces.empty())
-          rowOrientation = cobordismgraph::buildRowOrientation(
-              edges2, reversed2,
-              tri.boundaryComponent(searchSideBC)->build());
-
-        std::optional<SurfaceSearch> eOpt;
-        if (seedFaces.empty())
-          eOpt.emplace(tri);
-        else
-          eOpt.emplace(tri, seedFaces, searchSideBC);
-        SurfaceSearch &e = *eOpt;
-        e.configureLimits(limits);
-
-        std::optional<CsvWriter> surfaceLog;
-        if (surfaceLogPath)
-          surfaceLog.emplace(*surfaceLogPath,
-                             "orientable,genus,punctures,triangles,pairsig",
-                             numThreads);
-
-        SurfaceSearchCallbacks callbacks;
-        callbacks.onProgress = [&](const SearchStats &stats) {
-          printProgress(stats, e);
-        };
-        callbacks.onBoundaryProcessingStarted = [&](size_t total,
-                                                    unsigned threads) {
-          // Commits (rather than redraws over) whatever progress block the
-          // DFS phase left on screen, so the transition into this phase is
-          // visible rather than silently overwritten by the first tick.
-          progressPrevLines_ = 0;
-          std::cerr << "[+] boundary processing: " << total
-                    << " queued surfaces, " << threads << " threads\n";
-        };
-        callbacks.onBoundaryProcessingProgress =
-            [&](size_t processed, size_t total,
-                std::chrono::steady_clock::duration elapsed) {
-              printBoundaryProgress(
-                  processed, total, elapsed,
-                  resolvedThisRow ? std::optional<int>(target) : std::nullopt,
-                  target);
-            };
-        callbacks.onBoundaryProcessingComplete =
-            [&](size_t total, std::chrono::steady_clock::duration elapsed) {
-              progressPrevLines_ = 0;
-              std::cerr << "[+] boundary processing: done (" << total
-                        << " processed in " << formatElapsed(elapsed)
-                        << ")\n";
-            };
-        callbacks.onSurfaceBoundaryProcessed =
-            [&](const SurfaceBoundaryInfo &info) {
-              if (surfaceLog) {
-                std::string pairSig =
-                    info.capturePairSig ? info.capturePairSig() : std::string{};
-                std::ostringstream row2;
-                row2 << (info.orientable ? "true" : "false") << ','
-                    << info.genus << ',' << info.punctures << ','
-                    << info.triangleCount << ',' << csvField(pairSig);
-                surfaceLog->writeRow(row2.str());
-              }
-
-              if (!info.orientable)
-                return; // defensive; orientableOnly=true already prunes these
-              if (!info.connected)
-                return; // a disconnected find isn't a valid single witness
-                        // surface -- info.genus has no real meaning for it
-                        // (see SurfaceFoundInfo::genus's own doc comment).
-                        // Most likely with componentCount > 1, since a
-                        // multi-component link's seeded collar starts out
-                        // as one disjoint piece per component and nothing
-                        // requires the search to ever bridge them.
-
-              auto capturePairSig = [&info] {
-                return info.capturePairSig ? info.capturePairSig()
-                                           : std::string{};
-              };
-              auto handleOutcome = [&](const WitnessOutcome &outcome) {
-                if (outcome.fatalBug) {
-                  flagFatalBug(outcome.fatalBugMessage);
-                  e.requestStop();
-                  e.skipRemainingBoundaryProcessing();
-                }
-              };
-              // Like handleOutcome, but also announces a genuine
-              // resolution -- unlike row.name's own resolution (announced
-              // separately, after e.search() returns, once this row's
-              // search has actually stopped), an incidental resolution has
-              // no other announcement point: this callback is the only
-              // place that ever learns about it.
-              auto handleIncidentalOutcome =
-                  [&](const std::string &name, const WitnessOutcome &outcome) {
-                    handleOutcome(outcome);
-                    if (outcome.resolved)
-                      std::cout << "\x1b[1;36m[+] " << name
-                                << ": resolved incidentally (genus "
-                                << knownGenus[name] << ") while searching "
-                                << row.name << "\x1b[0m\n";
-                  };
-
-              BoundarySplit split = splitBoundary(info.boundaryComponents,
-                                                  searchSideBC, rowOwnName);
-
-              if (split.searchCurveCount == static_cast<size_t>(componentCount)) {
-                // This row's own diagram is fully witnessed by count and
-                // name -- but that's not sufficient on its own: a mixed
-                // orientation match (some search-side components agree
-                // with this row's own PD-tagged direction, some don't)
-                // means the surface actually witnesses a different
-                // oriented variant of this same-complement diagram (see
-                // cobordismgraph::matchesRowOrientation()'s own doc
-                // comment -- this is exactly the L6a3{0}/L6a3{1}
-                // misattribution this feature exists to catch). Only
-                // checked when rowOrientation is set (requires a seed --
-                // see its own construction above); an unseeded search has
-                // no fixed search-side edge set to compare against, so it
-                // falls back to the pre-existing count/name-only behavior.
-                if (rowOrientation) {
-                  std::vector<OrientedCurve> searchSideCurves;
-                  bool foundSearchSide = false;
-                  for (auto &[c, curves] : info.captureOrientedBoundaryLinks()) {
-                    if (c == searchSideBC) {
-                      searchSideCurves = std::move(curves);
-                      foundSearchSide = true;
-                      break;
-                    }
-                  }
-                  if (!foundSearchSide ||
-                      !cobordismgraph::matchesRowOrientation(*rowOrientation,
-                                                             searchSideCurves))
-                    return; // orientation mismatch -- not a valid witness
-                            // for this row's own specific orientation; skip
-                            // exactly as an unsafe far-side name would be,
-                            // the search keeps running
-                }
-
-                // This row's own diagram is fully witnessed -- the
-                // original reason this search is running.
-                if (!resolvedThisRow) {
-                  WitnessOutcome outcome;
-                  if (split.otherSides.empty()) {
-                    // Direct witness: generalizes the old punctures==1
-                    // knot-only case to any component count.
-                    outcome = recordWitness(row.name, row.lo, row.hi, target,
-                                            "", info.genus, capturePairSig,
-                                            "direct", graph, knownGenus,
-                                            outputRows);
-                  } else if (split.otherSides.size() == 1 &&
-                            split.otherSides.front().safe) {
-                    // Cobordism witness: generalizes the old punctures==2
-                    // knot-vs-knot case to fire for any component count on
-                    // either side. An unsafe (genuinely linked multi-
-                    // component) far side is skipped -- it's still shown
-                    // in boundaryDescription for a human to read, just
-                    // never used for a genus deduction (see
-                    // identify::isOrientationSafeName()).
-                    outcome = recordWitness(
-                        row.name, row.lo, row.hi, target,
-                        split.otherSides.front().name, info.genus,
-                        capturePairSig, "cobordism", graph, knownGenus,
-                        outputRows);
-                  }
-                  // More than one other side: an unhandled multi-way
-                  // cobordism -- skipped, not guessed at.
-                  handleOutcome(outcome);
-                  if (outcome.resolved) {
-                    resolvedThisRow = true;
-                    e.requestStop();
-                    e.skipRemainingBoundaryProcessing();
-                  }
-                }
-                return;
-              }
-
-              if (split.searchCurveCount != 0)
-                return; // partial search-side presence isn't cleanly nameable
-
-              // Incidental observation: this row's own diagram is
-              // COMPLETELY absent from this surface's boundary -- a side
-              // effect of searching row.name's own cobordism, unrelated to
-              // it. describeBoundary_() already paid for identifying every
-              // side regardless of whether the search side is present, so
-              // this is free information that would otherwise just be discarded;
-              // recording it here can let a LATER row's own search be
-              // skipped entirely (see the `if (knownGenus.contains(...))`
-              // check above the main loop, and propagateGraph(), which
-              // runs after every row and will pick up anything recorded
-              // here). Never calls e.requestStop() here except on a fatal
-              // bug -- this row's own search keeps running toward its own
-              // goal regardless of what gets harvested along the way.
-              //
-              // Only reachable at all when rowOrientation is unset (an
-              // unseeded --collar-layers 0 search, with no
-              // protectedBoundaryComponent): whenever a seed is present,
-              // it's the mandatory floor of every state the DFS reports
-              // (ConnectedInducedSubgraphEnumerator's seed-contraction
-              // guarantees this), and protectedBoundaryComponent forbids
-              // any other face from ever touching searchSideBC -- so
-              // split.searchCurveCount can never actually be 0 there, this
-              // whole branch is already unreachable in that case, and this
-              // check just makes that explicit rather than relying on it
-              // implicitly.
-              if (rowOrientation)
-                return;
-
-              if (split.otherSides.size() == 1 &&
-                  split.otherSides.front().safe) {
-                const std::string &y = split.otherSides.front().name;
-                auto it = nameToRow.find(y);
-                if (it != nameToRow.end()) {
-                  const InputRow &yRow = *it->second;
-                  handleIncidentalOutcome(
-                      y, recordWitness(y, yRow.lo, yRow.hi, yRow.hi, "",
-                                       info.genus, capturePairSig,
-                                       "incidental-direct", graph, knownGenus,
-                                       outputRows));
-                }
-              } else if (split.otherSides.size() == 2 &&
-                        split.otherSides[0].safe &&
-                        split.otherSides[1].safe) {
-                const std::string &y = split.otherSides[0].name;
-                const std::string &z = split.otherSides[1].name;
-
-                // Tries to resolve `subject` via a cobordism to `via`,
-                // only if `subject` is actually a tracked --input row.
-                // addEdge()'s own dedup (hasEdgeWithGenus(), inside
-                // recordWitness()) makes calling this for both directions
-                // a cheap no-op on the second call once the first has
-                // already recorded the edge.
-                auto tryDirection = [&](const std::string &subject,
-                                        const std::string &via) {
-                  auto it = nameToRow.find(subject);
-                  if (it == nameToRow.end())
-                    return false;
-                  const InputRow &subjectRow = *it->second;
-                  WitnessOutcome outcome = recordWitness(
-                      subject, subjectRow.lo, subjectRow.hi, subjectRow.hi,
-                      via, info.genus, capturePairSig, "incidental-cobordism",
-                      graph, knownGenus, outputRows);
-                  handleIncidentalOutcome(subject, outcome);
-                  return outcome.fatalBug;
-                };
-                if (!tryDirection(y, z))
-                  tryDirection(z, y);
-              }
-            };
-
-        std::atomic<bool> searchDone{false};
-        std::thread watchdog;
-        if (perKnotTimeLimit) {
-          watchdog = std::thread([&]() {
-            auto deadline = std::chrono::steady_clock::now() +
-                            std::chrono::duration<double>(*perKnotTimeLimit);
-            while (!searchDone.load(std::memory_order_relaxed) &&
-                  std::chrono::steady_clock::now() < deadline)
-              std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            if (!searchDone.load(std::memory_order_relaxed))
-              e.requestStop();
-          });
-        }
-
-        // A multi-component link's own boundary necessarily puts more than
-        // one of the surface's own boundary curves on the single search-side
-        // ambient boundary component (see searchSideBC above) -- impossible
-        // under `connected`'s distinct-ambient-component-per-curve
-        // requirement, but exactly what `proper` allows. `connected` stays
-        // the (tighter-pruning) default for ordinary single-component
-        // knots.
-        BoundaryCondition cond = componentCount == 1
-                                     ? BoundaryCondition::connected
-                                     : BoundaryCondition::proper;
-        e.search(numThreads, cond, callbacks,
-                iddfsIterations, iddfsStep, iddfsStart, iddfsFinalThreads,
-                /*orientableOnly=*/true);
-
-        searchDone.store(true, std::memory_order_relaxed);
-        if (watchdog.joinable())
-          watchdog.join();
-        if (fatalBugDetected_.load()) {
-          // Durably record whatever legitimate results already exist
-          // before halting -- the outer loop's own writeOutputCsv() call
-          // at the end of this row never runs, since
-          // haltIfFatalBugDetected() exits the process below.
-          writeOutputCsv(*outputPath, rows, outputRows);
-          haltIfFatalBugDetected();
-        }
-        // Leave this knot's final progress block in place (rather than
-        // erasing it on the next tick, which won't come until the *next*
-        // knot's search starts) so the subsequent resolved/unresolved
-        // line prints cleanly underneath it.
-        progressPrevLines_ = 0;
-
-        if (surfaceLog)
-          surfaceLog->finalize();
-
-        if (!resolvedThisRow) {
-          OutputRow out;
-          out.knot = row.name;
-          out.resolvedGenus = target;
-          out.status = "unresolved";
-          out.witnessKind = "none";
-          out.literatureLo = row.lo;
-          out.literatureHi = row.hi;
-          outputRows[row.name] = std::move(out);
-          std::cout << "[+] " << row.name << ": unresolved this run\n";
-        } else {
-          std::cout << "[+] " << row.name << ": resolved (genus " << target
-                    << ")\n";
-        }
-
-        if (censusUpdates) {
-          regina::Triangulation<3> complement = linkGrouping.buildComplement();
-          census::insertCensusEntry(complement.isoSig(), row.name);
-        }
-      } else {
-        OutputRow out;
-        out.knot = row.name;
-        out.status = "unresolved";
-        out.witnessKind = "none";
-        out.literatureLo = row.lo;
-        out.literatureHi = row.hi;
-        outputRows[row.name] = std::move(out);
+      // T5: don't repeat a search we have already run to exhaustion at
+      // this budget -- it would enumerate exactly the same surfaces and
+      // learn exactly nothing. A bigger --max-faces does make it worth
+      // redoing, which is what turns a re-run into progressive deepening.
+      if (it != outputRows.end() && it->second.searchOutcome == "exhausted" &&
+          maxFaces && it->second.searchedFaces >= *maxFaces) {
+        continue;
       }
     }
 
-    for (const std::string &name :
-        propagateGraph(pending, graph, knownGenus, outputRows))
-      std::cout << "\x1b[1;36m[+] " << name
-                << ": resolved incidentally (genus " << knownGenus[name]
-                << ") via graph propagation, no search needed\x1b[0m\n";
+    std::cout << "[+] Searching " << row.name << " (literature [" << row.lo
+              << ", " << row.hi << "], " << row.crossings
+              << " crossings)...\n";
+
+    knotbuilder::PDCode pdcode;
+    knotbuilder::TriangulationWithLink link;
+    std::optional<CobordismBuilder<3>> cobOpt;
+    std::optional<SurfaceSearch> eOpt;
+    std::vector<int> seedFaces;
+    std::optional<cobordismgraph::RowOrientation> rowOrientation;
+    size_t searchSideBC = 0;
+    int componentCount = 1;
+    std::string rowOwnName;
+    regina::Triangulation<4> tri;
+    bool buildFailed = false;
+
+    // buildRowOrientation() lives inside this try alongside parsePDCode/
+    // buildLink: it throws regina::InvalidArgument too (empty edge set, or
+    // a boundary component that isn't isomorphic to the row's own
+    // triangulation), and letting that escape would abort the entire
+    // sweep over one bad row rather than skipping it.
+    try {
+      pdcode = knotbuilder::parsePDCode(row.pdNotation);
+      link = knotbuilder::buildLink(pdcode);
+
+      auto &[t2, edges2, reversed2] = link;
+      Link linkGrouping(t2, edges2);
+      componentCount = linkGrouping.countComponents();
+      rowOwnName = identify::identify(linkGrouping);
+
+      std::vector<int> edgeIndices;
+      edgeIndices.reserve(edges2.size());
+      for (const regina::Edge<3> *e : edges2)
+        edgeIndices.push_back(static_cast<int>(e->index()));
+
+      cobOpt.emplace(t2);
+      CobordismBuilder<3> &cob = *cobOpt;
+      CollarBuilder collarBuilder(edgeIndices);
+      for (int i = 0; i < thickenLayers; ++i) {
+        cob.thicken();
+        if (i < collarLayers)
+          collarBuilder.addLayer(cob);
+      }
+      if (useCone)
+        cob.cone();
+
+      searchSideBC = cob.baseBoundaryComponent()->index();
+      tri = cob.getCobordism();
+
+      if (collarLayers > 0)
+        for (regina::Triangle<4> *t : collarBuilder.resolve())
+          seedFaces.push_back(static_cast<int>(t->index()));
+
+      if (!seedFaces.empty())
+        rowOrientation = cobordismgraph::buildRowOrientation(
+            edges2, reversed2, tri.boundaryComponent(searchSideBC)->build());
+    } catch (const regina::InvalidArgument &e) {
+      std::cerr << "[!] " << row.name << ": failed to build (" << e.what()
+                << "), skipping\n";
+      buildFailed = true;
+    }
+
+    if (buildFailed) {
+      OutputRow out;
+      out.knot = row.name;
+      out.status = "unresolved";
+      out.witnessKind = "none";
+      out.literatureLo = row.lo;
+      out.literatureHi = row.hi;
+      out.searchOutcome = "build-failed";
+      outputRows[row.name] = std::move(out);
+      writeOutputCsv(*outputPath, rows, outputRows);
+      continue;
+    }
+
+    if (seedFaces.empty())
+      eOpt.emplace(tri);
+    else
+      eOpt.emplace(tri, seedFaces, searchSideBC);
+    SurfaceSearch &e = *eOpt;
+    e.configureLimits(limits);
+
+    std::optional<CsvWriter> surfaceLog;
+    if (surfaceLogPath)
+      surfaceLog.emplace(*surfaceLogPath,
+                         "orientable,genus,tubed_genus,punctures,triangles,"
+                         "pairsig",
+                         numThreads);
+
+    // Why the search stopped, for the T5 bookkeeping. Set by whoever
+    // requests the stop; "exhausted" means nobody did and the search ran
+    // out of candidates on its own, which is only possible with
+    // --max-faces (see EmbeddingSearch::search()'s hardFaceCap).
+    std::string searchOutcome = "exhausted";
+    std::mutex outcomeMutex;
+    auto noteStop = [&](const char *why) {
+      std::lock_guard<std::mutex> lock(outcomeMutex);
+      if (searchOutcome == "exhausted")
+        searchOutcome = why;
+    };
+
+    std::atomic<long long> orientationRejections{0};
+    std::atomic<long long> newWitnessesThisRow{0};
+    std::atomic<bool> resolvedThisRow{false};
+
+    lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
+
+    SurfaceSearchCallbacks callbacks;
+    callbacks.onProgress = [&](const SearchStats &stats) {
+      printProgress(stats, e);
+    };
+    callbacks.onBoundaryProcessingStarted = [&](size_t total,
+                                                unsigned threads) {
+      progressPrevLines_ = 0;
+      std::cerr << "[+] boundary processing: " << total
+                << " queued surfaces, " << threads << " threads\n";
+    };
+    callbacks.onBoundaryProcessingProgress =
+        [&](size_t processed, size_t total,
+            std::chrono::steady_clock::duration elapsed) {
+          printBoundaryProgress(
+              processed, total, elapsed,
+              resolvedThisRow.load() ? std::optional<int>(row.lo)
+                                     : std::nullopt,
+              row.hi);
+        };
+    callbacks.onBoundaryProcessingComplete =
+        [&](size_t total, std::chrono::steady_clock::duration elapsed) {
+          progressPrevLines_ = 0;
+          std::cerr << "[+] boundary processing: done (" << total
+                    << " processed in " << formatElapsed(elapsed) << ")\n";
+        };
+
+    callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo
+                                                   &info) {
+      if (surfaceLog) {
+        std::string pairSig =
+            info.capturePairSig ? info.capturePairSig() : std::string{};
+        std::ostringstream row2;
+        row2 << (info.orientable ? "true" : "false") << ',' << info.genus
+             << ',' << info.tubedGenus << ',' << info.punctures << ','
+             << info.triangleCount << ',' << csvField(pairSig);
+        surfaceLog->writeRow(row2.str());
+      }
+
+      if (!info.orientable)
+        return; // defensive; orientableOnly=true already prunes these
+
+      // A disconnected find is NOT discarded any more. Its components tube
+      // into a single connected surface with the same boundary and genus
+      // exactly info.tubedGenus (see KnottedSurface::tubedSurfaceType), so
+      // it witnesses precisely what a connected find of that genus would.
+      // This is what makes multi-component links tractable at all: their
+      // seeded collar starts as one disjoint annulus per component, and
+      // nothing forces the DFS to ever bridge them.
+      const int witnessGenus = info.tubedGenus;
+      const bool tubed = !info.connected;
+
+      auto capturePairSig = [&info] {
+        return info.capturePairSig ? info.capturePairSig() : std::string{};
+      };
+
+      BoundarySplit split =
+          splitBoundary(info.boundaryComponents, searchSideBC, rowOwnName);
+
+      if (split.searchCurveCount != static_cast<size_t>(componentCount))
+        return; // this row's own link isn't (wholly) the boundary here, so
+                // whatever this surface witnesses, it isn't about this row
+
+      // A mixed orientation match means the surface witnesses a DIFFERENT
+      // oriented variant of this same-complement diagram -- exactly the
+      // L6a3{0}/L6a3{1} misattribution this check exists to catch.
+      if (rowOrientation) {
+        std::vector<OrientedCurve> searchSideCurves;
+        bool foundSearchSide = false;
+        for (auto &[c, curves] : info.captureOrientedBoundaryLinks()) {
+          if (c == searchSideBC) {
+            searchSideCurves = std::move(curves);
+            foundSearchSide = true;
+            break;
+          }
+        }
+        if (!foundSearchSide ||
+            !cobordismgraph::matchesRowOrientation(*rowOrientation,
+                                                   searchSideCurves)) {
+          orientationRejections.fetch_add(1, std::memory_order_relaxed);
+          return;
+        }
+      }
+
+      cobordismgraph::Witness w;
+      w.subject = row.name;
+      w.subjectComponents = componentCount;
+      w.genus = witnessGenus;
+      w.tubed = tubed;
+      w.sourceRow = row.name;
+      w.thickenLayers = thickenLayers;
+      w.maxFaces = maxFaces.value_or(0);
+
+      if (split.otherSides.empty()) {
+        w.kind = cobordismgraph::WitnessKind::direct;
+      } else if (split.otherSides.size() == 1) {
+        // A genuinely-linked far side is no longer refused. Its
+        // orientation is unknowable from a complement, so it is recorded
+        // as the SET of oriented variants it could be, and the solver
+        // takes the max/min over that set -- a weaker bound than an exact
+        // identification would give, but a sound one, where the old
+        // behaviour was to discard the cobordism entirely.
+        const BoundarySide &far = split.otherSides.front();
+        // Normalized, because identify() decorates a translated census hit
+        // as "4_1 (m004 : #1)" while the --input tables call it "4_1" --
+        // leaving the decoration on would make the far side a different
+        // graph node from the row for the very same knot.
+        std::string farName = cobordismgraph::normalizeIdentifiedName(far.name);
+        w.kind = cobordismgraph::WitnessKind::cobordism;
+        w.other = farName;
+        w.otherComponents = far.components;
+        w.otherCandidates = names.candidates(farName, far.components);
+      } else {
+        return; // a (k+1)-way cobordism; sound to use, but not yet
+                // implemented -- see the plan's out-of-scope note
+      }
+
+      if (!recordWitness(w, capturePairSig))
+        return;
+      newWitnessesThisRow.fetch_add(1, std::memory_order_relaxed);
+
+      // Does this witness alone already settle the row? Checked cheaply
+      // against the bounds as of the last full solve rather than by
+      // re-running the solver here: the far side's own bound can only have
+      // improved since, so this under-reports at worst, and the next
+      // resolveAll() picks up anything it missed.
+      int implied = cobordismgraph::NO_UPPER_BOUND;
+      // Whether that bound leans on a literature value anywhere. It decides
+      // whether the row may be considered settled: a conclusion resting on
+      // someone else's literature number is not an independent verification
+      // (Basis::literatureAssisted), and stopping the search on one would
+      // forfeit the chance of finding the surface that upgrades it.
+      bool impliedAssisted = false;
+      if (w.kind == cobordismgraph::WitnessKind::direct) {
+        implied = w.genus;
+      } else {
+        int worst = 0;
+        bool haveAll = !w.otherCandidates.empty();
+        for (const std::string &c : w.otherCandidates) {
+          int hi = cobordismgraph::NO_UPPER_BOUND;
+          bool assisted = false;
+          if (auto it = bounds.find(c);
+              it != bounds.end() && it->second.haveUpper()) {
+            hi = it->second.hi;
+            assisted = !it->second.support.empty();
+          } else if (const auto *ni = names.find(c); ni && ni->haveLiterature) {
+            hi = ni->litHi;
+            assisted = true;
+          }
+          if (hi == cobordismgraph::NO_UPPER_BOUND) {
+            haveAll = false;
+            break;
+          }
+          worst = std::max(worst, hi);
+          impliedAssisted = impliedAssisted || assisted;
+        }
+        if (haveAll)
+          implied = worst + w.genus + w.otherComponents - 1;
+      }
+
+      if (implied != cobordismgraph::NO_UPPER_BOUND && implied < row.lo) {
+        std::ostringstream msg;
+        msg << row.name << ": witness implies an upper bound of " << implied
+            << ", BELOW the literature lower bound " << row.lo << ".";
+        flagFatalBug(msg.str());
+        noteStop("fatal-bug");
+        e.requestStop();
+        e.skipRemainingBoundaryProcessing();
+        return;
+      }
+
+      if (implied != cobordismgraph::NO_UPPER_BOUND && implied <= row.lo &&
+          !impliedAssisted) {
+        // Only a CONSTRUCTIVE result settles a row. An assisted one is a
+        // correct deduction but not an independent verification, and the
+        // search might still find the surface that turns it into one -- so
+        // it must not end the row. (Moot under --harvest, which never stops
+        // early anyway; this matters for a non-harvest run.)
+        resolvedThisRow.store(true, std::memory_order_relaxed);
+        if (!harvest) {
+          // Without --harvest, stop the moment the row is settled: the
+          // rest of this cobordism's surfaces would only add edges we
+          // aren't going to need. With it, keep going and bank them.
+          noteStop("stopped");
+          e.requestStop();
+          e.skipRemainingBoundaryProcessing();
+        }
+      }
+    };
+
+    std::atomic<bool> searchDone{false};
+    std::thread watchdog;
+    if (perKnotTimeLimit || harvestQuiescence || sweepTimeLimit) {
+      // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
+      //
+      // The time limit bounds the *search*, not the row. Identification is
+      // the product: an unidentified surface says nothing whatever about a
+      // slice genus, so a surface found and then discarded unexamined is
+      // pure waste. Cutting the drain short measured 1% identification on a
+      // run that produced 1,216,027 qualifying surfaces -- 1.2 million
+      // boundaries thrown away unlooked-at, which is why that run's "found
+      // nothing" meant nothing.
+      //
+      // The cost is that a row overruns its nominal limit by however long
+      // the queue takes to drain, which can be minutes. That is the right
+      // trade: waiting is cheaper than searching a region and then refusing
+      // to look at what it found. --skip-drain-on-timeout restores the old
+      // behaviour for when throughput genuinely matters more.
+      auto endRowNow = [&](const char *why) {
+        noteStop(why);
+        e.requestStop();
+        if (skipDrainOnTimeout)
+          e.skipRemainingBoundaryProcessing();
+      };
+      watchdog = std::thread([&]() {
+        auto knotDeadline =
+            std::chrono::steady_clock::now() +
+            std::chrono::duration<double>(perKnotTimeLimit.value_or(0));
+        while (!searchDone.load(std::memory_order_relaxed)) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          if (searchDone.load(std::memory_order_relaxed))
+            break;
+          auto now = std::chrono::steady_clock::now();
+          if (perKnotTimeLimit && now >= knotDeadline) {
+            endRowNow("timeout");
+            break;
+          }
+          if (sweepTimeLimit &&
+              now - sweepStart >
+                  std::chrono::duration<double>(*sweepTimeLimit)) {
+            endRowNow("timeout");
+            break;
+          }
+          // Quiescence: this row has stopped teaching us anything new, so
+          // spending the rest of its budget enumerating more of the same
+          // is worse than moving on to a row we know nothing about.
+          // Meaningful during the boundary drain too, since that is where
+          // witnesses are actually identified.
+          if (harvestQuiescence) {
+            long long idleMs =
+                tickNow() - lastNewWitnessTick.load(std::memory_order_relaxed);
+            if (idleMs > static_cast<long long>(*harvestQuiescence * 1000)) {
+              endRowNow("quiescent");
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    // A multi-component link's own boundary necessarily puts more than one
+    // of the surface's boundary curves on the single search-side ambient
+    // component -- impossible under `connected`'s one-curve-per-ambient-
+    // component rule, but exactly what `proper` allows. `connected` is the
+    // (much tighter-pruning) default for ordinary single-component knots.
+    //
+    // But note what `connected` also costs, which is easy to miss: it caps
+    // the curve count on EVERY ambient boundary component, the far side
+    // included. So a knot row searched under `connected` can only ever
+    // discover single-curve far sides -- it is structurally incapable of
+    // finding a knot-to-LINK cobordism. Measured over a full sweep: all 110
+    // witnesses from knot rows had a one-curve far side, and there were
+    // zero knot-to-link edges, while link rows produced 62 link-to-knot
+    // ones. --boundary-condition proper lifts that, at the cost of much
+    // weaker pruning.
+    BoundaryCondition cond;
+    switch (boundaryConditionMode) {
+    case BoundaryConditionMode::proper:
+      cond = BoundaryCondition::proper;
+      break;
+    case BoundaryConditionMode::connected:
+      // Honoured only where it is actually satisfiable: a multi-component
+      // link can never meet `connected` on its own search side, so forcing
+      // it there would just guarantee an empty search.
+      cond = componentCount == 1 ? BoundaryCondition::connected
+                                 : BoundaryCondition::proper;
+      break;
+    case BoundaryConditionMode::automatic:
+    default:
+      cond = componentCount == 1 ? BoundaryCondition::connected
+                                 : BoundaryCondition::proper;
+      break;
+    }
+    e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
+             iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true, maxFaces);
+
+    searchDone.store(true, std::memory_order_relaxed);
+    if (watchdog.joinable())
+      watchdog.join();
+
+    if (surfaceLog)
+      surfaceLog->finalize();
+    progressPrevLines_ = 0;
+    ++searchedThisRun;
+
+    // Record what this search actually cost before anything else, so even
+    // a fatal halt below leaves the bookkeeping behind.
+    {
+      OutputRow &out = outputRows[row.name];
+      out.knot = row.name;
+      out.literatureLo = row.lo;
+      out.literatureHi = row.hi;
+      out.searchedFaces = maxFaces.value_or(0);
+      out.searchOutcome = searchOutcome;
+      if (out.status.empty())
+        out.status = "unresolved";
+    }
+
+    std::vector<std::string> contradictions = resolveAll();
+    {
+      OutputRow &out = outputRows[row.name];
+      out.searchedFaces = maxFaces.value_or(0);
+      out.searchOutcome = searchOutcome;
+    }
+
+    writeWitnesses(cobordismsPath, witnesses);
     writeOutputCsv(*outputPath, rows, outputRows);
+
+    for (const std::string &reason : contradictions)
+      flagFatalBug(reason);
+    if (fatalBugDetected_.load())
+      haltIfFatalBugDetected();
+
+    long long rejected = orientationRejections.load();
+    std::cout << "[+] " << row.name << ": "
+              << newWitnessesThisRow.load() << " new witnesses, outcome "
+              << searchOutcome;
+    if (rejected > 0)
+      std::cout << ", " << rejected
+                << " surfaces rejected on orientation mismatch";
+    std::cout << "\n";
+
+    auto verdict = outputRows.find(row.name);
+    if (verdict != outputRows.end()) {
+      const OutputRow &out = verdict->second;
+      if (out.status == "verified")
+        std::cout << "\x1b[1;32m[+] " << row.name << ": VERIFIED at genus "
+                  << out.resolvedGenus << " (constructive)\x1b[0m\n";
+      else if (out.status == "verified-assisted")
+        std::cout << "\x1b[1;36m[+] " << row.name << ": reaches genus "
+                  << out.resolvedGenus
+                  << ", but via another name's literature value -- NOT an "
+                     "independent verification\x1b[0m\n";
+      else if (out.status == "improved")
+        std::cout << "\x1b[1;33m[!!] " << row.name
+                  << ": IMPROVED upper bound to " << out.resolvedGenus
+                  << ", beating the literature's " << out.literatureHi
+                  << " (" << out.witnessBasis << ")\x1b[0m\n";
+      else
+        std::cout << "[+] " << row.name << ": " << out.status
+                  << (out.derivedHi.empty() ? "" : " (upper bound " +
+                                                       out.derivedHi + ")")
+                  << "\n";
+    }
+
+    if (censusUpdates) {
+      // The complement cannot distinguish oriented variants, so inserting
+      // an orientation-TAGGED name against a complement isoSig would make
+      // identify() confidently return (say) L6a3{0} for L6a3{1} forever
+      // after -- and insertCensusEntry is INSERT OR IGNORE, so the first
+      // variant processed would own that isoSig permanently. Store the
+      // base name; the candidate-set machinery restores the variants.
+      auto &[t2, edges2, reversed2] = link;
+      Link linkGrouping(t2, edges2);
+      regina::Triangulation<3> complement = linkGrouping.buildComplement();
+      census::insertCensusEntry(complement.isoSig(),
+                                cobordismgraph::baseName(row.name));
+    }
+
     ++processedThisRun;
   }
 
-  std::cout << "\n[+] Done. Processed " << processedThisRun
-            << " knots this run.\n";
+  // One last solve, so a run that searched nothing (or was cut short) still
+  // reflects everything its witness file knows.
+  for (const std::string &reason : resolveAll())
+    flagFatalBug(reason);
+  writeWitnesses(cobordismsPath, witnesses);
+  writeOutputCsv(*outputPath, rows, outputRows);
+  haltIfFatalBugDetected();
+
+  size_t verified = 0, verifiedAssisted = 0, improved = 0,
+         pinnedCount = 0, unresolvedCount = 0;
+  for (const auto &[name, out] : outputRows) {
+    if (out.status == "verified")
+      ++verified;
+    else if (out.status == "verified-assisted")
+      ++verifiedAssisted;
+    else if (out.status == "improved")
+      ++improved;
+    else if (out.status == "pinned")
+      ++pinnedCount;
+    else if (out.status == "unresolved")
+      ++unresolvedCount;
+  }
+
+  std::cout << "\n[+] Done. Searched " << searchedThisRun << " of "
+            << processedThisRun << " rows visited this run"
+            << (sweepTimedOut ? " (sweep time limit reached)" : "") << ".\n";
+  std::cout << "[+] Witness file: " << witnesses.size() << " witnesses in "
+            << cobordismsPath << "\n";
+  std::cout << "[+] Totals across " << outputRows.size()
+            << " tracked names: " << verified << " verified ("
+            << verifiedAssisted << " more only with literature help), "
+            << improved << " improved, " << pinnedCount << " pinned, "
+            << unresolvedCount << " unresolved.\n";
   return 0;
 }

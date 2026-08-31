@@ -87,13 +87,15 @@ void usage(const char *progName, const std::string &error = std::string()) {
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ] "
-         "[ --orientable-only ] <isosig>\n\n"
+         "[ --orientable-only ]\n"
+         "    [ --max-faces N ] <isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ]\n"
          "    [ --iddfs-iterations N --iddfs-step D ] [ --iddfs-start N ]\n"
-         "    [ --iddfs-final-threads N ] [ --orientable-only ] --pd "
+         "    [ --iddfs-final-threads N ] [ --orientable-only ] "
+         "[ --max-faces N ] --pd "
          "<pdcode>\n\n"
       << "    " << progName << " [ -v, --version | -h, --help ]\n\n";
   std::cerr
@@ -116,6 +118,29 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "                     non-orientable, rather than reporting "
                "non-orientable\n"
                "                     results (default: off).\n\n";
+  std::cerr
+      << "    --max-faces N  : Hard cap on how many faces the search may "
+         "add, making\n"
+         "                     it terminate on its own. WITHOUT this the "
+         "final pass is\n"
+         "                     unbounded, and the only things that ever end "
+         "a search are\n"
+         "                     Ctrl+C or an internal stop request -- on a "
+         "large enough\n"
+         "                     triangulation it simply never finishes. With "
+         "it, the run\n"
+         "                     is finite and exhaustive over exactly the "
+         "surfaces the cap\n"
+         "                     admits.\n"
+         "                       Counts faces ADDED BY THE SEARCH, matching "
+         "--iddfs-step:\n"
+         "                     with a collar seed (--pd, --collar-layers > "
+         "0) the seed\n"
+         "                     itself doesn't count, so N admits the seed "
+         "plus up to N\n"
+         "                     further triangles -- not surfaces of N "
+         "triangles total\n"
+         "                     (default: unbounded).\n\n";
   std::cerr << "    --threads N    : Number of worker threads to search "
                "with (default: the\n"
                "                     number of hardware threads available)\n"
@@ -360,7 +385,8 @@ void runSearch(const regina::Triangulation<4> &tri,
               unsigned iddfsIterations, long long iddfsStep,
               std::optional<long long> iddfsStart,
               std::optional<unsigned> iddfsFinalThreads,
-              const SurfaceSearchLimits &limits, bool orientableOnly) {
+              const SurfaceSearchLimits &limits, bool orientableOnly,
+              std::optional<long long> maxFaces) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -687,7 +713,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   }
 
   e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-           iddfsStart, iddfsFinalThreads, orientableOnly);
+           iddfsStart, iddfsFinalThreads, orientableOnly, maxFaces);
 
   if (writer)
     writer->finalize();
@@ -719,6 +745,7 @@ int main(int argc, char *argv[]) {
   std::optional<unsigned> iddfsFinalThreads;
 
   bool orientableOnly = false;
+  std::optional<long long> maxFaces;
 
   SurfaceSearchLimits limits;
   size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
@@ -747,6 +774,14 @@ int main(int argc, char *argv[]) {
       cond = BoundaryCondition::proper;
     } else if (arg == "--connected") {
       cond = BoundaryCondition::connected;
+    } else if (arg == "--max-faces") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--max-faces requires a value.");
+      try {
+        maxFaces = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--max-faces requires an integer value.");
+      }
     } else if (arg == "--orientable-only") {
       orientableOnly = true;
     } else if (arg == "--threads") {
@@ -924,6 +959,8 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--iddfs-iterations > 0 requires --iddfs-step > 0.");
   if (iddfsStart && *iddfsStart <= 0)
     usage(argv[0], "--iddfs-start requires a value > 0.");
+  if (maxFaces && *maxFaces <= 0)
+    usage(argv[0], "--max-faces requires a value > 0.");
   if (limits.pendingSurfaceCap == 0)
     usage(argv[0], "--pending-surface-cap requires a value > 0.");
   if (limits.petalCacheLimit == 0)
@@ -1009,7 +1046,7 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly);
+             orientableOnly, maxFaces);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -1020,7 +1057,7 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly);
+             orientableOnly, maxFaces);
   }
 
   return 0;

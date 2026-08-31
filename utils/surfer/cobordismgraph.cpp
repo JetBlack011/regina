@@ -6,60 +6,447 @@
 
 #include "cobordismgraph.h"
 
-#include <iostream>
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <unordered_set>
 
 namespace cobordismgraph {
 
-void addEdge(Graph &graph, const std::string &a, const std::string &b,
-            int genus, const std::string &pairSig) {
-    graph[a].push_back({b, genus, pairSig});
-    graph[b].push_back({a, genus, pairSig});
+/* Names of knots/links that appear in the cobordism graph */
+
+// TODO: Probably these shouldn't be here... Might make sense to move them to
+// their own file at some point.
+
+std::string baseName(const std::string &name) {
+    size_t brace = name.find('{');
+    return brace == std::string::npos ? name : name.substr(0, brace);
 }
 
-bool hasEdgeWithGenus(const Graph &graph, const std::string &a,
-                      const std::string &b, int genus) {
-    auto it = graph.find(a);
-    if (it == graph.end())
-        return false;
-    for (const auto &e : it->second)
-        if (e.other == b && e.genus == genus)
-            return true;
-    return false;
+std::string normalizeIdentifiedName(const std::string &name) {
+    if (name.size() < 4 || name.back() != ')')
+        return name;
+    size_t open = name.rfind(" (");
+    if (open == std::string::npos || open == 0)
+        return name;
+    return name.substr(0, open);
 }
 
-std::optional<ResolveInfo>
-resolvable(const std::string &name, int target, const Graph &graph,
-          const std::unordered_map<std::string, int> &knownGenus) {
-    auto it = graph.find(name);
-    if (it == graph.end())
-        return std::nullopt;
-    for (const auto &e : it->second) {
-        auto hIt = knownGenus.find(e.other);
-        if (hIt == knownGenus.end())
-            continue;
-        int h = hIt->second;
-        if (target == e.genus + h || target == h - e.genus)
-            return ResolveInfo{e.other, e.genus, e.pairSig};
+int componentsFromName(const std::string &name) {
+    // "<n>-component unlink"
+    if (name.ends_with("-component unlink")) {
+        size_t dash = name.find('-');
+        if (dash != std::string::npos && dash > 0) {
+            bool allDigits = std::all_of(
+                name.begin(), name.begin() + static_cast<long>(dash),
+                [](unsigned char c) { return std::isdigit(c) != 0; });
+            if (allDigits) {
+                try {
+                    return std::stoi(name.substr(0, dash));
+                } catch (const std::exception &) {
+                    // fall through to the default below
+                }
+            }
+        }
+        return 1;
     }
-    return std::nullopt;
+
+    // An orientation tag lists a choice per component after the first, so
+    // the component count is one more than the number of entries. See
+    // componentsFromName()'s doc comment.
+    size_t brace = name.find('{');
+    if (brace == std::string::npos)
+        return 1;
+    size_t close = name.find('}', brace);
+    if (close == std::string::npos)
+        return 1;
+    int entries = 1;
+    for (size_t i = brace + 1; i < close; ++i)
+        if (name[i] == ';')
+            ++entries;
+    return entries + 1;
 }
 
-std::string buildDependsOn(
-    const std::string &viaKnot,
-    const std::unordered_map<std::string, OutputRow> &outputRows) {
+void NameTable::addLiterature(const std::string &name, int lo, int hi) {
+    auto [it, inserted] = info_.try_emplace(name);
+    if (inserted) {
+        it->second.components = componentsFromName(name);
+        byBase_[baseName(name)].push_back(name);
+    }
+    it->second.haveLiterature = true;
+    it->second.litLo = lo;
+    it->second.litHi = hi;
+}
+
+const NameInfo *NameTable::find(const std::string &name) const {
+    auto it = info_.find(name);
+    return it == info_.end() ? nullptr : &it->second;
+}
+
+int NameTable::components(const std::string &name) const {
+    auto it = info_.find(name);
+    return it == info_.end() ? componentsFromName(name) : it->second.components;
+}
+
+bool NameTable::hasVariants(const std::string &name) const {
+    auto it = byBase_.find(baseName(name));
+    return it != byBase_.end() && !it->second.empty();
+}
+
+std::vector<std::string>
+NameTable::candidates(const std::string &name,
+                      std::optional<int> observedComponents) const {
+    auto it = byBase_.find(baseName(name));
+    if (it == byBase_.end() || it->second.empty())
+        return {name};
+
+    if (!observedComponents)
+        return it->second;
+
+    std::vector<std::string> filtered;
+    for (const std::string &candidate : it->second)
+        if (components(candidate) == *observedComponents)
+            filtered.push_back(candidate);
+    // An empty result would mean every registered variant of this base has
+    // the wrong component count, i.e. the identification and the geometry
+    // disagree. Hand back the unfiltered set and let the max/min in propagate()
+    // stay okay.
+    return filtered.empty() ? it->second : filtered;
+}
+
+/* Witness cobordisms (cobordisms that verify slice genus somehow) */
+
+bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w) {
+    return std::any_of(
+        witnesses.begin(), witnesses.end(), [&w](const Witness &existing) {
+            return existing.kind == w.kind && existing.subject == w.subject &&
+                   existing.other == w.other && existing.genus == w.genus &&
+                   existing.tubed == w.tubed &&
+                   existing.otherComponents == w.otherComponents &&
+                   existing.subjectComponents == w.subjectComponents;
+        });
+}
+
+namespace {
+
+/** Saturating add that keeps NO_UPPER_BOUND */
+int addUpper(int bound, int delta) {
+    if (bound == NO_UPPER_BOUND)
+        return NO_UPPER_BOUND;
+    return bound + delta;
+}
+
+/** One candidate's contribution to an upper bound, together with each name
+ * whose literature value that contribution rests on. */
+struct UpperContribution {
+    int value = NO_UPPER_BOUND;
+    std::vector<std::string> support;
+};
+
+/** Sorted union: cheaper than keeping a set for a small list of names. */
+void mergeSupport(std::vector<std::string> &into,
+                  const std::vector<std::string> &from) {
+    into.insert(into.end(), from.begin(), from.end());
+    std::sort(into.begin(), into.end());
+    into.erase(std::unique(into.begin(), into.end()), into.end());
+}
+
+bool supportContains(const std::vector<std::string> &support,
+                     const std::string &name) {
+    return std::binary_search(support.begin(), support.end(), name);
+}
+
+UpperContribution upperOf(const std::string &name,
+                          const std::unordered_map<std::string, Bounds> &bounds,
+                          const NameTable &names) {
+    UpperContribution best;
+    // Both sources are valid upper bounds, so take whichever is better.
+    auto it = bounds.find(name);
+    if (it != bounds.end() && it->second.haveUpper())
+        best = {.value = it->second.hi, .support = it->second.support};
+    if (const NameInfo *info = names.find(name); info && info->haveLiterature)
+        if (best.value == NO_UPPER_BOUND || info->litHi < best.value)
+            best = {.value = info->litHi, .support = {name}};
+    return best;
+}
+
+/** As UpperContribution, for lower bounds. */
+struct LowerContribution {
+    int value = NO_LOWER_BOUND;
+    std::vector<std::string> support;
+};
+
+LowerContribution lowerOf(const std::string &name,
+                          const std::unordered_map<std::string, Bounds> &bounds,
+                          const NameTable &names) {
+    LowerContribution best;
+    if (const NameInfo *info = names.find(name); info && info->haveLiterature)
+        best = {.value = info->litLo, .support = {name}};
+    auto it = bounds.find(name);
+    if (it != bounds.end() && it->second.haveLower() &&
+        (best.value == NO_LOWER_BOUND || it->second.lo > best.value))
+        best = {.value = it->second.lo, .support = it->second.lowerSupport};
+    return best;
+}
+
+/** Applies `hi[name] <- min(hi[name], value)`, returning whether it changed. */
+bool relaxUpper(std::unordered_map<std::string, Bounds> &bounds,
+                const NameTable &names, const std::string &name, int value,
+                std::vector<std::string> support, const Witness &w,
+                const std::string &via) {
+    if (value == NO_UPPER_BOUND)
+        return false;
+    // No circular dependencies
+    if (supportContains(support, name))
+        return false;
+    const Basis basis =
+        support.empty() ? Basis::constructive : Basis::literatureAssisted;
+    value = std::max(value, 0); // a genus is never negative
+    if (const NameInfo *info = names.find(name);
+        info && info->haveLiterature && value > info->litHi)
+        return false;
+    Bounds &b = bounds[name];
+    bool better = value < b.hi;
+    bool firmer = value == b.hi && b.basis == Basis::literatureAssisted &&
+                  basis == Basis::constructive;
+    if (!better && !firmer)
+        return false;
+    b.hi = value;
+    b.basis = basis;
+    b.support = std::move(support);
+    b.kind = w.kind;
+    b.viaName = via;
+    b.viaGenus = w.genus;
+    b.pairSig = w.pairSig;
+    b.tubed = w.tubed;
+    return true;
+}
+
+/** Applies `lo[name] <- max(lo[name], value)`, returning whether it changed. */
+bool relaxLower(std::unordered_map<std::string, Bounds> &bounds,
+                const NameTable &names, const std::string &name, int value,
+                std::vector<std::string> support) {
+    if (value == NO_LOWER_BOUND)
+        return false;
+    // No circular dependencies
+    if (supportContains(support, name))
+        return false;
+    if (value <= 0) // 0 isn't a new lower bound
+        return false;
+    if (const NameInfo *info = names.find(name);
+        info && info->haveLiterature && value < info->litLo)
+        return false;
+    Bounds &b = bounds[name];
+    if (b.haveLower() && value <= b.lo)
+        return false;
+    b.lo = value;
+    b.lowerSupport = std::move(support);
+    return true;
+}
+
+/** Seeds the two bounds that need neither a search nor the literature. */
+void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
+                const std::vector<Witness> &witnesses) {
+    auto axiom = [&bounds](const std::string &name) {
+        Bounds &b = bounds[name];
+        b.hi = 0;
+        b.lo = 0;
+        b.basis = Basis::constructive;
+        b.kind = WitnessKind::direct;
+    };
+    axiom("Unknot");
+    // Every "<n>-component unlink" actually mentioned anywhere: it bounds
+    // n disks, which tube into a connected planar surface of genus 0.
+    for (const Witness &w : witnesses)
+        if (w.other.ends_with("-component unlink"))
+            axiom(w.other);
+        else if (w.subject.ends_with("-component unlink"))
+            axiom(w.subject);
+}
+
+} // namespace
+
+std::unordered_map<std::string, Bounds>
+propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
+    std::unordered_map<std::string, Bounds> bounds;
+    seedAxioms(bounds, witnesses);
+
+    // Direct witnesses are the constructive base case (surfaces that straight
+    // up bound the link)
+    for (const Witness &w : witnesses)
+        if (w.kind == WitnessKind::direct)
+            relaxUpper(bounds, names, w.subject, w.genus, /*support=*/{}, w,
+                       "");
+
+    // Relax every cobordism in both directions until nothing moves (this will
+    // halt eventually: see propagate()'s doc comment).
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (const Witness &w : witnesses) {
+            if (w.kind != WitnessKind::cobordism)
+                continue;
+
+            // Both endpoints, with the component count that belongs to each.
+            // `far` is the side supplying the bound; `near` is the side
+            // receiving it.
+            struct Direction {
+                std::string near;
+                int nearComponents;
+                std::vector<std::string> far;
+                int farComponents;
+                std::string viaLabel; // how to name the far side
+            };
+            std::vector<Direction> directions;
+            directions.push_back({w.subject, w.subjectComponents,
+                                  w.otherCandidates, w.otherComponents,
+                                  w.other});
+            // The reverse direction is only available when we know which link
+            // the far side actually is.
+            const bool farSideOrientationKnown =
+                w.otherComponents == 1 || names.hasVariants(w.other);
+
+            if (w.otherCandidates.size() == 1 && farSideOrientationKnown)
+                directions.push_back({w.otherCandidates.front(),
+                                      w.otherComponents,
+                                      {w.subject},
+                                      w.subjectComponents,
+                                      w.subject});
+
+            for (const Direction &d : directions) {
+                if (d.far.empty())
+                    continue;
+
+                // Never bound a name using itself (e.g. the product surface is
+                // not interesting).
+                if (std::find(d.far.begin(), d.far.end(), d.near) !=
+                    d.far.end())
+                    continue;
+
+                int worst = 0;
+                std::vector<std::string> support;
+                bool haveAll = true;
+                for (const std::string &c : d.far) {
+                    UpperContribution u = upperOf(c, bounds, names);
+                    if (u.value == NO_UPPER_BOUND) {
+                        haveAll = false;
+                        break;
+                    }
+                    worst = std::max(worst, u.value);
+                    mergeSupport(support, u.support);
+                }
+                const bool unlinkFar =
+                    !d.far.empty() &&
+                    std::all_of(d.far.begin(), d.far.end(),
+                                [](const std::string &c) {
+                                    return c.ends_with("-component unlink");
+                                });
+                const int penalty = unlinkFar ? 0 : d.farComponents - 1;
+                if (haveAll && relaxUpper(bounds, names, d.near,
+                                          addUpper(worst, w.genus + penalty),
+                                          std::move(support), w, d.viaLabel))
+                    changed = true;
+
+                // Lower: sound only if it holds for every candidate too,
+                // hence the min.
+                int best = NO_LOWER_BOUND;
+                std::vector<std::string> lowerSupport;
+                bool haveAllLower = true;
+                for (const std::string &c : d.far) {
+                    LowerContribution l = lowerOf(c, bounds, names);
+                    if (l.value == NO_LOWER_BOUND) {
+                        haveAllLower = false;
+                        break;
+                    }
+                    best = best == NO_LOWER_BOUND ? l.value
+                                                  : std::min(best, l.value);
+                    mergeSupport(lowerSupport, l.support);
+                }
+                if (haveAllLower && best != NO_LOWER_BOUND &&
+                    relaxLower(bounds, names, d.near,
+                               best - w.genus - d.nearComponents + 1,
+                               std::move(lowerSupport)))
+                    changed = true;
+            }
+        }
+    }
+
+    return bounds;
+}
+
+/* Reporting output */
+
+Verdict judge(const std::string &name, const Bounds &bounds,
+              const NameTable &names) {
+    Verdict v;
+    v.bounds = bounds;
+    if (const NameInfo *info = names.find(name); info && info->haveLiterature) {
+        v.haveLiterature = true;
+        v.litLo = info->litLo;
+        v.litHi = info->litHi;
+    }
+
+    if (v.haveLiterature) {
+        if (bounds.haveUpper() && bounds.hi < v.litLo) {
+            v.status = Status::contradiction;
+            std::ostringstream msg;
+            msg << name << ": constructed a surface of genus " << bounds.hi
+                << ", BELOW the literature lower bound " << v.litLo << ".";
+            v.reason = msg.str();
+            return v;
+        }
+        if (bounds.haveLower() && bounds.lo > v.litHi) {
+            v.status = Status::contradiction;
+            std::ostringstream msg;
+            msg << name << ": derived a lower bound of " << bounds.lo
+                << ", ABOVE the literature upper bound " << v.litHi << ".";
+            v.reason = msg.str();
+            return v;
+        }
+        if (bounds.haveUpper() && bounds.hi == v.litLo) {
+            // Only an independently-constructed bound counts as a
+            // verification
+            v.status = bounds.basis == Basis::constructive
+                           ? Status::verified
+                           : Status::verifiedAssisted;
+            v.value = v.litLo;
+            return v;
+        }
+        if (bounds.haveUpper() && bounds.hi < v.litHi) {
+            v.status = Status::improved;
+            v.value = bounds.hi;
+            return v;
+        }
+    }
+
+    if (bounds.haveUpper() && bounds.haveLower() && bounds.hi == bounds.lo) {
+        v.status = Status::pinned;
+        v.value = bounds.hi;
+        return v;
+    }
+    if (bounds.haveUpper() || bounds.haveLower()) {
+        v.status = Status::bounded;
+        v.value = bounds.haveUpper() ? bounds.hi : bounds.lo;
+        return v;
+    }
+    v.status = Status::unresolved;
+    return v;
+}
+
+std::string
+buildDependsOn(const std::string &via,
+               const std::unordered_map<std::string, Bounds> &bounds) {
     std::vector<std::string> chain;
     std::unordered_set<std::string> seen;
-    std::string cur = viaKnot;
+    std::string cur = via;
     while (!cur.empty() && seen.insert(cur).second) {
         chain.push_back(cur);
-        if (cur == "Unknot")
+        if (cur == "Unknot" || cur.ends_with("-component unlink"))
             break;
-        auto it = outputRows.find(cur);
-        if (it == outputRows.end() || it->second.viaKnot.empty())
+        auto it = bounds.find(cur);
+        if (it == bounds.end() || it->second.viaName.empty())
             break;
-        cur = it->second.viaKnot;
+        cur = it->second.viaName;
     }
     std::ostringstream out;
     for (size_t i = 0; i < chain.size(); ++i) {
@@ -70,210 +457,11 @@ std::string buildDependsOn(
     return out.str();
 }
 
-std::vector<std::string>
-propagateGraph(const std::vector<InputRow> &pending, const Graph &graph,
-              std::unordered_map<std::string, int> &knownGenus,
-              std::unordered_map<std::string, OutputRow> &outputRows) {
-    std::vector<std::string> newlyResolved;
+/* Boundary classification */
 
-    auto resolve = [&](const std::string &name, int lo, int hi) -> bool {
-        auto info = resolvable(name, hi, graph, knownGenus);
-        if (!info)
-            return false;
-        knownGenus[name] = hi;
-        OutputRow out;
-        out.knot = name;
-        out.resolvedGenus = hi;
-        out.status = (lo == hi) ? "resolved" : "range";
-        out.witnessKind = "propagated";
-        out.viaKnot = info->viaKnot;
-        out.viaEdgeGenus = info->viaEdgeGenus;
-        out.dependsOn = buildDependsOn(info->viaKnot, outputRows);
-        out.literatureLo = lo;
-        out.literatureHi = hi;
-        outputRows[name] = std::move(out);
-        newlyResolved.push_back(name);
-        return true;
-    };
-
-    bool changed = true;
-    while (changed) {
-        changed = false;
-
-        for (const auto &row : pending) {
-            if (knownGenus.contains(row.name))
-                continue;
-            if (resolve(row.name, row.lo, row.hi))
-                changed = true;
-        }
-
-        // Snapshot names first: resolve() mutates outputRows, and iterating
-        // a map while inserting into it is undefined behavior.
-        std::vector<std::string> others;
-        others.reserve(outputRows.size());
-        for (const auto &[name, row] : outputRows)
-            if (!knownGenus.contains(name))
-                others.push_back(name);
-        for (const auto &name : others) {
-            if (knownGenus.contains(name))
-                continue; // may have resolved earlier in this same pass
-            const OutputRow &existing = outputRows.at(name);
-            if (resolve(name, existing.literatureLo, existing.literatureHi))
-                changed = true;
-        }
-    }
-
-    return newlyResolved;
-}
-
-namespace {
-std::string capture(const std::function<std::string()> &capturePairSig) {
-    return capturePairSig ? capturePairSig() : std::string{};
-}
-} // namespace
-
-WitnessOutcome recordWitness(
-    const std::string &subject, int subjectLo, int subjectHi, int target,
-    const std::string &viaName, int witnessGenus,
-    const std::function<std::string()> &capturePairSig,
-    const char *witnessKind, Graph &graph,
-    std::unordered_map<std::string, int> &knownGenus,
-    std::unordered_map<std::string, OutputRow> &outputRows) {
-    WitnessOutcome outcome;
-
-    if (viaName.empty()) {
-        // Direct witness: subject's own boundary alone, nothing else.
-        if (witnessGenus == target) {
-            knownGenus[subject] = target;
-            OutputRow out;
-            out.knot = subject;
-            out.resolvedGenus = target;
-            out.status = (subjectLo == subjectHi) ? "resolved" : "range";
-            out.witnessKind = witnessKind;
-            out.witnessPairSig = capture(capturePairSig);
-            out.literatureLo = subjectLo;
-            out.literatureHi = subjectHi;
-            outputRows[subject] = std::move(out);
-            outcome.resolved = true;
-        } else if (witnessGenus < subjectLo) {
-            std::ostringstream msg;
-            msg << subject << ": found a DIRECT genus-" << witnessGenus
-                << " surface, BELOW the literature lower bound " << subjectLo
-                << ".";
-            outcome.fatalBug = true;
-            outcome.fatalBugMessage = msg.str();
-        } else if (witnessGenus < target) {
-            // witnessGenus >= subjectLo is guaranteed here (the branch
-            // above would have fired first otherwise), so this is a
-            // genuine improvement: a smaller witness than the previously
-            // known upper bound (target == subjectHi), still consistent
-            // with the proven lower bound -- not resolved, just surfaced
-            // so it doesn't go unnoticed.
-            std::cout << "\x1b[1;33m[!!] " << subject
-                      << ": found a DIRECT genus-" << witnessGenus
-                      << " surface, IMPROVING on the previously known upper "
-                         "bound "
-                      << subjectHi << " (literature range [" << subjectLo
-                      << ", " << subjectHi << "])"
-                      << (witnessGenus == subjectLo
-                              ? " -- matches the literature lower bound "
-                                "exactly"
-                              : "")
-                      << "\x1b[0m\n";
-        }
-        return outcome;
-    }
-
-    // Cobordism witness to viaName.
-
-    // Skip the (expensive -- see capturePairSig's own doc comment) pairSig
-    // capture entirely when it wouldn't teach the graph anything new:
-    // resolvable()'s check is an exact equality on genus, so two edges to
-    // the same neighbor at the SAME genus are fully interchangeable
-    // (whichever witness got recorded first is just as good), and with
-    // thousands of near-duplicate surfaces per pair, this is the
-    // overwhelmingly common case.
-    bool haveThisGenusEdge =
-        hasEdgeWithGenus(graph, subject, viaName, witnessGenus);
-
-    auto hIt = knownGenus.find(viaName);
-
-    // A genus-h cobordism to a name whose genus is already firmly known
-    // caps subject's own genus at hIt->second + h (attach this cobordism
-    // to viaName's own established witness). If that cap is BELOW
-    // subject's proven literature lower bound, that's a mathematical
-    // impossibility, not just "doesn't resolve this time".
-    if (hIt != knownGenus.end() &&
-            hIt->second + witnessGenus < subjectLo) {
-        std::ostringstream msg;
-        msg << subject << ": found a COBORDISM genus-" << witnessGenus
-            << " surface to " << viaName << " (known genus " << hIt->second
-            << "), implying an upper bound of "
-            << (hIt->second + witnessGenus) << " for " << subject
-            << ", BELOW the literature lower bound " << subjectLo << ".";
-        outcome.fatalBug = true;
-        outcome.fatalBugMessage = msg.str();
-        return outcome;
-    }
-
-    bool resolvesNow =
-        hIt != knownGenus.end() &&
-        (target == witnessGenus + hIt->second ||
-         target == hIt->second - witnessGenus);
-
-    if (haveThisGenusEdge && !resolvesNow)
-        return outcome;
-
-    // As the direct case's analogous branch: attaching this cobordism to
-    // viaName's own already-established witness constructs an explicit
-    // genus-(hIt->second + witnessGenus) surface for subject. If that's a
-    // genuine improvement over the previously known upper bound (target
-    // == subjectHi), and it isn't what resolvable() is already about to
-    // accept below, surface it -- otherwise it'd go unnoticed.
-    if (hIt != knownGenus.end() && !resolvesNow) {
-        int implied = hIt->second + witnessGenus;
-        if (implied >= subjectLo && implied < target)
-            std::cout
-                << "\x1b[1;33m[!!] " << subject << ": found a COBORDISM genus-"
-                << witnessGenus << " surface to " << viaName
-                << " (known genus " << hIt->second
-                << "), implying an upper bound of " << implied << " for "
-                << subject << ", IMPROVING on the previously known upper "
-                             "bound "
-                << subjectHi << " (literature range [" << subjectLo << ", "
-                << subjectHi << "])"
-                << (implied == subjectLo
-                        ? " -- matches the literature lower bound exactly"
-                        : "")
-                << "\x1b[0m\n";
-    }
-
-    std::string pairSig = capture(capturePairSig);
-    if (!haveThisGenusEdge)
-        addEdge(graph, subject, viaName, witnessGenus, pairSig);
-
-    if (resolvesNow) {
-        knownGenus[subject] = target;
-        OutputRow out;
-        out.knot = subject;
-        out.resolvedGenus = target;
-        out.status = (subjectLo == subjectHi) ? "resolved" : "range";
-        out.witnessKind = witnessKind;
-        out.witnessPairSig = pairSig;
-        out.viaKnot = viaName;
-        out.viaEdgeGenus = witnessGenus;
-        out.dependsOn = buildDependsOn(viaName, outputRows);
-        out.literatureLo = subjectLo;
-        out.literatureHi = subjectHi;
-        outputRows[subject] = std::move(out);
-        outcome.resolved = true;
-    }
-    return outcome;
-}
-
-BoundarySplit splitBoundary(
-    const std::vector<BoundaryComponentNames> &boundaryComponents,
-    size_t searchSideBC, const std::string &rowOwnName) {
+BoundarySplit
+splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
+              size_t searchSideBC, const std::string &rowOwnName) {
     BoundarySplit result;
     for (const auto &info : boundaryComponents) {
         std::optional<std::string> name =
@@ -281,10 +469,6 @@ BoundarySplit splitBoundary(
                 ? std::optional<std::string>(info.curveNames.front())
                 : info.linkName;
 
-        // Only treat this as the search side if it's both geometrically
-        // this row's own ambient component AND its identified name
-        // actually matches this row's own link -- see splitBoundary()'s
-        // own doc comment for why the geometric check alone isn't enough.
         if (info.component == searchSideBC && name && *name == rowOwnName) {
             result.searchCurveCount = info.curveNames.size();
             continue;
@@ -292,15 +476,15 @@ BoundarySplit splitBoundary(
 
         if (!name)
             continue; // describeBoundary_() never leaves a multi-curve
-                      // component without a linkName -- nothing to record
-                      // if it somehow did.
+                      // component without a linkName
 
         result.otherSides.push_back(
-            {*name, info.curveNames.size() == 1 ||
-                        identify::isOrientationSafeName(*name)});
+            {*name, static_cast<int>(info.curveNames.size())});
     }
     return result;
 }
+
+/* Orientation matching */
 
 namespace {
 // Maps ambient vertex `v` to its corresponding vertex in `dest`, via `iso`
@@ -315,10 +499,10 @@ size_t mapVertexIndex(const regina::Vertex<3> *v,
 }
 } // namespace
 
-RowOrientation buildRowOrientation(
-    const std::vector<const regina::Edge<3> *> &rowEdges,
-    const std::vector<bool> &rowReversed,
-    const regina::Triangulation<3> &searchSideTri) {
+RowOrientation
+buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
+                    const std::vector<bool> &rowReversed,
+                    const regina::Triangulation<3> &searchSideTri) {
     if (rowEdges.empty())
         throw regina::InvalidArgument(
             "buildRowOrientation(): rowEdges must not be empty");
@@ -373,9 +557,7 @@ bool matchesRowOrientation(const RowOrientation &row,
             if (!curveMatch)
                 curveMatch = edgeMatches;
             else if (*curveMatch != edgeMatches)
-                return false; // shouldn't happen -- a single curve is
-                              // all-or-nothing (see this function's own doc
-                              // comment) -- but don't trust that blindly
+                return false; // shouldn't happen
         }
 
         if (!curveMatch)
@@ -383,15 +565,9 @@ bool matchesRowOrientation(const RowOrientation &row,
         if (!overallMatch)
             overallMatch = curveMatch;
         else if (*overallMatch != *curveMatch)
-            return false; // mixed pattern across components -- reject
+            return false; // mixed pattern across components, reject
     }
-    // Reaching here means every curve's own match/mismatch bit agreed with
-    // every other's (any disagreement already returned false above) --
-    // accept regardless of whether that shared bit was "match" or
-    // "mismatch": a uniform mismatch is just the surface's other
-    // orientation choice, always allowed (see this function's own doc
-    // comment). overallMatch's own stored bool value is irrelevant here;
-    // only whether at least one real curve was actually checked matters.
+
     return overallMatch.has_value();
 }
 

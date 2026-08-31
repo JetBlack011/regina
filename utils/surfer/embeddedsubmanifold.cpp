@@ -971,6 +971,25 @@ KnottedSurface::surfaceTypeKey(const regina::Triangulation<2> &surface) {
   return {isOrientable, genus, punctures};
 }
 
+KnottedSurface::TubedSurfaceType
+KnottedSurface::tubedSurfaceType(const regina::Triangulation<2> &surface) {
+  TubedSurfaceType out;
+  // triangulateComponents() hands back each component as a standalone
+  // Triangulation<2>, so surfaceTypeKey() applies to it unchanged rather
+  // than needing a separate per-Component<2> Euler characteristic path.
+  for (const regina::Triangulation<2> &comp : surface.triangulateComponents()) {
+    if (comp.countBoundaryComponents() == 0) {
+      ++out.closedComponents; // discarded, see this method's doc comment
+      continue;
+    }
+    auto [orientable, genus, punctures] = surfaceTypeKey(comp);
+    ++out.boundedComponents;
+    out.genus += genus;
+    out.punctures += punctures;
+  }
+  return out;
+}
+
 std::string KnottedSurface::formatSurfaceType(const SurfaceTypeKey &key) {
   auto [isOrientable, genus, punctures] = key;
   std::ostringstream ans;

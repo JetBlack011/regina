@@ -8,6 +8,7 @@
 
 #define COBORDISMGRAPH_H
 
+#include <climits>
 #include <functional>
 #include <optional>
 #include <string>
@@ -18,13 +19,45 @@
 
 /*! \file utils/surfer/cobordismgraph.h
  *  \brief The name/genus resolution graph verifyslicegenus.cpp builds up
- *  across its --input rows: given a set of witnessed cobordisms between
- *  named knots/links (each an edge at a specific genus), works out which
- *  rows' slice genus that pins down exactly.
+ *  across its --input rows: given a set of witnessed surfaces and cobordisms
+ *  between named knots/links, works out what each row's slice genus must be.
  *
- *  Extracted out of verifyslicegenus.cpp specifically so this logic (previously
- *  untested except via full CLI runs) is unit-testable on its own -- see
- *  tests/cobordismgraph_test.cpp.
+ *  \section cg_math The inequality this is all built on
+ *
+ *  Throughout, `g_4(L)` is the slice genus of a link in the following sense:
+ * the minimum genus over **connected** orientable properly embedded surfaces in
+ * `B^4` bounded by `L`. Let `Sigma_1` be a connected genus-`g` cobordism in
+ * `S^3 x I` from `L_0` (with `n_0` components) to `L_1` (with `n_1`
+ * components), and let `Sigma_2` be a connected genus-`h` surface in `B^4`
+ * bounded by `L_1`. Gluing them along `L_1` gives a connected surface bounded
+ * by `L_0` with
+ *  \f[
+ *    \chi = \chi(\Sigma_1) + \chi(\Sigma_2)
+ *         = (2 - 2g - n_0 - n_1) + (2 - 2h - n_1),
+ *  \f]
+ *  and matching that against `chi = 2 - 2G - n_0` gives `G = g + h + n_1 - 1`.
+ *  Hence
+ *  \f[
+ *    g_4(L_0) \le g_4(L_1) + g + n_1 - 1, \qquad
+ *    g_4(L_0) \ge g_4(L_1) - g - n_0 + 1,
+ *  \f]
+ *  the second being the first with the roles of `L_0` and `L_1` swapped.
+ *
+ *  For knots, both collapse to the familiar `|g_4(K_0) - g_4(K_1)| <= g`
+ * exactly when `n_0 = n_1 = 1`. Note that the component-count terms are not
+ * optional for links: a genus-0 cobordism from a knot `K` to a 2-component
+ * unlink bounds `g_4(K)` by `0 + 0 + 2 - 1 = 1`, not by 0, so dropping the
+ * correction would "prove" `K` slice on wrong evidence.
+ *
+ *  \section cg_orient Why a far side is a *set* of candidates
+ *
+ *  identify::identify() names a link by its complement, and a complement
+ *  cannot see how its components are oriented: `L4a1{0}` (slice genus 0)
+ *  and `L4a1{1}` (slice genus 1) are the same manifold. So a far side
+ *  identified as `L4a1` is really "one of the oriented variants of L4a1",
+ *  and a sound deduction has to hold for whichever it is: the upper bound
+ *  takes the **max** over candidates, the lower bound the **min**. When
+ *  every variant of a base name shares one genus, this costs nothing.
  */
 
 namespace cobordismgraph {
@@ -32,196 +65,287 @@ namespace cobordismgraph {
 /** One --input row: a name to verify/bound the slice genus of, plus its
  * literature bounds and the PD code to search from. */
 struct InputRow {
-  std::string name;
-  std::string pdNotation;
-  int lo = 0, hi = 0; // literature genus bounds; lo == hi except for a
-                      // handful of [lo;hi] range rows
-  int crossings = 0;
+    std::string name;
+    std::string pdNotation;
+    int lo = 0, hi = 0; // literature genus bounds; lo == hi except for a
+                        // handful of [lo;hi] range rows
+    int crossings = 0;
 };
 
-/** One row of --output: a name's current resolution status and (if
- * resolved) how it was witnessed. */
-struct OutputRow {
-  std::string knot;
-  int resolvedGenus = 0;
-  std::string status;       // resolved | range | unresolved | skipped
-  std::string witnessKind;  // direct | cobordism | incidental-direct |
-                            // incidental-cobordism | propagated | none
-  std::string witnessPairSig;
-  std::string viaKnot;
-  int viaEdgeGenus = 0;
-  std::string dependsOn;
-  int literatureLo = 0;
-  int literatureHi = 0;
-};
+/** Sentinels for "no bound derived yet" */
+constexpr int NO_UPPER_BOUND = INT_MAX;
+constexpr int NO_LOWER_BOUND = INT_MIN;
 
-struct GraphEdge {
-  std::string other;
-  int genus;
-  std::string pairSig;
-};
-
-/** name -> every witnessed cobordism edge touching it, both directions. */
-using Graph = std::unordered_map<std::string, std::vector<GraphEdge>>;
-
-void addEdge(Graph &graph, const std::string &a, const std::string &b,
-            int genus, const std::string &pairSig);
+/* Names */
 
 /**
- * Whether `graph` already has an (a, b) edge at exactly `genus` -- see
- * recordWitness()'s use of this for why exact-genus (not "any genus <=
- * this one") is the right dedup key: resolvable() checks an exact
- * equality (target == g + h or target == h - g), not an inequality, so
- * two edges to the same neighbor with different genus are NOT
- * interchangeable, but two with the SAME genus (however many redundant
- * surfaces happened to witness it) are.
+ * The number of components of whatever `name` names, worked out from the
+ * name itself.
+ *
+ * \note This is a fallback for names we have no better information about.
+ * When a component count is *observed* (the number of boundary curves a
+ * found surface actually put on an ambient boundary component), prefer the
+ * observation: it is a fact about this surface, whereas this is an
+ * inference from a string.
  */
-bool hasEdgeWithGenus(const Graph &graph, const std::string &a,
-                      const std::string &b, int genus);
+int componentsFromName(const std::string &name);
 
-struct ResolveInfo {
-  std::string viaKnot;
-  int viaEdgeGenus;
-  std::string pairSig; // the resolving edge's own pairSig, if any
+/** `name` with any trailing orientation tag removed: `L6a3{0}` -> `L6a3`. */
+std::string baseName(const std::string &name);
+
+/**
+ * An identify() result reduced to the name the graph should key on.
+ *
+ * Strips the trailing parenthetical if there is one; leaves everything else
+ * (`"Unknot"`, `"3-component unlink"`, a bare isoSig, an undecorated census
+ * name) untouched.
+ */
+std::string normalizeIdentifiedName(const std::string &name);
+
+/** What we know about one name independently of any surface we have found. */
+struct NameInfo {
+    int components = 1;
+    bool haveLiterature = false;
+    int litLo = 0;
+    int litHi = 0;
 };
 
 /**
- * Returns the edge (if any) that pins `name`'s genus to exactly `target`,
- * given `knownGenus`'s currently-established values: an edge (name, other,
- * g) with other's genus known as h pins target only when target == g + h
- * (constructive direction) or target == h - g (contrapositive direction) --
- * merely falling inside [h-g, h+g] is consistent, not conclusive.
+ * Populated from the --input tables. A links run and a knots run pointed at
+ * the same table set see the same NameTable, which is what lets a knot row's
+ * search use a link far side and vice versa.
  */
-std::optional<ResolveInfo>
-resolvable(const std::string &name, int target, const Graph &graph,
-          const std::unordered_map<std::string, int> &knownGenus);
+class NameTable {
+  public:
+    /** Registers one literature row. Safe to call twice for the same name. */
+    void addLiterature(const std::string &name, int lo, int hi);
 
-/** Walks from `viaKnot` back through outputRows' own via_knot chain to
- * whatever ultimately bottomed out (a direct witness, or the Unknot,
- * which has no outputRows entry of its own), joining the path with ';'. */
-std::string buildDependsOn(
-    const std::string &viaKnot,
-    const std::unordered_map<std::string, OutputRow> &outputRows);
+    /** Returns what's known about `name`, or nullptr if it was never seen. */
+    const NameInfo *find(const std::string &name) const;
+
+    /**
+     * `name`'s component count: the registered value if we have one, else
+     * componentsFromName().
+     */
+    int components(const std::string &name) const;
+
+    /**
+     * The oriented variants `name` could be, given that whatever produced it
+     * could not see orientation.
+     *
+     * Returns every registered name sharing `name`'s base, filtered to those
+     * with `observedComponents` components when that is given (a variant with
+     * the wrong number of components simply isn't what was found). Falls back
+     * to `{name}` when the base is unregistered: a knot name, `"Unknot"`, an
+     * `"<n>-component unlink"`, or a bare isoSig, none of which have oriented
+     * variants to disambiguate between.
+     */
+    std::vector<std::string>
+    candidates(const std::string &name,
+               std::optional<int> observedComponents = std::nullopt) const;
+
+    /**
+     * Whether `name`'s oriented variants can actually be enumerated, i.e.
+     * whether candidates() returned a real list rather than the `{name}`
+     * fallback.
+     *
+     * This is the difference between "we know this far side is one of these
+     * two oriented links" and "we have a complement and no idea how its
+     * components are oriented". Both come back from candidates() as a list;
+     * only the first is safe to propagate a bound *onto*. A census name like
+     * `L204001` (a 2-component link complement) looks like an unambiguous
+     * singleton while being maximally ambiguous.
+     */
+    bool hasVariants(const std::string &name) const;
+
+    size_t size() const { return info_.size(); }
+
+  private:
+    std::unordered_map<std::string, NameInfo> info_;
+    std::unordered_map<std::string, std::vector<std::string>> byBase_;
+};
+
+/* Witnesses */
+
+/** Whether a witness bounds its subject on its own, or only relative to
+ * another name. */
+enum class WitnessKind { direct, cobordism };
 
 /**
- * Sweeps for new resolutions unlockable purely from the current
- * knownGenus/graph state, repeating until a full pass makes no further
- * progress. Two sources of candidates, in one sweep:
- *
- *  - `pending`: --input rows not yet resolved -- resolving one here means
- *    the main loop's own `if (knownGenus.contains(row.name)) continue;`
- *    skips it without ever running a search for it.
- *  - every other name already in `outputRows` that isn't yet resolved --
- *    since --output is a single unified table shared across every run
- *    ever pointed at it, this is typically a knot/link from a *different*
- *    --input than this run's own. Its target is its own already-recorded
- *    literatureLo/Hi, from whenever it was first processed.
- *
- * Either way, each newly-resolved name is recorded into `outputRows` with
- * witness_kind "propagated" (no search run for it this session).
- *
- * Returns every name newly resolved by this call, in resolution order --
- * deliberately not printed here (this function stays pure/side-effect-free,
- * same as recordWitness(), for its own unit-testability); the caller
- * decides whether/how to announce them.
+ * One surface we actually found.
  */
-std::vector<std::string>
-propagateGraph(const std::vector<InputRow> &pending, const Graph &graph,
-              std::unordered_map<std::string, int> &knownGenus,
-              std::unordered_map<std::string, OutputRow> &outputRows);
+struct Witness {
+    WitnessKind kind = WitnessKind::cobordism;
 
-/** The result of recordWitness(): whether it resolved `subject` outright,
- * and whether it detected a mathematical impossibility (a witness
- * implying a genus below `subject`'s own literature lower bound) that
- * should halt the whole program -- see verifyslicegenus.cpp's own
- * flagFatalBug()/haltIfFatalBugDetected(), which the caller is
- * responsible for invoking; this struct only reports the fact and
- * message, it has no side effects of its own on program control flow. */
-struct WitnessOutcome {
-  bool resolved = false;
-  bool fatalBug = false;
-  std::string fatalBugMessage;
+    std::string
+        subject; /**< The name whose own boundary this surface realizes. */
+    int subjectComponents = 1; /**< Observed curve count on `subject`'s side. */
+
+    std::string other; /**< The far side's identified name; empty iff `kind ==
+                          direct`. */
+    std::vector<std::string> otherCandidates;
+    /**< The oriented variants `other` could be (see NameTable::candidates).
+         Empty iff `kind == direct`. */
+    int otherComponents = 1; /**< Observed curve count on the far side. */
+
+    int genus = 0;
+    /**< The genus of the connected surface this witness provides. For a
+         disconnected find, the tubed genus (SurfaceFoundInfo::tubedGenus),
+         not the meaningless whole-complex figure. */
+    bool tubed = false;
+    /**< Whether the surface as found was disconnected and had to be tubed
+         to give `genus`. Recorded so a reader can tell that the pairSig
+         names a disconnected complex, with the tubing as the step from it
+         to the surface the bound is about. */
+
+    std::string
+        pairSig; /**< The found surface's pair signature, if captured. */
+
+    // Provenance: which search produced this, and under what budget.
+    std::string sourceRow;
+    int thickenLayers = 1;
+    long long maxFaces = 0; /**< 0 means the search was unbounded. */
+};
+
+/** Whether `witnesses` already contains an equivalent witness. This is the
+ * dedup key that keeps a harvest run from capturing thousands of pair
+ * signatures. */
+bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w);
+
+/* Solving */
+
+/** How a derived upper bound was arrived at. */
+enum class Basis {
+    constructive,
+    /**< Obtained using the surfaces we've found (assuming unlinks are genus 0)
+     */
+    literatureAssisted,
+    /**< Obtained by appealing to a known value. */
+};
+
+/** The bounds propagate() derived for one name. */
+struct Bounds {
+    int hi = NO_UPPER_BOUND; /**< Derived upper bound; see Basis. */
+
+    std::vector<std::string> support;
+    std::vector<std::string> lowerSupport;
+
+    int lo = NO_LOWER_BOUND;
+    Basis basis = Basis::constructive;
+
+    // Provenance of whichever witness last improved `hi`.
+    WitnessKind kind = WitnessKind::direct;
+    std::string viaName;
+    int viaGenus = 0;
+    std::string pairSig;
+    bool tubed = false;
+
+    bool haveUpper() const { return hi != NO_UPPER_BOUND; }
+    bool haveLower() const { return lo != NO_LOWER_BOUND; }
 };
 
 /**
- * Attempts to resolve `subject`'s genus (using its own literature bounds
- * subjectLo/subjectHi and candidate `target`, normally subjectHi) given a
- * newly-found witness of genus `witnessGenus` -- either a direct witness
- * (viaName empty: subject's own boundary alone) or a cobordism to
- * `viaName`. Handles the fatal-bug check, the resolves-now check, edge
- * recording (skipped for a direct witness), and improvement-upper-bound
- * logging to stdout.
+ * Derives every bound the witness set supports, by relaxing to a fixpoint.
  *
- * `capturePairSig` is only ever invoked lazily, at most once, and only
- * when a pairSig is actually about to be used (writing a resolved
- * OutputRow, or adding a genuinely new graph edge) -- never
- * unconditionally, since capturing a pairSig is expensive (see
- * SurfaceFoundInfo::capturePairSig's own doc comment in surfacesearch.h)
- * and the overwhelming majority of witnesses seen in practice are
- * duplicates of an edge already recorded at the same genus.
+ * For each witness, with `g` its genus, `n_a` the subject's component count
+ * and `n_b` the far side's:
+ * \f[
+ *   hi[a] \leftarrow \min\bigl(hi[a],\ \max_{c \in cand(b)} hi(c) + g + n_b -
+ * 1\bigr),
+ * \f]
+ * \f[
+ *   lo[a] \leftarrow \max\bigl(lo[a],\ \min_{c \in cand(b)} lo(c) - g - n_a +
+ * 1\bigr),
+ * \f]
+ * and `hi[a] <- min(hi[a], g)` for a direct witness. Every edge is relaxed in
+ * both directions, since a cobordism is symmetric.
  *
- * Pure with respect to program control flow: never stops a search or
- * halts the program itself (unlike the search-side branches this
- * generalizes, which additionally call
- * e.requestStop()/e.skipRemainingBoundaryProcessing() on the caller's
- * SurfaceSearch when `subject` is the row currently being searched) --
- * the caller decides what to do with a resolved/fatalBug WitnessOutcome.
+ * `hi(c)` prefers the derived bound and falls back to `c`'s literature upper
+ * bound, marking the result Basis::literatureAssisted when it does. `lo(c)`
+ * uses the literature lower bound, or `c`'s own derived one.
+ *
+ * Both relaxations are monotone (`hi` only falls, `lo` only rises) and clamped
+ * to `[0, ...)`, since a genus is never negative; each propagation step
+ * subtracts a non-negative `g + n - 1`, so no cycle can move a value upward
+ * indefinitely.
+ *
+ * Seeded with the two facts that need no literature and no search: the
+ * unknot bounds a disk, and an `n`-component unlink bounds a connected
+ * planar surface (tube the `n` discs together -- genus 0, `n` boundary
+ * circles), so both get `hi = lo = 0` constructively.
  */
-WitnessOutcome recordWitness(
-    const std::string &subject, int subjectLo, int subjectHi, int target,
-    const std::string &viaName, int witnessGenus,
-    const std::function<std::string()> &capturePairSig,
-    const char *witnessKind, Graph &graph,
-    std::unordered_map<std::string, int> &knownGenus,
-    std::unordered_map<std::string, OutputRow> &outputRows);
+std::unordered_map<std::string, Bounds>
+propagate(const std::vector<Witness> &witnesses, const NameTable &names);
+
+/* Reporting */
+
+/** What a name's derived bounds amount to, judged against the literature. */
+enum class Status {
+    verified,
+    /**< Verified using surfaces we found */
+    verifiedAssisted,
+    /**< Verified by appealing to known values */
+    improved,
+    /**< Our upper bound beats the literature's but hasn't reached its
+         lower bound (yippee!!) */
+    pinned,
+    /**< Derived upper and lower bounds agree, pinning the value, without
+         the literature having an exact value to match. */
+    bounded, /**< Some derived bound exists, but it doesn't improve anything. */
+    unresolved, /**< Nothing derived. */
+    contradiction,
+    /**< Derived bounds are inconsistent with the literature. Mathematically
+       impossible, so it means a bug -- see verifyslicegenus.cpp's fatal-bug
+       halt. */
+};
+
+/** One name's final verdict, for writing out and for printing. */
+struct Verdict {
+    Status status = Status::unresolved;
+    Bounds bounds;
+    bool haveLiterature = false;
+    int litLo = 0, litHi = 0;
+    int value = 0;      /**< The established genus, when status pins one. */
+    std::string reason; /**< Human-readable one-liner, for a contradiction. */
+};
+
+/** Judges `bounds` for `name` against whatever literature `names` holds. */
+Verdict judge(const std::string &name, const Bounds &bounds,
+              const NameTable &names);
+
+/** Walks `via` back through `bounds`' own provenance chain to whatever it
+ * ultimately rests on (a direct witness, the Unknot, or an unlink), joining
+ * the path with ';'. No cycles. */
+std::string
+buildDependsOn(const std::string &via,
+               const std::unordered_map<std::string, Bounds> &bounds);
+
+/* Boundary classification */
 
 /**
- * One non-search-side ambient boundary component's identity, as classified by
- * splitBoundary(): `name` is always populated (describeBoundary_()
- * guarantees either a single curve name or, for a multi-curve component,
- * a linkName -- never neither), but `safe` says whether that name is
- * trustworthy for a genus deduction. A single curve (one component) is
- * always safe -- no orientation ambiguity is possible with only one
- * component. A multi-curve linkName is only safe when
- * identify::isOrientationSafeName() says so ("Unknot" or an
- * "<n>-component unlink" -- split components don't interact, so
- * orientation doesn't matter); a genuinely linked multi-component name is
- * NOT safe, since different orientations of the same link can have very
- * different true slice genus while sharing one complement (see
- * isOrientationSafeName()'s own doc comment) -- using it for a deduction
- * would silently conflate them.
+ * One non-search-side ambient boundary component's identity, as classified
+ * by splitBoundary().
  */
 struct BoundarySide {
-  std::string name;
-  bool safe;
+    std::string name;
+    int components = 1;
 };
 
 /**
  * Splits a SurfaceBoundaryInfo::boundaryComponents grouping into "the
  * search side" (this row's own side) and every other ambient boundary
- * component the surface touches, each classified via BoundarySide above.
- *
- * The ambient component == searchSideBC is only accepted as the search
- * side if its identified name (the single curve name, or -- for more than
- * one curve -- the linkName) also equals `rowOwnName`. Geometric position
- * (component == searchSideBC) alone is NOT sufficient: the DFS is free to
- * add faces beyond the seeded collar that also touch that same ambient
- * boundary component, so a surface can land the right *count* of curves
- * there (matching this row's own component count) while actually tracing
- * out a completely different, unrelated link -- silently misattributing
- * that other link's genus to this row. `rowOwnName` (identify() run once
- * on this row's own link, before searching) is the only way to catch
- * that: if the names don't match, component == searchSideBC is treated as
- * just another "other" side, exactly like any non-searchSideBC component.
+ * component the surface touches.
  */
 struct BoundarySplit {
-  size_t searchCurveCount = 0; // 0 if the search side has no boundary here
-  std::vector<BoundarySide> otherSides;
+    size_t searchCurveCount = 0; // 0 if the search side has no boundary here
+    std::vector<BoundarySide> otherSides;
 };
 
-BoundarySplit splitBoundary(
-    const std::vector<BoundaryComponentNames> &boundaryComponents,
-    size_t searchSideBC, const std::string &rowOwnName);
+BoundarySplit
+splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
+              size_t searchSideBC, const std::string &rowOwnName);
+
+/* Orientation matching */
 
 /**
  * A row's own PD-tagged diagram edges (knotbuilder::TriangulationWithLink's
@@ -230,45 +354,24 @@ BoundarySplit splitBoundary(
  * knotbuilder triangulation -- normally the ambient search-side boundary
  * component, rebuilt via `BoundaryComponent<4>::build()` (see
  * buildRowOrientation()).
- *
- * Keyed by vertex *index* rather than raw `Vertex<3>*`, since a found
- * surface's own KnottedSurface instance builds its own independent copy of
- * that boundary triangulation (`build()` is called once per KnottedSurface,
- * not shared) -- confirmed empirically that separate `build()` calls on the
- * same ambient boundary component are index-stable (same tetrahedron/vertex
- * numbering every time), so an index survives across objects even though a
- * pointer would not.
  */
 struct RowOrientation {
-  std::unordered_map<size_t, size_t> headOf; // tail vertex index -> head vertex index
+    std::unordered_map<size_t, size_t>
+        headOf; // tail vertex index -> head vertex index
 };
 
 /**
  * Builds `rowEdges`/`rowReversed`'s RowOrientation against `searchSideTri`.
  *
- * `searchSideTri` need not be, and normally is not, the same C++ object
- * `rowEdges` themselves live in (typically `rowEdges` live in knotbuilder's
- * own output triangulation, while `searchSideTri` is
- * `ambientTri.boundaryComponent(searchSideBC)->build()`) -- they only need
- * to be *combinatorially isomorphic*, which is established once here via
- * `Triangulation<3>::isIsomorphicTo()` (confirmed empirically this session
- * to correctly identify the row's own tagged edges' corresponding vertices
- * in the rebuilt boundary triangulation -- raw edge/vertex *index*
- * correspondence between the two does NOT hold in general, only up to this
- * isomorphism). This computation is the expensive part of this feature
- * (an isomorphism search), so it is deliberately factored out to run once
- * per row rather than once per found surface -- matchesRowOrientation()
- * below is then cheap.
- *
  * \throws regina::InvalidArgument if `rowEdges` is empty, or if its own
  * triangulation is not isomorphic to `searchSideTri` (should not happen
- * when `searchSideTri` is genuinely built from the ambient boundary
+ * when `searchSideTri` is actually built from the ambient boundary
  * component the row's diagram was seeded into).
  */
-RowOrientation buildRowOrientation(
-    const std::vector<const regina::Edge<3> *> &rowEdges,
-    const std::vector<bool> &rowReversed,
-    const regina::Triangulation<3> &searchSideTri);
+RowOrientation
+buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
+                    const std::vector<bool> &rowReversed,
+                    const regina::Triangulation<3> &searchSideTri);
 
 /**
  * Whether `curves` (one found surface's own induced boundary curves on the
@@ -278,16 +381,8 @@ RowOrientation buildRowOrientation(
  * nowhere, across every curve (component). A mixed pattern (some curves
  * match, some don't) means the surface's own relative orientation between
  * components doesn't match this row's PD convention, and is rejected here
- * exactly as a fully-mismatched pattern would be reversed by simply
- * picking the surface's other orientation -- see this feature's design
- * notes for the full derivation of why "all or nothing" is the correct
- * acceptance criterion.
- *
- * Also rejects (returns false) if any curve edge isn't one of `row`'s own
- * tagged edges at all -- should not arise when the search's own protected-
- * boundary-component mechanism (see EmbeddingSearch) has kept the search
- * side's edge set fixed to exactly the row's own diagram, but checked
- * defensively rather than assumed.
+ * as a fully-mismatched pattern would be reversed by simply picking the
+ * surface's other orientation.
  */
 bool matchesRowOrientation(const RowOrientation &row,
                            const std::vector<OrientedCurve> &curves);

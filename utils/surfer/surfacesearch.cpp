@@ -2,16 +2,32 @@
 
 #include "identifycomplement.h"
 
+namespace {
+
+/** SurfaceFoundInfo's `tubedGenus`/`closedComponents` pair; see below. */
+struct TubedFields {
+    int genus;
+    int closedComponents;
+};
+
+/**
+ * Computes SurfaceFoundInfo::tubedGenus/closedComponents from a surface
+ * whose (orientable, genus, punctures) classification is already known.
+ */
+TubedFields tubedFieldsFor(const regina::Triangulation<2> &surface, int genus,
+                           int punctures) {
+    if (surface.isConnected())
+        return punctures > 0 ? TubedFields{genus, 0} : TubedFields{0, 1};
+    auto tubed = KnottedSurface::tubedSurfaceType(surface);
+    return {tubed.genus, tubed.closedComponents};
+}
+
+} // namespace
+
 SurfaceSearch::SurfaceSearch(
     const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,
     std::optional<size_t> protectedBoundaryComponent)
     : EmbeddingSearch<4, 2>(tri, seedFaces, protectedBoundaryComponent) {
-    // Additional validation beyond the base class's own (facet-level-only)
-    // seeded-constructor check above: KnottedSurface's seeded constructor
-    // runs the enhanced addFace()/addFaces() (transverse-self-intersection/
-    // local-flatness checks included), throwing regina::InvalidArgument if
-    // any face fails them -- this temporary exists purely for that side
-    // effect.
     KnottedSurface(skeleton_, petalCache_, seedFaces);
 }
 
@@ -20,7 +36,7 @@ void SurfaceSearch::configureLimits(const SurfaceSearchLimits &limits) {
     pendingSurfaces_.setCap(limits.pendingSurfaceCap);
     petalCache_.setClearThreshold(limits.petalCacheLimit);
     linkTally_.setCap(limits.boundaryTallyCap);
-    // boundarySigCaches_ isn't built yet -- ensureBoundarySigCaches_() reads
+    // boundarySigCaches_ isn't built yet. ensureBoundarySigCaches_() reads
     // limits_.boundarySignatureCacheLimit when constructing each entry.
 }
 
@@ -139,10 +155,6 @@ SurfaceSearch::LinkBoundaryTally::summary(std::optional<size_t> maxRecent) const
     } else {
         std::vector<std::string> descriptors;
         if (maxRecent && *maxRecent < order_.size()) {
-            // Most recently *first-encountered* descriptors, oldest of the
-            // shown ones first -- discovery order, not alphabetical, so a
-            // live progress report reads as a log rather than reshuffling
-            // every time a new descriptor enters/leaves the window.
             descriptors.assign(order_.end() - static_cast<long>(*maxRecent),
                                order_.end());
             out << "  (showing the " << *maxRecent << " most recently "
@@ -288,9 +300,13 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
         localPending_.push_back(std::move(faceIndices));
     } else if (callbacks_.onSurfaceFound) {
         auto [orientable, genus, punctures] = type;
+        auto tubed =
+            tubedFieldsFor(embedding.triangulation(), genus, punctures);
         callbacks_.onSurfaceFound(SurfaceFoundInfo{
             .orientable = orientable,
             .genus = genus,
+            .tubedGenus = tubed.genus,
+            .closedComponents = tubed.closedComponents,
             .punctures = punctures,
             .connected = embedding.triangulation().isConnected(),
             .triangleCount = faceCount,
@@ -312,20 +328,6 @@ void SurfaceSearch::ThreadHook::onFlush() {
     if (owner_.pendingSurfaces_.size() <= owner_.pendingSurfaces_.cap())
         return;
 
-    // Backpressure: once the shared queue is over its cap, one thread
-    // claims exclusive responsibility for a full drain-to-empty pass and
-    // PAUSES THE WHOLE SEARCH while it runs -- setting owner_.pauseRequested_
-    // makes every other worker's tryAdd() block (see InterruptiblePredicate)
-    // rather than reject, so no in-progress DFS branch is lost and no other
-    // thread can push more work into the queue while this drain is in
-    // progress. That's what makes this a genuine full drain (down to
-    // empty), not just "back under cap": nothing new can arrive mid-drain.
-    //
-    // The compare-exchange means only the first thread to notice the queue
-    // over cap actually pauses/drains; any other thread whose onFlush()
-    // also notices it around the same time just returns here -- it's about
-    // to block in its own tryAdd() anyway, within one DFS step, once
-    // pauseRequested_ takes effect.
     bool expected = false;
     if (!owner_.pauseRequested_.compare_exchange_strong(
             expected, true, std::memory_order_relaxed))
@@ -338,10 +340,6 @@ void SurfaceSearch::ThreadHook::onFlush() {
     constexpr size_t HELPER_DRAIN_BATCH = 64;
     bool interrupted = false;
     while (true) {
-        // Checked before popping another batch (not mid-batch), so nothing
-        // popped is ever abandoned unprocessed -- whatever's still merged
-        // into pendingSurfaces_ when this breaks stays there for
-        // processRemainingSurfaceBoundaries()'s single final pass.
         if (owner_.stopRequested_.load(std::memory_order_relaxed)) {
             interrupted = true;
             break;
@@ -356,9 +354,6 @@ void SurfaceSearch::ThreadHook::onFlush() {
         owner_.pendingSurfaces_.recordProducerDrain(batch.size());
     }
 
-    // Unpause before the resume callback, not after: a caller watching for
-    // "search has resumed" shouldn't be able to observe pauseRequested_
-    // still set once notified.
     owner_.pauseRequested_.store(false, std::memory_order_relaxed);
 
     if (callbacks_.onQueueDrainResume)
@@ -382,8 +377,6 @@ void SurfaceSearch::backgroundDrainLoop_(
     const std::atomic<bool> &workersFinished,
     const SurfaceSearchCallbacks &callbacks) {
     using namespace std::chrono_literals;
-    // Matches processBatchParallel_'s own CHUNK size -- not load-bearing
-    // that they're equal, just a reasonable shared "small batch" constant.
     constexpr size_t POP_BATCH = 64;
     KnottedSurface embedding(skeleton_, petalCache_);
     while (!workersFinished.load(std::memory_order_relaxed)) {
@@ -394,11 +387,6 @@ void SurfaceSearch::backgroundDrainLoop_(
         }
         for (size_t i = 0; i < items.size(); ++i) {
             if (workersFinished.load(std::memory_order_relaxed)) {
-                // The search ended partway through this small batch: hand
-                // the unprocessed remainder back to the shared queue --
-                // popSome() already removed it from pending_, so
-                // processRemainingSurfaceBoundaries()'s drain() would
-                // never otherwise see it.
                 std::vector<std::vector<int>> remainder(
                     std::make_move_iterator(items.begin() +
                                             static_cast<ptrdiff_t>(i)),
@@ -450,20 +438,6 @@ void SurfaceSearch::processBatchParallel_(
     auto worker = [&]() {
         KnottedSurface embedding(skeleton_, petalCache_);
         while (true) {
-            // Deliberately skipRemainingDrain_, not stopRequested_: the
-            // latter is also set by a plain SIGINT (see SigintScope), and
-            // this drain is exactly the "moving on to whatever comes next
-            // with what was found so far" work callers' onInterrupted
-            // messages promise still happens -- see
-            // skipRemainingBoundaryProcessing()'s own doc comment. Without
-            // this check at all, a caller stopping the search the instant
-            // it sees a qualifying surface would still have to wait for
-            // this entire batch (which can be as large as
-            // pendingSurfaceCap) to finish processing before search()
-            // returns. Coarser than the live-search predicate's per-face
-            // check (CHUNK-sized granularity, so up to CHUNK=64
-            // already-claimed entries per thread still finish), which is
-            // fine: the goal is bounding the tail, not zero latency.
             if (skipRemainingDrain_.load(std::memory_order_relaxed))
                 break;
             size_t begin =
@@ -507,14 +481,14 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
 
     if (callbacks.onSurfaceBoundaryProcessed) {
         auto [orientable, genus, punctures] = type;
-        // Lazy: the callback (called synchronously, below) must invoke
-        // this itself if it wants the pairSig -- the removeFace() unwind
-        // after this call returns invalidates embedding's cachedPairSig_,
-        // so it's only safe to call from within the callback, never after.
+        auto tubed =
+            tubedFieldsFor(embedding.triangulation(), genus, punctures);
         callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
             SurfaceFoundInfo{
                 .orientable = orientable,
                 .genus = genus,
+                .tubedGenus = tubed.genus,
+                .closedComponents = tubed.closedComponents,
                 .punctures = punctures,
                 .connected = embedding.triangulation().isConnected(),
                 .triangleCount = static_cast<long long>(faceIndices.size()),
@@ -550,58 +524,18 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   unsigned iddfsIterations, long long iddfsStep,
                                   std::optional<long long> iddfsStart,
                                   std::optional<unsigned> finalThreads,
-                                  bool orientableOnly) {
+                                  bool orientableOnly,
+                                  std::optional<long long> hardFaceCap) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
-    // Thread safety, not just performance: Vertex<4>::buildLink() caches
+    // Thread safety (and performance): Vertex<4>::buildLink() caches
     // its result as a plain, unsynchronized lazily-constructed pointer
-    // (see engine/triangulation/dim4/vertex4.cpp) -- since every worker
-    // thread below shares the same ambient Triangulation<4> (and hence the
-    // same Vertex<4> objects) even though each has its own KnottedSurface,
-    // two workers concurrently reaching faces around the same ambient
-    // vertex could otherwise race on that cache. Forcing every vertex's
-    // link to build once, single-threaded, here -- before runSearch_
-    // spawns any worker thread -- means every later call (even
-    // concurrent) only ever takes the already-built, read-only path.
-    //
-    // That cached link (a Triangulation<3>&, shared the same way the
-    // Vertex<4>* itself is) has its OWN independent lazily-computed
-    // skeleton (edges/tetrahedra/etc, gated by TriangulationBase's
-    // calculatedSkeleton_ flag -- see ensureSkeleton()/calculateSkeleton()
-    // in engine/triangulation/detail/skeleton-impl.h), separate from --
-    // and not forced by -- buildLink() itself just having been called.
-    // KnottedSurface::linkEdgeForTriangle_() reaches into this same shared
-    // link triangulation (tet->edge(...)) from every worker thread, so
-    // without also forcing its skeleton here, two threads reaching the
-    // same ambient vertex's link for the first time race on THAT
-    // computation instead -- and calculateSkeleton() sets
-    // calculatedSkeleton_ = true as its very first statement, before any
-    // of the skeleton is actually populated, so this isn't just a
-    // redundant-rebuild race: a second thread can see "already done" and
-    // read torn, half-populated skeleton data mid-computation. isValid()
-    // is a cheap way to force the same ensureSkeleton() call every other
-    // skeletal accessor uses internally (it's protected, so not callable
-    // directly).
+    // (see engine/triangulation/dim4/vertex4.cpp)
     for (auto v : skeleton_.triangulation().vertices())
         v->buildLink().isValid();
 
-    // Same reasoning, for BoundaryComponent<4>::build(): every
-    // KnottedSurface constructor independently calls
-    // tri.boundaryComponent(c)->build() to populate its own bdryComponents_
-    // (embeddedsubmanifold.cpp), but build() itself lazily caches its
-    // result on the shared BoundaryComponent<4> object (common to every
-    // KnottedSurface, since it belongs to the one ambient Triangulation<4>)
-    // -- so two threads racing to build the SAME boundary component for
-    // the first time (e.g. backgroundDrainLoop_'s aux thread against a DFS
-    // worker's own embedding, or one worker's helperEmbedding_ under
-    // backpressure against another's primary embedding) can otherwise race
-    // on that cache. TSan caught exactly this (a write race inside
-    // Triangulation<3>'s copy constructor, reached via two concurrent
-    // build() calls) once backpressure started constructing KnottedSurface
-    // objects from more threads at once. Pre-building every boundary
-    // component once here, before any thread spawns, closes it the same
-    // way the vertex-link loop above already does.
+    // Same reasoning, for BoundaryComponent<4>
     for (size_t c = 0; c < skeleton_.triangulation().countBoundaryComponents();
          ++c)
         skeleton_.triangulation().boundaryComponent(c)->build();
@@ -615,11 +549,6 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                                 wantLinks, callbacks);
         },
         [this, wantLinks, &callbacks](const std::vector<int> &seedFaces) {
-            // One-off, not hot-path: rebuilds the seed as a KnottedSurface
-            // (rather than reusing runSearch_'s generic proto embedding) to
-            // get at surfaceType()/boundaryLinks(), which only KnottedSurface
-            // exposes. seedFaces is added in the same order used to validate
-            // it originally (see buildSeededGraph_), so this always embeds.
             KnottedSurface probe(skeleton_, petalCache_, seedFaces);
             SurfaceTypeKey type = probe.surfaceType();
             std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
@@ -640,10 +569,15 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                         describeBoundary_(links);
                     linkTally_.record(descriptor, type);
                 }
+                auto tubed = tubedFieldsFor(probe.triangulation(), genus,
+                                            punctures);
                 if (callbacks.onSurfaceBoundaryProcessed)
                     callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
                         SurfaceFoundInfo{.orientable = orientable,
                                         .genus = genus,
+                                        .tubedGenus = tubed.genus,
+                                        .closedComponents =
+                                            tubed.closedComponents,
                                         .punctures = punctures,
                                         .connected =
                                             probe.triangulation().isConnected(),
@@ -654,9 +588,13 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                         descriptor, boundaryComponents,
                         [&probe] { return probe.orientedBoundaryLinks(); }});
             } else if (callbacks.onSurfaceFound) {
+                auto tubed = tubedFieldsFor(probe.triangulation(), genus,
+                                            punctures);
                 callbacks.onSurfaceFound(SurfaceFoundInfo{
                     .orientable = orientable,
                     .genus = genus,
+                    .tubedGenus = tubed.genus,
+                    .closedComponents = tubed.closedComponents,
                     .punctures = punctures,
                     .connected = probe.triangulation().isConnected(),
                     .triangleCount = triangleCount,
@@ -665,6 +603,7 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
             }
         },
         callbacks, auxHooks,
-        iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly);
+        iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly,
+        hardFaceCap);
 }
 
