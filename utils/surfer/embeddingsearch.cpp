@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <limits>
 #include <cassert>
 #include <csignal>
 #include <cstdlib>
@@ -140,7 +141,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     const SearchCallbacks &callbacks, RunSearchAuxHooks &auxHooks,
     unsigned iddfsIterations, long long iddfsStep,
     std::optional<long long> iddfsStart, std::optional<unsigned> finalThreads,
-    bool orientableOnly, std::optional<long long> hardFaceCap) {
+    bool orientableOnly, std::optional<long long> hardFaceCap,
+    long long rootBudgetStart, long long rootBudgetGrowth) {
     const auto searchStart = std::chrono::steady_clock::now();
 
     stopRequested_.store(false, std::memory_order_relaxed);
@@ -206,6 +208,13 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     std::atomic<unsigned> currentIddfsRound{1};
     std::atomic<bool> currentIddfsCapped{false};
     std::atomic<long long> currentIddfsCap{0};
+    // Per-root budget currently in force (0 = unbudgeted), for progress.
+    std::atomic<long long> currentRootBudget{0};
+    // The largest face cap whose round finished with EVERY root enumerated
+    // to completion. -1 means no round did, so nothing exhaustive can be
+    // claimed. This is what turns "we found nothing" into "nothing exists
+    // with at most this many added faces".
+    std::atomic<long long> deepestExhausted{-1};
     AtomicSearchStats stats{.foundCount = seedFoundCount,
                             .embeddedCount = seedEmbeddedCount,
                             .satisfyingCount = seedSubgraphCount,
@@ -214,8 +223,24 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     std::vector<WorkerStats> perThreadStats(
         std::max(numThreads, resolvedFinalThreads));
 
+    // Per-root scheduling state, shared across budget passes within one
+    // depth round. Plain values rather than atomics: within a pass each root
+    // index is claimed by exactly one thread (via nextRootIdx), and passes
+    // are separated by thread joins, which supply the happens-before edge.
+    // uint8_t rather than bool because std::vector<bool> packs bits, making
+    // concurrent writes to distinct indices unsafe.
+    std::vector<uint8_t> rootDone(roots.size(), 0);
+    // visitsLastPass[i]: how many times root i's visit callback fired in the
+    // previous budget pass. The next pass re-traverses that root identically
+    // (parallelism is across roots, never within one, and each root starts
+    // from the same seeded state), so its first visitsLastPass[i] visits are
+    // exactly the ones already reported -- skipping them makes the union
+    // over passes equal the full enumeration, with no duplicate surfaces
+    // reaching the boundary-identification queue.
+    std::vector<long long> visitsLastPass(roots.size(), 0);
+
     auto worker = [&](unsigned tid, std::optional<long long> capFaces,
-                      long long suppressBelow) {
+                      long long suppressBelow, long long rootBudget) {
         auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
         std::optional<OrientabilityPredicate<EmbeddingT>> orientOpt;
@@ -234,6 +259,19 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             cappedOpt.emplace(interruptible, static_cast<int>(maxDepth));
             activePredicate = &*cappedOpt;
         }
+        // Outermost, so its counter sees every attempt the depth cap lets
+        // through. Constructed even when unbudgeted, where it is transparent
+        // -- that keeps one code path for both modes.
+        //
+        // Constructed UNLIMITED (-1) whatever the per-root ration will be:
+        // a seeded enumerator commits the seed via one tryAdd() during
+        // construction below, before any root is reached, and that commit
+        // must succeed or the enumerator's invariants break (it later
+        // removes faces it believes it added). DepthCappedPredicate clamps
+        // maxDepth to >= 1 for exactly the same reason. The real ration is
+        // installed per root by reset().
+        BudgetedPredicate budgeted(*activePredicate, -1);
+        activePredicate = &budgeted;
         std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
         if (isSeeded_)
             localEnumeratorOpt.emplace(graph_.adjList.first,
@@ -246,6 +284,19 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         WorkerStats &local = perThreadStats[tid];
         auto threadHook = makeThreadHook();
 
+        // Root dispatch is always the shared queue, so threads stay busy
+        // however uneven root costs are -- and they are very uneven, since
+        // roots are ordered shallow-first.
+        //
+        // This is safe for the cross-pass deduplication only because
+        // resetCandidateOrder() below makes a root's traversal a function of
+        // that root alone, not of which roots this thread happened to handle
+        // first. An earlier version instead pinned roots to threads by a
+        // fixed stride to get that reproducibility; it worked, but starved
+        // the machine -- once the budget grew large a pass degenerated into a
+        // few expensive roots held by two or three threads while the other
+        // nine sat at the join, and observed throughput fell by more than
+        // half.
         while (true) {
             if (stopRequested_.load(std::memory_order_relaxed))
                 break;
@@ -253,9 +304,29 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             if (idx >= totalRootsPerPass)
                 break;
             int s = roots[idx];
+            // A root already enumerated to completion is re-walked with a
+            // zero allowance rather than skipped: the enumerator's candidate
+            // list is order-sensitive and mutated per root, so skipping one
+            // would change how every later root is traversed and break the
+            // replay that visitsLastPass relies on. See
+            // BudgetedPredicate::reset(). Rejecting at the root costs
+            // O(degree) and finds nothing, which is what we want.
+            // Make this root's traversal independent of everything this
+            // thread did before it; see the dispatch comment above.
+            localEnumerator.resetCandidateOrder();
+            budgeted.reset(rootBudget <= 0     ? -1
+                           : rootDone[idx] != 0 ? 0
+                                                : rootBudget);
+            // Visits are counted before any filtering, so the count is a
+            // pure function of the traversal and therefore replays
+            // identically next pass; see visitsLastPass above.
+            const long long skipVisits = visitsLastPass[idx];
+            long long visits = 0;
             localEnumerator.enumerateFromRootFiltered(
                 s,
                 [&](const std::vector<int> &U) {
+                    if (++visits <= skipVisits)
+                        return; // reported by an earlier budget pass
                     if (suppressBelow > 0) {
                         long long addedFaceCount =
                             isSeeded_ ? static_cast<long long>(U.size()) - 1
@@ -309,6 +380,22 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                     }
                 },
                 *activePredicate);
+            // An already-done root was re-walked only to keep the candidate
+            // ordering identical; it reported nothing, so leave its
+            // bookkeeping alone (its zero allowance trips exhausted(), which
+            // must not be read as "still unfinished").
+            if (!rootDone[idx]) {
+                visitsLastPass[idx] = visits;
+                // A root that never hit its budget was enumerated
+                // exhaustively (within this round's depth cap), so it needs
+                // no further pass. An interrupted run must not claim this:
+                // stopRequested_ prunes via InterruptiblePredicate without
+                // tripping the budget, which would otherwise look like
+                // completion.
+                if (!budgeted.exhausted() &&
+                    !stopRequested_.load(std::memory_order_relaxed))
+                    rootDone[idx] = 1;
+            }
             stats.rootsCompleted.fetch_add(1, std::memory_order_relaxed);
         }
         // Flush this thread's remainder so the global count ends up exact.
@@ -343,6 +430,17 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         // final unbounded one) claims every root once, so the denominator
         // scales accordingly
         result.totalRoots = totalRootsPerPass * (iddfsIterations + 1);
+        result.rootBudget = currentRootBudget.load(std::memory_order_relaxed);
+        result.rootsPerPass = totalRootsPerPass;
+        // Read without synchronisation while workers may be writing: these
+        // are byte-sized flags and this is a progress counter, so a torn or
+        // stale read costs at most a slightly-off display.
+        result.rootsExhausted =
+            static_cast<size_t>(std::count(rootDone.begin(), rootDone.end(),
+                                           static_cast<uint8_t>(1)));
+        long long exhausted = deepestExhausted.load(std::memory_order_relaxed);
+        result.deepestExhaustedCap =
+            exhausted >= 0 ? std::optional<long long>(exhausted) : std::nullopt;
         result.foundCount = foundCount;
         result.embeddedCount = embeddedCount;
         result.satisfyingCount = satisfyingCount;
@@ -373,6 +471,53 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     std::thread aux = auxHooks.spawn(workersFinished);
 
+    // Runs one depth round to completion, as a sequence of budget passes.
+    //
+    // Unbudgeted (rootBudgetStart <= 0) this is a single pass over every
+    // root -- byte-for-byte today's behaviour. Budgeted, each pass gives
+    // every not-yet-finished root the same ration and then multiplies the
+    // ration, so the roots that need more effort get it without the cheap
+    // ones being re-walked (rootDone) or their finds re-reported
+    // (visitsLastPass). Geometric growth bounds total work at
+    // growth/(growth-1) times the final pass.
+    //
+    // Returns whether every root finished, i.e. whether this round
+    // enumerated its depth exhaustively -- a real statement about the
+    // object, not just about how long we ran.
+    auto runRound = [&](std::optional<long long> capFaces,
+                        long long suppressBelow, unsigned threadCount) -> bool {
+        std::fill(rootDone.begin(), rootDone.end(), 0);
+        std::fill(visitsLastPass.begin(), visitsLastPass.end(), 0);
+
+        long long budget = rootBudgetStart > 0 ? rootBudgetStart : 0;
+        while (true) {
+            currentRootBudget.store(budget, std::memory_order_relaxed);
+            nextRootIdx.store(0, std::memory_order_relaxed);
+            std::vector<std::thread> passThreads;
+            passThreads.reserve(threadCount);
+            for (unsigned t = 0; t < threadCount; ++t)
+                passThreads.emplace_back(worker, t, capFaces, suppressBelow,
+                                         budget);
+            for (auto &th : passThreads)
+                th.join();
+
+            if (budget <= 0) // unbudgeted: the single pass was the whole round
+                return !stopRequested_.load(std::memory_order_relaxed);
+            if (stopRequested_.load(std::memory_order_relaxed))
+                return false;
+            if (std::all_of(rootDone.begin(), rootDone.end(),
+                            [](uint8_t d) { return d != 0; }))
+                return true;
+
+            // Saturate rather than overflow: at that point the budget is
+            // effectively unlimited anyway.
+            if (budget > std::numeric_limits<long long>::max() / rootBudgetGrowth)
+                budget = std::numeric_limits<long long>::max();
+            else
+                budget *= rootBudgetGrowth;
+        }
+    };
+
     const long long resolvedIddfsStart = iddfsStart.value_or(iddfsStep);
     long long prevCap = 0;
     for (unsigned iter = 1; iter <= iddfsIterations; ++iter) {
@@ -380,13 +525,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         currentIddfsRound.store(iter, std::memory_order_relaxed);
         currentIddfsCapped.store(true, std::memory_order_relaxed);
         currentIddfsCap.store(cap, std::memory_order_relaxed);
-        nextRootIdx.store(0, std::memory_order_relaxed);
-        std::vector<std::thread> roundThreads;
-        roundThreads.reserve(numThreads);
-        for (unsigned t = 0; t < numThreads; ++t)
-            roundThreads.emplace_back(worker, t, cap, prevCap);
-        for (auto &th : roundThreads)
-            th.join();
+        if (runRound(cap, prevCap, numThreads))
+            deepestExhausted.store(cap, std::memory_order_relaxed);
         if (stopRequested_.load(std::memory_order_relaxed))
             break;
         prevCap = cap;
@@ -398,13 +538,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                              std::memory_order_relaxed);
     currentIddfsCap.store(hardFaceCap.value_or(0), std::memory_order_relaxed);
     if (!finalPassRedundant) {
-        nextRootIdx.store(0, std::memory_order_relaxed);
-        std::vector<std::thread> threads;
-        threads.reserve(resolvedFinalThreads);
-        for (unsigned t = 0; t < resolvedFinalThreads; ++t)
-            threads.emplace_back(worker, t, hardFaceCap, prevCap);
-        for (auto &th : threads)
-            th.join();
+        if (runRound(hardFaceCap, prevCap, resolvedFinalThreads) && hardFaceCap)
+            deepestExhausted.store(*hardFaceCap, std::memory_order_relaxed);
     }
 
     workersFinished.store(true, std::memory_order_relaxed);
@@ -449,7 +584,8 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
     const SearchCallbacks &callbacks, unsigned iddfsIterations,
     long long iddfsStep, std::optional<long long> iddfsStart,
     std::optional<unsigned> finalThreads, bool orientableOnly,
-    std::optional<long long> hardFaceCap) {
+    std::optional<long long> hardFaceCap, long long rootBudgetStart,
+    long long rootBudgetGrowth) {
     struct NoopThreadHook : RunSearchThreadHook<dim, subdim> {
         void onFound(EmbeddedSubmanifold<dim, subdim> &,
                      const std::vector<int> &, long long) override {}
@@ -466,7 +602,7 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
         [] { return std::make_unique<NoopThreadHook>(); },
         [](const std::vector<int> &) {}, callbacks, noopAuxHooks,
         iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly,
-        hardFaceCap);
+        hardFaceCap, rootBudgetStart, rootBudgetGrowth);
 }
 
 template <int dim, int subdim>
@@ -605,17 +741,20 @@ EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
     std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);
 template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
     unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);
 template SearchStats EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
     unsigned, BoundaryCondition, std::function<KnottedSurface()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);

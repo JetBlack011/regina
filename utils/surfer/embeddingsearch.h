@@ -94,6 +94,29 @@ struct SearchStats {
       /**< The current round's face-count cap; only meaningful when
            iddfsCapped is true. */
 
+  size_t rootsExhausted = 0;
+      /**< How many roots of the CURRENT depth round have been enumerated to
+           completion. Unlike rootsCompleted, this counts each root at most
+           once however many budget passes it took, so rootsExhausted /
+           totalRootsPerPass is the round's real progress. */
+  size_t rootsPerPass = 0;
+      /**< The number of roots in one pass -- the denominator for
+           rootsExhausted. */
+
+  long long rootBudget = 0;
+      /**< The per-root work ration (tryAdd attempts) currently in force,
+           or 0 when the search is unbudgeted. Doubles between passes; see
+           BudgetedPredicate. */
+  std::optional<long long> deepestExhaustedCap;
+      /**< The largest face cap whose round finished with EVERY root
+           enumerated to completion, if any did.
+
+           This is the search's one *exhaustive* claim: at this cap the
+           enumeration was complete, so a surface not found here does not
+           exist with that many added faces. Absent means no round finished
+           -- an ordinary timed-out run proves nothing, since it only ever
+           covers a prefix of the root list. */
+
   /** Returns the average face count among satisfying finds, or 0 if there are none. */
   double averageSatisfyingFaces() const {
     return satisfyingCount > 0
@@ -358,8 +381,7 @@ public:
    * \param iddfsIterations if greater than 0, runs this many capped
    * "fast sweep" passes over every root before the final unbounded pass,
    * with pass `i`'s cap set to `iddfsStart + (i - 1) * iddfsStep` faces
-   * (see runSearch_). Defaults to 0 (a single unbounded pass, this
-   * method's original behavior).
+   * (see runSearch_). Defaults to 0 (a single unbounded pass).
    * \param iddfsStep the face-count increment per capped pass after the
    * first; only consulted when `iddfsIterations > 0`.
    * \param iddfsStart the first capped pass's face-count cap; defaults to
@@ -389,6 +411,17 @@ public:
    * exactly the embeddings consisting of the seed plus at most `F` further
    * faces -- not embeddings of at most `F` faces in total. See
    * iddfsMaxDepth().
+   * \param rootBudgetStart if greater than 0, enables per-root work
+   *        rationing: each pass over the root list allows every
+   *        not-yet-finished root this many tryAdd() attempts, then the
+   *        ration is multiplied by rootBudgetGrowth and the pass repeats,
+   *        until every root has been enumerated to completion. Without it a
+   *        time-limited search only ever covers a prefix of the (shallow-
+   *        first) root list, so a longer run is a longer prefix rather than
+   *        a different sample. Geometric growth keeps the total work within
+   *        growth/(growth-1) of the final pass. 0 (the default) is exactly
+   *        the previous single-pass behaviour.
+   * \param rootBudgetGrowth the factor the ration grows by between passes.
    */
   SearchStats search(const unsigned numThreads,
                      BoundaryCondition cond = BoundaryCondition::all,
@@ -397,7 +430,9 @@ public:
                      std::optional<long long> iddfsStart = std::nullopt,
                      std::optional<unsigned> finalThreads = std::nullopt,
                      bool orientableOnly = false,
-                     std::optional<long long> hardFaceCap = std::nullopt);
+                     std::optional<long long> hardFaceCap = std::nullopt,
+                     long long rootBudgetStart = 0,
+                     long long rootBudgetGrowth = 2);
 
   /**
    * Requests that the current (or next) search() call stop as soon as
@@ -467,6 +502,17 @@ protected:
    * through to `auxHooks.afterJoin()` instead of continuing to search. A
    * second Ctrl+C -- at any point until this call returns, including
    * during afterJoin() -- terminates the process immediately.
+   * \param rootBudgetStart if greater than 0, enables per-root work
+   *        rationing: each pass over the root list allows every
+   *        not-yet-finished root this many tryAdd() attempts, then the
+   *        ration is multiplied by rootBudgetGrowth and the pass repeats,
+   *        until every root has been enumerated to completion. Without it a
+   *        time-limited search only ever covers a prefix of the (shallow-
+   *        first) root list, so a longer run is a longer prefix rather than
+   *        a different sample. Geometric growth keeps the total work within
+   *        growth/(growth-1) of the final pass. 0 (the default) is exactly
+   *        the previous single-pass behaviour.
+   * \param rootBudgetGrowth the factor the ration grows by between passes.
    */
   template <typename EmbeddingT>
   SearchStats runSearch_(
@@ -480,7 +526,8 @@ protected:
       std::optional<long long> iddfsStart = std::nullopt,
       std::optional<unsigned> finalThreads = std::nullopt,
       bool orientableOnly = false,
-      std::optional<long long> hardFaceCap = std::nullopt);
+      std::optional<long long> hardFaceCap = std::nullopt,
+      long long rootBudgetStart = 0, long long rootBudgetGrowth = 2);
 
 private:
   /**
@@ -532,20 +579,23 @@ EmbeddingSearch<3, 2>::runSearch_<EmbeddedSubmanifold<3, 2>>(
     std::function<std::unique_ptr<RunSearchThreadHook<3, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<EmbeddedSubmanifold<4, 2>>(
     unsigned, BoundaryCondition, std::function<EmbeddedSubmanifold<4, 2>()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);
 extern template SearchStats
 EmbeddingSearch<4, 2>::runSearch_<KnottedSurface>(
     unsigned, BoundaryCondition, std::function<KnottedSurface()>,
     std::function<std::unique_ptr<RunSearchThreadHook<4, 2>>()>,
     std::function<void(const std::vector<int> &)>, const SearchCallbacks &,
     RunSearchAuxHooks &, unsigned, long long, std::optional<long long>,
-    std::optional<unsigned>, bool, std::optional<long long>);
+    std::optional<unsigned>, bool, std::optional<long long>, long long,
+    long long);
 
 #endif // EMBEDDINGSEARCH_H

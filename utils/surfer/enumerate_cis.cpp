@@ -223,6 +223,13 @@ void ConnectedInducedSubgraphEnumerator::seedFastForward_(
         if (w > 1 && !inU[w] && !inC[w])
             addCandidate(w, 1, 1);
 
+    // The list's order right now is canonical: every later root restores
+    // membership but rotates the order, so this is the state
+    // resetCandidateOrder() returns to.
+    canonicalCandidates_.clear();
+    for (int w = candNext[0]; w != 0; w = candNext[w])
+        canonicalCandidates_.push_back(w);
+
     roots_.clear();
     for (int w = candNext[0]; w != 0; w = candNext[w]) {
         if (!predicate) {

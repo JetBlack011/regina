@@ -888,6 +888,124 @@ void test_iddfs_max_depth_formula() {
               "not clamped or scaled down by a large seed");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-root work budgets (BudgetedPredicate + runSearch_'s budget passes).
+//
+// The contract that makes budgets usable is EQUIVALENCE: rationing each
+// root's enumeration and repeating with a doubled ration must, once every
+// root has finished, have reported exactly what one unbudgeted pass reports
+// -- nothing missed, nothing duplicated. Duplicates are not a cosmetic
+// problem: each one costs a full boundary identification downstream, which
+// dominates the cost of a row.
+//
+// This is the invariant that caught both bugs in the original
+// implementation. Skipping already-finished roots silently changed the
+// traversal of every LATER root, because the enumerator's candidate list is
+// order-sensitive and mutated per root; and a shared root queue made a
+// thread's enumerator state depend on which roots it happened to pull, which
+// varies from pass to pass. Both showed up here as counts that differed from
+// the single-pass baseline in both directions.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_root_budget_matches_single_pass_seeded() {
+    std::cout << "\n--- root budgets: budgeted results match a single "
+                 "unbudgeted pass ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+    std::vector<int> seed = {static_cast<int>(ball.triangle(0)->index()),
+                             static_cast<int>(ball.triangle(1)->index())};
+
+    EmbeddingSearch<3, 2> plain(ball, seed);
+    SearchStats base = plain.search(1, BoundaryCondition::all);
+
+    struct Combo {
+        long long start;
+        long long growth;
+        unsigned threads;
+    };
+    // Budgets deliberately smaller than a root's real cost, so several
+    // passes are forced; growth 3 as well as 2, to check nothing assumes
+    // doubling; and >1 thread, which is where the root-dispatch bug lived.
+    std::vector<Combo> combos = {
+        {1, 2, 1}, {1, 2, 2}, {2, 3, 2}, {1000000, 2, 2}};
+
+    for (const auto &c : combos) {
+        EmbeddingSearch<3, 2> budgeted(ball, seed);
+        SearchStats st = budgeted.search(c.threads, BoundaryCondition::all, {},
+                                         0, 0, std::nullopt, std::nullopt,
+                                         false, std::nullopt, c.start,
+                                         c.growth);
+        std::ostringstream d;
+        d << "start=" << c.start << " growth=" << c.growth
+          << " threads=" << c.threads;
+        EXPECT_EQ(st.satisfyingCount, base.satisfyingCount,
+                  "satisfyingCount matches (" + d.str() + ")");
+        EXPECT_EQ(st.foundCount, base.foundCount,
+                  "foundCount matches -- no duplicates, none missed (" +
+                      d.str() + ")");
+        EXPECT_EQ(st.satisfyingFaceSum, base.satisfyingFaceSum,
+                  "satisfyingFaceSum matches (" + d.str() + ")");
+    }
+}
+
+// Budgets must compose with iterative deepening, since the intended use is a
+// depth ladder (complete a shallow round, then reach deeper) with the ration
+// applied inside each round.
+void test_root_budget_matches_with_iddfs() {
+    std::cout << "\n--- root budgets: composed with IDDFS rounds ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+    std::vector<int> seed = {static_cast<int>(ball.triangle(0)->index())};
+
+    EmbeddingSearch<3, 2> plain(ball, seed);
+    SearchStats base = plain.search(1, BoundaryCondition::all, {}, 2, 1);
+
+    EmbeddingSearch<3, 2> budgeted(ball, seed);
+    SearchStats st =
+        budgeted.search(2, BoundaryCondition::all, {}, 2, 1, std::nullopt,
+                        std::nullopt, false, std::nullopt, 1, 2);
+    EXPECT_EQ(st.satisfyingCount, base.satisfyingCount,
+              "satisfyingCount matches with iddfsIterations=2");
+    EXPECT_EQ(st.foundCount, base.foundCount,
+              "foundCount matches with iddfsIterations=2");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SearchStats::deepestExhaustedCap -- the search's only *exhaustive* claim.
+//
+// Set only when a round finished with every root enumerated to completion,
+// which is what licenses "no such surface exists at this depth" rather than
+// the much weaker "we looked for a while and stopped". A run that is cut
+// short must leave it unset however long it ran.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_deepest_exhausted_cap_reported() {
+    std::cout << "\n--- exhaustiveness: deepestExhaustedCap ---\n";
+
+    regina::Triangulation<3> ball;
+    ball.newTetrahedron();
+    std::vector<int> seed = {static_cast<int>(ball.triangle(0)->index())};
+
+    // A capped round that runs to completion: the cap is exhaustive.
+    EmbeddingSearch<3, 2> capped(ball, seed);
+    SearchStats st = capped.search(1, BoundaryCondition::all, {}, 1, 2,
+                                   /*iddfsStart=*/2);
+    EXPECT_EQ(st.deepestExhaustedCap.has_value(), true,
+              "a completed capped round reports an exhaustive depth");
+    if (st.deepestExhaustedCap)
+        EXPECT_EQ(*st.deepestExhaustedCap >= 2LL, true,
+                  "the reported depth is at least the round's cap");
+
+    // Budgeted but allowed to finish: still exhaustive, since every root
+    // eventually completes.
+    EmbeddingSearch<3, 2> budgeted(ball, seed);
+    SearchStats bst =
+        budgeted.search(1, BoundaryCondition::all, {}, 1, 2, 2, std::nullopt,
+                        false, std::nullopt, 1, 2);
+    EXPECT_EQ(bst.deepestExhaustedCap.has_value(), true,
+              "budget passes still reach exhaustion when run to completion");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -930,6 +1048,12 @@ int main() {
     run("test_iddfs_search_stats_fields", test_iddfs_search_stats_fields);
     run("test_iddfs_cap_for_round_formula", test_iddfs_cap_for_round_formula);
     run("test_iddfs_max_depth_formula", test_iddfs_max_depth_formula);
+    run("test_root_budget_matches_single_pass_seeded",
+        test_root_budget_matches_single_pass_seeded);
+    run("test_root_budget_matches_with_iddfs",
+        test_root_budget_matches_with_iddfs);
+    run("test_deepest_exhausted_cap_reported",
+        test_deepest_exhausted_cap_reported);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

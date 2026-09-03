@@ -52,3 +52,9 @@ target_link_libraries(gen_knot_census_names surfer_common)
 add_executable(profile_driver profile_driver.cpp)
 target_link_libraries(profile_driver surfer_common)
 target_compile_options(profile_driver PRIVATE -g)
+
+# Measures where the boundary-identification drain spends its time; see
+# profile_boundarylinks.cpp. Not a CTest test.
+add_executable(profile_boundarylinks profile_boundarylinks.cpp)
+target_link_libraries(profile_boundarylinks surfer_common)
+target_compile_options(profile_boundarylinks PRIVATE -g)

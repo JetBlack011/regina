@@ -525,7 +525,9 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   std::optional<long long> iddfsStart,
                                   std::optional<unsigned> finalThreads,
                                   bool orientableOnly,
-                                  std::optional<long long> hardFaceCap) {
+                                  std::optional<long long> hardFaceCap,
+                                  long long rootBudgetStart,
+                                  long long rootBudgetGrowth) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
 
@@ -604,6 +606,6 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
         },
         callbacks, auxHooks,
         iddfsIterations, iddfsStep, iddfsStart, finalThreads, orientableOnly,
-        hardFaceCap);
+        hardFaceCap, rootBudgetStart, rootBudgetGrowth);
 }
 

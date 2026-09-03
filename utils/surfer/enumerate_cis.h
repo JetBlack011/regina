@@ -97,6 +97,93 @@ class InterruptiblePredicate : public ConditionalPredicate {
 };
 
 /**
+ * Decorates another ConditionalPredicate with a cap on how much *work* one
+ * root's enumeration may do, counted in tryAdd() attempts. Once the budget
+ * is spent every further tryAdd() is rejected without consulting \a inner,
+ * so the DFS prunes everywhere and unwinds -- the same cooperative-exit
+ * mechanism InterruptiblePredicate uses for Ctrl+C, but per root and
+ * deterministic.
+ *
+ * WHY ATTEMPTS, NOT SUCCESSFUL ADDS. A rejected tryAdd() still pays for the
+ * incremental embeddedness/orientability check, which dominates the search's
+ * inner loop, so attempts track CPU cost far better than accepted nodes do.
+ *
+ * WHY THIS EXISTS. Roots are pulled from a shared queue in a fixed
+ * (shallow-first) order, so a search stopped by a wall-clock limit always
+ * explores the same prefix of the cheapest roots and never touches the rest
+ * -- a longer run is a longer prefix, not a different sample. Rationing each
+ * root instead, and doubling the ration each pass, gives every root
+ * attention while keeping total work within a constant factor of the final
+ * pass (the standard iterative-deepening amortisation, applied to effort
+ * rather than depth). See EmbeddingSearch::runSearch_'s round loop.
+ *
+ * A negative budget means unlimited, in which case this decorator is
+ * transparent apart from counting; 0 rejects everything (see reset()).
+ *
+ * Not thread-safe, and needs none: one instance lives per worker thread and
+ * is reset() between roots.
+ */
+class BudgetedPredicate : public ConditionalPredicate {
+    ConditionalPredicate &inner_; /**< The predicate being decorated. */
+    long long budget_;            /**< Attempts allowed per root; negative is unlimited, 0 rejects all. */
+    long long spent_ = 0;         /**< Attempts made on the current root. */
+    bool exhausted_ = false;      /**< Whether the budget ran out on this root. */
+
+  public:
+    /** Wraps `inner`; see reset() for how `budget` is interpreted. */
+    BudgetedPredicate(ConditionalPredicate &inner, long long budget)
+        : inner_(inner), budget_(budget) {}
+
+    bool tryAdd(int v) override {
+        if (budget_ >= 0) {
+            if (spent_ >= budget_) {
+                exhausted_ = true;
+                return false;
+            }
+            ++spent_;
+        }
+        return inner_.tryAdd(v);
+    }
+
+    // As InterruptiblePredicate: a successful tryAdd(v) always delegated to
+    // inner_, so undo(v) can delegate unconditionally.
+    void undo(int v) override { inner_.undo(v); }
+
+    /**
+     * Clears the per-root counters and sets this root's allowance.
+     *
+     * \param budget negative for unlimited, 0 to reject everything (used for
+     *        a root already enumerated to completion in an earlier pass),
+     *        positive for a ration of that many attempts.
+     *
+     * A finished root must be re-walked with a 0 allowance rather than
+     * skipped outright: ConnectedInducedSubgraphEnumerator mutates its
+     * candidate list per root -- enumerateFromRootFiltered() ends by
+     * re-appending the root at the tail -- and that list's ORDER decides the
+     * sibling order of every later root. Skipping a root therefore changes
+     * how subsequent roots are traversed, which breaks the replay the
+     * cross-pass deduplication depends on. Rejecting at the root instead
+     * leaves the candidate bookkeeping (which sits outside the predicate
+     * check) identical while costing only O(degree), since a rejected root
+     * never recurses.
+     */
+    void reset(long long budget) {
+        budget_ = budget;
+        spent_ = 0;
+        exhausted_ = false;
+    }
+
+    /**
+     * Whether this root hit the budget. False means its subtree was
+     * enumerated to completion (within whatever other caps are in force),
+     * which is what lets a caller conclude a round was exhaustive.
+     */
+    bool exhausted() const { return exhausted_; }
+
+    long long spent() const { return spent_; }
+};
+
+/**
  * Decorates another ConditionalPredicate with a hard cap on the number of
  * currently-nested successful tryAdd() calls -- once at the cap, every
  * further tryAdd() is rejected without consulting \a inner, pruning descent
@@ -235,6 +322,33 @@ class ConnectedInducedSubgraphEnumerator {
     const std::vector<int> &getRoots() const { return roots_; }
 
     /**
+     * Restores the candidate list to the order it had immediately after
+     * seeding, making a root's traversal independent of which roots this
+     * enumerator processed before it.
+     *
+     * enumerateFromRootFiltered() detaches its root from the candidate list
+     * and re-appends it at the tail on the way out, so processing roots
+     * rotates the list. Membership is unchanged, but ORDER decides the
+     * sibling order in extendFiltered(), and hence the order in which
+     * subgraphs are visited. Without this reset, "enumerate root r" is a
+     * function of the whole preceding sequence of roots -- which makes
+     * results depend on how a work queue happened to distribute roots across
+     * threads, and breaks any scheme that re-runs a root and expects the
+     * same traversal (see EmbeddingSearch's budget passes).
+     *
+     * Cheap: one pass over the seed's neighbours, negligible beside the
+     * enumeration it precedes. A no-op for unseeded enumerators.
+     */
+    void resetCandidateOrder() {
+        if (canonicalCandidates_.empty())
+            return;
+        candNext[0] = 0;
+        candPrev[0] = 0;
+        for (int w : canonicalCandidates_)
+            listPushBack(w);
+    }
+
+    /**
      * Calls `visit(U)` once for every non-empty connected induced
      * subgraph of the graph, with U given as a vertex list in discovery
      * order. Sequential entry point: walks every root in turn.
@@ -365,6 +479,9 @@ class ConnectedInducedSubgraphEnumerator {
     bool isSeeded_ = false;
 
     std::vector<int> roots_; /**< See getRoots(). */
+    std::vector<int> canonicalCandidates_;
+        /**< The candidate list's order immediately after seeding; see
+             resetCandidateOrder(). Empty when unseeded. */
 
     /** Populates roots_ with every vertex 1..n (the unseeded case). */
     void initUnseededRoots_() {

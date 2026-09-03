@@ -88,7 +88,9 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --threads N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ] "
          "[ --orientable-only ]\n"
-         "    [ --max-faces N ] <isosig>\n\n"
+         "    [ --max-faces N ]\n"
+         "    [ --root-budget-start N ] [ --root-budget-growth N ] "
+         "<isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
@@ -386,7 +388,8 @@ void runSearch(const regina::Triangulation<4> &tri,
               std::optional<long long> iddfsStart,
               std::optional<unsigned> iddfsFinalThreads,
               const SurfaceSearchLimits &limits, bool orientableOnly,
-              std::optional<long long> maxFaces) {
+              std::optional<long long> maxFaces, long long rootBudgetStart,
+              long long rootBudgetGrowth) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -713,7 +716,8 @@ void runSearch(const regina::Triangulation<4> &tri,
   }
 
   e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-           iddfsStart, iddfsFinalThreads, orientableOnly, maxFaces);
+           iddfsStart, iddfsFinalThreads, orientableOnly, maxFaces,
+           rootBudgetStart, rootBudgetGrowth);
 
   if (writer)
     writer->finalize();
@@ -746,6 +750,8 @@ int main(int argc, char *argv[]) {
 
   bool orientableOnly = false;
   std::optional<long long> maxFaces;
+  long long rootBudgetStart = 0;   // 0 = off, i.e. one pass over every root
+  long long rootBudgetGrowth = 2;
 
   SurfaceSearchLimits limits;
   size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
@@ -774,6 +780,24 @@ int main(int argc, char *argv[]) {
       cond = BoundaryCondition::proper;
     } else if (arg == "--connected") {
       cond = BoundaryCondition::connected;
+    } else if (arg == "--root-budget-start") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--root-budget-start requires a value.");
+      try {
+        rootBudgetStart = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--root-budget-start requires an integer value.");
+      }
+    } else if (arg == "--root-budget-growth") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--root-budget-growth requires a value.");
+      try {
+        rootBudgetGrowth = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--root-budget-growth requires an integer value.");
+      }
+      if (rootBudgetGrowth < 2)
+        usage(argv[0], "--root-budget-growth must be at least 2.");
     } else if (arg == "--max-faces") {
       if (i + 1 >= argc)
         usage(argv[0], "--max-faces requires a value.");
@@ -1046,7 +1070,7 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly, maxFaces);
+             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -1057,7 +1081,7 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly, maxFaces);
+             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth);
   }
 
   return 0;

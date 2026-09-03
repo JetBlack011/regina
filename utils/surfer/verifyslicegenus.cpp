@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -120,6 +121,94 @@ void haltIfFatalBugDetected() {
   std::exit(2);
 }
 
+/**
+ * Aggregate distribution of the surfaces a row's search found: how they
+ * spread across the face budget, and across homeomorphism type.
+ *
+ * The face histogram answers whether --max-faces is actually binding. IDDFS
+ * reports each surface once, at the round where it first fits (see
+ * suppressBelow/prevCap in embeddingsearch.cpp), so a surface's `triangles`
+ * is its true face count and the population sitting at exactly --max-faces
+ * is precisely what the cap is truncating.
+ *
+ * Deliberately an AGGREGATE rather than a per-surface log. --surface-log
+ * already writes a row per surface, but a single search can find millions of
+ * them, it is overwritten each knot, and it forces a pairSig() (an isoSig
+ * computation) per surface. The distinct keys here are bounded by
+ * faces x genus x punctures -- a few hundred -- so the whole distribution
+ * costs one map lookup per surface and a few hundred CSV lines per row.
+ */
+struct SurfaceStatsKey {
+  long long triangles;
+  bool orientable;
+  int genus;
+  int punctures;
+  int tubedGenus;
+  int closedComponents;
+  bool connected;
+
+  auto operator<=>(const SurfaceStatsKey &) const = default;
+};
+
+/**
+ * Thread-safe counts keyed by SurfaceStatsKey.
+ *
+ * record() is called from onSurfaceBoundaryProcessed, which runs on the
+ * boundary-identification worker threads. That phase is bounded by
+ * identification throughput (a few hundred surfaces a second), so a single
+ * mutex is far below the noise floor and buys simplicity over the
+ * thread-local-then-merge dance SurfaceTypeTally needs on the hot DFS path.
+ */
+class SurfaceStatsTally {
+public:
+  void record(const SurfaceStatsKey &key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++counts_[key];
+  }
+
+  /** Returns the accumulated counts and resets, ready for the next row. */
+  std::map<SurfaceStatsKey, long long> take() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::map<SurfaceStatsKey, long long> out;
+    out.swap(counts_);
+    return out;
+  }
+
+private:
+  mutable std::mutex mutex_;
+  std::map<SurfaceStatsKey, long long> counts_;
+};
+
+/**
+ * Appends one row's distribution to `path`, creating it (with a header) if
+ * it does not yet exist.
+ *
+ * Appended per row rather than written once at the end so that an
+ * interrupted sweep keeps the statistics of every row that did finish --
+ * the same reasoning that makes writeWitnesses() a per-row operation.
+ */
+void appendSurfaceStats(const std::filesystem::path &path,
+                        const std::string &rowName, long long maxFaces,
+                        const std::map<SurfaceStatsKey, long long> &counts) {
+  if (counts.empty())
+    return;
+  const bool needHeader = !std::filesystem::exists(path);
+  std::ofstream out(path, std::ios::app);
+  if (!out) {
+    std::cerr << "[!] could not open " << path << " for --surface-stats\n";
+    return;
+  }
+  if (needHeader)
+    out << "row,max_faces,triangles,orientable,genus,punctures,tubed_genus,"
+           "closed_components,connected,count\n";
+  for (const auto &[key, n] : counts)
+    out << csvField(rowName) << ',' << maxFaces << ',' << key.triangles << ','
+        << (key.orientable ? "true" : "false") << ',' << key.genus << ','
+        << key.punctures << ',' << key.tubedGenus << ','
+        << key.closedComponents << ',' << (key.connected ? "true" : "false")
+        << ',' << n << '\n';
+}
+
 // Fired from callbacks.onProgress once per second while a knot's search runs.
 void printProgress(const SearchStats &stats, SurfaceSearch &e) {
   std::ostringstream report;
@@ -128,6 +217,28 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e) {
          << " | embedded surfaces found: " << stats.embeddedCount
          << " | satisfying boundary condition: " << stats.satisfyingCount
          << "\n";
+  // Which iterative-deepening round we are in, and how deep finds have
+  // actually gone. Without this a run looks like it is exploring up to
+  // --max-faces when it may never have finished round 1 -- the calibration
+  // row on L6a1{1} spent its whole 600s budget inside round 1 (cap 5) and
+  // never started rounds 2-4, which is invisible from candidate counts alone.
+  report << "[+] iddfs round " << stats.iddfsRound << "/"
+         << stats.iddfsTotalRounds;
+  if (stats.iddfsCapped)
+    report << " (cap " << stats.iddfsCap << " faces)";
+  else
+    report << " (final, uncapped)";
+  report << " | deepest satisfying find: " << stats.largestSatisfying
+         << " faces";
+  if (stats.rootBudget > 0)
+    report << " | root budget " << stats.rootBudget;
+  report << "\n";
+  // rootsExhausted, not rootsCompleted: with per-root budgets a root is
+  // re-walked once per pass, so rootsCompleted counts visits and can exceed
+  // the root count. rootsExhausted counts each root at most once, so this is
+  // the round's real progress.
+  report << "[+] roots exhausted this round: " << stats.rootsExhausted << "/"
+         << stats.rootsPerPass << " (visits " << stats.rootsCompleted << ")\n";
   report << "[+] surface homeomorphism types found so far: "
          << e.surfaceTypeTally().summary() << "\n";
   redrawProgressBlock(report.str());
@@ -337,6 +448,18 @@ struct OutputRow {
   long long searchedFaces = 0; // the --max-faces used; 0 means unbounded
   std::string searchOutcome;
       // exhausted | timeout | quiescent | stopped | empty (never searched)
+  long long exhaustedDepth = -1;
+      /**< The largest face cap at which EVERY root was enumerated to
+           completion, or -1 if no round finished.
+
+           This is the row's only exhaustive claim, and it is much stronger
+           than `searchOutcome`: it says no cobordism exists for this object
+           with at most this many added faces, rather than merely that we
+           looked for a while. A timed-out run covers only a prefix of the
+           root list, so it leaves this at -1 however long it ran.
+
+           Kept as the best ever achieved for the row: a later, shallower
+           run must not erase a deeper exhaustive result. */
 };
 
 // Which BoundaryCondition to search a row under; see the switch in the
@@ -346,7 +469,8 @@ enum class BoundaryConditionMode { automatic, connected, proper };
 constexpr const char *OUTPUT_HEADER =
     "knot,resolved_genus,status,witness_kind,witness_pairsig,via_knot,"
     "via_edge_genus,depends_on,literature_lo,literature_hi,"
-    "derived_lo,derived_hi,witness_basis,tubed,searched_faces,search_outcome";
+    "derived_lo,derived_hi,witness_basis,tubed,searched_faces,search_outcome,"
+    "exhausted_depth";
 
 std::string formatOutputRow(const OutputRow &r) {
   std::ostringstream out;
@@ -356,7 +480,7 @@ std::string formatOutputRow(const OutputRow &r) {
       << csvField(r.dependsOn) << ',' << r.literatureLo << ','
       << r.literatureHi << ',' << r.derivedLo << ',' << r.derivedHi << ','
       << r.witnessBasis << ',' << (r.tubed ? "true" : "false") << ','
-      << r.searchedFaces << ',' << r.searchOutcome;
+      << r.searchedFaces << ',' << r.searchOutcome << ',' << r.exhaustedDepth;
   return out.str();
 }
 
@@ -419,6 +543,13 @@ loadOutputCsv(const std::filesystem::path &path) {
     }
     if (f.size() > 15)
       r.searchOutcome = f[15];
+    if (f.size() > 16) {
+      try {
+        r.exhaustedDepth = std::stoll(f[16]);
+      } catch (const std::exception &) {
+        r.exhaustedDepth = -1;
+      }
+    }
     result[r.knot] = std::move(r);
   }
   return result;
@@ -633,6 +764,7 @@ OutputRow rowFromVerdict(
   if (existing) {
     out.searchedFaces = existing->searchedFaces;
     out.searchOutcome = existing->searchOutcome;
+    out.exhaustedDepth = existing->exhaustedDepth;
     // A row that was skipped for crossing count and has still never been
     // searched keeps saying so, rather than being relabelled "unresolved"
     // as though we had tried.
@@ -666,6 +798,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
          "    [ --per-knot-time-limit S ] [ --surface-log <path> ]\n"
+         "    [ --surface-stats <path> ]\n"
          "    [ --no-census-updates ] [ --no-retriangulate-on-miss ]\n"
          "    [ --retriangulate-height N ] [ --retriangulate-candidate-budget "
          "N ]\n"
@@ -870,6 +1003,38 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "overwritten each\n"
          "                     knot. Debugging only -- lossy on crash "
          "(default: off).\n";
+  std::cerr
+      << "    --root-budget-start N : Ration each root's enumeration to N "
+         "tryAdd\n"
+         "                     attempts per pass, doubling the ration each "
+         "pass until\n"
+         "                     every root is exhausted. Without this a "
+         "time-limited\n"
+         "                     search only ever covers a prefix of the "
+         "(shallow-first)\n"
+         "                     root list, so a longer run is a longer "
+         "prefix rather\n"
+         "                     than a different sample (default: 0, off).\n";
+  std::cerr
+      << "    --root-budget-growth N : Factor the ration grows by between "
+         "passes;\n"
+         "                     >= 2 keeps total work within N/(N-1) of the "
+         "final pass\n"
+         "                     (default: 2).\n";
+  std::cerr
+      << "    --surface-stats <path> : Appends, per searched row, the "
+         "distribution of\n"
+         "                     the surfaces found -- face count against "
+         "homeomorphism\n"
+         "                     type (genus, punctures, tubed genus, closed "
+         "components,\n"
+         "                     connectedness). Counts at exactly --max-faces "
+         "are the\n"
+         "                     ones the cap is truncating, so this is how to "
+         "tell\n"
+         "                     whether raising it would buy anything. Cheap, "
+         "cumulative,\n"
+         "                     and safe to leave on (default: off).\n";
   std::cerr << "    --no-census-updates : Disable live census seeding "
                "(default: on).\n";
   std::cerr
@@ -938,6 +1103,9 @@ int main(int argc, char *argv[]) {
   int maxCrossings = 13;
   std::optional<double> perKnotTimeLimit;
   std::optional<std::string> surfaceLogPath;
+  std::optional<std::string> surfaceStatsPath;
+  long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
+  long long rootBudgetGrowth = 2;
   bool censusUpdates = true;
 
   unsigned numThreads = std::thread::hardware_concurrency();
@@ -1051,6 +1219,28 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--surface-log requires a value.");
       surfaceLogPath = argv[++i];
+    } else if (arg == "--root-budget-start") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--root-budget-start requires a value.");
+      try {
+        rootBudgetStart = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--root-budget-start requires a numeric value.");
+      }
+    } else if (arg == "--root-budget-growth") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--root-budget-growth requires a value.");
+      try {
+        rootBudgetGrowth = std::stoll(argv[++i]);
+      } catch (const std::exception &) {
+        usage(argv[0], "--root-budget-growth requires a numeric value.");
+      }
+      if (rootBudgetGrowth < 2)
+        usage(argv[0], "--root-budget-growth must be at least 2.");
+    } else if (arg == "--surface-stats") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--surface-stats requires a value.");
+      surfaceStatsPath = argv[++i];
     } else if (arg == "--no-census-updates") {
       censusUpdates = false;
     } else if (arg == "--no-retriangulate-on-miss") {
@@ -1410,6 +1600,45 @@ int main(int argc, char *argv[]) {
     return true;
   };
 
+  // Checkpointing: witnesses are otherwise written only when a row finishes
+  // (see the writeWitnesses call at the end of the row loop), so a row that
+  // is interrupted -- by a crash, a shutdown, or an operator stopping a run
+  // that looks unproductive -- loses everything it found. That is not
+  // hypothetical: a 4-hour L9n2{1} row lost 13 hours to a shutdown mid-drain,
+  // and an L9a26{1} row was killed five hours after it had already found a
+  // constructive genus-0 witness that had never reached disk.
+  //
+  // Under --harvest the exposure is worst, because a row that has ALREADY
+  // resolved deliberately keeps running to bank more edges -- so the longer
+  // it usefully runs, the more there is to lose.
+  //
+  // writeWitnesses() is write-to-temp + atomic rename, so a checkpoint can
+  // never leave a torn file; the cost is rewriting a file of a few thousand
+  // lines, which is negligible beside the identification it runs alongside.
+  std::atomic<long long> lastCheckpointTick{0};
+  constexpr long long CHECKPOINT_INTERVAL_MS = 60'000;
+  auto checkpointWitnesses = [&](bool force) {
+    const long long now = tickNow();
+    if (!force &&
+        now - lastCheckpointTick.load(std::memory_order_relaxed) <
+            CHECKPOINT_INTERVAL_MS)
+      return;
+    std::lock_guard<std::mutex> lock(witnessMutex);
+    // Re-check under the lock so concurrent callers don't each rewrite.
+    if (!force &&
+        now - lastCheckpointTick.load(std::memory_order_relaxed) <
+            CHECKPOINT_INTERVAL_MS)
+      return;
+    lastCheckpointTick.store(now, std::memory_order_relaxed);
+    try {
+      writeWitnesses(cobordismsPath, witnesses);
+    } catch (const std::exception &e) {
+      // A failed checkpoint must not kill a running search: the row's own
+      // end-of-row write is still to come, and that one is allowed to throw.
+      std::cerr << "[!] witness checkpoint failed: " << e.what() << "\n";
+    }
+  };
+
   const auto sweepStart = std::chrono::steady_clock::now();
   size_t processedThisRun = 0;
   size_t searchedThisRun = 0;
@@ -1523,6 +1752,10 @@ int main(int argc, char *argv[]) {
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
 
+    std::optional<SurfaceStatsTally> surfaceStats;
+    if (surfaceStatsPath)
+      surfaceStats.emplace();
+
     std::optional<CsvWriter> surfaceLog;
     if (surfaceLogPath)
       surfaceLog.emplace(*surfaceLogPath,
@@ -1566,6 +1799,9 @@ int main(int argc, char *argv[]) {
               resolvedThisRow.load() ? std::optional<int>(row.lo)
                                      : std::nullopt,
               row.hi);
+          // The drain is the long pole of a row and the phase most likely to
+          // be interrupted, so checkpoint from here.
+          checkpointWitnesses(/*force=*/false);
         };
     callbacks.onBoundaryProcessingComplete =
         [&](size_t total, std::chrono::steady_clock::duration elapsed) {
@@ -1576,6 +1812,19 @@ int main(int argc, char *argv[]) {
 
     callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo
                                                    &info) {
+      // Recorded before any of the filtering below: the question this
+      // answers is what the SEARCH found, not what survived the checks that
+      // decide whether a surface bounds this particular row.
+      if (surfaceStats)
+        surfaceStats->record(
+            SurfaceStatsKey{.triangles = info.triangleCount,
+                            .orientable = info.orientable,
+                            .genus = info.genus,
+                            .punctures = info.punctures,
+                            .tubedGenus = info.tubedGenus,
+                            .closedComponents = info.closedComponents,
+                            .connected = info.connected});
+
       if (surfaceLog) {
         std::string pairSig =
             info.capturePairSig ? info.capturePairSig() : std::string{};
@@ -1725,7 +1974,22 @@ int main(int argc, char *argv[]) {
         // search might still find the surface that turns it into one -- so
         // it must not end the row. (Moot under --harvest, which never stops
         // early anyway; this matters for a non-harvest run.)
-        resolvedThisRow.store(true, std::memory_order_relaxed);
+        // Announce on stdout, once, the first time this row resolves.
+        // Previously the only sign was "-- ACHIEVED" appearing in the
+        // redrawn stderr progress block, which is invisible to any log
+        // filter and vanishes as soon as the next block overwrites it -- so
+        // a row could sit verified-but-unwritten for hours with nothing in
+        // the log to say so. Checkpoint immediately too: this is the single
+        // most valuable moment in a row, and under --harvest the row may
+        // keep running for hours afterwards.
+        if (!resolvedThisRow.exchange(true, std::memory_order_relaxed)) {
+          std::cout << "[+] " << row.name
+                    << ": CONSTRUCTIVE witness found -- reaches genus "
+                    << implied << " (literature [" << row.lo << ", " << row.hi
+                    << "]). Checkpointing now.\n"
+                    << std::flush;
+          checkpointWitnesses(/*force=*/true);
+        }
         if (!harvest) {
           // Without --harvest, stop the moment the row is settled: the
           // rest of this cobordism's surfaces would only add edges we
@@ -1830,8 +2094,10 @@ int main(int argc, char *argv[]) {
                                  : BoundaryCondition::proper;
       break;
     }
-    e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-             iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true, maxFaces);
+    const SearchStats finalStats =
+        e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
+                 iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true,
+                 maxFaces, rootBudgetStart, rootBudgetGrowth);
 
     searchDone.store(true, std::memory_order_relaxed);
     if (watchdog.joinable())
@@ -1839,6 +2105,19 @@ int main(int argc, char *argv[]) {
 
     if (surfaceLog)
       surfaceLog->finalize();
+    if (finalStats.deepestExhaustedCap) {
+      OutputRow &out = outputRows[row.name];
+      // Never let a shallower run overwrite a deeper exhaustive result.
+      out.exhaustedDepth =
+          std::max(out.exhaustedDepth, *finalStats.deepestExhaustedCap);
+      std::cout << "[+] " << row.name << ": EXHAUSTIVE to "
+                << *finalStats.deepestExhaustedCap
+                << " added faces -- every root enumerated to completion, so "
+                   "no cobordism exists for it at that depth.\n";
+    }
+    if (surfaceStats)
+      appendSurfaceStats(*surfaceStatsPath, row.name,
+                         maxFaces.value_or(0), surfaceStats->take());
     progressPrevLines_ = 0;
     ++searchedThisRun;
 

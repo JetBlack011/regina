@@ -399,7 +399,9 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
                        std::optional<long long> iddfsStart = std::nullopt,
                        std::optional<unsigned> finalThreads = std::nullopt,
                        bool orientableOnly = false,
-                       std::optional<long long> hardFaceCap = std::nullopt);
+                       std::optional<long long> hardFaceCap = std::nullopt,
+                       long long rootBudgetStart = 0,
+                       long long rootBudgetGrowth = 2);
 
     void skipRemainingBoundaryProcessing() {
         skipRemainingDrain_.store(true, std::memory_order_relaxed);
