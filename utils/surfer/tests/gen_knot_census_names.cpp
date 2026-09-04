@@ -35,6 +35,7 @@
 //      ./gen_knot_census_names pd_codes.csv > ../knot_census_names.csv
 //      ./gen_knot_census_names --links links_pd_codes.csv > ../link_census_names.csv
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -45,6 +46,7 @@
 #include <census/census.h>
 #include <triangulation/dim3.h>
 
+#include "../identifycomplement.h"
 #include "../knotbuilder.h"
 #include "../linkcomplement.h"
 
@@ -169,13 +171,62 @@ std::string stripOrientationSuffix(const std::string &name) {
 // so a miss row can be fed to an offline SnapPy identification pass, the
 // same way custom_analysis/identify_boundaries.py already does for knot
 // complements) and every regina::Census::lookup() hit against it.
-std::pair<std::string, std::list<regina::CensusHit>>
+// One census match: the database that produced it and the name it gave.
+// Not regina::CensusHit, because the retriangulation rung below yields a
+// bare name with no CensusHit to attach it to.
+struct NamedHit {
+    std::string dataset;
+    std::string name;
+};
+
+std::pair<std::string, std::vector<NamedHit>>
 censusHitsFor(const knotbuilder::PDCode &pdcode) {
     auto [tri, edges, reversed] = knotbuilder::buildLink(pdcode);
     Link link(tri, edges);
     regina::Triangulation<3> complement = link.buildComplement();
     std::string isoSig = complement.isoSig();
-    return {isoSig, regina::Census::lookup(complement)};
+    std::vector<NamedHit> hits;
+    for (const regina::CensusHit &hit : regina::Census::lookup(complement))
+        hits.push_back({hit.db().desc(), hit.name()});
+    if (!hits.empty())
+        return {isoSig, hits};
+
+    // Census::lookup() matches by isomorphism signature, so it only fires
+    // when the complement we built happens to be triangulated the way the
+    // census stores it. Often it is not: 8_14's complement gets NO hits
+    // here, yet the census does contain that manifold as L108014 -- the two
+    // triangulations are two Pachner moves apart.
+    //
+    // The RUNTIME already handles this. verifyslicegenus defaults
+    // census::retriangulateOnMiss on, so identify() falls through to
+    // retriangulateAndLookup() and comes back with "L108014". Without the
+    // same second rung here, this generator writes a blank row, linknames.h
+    // gets no L108014 -> 8_14 entry, and every such object then shows up in
+    // the results as a raw census name that nothing can tie back to a
+    // classical one. That is exactly the gap that left 89 unnamed
+    // L###### nodes in the cobordism graph.
+    //
+    // Budgets are more generous than the runtime's (8000 candidates, 20s),
+    // since this is a one-off offline pass -- but bounded, because a height
+    // of 3 explores exponentially more and there may be hundreds of misses.
+    // Height 2 is what reproduced the 8_14 <-> L108014 match by hand.
+    if (auto name = census::retriangulateAndLookup(
+            complement, /*height=*/2, /*candidateBudget=*/50000,
+            std::chrono::seconds(60))) {
+        // retriangulateAndLookup() returns censusLookupName()'s formatting,
+        // which is already translated through linknames.h: "8_10 (o9_43874 :
+        // #1)" on a hit there, or the bare raw name on a miss. This column
+        // must hold the RAW census name -- it is the key the regenerated
+        // linknames.h is built on, so a translated value here would emit
+        // useless self-referential entries like 3_1 -> 3_1 and, worse, would
+        // silently drop the raw name that the runtime actually produces.
+        std::string raw = *name;
+        auto open = raw.rfind(" (");
+        if (open != std::string::npos && !raw.empty() && raw.back() == ')')
+            raw = raw.substr(open + 2, raw.size() - open - 3);
+        hits.push_back({"Census::lookup after retriangulation", raw});
+    }
+    return {isoSig, hits};
 }
 
 // Tallies for one generation pass, threaded through processRow() and both
@@ -202,8 +253,8 @@ void processRow(const std::string &name, int crossings,
             writeRow(name, crossings, "", "", isoSig);
             ++counters.misses;
         } else {
-            for (const regina::CensusHit &hit : censusHits)
-                writeRow(name, crossings, hit.db().desc(), hit.name(), isoSig);
+            for (const NamedHit &hit : censusHits)
+                writeRow(name, crossings, hit.dataset, hit.name, isoSig);
             ++counters.hits;
         }
     } catch (const std::exception &e) {

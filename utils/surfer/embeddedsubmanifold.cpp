@@ -966,8 +966,16 @@ KnottedSurface::SurfaceTypeKey
 KnottedSurface::surfaceTypeKey(const regina::Triangulation<2> &surface) {
   bool isOrientable = surface.isOrientable();
   int punctures = surface.countBoundaryComponents();
-  int genus = isOrientable ? (2 - surface.eulerChar() - punctures) / 2
-                           : 2 - surface.eulerChar() - punctures;
+  // For c components, chi = 2c - 2g - b (orientable) or 2c - k - b (not),
+  // summing genus/crosscaps over components. The connected case (c == 1)
+  // reduces to the familiar formula, so this changes nothing there -- but
+  // without the factor of c a disconnected surface reports a genus too low
+  // by exactly c - 1, which shows up as nonsense like "genus -2, 6
+  // punctures" for three disjoint annuli.
+  int components = static_cast<int>(surface.countComponents());
+  int genus = isOrientable
+                  ? (2 * components - surface.eulerChar() - punctures) / 2
+                  : 2 * components - surface.eulerChar() - punctures;
   return {isOrientable, genus, punctures};
 }
 

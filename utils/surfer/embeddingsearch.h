@@ -103,6 +103,13 @@ struct SearchStats {
       /**< The number of roots in one pass -- the denominator for
            rootsExhausted. */
 
+  long long seedFaces = 0;
+      /**< The seeded collar's own face count, or 0 when unseeded. A find's
+           interesting size is how many faces it added BEYOND the seed
+           (largestSatisfying - seedFaces): the collar is
+           6 * crossings * collar-layers triangles and dwarfs the addition,
+           so a raw total like "91 faces" hides that only 7 were added. */
+
   long long rootBudget = 0;
       /**< The per-root work ration (tryAdd attempts) currently in force,
            or 0 when the search is unbudgeted. Doubles between passes; see

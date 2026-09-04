@@ -230,6 +230,12 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e) {
     report << " (final, uncapped)";
   report << " | deepest satisfying find: " << stats.largestSatisfying
          << " faces";
+  // Both numbers matter: the total says how big the surface is, the
+  // seed-relative count says how far the search actually reached, and the
+  // collar makes those differ by a couple of orders of magnitude.
+  if (stats.seedFaces > 0 && stats.largestSatisfying >= stats.seedFaces)
+    report << " (+" << (stats.largestSatisfying - stats.seedFaces)
+           << " beyond the " << stats.seedFaces << "-face seed)";
   if (stats.rootBudget > 0)
     report << " | root budget " << stats.rootBudget;
   report << "\n";
@@ -1004,6 +1010,19 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     knot. Debugging only -- lossy on crash "
          "(default: off).\n";
   std::cerr
+      << "    --research-settled : Search rows whose own bound is already "
+         "settled\n"
+         "                     (verified/pinned), instead of skipping them. "
+         "Pointless\n"
+         "                     alone, but with --harvest such a search still "
+         "banks every\n"
+         "                     cobordism it finds, and those edges bound "
+         "OTHER rows --\n"
+         "                     which is what makes re-sweeping at a deeper "
+         "cap, or with\n"
+         "                     per-root budgets, worth the time (default: "
+         "off).\n";
+  std::cerr
       << "    --root-budget-start N : Ration each root's enumeration to N "
          "tryAdd\n"
          "                     attempts per pass, doubling the ration each "
@@ -1104,6 +1123,7 @@ int main(int argc, char *argv[]) {
   std::optional<double> perKnotTimeLimit;
   std::optional<std::string> surfaceLogPath;
   std::optional<std::string> surfaceStatsPath;
+  bool researchSettled = false;    // see --research-settled
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
   long long rootBudgetGrowth = 2;
   bool censusUpdates = true;
@@ -1219,6 +1239,8 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--surface-log requires a value.");
       surfaceLogPath = argv[++i];
+    } else if (arg == "--research-settled") {
+      researchSettled = true;
     } else if (arg == "--root-budget-start") {
       if (i + 1 >= argc)
         usage(argv[0], "--root-budget-start requires a value.");
@@ -1590,11 +1612,34 @@ int main(int argc, char *argv[]) {
   auto recordWitness = [&](cobordismgraph::Witness w,
                            const std::function<std::string()> &capturePairSig)
       -> bool {
-    std::lock_guard<std::mutex> lock(witnessMutex);
-    if (cobordismgraph::haveWitness(witnesses, w))
-      return false;
+    // capturePairSig() must NOT run under witnessMutex. It computes a
+    // 4-dimensional isomorphism signature of the whole cobordism, and perf
+    // puts it at ~93% of the drain's CPU (IsoSigData<1,4>::fillFrom plus
+    // IsoSigPrintable::encode<4>). Holding the one global witness lock
+    // across it serialised all 12 boundary-identification threads behind a
+    // single core: measured at 1.00 core of 12 in use, with ten worker
+    // threads accumulating literally zero CPU ticks, and the drain
+    // alternating ~90s stalls with brief 12-thread bursts depending on
+    // whether witnesses were being found. A row that finds NOTHING drained
+    // at full speed, which is what made this so easy to misread as a
+    // problem with the boundary identification itself.
+    //
+    // So: check under the lock, compute outside it, then re-check before
+    // inserting. The re-check is what keeps the dedup exact -- two threads
+    // can pass the first check for the same witness concurrently, and
+    // without it both would insert.
+    {
+      std::lock_guard<std::mutex> lock(witnessMutex);
+      if (cobordismgraph::haveWitness(witnesses, w))
+        return false;
+    }
+
     if (capturePairSig)
       w.pairSig = capturePairSig();
+
+    std::lock_guard<std::mutex> lock(witnessMutex);
+    if (cobordismgraph::haveWitness(witnesses, w))
+      return false; // another thread got there while we were computing
     witnesses.push_back(std::move(w));
     lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
     return true;
@@ -1653,10 +1698,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Already settled? `verified` means we constructed a surface meeting
-    // the literature's own lower bound, so there is nothing left to find.
+    // the literature's own lower bound, so there is nothing left to find
+    // FOR THIS ROW -- but under --harvest a search still records every other
+    // cobordism it stumbles on, and an edge found while searching a settled
+    // object frequently bounds a different, unsettled one. --research-settled
+    // opts into that: it is how a re-sweep at a deeper cap, or with per-root
+    // budgets, extracts new edges from objects whose own bound is long since
+    // established.
     {
       auto it = outputRows.find(row.name);
-      if (it != outputRows.end() &&
+      if (!researchSettled && it != outputRows.end() &&
           (it->second.status == "verified" || it->second.status == "pinned")) {
         continue;
       }
@@ -1664,8 +1715,9 @@ int main(int argc, char *argv[]) {
       // this budget -- it would enumerate exactly the same surfaces and
       // learn exactly nothing. A bigger --max-faces does make it worth
       // redoing, which is what turns a re-run into progressive deepening.
-      if (it != outputRows.end() && it->second.searchOutcome == "exhausted" &&
-          maxFaces && it->second.searchedFaces >= *maxFaces) {
+      if (!researchSettled && it != outputRows.end() &&
+          it->second.searchOutcome == "exhausted" && maxFaces &&
+          it->second.searchedFaces >= *maxFaces) {
         continue;
       }
     }

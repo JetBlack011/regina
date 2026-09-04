@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <limits>
 #include <cassert>
 #include <csignal>
@@ -159,6 +161,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     long long seedSubgraphCount = 0;
     long long seedMaxFaces = 0;
     long long seedFaceSum = 0;
+    long long seedFaceCount = 0;
     if (isSeeded_) {
         auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
@@ -175,6 +178,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             graph_.adjList.first, graph_.adjList.second, true,
             protoInterruptible);
         roots = protoEnumerator.getRoots();
+        seedFaceCount =
+            static_cast<long long>(protoEmbedding.triangulation().size());
 
         seedFoundCount = 1;
         if (protoEmbedding.isEmbedded()) {
@@ -238,9 +243,47 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // over passes equal the full enumeration, with no duplicate surfaces
     // reaching the boundary-identification queue.
     std::vector<long long> visitsLastPass(roots.size(), 0);
+    // rootLevel[i]: how many budget passes root i has had. Its ration is
+    // rootBudgetStart * growth^rootLevel[i]. Levels are sequential PER ROOT
+    // (pass k+1 needs pass k's visit count to know what to skip) but wholly
+    // independent ACROSS roots -- which is what lets the schedule below run
+    // without a barrier.
+    std::vector<unsigned> rootLevel(roots.size(), 0);
+
+    // Barrier-free work queue over roots. A worker pops a root, runs it at
+    // its own next level, and pushes it back if it still has work; finished
+    // roots simply drop out.
+    //
+    // The previous design ran one level at a time and joined between them.
+    // That starved the machine badly: root costs here vary by orders of
+    // magnitude, so all roots would be claimed early and 10 of 12 threads sat
+    // at the join while two ground out the expensive stragglers -- measured
+    // at ~40% utilisation, with candidate throughput dropping to zero for
+    // stretches. Recycling roots through a queue keeps every thread busy for
+    // as long as ANY root has work left.
+    // Ration for a root at pass `level`: start * growth^level, saturating
+    // (a budget that large is unlimited in practice anyway). A
+    // rootBudgetStart of <= 0 means unbudgeted, signalled as -1 so
+    // BudgetedPredicate stays transparent.
+    auto budgetForLevel = [&](unsigned level) -> long long {
+        if (rootBudgetStart <= 0)
+            return -1;
+        long long b = rootBudgetStart;
+        for (unsigned i = 0; i < level; ++i) {
+            if (b > std::numeric_limits<long long>::max() / rootBudgetGrowth)
+                return std::numeric_limits<long long>::max();
+            b *= rootBudgetGrowth;
+        }
+        return b;
+    };
+
+    std::mutex queueMutex;
+    std::condition_variable queueCv;
+    std::deque<size_t> rootQueue;
+    size_t rootsInFlight = 0;
 
     auto worker = [&](unsigned tid, std::optional<long long> capFaces,
-                      long long suppressBelow, long long rootBudget) {
+                      long long suppressBelow) {
         auto embedding = makeEmbedding();
         EmbeddednessPredicate predicate(embedding, graph_.graphToSkel);
         std::optional<OrientabilityPredicate<EmbeddingT>> orientOpt;
@@ -284,25 +327,31 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         WorkerStats &local = perThreadStats[tid];
         auto threadHook = makeThreadHook();
 
-        // Root dispatch is always the shared queue, so threads stay busy
-        // however uneven root costs are -- and they are very uneven, since
-        // roots are ordered shallow-first.
-        //
-        // This is safe for the cross-pass deduplication only because
-        // resetCandidateOrder() below makes a root's traversal a function of
-        // that root alone, not of which roots this thread happened to handle
-        // first. An earlier version instead pinned roots to threads by a
-        // fixed stride to get that reproducibility; it worked, but starved
-        // the machine -- once the budget grew large a pass degenerated into a
-        // few expensive roots held by two or three threads while the other
-        // nine sat at the join, and observed throughput fell by more than
-        // half.
+        // Dispatch is safe only because resetCandidateOrder() below makes a
+        // root's traversal a function of that root alone, not of which roots
+        // this thread handled first.
         while (true) {
-            if (stopRequested_.load(std::memory_order_relaxed))
-                break;
-            size_t idx = nextRootIdx.fetch_add(1);
-            if (idx >= totalRootsPerPass)
-                break;
+            size_t idx;
+            long long rootBudget;
+            {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                queueCv.wait(lock, [&] {
+                    return !rootQueue.empty() || rootsInFlight == 0 ||
+                           stopRequested_.load(std::memory_order_relaxed);
+                });
+                if (stopRequested_.load(std::memory_order_relaxed))
+                    break;
+                if (rootQueue.empty()) {
+                    if (rootsInFlight == 0)
+                        break; // every root finished; the round is done
+                    continue;  // someone may yet push a root back
+                }
+                idx = rootQueue.front();
+                rootQueue.pop_front();
+                ++rootsInFlight;
+                rootBudget = budgetForLevel(rootLevel[idx]);
+                currentRootBudget.store(rootBudget, std::memory_order_relaxed);
+            }
             int s = roots[idx];
             // A root already enumerated to completion is re-walked with a
             // zero allowance rather than skipped: the enumerator's candidate
@@ -380,23 +429,27 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                     }
                 },
                 *activePredicate);
-            // An already-done root was re-walked only to keep the candidate
-            // ordering identical; it reported nothing, so leave its
-            // bookkeeping alone (its zero allowance trips exhausted(), which
-            // must not be read as "still unfinished").
-            if (!rootDone[idx]) {
-                visitsLastPass[idx] = visits;
-                // A root that never hit its budget was enumerated
-                // exhaustively (within this round's depth cap), so it needs
-                // no further pass. An interrupted run must not claim this:
-                // stopRequested_ prunes via InterruptiblePredicate without
-                // tripping the budget, which would otherwise look like
-                // completion.
-                if (!budgeted.exhausted() &&
-                    !stopRequested_.load(std::memory_order_relaxed))
-                    rootDone[idx] = 1;
-            }
+            visitsLastPass[idx] = visits;
+            // A root that never hit its budget was enumerated exhaustively
+            // (within this round's depth cap), so it needs no further pass.
+            // An interrupted run must not claim this: stopRequested_ prunes
+            // via InterruptiblePredicate without tripping the budget, which
+            // would otherwise look like completion.
+            const bool finished =
+                !budgeted.exhausted() &&
+                !stopRequested_.load(std::memory_order_relaxed);
             stats.rootsCompleted.fetch_add(1, std::memory_order_relaxed);
+            {
+                std::lock_guard<std::mutex> lock(queueMutex);
+                --rootsInFlight;
+                if (finished)
+                    rootDone[idx] = 1;
+                else if (!stopRequested_.load(std::memory_order_relaxed)) {
+                    ++rootLevel[idx]; // more ration next time round
+                    rootQueue.push_back(idx);
+                }
+                queueCv.notify_all();
+            }
         }
         // Flush this thread's remainder so the global count ends up exact.
         if (local.pendingSatisfyingCount > 0) {
@@ -430,6 +483,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         // final unbounded one) claims every root once, so the denominator
         // scales accordingly
         result.totalRoots = totalRootsPerPass * (iddfsIterations + 1);
+        result.seedFaces = seedFaceCount;
         result.rootBudget = currentRootBudget.load(std::memory_order_relaxed);
         result.rootsPerPass = totalRootsPerPass;
         // Read without synchronisation while workers may be writing: these
@@ -484,38 +538,36 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // Returns whether every root finished, i.e. whether this round
     // enumerated its depth exhaustively -- a real statement about the
     // object, not just about how long we ran.
+    // Runs one depth round to completion. Workers are spawned ONCE and drain
+    // the recycling root queue, so there is no barrier between budget levels
+    // and a thread that finishes a cheap root immediately takes another.
+    //
+    // Returns whether every root finished, i.e. whether this round enumerated
+    // its depth exhaustively -- a statement about the object, not about how
+    // long we ran.
     auto runRound = [&](std::optional<long long> capFaces,
                         long long suppressBelow, unsigned threadCount) -> bool {
         std::fill(rootDone.begin(), rootDone.end(), 0);
         std::fill(visitsLastPass.begin(), visitsLastPass.end(), 0);
-
-        long long budget = rootBudgetStart > 0 ? rootBudgetStart : 0;
-        while (true) {
-            currentRootBudget.store(budget, std::memory_order_relaxed);
-            nextRootIdx.store(0, std::memory_order_relaxed);
-            std::vector<std::thread> passThreads;
-            passThreads.reserve(threadCount);
-            for (unsigned t = 0; t < threadCount; ++t)
-                passThreads.emplace_back(worker, t, capFaces, suppressBelow,
-                                         budget);
-            for (auto &th : passThreads)
-                th.join();
-
-            if (budget <= 0) // unbudgeted: the single pass was the whole round
-                return !stopRequested_.load(std::memory_order_relaxed);
-            if (stopRequested_.load(std::memory_order_relaxed))
-                return false;
-            if (std::all_of(rootDone.begin(), rootDone.end(),
-                            [](uint8_t d) { return d != 0; }))
-                return true;
-
-            // Saturate rather than overflow: at that point the budget is
-            // effectively unlimited anyway.
-            if (budget > std::numeric_limits<long long>::max() / rootBudgetGrowth)
-                budget = std::numeric_limits<long long>::max();
-            else
-                budget *= rootBudgetGrowth;
+        std::fill(rootLevel.begin(), rootLevel.end(), 0u);
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            rootQueue.assign(roots.size(), 0);
+            std::iota(rootQueue.begin(), rootQueue.end(), size_t{0});
+            rootsInFlight = 0;
         }
+
+        std::vector<std::thread> roundThreads;
+        roundThreads.reserve(threadCount);
+        for (unsigned t = 0; t < threadCount; ++t)
+            roundThreads.emplace_back(worker, t, capFaces, suppressBelow);
+        for (auto &th : roundThreads)
+            th.join();
+
+        if (stopRequested_.load(std::memory_order_relaxed))
+            return false;
+        return std::all_of(rootDone.begin(), rootDone.end(),
+                           [](uint8_t d) { return d != 0; });
     };
 
     const long long resolvedIddfsStart = iddfsStart.value_or(iddfsStep);
