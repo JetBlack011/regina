@@ -36,6 +36,23 @@ namespace linknames {
  * group), not different manifolds, so matching on the base name is what
  * makes this table robust to which specific triangulation a caller's
  * simplify() happens to land on.
+ *
+ * WHAT MAY BE ADDED HERE, AND ON WHAT EVIDENCE. An entry asserts that a
+ * manifold IS a given knot or link, so the two halves of this table do not
+ * carry the same burden of proof. For a KNOT a homeomorphism of complements
+ * settles it outright (Gordon-Luecke), so showing that our own PD-built
+ * complement lands on that census name is enough. For a LINK it settles
+ * nothing on its own: Rolfsen twisting changes a link while preserving its
+ * exterior, so a link entry needs the peripheral test in
+ * cobordism-atlas/tools/identify_far_sides.py, and must not be added from a
+ * complement match alone.
+ *
+ * Do not infer an entry from the shape of a census name either. The Christy
+ * index usually coincides with the Rolfsen index -- L108014 is 8_14 -- but
+ * not always: L108019 is 5_1, the (2,5) torus knot, NOT 8_19, whose
+ * complement is a different manifold. Each entry is verified individually;
+ * see cobordism-atlas/data/name_aliases.csv for the ones established so far
+ * and how.
  */
 inline const std::unordered_map<std::string, std::string> table = {
     {"L104001", "4_1"},
@@ -50,6 +67,11 @@ inline const std::unordered_map<std::string, std::string> table = {
     {"L108010", "8_10"},
     {"L108011", "8_11"},
     {"L108013", "8_13"},
+    {"L108014", "8_14"},
+    {"L108015", "8_15"},
+    {"L108016", "8_16"},
+    {"L108018", "8_18"},
+    {"L108019", "5_1"},
     {"L108021", "8_21"},
     {"L109002", "9_2"},
     {"L109003", "9_3"},
@@ -57,10 +79,12 @@ inline const std::unordered_map<std::string, std::string> table = {
     {"L109009", "9_9"},
     {"L109010", "9_10"},
     {"L109011", "9_11"},
+    {"L109014", "9_14"},
     {"L109025", "9_25"},
     {"L109029", "9_29"},
     {"L109031", "9_31"},
     {"L109034", "9_34"},
+    {"L109037", "9_37"},
     {"L109042", "9_42"},
     {"L109044", "9_44"},
     {"L109046", "9_46"},
@@ -71,12 +95,14 @@ inline const std::unordered_map<std::string, std::string> table = {
     {"L110006", "10_6"},
     {"L110008", "10_8"},
     {"L110009", "10_9"},
+    {"L110010", "10_10"},
     {"L110011", "10_11"},
     {"L110012", "10_12"},
     {"L110016", "10_16"},
     {"L110027", "10_27"},
     {"L110035", "10_35"},
     {"L110036", "10_36"},
+    {"L110037", "10_37"},
     {"L110047", "10_47"},
     {"L110048", "10_48"},
     {"L110051", "10_51"},
@@ -85,7 +111,9 @@ inline const std::unordered_map<std::string, std::string> table = {
     {"L110080", "10_80"},
     {"L110082", "10_82"},
     {"L110083", "10_86"},
+    {"L110123", "10_123"},
     {"L110125", "10_125"},
+    {"L110127", "10_127"},
     {"L110131", "10_131"},
     {"L110132", "10_132"},
     {"L110134", "10_134"},
@@ -93,7 +121,11 @@ inline const std::unordered_map<std::string, std::string> table = {
     {"L110139", "10_139"},
     {"L110140", "10_140"},
     {"L110142", "10_142"},
+    {"L110144", "10_144"},
+    {"L110146", "10_146"},
     {"L110152", "10_152"},
+    {"L110154", "10_154"},
+    {"L110155", "10_155"},
     {"L110158", "10_158"},
     {"L110164", "10_163"},
     {"L110165", "10_164"},

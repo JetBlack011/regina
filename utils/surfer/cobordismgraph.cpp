@@ -244,7 +244,33 @@ bool relaxLower(std::unordered_map<std::string, Bounds> &bounds,
     return true;
 }
 
-/** Seeds the two bounds that need neither a search nor the literature. */
+/**
+ * Composite knots that bound a smooth disk, and so ground a chain exactly as
+ * the unknot does.
+ *
+ * `K # m(K^r)` -- K summed with the reverse of its mirror -- is the identity
+ * of the concordance group and bounds an explicit ribbon disk, for every K.
+ * Which *spelling* of that qualifies depends on the symmetry of K, so this is
+ * an explicit allowlist and not a pattern:
+ *
+ *   - "3_1#m3_1": 3_1 is invertible, so 3_1^r = 3_1 and m(3_1^r) = m3_1.
+ *   - "4_1#4_1":  4_1 is invertible AND amphichiral, so m(4_1^r) = 4_1 and
+ *                 the sum of 4_1 with *itself* is already the ribbon case.
+ *
+ * DO NOT generalize this to the string pattern "A#mA". That is wrong as soon
+ * as A is non-invertible (the first such knot is 8_17), where A # mA and
+ * A # m(A^r) are different knots and only the latter is slice. Adding an
+ * entry means checking the symmetry of the summand first.
+ *
+ * Names are matched exactly, in the canonical spelling that
+ * tools/identify_by_retriangulation.py emits: summands sorted, and the
+ * lexicographically smaller of the name and its overall mirror.
+ */
+bool isSliceComposite(const std::string &name) {
+    return name == "3_1#m3_1" || name == "4_1#4_1";
+}
+
+/** Seeds the bounds that need neither a search nor the literature. */
 void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
                 const std::vector<Witness> &witnesses) {
     auto axiom = [&bounds](const std::string &name) {
@@ -257,11 +283,11 @@ void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
     axiom("Unknot");
     // Every "<n>-component unlink" actually mentioned anywhere: it bounds
     // n disks, which tube into a connected planar surface of genus 0.
+    // Likewise every slice composite mentioned anywhere: it bounds a disk.
     for (const Witness &w : witnesses)
-        if (w.other.ends_with("-component unlink"))
-            axiom(w.other);
-        else if (w.subject.ends_with("-component unlink"))
-            axiom(w.subject);
+        for (const std::string &side : {w.other, w.subject})
+            if (side.ends_with("-component unlink") || isSliceComposite(side))
+                axiom(side);
 }
 
 } // namespace

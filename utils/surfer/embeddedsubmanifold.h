@@ -8,6 +8,7 @@
 
 #define EMBEDDEDSUBMANIFOLD_H
 
+#include <map>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -462,16 +463,38 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * As boundaryLinks(), but additionally derives each boundary curve's own
      * induced direction from the surface's orientation, rather than just an
      * unordered edge set. One of the two possible orientations is picked
-     * arbitrarily (the surface itself, not any one boundary component,
-     * determines the choice, so it's consistent across every curve
-     * returned); see this feature's own design notes for why an arbitrary
+     * arbitrarily; see this feature's own design notes for why an arbitrary
      * choice is fine for the comparison this exists to support.
+     *
+     * \warning That arbitrary choice is made per CONNECTED COMPONENT of the
+     * surface, not once for the whole surface: Simplex<2>::orientation() is
+     * only meaningful within a component. So two curves' directions are
+     * mutually meaningful exactly when they bound the same component, and
+     * curves on different components can be flipped independently. Use
+     * boundaryEdgeSurfaceComponent() to tell which is which -- for a
+     * disconnected surface, assuming one global choice silently mixes
+     * unrelated sign conventions together.
      *
      * \pre The surface is orientable (Simplex<2>::orientation() is only
      * meaningful within an orientable component).
      */
     std::vector<std::pair<size_t, std::vector<OrientedCurve>>>
     orientedBoundaryLinks() const;
+
+    /**
+     * Which connected component of the surface each boundary edge bounds.
+     *
+     * orientedBoundaryLinks() orients each component of the surface
+     * independently, so a set of boundary curves has mutually meaningful
+     * directions only within one component. This says which component each
+     * edge came from, so a caller can tell "these signs are related" from
+     * "these signs are independent" rather than assuming the former.
+     *
+     * Keyed by the same Edge<3>* objects orientedBoundaryLinks() returns, so
+     * a curve's component is read off any one of its edges.
+     */
+    std::map<const regina::Edge<3> *, size_t>
+    boundaryEdgeSurfaceComponent() const;
 
     /** Classifies `surface`'s topology as (orientable, genus, number of
      * punctures). */

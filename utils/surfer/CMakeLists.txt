@@ -9,7 +9,7 @@
 add_library(surfer_common STATIC
   knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
-  linkcomplement.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
+  linkcomplement.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp
   cobordismgraph.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
@@ -32,6 +32,7 @@ set(UTILS
   triangulateknot
   surfer
   verifyslicegenus
+  peripheral_slopes
 )
 
 foreach(EXE ${UTILS})

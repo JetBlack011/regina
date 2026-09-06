@@ -7,6 +7,7 @@
 #include "linkcomplement.h"
 
 #include <algorithm>
+#include <set>
 #include <unordered_set>
 
 #include <triangulation/dim3/homologicaldata.h>
@@ -271,6 +272,66 @@ Link::Link(const regina::Triangulation<3> &tri,
     for (const auto &compEdges : edgesByComp) {
         comps_.emplace_back(tri, compEdges);
     }
+}
+
+peripheral::DrilledWithMeridians Link::buildComplementWithPeripheral() const {
+    std::vector<int> all(comps_.size());
+    for (size_t i = 0; i < comps_.size(); ++i)
+        all[i] = static_cast<int>(i);
+    return buildComplementWithPeripheral(all, {});
+}
+
+peripheral::DrilledWithMeridians Link::buildComplementWithPeripheral(
+    const std::vector<std::vector<peripheral::DirectedEdge>> &directions)
+    const {
+    std::vector<int> all(comps_.size());
+    for (size_t i = 0; i < comps_.size(); ++i)
+        all[i] = static_cast<int>(i);
+    return buildComplementWithPeripheral(all, directions);
+}
+
+peripheral::DrilledWithMeridians Link::buildComplementWithPeripheral(
+    const std::vector<int> &components,
+    const std::vector<std::vector<peripheral::DirectedEdge>> &directions)
+    const {
+    if (components.empty())
+        throw regina::InvalidArgument(
+            "Link::buildComplementWithPeripheral(): no components given");
+    if (!directions.empty() && directions.size() != components.size())
+        throw regina::InvalidArgument(
+            "Link::buildComplementWithPeripheral(): one direction list is "
+            "needed per listed component");
+
+    std::set<int> seen;
+    std::vector<std::vector<peripheral::DirectedEdge>> selected;
+    selected.reserve(components.size());
+    for (size_t i = 0; i < components.size(); ++i) {
+        const int c = components[i];
+        if (c < 0 || static_cast<size_t>(c) >= comps_.size())
+            throw regina::InvalidArgument(
+                "Link::buildComplementWithPeripheral(): component index out "
+                "of range");
+        if (!seen.insert(c).second)
+            throw regina::InvalidArgument(
+                "Link::buildComplementWithPeripheral(): component index "
+                "repeated");
+
+        if (directions.empty()) {
+            std::vector<peripheral::DirectedEdge> forward;
+            forward.reserve(comps_[c].edges().size());
+            for (const regina::Edge<3> *e : comps_[c].edges())
+                forward.push_back({e, false});
+            selected.push_back(std::move(forward));
+        } else {
+            if (directions[i].size() != comps_[c].edges().size())
+                throw regina::InvalidArgument(
+                    "Link::buildComplementWithPeripheral(): direction list "
+                    "does not cover the component's edges");
+            selected.push_back(directions[i]);
+        }
+    }
+
+    return peripheral::drillWithMeridians(triangulation(), selected);
 }
 
 Link &Link::operator=(const Link &other) {

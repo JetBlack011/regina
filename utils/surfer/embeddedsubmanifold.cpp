@@ -891,6 +891,41 @@ chainIntoCurves(const std::vector<OrientedEdge> &directed) {
 }
 } // namespace
 
+std::map<const regina::Edge<3> *, size_t>
+KnottedSurface::boundaryEdgeSurfaceComponent() const {
+  std::map<const regina::Edge<3> *, size_t> result;
+
+  // Same walk as orientedBoundaryLinks(), recording the surface component
+  // rather than the induced direction. Kept as its own pass rather than
+  // folded into that return type, so existing callers are untouched.
+  for (size_t f = 0; f < faces_.size(); ++f) {
+    const auto *simplex = faces_[f];
+    if (simplex == nullptr)
+      continue;
+    const size_t surfaceComponent = simplex->component()->index();
+
+    for (int i = 0; i <= 2; ++i) {
+      if (simplex->adjacentSimplex(i) != nullptr)
+        continue; // internal facet of subtri_
+
+      const auto *ambientTriangle = skeleton_.getNodes()[f].face;
+      const auto *ambientFacet = ambientTriangle->template face<1>(i);
+      const auto *ambientBC = ambientFacet->boundaryComponent();
+      if (ambientBC == nullptr)
+        continue;
+
+      const size_t c = ambientBC->index();
+      for (int k = 0; k < ambientBC->countEdges(); ++k) {
+        if (ambientBC->edge(k) == ambientFacet) {
+          result[bdryComponents_[c].edge(k)] = surfaceComponent;
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
 std::vector<std::pair<size_t, std::vector<OrientedCurve>>>
 KnottedSurface::orientedBoundaryLinks() const {
   std::vector<std::vector<OrientedEdge>> directedByComponent(

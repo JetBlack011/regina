@@ -276,6 +276,38 @@ void test_unlink_axiom_is_constructive() {
               "unlink certifies the subject is slice");
 }
 
+void test_slice_composite_axiom_is_constructive() {
+    NameTable names;
+    names.addLiterature("K", 0, 9); // wide enough that the derived 0 is news
+    auto bounds = propagate({cobordism("K", 1, "3_1#m3_1", 1, 0)}, names);
+
+    EXPECT_EQ(bounds["3_1#m3_1"].hi, 0,
+              "K # m(K^r) is the identity of the concordance group and bounds "
+              "an explicit ribbon disc, so it grounds a chain like the unknot");
+    EXPECT_EQ(bounds["K"].basis == Basis::constructive, true,
+              "the ribbon disc is a theorem, not a literature value, so a "
+              "bound resting on it stays constructive");
+    EXPECT_EQ(bounds["K"].hi, 0,
+              "0 + 0 + (1 - 1) = 0: a genus-0 cobordism to a slice knot "
+              "certifies the subject is slice");
+}
+
+void test_slice_composite_allowlist_is_not_a_pattern() {
+    // The rule is K # m(K^r), and which SPELLING satisfies it depends on the
+    // summand's symmetry. 8_17 is the first non-invertible knot, so
+    // 8_17#m8_17 is NOT the concordance inverse and is not known to be slice.
+    // Anything matching on the shape "A#mA" would wrongly axiom it.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    auto bounds = propagate({cobordism("K", 1, "8_17#m8_17", 1, 0)}, names);
+
+    EXPECT_EQ(bounds["8_17#m8_17"].hi != 0, true,
+              "8_17 is non-invertible, so 8_17#m8_17 is not the ribbon case "
+              "and must not be axiomed -- the allowlist is not a pattern");
+    EXPECT_EQ(bounds.contains("K") && bounds["K"].haveUpper(), false,
+              "with no bound on the far side there is nothing to propagate");
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // propagate(): orientation-ambiguous far sides
 // ─────────────────────────────────────────────────────────────────────────
@@ -914,6 +946,10 @@ int main() {
     run("non_unlink_far_side_keeps_the_penalty",
         test_non_unlink_far_side_keeps_the_penalty);
     run("unlink_axiom_is_constructive", test_unlink_axiom_is_constructive);
+    run("slice_composite_axiom_is_constructive",
+        test_slice_composite_axiom_is_constructive);
+    run("slice_composite_allowlist_is_not_a_pattern",
+        test_slice_composite_allowlist_is_not_a_pattern);
     run("candidate_set_takes_the_worst_case_for_an_upper_bound",
         test_candidate_set_takes_the_worst_case_for_an_upper_bound);
     run("candidate_set_takes_the_best_case_for_a_lower_bound",

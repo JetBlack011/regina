@@ -638,6 +638,78 @@ loadWitnesses(const std::filesystem::path &path) {
   return result;
 }
 
+// Loads the observed-name -> classical-name table (see --name-aliases).
+//
+// A far side is named by identify(), from its complement alone, and that
+// often lands on something no literature table knows: a bare isomorphism
+// signature, a Christy census name ("L108019"), or a SnapPy census manifold
+// name ("m129 : #3"). Such an edge bounds nothing. Where we have since
+// PROVED what one of those is -- by a Pachner match against a complement
+// built from a PD code, or by the peripheral test for a link -- this table
+// records it.
+//
+// Deliberately a separate file rather than a rewrite of cobordisms.csv:
+// that file records what the search observed, and must keep doing so. See
+// applyNameAliases() for why the distinction has to survive into memory too.
+std::unordered_map<std::string, std::string>
+loadNameAliases(const std::filesystem::path &path) {
+  std::unordered_map<std::string, std::string> aliases;
+  std::ifstream in(path);
+  if (!in)
+    throw std::runtime_error("Cannot open name alias table: " + path.string());
+
+  std::string line;
+  std::getline(in, line); // header: observed,classical,basis
+  while (std::getline(in, line)) {
+    if (line.empty() || line[0] == '#')
+      continue;
+    auto f = parseCsvLine(line);
+    if (f.size() < 2 || f[0].empty() || f[1].empty())
+      continue;
+    aliases.emplace(f[0], f[1]);
+  }
+  return aliases;
+}
+
+// `name` as loadNameAliases() keys it: any " : #N" census-hit suffix
+// stripped, matching linknames::name()'s own convention.
+std::string aliasKey(const std::string &name) {
+  return name.substr(0, name.find(" : "));
+}
+
+// Resolves every witness's far side through the alias table, returning a
+// SEPARATE vector for the solver to consume.
+//
+// Returning a copy rather than mutating in place is the whole point.
+// writeWitnesses() serialises the in-memory witness vector back over
+// cobordisms.csv on every checkpoint, so aliasing the vector the search
+// holds would quietly bake resolved names into the observation record --
+// exactly what keeping a separate alias table was meant to avoid.
+//
+// `otherCandidates` is re-derived rather than carried across: propagate()
+// consumes the stored candidate list, so leaving it keyed to the old name
+// would let a witness claim a far side of one name and the variants of
+// another.
+std::vector<cobordismgraph::Witness>
+applyNameAliases(const std::vector<cobordismgraph::Witness> &witnesses,
+                 const std::unordered_map<std::string, std::string> &aliases,
+                 const cobordismgraph::NameTable &names, size_t &appliedOut) {
+  std::vector<cobordismgraph::Witness> resolved = witnesses;
+  size_t applied = 0;
+  for (cobordismgraph::Witness &w : resolved) {
+    if (w.other.empty())
+      continue;
+    auto it = aliases.find(aliasKey(w.other));
+    if (it == aliases.end())
+      continue;
+    w.other = it->second;
+    w.otherCandidates = names.candidates(w.other, w.otherComponents);
+    ++applied;
+  }
+  appliedOut = applied;
+  return resolved;
+}
+
 // Rewrites the whole witness file via write-to-temp + atomic rename, the
 // same crash-safety pattern writeOutputCsv() uses.
 void writeWitnesses(const std::filesystem::path &path,
@@ -800,6 +872,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --max-faces N ] [ --harvest ] [ --harvest-quiescence S ]\n"
          "    [ --sweep-time-limit S ]\n"
          "    [ --knot-table <csv> ] [ --link-table <csv> ]\n"
+         "    [ --name-aliases <csv> ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
@@ -976,6 +1049,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "work\n"
          "                     (default: none).\n";
   std::cerr
+      << "    --name-aliases <csv> : observed -> classical far-side names, "
+         "applied\n"
+         "        when solving only; cobordisms.csv keeps what identify() "
+         "observed.\n"
       << "    --knot-table <csv>, --link-table <csv> : Literature tables "
          "loaded for\n"
          "                     names and bounds ONLY, regardless of which "
@@ -1109,6 +1186,9 @@ int main(int argc, char *argv[]) {
       "4d_smooth_slice_genus_13_crossings_pd_codes.csv";
   std::string linkTablePath =
       "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv";
+  // Optional: empty means "no alias table", which is the pre-existing
+  // behaviour of taking every far-side name exactly as identify() left it.
+  std::string nameAliasPath;
   std::optional<long long> maxFaces;
   bool harvest = false;
   std::optional<double> harvestQuiescence;
@@ -1176,6 +1256,10 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--link-table requires a value.");
       linkTablePath = argv[++i];
+    } else if (arg == "--name-aliases") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--name-aliases requires a value.");
+      nameAliasPath = argv[++i];
     } else if (arg == "--max-faces") {
       if (i + 1 >= argc)
         usage(argv[0], "--max-faces requires a value.");
@@ -1515,10 +1599,39 @@ int main(int argc, char *argv[]) {
             << " previously-recorded witnesses from " << cobordismsPath
             << "\n";
 
+  std::unordered_map<std::string, std::string> nameAliases;
+  if (!nameAliasPath.empty()) {
+    try {
+      nameAliases = loadNameAliases(nameAliasPath);
+      std::cout << "[+] Name aliases: " << nameAliases.size()
+                << " observed names resolved to classical ones from "
+                << nameAliasPath << "\n";
+    } catch (const std::exception &e) {
+      std::cerr << "[!] could not load name aliases " << nameAliasPath << ": "
+                << e.what() << " (continuing without them)\n";
+    }
+  }
+
+  // The witness list the SOLVER sees, which is not the one the search holds:
+  // aliases resolve a far side to what we have since proved it to be, while
+  // `witnesses` keeps what identify() observed and is what gets written back
+  // to cobordisms.csv. Rebuilt on each solve because the search appends to
+  // `witnesses` as it goes; the copy costs a few MB against a search measured
+  // in minutes.
+  size_t aliasesApplied = 0;
+  auto solverWitnesses = [&]() -> std::vector<cobordismgraph::Witness> {
+    if (nameAliases.empty())
+      return witnesses;
+    return applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
+  };
+
   // Every conclusion is re-derived from the witness set on every run, so a
   // solver fix or a literature-table update takes effect on rows that were
   // searched long ago without re-searching any of them.
-  auto bounds = cobordismgraph::propagate(witnesses, names);
+  auto bounds = cobordismgraph::propagate(solverWitnesses(), names);
+  if (!nameAliases.empty())
+    std::cout << "[+] Name aliases: applied to " << aliasesApplied
+              << " witness edges\n";
   std::cout << "[+] Solver: derived bounds for " << bounds.size()
             << " names\n\n";
 
@@ -1561,7 +1674,7 @@ int main(int argc, char *argv[]) {
   // row's harvested cobordisms settle a later row before it is ever
   // searched.
   auto resolveAll = [&]() -> std::vector<std::string> {
-    bounds = cobordismgraph::propagate(witnesses, names);
+    bounds = cobordismgraph::propagate(solverWitnesses(), names);
     std::vector<std::string> contradictions;
 
     // Every name that could need its row rewritten -- crucially including
