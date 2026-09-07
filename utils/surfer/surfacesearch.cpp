@@ -299,6 +299,8 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
                 faceIndices.push_back(f);
         localPending_.push_back(std::move(faceIndices));
     } else if (callbacks_.onSurfaceFound) {
+        // Idempotent, so this costs nothing after the first call.
+        embedding.usePairSigContext(&owner_.pairSigCtx_);
         auto [orientable, genus, punctures] = type;
         auto tubed =
             tubedFieldsFor(embedding.triangulation(), genus, punctures);
@@ -347,8 +349,10 @@ void SurfaceSearch::ThreadHook::onFlush() {
         auto batch = owner_.pendingSurfaces_.popSome(HELPER_DRAIN_BATCH);
         if (batch.empty())
             break; // fully drained
-        if (!helperEmbedding_)
+        if (!helperEmbedding_) {
             helperEmbedding_.emplace(owner_.skeleton_, owner_.petalCache_);
+            helperEmbedding_->usePairSigContext(&owner_.pairSigCtx_);
+        }
         for (const auto &faceIndices : batch)
             owner_.processEntry_(*helperEmbedding_, faceIndices, callbacks_);
         owner_.pendingSurfaces_.recordProducerDrain(batch.size());
@@ -379,6 +383,7 @@ void SurfaceSearch::backgroundDrainLoop_(
     using namespace std::chrono_literals;
     constexpr size_t POP_BATCH = 64;
     KnottedSurface embedding(skeleton_, petalCache_);
+    embedding.usePairSigContext(&pairSigCtx_);
     while (!workersFinished.load(std::memory_order_relaxed)) {
         auto items = pendingSurfaces_.popSome(POP_BATCH);
         if (items.empty()) {
@@ -437,6 +442,7 @@ void SurfaceSearch::processBatchParallel_(
 
     auto worker = [&]() {
         KnottedSurface embedding(skeleton_, petalCache_);
+        embedding.usePairSigContext(&pairSigCtx_);
         while (true) {
             if (skipRemainingDrain_.load(std::memory_order_relaxed))
                 break;
@@ -545,6 +551,10 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
     AuxHooks auxHooks(*this, numThreads, wantLinks, callbacks);
     return runSearch_<KnottedSurface>(
         numThreads, cond,
+        // Must stay a prvalue: KnottedSurface owns a PetalCache holding a
+        // std::mutex, so it is not movable, and only guaranteed copy elision
+        // makes this compile. The context is attached in ThreadHook::onFound
+        // instead, where the embedding is actually used.
         [this] { return KnottedSurface(skeleton_, petalCache_); },
         [this, wantLinks, &callbacks] {
             return std::make_unique<ThreadHook>(*this, surfaceTypeTally_,
@@ -552,6 +562,7 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
         },
         [this, wantLinks, &callbacks](const std::vector<int> &seedFaces) {
             KnottedSurface probe(skeleton_, petalCache_, seedFaces);
+            probe.usePairSigContext(&pairSigCtx_);
             SurfaceTypeKey type = probe.surfaceType();
             std::map<SurfaceTypeKey, long long> seedTypeCounts{{type, 1}};
             surfaceTypeTally_.merge(seedTypeCounts);

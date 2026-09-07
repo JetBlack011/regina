@@ -59,3 +59,18 @@ target_compile_options(profile_driver PRIVATE -g)
 add_executable(profile_boundarylinks profile_boundarylinks.cpp)
 target_link_libraries(profile_boundarylinks surfer_common)
 target_compile_options(profile_boundarylinks PRIVATE -g)
+
+# Decomposes pairSig<4,2>() into its ambient-only and surface-dependent
+# parts, which is what justifies PairSigContext; see profile_pairsig.cpp.
+# Not a CTest test.
+add_executable(profile_pairsig profile_pairsig.cpp)
+target_link_libraries(profile_pairsig surfer_common)
+target_compile_options(profile_pairsig PRIVATE -g)
+
+# Replays the pair signatures recorded in results/cobordisms.csv (all written
+# by the pre-context code path) through PairSigContext, requiring
+# byte-identical output. Needs a corpus file as input, so not a CTest test:
+#
+#   replay_pairsigs group0.txt group1.txt ...
+add_executable(replay_pairsigs replay_pairsigs.cpp)
+target_link_libraries(replay_pairsigs surfer_common)

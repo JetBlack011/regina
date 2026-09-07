@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -1771,9 +1772,27 @@ int main(int argc, char *argv[]) {
   // it usefully runs, the more there is to lose.
   //
   // writeWitnesses() is write-to-temp + atomic rename, so a checkpoint can
-  // never leave a torn file; the cost is rewriting a file of a few thousand
-  // lines, which is negligible beside the identification it runs alongside.
+  // never leave a torn file. The cost is NOT negligible, though: the file is
+  // rewritten whole from the in-memory vector, and ~99% of its bytes are
+  // pairsig strings (49.0MB of 49.6MB at 6,120 witnesses, mean 8,013 chars
+  // each), so it grows with the atlas. Worse, the rewrite happens under
+  // witnessMutex, so every drain thread trying to record a witness blocks
+  // behind it.
+  //
+  // Hence lastCheckpointedCount: most checkpoints during a drain have nothing
+  // new to write, and rewriting the file to produce byte-identical content is
+  // pure cost. `witnesses` is append-only -- push_back below is its only
+  // mutation after the initial loadWitnesses(), and applyNameAliases()
+  // deliberately builds a SEPARATE vector so that interpretations never
+  // mutate the observation record -- so the size changes if and only if the
+  // content does, which makes the count an exact dirty flag rather than a
+  // heuristic one. It is read and written only under witnessMutex, so it
+  // needs no atomicity of its own and cannot race push_back.
+  //
+  // Initialised from the loaded set, so resuming a run does not immediately
+  // rewrite a file identical to the one just read.
   std::atomic<long long> lastCheckpointTick{0};
+  size_t lastCheckpointedCount = witnesses.size();
   constexpr long long CHECKPOINT_INTERVAL_MS = 60'000;
   auto checkpointWitnesses = [&](bool force) {
     const long long now = tickNow();
@@ -1788,8 +1807,22 @@ int main(int argc, char *argv[]) {
             CHECKPOINT_INTERVAL_MS)
       return;
     lastCheckpointTick.store(now, std::memory_order_relaxed);
+    // The gate below is only sound while `witnesses` is append-only. If this
+    // ever fires, the count is no longer an exact dirty flag and must be
+    // replaced by a real flag set in recordWitness().
+    assert(witnesses.size() >= lastCheckpointedCount &&
+           "witnesses must be append-only for the checkpoint gate to be sound");
+    // Nothing new since the last successful write, so the file already holds
+    // exactly what we would write. A forced checkpoint still writes: callers
+    // pass force=true at points where the file must be current regardless.
+    if (!force && witnesses.size() == lastCheckpointedCount)
+      return;
     try {
       writeWitnesses(cobordismsPath, witnesses);
+      // Only on success -- a checkpoint that threw has NOT reached disk, and
+      // marking it clean here would suppress every later attempt to write the
+      // same witnesses, turning a transient write failure into silent loss.
+      lastCheckpointedCount = witnesses.size();
     } catch (const std::exception &e) {
       // A failed checkpoint must not kill a running search: the row's own
       // end-of-row write is still to come, and that one is allowed to throw.

@@ -23,6 +23,14 @@
 
 #include "linkcomplement.h"
 #include "rollbackunionfind.h"
+
+// Forward-declared rather than included: pairsig.h includes THIS header (for
+// its Skeleton/EmbeddedSubmanifold convenience overload), so including it
+// here would be circular. Only pairSig()'s out-of-line definition in
+// embeddedsubmanifold.cpp needs the complete type, and a non-owning pointer
+// needs nothing more than this declaration.
+template <int dim, int subdim>
+class LazyPairSigContext;
 #include "skeleton.h"
 #include "vertexlinks.h"
 
@@ -157,6 +165,10 @@ class EmbeddedSubmanifold {
     mutable std::optional<std::string> cachedPairSig_;
     /**< See pairSig(). Reset by any successful addFace()/removeFace(). */
 
+    const LazyPairSigContext<dim, subdim> *pairSigCtx_ = nullptr;
+    /**< Optional shared ambient context; see usePairSigContext(). Non-owning:
+         whoever set it must keep it alive at least as long as this object. */
+
     /**
      * Unions the DSU slot for (implicit ambient face, k, `slotA`) with the
      * slot for (implicit destination face, k, `slotB`), both mapping to
@@ -266,10 +278,35 @@ class EmbeddedSubmanifold {
     }
 
     /**
+     * Shares an ambient pair-signature context with this submanifold, so
+     * that pairSig() reuses the ambient's isoSig/automorphism data instead
+     * of recomputing it. `ctx` must be built over the SAME ambient
+     * triangulation as this submanifold's skeleton, and must outlive this
+     * object; pass nullptr to go back to computing from scratch.
+     *
+     * Output is unaffected -- a context yields byte-identical signatures
+     * (see PairSigContext). This only changes how much work each call costs.
+     */
+    void usePairSigContext(const LazyPairSigContext<dim, subdim> *ctx) {
+        // Idempotent: re-attaching the same context must not discard an
+        // already-computed signature, since callers on hot paths set this
+        // unconditionally rather than tracking whether they already have.
+        if (pairSigCtx_ == ctx)
+            return;
+        pairSigCtx_ = ctx;
+        cachedPairSig_.reset();
+    }
+
+    /**
      * Returns (computing and caching on first call) this submanifold's
      * pairSig. This is a full isomorphism invariant of (ambient triangulation,
-     * marked faces); see pairsig.h. Expensive (searches the canonical
-     * triangulation's automorphism group), call at your own risk.
+     * marked faces); see pairsig.h.
+     *
+     * Expensive without a shared context: it computes an isomorphism
+     * signature of the whole AMBIENT triangulation, which for a search's
+     * cobordism dwarfs everything else (~33 s on 1,728 pentachora, measured
+     * at 79% of a whole drain's CPU). Since the ambient is fixed for a whole
+     * search, prefer usePairSigContext() -- see pairsig.h.
      */
     const std::string &pairSig() const;
 

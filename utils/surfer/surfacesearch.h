@@ -15,6 +15,7 @@
 #include "embeddedsubmanifold.h"
 #include "embeddingsearch.h"
 #include "identifycomplement.h"
+#include "pairsig.h"
 
 /**
  * Everything needed to describe one found surface when no boundary-link
@@ -323,6 +324,19 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
      * Shared across every KnottedSurface this search constructs.
      */
     PetalCache petalCache_;
+
+    /**
+     * Shared ambient pair-signature data, likewise handed to every
+     * KnottedSurface this search constructs.
+     *
+     * The ambient here is the search's own cobordism -- fixed for the whole
+     * search -- so everything pairSig() derives from it is the same for every
+     * surface found. Computing it per surface made the drain's cost scale
+     * with the number of witnesses rather than the amount of work (79% of a
+     * whole run's CPU, measured). Built on first use, not here, so a search
+     * that never signs anything never pays for it.
+     */
+    LazyPairSigContext<4, 2> pairSigCtx_{skeleton_.triangulation()};
 
     SurfaceSearchLimits limits_;
 

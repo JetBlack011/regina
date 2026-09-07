@@ -555,8 +555,15 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
 
 template <int dim, int subdim>
 const std::string &EmbeddedSubmanifold<dim, subdim>::pairSig() const {
-  if (!cachedPairSig_)
-    cachedPairSig_ = ::pairSig<dim, subdim>(skeleton_, *this);
+  if (!cachedPairSig_) {
+    // Identical strings either way -- the context is a cheaper route to the
+    // same encoding, never a different one (see PairSigContext). Without one
+    // this recomputes the ambient's isomorphism signature from scratch on
+    // every call, which is the whole cost.
+    cachedPairSig_ = pairSigCtx_
+                         ? pairSigCtx_->get().sig(markedFaces())
+                         : ::pairSig<dim, subdim>(skeleton_, *this);
+  }
   return *cachedPairSig_;
 }
 

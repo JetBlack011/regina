@@ -9,6 +9,7 @@
 #define PAIRSIG_H
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -98,10 +99,130 @@ size_t resolveFaceIndex(const regina::Triangulation<dim> &codomain,
 }
 
 /**
+ * Everything in a pair signature that depends on the AMBIENT triangulation
+ * alone, computed once so that many surfaces over the same ambient can be
+ * signed without repeating it.
+ *
+ * This exists because the ambient part is overwhelmingly the expensive part,
+ * and in a search it is the same every time. Measured on a 1,728-pentachoron
+ * cobordism (a 9-crossing link, 2 layers):
+ *
+ *     pairSig<4,2>()             32,868 ms
+ *       isoSigDetail(ambient)    32,809 ms   (99.8%)  <- ambient only
+ *       findAllIsomorphisms         265 ms            <- ambient only
+ *       fromSig(sig)                  0.5 ms          <- ambient only
+ *
+ * `verifyslicegenus` builds one cobordism per row and then signs every
+ * witness found in it, so recomputing the above per witness made the drain's
+ * cost proportional to the number of witnesses rather than the amount of
+ * work: `perf` put 79% of the whole run in IsoSigData<1,4>::fillFrom plus
+ * IsoSigPrintable::encode<4>, against 0.46% in the surface-dependent part of
+ * pairSig() itself.
+ *
+ * sig() is byte-for-byte identical to pairSig<dim,subdim>(ambient, ...) --
+ * it is the same code reading precomputed members. That equality is the
+ * whole contract: `results/cobordisms.csv` stores these strings and
+ * peripheral_slopes reconstructs surfaces from them, so a context must never
+ * be a different encoding, only a cheaper route to the same one.
+ *
+ * Not copyable: `autos_` are isomorphisms *of* `canon_`, so copying the
+ * members independently would leave them describing a different object.
+ *
+ * Thread-safe for concurrent sig() calls once constructed: every member is
+ * read-only thereafter.
+ */
+template <int dim, int subdim>
+class PairSigContext {
+  public:
+    /**
+     * \pre `ambient` is non-empty and connected (as isoSigDetail() requires).
+     * \exception regina::FailedPrecondition `ambient` is empty or
+     * disconnected.
+     */
+    explicit PairSigContext(const regina::Triangulation<dim> &ambient)
+        : PairSigContext(ambient, detailFor(ambient)) {}
+
+    PairSigContext(const PairSigContext &) = delete;
+    PairSigContext &operator=(const PairSigContext &) = delete;
+
+    /** Identical to pairSig<dim,subdim>(ambient, markedFaces). */
+    std::string sig(const std::vector<int> &markedFaces) const;
+
+    /** The ambient's own isoSig, i.e. every signature's shared prefix. */
+    const std::string &ambientSig() const { return sig_; }
+
+    /** How many automorphisms of the canonical ambient sig() minimises over. */
+    size_t automorphismCount() const { return autos_.size(); }
+
+  private:
+    using Detail = std::pair<std::string, regina::Isomorphism<dim>>;
+
+    static Detail detailFor(const regina::Triangulation<dim> &ambient);
+
+    PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail);
+
+    const regina::Triangulation<dim> *ambient_;
+    std::string sig_;
+    regina::Isomorphism<dim> psi0_;
+    regina::Triangulation<dim> canon_;
+    std::vector<regina::Isomorphism<dim>> autos_;
+    size_t numFaces_;
+    int width_;
+};
+
+/**
+ * A PairSigContext built on first use and shared thereafter.
+ *
+ * Laziness is the point, not an implementation detail. Building a context
+ * costs an isoSigDetail() of the whole ambient -- ~33 s on a
+ * 1,728-pentachoron cobordism -- and MOST SEARCH ROWS NEVER SIGN ANYTHING,
+ * because they find no witness at all. Constructing eagerly (say, alongside
+ * the per-row Skeleton) would hand every barren row a large bill it does not
+ * currently pay, turning a win on productive rows into a loss overall. So the
+ * cost is deferred to the first sig() that actually happens.
+ *
+ * get() is safe to call concurrently: std::call_once both serialises the
+ * build and establishes happens-before for every other caller, so the
+ * returned context is fully constructed before any thread observes it. This
+ * is the same pattern BoundarySignatureCache::ensureAutomorphismGroup_() and
+ * SurfaceSearch::ensureBoundarySigCaches_() already use.
+ *
+ * Holds a non-owning pointer: `ambient` must outlive this object.
+ */
+template <int dim, int subdim>
+class LazyPairSigContext {
+  public:
+    explicit LazyPairSigContext(const regina::Triangulation<dim> &ambient)
+        : ambient_(&ambient) {}
+
+    LazyPairSigContext(const LazyPairSigContext &) = delete;
+    LazyPairSigContext &operator=(const LazyPairSigContext &) = delete;
+
+    const PairSigContext<dim, subdim> &get() const {
+        std::call_once(once_, [this] {
+            ctx_ = std::make_unique<PairSigContext<dim, subdim>>(*ambient_);
+        });
+        return *ctx_;
+    }
+
+    /** Whether the context has actually been built yet (for tests/reporting). */
+    bool built() const { return static_cast<bool>(ctx_); }
+
+  private:
+    const regina::Triangulation<dim> *ambient_;
+    mutable std::once_flag once_;
+    mutable std::unique_ptr<PairSigContext<dim, subdim>> ctx_;
+};
+
+/**
  * Computes a pair signature for (`ambient`, `markedFaces`).
  *
  * `markedFaces` is a list of indices into `ambient`'s subdim-faces (the
  * same representation EmbeddedSubmanifold::markedFaces() returns/consumes).
+ *
+ * Builds a throwaway PairSigContext, so it pays the full ambient cost on
+ * every call. Signing many surfaces over one ambient (which is what a search
+ * does) should build one PairSigContext and reuse it.
  *
  * \pre `ambient` is non-empty and connected (the same precondition
  * isoSigDetail() itself carries).
@@ -167,6 +288,9 @@ struct DecodedKnottedSurfaceSig {
 
 /** As fromPairSig<4,2>(), but reconstructing a KnottedSurface instead of the base class. */
 DecodedKnottedSurfaceSig fromKnottedSurfaceSig(const std::string &sig);
+
+extern template class PairSigContext<3, 2>;
+extern template class PairSigContext<4, 2>;
 
 extern template std::string pairSig<3, 2>(
     const regina::Triangulation<3> &, const std::vector<int> &);

@@ -7,6 +7,7 @@
 #include "pairsig.h"
 
 #include <algorithm>
+#include <cassert>
 #include <sstream>
 #include <utility>
 
@@ -112,50 +113,103 @@ decodePairSigParts(const std::string &sigStr) {
 } // namespace
 
 template <int dim, int subdim>
-std::string pairSig(const regina::Triangulation<dim> &ambient,
-                     const std::vector<int> &markedFaces) {
+typename PairSigContext<dim, subdim>::Detail
+PairSigContext<dim, subdim>::detailFor(
+        const regina::Triangulation<dim> &ambient) {
     if (ambient.isEmpty() || !ambient.isConnected())
         throw regina::FailedPrecondition(
             "pairSig(): ambient must be non-empty and connected");
+    return ambient.isoSigDetail();
+}
 
-    auto [sig, psi0] = ambient.isoSigDetail();
+template <int dim, int subdim>
+PairSigContext<dim, subdim>::PairSigContext(
+        const regina::Triangulation<dim> &ambient, Detail detail)
+    : ambient_(&ambient),
+      sig_(std::move(detail.first)),
+      psi0_(std::move(detail.second)),
+      canon_(regina::Triangulation<dim>::fromSig(sig_)),
+      numFaces_(canon_.template countFaces<subdim>()),
+      width_(regina::Base64Encoder::integerWidth(
+          numFaces_ == 0 ? 0 : numFaces_ - 1)) {
+    // THREAD SAFETY, and the reason this is spelled out rather than left to
+    // fall out of the initialisers above.
+    //
+    // sig() is called concurrently by every drain thread, and reads both
+    // *ambient_ and canon_ through skeletal queries (face<subdim>(),
+    // simplex()->face<subdim>()). Regina computes a triangulation's skeleton
+    // LAZILY, on first skeletal query, mutating the object -- so if either
+    // triangulation reached those threads with an uncomputed skeleton, the
+    // first concurrent queries would race inside Regina.
+    //
+    // Both happen to be forced already -- detailFor() calls isConnected() on
+    // the ambient, and the numFaces_ initialiser calls countFaces<subdim>()
+    // on canon_ -- but only incidentally, and an assert would be no help:
+    // this is built -O3 -DNDEBUG, so any assert here is compiled out of
+    // exactly the binary that runs the concurrent drain.
+    //
+    // So ESTABLISH the invariant rather than checking it. These two calls are
+    // near-free once the skeleton exists (and are what computes it if some
+    // future edit removes the incidental triggers above), they run in every
+    // build configuration, and they execute here while still single-threaded,
+    // before call_once publishes this object to the drain threads. Regina
+    // computes the skeleton as a whole, so one query per triangulation is
+    // enough. ensureSkeleton() would say this more directly but is protected.
+    static_cast<void>(ambient_->isConnected());
+    static_cast<void>(canon_.template countFaces<subdim>());
 
+    // Every automorphism of `canon_`, collected once. sig() minimises the
+    // marked-face image over these, and which automorphism wins depends on
+    // the surface -- but the SET of them does not, so enumerating them here
+    // is the single largest saving after isoSigDetail() itself.
+    canon_.findAllIsomorphisms(
+        canon_, [this](const regina::Isomorphism<dim> &alpha) {
+            autos_.push_back(alpha);
+            return false; // keep enumerating every automorphism
+        });
+}
+
+template <int dim, int subdim>
+std::string PairSigContext<dim, subdim>::sig(
+        const std::vector<int> &markedFaces) const {
     std::ostringstream out;
-    out << sig << delimiter;
+    out << sig_ << delimiter;
 
     if (markedFaces.empty())
         return out.str();
 
-    regina::Triangulation<dim> canon = regina::Triangulation<dim>::fromSig(sig);
-    auto underPsi0 = mapFacesThroughPsi0<dim, subdim>(ambient, psi0, markedFaces);
+    auto underPsi0 =
+        mapFacesThroughPsi0<dim, subdim>(*ambient_, psi0_, markedFaces);
 
     // Minimize the sorted image-index list over every automorphism of
-    // `canon`, so that two isomorphic (ambient, markedFaces) pairs always
+    // `canon_`, so that two isomorphic (ambient, markedFaces) pairs always
     // settle on the same encoding, regardless of which arbitrary relabeling
     // isoSigDetail() happened to return as psi0.
     std::vector<size_t> best;
     bool haveBest = false;
-    canon.findAllIsomorphisms(canon,
-        [&](const regina::Isomorphism<dim> &alpha) {
-            auto candidate = imageUnderAlpha<dim, subdim>(canon, alpha, underPsi0);
-            if (!haveBest || candidate < best) {
-                best = std::move(candidate);
-                haveBest = true;
-            }
-            return false; // keep enumerating every automorphism
-        });
+    for (const auto &alpha : autos_) {
+        auto candidate = imageUnderAlpha<dim, subdim>(canon_, alpha, underPsi0);
+        if (!haveBest || candidate < best) {
+            best = std::move(candidate);
+            haveBest = true;
+        }
+    }
 
     // Encode the minimized index list the same way isoSig() itself encodes
     // its gluing data: fixed-width base64 fields (IsoSigPrintable's own
     // scheme, see utilities/sigutils.h), with no separators -- the decoder
     // recomputes the same width w from the reconstructed ambient
     // triangulation alone, and the entry count from the suffix's length.
-    size_t M = canon.template countFaces<subdim>();
-    int w = regina::Base64Encoder::integerWidth(M == 0 ? 0 : M - 1);
     regina::Base64Encoder enc;
-    enc.encodeInts(best, w);
+    enc.encodeInts(best, width_);
     out << enc.str();
     return out.str();
+}
+
+template <int dim, int subdim>
+std::string pairSig(const regina::Triangulation<dim> &ambient,
+                     const std::vector<int> &markedFaces) {
+    return PairSigContext<dim, subdim>(ambient).sig(markedFaces);
 }
 
 template <int dim, int subdim>
@@ -177,6 +231,9 @@ DecodedKnottedSurfaceSig fromKnottedSurfaceSig(const std::string &sigStr) {
         .ambient = std::move(ambient), .skeleton = std::move(skeleton),
         .surface = std::move(surface)};
 }
+
+template class PairSigContext<3, 2>;
+template class PairSigContext<4, 2>;
 
 template std::string pairSig<3, 2>(
     const regina::Triangulation<3> &, const std::vector<int> &);

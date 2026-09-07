@@ -28,7 +28,9 @@
 // multiple of the per-index width w = Base64Encoder::integerWidth(M - 1).
 
 #include <iostream>
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 #include <unistd.h>
 
@@ -366,6 +368,217 @@ void test_malformed_input() {
               "jointly addable)");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 7: PairSigContext produces byte-identical output to the free
+// pairSig(), across many distinct marked sets over one ambient.
+//
+// This is the entire contract of the context: it is a cheaper ROUTE to the
+// same string, never a different encoding. results/cobordisms.csv stores
+// these strings and peripheral_slopes reconstructs surfaces from them, so
+// any divergence here would silently invalidate recorded witnesses.
+//
+// Reusing one context across every marked set is deliberate -- it is how the
+// search uses it, and it is what would expose state leaking between calls.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_context_matches_free_function() {
+    std::cout << "\n--- PairSigContext matches pairSig() ---\n";
+
+    // 3-D: two glued tetrahedra, every marked subset of a few triangles.
+    regina::Triangulation<3> tri;
+    auto *t0 = tri.newTetrahedron();
+    auto *t1 = tri.newTetrahedron();
+    t0->join(0, t1, regina::Perm<4>());
+
+    PairSigContext<3, 2> ctx3(tri);
+    int mismatches3 = 0;
+    auto nTriangles = static_cast<int>(tri.countFaces<2>());
+    for (int a = 0; a < nTriangles; ++a) {
+        for (int b = a + 1; b < nTriangles; ++b) {
+            std::vector<int> marked = {a, b};
+            if (ctx3.sig(marked) != pairSig<3, 2>(tri, marked))
+                ++mismatches3;
+        }
+        std::vector<int> single = {a};
+        if (ctx3.sig(single) != pairSig<3, 2>(tri, single))
+            ++mismatches3;
+    }
+    EXPECT_EQ(mismatches3, 0,
+              "3-D: context matches pairSig() for every 1- and 2-face "
+              "marked set");
+
+    // The empty branch short-circuits before any automorphism work, so it
+    // is the one path that never touches autos_ -- check it explicitly.
+    // (Hoisted into locals: the comma in `pairSig<3, 2>` would otherwise be
+    // read by the preprocessor as an extra macro argument.)
+    std::string ctx3Empty = ctx3.sig({});
+    std::string free3Empty = pairSig<3, 2>(tri, {});
+    EXPECT_EQ(ctx3Empty, free3Empty,
+              "3-D: context matches pairSig() for the empty marked set");
+
+    // 4-D: the dimension that actually matters for the drain.
+    regina::Triangulation<4> tri4;
+    auto *p = tri4.newPentachoron();
+    auto *q = tri4.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    PairSigContext<4, 2> ctx4(tri4);
+    int mismatches4 = 0;
+    auto nTri4 = static_cast<int>(tri4.countFaces<2>());
+    for (int a = 0; a < nTri4; ++a) {
+        std::vector<int> single = {a};
+        if (ctx4.sig(single) != pairSig<4, 2>(tri4, single))
+            ++mismatches4;
+        for (int b = a + 1; b < nTri4; ++b) {
+            std::vector<int> marked = {a, b};
+            if (ctx4.sig(marked) != pairSig<4, 2>(tri4, marked))
+                ++mismatches4;
+        }
+    }
+    EXPECT_EQ(mismatches4, 0,
+              "4-D: context matches pairSig() for every 1- and 2-face "
+              "marked set");
+    std::string ctx4Empty = ctx4.sig({});
+    std::string free4Empty = pairSig<4, 2>(tri4, {});
+    EXPECT_EQ(ctx4Empty, free4Empty,
+              "4-D: context matches pairSig() for the empty marked set");
+
+    // The shared prefix is the thing the context exists to compute once.
+    EXPECT_EQ(ctx4.ambientSig(), tri4.isoSig(),
+              "context's ambient prefix equals the ambient's own isoSig()");
+    EXPECT_EQ(ctx4.automorphismCount() >= 1, true,
+              "at least the identity automorphism was collected");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 8: signatures a context produces still DECODE.
+//
+// Byte equality with the old path (test 7) proves the encoding did not
+// change; it does not prove the result is still a usable signature. This is
+// the property peripheral_slopes.cpp relies on when it rebuilds a surface
+// from a recorded pairsig, so exercise the real decoders.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_context_output_decodes() {
+    std::cout << "\n--- PairSigContext output decodes ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    Skeleton<4, 2> skeleton(tri);
+    KnottedSurface surface(skeleton);
+    bool added = surface.addFace(6) && surface.addFace(7);
+    EXPECT_EQ(added, true, "the known-good {6,7} pair is accepted");
+    if (!added)
+        return;
+
+    PairSigContext<4, 2> ctx(tri);
+    std::string sig = ctx.sig(surface.markedFaces());
+
+    // fromKnottedSurfaceSig(): reconstruct, then re-encode. The decoded
+    // marked-face indices are into fromSig()'s canonical reconstruction, not
+    // into `tri`, so idempotence (not raw index equality) is the check --
+    // exactly as test_knotted_surface_round_trip does for the free function.
+    auto decoded = fromKnottedSurfaceSig(sig);
+    PairSigContext<4, 2> decodedCtx(*decoded.ambient);
+    EXPECT_EQ(decodedCtx.sig(decoded.surface->markedFaces()), sig,
+              "re-encoding a context-produced signature through a fresh "
+              "context reproduces it exactly");
+    EXPECT_EQ(decoded.ambient->size(), tri.size(),
+              "decoded ambient has the same pentachoron count");
+    EXPECT_EQ(decoded.ambient->countFaces<2>(), tri.countFaces<2>(),
+              "decoded ambient has the same triangle count");
+    EXPECT_EQ(decoded.surface->markedFaces().size(),
+              surface.markedFaces().size(),
+              "decoded surface has the same number of marked faces");
+
+    // fromPairSig(): the same, through the base-class decoder.
+    auto decodedBase = fromPairSig<4, 2>(sig);
+    std::string reencodedBase =
+        pairSig<4, 2>(*decodedBase.skeleton, *decodedBase.submanifold);
+    EXPECT_EQ(reencodedBase, sig,
+              "fromPairSig() round-trips a context-produced signature");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 9: many threads sharing one LazyPairSigContext, from a standing start.
+//
+// Two distinct races are in scope here, and only the first is obvious:
+//
+//  1. The lazy build itself. Every drain thread reaches get() at once on the
+//     first witness; std::call_once must serialise the build and publish a
+//     fully-constructed context to all of them.
+//
+//  2. The SHARED canonical triangulation. This is the subtler one, and it is
+//     new: the old code built a local `canon` inside every pairSig() call, so
+//     each thread had its own. A context holds ONE canon_ that every thread
+//     then reads concurrently. Regina computes a triangulation's skeleton
+//     lazily on first access, so if canon_ reached the threads with its
+//     skeleton uncomputed, the first concurrent face<subdim>() calls would
+//     race. What prevents that is the constructor forcing the skeleton
+//     (countFaces<subdim>(), then findAllIsomorphisms()) BEFORE call_once
+//     publishes the object -- load-bearing, and the reason this test exists.
+//
+// Correct output under contention is the assertion; run under ThreadSanitizer
+// to check the memory model itself.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_context_concurrent_first_use() {
+    std::cout << "\n--- LazyPairSigContext under concurrent first use ---\n";
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+
+    // Reference values, computed single-threaded through the OLD path.
+    auto nTri = static_cast<int>(tri.countFaces<2>());
+    std::vector<std::vector<int>> markedSets;
+    for (int a = 0; a < nTri; ++a) {
+        markedSets.push_back({a});
+        for (int b = a + 1; b < nTri; ++b)
+            markedSets.push_back({a, b});
+    }
+    std::vector<std::string> reference;
+    reference.reserve(markedSets.size());
+    for (const auto &m : markedSets)
+        reference.push_back(pairSig<4, 2>(tri, m));
+
+    // One shared context, N threads, all starting together.
+    LazyPairSigContext<4, 2> lazy(tri);
+    constexpr int THREADS = 8; // oversubscribed on purpose
+    std::atomic<bool> go{false};
+    std::vector<std::thread> threads;
+    std::vector<int> mismatches(THREADS, 0);
+
+    for (int t = 0; t < THREADS; ++t) {
+        threads.emplace_back([&, t] {
+            while (!go.load(std::memory_order_acquire))
+                ; // spin, so every thread hits get() as close to together
+                  // as possible -- a staggered start would let one thread
+                  // finish the build before the others ever contend.
+            for (size_t i = 0; i < markedSets.size(); ++i) {
+                if (lazy.get().sig(markedSets[i]) != reference[i])
+                    ++mismatches[t];
+            }
+        });
+    }
+    go.store(true, std::memory_order_release);
+    for (auto &th : threads)
+        th.join();
+
+    int total = 0;
+    for (int m : mismatches)
+        total += m;
+    EXPECT_EQ(total, 0,
+              "8 threads sharing one lazy context all reproduce the "
+              "single-threaded signatures exactly");
+    // Safe to read only now that every thread has joined.
+    EXPECT_EQ(lazy.built(), true, "the shared context was actually built");
+}
+
 void run(const std::string &name, void (*fn)()) {
     std::cout << bold << "\n=== " << name << " ===" << resetColor << "\n";
     fn();
@@ -380,6 +593,9 @@ int main() {
     run("knotted_surface_round_trip", test_knotted_surface_round_trip);
     run("empty_marked_set", test_empty_marked_set);
     run("malformed_input", test_malformed_input);
+    run("context_matches_free_function", test_context_matches_free_function);
+    run("context_output_decodes", test_context_output_decodes);
+    run("context_concurrent_first_use", test_context_concurrent_first_use);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";
