@@ -88,11 +88,6 @@ int NameTable::components(const std::string &name) const {
     return it == info_.end() ? componentsFromName(name) : it->second.components;
 }
 
-bool NameTable::hasVariants(const std::string &name) const {
-    auto it = byBase_.find(baseName(name));
-    return it != byBase_.end() && !it->second.empty();
-}
-
 std::vector<std::string>
 NameTable::candidates(const std::string &name,
                       std::optional<int> observedComponents) const {
@@ -125,6 +120,13 @@ bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w) {
                    existing.otherComponents == w.otherComponents &&
                    existing.subjectComponents == w.subjectComponents;
         });
+}
+
+bool farSideBearsBound(const Witness &w) {
+    // The observed count, never the name: componentsFromName() is an
+    // inference from a string, and an alias could make a two-curve far side
+    // read like a knot.
+    return w.otherComponents == 1 || identify::isOrientationSafeName(w.other);
 }
 
 namespace {
@@ -312,6 +314,12 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
         for (const Witness &w : witnesses) {
             if (w.kind != WitnessKind::cobordism)
                 continue;
+            // A multi-component far side that is not a proven unlink bounds
+            // nothing in either direction -- its complement does not
+            // determine which link it is (\ref cg_farside). The witness
+            // stays in the file; it is only the solver that declines it.
+            if (!farSideBearsBound(w))
+                continue;
 
             // Both endpoints, with the component count that belongs to each.
             // `far` is the side supplying the bound; `near` is the side
@@ -327,12 +335,12 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
             directions.push_back({w.subject, w.subjectComponents,
                                   w.otherCandidates, w.otherComponents,
                                   w.other});
-            // The reverse direction is only available when we know which link
-            // the far side actually is.
-            const bool farSideOrientationKnown =
-                w.otherComponents == 1 || names.hasVariants(w.other);
-
-            if (w.otherCandidates.size() == 1 && farSideOrientationKnown)
+            // The reverse direction bounds the far side FROM the subject, so
+            // it needs the far side's identity, not just a bound over a set:
+            // only a single-component far side (a knot, by Gordon-Luecke)
+            // qualifies. An unlink passes farSideBearsBound() but is an
+            // axiom already, and a bound onto it would be meaningless.
+            if (w.otherComponents == 1 && w.otherCandidates.size() == 1)
                 directions.push_back({w.otherCandidates.front(),
                                       w.otherComponents,
                                       {w.subject},

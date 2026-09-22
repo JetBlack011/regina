@@ -168,20 +168,24 @@ std::string identify(const Link &l);
 
 /**
  * Whether `name` (as returned by identify(const Link&)) is safe to use for
- * a genus deduction regardless of which of the several oriented variants
- * of a link the drilled curves actually were: true for `"Unknot"` and any
- * `"<n>-component unlink"` result (a split unlink's components don't
- * interact, so each bounds its own disk in B^4 regardless of orientation),
- * false for any other (genuinely linked) multi-component result -- two
- * differently-oriented variants of the same link can have very different
- * true slice genus while sharing one complement, so a bare complement name
- * alone never determines which oriented link was actually found. Single-
- * curve names (from identify(const EdgeComplement&)) need no such check:
- * a single component has no orientation ambiguity to begin with.
+ * a genus deduction on a MULTI-component far side: true for `"Unknot"` and
+ * any `"<n>-component unlink"`, false for everything else.
  *
- * Kept here, next to where these strings are actually produced, rather
- * than pattern-matched elsewhere, so the two stay in sync if the format
- * ever changes.
+ * Those two are the only multi-curve names identify() produces from a
+ * structural proof of the link itself (free pi_1 => split unlink), rather
+ * than from a lookup of the complement's homeomorphism type. Every other
+ * multi-component name -- a Thistlethwaite name, a census name, a bare
+ * isoSig -- records the complement, and a link complement belongs to
+ * infinitely many non-isotopic links (Rolfsen twisting along an unknotted
+ * component), with different slice genera. So such a name does not tell you
+ * which link was found, and NOT merely which orientation of it: the
+ * candidate set is not enumerable at all. Single-curve names need no such
+ * check, since Gordon-Luecke makes a knot's complement determine it.
+ *
+ * The solver applies this through cobordismgraph::farSideBearsBound(). Kept
+ * here, next to where these strings are actually produced, rather than
+ * pattern-matched elsewhere, so the two stay in sync if the format ever
+ * changes.
  */
 bool isOrientationSafeName(const std::string &name);
 

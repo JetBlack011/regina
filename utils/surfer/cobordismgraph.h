@@ -49,15 +49,35 @@
  * unlink bounds `g_4(K)` by `0 + 0 + 2 - 1 = 1`, not by 0, so dropping the
  * correction would "prove" `K` slice on wrong evidence.
  *
- *  \section cg_orient Why a far side is a *set* of candidates
+ *  \section cg_farside Which far sides may carry a bound at all
  *
- *  identify::identify() names a link by its complement, and a complement
- *  cannot see how its components are oriented: `L4a1{0}` (slice genus 0)
- *  and `L4a1{1}` (slice genus 1) are the same manifold. So a far side
- *  identified as `L4a1` is really "one of the oriented variants of L4a1",
- *  and a sound deduction has to hold for whichever it is: the upper bound
- *  takes the **max** over candidates, the lower bound the **min**. When
- *  every variant of a base name shares one genus, this costs nothing.
+ *  identify::identify() names a far side by its COMPLEMENT. Whether that
+ *  name may feed either inequality above depends entirely on how many
+ *  components the far side has, and the rule is decided by farSideBearsBound():
+ *
+ *  - **One component.** Gordon-Luecke: a knot is determined by its
+ *    complement up to mirroring, and `g_4` is mirror-invariant. The name is
+ *    the knot, and it bounds.
+ *  - **An `n`-component unlink.** identify() emits that name only from a
+ *    structural proof (free pi_1 => split unlink), which forces the link
+ *    itself, not just its exterior. It bounds, with no component penalty
+ *    (see propagate()).
+ *  - **Anything else with two or more components: it bounds NOTHING.** One
+ *    link complement belongs to infinitely many non-isotopic links (Rolfsen
+ *    twisting along an unknotted component), most of them not orientation
+ *    variants of each other and with different slice genera. Our own
+ *    peripheral tests found one census name standing for 18 different links
+ *    with `g_4` ranging over 0..2. So "the complement matched L6a3" does not
+ *    mean "this is some orientation of L6a3", and a max/min over L6a3's
+ *    oriented variants is not a bound over the actual possibilities. Such a
+ *    far side is still RECORDED (it is the honest observation, and the input
+ *    a later peripheral resolution needs) but the solver skips it.
+ *
+ *  Orientation is the lesser half of the same problem: `L4a1{0}` (slice genus
+ *  0) and `L4a1{1}` (slice genus 1) are the same manifold, which is why
+ *  NameTable::candidates() still widens a base name to its oriented variants.
+ *  That widening is correct as far as it goes; it is simply not sufficient
+ *  on its own, and so it is never the thing that licenses a bound.
  */
 
 namespace cobordismgraph {
@@ -130,8 +150,7 @@ class NameTable {
     int components(const std::string &name) const;
 
     /**
-     * The oriented variants `name` could be, given that whatever produced it
-     * could not see orientation.
+     * The oriented variants sharing `name`'s base.
      *
      * Returns every registered name sharing `name`'s base, filtered to those
      * with `observedComponents` components when that is given (a variant with
@@ -139,24 +158,15 @@ class NameTable {
      * to `{name}` when the base is unregistered: a knot name, `"Unknot"`, an
      * `"<n>-component unlink"`, or a bare isoSig, none of which have oriented
      * variants to disambiguate between.
+     *
+     * This is a description of a NAME, not a claim about a far side: for a
+     * multi-component far side the true candidate set is not enumerable from
+     * a complement at all (see \ref cg_farside), so callers must never treat
+     * this list as licensing a bound. farSideBearsBound() decides that.
      */
     std::vector<std::string>
     candidates(const std::string &name,
                std::optional<int> observedComponents = std::nullopt) const;
-
-    /**
-     * Whether `name`'s oriented variants can actually be enumerated, i.e.
-     * whether candidates() returned a real list rather than the `{name}`
-     * fallback.
-     *
-     * This is the difference between "we know this far side is one of these
-     * two oriented links" and "we have a complement and no idea how its
-     * components are oriented". Both come back from candidates() as a list;
-     * only the first is safe to propagate a bound *onto*. A census name like
-     * `L204001` (a 2-component link complement) looks like an unambiguous
-     * singleton while being maximally ambiguous.
-     */
-    bool hasVariants(const std::string &name) const;
 
     size_t size() const { return info_.size(); }
 
@@ -211,6 +221,20 @@ struct Witness {
  * dedup key that keeps a harvest run from capturing thousands of pair
  * signatures. */
 bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w);
+
+/**
+ * Whether `w`'s far side is allowed to supply or receive a slice-genus bound.
+ *
+ * True exactly when the far side has one observed component (a knot; sound by
+ * Gordon-Luecke) or is a structurally recognised `"Unknot"` /
+ * `"<n>-component unlink"`. False for every other multi-component far side,
+ * whatever it is called: a Thistlethwaite name, a census name, a bare
+ * isoSig -- none of these determines a link from a complement alone (see
+ * \ref cg_farside). Gated on the OBSERVED component count rather than the
+ * spelling of the name, so an alias that renames a two-component far side to
+ * something knot-shaped cannot slip through.
+ */
+bool farSideBearsBound(const Witness &w);
 
 /* Solving */
 

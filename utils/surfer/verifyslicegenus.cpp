@@ -667,6 +667,14 @@ loadNameAliases(const std::filesystem::path &path) {
     auto f = parseCsvLine(line);
     if (f.size() < 2 || f[0].empty() || f[1].empty())
       continue;
+    // An anchor name is an AXIOM to the solver (seedAxioms matches on the
+    // string), and identify() only ever emits one from a structural proof.
+    // An alias must not be able to manufacture that proof by spelling.
+    if (identify::isOrientationSafeName(f[1]))
+      throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" +
+                               f[1] +
+                               "': an unknot/unlink can only be established "
+                               "by identify(), never by alias");
     aliases.emplace(f[0], f[1]);
   }
   return aliases;
@@ -877,7 +885,8 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
-         "    [ --per-knot-time-limit S ] [ --surface-log <path> ]\n"
+         "    [ --per-knot-time-limit S ] [ --surface-target N ]\n"
+         "    [ --surface-log <path> ]\n"
          "    [ --surface-stats <path> ]\n"
          "    [ --no-census-updates ] [ --no-retriangulate-on-miss ]\n"
          "    [ --retriangulate-height N ] [ --retriangulate-candidate-budget "
@@ -1033,6 +1042,28 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "since resolving\n"
          "                     the row no longer ends it (default: off).\n";
   std::cerr
+      << "    --surface-target N : Stop a row's SEARCH once N surfaces "
+         "satisfying the\n"
+         "                     boundary condition exist, instead of after a "
+         "fixed wall\n"
+         "                     time. Equalises how much of the root ordering "
+         "a row\n"
+         "                     covers, which is what the strength of a "
+         "negative rests\n"
+         "                     on -- wall clock only equalises that if every "
+         "host\n"
+         "                     explores roots at the same rate, and measured "
+         "across\n"
+         "                     machines they differ by 3.3x at identical "
+         "thread-seconds.\n"
+         "                     Pair it with --per-knot-time-limit as a "
+         "backstop: a row\n"
+         "                     whose space is smaller than N would otherwise "
+         "run until\n"
+         "                     it exhausts. The drain still runs to "
+         "completion either\n"
+         "                     way, and the row records which rule stopped "
+         "it.\n"
       << "    --harvest-quiescence S : Stop a row once no NEW witness has "
          "been\n"
          "                     recorded for S seconds -- it has stopped "
@@ -1202,6 +1233,18 @@ int main(int argc, char *argv[]) {
       BoundaryConditionMode::automatic;
   int maxCrossings = 13;
   std::optional<double> perKnotTimeLimit;
+  // Stop the SEARCH once this many boundary-satisfying surfaces exist.
+  //
+  // --per-knot-time-limit equalises WALL TIME, which only equalises coverage
+  // if every host explores roots at the same rate. Measured over 52 rows, they
+  // do not: at an identical 3600 thread-seconds one host yielded a median
+  // 972,655 qualifying surfaces per row and another 295,178 -- a 3.3x gap,
+  // tight on both sides (+/-15%), and a property of the machine rather than of
+  // the row. So a "found nothing" from the slower host was a materially weaker
+  // claim than the same words from the faster one, and nothing in the record
+  // said so. Targeting the surface count instead equalises the thing a
+  // negative actually rests on: how much of the root ordering was covered.
+  std::optional<long long> surfaceTarget;
   std::optional<std::string> surfaceLogPath;
   std::optional<std::string> surfaceStatsPath;
   bool researchSettled = false;    // see --research-settled
@@ -1320,6 +1363,10 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--per-knot-time-limit requires a numeric value.");
       }
+    } else if (arg == "--surface-target") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--surface-target requires a value.");
+      surfaceTarget = std::stoll(argv[++i]);
     } else if (arg == "--surface-log") {
       if (i + 1 >= argc)
         usage(argv[0], "--surface-log requires a value.");
@@ -1518,7 +1565,10 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--harvest-quiescence requires a value > 0.");
   if (sweepTimeLimit && *sweepTimeLimit <= 0)
     usage(argv[0], "--sweep-time-limit requires a value > 0.");
-  if (harvest && !maxFaces && !harvestQuiescence && !perKnotTimeLimit)
+  if (surfaceTarget && *surfaceTarget <= 0)
+    usage(argv[0], "--surface-target requires a value > 0.");
+  if (harvest && !maxFaces && !harvestQuiescence && !perKnotTimeLimit &&
+      !surfaceTarget)
     usage(argv[0],
           "--harvest needs a stopping rule: without --max-faces, "
           "--harvest-quiescence or --per-knot-time-limit, a search has "
@@ -1979,8 +2029,14 @@ int main(int argc, char *argv[]) {
 
     lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
 
+    // The watchdog polls at 200ms but has no access to SearchStats; this is
+    // the only place the live count is handed to us, so publish it for the
+    // watchdog to read rather than plumbing stats through a second path.
+    std::atomic<long long> latestSatisfying{0};
+
     SurfaceSearchCallbacks callbacks;
     callbacks.onProgress = [&](const SearchStats &stats) {
+      latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
       printProgress(stats, e);
     };
     callbacks.onBoundaryProcessingStarted = [&](size_t total,
@@ -2090,12 +2146,12 @@ int main(int argc, char *argv[]) {
       if (split.otherSides.empty()) {
         w.kind = cobordismgraph::WitnessKind::direct;
       } else if (split.otherSides.size() == 1) {
-        // A genuinely-linked far side is no longer refused. Its
-        // orientation is unknowable from a complement, so it is recorded
-        // as the SET of oriented variants it could be, and the solver
-        // takes the max/min over that set -- a weaker bound than an exact
-        // identification would give, but a sound one, where the old
-        // behaviour was to discard the cobordism entirely.
+        // A genuinely-linked far side is recorded but, unless it is a
+        // knot or a proven unlink, it will not carry a bound: a complement
+        // does not determine a link (cobordismgraph.h, \ref cg_farside).
+        // It is kept because the observation is real and is exactly what a
+        // later peripheral resolution needs as input; the solver's
+        // farSideBearsBound() is what declines it.
         const BoundarySide &far = split.otherSides.front();
         // Normalized, because identify() decorates a translated census hit
         // as "4_1 (m004 : #1)" while the --input tables call it "4_1" --
@@ -2129,6 +2185,12 @@ int main(int argc, char *argv[]) {
       bool impliedAssisted = false;
       if (w.kind == cobordismgraph::WitnessKind::direct) {
         implied = w.genus;
+      } else if (!cobordismgraph::farSideBearsBound(w)) {
+        // Same rule as propagate(): this witness settles nothing on its
+        // own, so it must neither stop the search nor trip the
+        // below-literature check below. (Before this gate, a row could
+        // "reach its bound" through a complement-named link, print
+        // CONSTRUCTIVE and stop looking for a sound surface.)
       } else {
         int worst = 0;
         bool haveAll = !w.otherCandidates.empty();
@@ -2201,7 +2263,8 @@ int main(int argc, char *argv[]) {
 
     std::atomic<bool> searchDone{false};
     std::thread watchdog;
-    if (perKnotTimeLimit || harvestQuiescence || sweepTimeLimit) {
+    if (perKnotTimeLimit || harvestQuiescence || sweepTimeLimit ||
+        surfaceTarget) {
       // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
       //
       // The time limit bounds the *search*, not the row. Identification is
@@ -2231,6 +2294,17 @@ int main(int argc, char *argv[]) {
           std::this_thread::sleep_for(std::chrono::milliseconds(200));
           if (searchDone.load(std::memory_order_relaxed))
             break;
+          // Checked before the clock so that a row which reaches the target
+          // is recorded as "surface-target" rather than "timeout" when both
+          // fire in the same tick -- the two mean different things to anyone
+          // later reading the negative, and the wall clock is only ever the
+          // backstop here.
+          if (surfaceTarget &&
+              latestSatisfying.load(std::memory_order_relaxed) >=
+                  *surfaceTarget) {
+            endRowNow("surface-target");
+            break;
+          }
           auto now = std::chrono::steady_clock::now();
           if (perKnotTimeLimit && now >= knotDeadline) {
             endRowNow("timeout");
@@ -2379,13 +2453,13 @@ int main(int argc, char *argv[]) {
                   << "\n";
     }
 
-    if (censusUpdates) {
-      // The complement cannot distinguish oriented variants, so inserting
-      // an orientation-TAGGED name against a complement isoSig would make
-      // identify() confidently return (say) L6a3{0} for L6a3{1} forever
-      // after -- and insertCensusEntry is INSERT OR IGNORE, so the first
-      // variant processed would own that isoSig permanently. Store the
-      // base name; the candidate-set machinery restores the variants.
+    // Knots only. A link's complement is shared by infinitely many links
+    // (Rolfsen twisting), so writing `isoSig -> L6a3` into a shared cache
+    // would assert, permanently and for every future far side landing on
+    // that isoSig, an identification the complement cannot support --
+    // exactly the claim linknames.h forbids adding "from a complement match
+    // alone". For a knot the same entry is sound by Gordon-Luecke.
+    if (censusUpdates && componentCount == 1) {
       auto &[t2, edges2, reversed2] = link;
       Link linkGrouping(t2, edges2);
       regina::Triangulation<3> complement = linkGrouping.buildComplement();

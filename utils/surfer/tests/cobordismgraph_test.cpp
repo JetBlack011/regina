@@ -10,8 +10,15 @@
 // The cases below deliberately pin down the two things that are easy to get
 // silently wrong: the component-count terms in the cobordism inequality
 // (which vanish for knots, so a knots-only test suite would never notice
-// them missing), and the max/min over an orientation-ambiguous far side's
-// candidate set.
+// them missing), and WHICH far sides may carry a bound at all. A far side is
+// named from its complement, and a complement determines a knot
+// (Gordon-Luecke) but not a link (Rolfsen twisting: infinitely many links
+// per exterior). So a multi-component far side bounds nothing unless it is a
+// structurally proven unlink -- see farSideBearsBound() and cobordismgraph.h
+// \ref cg_farside. For months the solver took a max/min over a link's
+// ORIENTATION variants as if that were the whole candidate set; 178 of 333
+// "verified" rows rested on it. The tests here are what stop that coming
+// back.
 
 #include <iostream>
 #include <string>
@@ -188,21 +195,23 @@ void test_knot_cobordism_reduces_to_the_classic_rule() {
 
 void test_component_correction_on_the_upper_bound() {
     // THE case the old knot-only formula got wrong. A genus-0 cobordism
-    // from a knot to a genuinely linked 2-component far side does NOT make
-    // the knot slice: that far side must be capped with a CONNECTED surface,
-    // which costs + n_1 - 1 = 1 in genus.
+    // between a knot and a genuinely linked 3-component link does NOT make
+    // the knot slice: the link must be capped with a CONNECTED surface,
+    // which costs + n - 1 = 2 in genus.
     //
-    // Deliberately not an unlink. An unlink far side caps with disjoint
-    // discs instead and carries no penalty at all -- see
-    // test_unlink_far_side_carries_no_component_penalty, which is the case
-    // this test originally (and wrongly) used.
+    // The link is the SUBJECT here, not the far side. A linked far side is
+    // named from its complement and so bounds nothing at all (see
+    // test_linked_far_side_bounds_nothing); the only linked endpoint the
+    // solver may reason from is one known by construction, i.e. a row, and
+    // the bound then flows in the reverse direction onto the knot.
     NameTable names;
-    names.addLiterature("K", 1, 1);
-    names.addLiterature("L4a1{1}", 0, 0);
-    auto bounds = propagate({cobordism("K", 1, "L4a1{1}", 2, 0)}, names);
+    names.addLiterature("L", 0, 0);
+    names.addLiterature("K", 0, 9);
+    auto bounds = propagate(
+        {direct("L", 3, 0), cobordism("L", 3, "K", 1, 0)}, names);
 
-    EXPECT_EQ(bounds["K"].hi, 1,
-              "g_4(K) <= 0 + 0 + (2 - 1) = 1. The uncorrected rule would "
+    EXPECT_EQ(bounds["K"].hi, 2,
+              "g_4(K) <= 0 + 0 + (3 - 1) = 2. The uncorrected rule would "
               "give 0 here, i.e. would 'prove' K slice on evidence that "
               "says no such thing");
 }
@@ -247,15 +256,27 @@ void test_unlink_far_side_carries_no_component_penalty() {
     EXPECT_EQ(v.status == Status::verified, true, "and the row verifies");
 }
 
-void test_non_unlink_far_side_keeps_the_penalty() {
-    // The correction is specific to unlinks. A genuinely linked far side has
-    // no disjoint-disc cap available, so the connected-surface penalty stands.
+void test_linked_far_side_bounds_nothing() {
+    // The unlink exemption is the ONLY way a multi-component far side gets
+    // to carry a bound. Every other multi-component name is a statement
+    // about a complement, and a link complement belongs to infinitely many
+    // links (Rolfsen twisting), so "L4a1" here does not mean L4a1 -- it
+    // means "some link whose exterior is L4a1's", which has no slice genus.
+    // Both variants are registered and agree, and it still bounds nothing:
+    // agreement across the ORIENTATION variants is not agreement across the
+    // actual candidate set, which cannot be enumerated.
     NameTable names;
     names.addLiterature("K", 0, 9);
     names.addLiterature("L4a1{0}", 0, 0);
-    auto bounds = propagate({cobordism("K", 1, "L4a1{0}", 2, 0)}, names);
-    EXPECT_EQ(bounds["K"].hi, 1,
-              "0 + 0 + (2 - 1) = 1 -- unchanged for a non-unlink far side");
+    names.addLiterature("L4a1{1}", 0, 0);
+    auto bounds = propagate(
+        {cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"})}, names);
+    EXPECT_EQ(bounds["K"].haveUpper(), false,
+              "a complement-named 2-component far side carries no upper "
+              "bound, however its oriented variants are tabulated");
+    EXPECT_EQ(bounds["K"].haveLower(), false, "nor a lower one");
+    EXPECT_EQ(bounds["L4a1{0}"].haveUpper(), false,
+              "and receives none in the reverse direction either");
 }
 
 void test_unlink_axiom_is_constructive() {
@@ -312,10 +333,13 @@ void test_slice_composite_allowlist_is_not_a_pattern() {
 // propagate(): orientation-ambiguous far sides
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_candidate_set_takes_the_worst_case_for_an_upper_bound() {
+void test_orientation_variants_are_not_a_candidate_set() {
     // L4a1{0} has slice genus 0 and L4a1{1} has 1, and they share one
-    // complement -- so a far side identified only as "L4a1" must be bounded
-    // as though it were the worse of the two.
+    // complement. The solver used to bound K by max(0, 1) + 0 + (2 - 1) = 2,
+    // "sound whichever variant it actually was". It is not: the far side
+    // need not be EITHER variant. Our own peripheral tests found the census
+    // name m129 standing for 18 different links, g_4 from 0 to 2. So the
+    // max over {L4a1{0}, L4a1{1}} is a max over the wrong set.
     NameTable names;
     names.addLiterature("K", 0, 9);
     names.addLiterature("L4a1{0}", 0, 0);
@@ -324,60 +348,37 @@ void test_candidate_set_takes_the_worst_case_for_an_upper_bound() {
     auto bounds = propagate(
         {cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"})}, names);
 
-    EXPECT_EQ(bounds["K"].hi, 2,
-              "max(0, 1) + 0 + (2 - 1) = 2 -- sound whichever variant it "
-              "actually was, where taking the min would be wrong and "
-              "discarding the cobordism would waste it");
-    EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
-              "the candidates' own bounds came from the literature, so the "
-              "conclusion is conditional on it and says so");
-}
-
-void test_candidate_set_takes_the_best_case_for_a_lower_bound() {
-    NameTable names;
-    names.addLiterature("K", 0, 9);
-    names.addLiterature("L4a1{0}", 2, 2);
-    names.addLiterature("L4a1{1}", 5, 5);
-
-    auto bounds = propagate(
-        {cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"})}, names);
-
-    EXPECT_EQ(bounds["K"].lo, 2,
-              "min(2, 5) - 0 - (1 - 1) = 2 -- the weaker of the two, since "
-              "we don't know which variant we found");
-}
-
-void test_unambiguous_base_costs_nothing() {
-    // About 46% of the base names in the links table have every variant at
-    // the same genus, so the max/min collapse and the ambiguity is free.
-    NameTable names;
-    names.addLiterature("K", 0, 9);
-    names.addLiterature("L2a1{0}", 0, 0);
-    names.addLiterature("L2a1{1}", 0, 0);
-
-    auto bounds = propagate(
-        {cobordism("K", 1, "L2a1", 2, 0, {"L2a1{0}", "L2a1{1}"})}, names);
-
-    EXPECT_EQ(bounds["K"].hi, 1,
-              "both variants agree at 0, so the bound is exactly what an "
-              "unambiguous identification would have given: 0 + 0 + 1");
-}
-
-void test_one_unbounded_candidate_blocks_the_upper_bound() {
-    NameTable names;
-    // K's own literature is deliberately left unregistered here: with it
-    // registered, K's literature upper bound would be a perfectly valid
-    // (if useless) bound, and the point of this test is the DERIVED one.
-    names.addLiterature("Kother", 0, 9);
-    names.addLiterature("L4a1{0}", 0, 0);
-    // L4a1{1} deliberately unregistered: nothing bounds it, so nothing can
-    // bound K through a far side that might BE it.
-    auto bounds = propagate(
-        {cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"})}, names);
-
     EXPECT_EQ(bounds["K"].haveUpper(), false,
-              "an upper bound must hold for EVERY candidate; one with no "
-              "known bound leaves the whole deduction unavailable");
+              "no upper bound from a max over orientation variants");
+    EXPECT_EQ(bounds["K"].haveLower(), false,
+              "no lower bound from a min over them");
+}
+
+void test_far_side_bears_bound() {
+    // The predicate the solver gates on, stated directly.
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "4_1", 1, 0)), true,
+              "a knot far side bounds (Gordon-Luecke)");
+    EXPECT_EQ(farSideBearsBound(
+                  cobordism("K", 1, "gLLMQacdefeffhhnkxk", 1, 0)),
+              true, "so does a one-component bare isoSig");
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "Unknot", 1, 0)), true,
+              "and the unknot");
+    EXPECT_EQ(farSideBearsBound(
+                  cobordism("K", 1, "2-component unlink", 2, 0)),
+              true, "an unlink is a structural proof of the link itself");
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "L4a1{0}", 2, 0)), false,
+              "a Thistlethwaite name with 2 curves does not");
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "L204001", 2, 0)), false,
+              "nor a Christy census name");
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "m129", 2, 0)), false,
+              "nor a SnapPea census name");
+    EXPECT_EQ(farSideBearsBound(
+                  cobordism("K", 1, "gLLMQacdefeffhhnkxk", 3, 0)),
+              false, "nor a bare isoSig with 3 curves");
+    // The gate is on the OBSERVED count, so a name that looks like a knot
+    // cannot smuggle a two-curve far side through.
+    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "4_1", 2, 0)), false,
+              "a knot-shaped name on a 2-curve far side is refused");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -476,10 +477,11 @@ void test_self_cobordism_still_allows_a_real_bound_from_elsewhere() {
 
 void test_ambiguous_far_side_gets_no_reverse_bound() {
     // Regression for a real contradiction caught by a live run. A genus-0
-    // cobordism from L4a1{0} to a far side identified only as "L7n1"
-    // bounds whichever variant the surface actually witnesses -- but not
-    // the other one. Pushing the bound onto every candidate gave
-    // L7n1{0} (true genus 2) a bound of 1.
+    // cobordism from L4a1{0} to a far side identified only as "L7n1" was
+    // once pushed onto every candidate, giving L7n1{0} (true genus 2) a
+    // bound of 1. The first fix stopped at "we cannot tell which variant";
+    // the real reason is stronger -- the far side need not be any L7n1 at
+    // all, since L7n1 shares its exterior with L5a1, L8n2, L9n3, L10n9.
     NameTable names;
     names.addLiterature("L4a1{0}", 0, 0);
     names.addLiterature("L7n1{0}", 2, 2);
@@ -580,7 +582,8 @@ void test_unregistered_multicomponent_far_side_gets_no_reverse_bound() {
     // the literature tables, so a far side known only by its COMPLEMENT --
     // here a Christy census name for a 2-component link -- arrives looking
     // like an unambiguous singleton. It is the opposite: a complement says
-    // nothing about how its components are oriented.
+    // nothing about WHICH 2-component link this is, let alone how it is
+    // oriented -- see farSideBearsBound().
     //
     // What actually happened: 6_1 -g0-> L204001 (2 curves) pushed a bound
     // onto L204001, which then bounded L6a3{0} at 1 against a literature
@@ -598,8 +601,8 @@ void test_unregistered_multicomponent_far_side_gets_no_reverse_bound() {
     auto bounds = propagate(witnesses, names);
 
     EXPECT_EQ(bounds["L204001"].haveUpper(), false,
-              "an unregistered multi-component far side is maximally "
-              "orientation-ambiguous, so no bound may be pushed onto it");
+              "an unregistered multi-component far side is a complement, "
+              "not a link, so no bound may be pushed onto it");
     EXPECT_EQ(bounds["L6a3{0}"].haveUpper(), false,
               "and so nothing propagates back out of it");
 
@@ -625,6 +628,44 @@ void test_unregistered_SINGLE_component_far_side_still_chains() {
     EXPECT_EQ(bounds["gLLMQacdefeffhhnkxk"].hi, 0,
               "a one-component unnamed node still receives a bound");
     EXPECT_EQ(bounds["X"].hi, 1, "and still passes it on");
+}
+
+void test_two_component_isosig_node_does_not_chain() {
+    // The mirror of the test above. An unnamed TWO-curve node is a shared
+    // exterior, and two witnesses landing on the same exterior may have
+    // found two different links -- so the node must not connect them. This
+    // is the m129 case from results/far_side_identification_census.csv,
+    // where one name was 18 links, and it is the regression the golden-
+    // truffle plan asks for: a relapse into complement-only reasoning.
+    NameTable names;
+    names.addLiterature("Y", 0, 0);
+    names.addLiterature("X", 0, 9);
+    std::vector<Witness> witnesses = {
+        direct("Y", 1, 0),
+        cobordism("Y", 1, "m129", 2, 0),
+        cobordism("X", 1, "m129", 2, 1),
+    };
+    auto bounds = propagate(witnesses, names);
+    EXPECT_EQ(bounds["m129"].haveUpper(), false,
+              "a two-curve exterior receives no bound from Y");
+    EXPECT_EQ(bounds["X"].haveUpper(), false,
+              "and so cannot pass one on to X: the two surfaces may have "
+              "found different links with that exterior");
+}
+
+void test_unlink_far_side_still_chains_and_is_penalty_free() {
+    // The one multi-component far side that DOES bear a bound, checked
+    // alongside the ones that do not so the gate is seen to be selective
+    // rather than a blanket refusal of links.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    auto bounds = propagate(
+        {cobordism("K", 1, "3-component unlink", 3, 1)}, names);
+    EXPECT_EQ(bounds["K"].hi, 1,
+              "g_4(K) <= 0 + 1 + 0: the unlink is an axiom and carries no "
+              "component penalty");
+    EXPECT_EQ(bounds["K"].basis == Basis::constructive, true,
+              "and rests on nothing from the literature");
 }
 
 void test_normalize_identified_name() {
@@ -943,20 +984,15 @@ int main() {
         test_component_correction_on_the_lower_bound);
     run("unlink_far_side_carries_no_component_penalty",
         test_unlink_far_side_carries_no_component_penalty);
-    run("non_unlink_far_side_keeps_the_penalty",
-        test_non_unlink_far_side_keeps_the_penalty);
+    run("linked_far_side_bounds_nothing", test_linked_far_side_bounds_nothing);
     run("unlink_axiom_is_constructive", test_unlink_axiom_is_constructive);
     run("slice_composite_axiom_is_constructive",
         test_slice_composite_axiom_is_constructive);
     run("slice_composite_allowlist_is_not_a_pattern",
         test_slice_composite_allowlist_is_not_a_pattern);
-    run("candidate_set_takes_the_worst_case_for_an_upper_bound",
-        test_candidate_set_takes_the_worst_case_for_an_upper_bound);
-    run("candidate_set_takes_the_best_case_for_a_lower_bound",
-        test_candidate_set_takes_the_best_case_for_a_lower_bound);
-    run("unambiguous_base_costs_nothing", test_unambiguous_base_costs_nothing);
-    run("one_unbounded_candidate_blocks_the_upper_bound",
-        test_one_unbounded_candidate_blocks_the_upper_bound);
+    run("orientation_variants_are_not_a_candidate_set",
+        test_orientation_variants_are_not_a_candidate_set);
+    run("far_side_bears_bound", test_far_side_bears_bound);
     run("chains_through_an_unnamed_isosig_node",
         test_chains_through_an_unnamed_isosig_node);
     run("tubed_witness_genus_is_taken_at_face_value",
@@ -980,6 +1016,10 @@ int main() {
         test_unregistered_multicomponent_far_side_gets_no_reverse_bound);
     run("unregistered_SINGLE_component_far_side_still_chains",
         test_unregistered_SINGLE_component_far_side_still_chains);
+    run("two_component_isosig_node_does_not_chain",
+        test_two_component_isosig_node_does_not_chain);
+    run("unlink_far_side_still_chains_and_is_penalty_free",
+        test_unlink_far_side_still_chains_and_is_penalty_free);
     run("normalize_identified_name", test_normalize_identified_name);
     run("judge_verified", test_judge_verified);
     run("judge_distinguishes_assisted_verification",
