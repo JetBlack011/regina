@@ -781,12 +781,13 @@ loadFarSideResolutions(const std::filesystem::path &path) {
 // implementations are deliberately independent, and `frontier.py --check`
 // is only a check while they stay that way.
 std::vector<cobordismgraph::Witness> applyFarSideResolutions(
-    const std::vector<cobordismgraph::Witness> &witnesses,
+    std::vector<cobordismgraph::Witness> resolved,
     const std::vector<cobordismgraph::Witness> &observed,
     const std::unordered_map<std::string, std::vector<FarSideResolution>>
         &resolutions,
     const cobordismgraph::NameTable &names, size_t &appliedOut) {
-  std::vector<cobordismgraph::Witness> resolved = witnesses;
+  // Taken by value and rewritten in place: every Witness carries its ~11 KB
+  // pair signature, so a copy here was a whole extra witness set at peak.
   size_t applied = 0;
   size_t linkAliasesOverridden = 0;
   std::vector<std::string> conflicts;
@@ -1906,7 +1907,8 @@ int main(int argc, char *argv[]) {
             ? witnesses
             : applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
     if (!farSideResolutions.empty())
-      out = applyFarSideResolutions(out, witnesses, farSideResolutions, names,
+      out = applyFarSideResolutions(std::move(out), witnesses,
+                                    farSideResolutions, names,
                                     resolutionsApplied);
     return out;
   };
@@ -1925,6 +1927,10 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   auto bounds = cobordismgraph::propagate(initialWitnesses, names);
+  // Release it now: it is a full witness set, pair signatures included, and
+  // held for the rest of the run it raised peak memory by ~45% -- enough for
+  // a full-master --solve-only to be OOM-killed on yoga (2026-09-24).
+  std::vector<cobordismgraph::Witness>().swap(initialWitnesses);
   if (!nameAliases.empty())
     std::cout << "[+] Name aliases: applied to " << aliasesApplied
               << " witness edges\n";
