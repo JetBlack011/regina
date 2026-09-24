@@ -31,6 +31,7 @@
 #include "csvwriter.h"
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
+#include "witnesskey.h"
 #include "knotbuilder.h"
 #include "linkcomplement.h"
 #include "identifycomplement.h"
@@ -798,6 +799,164 @@ applyNameAliases(const std::vector<cobordismgraph::Witness> &witnesses,
   return resolved;
 }
 
+// One proved far-side identity, keyed on the witness rather than the name.
+struct FarSideResolution {
+  std::string boundaryComponent; // "0" or "1", as peripheral_slopes reports it
+  std::string name;              // the ORIENTED name we have proved it to be
+};
+
+// Loads the per-witness far-side resolution table (see
+// --far-side-resolutions).
+//
+// WHY THIS EXISTS SEPARATELY FROM --name-aliases. An alias is keyed on the
+// observed NAME, which is sound only where a name determines the object.
+// For a knot it does: Gordon-Luecke makes the complement determine the knot
+// up to mirroring, and g_4 is mirror-invariant. For a LINK it does not --
+// one complement belongs to infinitely many links (Rolfsen twisting), and
+// in our own data one observed census name is a dozen different links
+// across different witnesses. A name-keyed row for such a far side would be
+// wrong on most of the witnesses it matched.
+//
+// The pair signature does determine the far side, so link far sides are
+// keyed on it (via witnesskey::witnessKey) plus which boundary component of
+// that witness is meant.
+std::unordered_map<std::string, std::vector<FarSideResolution>>
+loadFarSideResolutions(const std::filesystem::path &path) {
+  std::unordered_map<std::string, std::vector<FarSideResolution>> resolutions;
+  std::ifstream in(path);
+  if (!in)
+    throw std::runtime_error("Cannot open far-side resolution table: " +
+                             path.string());
+
+  std::string line;
+  std::getline(in, line); // header: witness,boundary_component,resolved_name,...
+  while (std::getline(in, line)) {
+    if (line.empty() || line[0] == '#')
+      continue;
+    auto f = parseCsvLine(line);
+    if (f.size() < 3 || f[0].empty() || f[2].empty())
+      continue;
+    resolutions[f[0]].push_back({f[1], f[2]});
+  }
+  return resolutions;
+}
+
+// Resolves far sides witness-by-witness, returning a SEPARATE vector for the
+// same reason applyNameAliases() does: writeWitnesses() serialises the
+// in-memory vector back over cobordisms.csv on every checkpoint, so mutating
+// it in place would bake an interpretation into the observation record.
+//
+// Applied AFTER applyNameAliases(), and strictly more specific than it: a
+// resolution names one witness's far side, where an alias can only speak
+// about a name. For a KNOT far side the two must agree -- a knot is
+// determined by its complement (Gordon-Luecke), so an alias is an identity
+// and a disagreement is a bug, and the run stops. For a LINK far side an
+// alias can only say which COMPLEMENT was observed, and one complement is
+// many links: on 2026-09-24, 21 witnesses whose far side was aliased from a
+// census name (e.g. 9^2_55 -> L9n6) were proved per witness, with their own
+// meridians, to be another link with the same complement (L9n8). There the
+// resolution wins, and the count of such overrides is reported. This mirrors
+// cobordism-atlas/tools/frontier.py's load_witnesses(); the two
+// implementations are deliberately independent, and `frontier.py --check`
+// is only a check while they stay that way.
+std::vector<cobordismgraph::Witness> applyFarSideResolutions(
+    const std::vector<cobordismgraph::Witness> &witnesses,
+    const std::vector<cobordismgraph::Witness> &observed,
+    const std::unordered_map<std::string, std::vector<FarSideResolution>>
+        &resolutions,
+    const cobordismgraph::NameTable &names, size_t &appliedOut) {
+  std::vector<cobordismgraph::Witness> resolved = witnesses;
+  size_t applied = 0;
+  size_t linkAliasesOverridden = 0;
+  std::vector<std::string> conflicts;
+
+  for (cobordismgraph::Witness &w : resolved) {
+    if (w.other.empty() || w.pairSig.empty())
+      continue;
+    auto it = resolutions.find(witnesskey::witnessKey(w.pairSig));
+    if (it == resolutions.end())
+      continue;
+
+    // A witness has two boundary components and the table names one of them.
+    // The component count is what says which: a resolution whose own
+    // component count does not match this far side's observed curve count is
+    // about the other side, not this one.
+    const std::string *match = nullptr;
+    for (const FarSideResolution &r : it->second) {
+      // The name alone gives the count for a knot, an unlink or a tagged
+      // link ("L9a47{0}"). A peripherally proved link arrives as its BASE
+      // name -- the meridians pin the link, not its orientation -- and a
+      // base name states no count, so ask the table: if it has registered
+      // variants with the observed count, the resolution is about this side.
+      const bool countFromName =
+          cobordismgraph::componentsFromName(r.name) == w.otherComponents;
+      // candidates() falls back to {name} itself for an unregistered base,
+      // so a real table hit is one whose front is a different (tagged) name.
+      // A composite K #_c L has L's components (a knot is summed INTO a
+      // component), so it is L's variants that state the count.
+      const std::optional<cobordismgraph::CompositeName> cp =
+          cobordismgraph::compositeParts(r.name);
+      const std::string countable = cp ? cp->link : r.name;
+      const std::vector<std::string> variants =
+          names.candidates(countable, w.otherComponents);
+      const bool countFromTable =
+          !variants.empty() && variants.front() != countable &&
+          cobordismgraph::componentsFromName(variants.front()) ==
+              w.otherComponents;
+      if (countFromName || countFromTable) {
+        match = &r.name;
+        break;
+      }
+    }
+    if (!match)
+      continue;
+
+    // The alias layer has already run, so w.other is the aliased name here.
+    // Compare base names with any orientation tag stripped: a resolution
+    // REFINES `L2a1` to `L2a1{0}`, which is the whole point, but must never
+    // turn it into some other link. Only an ALIASED name is worth checking --
+    // if no alias fired, w.other is still the raw observed name (an isoSig or
+    // a census name), and disagreeing with that is not a contradiction but
+    // the entire purpose of the resolution.
+    const size_t idx = static_cast<size_t>(&w - resolved.data());
+    const bool aliasFired =
+        idx < observed.size() && observed[idx].other != w.other;
+    const std::string aliasedBase = w.other.substr(0, w.other.find('{'));
+    const std::string resolvedBase = match->substr(0, match->find('{'));
+    if (aliasFired && !aliasedBase.empty() && aliasedBase != resolvedBase) {
+      if (w.otherComponents == 1)
+        conflicts.push_back(w.other + " -> " + *match);
+      else
+        ++linkAliasesOverridden;
+    }
+
+    w.other = *match;
+    w.otherCandidates = names.candidates(w.other, w.otherComponents);
+    w.farSideProved = true;
+    ++applied;
+  }
+
+  if (!conflicts.empty()) {
+    std::ostringstream msg;
+    msg << "far-side resolutions contradict name aliases on "
+        << conflicts.size() << " KNOT far sides, e.g.";
+    for (size_t i = 0; i < conflicts.size() && i < 3; ++i)
+      msg << " [" << conflicts[i] << "]";
+    msg << ". A knot is determined by its complement, so a resolution may "
+           "refine a knot alias but never disagree with it; resolve by hand "
+           "before solving.";
+    throw std::runtime_error(msg.str());
+  }
+  if (linkAliasesOverridden)
+    std::cerr << "[+] Far-side resolutions: " << linkAliasesOverridden
+              << " link far sides named by a complement-level alias were "
+                 "proved per witness to be another link with that complement; "
+                 "the per-witness proof wins\n";
+
+  appliedOut = applied;
+  return resolved;
+}
+
 // Rewrites the whole witness file via write-to-temp + atomic rename, the
 // same crash-safety pattern writeOutputCsv() uses.
 void writeWitnesses(const std::filesystem::path &path,
@@ -961,6 +1120,8 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --sweep-time-limit S ]\n"
          "    [ --knot-table <csv> ] [ --link-table <csv> ]\n"
          "    [ --name-aliases <csv> ]\n"
+         "    [ --far-side-resolutions <csv> ]\n"
+         "    [ --knot-symmetry <csv> ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
@@ -1160,6 +1321,20 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "work\n"
          "                     (default: none).\n";
   std::cerr
+      << "    --knot-symmetry <csv> : name,symmetry_type (KnotInfo spelling); "
+         "makes every\n"
+         "                     composite knot whose summands pair off into "
+         "concordance\n"
+         "                     inverses an anchor (K # m(K^r) is slice).\n"
+      << "far-side-resolutions <csv> : per-WITNESS proved far-side "
+         "names,\n"
+         "                     keyed on sha1(pairsig)[:12] plus boundary "
+         "component.\n"
+         "                     Use for LINK far sides, where an observed name "
+         "is not\n"
+         "                     a function of the link and --name-aliases "
+         "cannot be\n"
+         "                     right on every witness it matches.\n"
       << "    --name-aliases <csv> : observed -> classical far-side names, "
          "applied\n"
          "        when solving only; cobordisms.csv keeps what identify() "
@@ -1324,6 +1499,14 @@ int main(int argc, char *argv[]) {
   // Optional: empty means "no alias table", which is the pre-existing
   // behaviour of taking every far-side name exactly as identify() left it.
   std::string nameAliasPath;
+  // Optional: empty means "no per-witness resolution table". Separate from
+  // the alias table because it is keyed on the witness, not the name -- see
+  // loadFarSideResolutions().
+  std::string farSideResolutionPath;
+  // Optional: knot symmetry types (data/knot_symmetry.csv). Without it only
+  // the two long-standing slice composites are anchors; with it, every
+  // composite whose summands pair off into concordance inverses.
+  std::string knotSymmetryPath;
   std::optional<long long> maxFaces;
   bool harvest = false;
   std::optional<double> harvestQuiescence;
@@ -1410,6 +1593,14 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--link-table requires a value.");
       linkTablePath = argv[++i];
+    } else if (arg == "--knot-symmetry") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--knot-symmetry requires a value.");
+      knotSymmetryPath = argv[++i];
+    } else if (arg == "--far-side-resolutions") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--far-side-resolutions requires a value.");
+      farSideResolutionPath = argv[++i];
     } else if (arg == "--name-aliases") {
       if (i + 1 >= argc)
         usage(argv[0], "--name-aliases requires a value.");
@@ -1785,19 +1976,76 @@ int main(int argc, char *argv[]) {
   // to cobordisms.csv. Rebuilt on each solve because the search appends to
   // `witnesses` as it goes; the copy costs a few MB against a search measured
   // in minutes.
+  if (!knotSymmetryPath.empty()) {
+    std::ifstream in(knotSymmetryPath);
+    if (!in) {
+      std::cerr << "[!] could not open knot symmetry table " << knotSymmetryPath
+                << "\n";
+      return 1;
+    }
+    std::string line;
+    std::getline(in, line); // header
+    size_t loaded = 0;
+    while (std::getline(in, line)) {
+      auto f = parseCsvLine(line);
+      if (f.size() < 2)
+        continue;
+      if (auto t = cobordismgraph::parseSymmetryType(f[1])) {
+        names.setSymmetry(f[0], *t);
+        ++loaded;
+      }
+    }
+    std::cout << "[+] Knot symmetry: " << loaded << " types from "
+              << knotSymmetryPath << "\n";
+  }
+
+  std::unordered_map<std::string, std::vector<FarSideResolution>>
+      farSideResolutions;
+  if (!farSideResolutionPath.empty()) {
+    try {
+      farSideResolutions = loadFarSideResolutions(farSideResolutionPath);
+      std::cout << "[+] Far-side resolutions: " << farSideResolutions.size()
+                << " witnesses with a proved far side from "
+                << farSideResolutionPath << "\n";
+    } catch (const std::exception &e) {
+      std::cerr << "[!] could not load far-side resolutions "
+                << farSideResolutionPath << ": " << e.what()
+                << " (continuing without them)\n";
+    }
+  }
+
   size_t aliasesApplied = 0;
+  size_t resolutionsApplied = 0;
   auto solverWitnesses = [&]() -> std::vector<cobordismgraph::Witness> {
-    if (nameAliases.empty())
-      return witnesses;
-    return applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
+    std::vector<cobordismgraph::Witness> out =
+        nameAliases.empty()
+            ? witnesses
+            : applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
+    if (!farSideResolutions.empty())
+      out = applyFarSideResolutions(out, witnesses, farSideResolutions, names,
+                                    resolutionsApplied);
+    return out;
   };
 
   // Every conclusion is re-derived from the witness set on every run, so a
   // solver fix or a literature-table update takes effect on rows that were
   // searched long ago without re-searching any of them.
-  auto bounds = cobordismgraph::propagate(solverWitnesses(), names);
+  // A resolution/alias contradiction is a data error, not a bug, so it exits
+  // rather than aborting; caught here because the table is static -- if it
+  // contradicts at all, it does so on this first solve.
+  std::vector<cobordismgraph::Witness> initialWitnesses;
+  try {
+    initialWitnesses = solverWitnesses();
+  } catch (const std::exception &e) {
+    std::cerr << "[!] " << e.what() << "\n";
+    return 1;
+  }
+  auto bounds = cobordismgraph::propagate(initialWitnesses, names);
   if (!nameAliases.empty())
     std::cout << "[+] Name aliases: applied to " << aliasesApplied
+              << " witness edges\n";
+  if (!farSideResolutions.empty())
+    std::cout << "[+] Far-side resolutions: applied to " << resolutionsApplied
               << " witness edges\n";
   std::cout << "[+] Solver: derived bounds for " << bounds.size()
             << " names\n\n";

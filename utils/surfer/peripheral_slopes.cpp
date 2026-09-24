@@ -24,6 +24,14 @@
 //                    convention, and no comparison rests on the two agreeing
 //                    by luck
 //
+//    dump-subset
+//            stdin:  "<id> <bc> <i,j,...> <pairsig>" per line
+//            stdout: one RECORD for just those components of that boundary
+//                    component -- a split factor is a SUBLINK, and its
+//                    exterior has to be drilled directly rather than cut out
+//                    of the whole far side's, since a cut piece loses which
+//                    cusp came from which curve
+//
 //    slope   stdin:  those records, with SnapPea's basis now installed in the
 //                    TRI block (the Python half round-trips them through
 //                    snappy.Triangulation(..., remove_finite_vertices=False))
@@ -80,7 +88,9 @@ namespace {
 void usage(const char *progName) {
     std::cerr << "Usage:\n"
               << "    " << progName << " dump      < ids-and-pairsigs\n"
-              << "    " << progName << " dump-link < ids-and-pd-codes\n"
+              << "    " << progName << " dump-link   < ids-and-pd-codes\n"
+              << "    " << progName
+              << " dump-subset < ids-bc-components-and-pairsigs\n"
               << "    " << progName << " slope     < records\n"
               << "    " << progName << " sig       < ids-and-pairsigs\n";
     exit(1);
@@ -282,6 +292,137 @@ int runDump() {
 }
 
 /**
+ * As dump, but drilling only a chosen SUBSET of one boundary component's
+ * curves.
+ *
+ * Naming a split far side means naming each split factor, and a factor is a
+ * sublink of the whole. Its exterior therefore has to be drilled out of the
+ * ambient triangulation directly rather than recovered by cutting the whole
+ * far side's exterior: cutAlong relabels, simplify() renumbers and coning
+ * adds tetrahedra, so a cut piece no longer knows which cusp came from which
+ * curve -- and that correspondence IS the meridian labelling, without which a
+ * multi-component factor cannot be identified at all. See
+ * Link::buildComplementWithPeripheral(components, directions).
+ *
+ * stdin:  "<id> <boundary component> <comma-separated component indices>
+ *          <pairsig>"
+ * stdout: one RECORD, in dump's format, for the sublink named.
+ *
+ * Component indices are into Link's own component order for that boundary
+ * component, which is a deterministic function of the edge set, so the same
+ * indices mean the same curves on every run.
+ */
+int runDumpSubset() {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty())
+            continue;
+        std::istringstream fields(line);
+        std::string id, wantBcText, componentsText, sig;
+        if (!(fields >> id >> wantBcText >> componentsText >> sig)) {
+            std::cerr << "skipping malformed input line\n";
+            continue;
+        }
+
+        size_t wantBc = 0;
+        std::vector<int> wanted;
+        try {
+            wantBc = static_cast<size_t>(std::stoul(wantBcText));
+            std::istringstream parts(componentsText);
+            std::string part;
+            while (std::getline(parts, part, ','))
+                if (!part.empty())
+                    wanted.push_back(std::stoi(part));
+        } catch (const std::exception &e) {
+            std::cout << "FAILED " << id << " " << wantBcText
+                      << " parse:" << e.what() << "\n";
+            continue;
+        }
+        if (wanted.empty()) {
+            std::cout << "FAILED " << id << ' ' << wantBc
+                      << " parse:no components named\n";
+            continue;
+        }
+
+        DecodedKnottedSurfaceSig decoded;
+        try {
+            decoded = fromKnottedSurfaceSig(sig);
+        } catch (const std::exception &e) {
+            std::cout << "FAILED " << id << " - decode:" << e.what() << "\n";
+            continue;
+        }
+
+        std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented;
+        std::map<const regina::Edge<3> *, size_t> surfaceOf;
+        bool haveDirections = false;
+        try {
+            oriented = decoded.surface->orientedBoundaryLinks();
+            surfaceOf = decoded.surface->boundaryEdgeSurfaceComponent();
+            haveDirections = true;
+        } catch (const std::exception &e) {
+            std::cout << "FAILED " << id << " - orient:" << e.what() << "\n";
+        }
+
+        bool found = false;
+        for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
+            if (bc != wantBc)
+                continue;
+            found = true;
+            try {
+                std::vector<std::vector<peripheral::DirectedEdge>> directions;
+                std::vector<long> surfaceComponent;
+                bool directed = false;
+                if (haveDirections) {
+                    for (const auto &[obc, curves] : oriented) {
+                        if (obc != bc)
+                            continue;
+                        directed = directComponents(link, curves, surfaceOf,
+                                                    directions,
+                                                    surfaceComponent);
+                        break;
+                    }
+                }
+
+                // Narrow the per-component data to the chosen sublink, in the
+                // order the caller listed it, so the record's component
+                // numbering matches what was asked for rather than the
+                // whole link's.
+                std::vector<std::vector<peripheral::DirectedEdge>> subset;
+                std::vector<long> subsetComponent;
+                for (int c : wanted) {
+                    if (c < 0 || c >= link.countComponents())
+                        throw regina::InvalidArgument(
+                            "component index out of range for this boundary "
+                            "component");
+                    if (directed) {
+                        subset.push_back(directions[static_cast<size_t>(c)]);
+                        subsetComponent.push_back(
+                            surfaceComponent[static_cast<size_t>(c)]);
+                    }
+                }
+
+                peripheral::DrilledWithMeridians drilled =
+                    directed ? link.buildComplementWithPeripheral(wanted,
+                                                                  subset)
+                             : link.buildComplementWithPeripheral(wanted);
+                if (!directed)
+                    subsetComponent.assign(wanted.size(), -1);
+
+                writeRecord(id, bc, drilled, subsetComponent);
+            } catch (const std::exception &e) {
+                std::cout << "FAILED " << id << ' ' << bc << " drill:"
+                          << e.what() << "\n";
+            }
+            break;
+        }
+        if (!found)
+            std::cout << "FAILED " << id << ' ' << wantBc
+                      << " drill:no such boundary component\n";
+    }
+    return 0;
+}
+
+/**
  * Records built from a diagram rather than from a witness surface.
  *
  * The reference table has to be drilled by the same code with the same sign
@@ -438,6 +579,8 @@ int main(int argc, char *argv[]) {
         return runDump();
     if (mode == "dump-link")
         return runDumpLink();
+    if (mode == "dump-subset")
+        return runDumpSubset();
     if (mode == "slope")
         return runSlope();
     if (mode == "sig")

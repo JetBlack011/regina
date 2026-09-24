@@ -10,7 +10,7 @@ add_library(surfer_common STATIC
   knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
   linkcomplement.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
-  rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp
+  rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
   cobordismgraph.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
 
