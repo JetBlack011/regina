@@ -962,6 +962,373 @@ void test_matches_row_orientation_logic() {
 
 } // namespace
 
+// ─────────────────────────────────────────────────────────────────────────
+// Per-witness proved far sides (--far-side-resolutions)
+// ─────────────────────────────────────────────────────────────────────────
+
+void test_proved_link_far_side_bears_bound() {
+    // The counterpart of test_linked_far_side_bounds_nothing. There the far
+    // side was named from its complement, which does not determine a link.
+    // Here applyFarSideResolutions() has marked it proved PER WITNESS -- an
+    // isometry carrying this witness's own meridians -- and complement plus
+    // meridians does determine the link, so its oriented variants ARE the
+    // complete candidate set and the max over them is sound.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("L4a1{0}", 0, 0);
+    names.addLiterature("L4a1{1}", 0, 0);
+    Witness w = cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"});
+    EXPECT_EQ(farSideBearsBound(w), false, "unproved: the gate refuses it");
+    w.farSideProved = true;
+    EXPECT_EQ(farSideBearsBound(w), true, "proved: the gate accepts it");
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["K"].hi, 1,
+              "g_4(K) <= max(0, 0) + 0 + (2 - 1) = 1, by hand");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Split (disjoint-union) far-side names: "A u B"
+// ─────────────────────────────────────────────────────────────────────────
+
+void test_split_names() {
+    EXPECT_EQ(componentsFromName("3_1 u Unknot"), 2, "knot u knot: 1 + 1");
+    EXPECT_EQ(componentsFromName("Unknot u L2a1{0}"), 3,
+              "a tagged link factor states its own count: 1 + 2");
+    EXPECT_EQ(componentsFromName("3_1|m3_1 u Unknot"), 2,
+              "a mirror alternation is still one component");
+    EXPECT_EQ(baseName("L2a1{0} u Unknot"),
+              std::string("L2a1{0} u Unknot"),
+              "a split name has no base: stripping at '{' would read it as "
+              "the 2-component link L2a1 and hand back that link's "
+              "orientation variants");
+}
+
+void test_split_far_side_upper_bound() {
+    // g_4(A u B) <= g_4(A) + g_4(B): tube the factors' minimal surfaces
+    // together (constructive). With 3_1 at 1 and the Unknot axiom at 0, a
+    // genus-0 cobordism K -> (3_1 u Unknot) gives
+    //     g_4(K) <= (1 + 0) + 0 + (2 - 1) = 2.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("m3_1", 1, 1);
+    Witness w = cobordism("K", 1, "3_1 u Unknot", 2, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
+    EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
+              "it rests on 3_1's literature value, so it is assisted");
+
+    Witness m = cobordism("K", 1, "3_1|m3_1 u Unknot", 2, 0);
+    m.farSideProved = true;
+    auto mb = propagate({m}, names);
+    EXPECT_EQ(mb["K"].hi, 2,
+              "a mirror alternation takes the worse of 3_1 and m3_1 -- the "
+              "same 1 -- so the same bound");
+}
+
+// The split rule observed through the public solver: a proved genus-0
+// cobordism from a knot K (literature [0, 9], so it constrains nothing) to a
+// far side F gives, from the cobordism inequalities with n_0 = 1,
+//     lo(K) = lo(F) - 0 - 1 + 1 = lo(F),    hi(K) = hi(F) + 0 + (n_F - 1).
+Bounds probeFarSide(const std::string &far, int nFar, NameTable names) {
+    names.addLiterature("K", 0, 9);
+    Witness w = cobordism("K", 1, far, nFar, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    return bounds["K"];
+}
+
+void test_split_unknot_factor_changes_nothing() {
+    // g_4(L u U) = g_4(L): a split unknot is tubed on (<=) or capped off by a
+    // disc in a collar (>=). So 3_1 u Unknot has g_4 exactly 1.
+    NameTable names;
+    names.addLiterature("3_1", 1, 1);
+    Bounds k = probeFarSide("3_1 u Unknot", 2, names);
+    EXPECT_EQ(k.lo, 1, "lo(3_1 u Unknot) = g_4(3_1) = 1: the unknot drops out");
+    EXPECT_EQ(k.hi, 2, "hi = (1 + 0) + (2 - 1) = 2, by hand");
+    Bounds k2 = probeFarSide("3_1 u Unknot u Unknot", 3, names);
+    EXPECT_EQ(k2.lo, 1, "any number of split unknots drop out");
+}
+
+void test_split_lower_bound_is_not_additive() {
+    // THE counterexample to the old additive rule. For every knot K, K u -K
+    // bounds an annulus in B^4, so g_4(4_1 u 4_1) = 0 although each factor
+    // has g_4 = 1 (4_1 is amphicheiral, so -4_1 = 4_1). The additive rule
+    // claimed 2 and, on 2026-09-24, "proved" g_4(L10a91{0}) >= 1 against a
+    // literature value of 0. The sound bound,
+    //     g_4(4_1 # 4_1) - 1 >= (1 - 1) - 1 = -1,
+    // says nothing.
+    NameTable names;
+    names.addLiterature("4_1", 1, 1);
+    Bounds k = probeFarSide("4_1 u 4_1", 2, names);
+    EXPECT_EQ(k.haveLower() && k.lo > 0, false,
+              "no positive lower bound through 4_1 u 4_1, whose g_4 is 0");
+    EXPECT_EQ(k.hi, 3, "upper still the constructive (1 + 1) + (2 - 1) = 3");
+
+    // The regression, end to end: a slice two-component subject with a
+    // genus-0 witness to a proved 4_1 u 4_1 is not pushed above its
+    // literature value, and nothing is judged a contradiction.
+    names.addLiterature("S{0}", 0, 0);
+    Witness w = cobordism("S{0}", 2, "4_1 u 4_1", 2, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["S{0}"].haveLower() && bounds["S{0}"].lo > 0, false,
+              "the slice subject keeps a lower bound of at most 0");
+    EXPECT_EQ(judge("S{0}", bounds["S{0}"], names).status ==
+                  Status::contradiction,
+              false, "no contradiction");
+}
+
+void test_split_lower_bound_three_factors() {
+    // With f nontrivial knot factors, g_4(u) >= g_4(#) - (f - 1), and the sum
+    // is bounded by the composite-knot rule. For 3_1 u 5_1 u Unknot the
+    // unknot drops out (f = 2):
+    //     g_4(3_1 # 5_1) >= g_4(5_1) - g_4(3_1) = 2 - 1 = 1,
+    //     g_4(3_1 u 5_1 u Unknot) >= 1 - (2 - 1) = 0,
+    // which says nothing (a derived 0 never improves the floor of 0).
+    NameTable names;
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("5_1", 2, 2);
+    Bounds k = probeFarSide("3_1 u 5_1 u Unknot", 3, names);
+    EXPECT_EQ(k.haveLower() && k.lo > 0, false,
+              "(2 - 1) - (2 - 1) = 0: no positive lower bound, by hand");
+    EXPECT_EQ(k.hi, 5, "hi = (1 + 2 + 0) + (3 - 1) = 5, by hand");
+
+    // A gap big enough to be positive. The unknot must DROP OUT: counted as
+    // a factor it would make f = 3 and the bound (3 - 1) - 2 = 0.
+    names.addLiterature("7_1", 3, 3);
+    EXPECT_EQ(probeFarSide("3_1 u 7_1 u Unknot", 3, names).lo, 1,
+              "(3 - 1) - (2 - 1) = 1, by hand: the unknot is not a factor");
+
+    // Three nontrivial factors: 11a_367 is T(2,11), g_4 = 5.
+    //     g_4(3_1 # 3_1 # 11a_367) >= 5 - 1 - 1 = 3,
+    //     g_4(3_1 u 3_1 u 11a_367) >= 3 - (3 - 1) = 1.
+    // (The additive rule claimed 7; dropping the -(f - 1) would claim 3.)
+    names.addLiterature("11a_367", 5, 5);
+    EXPECT_EQ(probeFarSide("3_1 u 3_1 u 11a_367", 3, names).lo, 1,
+              "5 - 1 - 1 - (3 - 1) = 1, by hand");
+}
+
+void test_split_mirror_alternatives_use_the_unmirrored_name() {
+    // A mirror image has the same g_4, and the table holds only 3_1. A
+    // factor written "3_1|m3_1" must still be bounded, both ways, with
+    // nothing registered for m3_1.
+    NameTable names;
+    names.addLiterature("3_1", 1, 1);
+    Bounds k = probeFarSide("3_1|m3_1 u Unknot", 2, names);
+    EXPECT_EQ(k.hi, 2, "upper found through the unmirrored name: 1 + 0 + 1");
+    EXPECT_EQ(k.lo, 1, "lower likewise: g_4(3_1) = 1");
+}
+
+void test_split_composite_alternative_keeps_its_mirror() {
+    // Only a PRIME knot's m is stripped. "m3_1#3_1" is the square knot
+    // (slice); stripping its leading m would give "3_1#3_1", the granny
+    // (g_4 = 2), and borrow the granny's bound. Registered here as literature
+    // to make the mix-up visible: the square knot's far side must get only
+    // the composite rule's 1 - 1 = 0.
+    NameTable names;
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("3_1#3_1", 2, 2);
+    Bounds k = probeFarSide("m3_1#3_1 u Unknot", 2, names);
+    EXPECT_EQ(k.haveLower() && k.lo > 0, false,
+              "no lower bound borrowed from the granny: 1 - 1 = 0");
+    EXPECT_EQ(k.hi, 3, "upper from the summands: (1 + 1) + (2 - 1) = 3");
+    // The granny itself, by name, does carry its value.
+    EXPECT_EQ(probeFarSide("3_1#3_1 u Unknot", 2, names).lo, 2,
+              "3_1#3_1 u Unknot: g_4(3_1#3_1) = 2");
+}
+
+void test_split_with_a_link_factor_has_no_lower_bound() {
+    // The band inequality needs a lower bound on g_4 of the connected sum,
+    // which only the composite-KNOT rule gives; a link factor leaves it open.
+    NameTable names;
+    names.addLiterature("L2a1{0}", 0, 0);
+    Bounds k = probeFarSide("L2a1{0} u Unknot", 3, names);
+    EXPECT_EQ(k.haveLower(), false, "no lower bound claimed");
+}
+
+void test_unproved_split_far_side_bounds_nothing() {
+    // A split name reaching the solver WITHOUT a per-witness proof is still
+    // a multi-component far side, and the gate refuses it.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    auto bounds = propagate({cobordism("K", 1, "3_1 u Unknot", 2, 0)}, names);
+    EXPECT_EQ(bounds["K"].haveUpper(), false, "no proof, no bound");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Composite far-side names: "K #_c L"
+// ─────────────────────────────────────────────────────────────────────────
+
+void test_composite_parts() {
+    auto a = compositeParts("m3_1 #_0 L2a1");
+    EXPECT_EQ(a.has_value(), true, "parses");
+    EXPECT_EQ(a->knot, std::string("m3_1"), "knot keeps its chirality");
+    EXPECT_EQ(a->component, 0, "component");
+    EXPECT_EQ(a->link, std::string("L2a1"), "link base name");
+    EXPECT_EQ(compositeParts("3_1 #_1 L10n77")->component, 1, "component 1");
+    EXPECT_EQ(compositeParts("3_1 u Unknot").has_value(), false,
+              "a split name is not composite");
+    EXPECT_EQ(compositeParts("3_1#m3_1").has_value(), false,
+              "the slice composite (a KNOT sum) is not a knot-into-link sum");
+    EXPECT_EQ(compositeParts("3_1 #_ L2a1").has_value(), false,
+              "no component index: refused, since K # L is not well defined "
+              "without one");
+    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}").has_value(), false,
+              "the link part is a BASE name");
+}
+
+void test_composite_far_side_upper_bound() {
+    // g_4(K #_c L) <= g_4(K) + g_4(L). With 3_1 at 1 and both orientations of
+    // L2a1 at 0, a proved genus-0 cobordism K -> (m3_1 #_0 L2a1) gives
+    //     g_4(K) <= (1 + max(0, 0)) + 0 + (2 - 1) = 2.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("L2a1{0}", 0, 0);
+    names.addLiterature("L2a1{1}", 0, 0);
+    Witness w = cobordism("K", 1, "m3_1 #_0 L2a1", 2, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
+    EXPECT_EQ(bounds["K"].haveLower(), false,
+              "the only lower bound is g_4(L) - g_4(K) = 0 - 1 < 0: nothing");
+}
+
+void test_composite_takes_the_worst_orientation() {
+    // L proved up to orientation, so the bound must hold for either variant.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("L4a1{0}", 0, 0);
+    names.addLiterature("L4a1{1}", 1, 1);
+    Witness w = cobordism("K", 1, "3_1 #_0 L4a1", 2, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["K"].hi, 3, "g_4(K) <= 1 + max(0, 1) + 0 + 1 = 3");
+}
+
+void test_unproved_composite_bounds_nothing() {
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("L2a1{0}", 0, 0);
+    names.addLiterature("L2a1{1}", 0, 0);
+    auto bounds = propagate({cobordism("K", 1, "3_1 #_0 L2a1", 2, 0)}, names);
+    EXPECT_EQ(bounds["K"].haveUpper(), false, "no proof, no bound");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Composite knots, and sliceness from the concordance group
+// ─────────────────────────────────────────────────────────────────────────
+
+void test_knot_summands() {
+    EXPECT_EQ(knotSummands("3_1#m5_2").size(), size_t(2), "two summands");
+    EXPECT_EQ(knotSummands("3_1#m5_2")[1], std::string("m5_2"), "chirality kept");
+    EXPECT_EQ(knotSummands("11a_367#m11a_367").size(), size_t(2),
+              "11+ crossing names (with a/n) parse");
+    EXPECT_EQ(knotSummands("5_2").size(), size_t(0), "a prime is not composite");
+    EXPECT_EQ(knotSummands("m129 : #2").size(), size_t(0),
+              "a census hit suffix is not a connected sum");
+    EXPECT_EQ(knotSummands("3_1 #_0 L2a1").size(), size_t(0),
+              "a knot-into-link sum is not a composite KNOT");
+    EXPECT_EQ(knotSummands("L2a1{0}#3_1").size(), size_t(0), "links refused");
+}
+
+namespace {
+NameTable symmetryTable() {
+    NameTable names;
+    names.setSymmetry("3_1", SymmetryType::reversible);
+    names.setSymmetry("5_2", SymmetryType::reversible);
+    names.setSymmetry("4_1", SymmetryType::fullyAmphicheiral);
+    names.setSymmetry("8_17", SymmetryType::negativeAmphicheiral);
+    names.setSymmetry("9_32", SymmetryType::chiral);
+    return names;
+}
+} // namespace
+
+void test_elementary_slice() {
+    NameTable none;
+    EXPECT_EQ(isElementarySlice("3_1#m3_1", none), true,
+              "the long-standing anchors survive with no symmetry data");
+    EXPECT_EQ(isElementarySlice("4_1#4_1", none), true, "both of them");
+    EXPECT_EQ(isElementarySlice("5_2#m5_2", none), false,
+              "anything else needs the summand's symmetry type");
+
+    NameTable n = symmetryTable();
+    EXPECT_EQ(isElementarySlice("m3_1#3_1", n), true,
+              "reversible: -3_1 = m3_1, in either spelling");
+    EXPECT_EQ(isElementarySlice("3_1#3_1", n), false,
+              "the granny knot is not slice");
+    EXPECT_EQ(isElementarySlice("4_1#m4_1", n), true,
+              "fully amphicheiral: m4_1 = 4_1 = -4_1");
+    EXPECT_EQ(isElementarySlice("5_2#m5_2#4_1#4_1", n), true,
+              "a sum of inverse pairs is slice");
+    EXPECT_EQ(isElementarySlice("3_1#m3_1#4_1", n), false,
+              "an unpaired summand spoils it");
+    EXPECT_EQ(isElementarySlice("8_17#8_17", n), true,
+              "negative amphicheiral: -8_17 = 8_17, so 8_17 # 8_17 is slice");
+    EXPECT_EQ(isElementarySlice("8_17#m8_17", n), false,
+              "but 8_17 # m8_17 = 8_17 # 8_17^r is not -- the classic trap");
+    EXPECT_EQ(isElementarySlice("9_32#m9_32", n), false,
+              "chiral non-invertible: -K = m(K^r) is not what the name says");
+    EXPECT_EQ(isElementarySlice("6_1#m6_1", n), false,
+              "unknown symmetry type: refused, never guessed");
+}
+
+void test_elementary_slice_is_a_constructive_anchor() {
+    NameTable names = symmetryTable();
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("5_2", 1, 1);
+    auto bounds = propagate({cobordism("K", 1, "5_2#m5_2", 1, 0)}, names);
+    EXPECT_EQ(bounds["K"].hi, 0, "g_4(K) <= 0 + 0 + 0 = 0 through the anchor");
+    EXPECT_EQ(bounds["K"].basis == Basis::constructive, true,
+              "5_2 # m5_2 bounds a ribbon disc: no literature is used, even "
+              "though 5_2's own value (1) is in the table");
+}
+
+void test_composite_knot_bounds() {
+    // g_4 is subadditive, and K_i ~ A # -(rest) gives the lower bound
+    //     g_4(A) >= g_4(K_i) - sum_{j != i} g_4(K_j).
+    // For 3_1 # 6_1 (6_1 slice): upper 1 + 0 = 1, lower 1 - 0 = 1, so a
+    // genus-0 cobordism K -> 3_1#6_1 pins g_4(K) = 1.
+    NameTable names;
+    names.addLiterature("K", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("6_1", 0, 0);
+    auto bounds = propagate({cobordism("K", 1, "3_1#6_1", 1, 0)}, names);
+    EXPECT_EQ(bounds["K"].hi, 1, "g_4(K) <= (1 + 0) + 0 = 1, by hand");
+    EXPECT_EQ(bounds["K"].lo, 1, "g_4(K) >= (1 - 0) - 0 - 1 + 1 = 1, by hand");
+
+    NameTable n2;
+    n2.addLiterature("K", 0, 9);
+    n2.addLiterature("3_1", 1, 1);
+    n2.addLiterature("4_1", 1, 1);
+    auto b2 = propagate({cobordism("K", 1, "3_1#4_1", 1, 0)}, n2);
+    EXPECT_EQ(b2["K"].hi, 2, "3_1 # 4_1: g_4(K) <= 1 + 1 = 2");
+    EXPECT_EQ(b2["K"].haveLower(), false,
+              "and only |1 - 1| = 0 below: nothing");
+}
+
+void test_composite_link_lower_bound() {
+    // g_4(K #_c L) >= g_4(L) - g_4(K): summing -K into the same component
+    // undoes K up to concordance. With L's variants at 2 and K = 3_1 at 1,
+    //     lower(3_1 #_0 L) = 2 - 1 = 1,
+    // and a genus-0 cobordism S -> it (proved) gives g_4(S) >= 1 - 0 - 1 + 1.
+    NameTable names;
+    names.addLiterature("S", 0, 9);
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("L7a1{0}", 2, 2);
+    names.addLiterature("L7a1{1}", 2, 2);
+    Witness w = cobordism("S", 1, "3_1 #_0 L7a1", 2, 0);
+    w.farSideProved = true;
+    auto bounds = propagate({w}, names);
+    EXPECT_EQ(bounds["S"].lo, 1, "g_4(S) >= (2 - 1) - 0 - 1 + 1 = 1, by hand");
+    EXPECT_EQ(bounds["S"].hi, 4, "and g_4(S) <= (1 + 2) + 0 + (2 - 1) = 4");
+}
+
 void run(const std::string &name, void (*fn)()) {
     std::cout << bold << "\n=== " << name << " ===" << resetColor << "\n";
     fn();
@@ -969,6 +1336,36 @@ void run(const std::string &name, void (*fn)()) {
 
 int main() {
     run("components_from_name", test_components_from_name);
+    run("proved_link_far_side_bears_bound",
+        test_proved_link_far_side_bears_bound);
+    run("split_names", test_split_names);
+    run("split_far_side_upper_bound", test_split_far_side_upper_bound);
+    run("split_unknot_factor_changes_nothing",
+        test_split_unknot_factor_changes_nothing);
+    run("split_lower_bound_is_not_additive",
+        test_split_lower_bound_is_not_additive);
+    run("split_lower_bound_three_factors",
+        test_split_lower_bound_three_factors);
+    run("split_mirror_alternatives_use_the_unmirrored_name",
+        test_split_mirror_alternatives_use_the_unmirrored_name);
+    run("split_composite_alternative_keeps_its_mirror",
+        test_split_composite_alternative_keeps_its_mirror);
+    run("split_with_a_link_factor_has_no_lower_bound",
+        test_split_with_a_link_factor_has_no_lower_bound);
+    run("unproved_split_far_side_bounds_nothing",
+        test_unproved_split_far_side_bounds_nothing);
+    run("composite_parts", test_composite_parts);
+    run("composite_far_side_upper_bound", test_composite_far_side_upper_bound);
+    run("composite_takes_the_worst_orientation",
+        test_composite_takes_the_worst_orientation);
+    run("unproved_composite_bounds_nothing",
+        test_unproved_composite_bounds_nothing);
+    run("knot_summands", test_knot_summands);
+    run("elementary_slice", test_elementary_slice);
+    run("elementary_slice_is_a_constructive_anchor",
+        test_elementary_slice_is_a_constructive_anchor);
+    run("composite_knot_bounds", test_composite_knot_bounds);
+    run("composite_link_lower_bound", test_composite_link_lower_bound);
     run("base_name", test_base_name);
     run("candidates_expand_orientation_variants",
         test_candidates_expand_orientation_variants);

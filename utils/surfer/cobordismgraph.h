@@ -114,6 +114,54 @@ int componentsFromName(const std::string &name);
 std::string baseName(const std::string &name);
 
 /**
+ * A COMPOSITE far-side name, "K #_c L": the knot K connect-summed into
+ * component c of the link L (L a base name, c in L's PD component order).
+ *
+ * The component is part of the name because K # L is only well defined once
+ * it is given. It does not enter the bound: g_4(K #_c L) <= g_4(K) + g_4(L)
+ * for every c, by boundary-connect-summing the two minimal surfaces.
+ * \a knot keeps its chirality ("m3_1"); g_4 is mirror-invariant, so the
+ * solver looks it up without the "m".
+ */
+struct CompositeName {
+    std::string knot;
+    int component = 0;
+    std::string link;
+};
+
+/** The parts of a composite name, or nullopt if `name` is not one. */
+std::optional<CompositeName> compositeParts(const std::string &name);
+
+/**
+ * The summands of a composite KNOT name, "A#B#..." (each "K", "mK" or
+ * "Unknot"), or an empty vector if `name` is not one. A census name
+ * ("m129 : #2"), a knot-into-link sum ("3_1 #_0 L2a1") and a split name
+ * ("A u B") are all refused.
+ */
+std::vector<std::string> knotSummands(const std::string &name);
+
+/**
+ * A prime knot's symmetry type, as data/knot_symmetry.csv records it
+ * (KnotInfo, cross-checked against SnapPy through 10 crossings). It fixes the
+ * concordance inverse -K = m(K^r):
+ *   reversible            -K = mK
+ *   fullyAmphicheiral     -K = K = mK
+ *   negativeAmphicheiral  -K = K   (and K^r = mK, so mK is its own inverse too)
+ *   positiveAmphicheiral  -K = K^r    } not expressible without a reversal
+ *   chiral                -K = m(K^r) } marker, which our names lack
+ */
+enum class SymmetryType {
+    chiral,
+    reversible,
+    positiveAmphicheiral,
+    negativeAmphicheiral,
+    fullyAmphicheiral
+};
+
+/** Parses KnotInfo's spelling ("negative amphicheiral"), or nullopt. */
+std::optional<SymmetryType> parseSymmetryType(const std::string &text);
+
+/**
  * An identify() result reduced to the name the graph should key on.
  *
  * Strips the trailing parenthetical if there is one; leaves everything else
@@ -170,10 +218,41 @@ class NameTable {
 
     size_t size() const { return info_.size(); }
 
+    /** Records a knot's symmetry type (--knot-symmetry). */
+    void setSymmetry(const std::string &knot, SymmetryType type) {
+        symmetry_[knot] = type;
+    }
+
+    /** A knot's symmetry type, or nullptr if unknown. */
+    const SymmetryType *symmetry(const std::string &knot) const {
+        auto it = symmetry_.find(knot);
+        return it == symmetry_.end() ? nullptr : &it->second;
+    }
+
   private:
+    std::unordered_map<std::string, SymmetryType> symmetry_;
     std::unordered_map<std::string, NameInfo> info_;
     std::unordered_map<std::string, std::vector<std::string>> byBase_;
 };
+
+/**
+ * Whether the knot `name` is slice by ELEMENTARY concordance-group reasoning,
+ * making it an anchor exactly like the unknot.
+ *
+ * `K # -K` bounds a ribbon disc for every K, where `-K = m(K^r)` is the
+ * concordance inverse, and a sum of slice knots is slice. So a composite knot
+ * is elementarily slice when its summands pair off into inverse pairs. The
+ * inverse depends on the summand's symmetry: for an invertible K, `-K = mK`;
+ * if K is also amphicheiral, `-K = K`. Summands without a certified symmetry
+ * (NameTable::symmetry), and every NON-invertible summand, are refused: our
+ * names record chirality but not reversal, so for a non-invertible K the name
+ * cannot say whether its neighbour is -K or its reverse (8_17 is the trap).
+ *
+ * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
+ * with no symmetry data loaded, so a run without --knot-symmetry loses
+ * nothing it had before.
+ */
+bool isElementarySlice(const std::string &name, const NameTable &names);
 
 /* Witnesses */
 
@@ -210,6 +289,19 @@ struct Witness {
 
     std::string
         pairSig; /**< The found surface's pair signature, if captured. */
+    /**
+     * Whether this witness's far side has been PROVED, per witness, to be
+     * the link named in `other` -- by the peripheral system (an isometry or
+     * curve-respecting isomorphism carrying our meridians), or by a split
+     * decomposition whose every factor is a knot (Gordon-Luecke). Set only
+     * on the solver-side copy by applyFarSideResolutions(); never recorded.
+     *
+     * This is what lets farSideBearsBound() accept a multi-component far
+     * side: the complement alone never determines a link, but complement
+     * plus meridians does, and then the oriented variants of `other` ARE a
+     * complete candidate set, so the max/min over them is sound.
+     */
+    bool farSideProved = false;
 
     // Provenance: which search produced this, and under what budget.
     std::string sourceRow;

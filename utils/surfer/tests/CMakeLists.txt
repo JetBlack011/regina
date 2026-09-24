@@ -11,6 +11,7 @@ set(TESTS
   census_test
   cobordismgraph_test
   peripheral_test
+  witnesskey_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather
