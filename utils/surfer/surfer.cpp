@@ -120,6 +120,12 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "                     non-orientable, rather than reporting "
                "non-orientable\n"
                "                     results (default: off).\n\n";
+  std::cerr << "    --resolve-unlinked : Also report surfaces that meet "
+               "themselves only at\n"
+               "                     interior vertices whose trace (all "
+               "petals together) is a certified unlink\n"
+               "                     (pl_enumeration_draft section 4.5) "
+               "(default: off).\n\n";
   std::cerr
       << "    --max-faces N  : Hard cap on how many faces the search may "
          "add, making\n"
@@ -389,7 +395,7 @@ void runSearch(const regina::Triangulation<4> &tri,
               std::optional<unsigned> iddfsFinalThreads,
               const SurfaceSearchLimits &limits, bool orientableOnly,
               std::optional<long long> maxFaces, long long rootBudgetStart,
-              long long rootBudgetGrowth) {
+              long long rootBudgetGrowth, bool resolveUnlinked) {
   std::cerr << "[+] Running with " << numThreads
             << " threads, condition = " << boundaryConditionName(cond)
             << "\n\n";
@@ -405,6 +411,7 @@ void runSearch(const regina::Triangulation<4> &tri,
     eOpt.emplace(tri, seedFaces);
   SurfaceSearch &e = *eOpt;
   e.configureLimits(limits);
+  e.configureSelfIntersections({.resolveUnlinked = resolveUnlinked});
 
   const bool wantLinks = cond == BoundaryCondition::proper ||
                          cond == BoundaryCondition::connected;
@@ -749,6 +756,7 @@ int main(int argc, char *argv[]) {
   std::optional<unsigned> iddfsFinalThreads;
 
   bool orientableOnly = false;
+  bool resolveUnlinked = false; // see --resolve-unlinked
   std::optional<long long> maxFaces;
   long long rootBudgetStart = 0;   // 0 = off, i.e. one pass over every root
   long long rootBudgetGrowth = 2;
@@ -808,6 +816,8 @@ int main(int argc, char *argv[]) {
       }
     } else if (arg == "--orientable-only") {
       orientableOnly = true;
+    } else if (arg == "--resolve-unlinked") {
+      resolveUnlinked = true;
     } else if (arg == "--threads") {
       if (i + 1 >= argc)
         usage(argv[0], "--threads requires a value.");
@@ -1070,7 +1080,8 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth);
+             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth,
+             resolveUnlinked);
   } else {
     regina::Triangulation<4> tri;
     try {
@@ -1081,7 +1092,8 @@ int main(int argc, char *argv[]) {
 
     runSearch(tri, {}, cond, numThreads, outputPath, iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
-             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth);
+             orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth,
+             resolveUnlinked);
   }
 
   return 0;

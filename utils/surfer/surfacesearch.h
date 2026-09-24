@@ -61,6 +61,11 @@ struct SurfaceFoundInfo {
          mutate (removeFace()'s unwind) or reuse for the next entry
          immediately after the callback returns. Safe to call more than
          once within that window (pairSig() itself is cached). */
+    int resolvedVertices = 0;
+    /**< How many ambient vertices the surface meets itself at. Zero for an
+         embedded surface; positive only for one accepted under
+         KnottedSurface::SelfIntersectionOptions::resolveUnlinked, where
+         every such vertex is an unlinked self-intersection (paper §4.5). */
 };
 
 /**
@@ -340,6 +345,10 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
     SurfaceSearchLimits limits_;
 
+    /** Handed to every worker's KnottedSurface; see
+     * configureSelfIntersections(). */
+    KnottedSurface::SelfIntersectionOptions selfIntersections_;
+
     mutable std::once_flag boundaryCachesOnce_;
 
     mutable std::vector<regina::Triangulation<3>> boundaryComponentTris_;
@@ -368,6 +377,17 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
         std::optional<size_t> protectedBoundaryComponent = std::nullopt);
 
     void configureLimits(const SurfaceSearchLimits &limits);
+
+    /**
+     * Sets how the search's workers treat self-intersections (see
+     * KnottedSurface::SelfIntersectionOptions): whether resolvable ones are
+     * accepted, and whether to record a SelfIntersectionCensus. Call before
+     * search(). The defaults change nothing.
+     */
+    void configureSelfIntersections(
+        const KnottedSurface::SelfIntersectionOptions &options) {
+        selfIntersections_ = options;
+    }
 
     /** Returns the current tally of found surfaces by boundary descriptor. */
     const LinkBoundaryTally &linkTally() const { return linkTally_; }

@@ -14,6 +14,7 @@
 #include <exception>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 #include <maths/perm.h>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
@@ -1006,6 +1007,97 @@ void test_deepest_exhausted_cap_reported() {
               "budget passes still reach exhaustion when run to completion");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// --resolve-unlinked end to end (SurfaceSearch::configureSelfIntersections()).
+//
+// Ambient: B^4 = cone over knotbuilder's S^3 for the 2-component unlink.
+// Seed: the cone over that link -- two discs meeting at the interior apex,
+// proper but not 2-embedded, and resolvable (paper §4.5). Capped at one added
+// face so the search stays tiny.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The cone-triangles over `edges` in `coned`, as Skeleton<4,2> face indices.
+// A copy of embeddedsubmanifold_test.cpp's helper of the same name, which
+// relies on CobordismBuilder<3>::cone() keeping each tetrahedron's index and
+// local vertices 0..3, with local vertex 4 the apex.
+std::vector<int>
+coneTriangleIndices(const Skeleton<4, 2> &skeleton,
+                    const regina::Triangulation<4> &coned,
+                    const std::vector<const regina::Edge<3> *> &edges) {
+    std::unordered_map<const regina::Face<4, 2> *, int> faceToSkelIdx;
+    for (size_t i = 0; i < skeleton.numFaces(); ++i)
+        faceToSkelIdx[skeleton.getNodes()[i].face] = static_cast<int>(i);
+    std::vector<int> result;
+    for (const regina::Edge<3> *e : edges) {
+        auto emb = e->front();
+        auto *pent = coned.simplex(emb.tetrahedron()->index());
+        regina::Perm<4> ordering =
+            regina::FaceNumbering<3, 1>::ordering(emb.edge());
+        int t = regina::FaceNumbering<4, 2>::triangleNumber[ordering[0]]
+                                                           [ordering[1]][4];
+        result.push_back(faceToSkelIdx.at(pent->triangle(t)));
+    }
+    return result;
+}
+
+void test_resolve_unlinked_seeded_search() {
+    std::cout << "\n--- SurfaceSearch: --resolve-unlinked accepts the "
+                 "resolvable seed, and only adds resolvable surfaces ---\n";
+    auto result = knotbuilder::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
+    CobordismBuilder<3> cob(result.tri);
+    const regina::Triangulation<4> &coned = cob.cone();
+    Skeleton<4, 2> probeSkeleton(coned);
+    std::vector<int> seed =
+        coneTriangleIndices(probeSkeleton, coned, result.edges);
+
+    struct Run {
+        SearchStats stats;
+        long long resolvedCallbacks = 0; // resolvedVertices > 0
+        long long seedCallbacks = 0;     // resolvedVertices == 1, seed-sized
+    };
+    auto search = [&](bool resolve) {
+        SurfaceSearch e(coned, seed);
+        e.configureSelfIntersections({.resolveUnlinked = resolve});
+        Run r;
+        SurfaceSearchCallbacks callbacks;
+        callbacks.onSurfaceBoundaryProcessed =
+            [&](const SurfaceBoundaryInfo &info) {
+                if (info.resolvedVertices > 0)
+                    ++r.resolvedCallbacks;
+                if (info.resolvedVertices == 1 &&
+                    info.triangleCount ==
+                        static_cast<long long>(seed.size()))
+                    ++r.seedCallbacks;
+            };
+        r.stats = e.search(1, BoundaryCondition::proper, callbacks, 0, 0,
+                           std::nullopt, std::nullopt,
+                           /*orientableOnly=*/true, /*hardFaceCap=*/1);
+        e.processRemainingSurfaceBoundaries(1, callbacks);
+        return r;
+    };
+
+    Run off = search(false);
+    Run on = search(true);
+    EXPECT_EQ(off.stats.resolvedCount, 0LL,
+              "flag off: nothing is accepted as resolved");
+    EXPECT_EQ(off.resolvedCallbacks, 0LL,
+              "flag off: no reported surface meets itself anywhere");
+    EXPECT_EQ(on.stats.resolvedCount >= 1, true,
+              "flag on: at least the seed is accepted as resolved");
+    EXPECT_EQ(on.seedCallbacks, 1LL,
+              "flag on: the seed is reported once, with "
+              "resolvedVertices == 1 (the apex)");
+    EXPECT_EQ(on.stats.satisfyingCount - on.stats.resolvedCount,
+              off.stats.satisfyingCount,
+              "flag on accepts exactly what flag off does, plus the "
+              "resolved surfaces -- nothing embedded is lost or gained");
+    EXPECT_EQ(on.stats.embeddedCount, off.stats.embeddedCount,
+              "embeddedCount still means strictly embedded");
+    EXPECT_EQ(on.resolvedCallbacks, on.stats.resolvedCount,
+              "every resolved surface reaches the boundary callback with "
+              "resolvedVertices > 0");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -1054,6 +1146,8 @@ int main() {
         test_root_budget_matches_with_iddfs);
     run("test_deepest_exhausted_cap_reported",
         test_deepest_exhausted_cap_reported);
+    run("test_resolve_unlinked_seeded_search",
+        test_resolve_unlinked_seeded_search);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

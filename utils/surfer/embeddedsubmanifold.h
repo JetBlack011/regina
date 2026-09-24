@@ -341,6 +341,30 @@ class EmbeddedSubmanifold {
     bool isEmbedded() const { return isEmbedded_; }
 
     /**
+     * How many ambient (subdim-2)-faces currently carry two or more classes
+     * -- for surfaces, how many ambient vertices carry two or more petals.
+     * Zero exactly when isEmbedded(). O(1).
+     */
+    size_t singularVertexCount() const {
+        return static_cast<size_t>(singularCount_);
+    }
+
+    /**
+     * Whether a search should accept the current subcomplex, given that it
+     * satisfies its BoundaryCondition. Here that is just isEmbedded();
+     * KnottedSurface widens it (see KnottedSurface::isAcceptable()). Called
+     * on the concrete type, so the hiding is resolved statically.
+     */
+    bool isAcceptable() const { return isEmbedded(); }
+
+    /**
+     * Whether isAcceptable() could ever differ from isEmbedded() for this
+     * instance, i.e. whether a non-embedded candidate is worth examining
+     * further at all. Always false here; see KnottedSurface::mayResolve().
+     */
+    bool mayResolve() const { return false; }
+
+    /**
      * Returns whether the tracked subcomplex currently admits a consistent
      * orientation.
      */
@@ -433,14 +457,18 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      */
     bool isPetalClosed_(size_t v, int root) const;
 
-    /** Returns the (unordered) edge list of the closed petal `root` at `v`. */
+    /**
+     * Returns the (unordered) edge list of petal `root`'s trace in Lk(v)
+     * (pl_enumeration_draft, Definition "trace"): one edge per corner of the
+     * petal, forming a cycle for a closed petal and a path for an open one.
+     */
     std::vector<const regina::Edge<3> *>
-    closedPetalCurve_(const regina::Vertex<4> *ambientVertex, size_t v,
-                      int root) const;
+    petalTrace_(const regina::Vertex<4> *ambientVertex, size_t v,
+                int root) const;
 
     /**
-     * Returns the (unordered) (ambient face, local vertex) corner list of the
-     * closed petal `root` at `v` -- the same members closedPetalCurve_()
+     * Returns the (unordered) (ambient face, local vertex) corner list of
+     * petal `root` at `v` -- the same members petalTrace_()
      * walks, as PetalCache's petal-identity input rather than an edge list.
      */
     std::vector<PetalCache::Corner> petalCorners_(size_t v, int root) const;
@@ -452,7 +480,77 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
     PetalCache ownedPetalCache_;
     PetalCache &petalCache_;
 
+    /** See SelfIntersectionOptions::resolveUnlinked. */
+    bool resolveUnlinked_ = false;
+    /** See SelfIntersectionOptions::census. */
+    SelfIntersectionCensus *census_ = nullptr;
+
+    /** The ambient vertices currently carrying two or more petals. */
+    std::vector<size_t> singularVertices_() const;
+
+    /**
+     * Whether the trace T_v(S) at ambient vertex `v` -- the union of its
+     * petals' traces -- is certifiably an unlink in Lk(v)
+     * (pl_enumeration_draft §4.5): false if `v` is a boundary vertex,
+     * if any petal there is not closed, or if identify::certifiesUnlink()
+     * cannot prove it. Memoized through petalCache_.
+     */
+    bool vertexUnlinked_(size_t v) const;
+
+    /**
+     * The boundary-vertex analogue of vertexUnlinked_(), for measurement
+     * only: at boundary vertex `v`, caps the open petal (if any) through a
+     * cone apex (identify::capInCone()) and certifies the result an unlink.
+     * nullopt if `v` carries two or more open petals.
+     */
+    std::optional<bool> boundaryVertexUnlinked_(size_t v) const;
+
+    /**
+     * Whether petal `root` at boundary vertex `v` is unknotted in the sense of
+     * pl_enumeration_draft Definition "petal-knotted": its trace, closed up
+     * through the cone point after coning off the boundary of Lk(v) (see
+     * identify::capInCone()), is an unknot. Memoized per worker in
+     * boundaryFlatMemo_ first, then in the shared petalCache_, so the common
+     * case takes no lock. A trace that cannot be capped counts as knotted.
+     */
+    bool boundaryPetalUnknotted_(size_t v, int root) const;
+
+    struct CornerVectorHash {
+        size_t operator()(const std::vector<PetalCache::Corner> &c) const;
+    };
+    /** Per-worker memo for boundaryPetalUnknotted_(), keyed by the petal's
+        sorted corners; cleared outright past BOUNDARY_FLAT_MEMO_LIMIT. */
+    mutable std::unordered_map<std::vector<PetalCache::Corner>, bool,
+                               CornerVectorHash>
+        boundaryFlatMemo_;
+    static constexpr size_t BOUNDARY_FLAT_MEMO_LIMIT = 1'000'000;
+
   public:
+    /**
+     * How a KnottedSurface treats self-intersections beyond what addFace()
+     * already prunes; see isAcceptable() and tallySelfIntersection().
+     */
+    struct SelfIntersectionOptions {
+        /**
+         * Whether isAcceptable() admits a surface whose every singular
+         * vertex is interior with trace T_v(S) a certified unlink, per
+         * Theorem "resolution" of pl_enumeration_draft §4.5. Off by default,
+         * which leaves isAcceptable() == isEmbedded().
+         */
+        bool resolveUnlinked = false;
+        /**
+         * If set, tallySelfIntersection()/isSmoothAtBoundary() record into
+         * it. Must outlive this KnottedSurface. Measurement only.
+         */
+        SelfIntersectionCensus *census = nullptr;
+        /**
+         * If set, handed to usePairSigContext() on construction, so the
+         * audit's pair signatures reuse the search's ambient data instead of
+         * recomputing it per hit. Must outlive this KnottedSurface.
+         */
+        const LazyPairSigContext<4, 2> *pairSigContext = nullptr;
+    };
+
     /** Creates an empty tracked surface over `skeleton`, with a private,
      * unshared PetalCache. */
     KnottedSurface(const Skeleton<4, 2> &skeleton);
@@ -473,6 +571,73 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * seeded constructor. */
     KnottedSurface(const Skeleton<4, 2> &skeleton, PetalCache &petalCache,
                    const std::vector<int> &seedFaces);
+
+    /**
+     * As KnottedSurface(skeleton, petalCache), with `options` applied. A
+     * constructor rather than a setter because SurfaceSearch builds its
+     * workers' embeddings as prvalues (KnottedSurface is not movable).
+     * `options` comes first so that a braced seed-face list can never be
+     * mistaken for it by the seeded overload above.
+     */
+    KnottedSurface(const SelfIntersectionOptions &options,
+                   const Skeleton<4, 2> &skeleton, PetalCache &petalCache);
+
+    /**
+     * Whether the current surface should be accepted as a witness, given
+     * that it satisfies the search's BoundaryCondition: it must be embedded
+     * or -- only with SelfIntersectionOptions::resolveUnlinked --
+     * isResolvable(), AND isSmoothAtBoundary().
+     *
+     * addFace() prunes on P_smooth at interior vertices only, where it is
+     * hereditary; flatness at boundary vertices is not (pl_enumeration_draft
+     * §4.3), so it is checked here, on the final candidate, instead. That is
+     * what makes an accepted surface locally flat everywhere (Corollary
+     * "local-flat-smooth").
+     */
+    bool isAcceptable() const {
+        return (isEmbedded() || (resolveUnlinked_ && isResolvable())) &&
+               isSmoothAtBoundary();
+    }
+
+    /**
+     * Whether every petal at every boundary vertex of the current surface is
+     * unknotted (pl_enumeration_draft, "smooth at the boundary"): its trace in
+     * Lk(v), closed up through the cone point of the coned-off ball, is an
+     * unknot. A post hoc filter, not a prune: under weak properness a knotted
+     * boundary petal can later close up into an unknotted one. With a census,
+     * each call and each rejection is recorded (audited / auditKnotted).
+     */
+    bool isSmoothAtBoundary() const;
+
+    /** See EmbeddedSubmanifold::mayResolve(). */
+    bool mayResolve() const { return resolveUnlinked_ || census_ != nullptr; }
+
+    /**
+     * Whether every singular vertex of the current surface is an unlinked
+     * self-intersection (pl_enumeration_draft, Definition
+     * "unlinked-self-intersection"): interior, all petals closed, and their
+     * traces, which together make up T_v(S), certified the unlink. Vacuously
+     * true when
+     * isEmbedded(). Independent of SelfIntersectionOptions.
+     *
+     * Together with properness, P_1 and P_smooth this is the hypothesis of
+     * the paper's resolution theorem, which then perturbs the map, only near
+     * those vertices and keeping its domain, into a proper locally flat
+     * embedding of the same abstract surface -- so the surface is as good a
+     * witness as an embedded one. addFace() enforces P_1 everywhere and
+     * P_smooth at interior vertices; isAcceptable() adds smoothness at the
+     * boundary.
+     */
+    bool isResolvable() const;
+
+    /**
+     * Measurement only: classifies the current (non-embedded,
+     * BoundaryCondition-satisfying) surface into one of
+     * SelfIntersectionCensus's buckets, and a multiOpen one further by which
+     * side its multi-open vertices lie on (when the census knows the search
+     * side). A no-op without a census.
+     */
+    void tallySelfIntersection() const;
 
     /**
      * As EmbeddedSubmanifold::addFace(), plus additional checks: if adding

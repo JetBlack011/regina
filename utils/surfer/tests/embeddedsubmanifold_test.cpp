@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <set>
 #include <sstream>
@@ -1184,6 +1185,402 @@ void test_cone_on_unknot_accepted() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Section E2: unlinked self-intersections (pl_enumeration_draft §4.5,
+// KnottedSurface::isResolvable()/isAcceptable()).
+//
+// Coning a link L in S^3 to the interior apex of B^4 = cone(S^3) gives one
+// disc per component of L, all meeting at the apex: one closed petal per
+// component, and the trace T_v(S) there is L itself. So which L is coned decides
+// every case: an unlink is resolvable, a Hopf link is pruned by
+// P_transverse, and a Whitehead link passes every prune yet is not an
+// unlink -- the case only the certificate can refuse.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 0-indexed or Regina (1-indexed) PD codes, each through parsePDCode().
+// kUnlink3PD is Link(3) with two R2 moves; its group was checked to be
+// Free(3) in Regina, independently of anything here.
+const char *kUnlink2PD = "0 3 1 2 1 3 0 2";
+const char *kUnlink3PD = "3 1 4 2 6 1 3 2 7 5 8 6 8 5 7 4";
+
+// Adds every cone-triangle over `pdCode`'s link to `embedding`, reporting
+// whether addFace() accepted all of them.
+bool addConeOver(KnottedSurface &embedding, const Skeleton<4, 2> &skeleton,
+                 const regina::Triangulation<4> &coned,
+                 const std::vector<const regina::Edge<3> *> &edges) {
+    for (int f : coneTriangleIndices(skeleton, coned, edges))
+        if (!embedding.addFace(f))
+            return false;
+    return true;
+}
+
+void expectConeOnUnlinkResolvable(const char *label, const char *pdCode,
+                                  size_t components) {
+    std::cout << "\n--- Coning the " << label
+              << ": a resolvable self-intersection at the apex ---\n";
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(pdCode));
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+    Skeleton<4, 2> skeleton(coned);
+
+    PetalCache cache;
+    SelfIntersectionCensus census;
+    KnottedSurface off(skeleton);
+    KnottedSurface on({.resolveUnlinked = true, .census = &census}, skeleton,
+                      cache);
+
+    std::string l(label);
+    EXPECT_EQ(addConeOver(off, skeleton, coned, result.edges), true,
+              l + ": every cone-triangle is accepted by addFace() -- the "
+                  "petals are unknots with pairwise linking number 0");
+    EXPECT_EQ(addConeOver(on, skeleton, coned, result.edges), true,
+              l + ": ...with the options set, too");
+
+    EXPECT_EQ(off.satisfies(BoundaryCondition::proper), true,
+              l + ": the cone is properly embedded (boundary = the link)");
+    EXPECT_EQ(off.isEmbedded(), false,
+              l + ": it is NOT 2-embedded: " + std::to_string(components) +
+                  " petals meet at the apex");
+    EXPECT_EQ(off.singularVertexCount(), size_t{1},
+              l + ": ...at exactly one vertex, the apex");
+    EXPECT_EQ(off.isResolvable(), true,
+              l + ": the apex's trace T_v(S) is certified the unlink");
+    EXPECT_EQ(off.isAcceptable(), false,
+              l + ": without --resolve-unlinked it is still rejected");
+    EXPECT_EQ(on.isAcceptable(), true,
+              l + ": with it, the surface is accepted");
+
+    auto tubed = KnottedSurface::tubedSurfaceType(on.triangulation());
+    EXPECT_EQ(on.triangulation().countComponents(), components,
+              l + ": the abstract surface Delta[S] is the " +
+                  std::to_string(components) +
+                  " discs apart -- what the resolution embeds");
+    EXPECT_EQ(tubed.genus, 0, l + ": ...of total genus 0");
+    EXPECT_EQ(tubed.punctures, static_cast<int>(components),
+              l + ": ...with one boundary circle per component");
+
+    on.tallySelfIntersection();
+    EXPECT_EQ(census.singular.load(), 1LL, l + ": census counts it singular");
+    EXPECT_EQ(census.interiorUnlinked.load(), 1LL,
+              l + ": ...as interior and certified unlinked");
+    const long long checkedBefore = census.audited.load();
+    EXPECT_EQ(on.isSmoothAtBoundary(), true,
+              l + ": its boundary-vertex petals (cones on two points) are "
+                  "unknotted, so it is smooth at the boundary");
+    EXPECT_EQ(census.audited.load(), checkedBefore + 1,
+              l + ": the boundary check is recorded in the census");
+    EXPECT_EQ(census.auditKnotted.load(), 0LL,
+              l + ": ...and never rejected it (isAcceptable() ran it too)");
+}
+
+void test_cone_on_unlink2_resolvable() {
+    expectConeOnUnlinkResolvable("2-component unlink", kUnlink2PD, 2);
+}
+
+void test_cone_on_unlink3_resolvable() {
+    expectConeOnUnlinkResolvable("3-component unlink", kUnlink3PD, 3);
+}
+
+void test_cone_on_whitehead_not_resolvable() {
+    std::cout << "\n--- Coning the Whitehead link: passes every prune, but "
+                 "is not resolvable ---\n";
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kWhiteheadPD));
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+    Skeleton<4, 2> skeleton(coned);
+
+    PetalCache cache;
+    SelfIntersectionCensus census;
+    KnottedSurface on({.resolveUnlinked = true, .census = &census}, skeleton,
+                      cache);
+    EXPECT_EQ(addConeOver(on, skeleton, coned, result.edges), true,
+              "addFace() accepts every cone-triangle: unknotted components, "
+              "linking number 0, so neither P_smooth nor P_transverse fires");
+    EXPECT_EQ(on.isEmbedded(), false, "two petals meet at the apex");
+    EXPECT_EQ(on.isResolvable(), false,
+              "the Whitehead link is not certified an unlink");
+    EXPECT_EQ(on.isAcceptable(), false,
+              "so even with --resolve-unlinked the surface is rejected");
+    on.tallySelfIntersection();
+    EXPECT_EQ(census.interiorUncertified.load(), 1LL,
+              "census: interior, not certified");
+}
+
+void test_cone_on_hopf_still_pruned() {
+    std::cout << "\n--- Coning the Hopf link: still pruned by "
+                 "P_transverse ---\n";
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kHopfLinkPD));
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+    Skeleton<4, 2> skeleton(coned);
+
+    PetalCache cache;
+    KnottedSurface on({.resolveUnlinked = true}, skeleton, cache);
+    EXPECT_EQ(addConeOver(on, skeleton, coned, result.edges), false,
+              "addFace() rejects the triangle closing the second petal "
+              "(linking number 1), whatever the options");
+}
+
+void test_boundary_vertex_self_intersection_not_resolvable() {
+    std::cout << "\n--- Two petals at a BOUNDARY vertex are never "
+                 "resolvable ---\n";
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kUnlink2PD));
+    CobordismBuilder<3> cob(result.tri);
+    auto &coned = cob.cone();
+    Skeleton<4, 2> skeleton(coned);
+
+    // Two boundary triangles sharing a vertex but no edge: each is its own
+    // petal there, so they meet at a vertex on the boundary -- where the
+    // boundary curves themselves would touch, which no perturbation rel
+    // boundary can undo.
+    std::optional<std::pair<int, int>> pair;
+    for (size_t a = 0; a < skeleton.numFaces() && !pair; ++a) {
+        const auto *fa = skeleton.getNodes()[a].face;
+        if (!fa->isBoundary())
+            continue;
+        for (size_t b = a + 1; b < skeleton.numFaces() && !pair; ++b) {
+            const auto *fb = skeleton.getNodes()[b].face;
+            if (!fb->isBoundary())
+                continue;
+            int sharedVertices = 0;
+            bool sharedEdge = false;
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    if (fa->vertex(i) == fb->vertex(j))
+                        ++sharedVertices;
+                    if (fa->edge(i) == fb->edge(j))
+                        sharedEdge = true;
+                }
+            }
+            if (sharedVertices == 1 && !sharedEdge)
+                pair.emplace(static_cast<int>(a), static_cast<int>(b));
+        }
+    }
+    EXPECT_EQ(pair.has_value(), true,
+              "fixture: two boundary triangles meeting in exactly one vertex");
+    if (!pair)
+        return;
+
+    PetalCache cache;
+    KnottedSurface on({.resolveUnlinked = true}, skeleton, cache);
+    EXPECT_EQ(on.addFace(pair->first) && on.addFace(pair->second), true,
+              "both triangles are added");
+    EXPECT_EQ(on.isEmbedded(), false, "they meet at their shared vertex");
+    EXPECT_EQ(on.isResolvable(), false,
+              "a self-intersection at a boundary vertex is not resolvable");
+    EXPECT_EQ(on.isAcceptable(), false,
+              "so it is rejected even with --resolve-unlinked");
+
+    // The census's multi-open split, by where the vertex lies relative to
+    // the search side: -1 (unknown) records neither half; its own boundary
+    // component makes it search-side; any other makes it far-side, where
+    // this lone vertex with exactly two open petals is the "simple" case.
+    long bc = -1;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            if (skeleton.getNodes()[pair->first].face->vertex(i) ==
+                skeleton.getNodes()[pair->second].face->vertex(j))
+                bc = static_cast<long>(skeleton.getNodes()[pair->first]
+                                           .face->vertex(i)
+                                           ->boundaryComponent()
+                                           ->index());
+    for (long side : {-1L, bc, bc + 1}) {
+        SelfIntersectionCensus census;
+        census.searchSideBoundary = side;
+        PetalCache sideCache;
+        KnottedSurface tallied({.census = &census}, skeleton, sideCache);
+        tallied.addFace(pair->first);
+        tallied.addFace(pair->second);
+        tallied.tallySelfIntersection();
+        const std::string l = "search side " + std::to_string(side) + ": ";
+        const bool far = side == bc + 1;
+        EXPECT_EQ(census.multiOpen.load(), 1LL, l + "multi-open");
+        EXPECT_EQ(census.multiOpenSearchSide.load(), side == bc ? 1LL : 0LL,
+                  l + "search-side split");
+        EXPECT_EQ(census.multiOpenFar.load(), far ? 1LL : 0LL,
+                  l + "far-side split");
+        EXPECT_EQ(census.multiOpenFarClean.load(), far ? 1LL : 0LL,
+                  l + "no other singular vertex, so clean");
+        EXPECT_EQ(census.multiOpenFarSimple.load(), far ? 1LL : 0LL,
+                  l + "one vertex, two open petals: simple");
+        EXPECT_EQ(census.farConfigs.size(), size_t(far ? 1 : 0),
+                  l + "one far-side configuration");
+    }
+}
+
+// Smoothness at the boundary (pl_enumeration_draft §4.3): the post hoc check
+// isAcceptable() applies at boundary vertices, which addFace() never checks.
+//
+// Ambient: the cone on a 3-ball B, whose apex lies on the boundary of the
+// resulting 4-ball. B is knotbuilder's S^3 for a knot K minus one tetrahedron
+// containing an edge e of K, so K \ e is a proper arc in B, knotted exactly
+// when K is. The cone on that arc is proper (the arc lies in B, part of the
+// boundary, and its end cone-edges in the cone on dB), embedded, and passes
+// every addFace() check, since all its vertices are boundary vertices. At the
+// apex it has one open petal whose trace is the arc. So the boundary check is
+// the only thing that can reject it -- and must, for the trefoil.
+void test_boundary_filter_rejects_knotted_boundary_petal() {
+    std::cout << "\n--- A knotted petal at a boundary vertex is rejected by "
+                 "the boundary check ---\n";
+    struct Case {
+        const char *label;
+        const char *pd;
+        bool smooth;
+    };
+    for (const Case &c : {Case{"R1-kinked unknot", "1 2 2 1", true},
+                          Case{"trefoil", kTrefoilPD, false}}) {
+        std::string l(c.label);
+        auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(c.pd));
+
+        // Built and modified in place, never moved: face pointers into it
+        // are taken below, and each arc edge is recorded positionally first
+        // because removeSimplex() rebuilds the skeleton.
+        std::optional<regina::Triangulation<3>> ball;
+        std::vector<const regina::Edge<3> *> arc;
+        for (const auto *cut : result.edges) {
+            for (const auto &emb : *cut) {
+                const auto *tet = emb.tetrahedron();
+                bool distinct = true;
+                for (int i = 0; i < 4 && distinct; ++i)
+                    for (int j = i + 1; j < 4 && distinct; ++j)
+                        distinct = tet->vertex(i) != tet->vertex(j);
+                if (!distinct)
+                    continue;
+                ball.emplace(result.tri);
+                std::vector<std::pair<regina::Tetrahedron<3> *, int>> desc;
+                bool ok = true;
+                for (const auto *k : result.edges) {
+                    if (k == cut)
+                        continue;
+                    bool found = false;
+                    for (const auto &e2 : *k)
+                        if (e2.tetrahedron()->index() != tet->index()) {
+                            desc.emplace_back(ball->tetrahedron(
+                                                  e2.tetrahedron()->index()),
+                                              e2.edge());
+                            found = true;
+                            break;
+                        }
+                    ok = ok && found;
+                }
+                if (!ok) {
+                    ball.reset();
+                    continue;
+                }
+                ball->removeSimplex(ball->tetrahedron(tet->index()));
+                if (!ball->isBall()) {
+                    ball.reset();
+                    continue;
+                }
+                for (auto [t, i] : desc)
+                    arc.push_back(t->edge(i));
+                break;
+            }
+            if (ball)
+                break;
+        }
+        EXPECT_EQ(ball.has_value(), true,
+                  l + ": fixture, a ball containing the knot minus one edge");
+        if (!ball)
+            continue;
+
+        CobordismBuilder<3> cob(*ball);
+        auto &coned = cob.cone();
+        Skeleton<4, 2> skeleton(coned);
+        PetalCache cache;
+        SelfIntersectionCensus census;
+        KnottedSurface s({.census = &census}, skeleton, cache);
+        EXPECT_EQ(addConeOver(s, skeleton, coned, arc), true,
+                  l + ": addFace() accepts every cone-triangle (all its "
+                      "vertices are boundary vertices, which it never checks)");
+        EXPECT_EQ(s.satisfies(BoundaryCondition::proper), true,
+                  l + ": the cone on the arc is proper");
+        EXPECT_EQ(s.isEmbedded(), true, l + ": and embedded");
+        EXPECT_EQ(s.isSmoothAtBoundary(), c.smooth,
+                  l + (c.smooth ? ": its apex petal is unknotted"
+                                : ": its apex petal (the knotted arc) is "
+                                  "knotted"));
+        EXPECT_EQ(s.isAcceptable(), c.smooth,
+                  l + (c.smooth ? ": so it is accepted"
+                                : ": so it is rejected, embedded or not"));
+        EXPECT_EQ(census.auditKnotted.load(), c.smooth ? 0LL : 2LL,
+                  l + ": the census records each rejection");
+    }
+}
+
+// The case the boundary guard in vertexUnlinked_() exists for, which the test
+// above cannot reach (its petals are open, so the closedness check already
+// refuses them): CLOSED petals whose traces form an unlink, at a BOUNDARY
+// vertex.
+//
+// Ambient: the cone on a 3-ball B -- knotbuilder's S^3 for the 2-component
+// unlink, punctured (Triangulation<3>::puncture(): a triangle is thickened
+// into a pillow and a ball removed from inside it, so the new boundary sphere
+// has only new vertices and the link stays in the interior). The cone on a
+// ball is a 4-ball whose apex lies on its boundary (in the cone on dB). The
+// cone on the link then has one CLOSED petal per component at the apex (its
+// spokes run into the interior, since the link misses dB), and the petal link
+// is the unlink. Everything the certificate checks passes; only the apex being
+// on the boundary should stop it.
+void test_boundary_vertex_closed_unlinked_petals_not_resolvable() {
+    std::cout << "\n--- Closed, unlinked petals at a BOUNDARY vertex are "
+                 "still not resolvable ---\n";
+    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kUnlink2PD));
+
+    // Built and modified in place, never moved: face pointers into it are
+    // taken below. puncture() rebuilds the skeleton but keeps every existing
+    // tetrahedron, so each link edge is recorded as (tetrahedron, local edge)
+    // first and re-resolved afterwards.
+    std::optional<regina::Triangulation<3>> ball;
+    ball.emplace(result.tri);
+    std::vector<std::pair<regina::Tetrahedron<3> *, int>> desc;
+    for (const auto *e : result.edges) {
+        const auto &emb = e->front();
+        desc.emplace_back(ball->tetrahedron(emb.tetrahedron()->index()),
+                          emb.edge());
+    }
+    ball->puncture();
+    std::vector<const regina::Edge<3> *> linkEdges;
+    for (auto [t, i] : desc)
+        linkEdges.push_back(t->edge(i));
+    bool linkInterior = true;
+    for (const auto *e : linkEdges)
+        linkInterior = linkInterior && !e->vertex(0)->isBoundary() &&
+                       !e->vertex(1)->isBoundary();
+    EXPECT_EQ(ball->isBall(), true, "fixture: the punctured S^3 is a ball");
+    EXPECT_EQ(linkInterior, true,
+              "fixture: the link misses the new boundary sphere");
+    if (!ball->isBall() || !linkInterior)
+        ball.reset();
+    if (!ball)
+        return;
+
+    CobordismBuilder<3> cob(*ball);
+    auto &coned = cob.cone();
+    Skeleton<4, 2> skeleton(coned);
+
+    PetalCache cache;
+    SelfIntersectionCensus census;
+    KnottedSurface on({.resolveUnlinked = true, .census = &census}, skeleton,
+                      cache);
+    EXPECT_EQ(addConeOver(on, skeleton, coned, linkEdges), true,
+              "every cone-triangle is added");
+    EXPECT_EQ(on.satisfies(BoundaryCondition::proper), true,
+              "the cone on the link is proper (its boundary, the link, "
+              "lies in B, part of the boundary)");
+    EXPECT_EQ(on.singularVertexCount(), size_t{1},
+              "it meets itself at exactly one vertex, the apex");
+    EXPECT_EQ(on.isResolvable(), false,
+              "closed, unlinked petals at a boundary vertex are refused");
+    EXPECT_EQ(on.isAcceptable(), false,
+              "so even --resolve-unlinked rejects it");
+    on.tallySelfIntersection();
+    EXPECT_EQ(census.boundaryUnlinked.load(), 1LL,
+              "census: the capped boundary test DOES certify it -- so the "
+              "refusal above is the boundary guard's doing, not the "
+              "certificate's");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Section F: hereditariness stress test for the new checks. enumerate_cis.h's
 // filtered DFS *requires* the predicate be genuinely hereditary (for every
 // connected U* satisfying it, every connected subset of U* must too) --
@@ -1358,6 +1755,17 @@ int main() {
 
     run("cone_on_trefoil_rejected", test_cone_on_trefoil_rejected);
     run("cone_on_unknot_accepted", test_cone_on_unknot_accepted);
+    run("cone_on_unlink2_resolvable", test_cone_on_unlink2_resolvable);
+    run("cone_on_unlink3_resolvable", test_cone_on_unlink3_resolvable);
+    run("cone_on_whitehead_not_resolvable",
+        test_cone_on_whitehead_not_resolvable);
+    run("cone_on_hopf_still_pruned", test_cone_on_hopf_still_pruned);
+    run("boundary_vertex_self_intersection_not_resolvable",
+        test_boundary_vertex_self_intersection_not_resolvable);
+    run("boundary_vertex_closed_unlinked_petals_not_resolvable",
+        test_boundary_vertex_closed_unlinked_petals_not_resolvable);
+    run("boundary_filter_rejects_knotted_boundary_petal",
+        test_boundary_filter_rejects_knotted_boundary_petal);
     run("hereditariness_stress", test_hereditariness_stress);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "

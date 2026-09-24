@@ -205,6 +205,66 @@ bool recognizeComplement(const EdgeComplement &e);
  */
 bool isUnknot(const EdgeComplement &e);
 
+/**
+ * Sound, one-sided certificate that `edges` is the `m`-component unlink in
+ * `tri`: returns \c true only if the edges form exactly `m` pairwise
+ * disjoint cycles and the fundamental group of their complement simplifies
+ * to a presentation with `m` generators and no relations. A link in S^3 is
+ * the unlink if and only if its group is free (pl_enumeration_draft,
+ * Lemma "unlink-free"), so \c true is conclusive. \c false is conclusive
+ * only about malformed input; for well-formed input it means "not proven"
+ * (the presentation did not simplify all the way), never "proven linked".
+ *
+ * Unlike the file-local groupProvesUnlink(), this checks the rank against
+ * `m` explicitly and validates the edge set itself, rather than relying on
+ * Link's component walk and on the ambient being a homology sphere.
+ *
+ * \pre `tri` is a triangulated 3-sphere. The certificate is about links in
+ * S^3; a free group of the right rank proves nothing elsewhere.
+ */
+bool certifiesUnlink(const regina::Triangulation<3> &tri,
+                     const std::vector<const regina::Edge<3> *> &edges,
+                     size_t m);
+
+/**
+ * A triangulated 3-ball with its boundary sphere coned off to a single
+ * apex (so a 3-sphere), together with a set of curves carried across into
+ * it; see capInCone().
+ *
+ * \warning `edges` points into `tri`, so an instance must stay where
+ * capInCone() filled it: copying or moving it would leave `edges` pointing
+ * into the old triangulation.
+ */
+struct CappedCurves {
+    regina::Triangulation<3> tri; /**< The coned-off ball: a 3-sphere. */
+    std::vector<const regina::Edge<3> *> edges;
+    /**< The input edges, re-resolved in `tri`, plus -- if the input had an
+         open arc -- the two cone edges closing it up through the apex. */
+    size_t components = 0; /**< Number of closed curves `edges` forms. */
+
+    CappedCurves() = default;
+    CappedCurves(const CappedCurves &) = delete;
+    CappedCurves &operator=(const CappedCurves &) = delete;
+};
+
+/**
+ * Cones off the boundary of `ball` (a triangulated 3-ball, e.g. the link of
+ * a boundary vertex of a 4-manifold) into `out.tri` and carries `edges`
+ * across into `out.edges`. `edges` must be a disjoint union of cycles plus
+ * at most one arc whose two endpoints lie on the boundary sphere; the arc
+ * is closed up through the apex. This is Definition "petal-knotted"'s
+ * capping construction: the two cone edges through the apex form an arc
+ * isotopic, rel endpoints, to any arc in the boundary sphere pushed slightly
+ * outward, so the closed-up curve is unknotted exactly when the arc is.
+ *
+ * \return \c false (leaving `out` unspecified) if `ball` has no boundary, or
+ * `edges` is not of the stated form: a repeated edge, a vertex of degree
+ * greater than 2, more than one arc, or an arc endpoint off the boundary.
+ */
+bool capInCone(const regina::Triangulation<3> &ball,
+               const std::vector<const regina::Edge<3> *> &edges,
+               CappedCurves &out);
+
 /** Prints whether each component of `l`'s complement is recognized; see recognizeComplement(const EdgeComplement&). */
 void recognizeComplement(const Link &l);
 

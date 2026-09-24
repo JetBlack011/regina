@@ -317,7 +317,9 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
                 owner_.limits_.capturePairSig
                     ? std::function<std::string()>(
                           [&embedding] { return embedding.pairSig(); })
-                    : std::function<std::string()>{}});
+                    : std::function<std::string()>{},
+            .resolvedVertices =
+                static_cast<int>(embedding.singularVertexCount())});
     }
 }
 
@@ -503,7 +505,9 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                     limits_.capturePairSig
                         ? std::function<std::string()>(
                               [&embedding] { return embedding.pairSig(); })
-                        : std::function<std::string()>{}},
+                        : std::function<std::string()>{},
+                .resolvedVertices =
+                    static_cast<int>(embedding.singularVertexCount())},
             descriptor, boundaryComponents,
             [&embedding] { return embedding.orientedBoundaryLinks(); }});
     }
@@ -555,7 +559,14 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
         // std::mutex, so it is not movable, and only guaranteed copy elision
         // makes this compile. The context is attached in ThreadHook::onFound
         // instead, where the embedding is actually used.
-        [this] { return KnottedSurface(skeleton_, petalCache_); },
+        [this] {
+            // The shared ambient context is attached here too, so the census
+            // audit's rare pairSig() calls never recompute ambient data.
+            KnottedSurface::SelfIntersectionOptions options =
+                selfIntersections_;
+            options.pairSigContext = &pairSigCtx_;
+            return KnottedSurface(options, skeleton_, petalCache_);
+        },
         [this, wantLinks, &callbacks] {
             return std::make_unique<ThreadHook>(*this, surfaceTypeTally_,
                                                 wantLinks, callbacks);
@@ -597,7 +608,9 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                         .triangleCount = triangleCount,
                                         .mostRestrictive =
                                             classifyByLinks_(links),
-                                        .capturePairSig = capturePairSig},
+                                        .capturePairSig = capturePairSig,
+                                        .resolvedVertices = static_cast<int>(
+                                            probe.singularVertexCount())},
                         descriptor, boundaryComponents,
                         [&probe] { return probe.orientedBoundaryLinks(); }});
             } else if (callbacks.onSurfaceFound) {
@@ -612,7 +625,9 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                     .connected = probe.triangulation().isConnected(),
                     .triangleCount = triangleCount,
                     .mostRestrictive = classifyCheaply_(probe),
-                    .capturePairSig = capturePairSig});
+                    .capturePairSig = capturePairSig,
+                    .resolvedVertices =
+                        static_cast<int>(probe.singularVertexCount())});
             }
         },
         callbacks, auxHooks,

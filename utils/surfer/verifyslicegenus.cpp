@@ -210,6 +210,63 @@ void appendSurfaceStats(const std::filesystem::path &path,
         << ',' << n << '\n';
 }
 
+/**
+ * Appends one row of --self-intersection-census output (see
+ * SelfIntersectionCensus) for `rowName`, with the search's own resolved
+ * count alongside. Per row, like appendSurfaceStats(), so an interrupted
+ * run keeps what it measured.
+ */
+void appendSelfIntersectionCensus(const std::filesystem::path &path,
+                                  const std::string &rowName,
+                                  long long maxFaces, bool resolveUnlinked,
+                                  const SearchStats &stats,
+                                  SelfIntersectionCensus &census) {
+  const bool needHeader = !std::filesystem::exists(path);
+  std::ofstream out(path, std::ios::app);
+  if (!out) {
+    std::cerr << "[!] could not open " << path
+              << " for --self-intersection-census\n";
+    return;
+  }
+  if (needHeader)
+    out << "row,max_faces,resolve_unlinked,satisfying,embedded,resolved,"
+           "singular,interior_unlinked,interior_uncertified,"
+           "boundary_unlinked,boundary_uncertified,multi_open,"
+           "multi_open_search_side,multi_open_far,multi_open_far_clean,"
+           "multi_open_far_simple,far_configs,far_clean_configs,"
+           "configs_saturated,audited,audit_knotted,knotted_pairsigs\n";
+  size_t farConfigs, farCleanConfigs;
+  bool saturated;
+  {
+    std::lock_guard<std::mutex> lock(census.configsMutex);
+    farConfigs = census.farConfigs.size();
+    farCleanConfigs = census.farCleanConfigs.size();
+    saturated = census.configsSaturated;
+  }
+  std::string hits;
+  {
+    std::lock_guard<std::mutex> lock(census.hitsMutex);
+    for (size_t i = 0; i < census.knottedPairSigs.size(); ++i)
+      hits += (i ? ";" : "") + census.knottedPairSigs[i];
+  }
+  auto get = [](const std::atomic<long long> &a) {
+    return a.load(std::memory_order_relaxed);
+  };
+  out << csvField(rowName) << ',' << maxFaces << ','
+      << (resolveUnlinked ? "true" : "false") << ',' << stats.satisfyingCount
+      << ',' << stats.embeddedCount << ',' << stats.resolvedCount << ','
+      << get(census.singular) << ',' << get(census.interiorUnlinked) << ','
+      << get(census.interiorUncertified) << ','
+      << get(census.boundaryUnlinked) << ','
+      << get(census.boundaryUncertified) << ',' << get(census.multiOpen)
+      << ',' << get(census.multiOpenSearchSide) << ','
+      << get(census.multiOpenFar) << ',' << get(census.multiOpenFarClean)
+      << ',' << get(census.multiOpenFarSimple) << ',' << farConfigs << ','
+      << farCleanConfigs << ',' << (saturated ? "true" : "false") << ','
+      << get(census.audited) << ',' << get(census.auditKnotted) << ','
+      << csvField(hits) << '\n';
+}
+
 // Fired from callbacks.onProgress once per second while a knot's search runs.
 void printProgress(const SearchStats &stats, SurfaceSearch &e) {
   std::ostringstream report;
@@ -573,9 +630,15 @@ loadOutputCsv(const std::filesystem::path &path) {
 // every fact a search paid for is written here once and never re-searched,
 // and `--solve-only` re-derives all the conclusions from them in seconds.
 
+// resolved_vertices (Witness::resolvedVertices) is written EMPTY when 0, which
+// is every witness but those found under --resolve-unlinked. That keeps a row
+// written before the column existed, or merged in by a Python DictWriter
+// (which fills a missing field with ""), byte-identical after a --solve-only
+// round trip -- the invariant merge_cobordisms.py relies on.
 constexpr const char *COBORDISMS_HEADER =
     "kind,subject,subject_components,other,other_candidates,other_components,"
-    "genus,tubed,pairsig,source_row,thicken_layers,max_faces";
+    "genus,tubed,pairsig,source_row,thicken_layers,max_faces,"
+    "resolved_vertices";
 
 std::string formatWitness(const cobordismgraph::Witness &w) {
   std::ostringstream candidates;
@@ -591,7 +654,10 @@ std::string formatWitness(const cobordismgraph::Witness &w) {
       << csvField(w.other) << ',' << csvField(candidates.str()) << ','
       << w.otherComponents << ',' << w.genus << ','
       << (w.tubed ? "true" : "false") << ',' << csvField(w.pairSig) << ','
-      << csvField(w.sourceRow) << ',' << w.thickenLayers << ',' << w.maxFaces;
+      << csvField(w.sourceRow) << ',' << w.thickenLayers << ',' << w.maxFaces
+      << ',';
+  if (w.resolvedVertices != 0)
+    out << w.resolvedVertices;
   return out.str();
 }
 
@@ -634,6 +700,19 @@ loadWitnesses(const std::filesystem::path &path) {
     w.tubed = f[7] == "true";
     w.pairSig = f[8];
     w.sourceRow = f[9];
+    // Optional 13th field (absent in files written before it existed).
+    // Informational only, so an unreadable value never costs the witness
+    // itself: dropping it here would delete it from cobordisms.csv at the
+    // next writeWitnesses().
+    if (f.size() > 12 && !f[12].empty()) {
+      try {
+        w.resolvedVertices = std::stoi(f[12]);
+      } catch (const std::exception &) {
+        std::cerr << "[!] " << path.string() << ": unreadable resolved_vertices '"
+                  << f[12] << "' for a " << w.subject
+                  << " witness; keeping the witness, recording 0\n";
+      }
+    }
     result.push_back(std::move(w));
   }
   return result;
@@ -1132,6 +1211,30 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     per-root budgets, worth the time (default: "
          "off).\n";
   std::cerr
+      << "    --resolve-unlinked : Also accept surfaces that meet themselves "
+         "only at\n"
+         "                     interior vertices whose trace (all petals "
+         "together) is a certified unlink\n"
+         "                     (pl_enumeration_draft §4.5): a perturbation "
+         "near those\n"
+         "                     vertices embeds each one with the same "
+         "topology. Such witnesses\n"
+         "                     carry resolved_vertices > 0. Changes what "
+         "counts toward\n"
+         "                     --surface-target, so set it for a whole "
+         "campaign or not\n"
+         "                     at all (default: off).\n";
+  std::cerr
+      << "    --self-intersection-census <path> : Measurement only. Appends "
+         "one row per\n"
+         "                     searched row: how many self-intersecting "
+         "candidates of\n"
+         "                     each kind the search met, and an audit of "
+         "boundary-vertex\n"
+         "                     petals on accepted surfaces. Slows the search "
+         "(default:\n"
+         "                     off).\n";
+  std::cerr
       << "    --root-budget-start N : Ration each root's enumeration to N "
          "tryAdd\n"
          "                     attempts per pass, doubling the ration each "
@@ -1251,6 +1354,13 @@ int main(int argc, char *argv[]) {
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
   long long rootBudgetGrowth = 2;
   bool censusUpdates = true;
+  // Accept surfaces whose only self-intersections are unlinked (paper §4.5,
+  // KnottedSurface::isResolvable()). Off by default because it changes which
+  // surfaces count toward --surface-target, so a campaign must set it for
+  // every host or for none.
+  bool resolveUnlinked = false;
+  // Measurement only; see SelfIntersectionCensus.
+  std::optional<std::string> selfIntersectionCensusPath;
 
   unsigned numThreads = std::thread::hardware_concurrency();
   if (numThreads == 0)
@@ -1373,6 +1483,12 @@ int main(int argc, char *argv[]) {
       surfaceLogPath = argv[++i];
     } else if (arg == "--research-settled") {
       researchSettled = true;
+    } else if (arg == "--resolve-unlinked") {
+      resolveUnlinked = true;
+    } else if (arg == "--self-intersection-census") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--self-intersection-census requires a value.");
+      selfIntersectionCensusPath = argv[++i];
     } else if (arg == "--root-budget-start") {
       if (i + 1 >= argc)
         usage(argv[0], "--root-budget-start requires a value.");
@@ -2000,6 +2116,18 @@ int main(int argc, char *argv[]) {
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
 
+    // Fresh per row, so each census line describes one row's search.
+    std::optional<SelfIntersectionCensus> selfIntersectionCensus;
+    if (selfIntersectionCensusPath) {
+      selfIntersectionCensus.emplace();
+      selfIntersectionCensus->searchSideBoundary =
+          static_cast<long>(searchSideBC);
+    }
+    e.configureSelfIntersections(
+        {.resolveUnlinked = resolveUnlinked,
+         .census = selfIntersectionCensus ? &*selfIntersectionCensus
+                                          : nullptr});
+
     std::optional<SurfaceStatsTally> surfaceStats;
     if (surfaceStatsPath)
       surfaceStats.emplace();
@@ -2142,6 +2270,7 @@ int main(int argc, char *argv[]) {
       w.sourceRow = row.name;
       w.thickenLayers = thickenLayers;
       w.maxFaces = maxFaces.value_or(0);
+      w.resolvedVertices = info.resolvedVertices;
 
       if (split.otherSides.empty()) {
         w.kind = cobordismgraph::WitnessKind::direct;
@@ -2390,6 +2519,10 @@ int main(int argc, char *argv[]) {
     if (surfaceStats)
       appendSurfaceStats(*surfaceStatsPath, row.name,
                          maxFaces.value_or(0), surfaceStats->take());
+    if (selfIntersectionCensus)
+      appendSelfIntersectionCensus(*selfIntersectionCensusPath, row.name,
+                                   maxFaces.value_or(0), resolveUnlinked,
+                                   finalStats, *selfIntersectionCensus);
     progressPrevLines_ = 0;
     ++searchedThisRun;
 
@@ -2429,6 +2562,13 @@ int main(int argc, char *argv[]) {
       std::cout << ", " << rejected
                 << " surfaces rejected on orientation mismatch";
     std::cout << "\n";
+    // Its own line, so the summary line above (parsed by
+    // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.
+    if (resolveUnlinked)
+      std::cout << "[+] " << row.name << ": " << finalStats.resolvedCount
+                << " of " << finalStats.satisfyingCount
+                << " accepted surfaces have unlinked self-intersections "
+                   "(--resolve-unlinked)\n";
 
     auto verdict = outputRows.find(row.name);
     if (verdict != outputRows.end()) {

@@ -142,9 +142,18 @@ bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
   // Disabled per conjecture: the self-intersections this allowed through
   // are always cusp (tangential), never transversal, intersections, and
   // should always be resolvable after the fact -- rather than rejected
-  // during search. That resolution isn't implemented yet; for now this
-  // means addFace()/search() can accept submanifolds that are not
-  // genuinely embedded (not injective) at codimension >= 2. Codimension-1
+  // during search. That means addFace()/search() can accept submanifolds
+  // that are not genuinely embedded (not injective) at codimension >= 2.
+  //
+  // What is now known (pl_enumeration_draft §4.5): the conjecture holds in
+  // a precise, weaker form. A self-intersection at an INTERIOR vertex whose
+  // trace T_v(S) is the unlink is removable, canonically, without changing
+  // the abstract surface; KnottedSurface::isResolvable() certifies exactly
+  // that, and --resolve-unlinked accepts such surfaces. The unqualified
+  // conjecture is false: a Hopf trace is a genuine transverse double point
+  // (P_transverse prunes it), a Whitehead trace passes every prune yet is
+  // not removable, and two open petals at a boundary vertex mean the
+  // boundary curves themselves touch. Codimension-1
   // (facet-level, Phase 1 above) checks are NOT affected and remain in
   // place -- those failures are genuinely unfixable.
   //
@@ -614,6 +623,245 @@ KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
         "point.");
 }
 
+KnottedSurface::KnottedSurface(const SelfIntersectionOptions &options,
+                               const Skeleton<4, 2> &skeleton,
+                               PetalCache &petalCache)
+    : KnottedSurface(skeleton, petalCache) {
+  resolveUnlinked_ = options.resolveUnlinked;
+  census_ = options.census;
+  if (options.pairSigContext)
+    usePairSigContext(options.pairSigContext);
+}
+
+std::vector<size_t> KnottedSurface::singularVertices_() const {
+  std::vector<size_t> result;
+  const size_t want = singularVertexCount();
+  for (size_t v = 0; v < facesAtVertex_.size() && result.size() < want; ++v)
+    if (registeredClassRoots(v).size() >= 2)
+      result.push_back(v);
+  return result;
+}
+
+bool KnottedSurface::vertexUnlinked_(size_t v) const {
+  const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+  if (ambientVertex->isBoundary())
+    return false;
+
+  // A copy: petalCorners_()/internPetal() below do not touch the registry,
+  // but nothing here should depend on that.
+  const std::vector<int> roots = registeredClassRoots(v);
+  std::vector<PetalCache::PetalId> ids;
+  ids.reserve(roots.size());
+  for (int root : roots) {
+    // At an interior vertex every petal of a proper surface is closed; an
+    // open one means the surface is not proper there, and the petal is not
+    // a curve in Lk(v) at all.
+    if (!isPetalClosed_(v, root))
+      return false;
+    ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
+  }
+
+  // The answer depends only on which petals are present at v (the same
+  // petal-identity argument as addFace()'s unknot/linking memoization).
+  if (auto cached =
+          petalCache_.lookupPetalSet(PetalCache::SetQuery::unlink, ids))
+    return *cached;
+
+  std::vector<const regina::Edge<3> *> edges;
+  for (int root : roots) {
+    auto curve = petalTrace_(ambientVertex, v, root);
+    edges.insert(edges.end(), curve.begin(), curve.end());
+  }
+  bool unlinked = identify::certifiesUnlink(ambientVertex->buildLink(), edges,
+                                            roots.size());
+  petalCache_.recordPetalSet(PetalCache::SetQuery::unlink, ids, unlinked);
+  return unlinked;
+}
+
+std::optional<bool> KnottedSurface::boundaryVertexUnlinked_(size_t v) const {
+  const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+  const std::vector<int> roots = registeredClassRoots(v);
+  std::vector<PetalCache::PetalId> ids;
+  ids.reserve(roots.size());
+  size_t open = 0;
+  for (int root : roots) {
+    if (!isPetalClosed_(v, root))
+      ++open;
+    ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
+  }
+  if (open > 1)
+    return std::nullopt;
+
+  if (auto cached =
+          petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnlink, ids))
+    return *cached;
+
+  std::vector<const regina::Edge<3> *> edges;
+  for (int root : roots) {
+    // petalTrace_() collects the petal's trace whether it is a cycle or,
+    // for an open petal, an arc.
+    auto curve = petalTrace_(ambientVertex, v, root);
+    edges.insert(edges.end(), curve.begin(), curve.end());
+  }
+  identify::CappedCurves capped;
+  bool unlinked =
+      identify::capInCone(ambientVertex->buildLink(), edges, capped) &&
+      capped.components == roots.size() &&
+      identify::certifiesUnlink(capped.tri, capped.edges, roots.size());
+  petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnlink, ids,
+                             unlinked);
+  return unlinked;
+}
+
+bool KnottedSurface::isResolvable() const {
+  for (size_t v : singularVertices_())
+    if (!vertexUnlinked_(v))
+      return false;
+  return true;
+}
+
+void KnottedSurface::tallySelfIntersection() const {
+  if (!census_)
+    return;
+  census_->singular.fetch_add(1, std::memory_order_relaxed);
+
+  bool anyBoundary = false;
+  bool certified = true; // every singular vertex that is not multi-open
+  std::vector<size_t> multiOpen;
+  for (size_t v : singularVertices_()) {
+    if (!skeleton_.triangulation().vertex(v)->isBoundary()) {
+      if (!vertexUnlinked_(v))
+        certified = false;
+      continue;
+    }
+    anyBoundary = true;
+    auto capped = boundaryVertexUnlinked_(v);
+    if (!capped)
+      multiOpen.push_back(v);
+    else if (!*capped)
+      certified = false;
+  }
+
+  if (multiOpen.empty()) {
+    auto &bucket = anyBoundary
+                       ? (certified ? census_->boundaryUnlinked
+                                    : census_->boundaryUncertified)
+                       : (certified ? census_->interiorUnlinked
+                                    : census_->interiorUncertified);
+    bucket.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  census_->multiOpen.fetch_add(1, std::memory_order_relaxed);
+  if (census_->searchSideBoundary < 0)
+    return;
+  for (size_t v : multiOpen)
+    if (static_cast<long>(skeleton_.triangulation()
+                              .vertex(v)
+                              ->boundaryComponent()
+                              ->index()) == census_->searchSideBoundary) {
+      census_->multiOpenSearchSide.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+
+  census_->multiOpenFar.fetch_add(1, std::memory_order_relaxed);
+  if (certified) {
+    census_->multiOpenFarClean.fetch_add(1, std::memory_order_relaxed);
+    if (multiOpen.size() == 1) {
+      const std::vector<int> &roots = registeredClassRoots(multiOpen[0]);
+      if (roots.size() == 2 && !isPetalClosed_(multiOpen[0], roots[0]) &&
+          !isPetalClosed_(multiOpen[0], roots[1]))
+        census_->multiOpenFarSimple.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  // A configuration is the vertex together with its full set of petals,
+  // each petal by its sorted corners -- the same identity the PetalCache
+  // keys on, so equal hashes mean the same local picture.
+  std::vector<uint64_t> configs;
+  for (size_t v : multiOpen) {
+    std::vector<uint64_t> petals;
+    for (int root : registeredClassRoots(v)) {
+      std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
+      std::sort(corners.begin(), corners.end());
+      petals.push_back(CornerVectorHash{}(corners));
+    }
+    std::sort(petals.begin(), petals.end());
+    uint64_t h = static_cast<uint64_t>(v) * 0x9e3779b97f4a7c15ULL;
+    for (uint64_t p : petals)
+      h ^= p + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    configs.push_back(h);
+  }
+  census_->recordFarConfigs(configs, certified);
+}
+
+size_t KnottedSurface::CornerVectorHash::operator()(
+    const std::vector<PetalCache::Corner> &corners) const {
+  size_t h = corners.size();
+  for (const auto &[f, local] : corners)
+    h ^= ((static_cast<size_t>(f) << 2) | static_cast<size_t>(local)) +
+         0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+  return h;
+}
+
+bool KnottedSurface::boundaryPetalUnknotted_(size_t v, int root) const {
+  std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
+  std::sort(corners.begin(), corners.end());
+  if (auto it = boundaryFlatMemo_.find(corners); it != boundaryFlatMemo_.end())
+    return it->second;
+
+  // The answer depends only on the petal's corners (the same identity
+  // argument as addFace()'s memoization), so the shared cache applies too.
+  std::vector<PetalCache::PetalId> id{petalCache_.internPetal(corners)};
+  auto unknotted =
+      petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnknot, id);
+  if (!unknotted) {
+    const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+    identify::CappedCurves capped;
+    // A trace that cannot be capped (an arc end off the boundary, i.e. a
+    // non-proper surface) is not certified flat, so it counts as knotted.
+    bool isUnknot =
+        identify::capInCone(ambientVertex->buildLink(),
+                            petalTrace_(ambientVertex, v, root), capped) &&
+        capped.components == 1 &&
+        identify::isUnknot(Knot(capped.tri, capped.edges));
+    petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnknot, id,
+                               isUnknot);
+    unknotted = isUnknot;
+  }
+
+  if (boundaryFlatMemo_.size() >= BOUNDARY_FLAT_MEMO_LIMIT)
+    boundaryFlatMemo_.clear();
+  boundaryFlatMemo_.emplace(std::move(corners), *unknotted);
+  return *unknotted;
+}
+
+bool KnottedSurface::isSmoothAtBoundary() const {
+  const auto &tri = skeleton_.triangulation();
+  bool smooth = true;
+  for (size_t v = 0; v < facesAtVertex_.size() && smooth; ++v) {
+    if (facesAtVertex_[v].empty() || !tri.vertex(v)->isBoundary())
+      continue;
+    for (int root : registeredClassRoots(v))
+      if (!boundaryPetalUnknotted_(v, root)) {
+        smooth = false;
+        break;
+      }
+  }
+
+  if (census_) {
+    census_->audited.fetch_add(1, std::memory_order_relaxed);
+    if (!smooth) {
+      census_->auditKnotted.fetch_add(1, std::memory_order_relaxed);
+      // pairSig() is the expensive part; only pay it for a hit that will be
+      // kept.
+      if (census_->wantsKnottedHit())
+        census_->recordKnottedHit(pairSig());
+    }
+  }
+  return smooth;
+}
+
 const regina::Edge<3> *
 KnottedSurface::linkEdgeForTriangle_(const regina::Vertex<4> *ambientVertex,
                                      int f, int localVertex) const {
@@ -659,8 +907,8 @@ bool KnottedSurface::isPetalClosed_(size_t v, int root) const {
 }
 
 std::vector<const regina::Edge<3> *>
-KnottedSurface::closedPetalCurve_(const regina::Vertex<4> *ambientVertex,
-                                  size_t v, int root) const {
+KnottedSurface::petalTrace_(const regina::Vertex<4> *ambientVertex,
+                            size_t v, int root) const {
   std::vector<const regina::Edge<3> *> curve;
   for (const auto &[f, localVertex] : facesAtVertex_[v]) {
     if (vertexClassRoot(f, localVertex) != root)
@@ -738,7 +986,7 @@ bool KnottedSurface::addFace(int f) {
     auto ensureKnotA = [&]() -> Knot & {
       if (!knotA)
         knotA.emplace(ambientVertex->buildLink(),
-                      closedPetalCurve_(ambientVertex, v, root));
+                      petalTrace_(ambientVertex, v, root));
       return *knotA;
     };
 
@@ -772,7 +1020,7 @@ bool KnottedSurface::addFace(int f) {
         nonzero = *cachedLink;
       } else {
         Knot knotB(ambientVertex->buildLink(),
-                   closedPetalCurve_(ambientVertex, v, other));
+                   petalTrace_(ambientVertex, v, other));
         nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
         petalCache_.recordLinksNonzero(idA, idB, nonzero);
       }

@@ -40,6 +40,7 @@ PetalCache::PetalId PetalCache::internPetal(std::vector<Corner> corners) {
         byCorners_.clear();
         unknotById_.clear();
         linkingCache_.clear();
+        petalSetCache_.clear();
         ++epoch_;
         ++stats_.cacheResets;
     }
@@ -86,6 +87,69 @@ void PetalCache::recordLinksNonzero(PetalId a, PetalId b, bool nonzero) {
     if (epochOf_(a) != epoch_ || epochOf_(b) != epoch_)
         return;
     linkingCache_[linkKey_(localIdOf_(a), localIdOf_(b))] = nonzero;
+}
+
+size_t
+PetalCache::PetalSetHash::operator()(const std::vector<int> &key) const {
+    size_t h = key.size();
+    for (int x : key)
+        h ^= static_cast<size_t>(x) + 0x9e3779b97f4a7c15ULL + (h << 6) +
+             (h >> 2);
+    return h;
+}
+
+std::optional<std::vector<int>>
+PetalCache::petalSetKey_(SetQuery query,
+                         const std::vector<PetalId> &ids) const {
+    std::vector<int> key;
+    key.reserve(ids.size() + 1);
+    key.push_back(static_cast<int>(query));
+    std::vector<int> local;
+    local.reserve(ids.size());
+    for (PetalId id : ids) {
+        if (epochOf_(id) != epoch_)
+            return std::nullopt;
+        local.push_back(localIdOf_(id));
+    }
+    std::ranges::sort(local);
+    key.insert(key.end(), local.begin(), local.end());
+    return key;
+}
+
+std::optional<bool>
+PetalCache::lookupPetalSet(SetQuery query,
+                           const std::vector<PetalId> &ids) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++stats_.petalSetChecks;
+    auto key = petalSetKey_(query, ids);
+    if (!key)
+        return std::nullopt;
+    auto it = petalSetCache_.find(*key);
+    if (it == petalSetCache_.end())
+        return std::nullopt;
+    ++stats_.petalSetCacheHits;
+    return it->second;
+}
+
+void PetalCache::recordPetalSet(SetQuery query,
+                                const std::vector<PetalId> &ids,
+                                bool answer) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Bounded like the rest of the cache: past the same threshold, clear
+    // everything and start a new epoch (see internPetal()). `ids` then belong
+    // to the old epoch, so petalSetKey_() declines them and nothing is
+    // recorded -- a harmless miss next time.
+    if (petalSetCache_.size() >= clearThreshold_) {
+        byCorners_.clear();
+        unknotById_.clear();
+        linkingCache_.clear();
+        petalSetCache_.clear();
+        ++epoch_;
+        ++stats_.cacheResets;
+    }
+    auto key = petalSetKey_(query, ids);
+    if (key)
+        petalSetCache_[std::move(*key)] = answer;
 }
 
 void PetalCache::setClearThreshold(size_t threshold) {

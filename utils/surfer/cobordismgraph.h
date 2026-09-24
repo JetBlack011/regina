@@ -215,6 +215,16 @@ struct Witness {
     std::string sourceRow;
     int thickenLayers = 1;
     long long maxFaces = 0; /**< 0 means the search was unbounded. */
+
+    int resolvedVertices = 0;
+    /**< How many ambient vertices the found surface meets itself at. 0 for
+         an embedded surface. Positive only under --resolve-unlinked, where
+         each such vertex is an unlinked self-intersection, and a
+         perturbation near those vertices turns the surface into an embedded
+         one of the same topology and boundary (paper §4.5), so the witness
+         bounds exactly as an embedded one would. Recorded, not
+         interpreted: the solver ignores it, and it is not part of
+         haveWitness()'s dedup key. */
 };
 
 /** Whether `witnesses` already contains an equivalent witness. This is the

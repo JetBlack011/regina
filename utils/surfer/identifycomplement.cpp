@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <unordered_set>
 #include <sstream>
 
 #include <sqlite3.h>
@@ -411,6 +412,143 @@ bool recognizeComplement(const EdgeComplement &e) {
 bool isUnknot(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     return cachedGenus(complement, complement.isoSig()) == 1;
+}
+
+namespace {
+// How many cycles `edges` forms, or nullopt unless it is a disjoint union of
+// cycles: no repeated edge, and every vertex it touches has degree exactly 2
+// (a loop edge contributes 2 to its one vertex). A connected 2-regular
+// multigraph is a cycle, so the component count is then the cycle count.
+std::optional<size_t>
+countCycles(const std::vector<const regina::Edge<3> *> &edges) {
+    std::unordered_set<const regina::Edge<3> *> seen;
+    std::unordered_map<size_t, int> degree;
+    std::unordered_map<size_t, size_t> parent;
+    std::function<size_t(size_t)> find = [&](size_t x) {
+        while (parent[x] != x)
+            x = parent[x] = parent[parent[x]];
+        return x;
+    };
+    for (const auto *e : edges) {
+        if (!seen.insert(e).second)
+            return std::nullopt;
+        size_t a = e->vertex(0)->index(), b = e->vertex(1)->index();
+        ++degree[a];
+        ++degree[b];
+        parent.try_emplace(a, a);
+        parent.try_emplace(b, b);
+        parent[find(a)] = find(b);
+    }
+    size_t roots = 0;
+    for (const auto &[v, d] : degree) {
+        if (d != 2)
+            return std::nullopt;
+        if (find(v) == v)
+            ++roots;
+    }
+    return roots;
+}
+} // namespace
+
+bool certifiesUnlink(const regina::Triangulation<3> &tri,
+                     const std::vector<const regina::Edge<3> *> &edges,
+                     size_t m) {
+    if (m == 0)
+        return false;
+    auto cycles = countCycles(edges);
+    if (!cycles || *cycles != m)
+        return false;
+    // pinchEdge()'s one precondition; buildComplement() pinches every edge.
+    for (const auto *e : edges)
+        if (e->isBoundary())
+            return false;
+    try {
+        auto complement = EdgeComplement(tri, edges).buildComplement();
+        if (!complement.isValid() || !complement.isConnected())
+            return false;
+        // group() simplifies internally; ideal vertices count as truncated,
+        // so this is pi_1 of the link exterior. A presentation with no
+        // relations IS free, of rank countGenerators(), however simplify()
+        // reached it -- which is what makes this one-sided but sound.
+        const regina::GroupPresentation &g = complement.group();
+        return g.countRelations() == 0 && g.countGenerators() == m;
+    } catch (const std::exception &) {
+        return false;
+    }
+}
+
+bool capInCone(const regina::Triangulation<3> &ball,
+               const std::vector<const regina::Edge<3> *> &edges,
+               CappedCurves &out) {
+    if (edges.empty() || !ball.hasBoundaryFacets())
+        return false;
+
+    // Everything is recorded positionally first: Edge<3>*/Vertex<3>* belong
+    // to `ball`, but (tetrahedron index, local number) survives both the
+    // copy and makeIdeal(), which only appends tetrahedra.
+    std::unordered_set<const regina::Edge<3> *> seen;
+    std::unordered_map<size_t, int> degree;
+    std::vector<std::pair<size_t, int>> edgeDesc;
+    for (const auto *e : edges) {
+        if (!seen.insert(e).second)
+            return false;
+        edgeDesc.emplace_back(e->front().simplex()->index(), e->front().face());
+        ++degree[e->vertex(0)->index()];
+        ++degree[e->vertex(1)->index()];
+    }
+    std::vector<std::pair<size_t, int>> endDesc;
+    for (const auto &[v, d] : degree) {
+        if (d == 1) {
+            const auto *vertex = ball.vertex(v);
+            if (!vertex->isBoundary())
+                return false;
+            endDesc.emplace_back(vertex->front().simplex()->index(),
+                                 vertex->front().face());
+        } else if (d != 2) {
+            return false;
+        }
+    }
+    if (!endDesc.empty() && endDesc.size() != 2)
+        return false;
+
+    const size_t nOrig = ball.size();
+    out.tri = ball;
+    out.tri.makeIdeal();
+    if (out.tri.size() <= nOrig)
+        return false;
+
+    out.edges.clear();
+    for (const auto &[t, i] : edgeDesc)
+        out.edges.push_back(out.tri.tetrahedron(t)->edge(i));
+
+    if (!endDesc.empty()) {
+        // makeIdeal() glues facet 3 of each new tetrahedron to a boundary
+        // facet, so local vertex 3 of every new tetrahedron is the apex.
+        const auto *apex = out.tri.tetrahedron(nOrig)->vertex(3);
+        for (const auto &[t, i] : endDesc) {
+            const auto *x = out.tri.tetrahedron(t)->vertex(i);
+            const regina::Edge<3> *spoke = nullptr;
+            for (size_t c = nOrig; c < out.tri.size() && !spoke; ++c) {
+                auto *cone = out.tri.tetrahedron(c);
+                for (int a = 0; a < 3; ++a)
+                    if (cone->vertex(a) == x) {
+                        spoke = cone->edge(a, 3);
+                        break;
+                    }
+            }
+            if (!spoke ||
+                !((spoke->vertex(0) == x && spoke->vertex(1) == apex) ||
+                  (spoke->vertex(1) == x && spoke->vertex(0) == apex)))
+                return false;
+            out.edges.push_back(spoke);
+        }
+    }
+
+    auto cycles = countCycles(out.edges);
+    if (!cycles)
+        return false;
+    out.components = *cycles;
+    return true;
 }
 
 void recognizeComplement(const Link &l) {

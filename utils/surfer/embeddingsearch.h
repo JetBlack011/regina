@@ -75,7 +75,11 @@ struct SearchStats {
   size_t totalRoots = 0; /**< The total number of DFS roots this search will explore. */
   long long foundCount = 0; /**< Raw candidates visited, regardless of BoundaryCondition. */
   long long embeddedCount = 0; /**< Candidates satisfying isEmbedded(), regardless of BoundaryCondition. */
-  long long satisfyingCount = 0; /**< Candidates satisfying isEmbedded() and the BoundaryCondition. */
+  long long satisfyingCount = 0; /**< Candidates accepted (isAcceptable(), normally isEmbedded()) and satisfying the BoundaryCondition. */
+  long long resolvedCount = 0;
+      /**< Of satisfyingCount, how many were accepted only because their
+           self-intersections are resolvable (KnottedSurface::isResolvable(),
+           with --resolve-unlinked); always 0 otherwise. */
   long long satisfyingFaceSum = 0; /**< The sum of face counts among satisfying finds. */
   long long largestSatisfying = 0; /**< The largest face count among satisfying finds. */
 

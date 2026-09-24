@@ -21,6 +21,7 @@
 #include <set>
 #include <sstream>
 #include <thread>
+#include <type_traits>
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
@@ -71,6 +72,7 @@ struct AtomicSearchStats {
         largestSatisfying; // max faces among satisfying finds
     std::atomic<long long> satisfyingFaceSum;
     std::atomic<size_t> rootsCompleted{0};
+    std::atomic<long long> resolvedCount{0}; // satisfying, but not embedded
 };
 
 // One worker thread's own running totals, plus the portion of each not yet
@@ -84,6 +86,7 @@ struct WorkerStats {
     long long pendingEmbeddedCount = 0;
     long long pendingSatisfyingCount = 0;
     long long pendingFaceSum = 0;
+    long long pendingResolvedCount = 0;
 };
 } // namespace
 
@@ -162,6 +165,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     long long seedMaxFaces = 0;
     long long seedFaceSum = 0;
     long long seedFaceCount = 0;
+    long long seedResolvedCount = 0;
     if (isSeeded_) {
         auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
@@ -182,17 +186,19 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             static_cast<long long>(protoEmbedding.triangulation().size());
 
         seedFoundCount = 1;
-        if (protoEmbedding.isEmbedded()) {
+        if (protoEmbedding.isEmbedded())
             seedEmbeddedCount = 1;
-            if (protoEmbedding.satisfies(cond)) {
-                seedSubgraphCount = 1;
-                seedMaxFaces = static_cast<long long>(
-                    protoEmbedding.triangulation().size());
-                seedFaceSum = seedMaxFaces;
-                // graph_.graphToSkel[0] is the whole seed -- see
-                // buildSeededGraph_.
-                onSeedFound(graph_.graphToSkel[0]);
-            }
+        // Same acceptance rule as the workers' visit callback below.
+        if (protoEmbedding.satisfies(cond) && protoEmbedding.isAcceptable()) {
+            seedSubgraphCount = 1;
+            if (!protoEmbedding.isEmbedded())
+                seedResolvedCount = 1;
+            seedMaxFaces = static_cast<long long>(
+                protoEmbedding.triangulation().size());
+            seedFaceSum = seedMaxFaces;
+            // graph_.graphToSkel[0] is the whole seed -- see
+            // buildSeededGraph_.
+            onSeedFound(graph_.graphToSkel[0]);
         }
     } else {
         roots.resize(graph_.adjList.first);
@@ -224,7 +230,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                             .embeddedCount = seedEmbeddedCount,
                             .satisfyingCount = seedSubgraphCount,
                             .largestSatisfying = seedMaxFaces,
-                            .satisfyingFaceSum = seedFaceSum};
+                            .satisfyingFaceSum = seedFaceSum,
+                            .resolvedCount = seedResolvedCount};
     std::vector<WorkerStats> perThreadStats(
         std::max(numThreads, resolvedFinalThreads));
 
@@ -389,7 +396,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                                                    std::memory_order_relaxed);
                         local.pendingFoundCount = 0;
                     }
-                    if (embedding.isEmbedded()) {
+                    const bool embedded = embedding.isEmbedded();
+                    if (embedded) {
                         ++local.embeddedCount;
                         if (++local.pendingEmbeddedCount >=
                             FLUSH_EVERY_EMBEDDED) {
@@ -398,34 +406,61 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                                 std::memory_order_relaxed);
                             local.pendingEmbeddedCount = 0;
                         }
-                        if (embedding.satisfies(cond)) {
-                            ++local.satisfyingCount;
-                            auto faceCount = static_cast<long long>(
-                                embedding.triangulation().size());
-                            threadHook->onFound(embedding, U, faceCount);
-                            local.satisfyingFaceSum += faceCount;
-                            local.pendingFaceSum += faceCount;
-                            if (++local.pendingSatisfyingCount >=
-                                FLUSH_EVERY_BDRY) {
-                                stats.satisfyingCount.fetch_add(
-                                    local.pendingSatisfyingCount,
-                                    std::memory_order_relaxed);
-                                stats.satisfyingFaceSum.fetch_add(
-                                    local.pendingFaceSum,
-                                    std::memory_order_relaxed);
-                                local.pendingSatisfyingCount = 0;
-                                local.pendingFaceSum = 0;
-                                threadHook->onFlush();
-                            }
-                            auto prevMax = stats.largestSatisfying.load(
+                    }
+                    // Acceptance. An embedded candidate is accepted when it
+                    // satisfies `cond` and isAcceptable() -- for
+                    // KnottedSurface, when it is also smooth at the boundary,
+                    // a post hoc check because it is not hereditary. A
+                    // non-embedded one is examined further only when the
+                    // embedding type can say more (mayResolve(): KnottedSurface
+                    // with --resolve-unlinked, or measuring). `cond` always
+                    // comes first because it is O(1) and the rest is not.
+                    bool accepted = false;
+                    bool resolved = false;
+                    if (embedded) {
+                        accepted = embedding.satisfies(cond) &&
+                                   embedding.isAcceptable();
+                    } else if (embedding.mayResolve() &&
+                               embedding.satisfies(cond)) {
+                        if constexpr (std::is_same_v<EmbeddingT,
+                                                     KnottedSurface>)
+                            embedding.tallySelfIntersection();
+                        resolved = accepted = embedding.isAcceptable();
+                    }
+                    if (resolved &&
+                        ++local.pendingResolvedCount >= FLUSH_EVERY_EMBEDDED) {
+                        stats.resolvedCount.fetch_add(
+                            local.pendingResolvedCount,
+                            std::memory_order_relaxed);
+                        local.pendingResolvedCount = 0;
+                    }
+                    if (accepted) {
+                        ++local.satisfyingCount;
+                        auto faceCount = static_cast<long long>(
+                            embedding.triangulation().size());
+                        threadHook->onFound(embedding, U, faceCount);
+                        local.satisfyingFaceSum += faceCount;
+                        local.pendingFaceSum += faceCount;
+                        if (++local.pendingSatisfyingCount >=
+                            FLUSH_EVERY_BDRY) {
+                            stats.satisfyingCount.fetch_add(
+                                local.pendingSatisfyingCount,
                                 std::memory_order_relaxed);
-                            while (
-                                faceCount > prevMax &&
-                                !stats.largestSatisfying.compare_exchange_weak(
-                                    prevMax, faceCount,
-                                    std::memory_order_relaxed))
-                                ;
+                            stats.satisfyingFaceSum.fetch_add(
+                                local.pendingFaceSum,
+                                std::memory_order_relaxed);
+                            local.pendingSatisfyingCount = 0;
+                            local.pendingFaceSum = 0;
+                            threadHook->onFlush();
                         }
+                        auto prevMax = stats.largestSatisfying.load(
+                            std::memory_order_relaxed);
+                        while (
+                            faceCount > prevMax &&
+                            !stats.largestSatisfying.compare_exchange_weak(
+                                prevMax, faceCount,
+                                std::memory_order_relaxed))
+                            ;
                     }
                 },
                 *activePredicate);
@@ -465,6 +500,11 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                                           std::memory_order_relaxed);
             local.pendingEmbeddedCount = 0;
         }
+        if (local.pendingResolvedCount > 0) {
+            stats.resolvedCount.fetch_add(local.pendingResolvedCount,
+                                          std::memory_order_relaxed);
+            local.pendingResolvedCount = 0;
+        }
         if (local.pendingFoundCount > 0) {
             stats.foundCount.fetch_add(local.pendingFoundCount,
                                        std::memory_order_relaxed);
@@ -498,6 +538,8 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         result.foundCount = foundCount;
         result.embeddedCount = embeddedCount;
         result.satisfyingCount = satisfyingCount;
+        result.resolvedCount =
+            stats.resolvedCount.load(std::memory_order_relaxed);
         result.satisfyingFaceSum = faceSum;
         result.largestSatisfying =
             stats.largestSatisfying.load(std::memory_order_relaxed);
