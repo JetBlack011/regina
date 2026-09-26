@@ -40,7 +40,7 @@
 #include "../cobordismgraph.h"
 #include "../collar.h"
 #include "../embeddedsubmanifold.h"
-#include "../knotbuilder.h"
+#include "../knotbuilder/knotbuilder.h"
 #include "../linkcomplement.h"
 #include "../skeleton.h"
 #include "../surfacesearch.h"

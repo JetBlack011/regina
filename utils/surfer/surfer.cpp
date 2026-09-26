@@ -25,7 +25,7 @@
 #include "csvwriter.h"
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
-#include "knotbuilder.h"
+#include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
 #include "identifycomplement.h"
 

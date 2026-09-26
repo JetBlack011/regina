@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <tuple>
 #include <unordered_set>
 
 namespace cobordismgraph {
@@ -1064,26 +1065,26 @@ size_t mapEdgeIndex(const regina::Edge<3> *e,
 }
 
 // The row's directed link under `iso`: edge index -> (tail, head) vertex
-// indices in `dest`.
-std::unordered_map<size_t, std::pair<size_t, size_t>>
+// indices in `dest`, and the edge's position in rowEdges.
+using RowImage = std::unordered_map<size_t, std::tuple<size_t, size_t, size_t>>;
+RowImage
 directedImage(const std::vector<const regina::Edge<3> *> &rowEdges,
               const std::vector<bool> &rowReversed,
               const regina::Triangulation<3> &dest,
               const regina::Isomorphism<3> &iso) {
-    std::unordered_map<size_t, std::pair<size_t, size_t>> image;
+    RowImage image;
     for (size_t i = 0; i < rowEdges.size(); ++i) {
         const regina::Vertex<3> *tail =
             rowReversed[i] ? rowEdges[i]->vertex(1) : rowEdges[i]->vertex(0);
         const regina::Vertex<3> *head =
             rowReversed[i] ? rowEdges[i]->vertex(0) : rowEdges[i]->vertex(1);
         image[mapEdgeIndex(rowEdges[i], dest, iso)] = {
-            mapVertexIndex(tail, dest, iso), mapVertexIndex(head, dest, iso)};
+            mapVertexIndex(tail, dest, iso), mapVertexIndex(head, dest, iso), i};
     }
     return image;
 }
 
-std::vector<size_t> sortedKeys(
-    const std::unordered_map<size_t, std::pair<size_t, size_t>> &image) {
+std::vector<size_t> sortedKeys(const RowImage &image) {
     std::vector<size_t> keys;
     keys.reserve(image.size());
     for (const auto &[e, ends] : image)
@@ -1117,8 +1118,7 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
     auto legacyImage =
         directedImage(rowEdges, rowReversed, searchSideTri, *legacy);
 
-    std::optional<std::unordered_map<size_t, std::pair<size_t, size_t>>>
-        chosen;
+    std::optional<RowImage> chosen;
     if (!requiredEdges || sortedKeys(legacyImage) == *requiredEdges) {
         chosen = legacyImage;
     } else {
@@ -1140,11 +1140,13 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
     RowOrientation result;
     std::unordered_map<size_t, size_t> outOf, inCount;
     for (const auto &[e, ends] : *chosen) {
-        result.tailOf[e] = ends.first;
-        if (!outOf.emplace(ends.first, ends.second).second)
+        const auto &[tail, head, rowIndex] = ends;
+        result.tailOf[e] = tail;
+        result.rowIndexOf[e] = rowIndex;
+        if (!outOf.emplace(tail, head).second)
             throw regina::InvalidArgument(
                 "buildRowOrientation(): two link edges leave one vertex");
-        ++inCount[ends.second];
+        ++inCount[head];
     }
     for (const auto &[v, n] : inCount)
         if (n != 1 || !outOf.contains(v))

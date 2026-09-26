@@ -542,6 +542,11 @@ struct RowOrientation {
          not by vertex pair, so two edges joining the same pair of vertices
          can never be confused. */
     std::vector<size_t> edges; /**< Sorted keys of tailOf: L's edge set. */
+    std::unordered_map<size_t, size_t> rowIndexOf;
+    /**< Edge index of L in the search-side triangulation -> that edge's
+         position in the rowEdges given to buildRowOrientation(), i.e. which
+         edge of the row's own link it is. Lets a caller tell which
+         component of L a search-side curve is. */
     size_t components = 0;
     /**< How many closed curves `edges` forms, each checked to chain head to
          tail under the PD orientation (buildRowOrientation() throws

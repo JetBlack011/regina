@@ -7,11 +7,12 @@
 # e.g. a test that only exercises rollbackunionfind.cpp still ends up
 # linking just that, with no per-target bookkeeping required.
 add_library(surfer_common STATIC
-  knotbuilder.cpp cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
+  knotbuilder/knotbuilder.cpp knotbuilder/blockgeometry.cpp knotbuilder/diagramdrawer.cpp
+  cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
   linkcomplement.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
-  cobordismgraph.cpp)
+  cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
 
 # Local census SQLite lookup (identifycomplement.cpp's
@@ -29,10 +30,10 @@ target_compile_definitions(surfer_common PUBLIC
   SURFER_CENSUS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data/census.sqlite")
 
 set(UTILS
-  triangulateknot
   surfer
   verifyslicegenus
   peripheral_slopes
+  farsidediagram
 )
 
 foreach(EXE ${UTILS})
@@ -45,6 +46,7 @@ install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Ru
 # Let files under tests/ resolve bare quoted includes (e.g.
 # #include "cobordismbuilder.h") against this directory.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+add_subdirectory(knotbuilder)
 add_subdirectory(tests)
 
 if (REGINA_BUILD_ENGINE_DOCS)

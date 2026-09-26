@@ -228,6 +228,11 @@ SurfaceSearch::describeBoundary_(
         // counted downstream, so identifying each one is optional work.
         const bool nameEachCurve =
             link.comps_.size() == 1 || limits_.nameLinkCurves;
+        // A namer, where one handles this component, names a lone curve (the
+        // whole link) and a multi-curve component's link; per-curve names of
+        // a multi-curve component, if wanted, still come from identify().
+        const BoundaryNamer *namer =
+            namer_ && namer_->handles(component) ? namer_ : nullptr;
         bool firstCurve = true;
         for (const Knot &curve : link.comps_) {
             if (!firstCurve)
@@ -237,7 +242,11 @@ SurfaceSearch::describeBoundary_(
                 nameEachCurve
                     ? cache.identifyCached(
                           curve.edgeIndices(),
-                          [&curve] { return identify::identify(curve); })
+                          [&curve, &link, namer] {
+                              return namer && link.comps_.size() == 1
+                                         ? namer->name(link)
+                                         : identify::identify(curve);
+                          })
                     : std::string("?");
             out << name;
             curveNames.push_back(std::move(name));
@@ -245,8 +254,9 @@ SurfaceSearch::describeBoundary_(
         std::vector<size_t> edgeIndices = link.edgeIndices();
         std::optional<std::string> linkName;
         if (link.comps_.size() > 1) {
-            linkName = cache.identifyCached(
-                edgeIndices, [&link] { return identify::identify(link); });
+            linkName = cache.identifyCached(edgeIndices, [&link, namer] {
+                return namer ? namer->name(link) : identify::identify(link);
+            });
             out << " (" << *linkName << ")";
         }
         structured.push_back(BoundaryComponentNames{

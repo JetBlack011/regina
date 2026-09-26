@@ -54,7 +54,7 @@
 #include "cobordismbuilder.h"
 #include "embeddedsubmanifold.h"
 #include "enumerate_cis.h"
-#include "knotbuilder.h"
+#include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
 #include "skeleton.h"
 

@@ -166,6 +166,11 @@ std::string identify(const EdgeComplement &e);
  */
 extern std::atomic<bool> perturbNamesForTesting;
 
+/** `name`, perturbed as identify() perturbs its own when
+ *  perturbNamesForTesting is set; for other namers (farside::DiagramNamer)
+ *  to honour the same test. */
+std::string perturbedForTesting(std::string name);
+
 /**
  * Non-printing identification of `l`'s complement (all of `l`'s components
  * drilled together, i.e. Link::buildComplement()): `"<n>-component

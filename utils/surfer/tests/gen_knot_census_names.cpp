@@ -47,7 +47,7 @@
 #include <triangulation/dim3.h>
 
 #include "../identifycomplement.h"
-#include "../knotbuilder.h"
+#include "../knotbuilder/knotbuilder.h"
 #include "../linkcomplement.h"
 
 namespace {

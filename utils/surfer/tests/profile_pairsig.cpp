@@ -9,7 +9,7 @@
 #include "../cobordismbuilder.h"
 #include "../collar.h"
 #include "../embeddedsubmanifold.h"
-#include "../knotbuilder.h"
+#include "../knotbuilder/knotbuilder.h"
 #include "../pairsig.h"
 #include "../skeleton.h"
 

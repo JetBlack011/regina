@@ -1,7 +1,6 @@
 set(TESTS
   embeddingsearch_test
   cobordismbuilder_test
-  knotbuilder_test
   embeddedsubmanifold_test
   rollbackunionfind_test
   vertexlinks_test
@@ -14,6 +13,7 @@ set(TESTS
   witnesskey_test
   rowmap_test
   enumerator_test
+  farsidenaming_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather
@@ -34,15 +34,6 @@ endforeach()
 # of a couple of minutes; correctness coverage is the priority here.
 set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
 
-# Slow, one-off validation utility: sweeps knotbuilder against every knot in
-# pd_codes.csv (every knot up to 13 crossings -- 12,467 of them), checking
-# that each produces a valid, closed S³ triangulation. Takes ~13 minutes, so
-# it is *not* registered as a CTest test (it would blow out routine `ctest`
-# runs); run it manually instead:
-#
-#   ./triangulate_knot_table pd_codes.csv
-add_executable(triangulate_knot_table triangulate_knot_table.cpp)
-target_link_libraries(triangulate_knot_table surfer_common)
 
 # One-off generation utility -- not a CTest test: builds the Rolfsen <->
 # Regina-census-name correspondence data behind ../knot_census_names.csv.

@@ -13,7 +13,7 @@
 #include <unordered_set>
 
 #include "cobordismbuilder.h"
-#include "knotbuilder.h"
+#include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
 
 static int passed = 0, failed_count = 0;

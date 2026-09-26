@@ -27,7 +27,7 @@
 #include <triangulation/dim3.h>
 #include <triangulation/example3.h>
 
-#include "../knotbuilder.h"
+#include "../knotbuilder/knotbuilder.h"
 #include "../linkcomplement.h"
 #include "../peripheral.h"
 

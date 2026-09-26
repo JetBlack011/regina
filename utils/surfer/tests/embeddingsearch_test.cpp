@@ -24,7 +24,7 @@
 #include "cobordismbuilder.h"
 #include "collar.h"
 #include "embeddingsearch.h"
-#include "knotbuilder.h"
+#include "knotbuilder/knotbuilder.h"
 #include "surfacesearch.h"
 
 static int passed = 0, failed_count = 0;

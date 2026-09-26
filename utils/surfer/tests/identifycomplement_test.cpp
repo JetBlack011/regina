@@ -32,7 +32,7 @@
 #include <triangulation/example3.h>
 
 #include "../identifycomplement.h"
-#include "../knotbuilder.h"
+#include "../knotbuilder/knotbuilder.h"
 #include "../linkcomplement.h"
 
 static int passed = 0, failed_count = 0;

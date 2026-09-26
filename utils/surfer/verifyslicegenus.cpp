@@ -39,7 +39,8 @@
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
 #include "witnesskey.h"
-#include "knotbuilder.h"
+#include "farsidenaming.h"
+#include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
 #include "identifycomplement.h"
 
@@ -1424,6 +1425,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --surface-log <path> ]\n"
          "    [ --surface-stats <path> ]\n"
          "    [ --no-census-updates ] [ --no-retriangulate-on-miss ]\n"
+         "    [ --no-diagram-naming ]\n"
          "    [ --retriangulate-height N ] [ --retriangulate-candidate-budget "
          "N ]\n"
          "    [ --retriangulate-time-budget S ]\n"
@@ -1738,6 +1740,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     and safe to leave on (default: off).\n";
   std::cerr << "    --no-census-updates : Disable live census seeding "
                "(default: on).\n";
+  std::cerr << "    --no-diagram-naming : Name far sides by drilling their "
+               "complement, as before, instead of drawing them as diagrams "
+               "(farsidenaming.h; default: draw, falling back to the "
+               "complement only for what a diagram cannot name).\n";
   std::cerr
       << "    --no-retriangulate-on-miss : Disable the retriangulate-search "
          "identification\n"
@@ -1845,6 +1851,7 @@ int main(int argc, char *argv[]) {
   // default: a link's name bears no bound during a search, and the
   // per-witness far-side pipeline names every far side afterwards anyway.
   bool retriangulateLinksArg = false;
+  bool diagramNaming = true;
   // One explicit full rewrite of the witness file (the 12->13 column
   // migration); otherwise the file is only ever appended to.
   bool rewriteWitnesses = false;
@@ -2012,6 +2019,8 @@ int main(int argc, char *argv[]) {
       retriangulateOnMissArg = false;
     } else if (arg == "--retriangulate-links") {
       retriangulateLinksArg = true;
+    } else if (arg == "--no-diagram-naming") {
+      diagramNaming = false;
     } else if (arg == "--rejection-sample-log") {
       if (i + 1 >= argc)
         usage(argv[0], "--rejection-sample-log requires a value.");
@@ -2291,6 +2300,28 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[+] Name table: " << names.size() << " names ("
             << metadataRows << " from tables other than --input)\n";
+
+  // Exact diagram signatures of every table knot and link, for naming far
+  // sides from their drawings (farsidenaming.h). Only a search needs them.
+  std::optional<farside::SignatureTable> signatureTable;
+  if (diagramNaming && !solveOnly) {
+    const auto t0 = std::chrono::steady_clock::now();
+    try {
+      signatureTable = farside::SignatureTable::fromTables(knotTablePath,
+                                                           linkTablePath);
+      std::cout << "[+] diagram naming: " << signatureTable->knots()
+                << " knot and " << signatureTable->links()
+                << " link diagram signatures ("
+                << std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0)
+                       .count()
+                << " ms)\n";
+    } catch (const std::exception &ex) {
+      std::cerr << "[!] diagram naming off: could not load the tables' "
+                   "signatures ("
+                << ex.what() << ")\n";
+    }
+  }
 
   std::unordered_map<std::string, OutputRow> outputRows =
       loadOutputCsv(*outputPath);
@@ -2672,6 +2703,8 @@ int main(int argc, char *argv[]) {
     knotbuilder::PDCode pdcode;
     knotbuilder::TriangulationWithLink link;
     std::optional<CobordismBuilder<3>> cobOpt;
+    // Declared before eOpt, which holds a pointer to it.
+    std::optional<farside::DiagramNamer> namer;
     std::optional<SurfaceSearch> eOpt;
     std::vector<int> seedFaces;
     std::optional<cobordismgraph::RowOrientation> rowOrientation;
@@ -2774,6 +2807,16 @@ int main(int argc, char *argv[]) {
       eOpt.emplace(tri, seedFaces, searchSideBC);
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
+    if (signatureTable && !useCone) {
+      try {
+        namer.emplace(link.tri, pdcode.size(), *cobOpt, *signatureTable);
+        e.setBoundaryNamer(&*namer);
+      } catch (const std::exception &ex) {
+        std::cerr << "[!] " << row.name
+                  << ": diagram naming off for this row (" << ex.what()
+                  << ")\n";
+      }
+    }
 
     if (!seedFaces.empty()) {
       // The invariant that makes the search side fixed: no searchable
@@ -3434,6 +3477,20 @@ int main(int argc, char *argv[]) {
                 << "/" << secs(pairSigMillis.load() - pairSigMillisBefore)
                 << "s, census writes " << censusOk << " ok/" << censusFailed
                 << " failed\n";
+      if (namer) {
+        const farside::NamingStats &ns = namer->stats();
+        std::cout << "[+] " << row.name << ": diagram naming: " << ns.calls
+                  << " far sides drawn: unknot " << ns.unknots << ", unlink "
+                  << ns.unlinks << ", table knot " << ns.tableKnots
+                  << ", learned knot " << ns.learnedKnots << ", table link "
+                  << ns.tableLinks << ", other link " << ns.diagramLinks
+                  << " (+" << ns.jonesLinks << " by Jones), learned link "
+                  << ns.learnedLinks
+                  << "; complement fallbacks " << ns.fallbacks << " ("
+                  << ns.learned << " learned); diagrams "
+                  << secs(ns.microsDiagram / 1000) << "s, fallbacks "
+                  << secs(ns.microsFallback / 1000) << "s\n";
+      }
       // A census that cannot be written to costs nothing in correctness,
       // but every name it fails to keep is recomputed by every later row.
       if (censusFailed > 0)

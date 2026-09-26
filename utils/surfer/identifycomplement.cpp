@@ -412,6 +412,8 @@ std::string perturbed(std::string name) {
 
 std::atomic<bool> perturbNamesForTesting{false};
 
+std::string perturbedForTesting(std::string name) { return perturbed(std::move(name)); }
+
 std::string identify(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();

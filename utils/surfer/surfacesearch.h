@@ -180,6 +180,27 @@ struct SurfaceSearchLimits {
          placeholders, and the count is unchanged. */
 };
 
+/**
+ * Names the curves on one ambient boundary component in place of
+ * identify::identify() -- farside::DiagramNamer does it from a drawn
+ * diagram. Consulted only on a BoundarySignatureCache miss (the cache still
+ * memoises the result per edge set), from drain threads concurrently, so it
+ * must be thread-safe.
+ *
+ * A namer must return what identify::identify() would, or something at
+ * least as definite and equally proven: "Unknot", "<n>-component unlink", a
+ * table name. Anything else it cannot prove, it may still name however it
+ * likes provided the name bears no bound -- or fall back to identify().
+ */
+class BoundaryNamer {
+  public:
+    virtual ~BoundaryNamer() = default;
+    /** Whether this namer names the curves on boundary component `bc`. */
+    virtual bool handles(size_t bc) const = 0;
+    /** All the curves of that boundary component, named together. */
+    virtual std::string name(const Link &curves) const = 0;
+};
+
 class SurfaceSearch : public EmbeddingSearch<4, 2> {
   public:
     /** See KnottedSurface::SurfaceTypeKey. */
@@ -364,6 +385,8 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
     SurfaceSearchLimits limits_;
 
+    const BoundaryNamer *namer_ = nullptr; /**< See setBoundaryNamer(). */
+
     /** Handed to every worker's KnottedSurface; see
      * configureSelfIntersections(). */
     KnottedSurface::SelfIntersectionOptions selfIntersections_;
@@ -480,6 +503,13 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     void primeBoundaryName(size_t component,
                            const std::vector<size_t> &edgeIndices,
                            const std::string &name);
+
+    /**
+     * Names the boundary components `namer` handles through it rather than
+     * identify::identify(). `namer` must outlive the search; nullptr
+     * restores the default.
+     */
+    void setBoundaryNamer(const BoundaryNamer *namer) { namer_ = namer; }
 
     /**
      * Processes whatever boundary-link work is left after every DFS
