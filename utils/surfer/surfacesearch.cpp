@@ -2,6 +2,8 @@
 
 #include "identifycomplement.h"
 
+#include <iostream>
+
 namespace {
 
 /** SurfaceFoundInfo's `tubedGenus`/`closedComponents` pair; see below. */
@@ -222,28 +224,48 @@ SurfaceSearch::describeBoundary_(
         out << (component + 1) << ": ";
         std::vector<std::string> curveNames;
         curveNames.reserve(link.comps_.size());
+        // A multi-curve component's individual curve names are only ever
+        // counted downstream, so identifying each one is optional work.
+        const bool nameEachCurve =
+            link.comps_.size() == 1 || limits_.nameLinkCurves;
         bool firstCurve = true;
         for (const Knot &curve : link.comps_) {
             if (!firstCurve)
                 out << ", ";
             firstCurve = false;
-            std::string name = cache.identifyCached(
-                curve.edgeIndices(),
-                [&curve] { return identify::identify(curve); });
+            std::string name =
+                nameEachCurve
+                    ? cache.identifyCached(
+                          curve.edgeIndices(),
+                          [&curve] { return identify::identify(curve); })
+                    : std::string("?");
             out << name;
             curveNames.push_back(std::move(name));
         }
+        std::vector<size_t> edgeIndices = link.edgeIndices();
         std::optional<std::string> linkName;
         if (link.comps_.size() > 1) {
             linkName = cache.identifyCached(
-                link.edgeIndices(),
-                [&link] { return identify::identify(link); });
+                edgeIndices, [&link] { return identify::identify(link); });
             out << " (" << *linkName << ")";
         }
         structured.push_back(BoundaryComponentNames{
-            component, std::move(curveNames), std::move(linkName)});
+            .component = component,
+            .curveNames = std::move(curveNames),
+            .linkName = std::move(linkName),
+            .edgeIndices = std::move(edgeIndices)});
     }
     return {out.str(), std::move(structured)};
+}
+
+void SurfaceSearch::primeBoundaryName(size_t component,
+                                      const std::vector<size_t> &edgeIndices,
+                                      const std::string &name) {
+    ensureBoundarySigCaches_();
+    if (component >= boundarySigCaches_.size())
+        throw regina::InvalidArgument(
+            "SurfaceSearch::primeBoundaryName(): no such boundary component");
+    boundarySigCaches_[component]->prime(edgeIndices, name);
 }
 
 identify::BoundarySignatureCacheStats
@@ -475,8 +497,26 @@ void SurfaceSearch::processBatchParallel_(
 void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                                   const std::vector<int> &faceIndices,
                                   const SurfaceSearchCallbacks &callbacks) {
-    for (int idx : faceIndices)
-        embedding.addFace(idx);
+    // Every face of an accepted surface re-adds in any order (the prunes are
+    // all hereditary; see pl_enumeration_draft §4), so a failure here means
+    // the drain would be about to describe a DIFFERENT complex from the one
+    // the search accepted. Never describe it: undo, count it, and say so.
+    // The entry then never reaches onSurfaceBoundaryProcessed, which the
+    // caller's per-row accounting (see rebuildFailures()) turns into a halt
+    // once the row's witnesses are safely written -- rather than throwing
+    // here, on a drain thread, which would lose them.
+    for (size_t i = 0; i < faceIndices.size(); ++i) {
+        if (!embedding.addFace(faceIndices[i])) {
+            for (size_t j = i; j-- > 0;)
+                embedding.removeFace(faceIndices[j]);
+            if (rebuildFailures_.fetch_add(1, std::memory_order_relaxed) == 0)
+                std::cerr << "[!] BUG: an accepted surface failed to re-add "
+                             "face "
+                          << faceIndices[i] << " of " << faceIndices.size()
+                          << " while being drained; it was NOT described\n";
+            return;
+        }
+    }
 
     SurfaceTypeKey type = embedding.surfaceType();
     auto links = embedding.boundaryLinks();
@@ -509,7 +549,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                 .resolvedVertices =
                     static_cast<int>(embedding.singularVertexCount())},
             descriptor, boundaryComponents,
-            [&embedding] { return embedding.orientedBoundaryLinks(); }});
+            [&embedding] { return embedding.orientedBoundaryLinks(); },
+            [&embedding] { return embedding.boundaryEdgeSurfaceComponent(); }});
     }
 
     // Reverse order, mirroring how the DFS itself would back out --
@@ -612,7 +653,10 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                         .resolvedVertices = static_cast<int>(
                                             probe.singularVertexCount())},
                         descriptor, boundaryComponents,
-                        [&probe] { return probe.orientedBoundaryLinks(); }});
+                        [&probe] { return probe.orientedBoundaryLinks(); },
+                        [&probe] {
+                            return probe.boundaryEdgeSurfaceComponent();
+                        }});
             } else if (callbacks.onSurfaceFound) {
                 auto tubed = tubedFieldsFor(probe.triangulation(), genus,
                                             punctures);

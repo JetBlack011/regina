@@ -269,15 +269,35 @@ NameTable::candidates(const std::string &name,
 
 /* Witness cobordisms (cobordisms that verify slice genus somehow) */
 
+std::string witnessIdentity(const Witness &w) {
+    // Unit separators: no field (names, keys, numbers) can contain one.
+    constexpr char SEP = '\x1f';
+    std::string key;
+    key.reserve(w.subject.size() + w.other.size() + 32);
+    key += w.kind == WitnessKind::direct ? 'd' : 'c';
+    key += SEP;
+    key += w.subject;
+    key += SEP;
+    key += std::to_string(w.subjectComponents);
+    key += SEP;
+    key += w.other;
+    key += SEP;
+    key += std::to_string(w.otherComponents);
+    key += SEP;
+    key += std::to_string(w.genus);
+    key += SEP;
+    key += w.tubed ? 't' : 'f';
+    key += SEP;
+    key += w.resolvedVertices > 0 ? 'r' : 'e';
+    return key;
+}
+
 bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w) {
-    return std::any_of(
-        witnesses.begin(), witnesses.end(), [&w](const Witness &existing) {
-            return existing.kind == w.kind && existing.subject == w.subject &&
-                   existing.other == w.other && existing.genus == w.genus &&
-                   existing.tubed == w.tubed &&
-                   existing.otherComponents == w.otherComponents &&
-                   existing.subjectComponents == w.subjectComponents;
-        });
+    const std::string key = witnessIdentity(w);
+    return std::any_of(witnesses.begin(), witnesses.end(),
+                       [&key](const Witness &existing) {
+                           return witnessIdentity(existing) == key;
+                       });
 }
 
 bool farSideBearsBound(const Witness &w) {
@@ -654,6 +674,7 @@ bool relaxUpper(std::unordered_map<std::string, Bounds> &bounds,
     b.viaName = via;
     b.viaGenus = w.genus;
     b.pairSig = w.pairSig;
+    b.pairSigOffset = w.fileOffset;
     b.tubed = w.tubed;
     return true;
 }
@@ -985,22 +1006,29 @@ buildDependsOn(const std::string &via,
 
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC, const std::string &rowOwnName) {
+              size_t searchSideBC,
+              const std::vector<size_t> *requiredSearchEdges) {
     BoundarySplit result;
     for (const auto &info : boundaryComponents) {
+        if (info.component == searchSideBC) {
+            if (requiredSearchEdges && info.edgeIndices != *requiredSearchEdges)
+                result.searchSideRejected = true;
+            else
+                result.searchCurveCount = info.curveNames.size();
+            continue;
+        }
+
         std::optional<std::string> name =
             info.curveNames.size() == 1
                 ? std::optional<std::string>(info.curveNames.front())
                 : info.linkName;
-
-        if (info.component == searchSideBC && name && *name == rowOwnName) {
-            result.searchCurveCount = info.curveNames.size();
+        if (!name) {
+            // describeBoundary_() never leaves a multi-curve component
+            // without a linkName. Reported rather than skipped: skipping
+            // would silently turn a cobordism into a "direct" witness.
+            result.unnamedSide = true;
             continue;
         }
-
-        if (!name)
-            continue; // describeBoundary_() never leaves a multi-curve
-                      // component without a linkName
 
         result.otherSides.push_back(
             {*name, static_cast<int>(info.curveNames.size())});
@@ -1023,76 +1051,154 @@ size_t mapVertexIndex(const regina::Vertex<3> *v,
 }
 } // namespace
 
-RowOrientation
-buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
-                    const std::vector<bool> &rowReversed,
-                    const regina::Triangulation<3> &searchSideTri) {
-    if (rowEdges.empty())
-        throw regina::InvalidArgument(
-            "buildRowOrientation(): rowEdges must not be empty");
+namespace {
+// Maps edge `e` to its image's index in `dest` under `iso`.
+size_t mapEdgeIndex(const regina::Edge<3> *e,
+                    const regina::Triangulation<3> &dest,
+                    const regina::Isomorphism<3> &iso) {
+    auto emb = e->front();
+    size_t tet = emb.tetrahedron()->index();
+    regina::Perm<4> p = iso.facetPerm(tet);
+    regina::Perm<4> v = emb.vertices();
+    return dest.tetrahedron(iso.simpImage(tet))->edge(p[v[0]], p[v[1]])->index();
+}
 
-    const regina::Triangulation<3> &rowTri = rowEdges.front()->triangulation();
-    std::optional<regina::Isomorphism<3>> iso =
-        rowTri.isIsomorphicTo(searchSideTri);
-    if (!iso)
-        throw regina::InvalidArgument(
-            "buildRowOrientation(): the row's own triangulation is not "
-            "isomorphic to searchSideTri");
-
-    RowOrientation result;
+// The row's directed link under `iso`: edge index -> (tail, head) vertex
+// indices in `dest`.
+std::unordered_map<size_t, std::pair<size_t, size_t>>
+directedImage(const std::vector<const regina::Edge<3> *> &rowEdges,
+              const std::vector<bool> &rowReversed,
+              const regina::Triangulation<3> &dest,
+              const regina::Isomorphism<3> &iso) {
+    std::unordered_map<size_t, std::pair<size_t, size_t>> image;
     for (size_t i = 0; i < rowEdges.size(); ++i) {
         const regina::Vertex<3> *tail =
             rowReversed[i] ? rowEdges[i]->vertex(1) : rowEdges[i]->vertex(0);
         const regina::Vertex<3> *head =
             rowReversed[i] ? rowEdges[i]->vertex(0) : rowEdges[i]->vertex(1);
-        result.headOf[mapVertexIndex(tail, searchSideTri, *iso)] =
-            mapVertexIndex(head, searchSideTri, *iso);
+        image[mapEdgeIndex(rowEdges[i], dest, iso)] = {
+            mapVertexIndex(tail, dest, iso), mapVertexIndex(head, dest, iso)};
     }
+    return image;
+}
+
+std::vector<size_t> sortedKeys(
+    const std::unordered_map<size_t, std::pair<size_t, size_t>> &image) {
+    std::vector<size_t> keys;
+    keys.reserve(image.size());
+    for (const auto &[e, ends] : image)
+        keys.push_back(e);
+    std::ranges::sort(keys);
+    return keys;
+}
+} // namespace
+
+RowOrientation
+buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
+                    const std::vector<bool> &rowReversed,
+                    const regina::Triangulation<3> &searchSideTri,
+                    const std::vector<size_t> *requiredEdges) {
+    if (rowEdges.empty())
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): rowEdges must not be empty");
+    if (rowReversed.size() != rowEdges.size())
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): rowReversed and rowEdges differ in size");
+
+    const regina::Triangulation<3> &rowTri = rowEdges.front()->triangulation();
+
+    // What the old code used: whichever isomorphism isIsomorphicTo() returns.
+    std::optional<regina::Isomorphism<3>> legacy =
+        rowTri.isIsomorphicTo(searchSideTri);
+    if (!legacy)
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): the row's own triangulation is not "
+            "isomorphic to searchSideTri");
+    auto legacyImage =
+        directedImage(rowEdges, rowReversed, searchSideTri, *legacy);
+
+    std::optional<std::unordered_map<size_t, std::pair<size_t, size_t>>>
+        chosen;
+    if (!requiredEdges || sortedKeys(legacyImage) == *requiredEdges) {
+        chosen = legacyImage;
+    } else {
+        rowTri.findAllIsomorphisms(
+            searchSideTri, [&](const regina::Isomorphism<3> &iso) {
+                auto image =
+                    directedImage(rowEdges, rowReversed, searchSideTri, iso);
+                if (sortedKeys(image) != *requiredEdges)
+                    return false; // keep looking
+                chosen = std::move(image);
+                return true;
+            });
+        if (!chosen)
+            throw regina::InvalidArgument(
+                "buildRowOrientation(): no isomorphism takes the row's link "
+                "onto the seed's edges in the search-side boundary");
+    }
+
+    RowOrientation result;
+    std::unordered_map<size_t, size_t> outOf, inCount;
+    for (const auto &[e, ends] : *chosen) {
+        result.tailOf[e] = ends.first;
+        if (!outOf.emplace(ends.first, ends.second).second)
+            throw regina::InvalidArgument(
+                "buildRowOrientation(): two link edges leave one vertex");
+        ++inCount[ends.second];
+    }
+    for (const auto &[v, n] : inCount)
+        if (n != 1 || !outOf.contains(v))
+            throw regina::InvalidArgument(
+                "buildRowOrientation(): the link's edges do not chain into "
+                "closed directed curves");
+    if (outOf.size() != inCount.size())
+        throw regina::InvalidArgument(
+            "buildRowOrientation(): the link's edges do not chain into "
+            "closed directed curves");
+    std::unordered_map<size_t, bool> seen;
+    for (const auto &[start, next] : outOf) {
+        if (seen[start])
+            continue;
+        ++result.components;
+        for (size_t v = start; !seen[v]; v = outOf.at(v))
+            seen[v] = true;
+    }
+    result.edges = sortedKeys(*chosen);
+    result.divergedFromDefaultIsomorphism = (*chosen != legacyImage);
     return result;
 }
 
-bool matchesRowOrientation(const RowOrientation &row,
-                           const std::vector<OrientedCurve> &curves) {
-    std::optional<bool> overallMatch;
+OrientationVerdict classifyRowOrientation(
+    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
+    std::unordered_map<size_t, bool> componentMatch;
     for (const OrientedCurve &curve : curves) {
         if (curve.empty())
             continue;
 
         std::optional<bool> curveMatch;
         for (const OrientedEdge &oe : curve) {
+            auto it = row.tailOf.find(oe.edge->index());
+            if (it == row.tailOf.end())
+                return OrientationVerdict::foreignEdge;
             const regina::Vertex<3> *tail =
                 oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-            const regina::Vertex<3> *head =
-                oe.reversed ? oe.edge->vertex(0) : oe.edge->vertex(1);
-
-            bool edgeMatches;
-            auto it = row.headOf.find(tail->index());
-            if (it != row.headOf.end() && it->second == head->index()) {
-                edgeMatches = true;
-            } else {
-                auto it2 = row.headOf.find(head->index());
-                if (it2 != row.headOf.end() && it2->second == tail->index()) {
-                    edgeMatches = false;
-                } else {
-                    return false; // not one of the row's own tagged edges
-                }
-            }
-
+            bool edgeMatches = tail->index() == it->second;
             if (!curveMatch)
                 curveMatch = edgeMatches;
             else if (*curveMatch != edgeMatches)
-                return false; // shouldn't happen
+                return OrientationVerdict::incoherentCurve;
         }
 
-        if (!curveMatch)
-            continue;
-        if (!overallMatch)
-            overallMatch = curveMatch;
-        else if (*overallMatch != *curveMatch)
-            return false; // mixed pattern across components, reject
+        auto comp = surfaceComponentOf.find(curve.front().edge);
+        if (comp == surfaceComponentOf.end())
+            return OrientationVerdict::incoherentCurve;
+        auto [slot, inserted] = componentMatch.emplace(comp->second, *curveMatch);
+        if (!inserted && slot->second != *curveMatch)
+            return OrientationVerdict::mismatch;
     }
-
-    return overallMatch.has_value();
+    return componentMatch.empty() ? OrientationVerdict::mismatch
+                                  : OrientationVerdict::match;
 }
 
 } // namespace cobordismgraph

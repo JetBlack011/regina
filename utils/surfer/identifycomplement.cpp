@@ -6,6 +6,7 @@
 
 #include "identifycomplement.h"
 
+#include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -24,6 +25,7 @@
 std::mutex identify::censusLookupMutex;
 std::atomic<size_t> identify::recognitionCacheLimit{200'000};
 std::atomic<bool> census::retriangulateOnMiss{false};
+std::atomic<bool> census::retriangulateLinks{false};
 std::atomic<int> census::retriangulateHeight{2};
 std::atomic<size_t> census::retriangulateCandidateBudget{8000};
 std::atomic<long long> census::retriangulateTimeBudgetSeconds{20};
@@ -284,7 +286,8 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
 
 // Full resolution: genus, and (only if genus == -1) a census check
 // (local census, then the real Census::lookup(), then -- if
-// retriangulateOnMiss -- census::retriangulateAndLookup()).
+// retriangulateOnMiss, and for a link complement only if
+// retriangulateLinks too -- census::retriangulateAndLookup()).
 identify::RecognitionResult
 resolveRecognition(const regina::Triangulation<3> &complement,
                    const std::string &sig) {
@@ -292,12 +295,26 @@ resolveRecognition(const regina::Triangulation<3> &complement,
     if (genus != -1)
         return *lookupRecognition(sig); // fully resolved; census never applies
 
+    // The Pachner search is the expensive rung. A knot's name can bear a
+    // slice-genus bound, so it is worth it there; a link's name, taken from
+    // its complement alone, never can, so for links it is skipped unless
+    // asked for.
+    const bool multiComponent = complement.countBoundaryComponents() > 1;
+    const bool mayRetriangulate =
+        census::retriangulateOnMiss.load(std::memory_order_relaxed) &&
+        (!multiComponent ||
+         census::retriangulateLinks.load(std::memory_order_relaxed));
+
     {
         std::lock_guard<std::mutex> lock(recognitionCacheMutex);
         ++recognitionStats.censusChecks;
         auto it = recognitionCache.find(sig);
+        // An entry is final once the census was checked and either named it,
+        // or the Pachner search was tried, or is not wanted for it at all --
+        // otherwise every repeat would redo the census lookups.
         if (it != recognitionCache.end() && it->second.censusChecked &&
-                (it->second.censusName || it->second.retriangulateAttempted)) {
+                (it->second.censusName || it->second.retriangulateAttempted ||
+                 !mayRetriangulate)) {
             ++recognitionStats.censusCacheHits;
             return it->second;
         }
@@ -316,7 +333,8 @@ resolveRecognition(const regina::Triangulation<3> &complement,
     }
 
     bool retriangulateAttempted = false;
-    if (!name && census::retriangulateOnMiss.load(std::memory_order_relaxed)) {
+    if (!name && mayRetriangulate) {
+        const auto pachnerStart = std::chrono::steady_clock::now();
         name = census::retriangulateAndLookup(
             complement,
             census::retriangulateHeight.load(std::memory_order_relaxed),
@@ -325,6 +343,16 @@ resolveRecognition(const regina::Triangulation<3> &complement,
             std::chrono::seconds(census::retriangulateTimeBudgetSeconds.load(
                 std::memory_order_relaxed)));
         retriangulateAttempted = true;
+        const long long ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - pachnerStart)
+                .count();
+        std::lock_guard<std::mutex> lock(recognitionCacheMutex);
+        auto &counts = multiComponent ? recognitionStats.pachnerLinks
+                                      : recognitionStats.pachnerKnots;
+        ++counts.attempts;
+        counts.successes += name ? 1 : 0;
+        counts.milliseconds += ms;
     }
 
     return storeRecognition(
@@ -370,22 +398,37 @@ void resetRecognitionCacheForTesting() {
     recognitionStats = RecognitionCacheStats{};
 }
 
+namespace {
+// See perturbNamesForTesting: every name identify() returns gets a fresh
+// suffix, so any decision that depends on a name -- rather than on geometry
+// -- changes, and the name-independence test sees it.
+std::string perturbed(std::string name) {
+    if (!perturbNamesForTesting.load(std::memory_order_relaxed))
+        return name;
+    static std::atomic<unsigned long long> counter{0};
+    return name + " [~" + std::to_string(counter.fetch_add(1) + 1) + "]";
+}
+} // namespace
+
+std::atomic<bool> perturbNamesForTesting{false};
+
 std::string identify(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();
     RecognitionResult result = resolveRecognition(complement, sig);
-    return nameFromRecognition(result, sig);
+    return perturbed(nameFromRecognition(result, sig));
 }
 
 std::string identify(const Link &l) {
     auto complement = l.buildComplement();
 
     if (l.countComponents() > 1 && groupProvesUnlink(complement))
-        return std::to_string(l.countComponents()) + "-component unlink";
+        return perturbed(std::to_string(l.countComponents()) +
+                         "-component unlink");
 
     std::string sig = complement.isoSig();
     RecognitionResult result = resolveRecognition(complement, sig);
-    return nameFromRecognition(result, sig);
+    return perturbed(nameFromRecognition(result, sig));
 }
 
 bool isOrientationSafeName(const std::string &name) {
@@ -678,6 +721,13 @@ std::string BoundarySignatureCache::identifyCached(
     return result;
 }
 
+void BoundarySignatureCache::prime(const std::vector<size_t> &edgeIndices,
+                                   const std::string &name) {
+    std::string key = canonicalKey_(edgeIndices);
+    std::lock_guard<std::mutex> lock(cacheMutex_);
+    cache_.insert_or_assign(std::move(key), name);
+}
+
 BoundarySignatureCacheStats BoundarySignatureCache::stats() const {
     std::lock_guard<std::mutex> lock(cacheMutex_);
     return stats_;
@@ -715,6 +765,18 @@ std::optional<std::string> localCensusLookup(const std::string &sig) {
     sqlite3_clear_bindings(mc.stmt);
     sqlite3_bind_text(mc.stmt, 1, sig.c_str(), static_cast<int>(sig.size()),
                       SQLITE_TRANSIENT);
+
+    // Reset on every way out. A statement left stepped on a hit keeps this
+    // thread's read transaction -- and its SHARED lock -- open until the
+    // thread's next lookup. With a dozen threads, some always hold one, so
+    // insertCensusEntry() could never commit: each insert waited out the
+    // 5 s busy_timeout and failed, silently. Every Pachner success paid
+    // those 5 s, and nothing it named ever reached the census for a later
+    // row (measured 2026-09-26: c3 added no row in 694 rows).
+    struct ResetOnExit {
+        sqlite3_stmt *stmt;
+        ~ResetOnExit() { sqlite3_reset(stmt); }
+    } resetOnExit{mc.stmt};
 
     if (sqlite3_step(mc.stmt) != SQLITE_ROW)
         return std::nullopt;
@@ -795,11 +857,21 @@ bool ensureWriteConn_() {
 
 } // namespace
 
+std::atomic<long long> insertsOk_{0};
+std::atomic<long long> insertsFailed_{0};
+
+std::pair<long long, long long> insertCounts() {
+    return {insertsOk_.load(std::memory_order_relaxed),
+            insertsFailed_.load(std::memory_order_relaxed)};
+}
+
 bool insertCensusEntry(const std::string &isoSig, const std::string &name,
                        const std::string &source) {
     std::lock_guard<std::mutex> lock(writeConnMutex_);
-    if (!ensureWriteConn_())
+    if (!ensureWriteConn_()) {
+        insertsFailed_.fetch_add(1, std::memory_order_relaxed);
         return false;
+    }
 
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(writeConn_,
@@ -817,6 +889,7 @@ bool insertCensusEntry(const std::string &isoSig, const std::string &name,
     bool ok = sqlite3_step(stmt) == SQLITE_DONE;
     sqlite3_finalize(stmt);
 
+    (ok ? insertsOk_ : insertsFailed_).fetch_add(1, std::memory_order_relaxed);
     if (ok)
         censusGeneration_.fetch_add(1, std::memory_order_relaxed);
     return ok;

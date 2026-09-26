@@ -289,6 +289,54 @@ void test_identify_link_hopf_not_unknot() {
               "so identify() must not call it \"Unknot\"");
 }
 
+// The Pachner-search policy. With no local census, every non-trivial
+// complement misses the cheap rungs, so whether retriangulateAndLookup() runs
+// is decided by the policy alone: never for a link complement (its name bears
+// no bound during a search) unless retriangulateLinks is set, and still for
+// a knot's. Regina's census holds hyperbolic manifolds only, so the trefoil's
+// Seifert-fibred complement misses it too.
+void test_pachner_search_policy() {
+    census::resetCensusForTesting();
+    identify::resetRecognitionCacheForTesting();
+    const bool oldOnMiss = census::retriangulateOnMiss.load();
+    const bool oldLinks = census::retriangulateLinks.load();
+    const long long oldBudget = census::retriangulateTimeBudgetSeconds.load();
+    census::retriangulateOnMiss.store(true);
+    census::retriangulateLinks.store(false);
+    census::retriangulateTimeBudgetSeconds.store(1);
+
+    {
+        knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
+        auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+        Link hopf(tri, edges);
+        identify::identify(hopf);
+        identify::identify(hopf); // a repeat must not retry either
+    }
+    auto afterLink = identify::recognitionCacheStats();
+    EXPECT_EQ(afterLink.pachnerLinks.attempts, 0LL,
+              "a link complement that misses the census is NOT sent to the "
+              "Pachner search");
+
+    {
+        knotbuilder::PDCode pd =
+            knotbuilder::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
+        auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+        Link trefoil(tri, edges);
+        identify::identify(trefoil);
+    }
+    auto afterKnot = identify::recognitionCacheStats();
+    EXPECT_EQ(afterKnot.pachnerKnots.attempts >= 1, true,
+              "a knot complement that misses the census still is: a knot's "
+              "name can bear a bound");
+    EXPECT_EQ(afterKnot.pachnerLinks.attempts, 0LL,
+              "and no link attempt crept in");
+
+    census::retriangulateOnMiss.store(oldOnMiss);
+    census::retriangulateLinks.store(oldLinks);
+    census::retriangulateTimeBudgetSeconds.store(oldBudget);
+    identify::resetRecognitionCacheForTesting();
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // identify::certifiesUnlink(): the certificate behind --resolve-unlinked.
 // It is one-sided, so the tests that matter most are the negatives: a
@@ -505,6 +553,7 @@ int main() {
         test_recognition_cache_clear_threshold);
     run("identify_link_unlink", test_identify_link_unlink);
     run("identify_link_hopf_not_unknot", test_identify_link_hopf_not_unknot);
+    run("pachner_search_policy", test_pachner_search_policy);
     run("certifies_unlink_positive", test_certifies_unlink_positive);
     run("certifies_unlink_negative", test_certifies_unlink_negative);
     run("certifies_unlink_malformed", test_certifies_unlink_malformed);

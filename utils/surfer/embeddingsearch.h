@@ -386,6 +386,15 @@ public:
   size_t numEmbeddableFaces() const { return graph_.graphToSkel.size(); }
 
   /**
+   * How many searchable faces -- excluding a seeded search's seed -- have an
+   * edge in ambient boundary component `boundaryComponent`. Zero whenever
+   * that component was passed as `protectedBoundaryComponent`; callers
+   * assert this once, since it is what keeps a seeded search's boundary on
+   * that component equal to the seed's for every surface found.
+   */
+  size_t countSearchableFacesTouching(size_t boundaryComponent) const;
+
+  /**
    * Runs the search using `numThreads` worker threads, restricted to
    * embeddings satisfying `cond`, reporting through `callbacks`.
    *

@@ -9,6 +9,7 @@
 #define IDENTIFYCOMPLEMENT_H
 
 #include <atomic>
+#include <utility>
 #include <chrono>
 #include <functional>
 #include <mutex>
@@ -98,6 +99,17 @@ struct RecognitionCacheStats {
 
     /** How many times recognitionCache has been fully cleared after exceeding recognitionCacheLimit. */
     long long cacheResets = 0;
+
+    /** One kind of complement's Pachner-search (retriangulateAndLookup())
+     * cost and yield. */
+    struct PachnerCounts {
+        long long attempts = 0;
+        long long successes = 0;
+        long long milliseconds = 0; /**< Wall time, summed over threads. */
+    };
+    PachnerCounts pachnerKnots; /**< One-cusp complements. */
+    PachnerCounts pachnerLinks; /**< Multi-cusp complements (see
+                                     census::retriangulateLinks). */
 };
 
 /** A snapshot of the recognition cache's current hit/miss counters. */
@@ -142,6 +154,17 @@ extern std::mutex censusLookupMutex;
  * a fallback identifier.
  */
 std::string identify(const EdgeComplement &e);
+
+/**
+ * Test-only. When set, identify() appends a fresh suffix to every name it
+ * returns, so no two identifications ever agree -- exactly the
+ * non-determinism a census entry number already has, pushed to the limit.
+ * Which surfaces a search accepts must not change (tests/
+ * name_independence_test.sh): names are recorded, never gated on.
+ * verifyslicegenus sets it from the SURFER_TEST_PERTURB_NAMES environment
+ * variable.
+ */
+extern std::atomic<bool> perturbNamesForTesting;
 
 /**
  * Non-printing identification of `l`'s complement (all of `l`'s components
@@ -334,6 +357,14 @@ class BoundarySignatureCache {
                                 const std::function<std::string()> &compute);
 
     /**
+     * Records `name` as the answer for `edgeIndices` without computing
+     * anything, for an edge set whose identity is known by construction (a
+     * row's own link on its search side). Harmless if the cache is later
+     * cleared: that entry is then just recomputed on demand.
+     */
+    void prime(const std::vector<size_t> &edgeIndices, const std::string &name);
+
+    /**
      * Returns a snapshot of this cache's current hit/miss counters; see
      * BoundarySignatureCacheStats. Returned by value (not by reference)
      * since another thread may be concurrently updating the live counters.
@@ -389,6 +420,16 @@ namespace census {
  * linkcomplement.h's simplifyComplements.
  */
 extern std::atomic<bool> retriangulateOnMiss;
+
+/**
+ * Whether retriangulateOnMiss also applies to multi-component (link)
+ * complements. Off by default: a link's name, read from its complement
+ * alone, never bears a slice-genus bound during a search, and the
+ * per-witness far-side pipeline names every far side afterwards, so the
+ * search spending up to retriangulateTimeBudgetSeconds per link complement
+ * on it bought nothing. Same set-once contract as retriangulateOnMiss.
+ */
+extern std::atomic<bool> retriangulateLinks;
 
 /**
  * Parameters resolveRecognition() passes to retriangulateAndLookup() on
@@ -458,6 +499,14 @@ void resetCensusForTesting();
  */
 bool insertCensusEntry(const std::string &isoSig, const std::string &name,
                        const std::string &source = "verifyslicegenus");
+
+/**
+ * How many insertCensusEntry() calls have succeeded and failed in this
+ * process, (ok, failed). An INSERT OR IGNORE of an existing key counts as
+ * ok. Production callers ignore the return value, so this is the only
+ * place a census that cannot be written to shows up.
+ */
+std::pair<long long, long long> insertCounts();
 
 /**
  * When a direct census lookup on `complement` misses, searches up to

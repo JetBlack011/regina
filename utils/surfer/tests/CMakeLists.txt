@@ -12,6 +12,8 @@ set(TESTS
   cobordismgraph_test
   peripheral_test
   witnesskey_test
+  rowmap_test
+  enumerator_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather
@@ -75,3 +77,12 @@ target_compile_options(profile_pairsig PRIVATE -g)
 #   replay_pairsigs group0.txt group1.txt ...
 add_executable(replay_pairsigs replay_pairsigs.cpp)
 target_link_libraries(replay_pairsigs surfer_common)
+
+# No gate may depend on an identified name: the same exhaustive search, with
+# every name perturbed, must accept exactly the same surfaces. See the
+# script's header.
+add_test(NAME name_independence_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/name_independence_test.sh
+                 $<TARGET_FILE:verifyslicegenus>)
+set_tests_properties(name_independence_test PROPERTIES
+  LABELS "surfer" TIMEOUT 600)

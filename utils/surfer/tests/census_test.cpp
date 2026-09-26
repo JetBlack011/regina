@@ -9,6 +9,7 @@
 // isolation, independent of whether the real census has been generated on
 // this machine.
 
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <optional>
@@ -68,11 +69,11 @@ const char *FIXTURE_PATH = "census_test_fixture.sqlite";
 // format) has a known classical translation in linknames.h, one whose raw
 // name doesn't, and one source='snappy' row with an already-pretty name
 // (as identify_boundaries.py's _pick_best_name() would produce).
-void buildFixture() {
-    std::remove(FIXTURE_PATH);
+void buildFixture(const char *path = FIXTURE_PATH) {
+    std::remove(path);
 
     sqlite3 *db = nullptr;
-    sqlite3_open(FIXTURE_PATH, &db);
+    sqlite3_open(path, &db);
     sqlite3_exec(db,
         "CREATE TABLE census ("
         "  isosig TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL"
@@ -152,6 +153,61 @@ void test_reenable_after_reset() {
               std::string("K12n124"),
               "switching setCensusPath() back to a real fixture after "
               "resetCensusForTesting() re-enables lookups");
+}
+
+// insertCensusEntry() must actually land a row: verifyslicegenus seeds the
+// census with every knot it names (the row's own knot at row end, and every
+// Pachner success), and later rows -- separate processes -- rely on it. A
+// failed insert returns false, which production code ignores, so nothing
+// else would ever notice.
+void test_insert_lands_and_is_found() {
+    buildFixture();
+    census::setCensusPath(FIXTURE_PATH);
+    EXPECT_EQ(census::localCensusLookup("inserted-sig").value_or("<MISS>"),
+              std::string("<MISS>"), "not there before the insert");
+
+    EXPECT_EQ(census::insertCensusEntry("inserted-sig", "K9a1", "test"), true,
+              "insertCensusEntry() reports success");
+
+    sqlite3 *db = nullptr;
+    sqlite3_open_v2(FIXTURE_PATH, &db, SQLITE_OPEN_READONLY, nullptr);
+    sqlite3_stmt *st = nullptr;
+    sqlite3_prepare_v2(db, "SELECT name FROM census WHERE isosig = 'inserted-sig'",
+                       -1, &st, nullptr);
+    std::string got = sqlite3_step(st) == SQLITE_ROW
+        ? reinterpret_cast<const char *>(sqlite3_column_text(st, 0)) : "<NONE>";
+    sqlite3_finalize(st);
+    sqlite3_close(db);
+    EXPECT_EQ(got, std::string("K9a1"),
+              "a fresh connection sees the inserted row");
+    EXPECT_EQ(census::localCensusLookup("inserted-sig").value_or("<MISS>"),
+              std::string("K9a1"), "and so does the lookup path");
+}
+
+// The failing sequence in production: a lookup HIT on one thread, then an
+// insert. A hit used to leave its statement stepped, holding a read lock
+// that no insert could get past (each waited 5 s and failed).
+void test_insert_after_a_hit_on_this_thread() {
+    // Its own file: the write connection is cached per path, so rebuilding
+    // FIXTURE_PATH under it would leave it writing to the unlinked file.
+    const char *path = "census_test_fixture_hit_then_insert.sqlite";
+    buildFixture(path);
+    census::setCensusPath(path);
+    EXPECT_EQ(census::localCensusLookup("fake-sig-snappy").value_or("<MISS>"),
+              std::string("K12n124"), "a hit first");
+    const auto before = census::insertCounts();
+    const auto start = std::chrono::steady_clock::now();
+    EXPECT_EQ(census::insertCensusEntry("after-a-hit-sig", "K9a2", "test"),
+              true, "then an insert succeeds");
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - start).count();
+    EXPECT_EQ(ms < 1000, true,
+              "without waiting out the busy timeout");
+    EXPECT_EQ(census::insertCounts().first - before.first, 1LL,
+              "and is counted as ok");
+    EXPECT_EQ(census::localCensusLookup("after-a-hit-sig").value_or("<MISS>"),
+              std::string("K9a2"), "and is found afterwards");
+    std::remove(path);
 }
 
 // Builds a single-row fixture keyed by a caller-supplied signature -- used
@@ -235,6 +291,9 @@ int main() {
     run("reenable_after_reset", test_reenable_after_reset);
     run("real_triangulation_isosig_key_matches_production_query",
         test_real_triangulation_isosig_key_matches_production_query);
+    run("insert_lands_and_is_found", test_insert_lands_and_is_found);
+    run("insert_after_a_hit_on_this_thread",
+        test_insert_after_a_hit_on_this_thread);
 
     std::remove(FIXTURE_PATH);
 

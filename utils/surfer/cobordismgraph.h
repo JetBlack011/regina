@@ -10,6 +10,7 @@
 
 #include <climits>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -287,8 +288,18 @@ struct Witness {
          names a disconnected complex, with the tubing as the step from it
          to the surface the bound is about. */
 
-    std::string
-        pairSig; /**< The found surface's pair signature, if captured. */
+    std::string pairSig;
+    /**< The found surface's pair signature, if captured -- held in memory
+         only until the witness is on disk (see fileOffset). */
+    long long fileOffset = -1;
+    /**< Byte offset of this witness's line in the witness file it was loaded
+         from or appended to, or -1 while it exists only in memory. A loaded
+         witness never holds its ~11 KB pair signature in memory; anything
+         that needs it reads it back through this offset. */
+    std::string pairSigKey;
+    /**< witnesskey::witnessKey(pairSig), sha1(pairsig)[:12] -- the key the
+         per-witness far-side resolution file is keyed on. Filled at load
+         only when resolutions are in use, and for every new witness. */
     /**
      * Whether this witness's far side has been PROVED, per witness, to be
      * the link named in `other` -- by the peripheral system (an isometry or
@@ -314,14 +325,32 @@ struct Witness {
          each such vertex is an unlinked self-intersection, and a
          perturbation near those vertices turns the surface into an embedded
          one of the same topology and boundary (paper §4.5), so the witness
-         bounds exactly as an embedded one would. Recorded, not
-         interpreted: the solver ignores it, and it is not part of
-         haveWitness()'s dedup key. */
+         bounds exactly as an embedded one would. The solver ignores it, but
+         whether it is zero is part of witnessIdentity(): an embedded
+         witness must never be discarded as a duplicate of one that rests on
+         the resolution theorem. */
 };
 
-/** Whether `witnesses` already contains an equivalent witness. This is the
- * dedup key that keeps a harvest run from capturing thousands of pair
- * signatures. */
+/** The dedup identity of a witness: kind, subject and its component count,
+ * far-side name, far-side component count, genus, tubed, and whether it is
+ * resolved. Only the first witness of each identity is recorded.
+ *
+ * For a far side that bears a bound (farSideBearsBound()) equal identity
+ * means the witnesses bound exactly the same thing. For any other far side
+ * the name comes from its complement, which several links can share, so two
+ * surfaces reaching DIFFERENT links can collapse here. That is deliberate:
+ * keying such far sides by their own edges instead (tried 2026-09-26) made
+ * nearly every surface its own witness -- 19,690 witnesses from 23,672
+ * surfaces for L9a43{1;0} at cap 3, against 109 by name -- which no store
+ * can hold at a million surfaces per row, while the per-witness pipeline
+ * has found such a collapse in 21 of 228,580 witnesses, and those far sides
+ * bear nothing in the solvers. A cheap invariant of the far-side LINK
+ * (per-curve knot types, linking numbers) would separate them boundedly. */
+std::string witnessIdentity(const Witness &w);
+
+/** Whether `witnesses` already contains a witness with `w`'s
+ * witnessIdentity(). Linear; the search keeps a hashed set of identities
+ * instead, and this remains for tests and small callers. */
 bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w);
 
 /**
@@ -364,6 +393,9 @@ struct Bounds {
     std::string viaName;
     int viaGenus = 0;
     std::string pairSig;
+    long long pairSigOffset = -1; /**< The witness's Witness::fileOffset, for
+                                       reading pairSig back when it is not in
+                                       memory. */
     bool tubed = false;
 
     bool haveUpper() const { return hi != NO_UPPER_BOUND; }
@@ -464,12 +496,34 @@ struct BoundarySide {
  */
 struct BoundarySplit {
     size_t searchCurveCount = 0; // 0 if the search side has no boundary here
+    bool searchSideRejected = false;
+    /**< Set when `requiredSearchEdges` was given and the curves on
+         searchSideBC are not exactly those edges -- the surface's boundary
+         there is some other link, so it says nothing about this row. */
+    bool unnamedSide = false;
+    /**< Set when a non-search-side component carried no name at all, which
+         describeBoundary_() never produces; the caller treats it as a bug. */
     std::vector<BoundarySide> otherSides;
 };
 
+/**
+ * The search side is identified by geometry, never by name.
+ *
+ * Component `searchSideBC` is the search side. In a seeded search that is
+ * all there is to it: the seed is L x {0} and no other triangle with an edge
+ * in that boundary component is ever searchable, so its curves are L by
+ * construction (verifyslicegenus asserts this once per row). An unseeded
+ * search has no such guarantee, and passes `requiredSearchEdges` -- the
+ * sorted boundary-triangulation edge indices of the row's own link -- so
+ * that a surface whose search-side curves are any other edge set is
+ * rejected. Identified names are deliberately not consulted: they are not
+ * canonical (a census hit's "#N" varies from one identification to the
+ * next), and comparing them once silently discarded whole rows.
+ */
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC, const std::string &rowOwnName);
+              size_t searchSideBC,
+              const std::vector<size_t> *requiredSearchEdges = nullptr);
 
 /* Orientation matching */
 
@@ -482,36 +536,78 @@ splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
  * buildRowOrientation()).
  */
 struct RowOrientation {
-    std::unordered_map<size_t, size_t>
-        headOf; // tail vertex index -> head vertex index
+    std::unordered_map<size_t, size_t> tailOf;
+    /**< Edge index of L in the search-side triangulation -> index of that
+         edge's tail vertex under the row's PD orientation. Keyed by edge,
+         not by vertex pair, so two edges joining the same pair of vertices
+         can never be confused. */
+    std::vector<size_t> edges; /**< Sorted keys of tailOf: L's edge set. */
+    size_t components = 0;
+    /**< How many closed curves `edges` forms, each checked to chain head to
+         tail under the PD orientation (buildRowOrientation() throws
+         otherwise). */
+    bool divergedFromDefaultIsomorphism = false;
+    /**< Whether the isomorphism isIsomorphicTo() would have returned maps L
+         differently -- onto other edges, or with other directions. That is
+         the map this code used to trust; see buildRowOrientation(). */
 };
 
 /**
  * Builds `rowEdges`/`rowReversed`'s RowOrientation against `searchSideTri`.
  *
- * \throws regina::InvalidArgument if `rowEdges` is empty, or if its own
- * triangulation is not isomorphic to `searchSideTri` (should not happen
- * when `searchSideTri` is actually built from the ambient boundary
- * component the row's diagram was seeded into).
+ * The row's own triangulation and `searchSideTri` are isomorphic, but PD
+ * triangulations have automorphisms, so "an isomorphism" does not determine
+ * where L goes. When `requiredEdges` is given (a seeded search: the seed's
+ * own edges in that boundary component, i.e. L x {0} exactly), the
+ * isomorphism used is one taking L's edges onto exactly that set. Any such
+ * choice is sound: two of them differ by an automorphism of the row's
+ * triangulation preserving L, a PL homeomorphism of S^3 taking L to itself,
+ * and the slice genus is invariant under homeomorphism and mirroring.
+ *
+ * \throws regina::InvalidArgument if `rowEdges` is empty, if the two
+ * triangulations are not isomorphic, if no isomorphism takes L onto
+ * `requiredEdges`, or if the image of L fails to chain into closed directed
+ * curves.
  */
 RowOrientation
 buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                     const std::vector<bool> &rowReversed,
-                    const regina::Triangulation<3> &searchSideTri);
+                    const regina::Triangulation<3> &searchSideTri,
+                    const std::vector<size_t> *requiredEdges = nullptr);
+
+/** How a surface's search-side boundary compares with the row's orientation;
+ * see classifyRowOrientation(). */
+enum class OrientationVerdict {
+    match,        /**< Some choice of orientation on each surface component
+                       induces the row's own orientation. */
+    mismatch,     /**< Some surface component's curves induce an orientation
+                       pattern no flip of that component can fix: the surface
+                       witnesses a different oriented variant of the link. */
+    foreignEdge,  /**< A search-side edge is not one of the row's own. */
+    incoherentCurve, /**< A single curve's edges disagree in direction, or a
+                          curve's surface component is unknown. */
+};
 
 /**
- * Whether `curves` (one found surface's own induced boundary curves on the
- * row's search-side ambient boundary component, from
- * KnottedSurface::orientedBoundaryLinks(), for one arbitrary choice of the
- * surface's two orientations) matches `row` -- either everywhere or
- * nowhere, across every curve (component). A mixed pattern (some curves
- * match, some don't) means the surface's own relative orientation between
- * components doesn't match this row's PD convention, and is rejected here
- * as a fully-mismatched pattern would be reversed by simply picking the
- * surface's other orientation.
+ * Compares one found surface's induced boundary orientation on the
+ * search side with `row`.
+ *
+ * `curves` come from KnottedSurface::orientedBoundaryLinks(), which orients
+ * each CONNECTED COMPONENT of the surface independently and arbitrarily;
+ * `surfaceComponentOf` (KnottedSurface::boundaryEdgeSurfaceComponent())
+ * says which component each edge belongs to. So the curves are grouped by
+ * surface component, and each group must match `row` all at once or be
+ * reversed all at once; different groups are independent. That is exactly
+ * the freedom the surface has: its components can be oriented separately
+ * and still tubed into one oriented surface, because a split two-component
+ * unlink bounds an oriented annulus for either relative orientation.
+ *
+ * `foreignEdge` and `incoherentCurve` cannot happen for a correctly built
+ * row in a seeded search; the caller treats them as bugs.
  */
-bool matchesRowOrientation(const RowOrientation &row,
-                           const std::vector<OrientedCurve> &curves);
+OrientationVerdict classifyRowOrientation(
+    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
 } // namespace cobordismgraph
 

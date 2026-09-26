@@ -700,6 +700,27 @@ SearchStats EmbeddingSearch<dim, subdim>::search(
 }
 
 template <int dim, int subdim>
+size_t EmbeddingSearch<dim, subdim>::countSearchableFacesTouching(
+    size_t boundaryComponent) const {
+    const auto &nodes = skeleton_.getNodes();
+    size_t count = 0;
+    // Graph vertex 1 of a seeded graph is the seed itself; every other vertex
+    // is a single searchable face.
+    for (size_t v = isSeeded_ ? 1 : 0; v < graph_.graphToSkel.size(); ++v) {
+        for (int f : graph_.graphToSkel[v]) {
+            const auto *face = nodes[f].face;
+            bool touches = false;
+            for (int e = 0; e < 3 && !touches; ++e) {
+                const auto *bc = face->edge(e)->boundaryComponent();
+                touches = bc && bc->index() == boundaryComponent;
+            }
+            count += touches;
+        }
+    }
+    return count;
+}
+
+template <int dim, int subdim>
 typename EmbeddingSearch<dim, subdim>::Graph
 EmbeddingSearch<dim, subdim>::buildGraph_(
     const Skeleton<dim, subdim> &skeleton,

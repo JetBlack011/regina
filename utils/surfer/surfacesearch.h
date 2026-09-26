@@ -81,6 +81,11 @@ struct BoundaryComponentNames {
     std::optional<std::string> linkName;
     /**< identify()'d name of all of this component's curves drilled
          together (identify::identify() on the whole Link) */
+    std::vector<size_t> edgeIndices;
+    /**< The component's boundary edges, sorted, as indices into that ambient
+         boundary component's built triangulation -- the geometry the names
+         above were computed from. Compared exactly; never approximated by
+         a name. */
 };
 
 struct SurfaceBoundaryInfo : SurfaceFoundInfo {
@@ -93,6 +98,12 @@ struct SurfaceBoundaryInfo : SurfaceFoundInfo {
     std::function<std::vector<std::pair<size_t, std::vector<OrientedCurve>>>()>
         captureOrientedBoundaryLinks;
     /**< Lazy, as capturePairSig above. */
+    std::function<std::map<const regina::Edge<3> *, size_t>()>
+        captureBoundaryEdgeSurfaceComponent;
+    /**< Lazy, as capturePairSig above: which connected component of the
+         surface each boundary edge (the same Edge<3> objects as
+         captureOrientedBoundaryLinks) belongs to. Needed because
+         orientedBoundaryLinks() orients each component independently. */
 };
 
 /**
@@ -161,6 +172,12 @@ struct SurfaceSearchLimits {
     /**< Whether onSurfaceFound/onSurfaceBoundaryProcessed populate
          SurfaceFoundInfo::pairSig (via the found embedding's own
          EmbeddedSubmanifold::pairSig()). */
+    bool nameLinkCurves = true;
+    /**< Whether a multi-curve boundary component's curves are also
+         identified one by one. Only their count is ever used downstream
+         (splitBoundary(), classifyByLinks_()), so a caller that does not
+         print them can switch this off; the curve names are then
+         placeholders, and the count is unchanged. */
 };
 
 class SurfaceSearch : public EmbeddingSearch<4, 2> {
@@ -324,6 +341,8 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     SurfaceTypeTally surfaceTypeTally_; /**< See surfaceTypeTally(). */
 
     std::atomic<bool> skipRemainingDrain_{false};
+    /** See rebuildFailures(). */
+    std::atomic<long long> rebuildFailures_{0};
 
     /**
      * Shared across every KnottedSurface this search constructs.
@@ -440,6 +459,27 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     void skipRemainingBoundaryProcessing() {
         skipRemainingDrain_.store(true, std::memory_order_relaxed);
     }
+
+    /** Whether skipRemainingBoundaryProcessing() was called, so some queued
+     * surfaces may legitimately never reach onSurfaceBoundaryProcessed. */
+    bool boundaryProcessingSkipped() const {
+        return skipRemainingDrain_.load(std::memory_order_relaxed);
+    }
+
+    /** How many accepted surfaces failed to rebuild in the drain and were
+     * therefore never described. Always 0 unless something is broken. */
+    long long rebuildFailures() const {
+        return rebuildFailures_.load(std::memory_order_relaxed);
+    }
+
+    /**
+     * Records `name` as boundary component `component`'s identity for the
+     * edge set `edgeIndices` (sorted), so it is never identified. For an
+     * edge set known by construction: a row's own link on its search side.
+     */
+    void primeBoundaryName(size_t component,
+                           const std::vector<size_t> &edgeIndices,
+                           const std::string &name);
 
     /**
      * Processes whatever boundary-link work is left after every DFS

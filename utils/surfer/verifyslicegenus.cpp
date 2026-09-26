@@ -5,11 +5,15 @@
 //
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <atomic>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -21,6 +25,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
@@ -187,7 +194,7 @@ private:
  *
  * Appended per row rather than written once at the end so that an
  * interrupted sweep keeps the statistics of every row that did finish --
- * the same reasoning that makes writeWitnesses() a per-row operation.
+ * the same reasoning that makes witness checkpoints a per-row operation.
  */
 void appendSurfaceStats(const std::filesystem::path &path,
                         const std::string &rowName, long long maxFaces,
@@ -636,10 +643,38 @@ loadOutputCsv(const std::filesystem::path &path) {
 // written before the column existed, or merged in by a Python DictWriter
 // (which fills a missing field with ""), byte-identical after a --solve-only
 // round trip -- the invariant merge_cobordisms.py relies on.
+// How many rejected surfaces per reason per row --rejection-sample-log keeps.
+constexpr int REJECTION_SAMPLES_PER_REASON = 20;
+
 constexpr const char *COBORDISMS_HEADER =
     "kind,subject,subject_components,other,other_candidates,other_components,"
     "genus,tubed,pairsig,source_row,thicken_layers,max_faces,"
     "resolved_vertices";
+
+// The seed's own edges in ambient boundary component `bcIndex`, as sorted
+// indices into that component's built triangulation -- the same numbering
+// KnottedSurface::boundaryLinks() uses (BoundaryComponent<4>::build()
+// numbers its edges as bc->edge(k)). For a collar seed on the search side,
+// exactly L x {0}.
+std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
+                                const std::vector<int> &seedFaces,
+                                size_t bcIndex) {
+  const regina::BoundaryComponent<4> *bc = tri.boundaryComponent(bcIndex);
+  std::unordered_map<const regina::Edge<4> *, size_t> local;
+  local.reserve(bc->countEdges());
+  for (size_t k = 0; k < bc->countEdges(); ++k)
+    local.emplace(bc->edge(k), k);
+  std::vector<size_t> edges;
+  for (int f : seedFaces) {
+    const regina::Triangle<4> *t = tri.triangle(f);
+    for (int i = 0; i < 3; ++i)
+      if (auto it = local.find(t->edge(i)); it != local.end())
+        edges.push_back(it->second);
+  }
+  std::ranges::sort(edges);
+  edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+  return edges;
+}
 
 std::string formatWitness(const cobordismgraph::Witness &w) {
   std::ostringstream candidates;
@@ -662,60 +697,108 @@ std::string formatWitness(const cobordismgraph::Witness &w) {
   return out.str();
 }
 
+// The header of a witness file written before resolved_vertices existed.
+constexpr const char *COBORDISMS_HEADER_12 =
+    "kind,subject,subject_components,other,other_candidates,other_components,"
+    "genus,tubed,pairsig,source_row,thicken_layers,max_faces";
+
+namespace {
+// Parses one witness line (12 or 13 fields) into `w`, keeping the pair
+// signature only if `keepPairSig`. Returns false for a malformed line.
+bool parseWitnessLine(const std::string &line, cobordismgraph::Witness &w,
+                      bool keepPairSig, bool wantPairSigKey,
+                      const std::filesystem::path &path) {
+  auto f = parseCsvLine(line);
+  if (f.size() < 12)
+    return false;
+  w.kind = f[0] == "direct" ? cobordismgraph::WitnessKind::direct
+                            : cobordismgraph::WitnessKind::cobordism;
+  w.subject = f[1];
+  try {
+    w.subjectComponents = std::stoi(f[2]);
+    w.otherComponents = std::stoi(f[5]);
+    w.genus = std::stoi(f[6]);
+    w.thickenLayers = std::stoi(f[10]);
+    w.maxFaces = std::stoll(f[11]);
+  } catch (const std::exception &) {
+    return false;
+  }
+  w.other = f[3];
+  if (!f[4].empty()) {
+    std::istringstream candidates(f[4]);
+    std::string one;
+    while (std::getline(candidates, one, ';'))
+      if (!one.empty())
+        w.otherCandidates.push_back(one);
+  }
+  w.tubed = f[7] == "true";
+  if (wantPairSigKey && !f[8].empty())
+    w.pairSigKey = witnesskey::witnessKey(f[8]);
+  if (keepPairSig)
+    w.pairSig = std::move(f[8]);
+  w.sourceRow = f[9];
+  // Optional 13th field (absent in files written before it existed).
+  // Informational only, so an unreadable value never costs the witness
+  // itself.
+  if (f.size() > 12 && !f[12].empty()) {
+    try {
+      w.resolvedVertices = std::stoi(f[12]);
+    } catch (const std::exception &) {
+      std::cerr << "[!] " << path.string() << ": unreadable resolved_vertices '"
+                << f[12] << "' for a " << w.subject
+                << " witness; keeping the witness, recording 0\n";
+    }
+  }
+  return true;
+}
+} // namespace
+
+// Loads every complete witness line, WITHOUT its pair signature: each
+// witness keeps only the byte offset of its line (Witness::fileOffset), and
+// anything that needs the signature reads it back from there. That is what
+// keeps a solve's memory proportional to the number of witnesses rather
+// than to the ~11 KB signature each one carries.
+//
+// A final line with no terminating newline is a torn append (the process
+// died mid-write) and is ignored here; appendWitnesses() truncates it away
+// before it next appends.
 std::vector<cobordismgraph::Witness>
-loadWitnesses(const std::filesystem::path &path) {
+loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
   std::vector<cobordismgraph::Witness> result;
-  std::ifstream in(path);
+  std::ifstream in(path, std::ios::binary);
   if (!in)
     return result;
 
   std::string line;
   std::getline(in, line); // header
-  while (std::getline(in, line)) {
+  if (line != COBORDISMS_HEADER && line != COBORDISMS_HEADER_12)
+    std::cerr << "[!] " << path.string()
+              << ": unexpected witness-file header; reading it anyway\n";
+  size_t malformed = 0;
+  while (true) {
+    const std::streamoff offset = in.tellg();
+    if (!std::getline(in, line))
+      break;
+    if (in.eof()) {
+      if (!line.empty())
+        std::cerr << "[!] " << path.string() << ": ignoring a torn last line ("
+                  << line.size() << " bytes, no newline)\n";
+      break;
+    }
     if (line.empty())
       continue;
-    auto f = parseCsvLine(line);
-    if (f.size() < 12)
-      continue;
     cobordismgraph::Witness w;
-    w.kind = f[0] == "direct" ? cobordismgraph::WitnessKind::direct
-                              : cobordismgraph::WitnessKind::cobordism;
-    w.subject = f[1];
-    try {
-      w.subjectComponents = std::stoi(f[2]);
-      w.otherComponents = std::stoi(f[5]);
-      w.genus = std::stoi(f[6]);
-      w.thickenLayers = std::stoi(f[10]);
-      w.maxFaces = std::stoll(f[11]);
-    } catch (const std::exception &) {
+    if (!parseWitnessLine(line, w, /*keepPairSig=*/false, wantPairSigKeys,
+                          path)) {
+      ++malformed;
       continue;
     }
-    w.other = f[3];
-    if (!f[4].empty()) {
-      std::istringstream candidates(f[4]);
-      std::string one;
-      while (std::getline(candidates, one, ';'))
-        if (!one.empty())
-          w.otherCandidates.push_back(one);
-    }
-    w.tubed = f[7] == "true";
-    w.pairSig = f[8];
-    w.sourceRow = f[9];
-    // Optional 13th field (absent in files written before it existed).
-    // Informational only, so an unreadable value never costs the witness
-    // itself: dropping it here would delete it from cobordisms.csv at the
-    // next writeWitnesses().
-    if (f.size() > 12 && !f[12].empty()) {
-      try {
-        w.resolvedVertices = std::stoi(f[12]);
-      } catch (const std::exception &) {
-        std::cerr << "[!] " << path.string() << ": unreadable resolved_vertices '"
-                  << f[12] << "' for a " << w.subject
-                  << " witness; keeping the witness, recording 0\n";
-      }
-    }
+    w.fileOffset = static_cast<long long>(offset);
     result.push_back(std::move(w));
   }
+  if (malformed > 0)
+    std::cerr << "[!] " << path.string() << ": skipped " << malformed
+              << " malformed witness lines\n";
   return result;
 }
 
@@ -769,11 +852,11 @@ std::string aliasKey(const std::string &name) {
 // Resolves every witness's far side through the alias table, returning a
 // SEPARATE vector for the solver to consume.
 //
-// Returning a copy rather than mutating in place is the whole point.
-// writeWitnesses() serialises the in-memory witness vector back over
-// cobordisms.csv on every checkpoint, so aliasing the vector the search
-// holds would quietly bake resolved names into the observation record --
-// exactly what keeping a separate alias table was meant to avoid.
+// Returning a copy rather than mutating in place is the whole point: the
+// vector the search holds is what appendWitnesses() writes into
+// cobordisms.csv, so aliasing it would quietly bake resolved names into the
+// observation record -- exactly what keeping a separate alias table was
+// meant to avoid.
 //
 // `otherCandidates` is re-derived rather than carried across: propagate()
 // consumes the stored candidate list, so leaving it keyed to the old name
@@ -842,9 +925,9 @@ loadFarSideResolutions(const std::filesystem::path &path) {
 }
 
 // Resolves far sides witness-by-witness, returning a SEPARATE vector for the
-// same reason applyNameAliases() does: writeWitnesses() serialises the
-// in-memory vector back over cobordisms.csv on every checkpoint, so mutating
-// it in place would bake an interpretation into the observation record.
+// same reason applyNameAliases() does: the search's own vector is what gets
+// written to cobordisms.csv, so mutating it in place would bake an
+// interpretation into the observation record.
 //
 // Applied AFTER applyNameAliases(), and strictly more specific than it: a
 // resolution names one witness's far side, where an alias can only speak
@@ -865,16 +948,20 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
     const std::unordered_map<std::string, std::vector<FarSideResolution>>
         &resolutions,
     const cobordismgraph::NameTable &names, size_t &appliedOut) {
-  // Taken by value and rewritten in place: every Witness carries its ~11 KB
-  // pair signature, so a copy here was a whole extra witness set at peak.
+  // Taken by value and rewritten in place. (A loaded witness no longer
+  // carries its pair signature in memory, only pairSigKey.)
   size_t applied = 0;
   size_t linkAliasesOverridden = 0;
   std::vector<std::string> conflicts;
 
   for (cobordismgraph::Witness &w : resolved) {
-    if (w.other.empty() || w.pairSig.empty())
+    if (w.other.empty())
       continue;
-    auto it = resolutions.find(witnesskey::witnessKey(w.pairSig));
+    if (w.pairSigKey.empty() && !w.pairSig.empty())
+      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
+    if (w.pairSigKey.empty())
+      continue;
+    auto it = resolutions.find(w.pairSigKey);
     if (it == resolutions.end())
       continue;
 
@@ -958,22 +1045,227 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
   return resolved;
 }
 
-// Rewrites the whole witness file via write-to-temp + atomic rename, the
-// same crash-safety pattern writeOutputCsv() uses.
-void writeWitnesses(const std::filesystem::path &path,
-                    const std::vector<cobordismgraph::Witness> &witnesses) {
-  std::filesystem::path tmp = path;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::trunc);
-    if (!out)
-      throw std::runtime_error("Cannot open " + tmp.string() +
-                               " for writing");
-    out << COBORDISMS_HEADER << "\n";
-    for (const auto &w : witnesses)
-      out << formatWitness(w) << "\n";
+namespace {
+// write(2) until done, or throw.
+void writeAll(int fd, const std::string &data, const std::string &what) {
+  const char *p = data.data();
+  size_t left = data.size();
+  while (left > 0) {
+    ssize_t n = ::write(fd, p, left);
+    if (n < 0) {
+      if (errno == EINTR)
+        continue;
+      throw std::runtime_error("write to " + what + " failed: " +
+                               std::strerror(errno));
+    }
+    p += n;
+    left -= static_cast<size_t>(n);
   }
+}
+
+// The first line of the open file `fd` (without its newline).
+std::string readHeader(int fd) {
+  std::string header;
+  char buf[4096];
+  off_t pos = 0;
+  while (true) {
+    ssize_t n = ::pread(fd, buf, sizeof buf, pos);
+    if (n <= 0)
+      break;
+    const char *nl = static_cast<const char *>(std::memchr(buf, '\n', n));
+    header.append(buf, nl ? static_cast<size_t>(nl - buf)
+                          : static_cast<size_t>(n));
+    if (nl)
+      break;
+    pos += n;
+  }
+  return header;
+}
+} // namespace
+
+// Appends witnesses[from..] to `path`, then fsyncs. The file is never
+// rewritten: everything already in it stays byte-for-byte, so a merge, a
+// solve or a crash can never lose what an earlier write put there.
+//
+// Creates the file (with the header) if absent. Refuses a file with the old
+// 12-column header -- the 12->13 migration is one explicit
+// --rewrite-witnesses run, never something an append does implicitly --
+// and truncates a torn last line (no newline) before appending.
+//
+// On success each appended witness gets its fileOffset and drops its pair
+// signature from memory. Throws on any failure, leaving those witnesses
+// untouched in memory for the next attempt.
+void appendWitnesses(const std::filesystem::path &path,
+                     std::vector<cobordismgraph::Witness> &witnesses,
+                     size_t from) {
+  if (from >= witnesses.size())
+    return;
+  const std::string what = path.string();
+  int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  if (fd < 0)
+    throw std::runtime_error("cannot open " + what + ": " +
+                             std::strerror(errno));
+  struct FdCloser {
+    int fd;
+    ~FdCloser() { ::close(fd); }
+  } closer{fd};
+
+  off_t size = ::lseek(fd, 0, SEEK_END);
+  if (size < 0)
+    throw std::runtime_error("cannot seek " + what);
+  if (size == 0) {
+    writeAll(fd, std::string(COBORDISMS_HEADER) + "\n", what);
+  } else {
+    const std::string header = readHeader(fd);
+    if (header != COBORDISMS_HEADER)
+      throw std::runtime_error(
+          what + " does not have the current witness-file header" +
+          (header == COBORDISMS_HEADER_12
+               ? std::string(" (it is the 12-column one: run "
+                             "--rewrite-witnesses once to migrate it)")
+               : std::string()) +
+          "; refusing to append to it");
+    char last = 0;
+    if (::pread(fd, &last, 1, size - 1) != 1)
+      throw std::runtime_error("cannot read " + what);
+    if (last != '\n') {
+      // A torn append: find the last complete line and cut back to it.
+      off_t cut = size;
+      char c = 0;
+      while (cut > 0 && ::pread(fd, &c, 1, cut - 1) == 1 && c != '\n')
+        --cut;
+      std::cerr << "[!] " << what << ": truncating a torn last line ("
+                << (size - cut) << " bytes)\n";
+      if (::ftruncate(fd, cut) != 0)
+        throw std::runtime_error("cannot truncate " + what);
+    }
+  }
+
+  off_t pos = ::lseek(fd, 0, SEEK_END);
+  std::string buffer;
+  std::vector<long long> offsets;
+  offsets.reserve(witnesses.size() - from);
+  for (size_t i = from; i < witnesses.size(); ++i) {
+    offsets.push_back(static_cast<long long>(pos) +
+                      static_cast<long long>(buffer.size()));
+    buffer += formatWitness(witnesses[i]);
+    buffer += '\n';
+  }
+  writeAll(fd, buffer, what);
+  if (::fsync(fd) != 0)
+    throw std::runtime_error("fsync of " + what + " failed: " +
+                             std::strerror(errno));
+
+  for (size_t i = from; i < witnesses.size(); ++i) {
+    cobordismgraph::Witness &w = witnesses[i];
+    w.fileOffset = offsets[i - from];
+    if (w.pairSigKey.empty() && !w.pairSig.empty())
+      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
+    std::string().swap(w.pairSig);
+  }
+}
+
+// --rewrite-witnesses: the one full rewrite, used for the 12->13 column
+// migration. Streams the file line by line (never holding it in memory),
+// re-emitting each witness through formatWitness(), and checks the round
+// trip as it goes: a 13-field line must come back byte-identical, a
+// 12-field line must come back as itself plus the trailing ',' of an empty
+// resolved_vertices. Anything else means formatWitness() is not a faithful
+// inverse of the loader, and the rewrite is abandoned before it replaces
+// anything. Returns the number of witnesses written.
+size_t rewriteWitnessFile(const std::filesystem::path &path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    throw std::runtime_error("cannot open " + path.string());
+  std::filesystem::path tmp = path;
+  tmp += ".rewrite.tmp";
+  std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+  if (!out)
+    throw std::runtime_error("cannot open " + tmp.string() + " for writing");
+
+  std::string line;
+  std::getline(in, line); // old header
+  out << COBORDISMS_HEADER << "\n";
+  size_t written = 0, migrated = 0;
+  while (std::getline(in, line)) {
+    if (in.eof()) {
+      if (!line.empty())
+        std::cerr << "[!] " << path.string()
+                  << ": dropping a torn last line (" << line.size()
+                  << " bytes)\n";
+      break;
+    }
+    if (line.empty())
+      continue;
+    cobordismgraph::Witness w;
+    if (!parseWitnessLine(line, w, /*keepPairSig=*/true,
+                          /*wantPairSigKey=*/false, path))
+      throw std::runtime_error("malformed witness line " +
+                               std::to_string(written + 2) + " of " +
+                               path.string() + "; nothing rewritten");
+    std::string again = formatWitness(w);
+    const size_t fields = parseCsvLine(line).size();
+    const bool faithful =
+        fields == 12 ? again == line + "," : again == line;
+    if (!faithful)
+      throw std::runtime_error(
+          "line " + std::to_string(written + 2) + " of " + path.string() +
+          " does not round-trip through formatWitness(); nothing rewritten");
+    migrated += fields == 12;
+    out << again << '\n';
+    ++written;
+  }
+  out.flush();
+  if (!out)
+    throw std::runtime_error("writing " + tmp.string() + " failed");
+  out.close();
   std::filesystem::rename(tmp, path);
+  std::cout << "[+] --rewrite-witnesses: " << written << " witnesses, "
+            << migrated << " migrated from 12 to 13 columns, every line "
+            << "round-tripped\n";
+  return written;
+}
+
+// Reads a witness's pair signature back from its line in the witness file
+// (Witness::fileOffset), for the few places that print one. Memoized: the
+// same few bounding witnesses are asked for after every row.
+class PairSigReader {
+public:
+  void setPath(std::filesystem::path path) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    path_ = std::move(path);
+    cache_.clear();
+  }
+
+  std::string at(long long offset) {
+    if (offset < 0)
+      return {};
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = cache_.find(offset); it != cache_.end())
+      return it->second;
+    std::ifstream in(path_, std::ios::binary);
+    std::string line;
+    if (!in || !in.seekg(offset) || !std::getline(in, line))
+      throw std::runtime_error("cannot read the witness at byte " +
+                               std::to_string(offset) + " of " +
+                               path_.string());
+    auto f = parseCsvLine(line);
+    if (f.size() < 12)
+      throw std::runtime_error("no witness line at byte " +
+                               std::to_string(offset) + " of " +
+                               path_.string());
+    return cache_.emplace(offset, std::move(f[8])).first->second;
+  }
+
+private:
+  std::mutex mutex_;
+  std::filesystem::path path_;
+  std::unordered_map<long long, std::string> cache_;
+};
+
+PairSigReader &pairSigReader() {
+  static PairSigReader reader;
+  return reader;
 }
 
 // Rewrites the whole --output file from `outputRows` via write-to-temp +
@@ -1073,7 +1365,9 @@ OutputRow rowFromVerdict(
     out.derivedHi = std::to_string(b.hi);
     out.witnessKind =
         b.kind == cobordismgraph::WitnessKind::direct ? "direct" : "cobordism";
-    out.witnessPairSig = b.pairSig;
+    out.witnessPairSig = !b.pairSig.empty()
+                             ? b.pairSig
+                             : pairSigReader().at(b.pairSigOffset);
     out.viaKnot = b.viaName;
     out.viaEdgeGenus = b.viaGenus;
     out.dependsOn = cobordismgraph::buildDependsOn(b.viaName, bounds);
@@ -1545,6 +1839,15 @@ int main(int argc, char *argv[]) {
   bool resolveUnlinked = false;
   // Measurement only; see SelfIntersectionCensus.
   std::optional<std::string> selfIntersectionCensusPath;
+  // Audit trail: see --rejection-sample-log and sampleRejection below.
+  std::optional<std::string> rejectionSampleLogPath;
+  // Also run the Pachner search on multi-component far sides. Off by
+  // default: a link's name bears no bound during a search, and the
+  // per-witness far-side pipeline names every far side afterwards anyway.
+  bool retriangulateLinksArg = false;
+  // One explicit full rewrite of the witness file (the 12->13 column
+  // migration); otherwise the file is only ever appended to.
+  bool rewriteWitnesses = false;
 
   unsigned numThreads = std::thread::hardware_concurrency();
   if (numThreads == 0)
@@ -1707,6 +2010,14 @@ int main(int argc, char *argv[]) {
       censusUpdates = false;
     } else if (arg == "--no-retriangulate-on-miss") {
       retriangulateOnMissArg = false;
+    } else if (arg == "--retriangulate-links") {
+      retriangulateLinksArg = true;
+    } else if (arg == "--rejection-sample-log") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--rejection-sample-log requires a value.");
+      rejectionSampleLogPath = argv[++i];
+    } else if (arg == "--rewrite-witnesses") {
+      rewriteWitnesses = true;
     } else if (arg == "--retriangulate-height") {
       if (i + 1 >= argc)
         usage(argv[0], "--retriangulate-height requires a value.");
@@ -1875,6 +2186,13 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--sweep-time-limit requires a value > 0.");
   if (surfaceTarget && *surfaceTarget <= 0)
     usage(argv[0], "--surface-target requires a value > 0.");
+  if (surfaceTarget && harvestQuiescence)
+    usage(argv[0],
+          "--harvest-quiescence cannot be combined with --surface-target: "
+          "quiescence stops a row by how many NEW witnesses it records, so "
+          "rows would cover different amounts of the root ordering -- the "
+          "very thing --surface-target exists to equalise -- and a row whose "
+          "witnesses were being lost would simply look quiescent.");
   if (harvest && !maxFaces && !harvestQuiescence && !perKnotTimeLimit &&
       !surfaceTarget)
     usage(argv[0],
@@ -1899,7 +2217,32 @@ int main(int argc, char *argv[]) {
                                              std::memory_order_relaxed);
   census::retriangulateTimeBudgetSeconds.store(retriangulateTimeBudgetArg,
                                                std::memory_order_relaxed);
+  census::retriangulateLinks.store(retriangulateLinksArg,
+                                   std::memory_order_relaxed);
+  if (const char *perturb = std::getenv("SURFER_TEST_PERTURB_NAMES");
+      perturb && *perturb && std::string(perturb) != "0") {
+    identify::perturbNamesForTesting.store(true);
+    std::cerr << "[!] SURFER_TEST_PERTURB_NAMES: every identified name is "
+                 "perturbed (test mode)\n";
+  }
+  // Only a multi-curve component's curve COUNT is ever used here, so naming
+  // each of its curves separately is work nobody reads.
+  limits.nameLinkCurves = false;
   bool censusLoaded = census::setCensusPath(censusPath);
+
+  std::optional<std::ofstream> rejectionSampleLog;
+  if (rejectionSampleLogPath) {
+    std::error_code ec;
+    const bool fresh = !std::filesystem::exists(*rejectionSampleLogPath) ||
+                       std::filesystem::file_size(*rejectionSampleLogPath, ec) == 0;
+    rejectionSampleLog.emplace(*rejectionSampleLogPath, std::ios::app);
+    if (!*rejectionSampleLog)
+      usage(argv[0], "--rejection-sample-log: cannot open " +
+                         *rejectionSampleLogPath);
+    if (fresh)
+      *rejectionSampleLog
+          << "row,reason,tubed_genus,connected,boundary,pairsig\n";
+  }
 
   std::cout << "------ verifyslicegenus \U0001F30A ------\n\n";
   std::cout << (censusLoaded ? "[+] census: loaded from "
@@ -1952,8 +2295,17 @@ int main(int argc, char *argv[]) {
   std::unordered_map<std::string, OutputRow> outputRows =
       loadOutputCsv(*outputPath);
 
+  if (rewriteWitnesses && std::filesystem::exists(cobordismsPath)) {
+    try {
+      rewriteWitnessFile(cobordismsPath);
+    } catch (const std::exception &e) {
+      std::cerr << "[!] --rewrite-witnesses: " << e.what() << "\n";
+      return 2;
+    }
+  }
+  pairSigReader().setPath(cobordismsPath);
   std::vector<cobordismgraph::Witness> witnesses =
-      loadWitnesses(cobordismsPath);
+      loadWitnesses(cobordismsPath, !farSideResolutionPath.empty());
   std::cout << "[+] Resuming with " << witnesses.size()
             << " previously-recorded witnesses from " << cobordismsPath
             << "\n";
@@ -2137,6 +2489,17 @@ int main(int argc, char *argv[]) {
   // thousands of near-identical surfaces, and capturing a pair signature
   // for each would dominate the run (see SurfaceFoundInfo::capturePairSig).
   std::mutex witnessMutex;
+  // witnessIdentity() of every witness in `witnesses`, maintained alongside
+  // it under witnessMutex: the dedup test is a hash lookup, not a scan of
+  // every witness ever recorded while holding the one global lock.
+  std::unordered_set<std::string> witnessIdentities;
+  // Cost of the pair signatures recordWitness() computes; see the per-row
+  // identification line.
+  std::atomic<long long> pairSigCount{0};
+  std::atomic<long long> pairSigMillis{0};
+  witnessIdentities.reserve(witnesses.size() * 2 + 1024);
+  for (const cobordismgraph::Witness &w : witnesses)
+    witnessIdentities.insert(cobordismgraph::witnessIdentity(w));
   std::atomic<long long> lastNewWitnessTick{0};
   auto tickNow = [] {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2162,17 +2525,26 @@ int main(int argc, char *argv[]) {
     // inserting. The re-check is what keeps the dedup exact -- two threads
     // can pass the first check for the same witness concurrently, and
     // without it both would insert.
+    std::string identity = cobordismgraph::witnessIdentity(w);
     {
       std::lock_guard<std::mutex> lock(witnessMutex);
-      if (cobordismgraph::haveWitness(witnesses, w))
+      if (witnessIdentities.contains(identity))
         return false;
     }
 
-    if (capturePairSig)
+    if (capturePairSig) {
+      const auto sigStart = std::chrono::steady_clock::now();
       w.pairSig = capturePairSig();
+      pairSigCount.fetch_add(1, std::memory_order_relaxed);
+      pairSigMillis.fetch_add(
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              std::chrono::steady_clock::now() - sigStart)
+              .count(),
+          std::memory_order_relaxed);
+    }
 
     std::lock_guard<std::mutex> lock(witnessMutex);
-    if (cobordismgraph::haveWitness(witnesses, w))
+    if (!witnessIdentities.insert(std::move(identity)).second)
       return false; // another thread got there while we were computing
     witnesses.push_back(std::move(w));
     lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
@@ -2180,7 +2552,7 @@ int main(int argc, char *argv[]) {
   };
 
   // Checkpointing: witnesses are otherwise written only when a row finishes
-  // (see the writeWitnesses call at the end of the row loop), so a row that
+  // (see flushWitnesses() at the end of the row loop), so a row that
   // is interrupted -- by a crash, a shutdown, or an operator stopping a run
   // that looks unproductive -- loses everything it found. That is not
   // hypothetical: a 4-hour L9n2{1} row lost 13 hours to a shutdown mid-drain,
@@ -2191,17 +2563,14 @@ int main(int argc, char *argv[]) {
   // resolved deliberately keeps running to bank more edges -- so the longer
   // it usefully runs, the more there is to lose.
   //
-  // writeWitnesses() is write-to-temp + atomic rename, so a checkpoint can
-  // never leave a torn file. The cost is NOT negligible, though: the file is
-  // rewritten whole from the in-memory vector, and ~99% of its bytes are
-  // pairsig strings (49.0MB of 49.6MB at 6,120 witnesses, mean 8,013 chars
-  // each), so it grows with the atlas. Worse, the rewrite happens under
-  // witnessMutex, so every drain thread trying to record a witness blocks
-  // behind it.
+  // A checkpoint APPENDS only the witnesses recorded since the last one
+  // (appendWitnesses(), with fsync); the file is never rewritten, so nothing
+  // already on disk can be lost to a crash, a merge, or a solve. A torn last
+  // line from a crash mid-append is ignored on load and truncated before the
+  // next append.
   //
-  // Hence lastCheckpointedCount: most checkpoints during a drain have nothing
-  // new to write, and rewriting the file to produce byte-identical content is
-  // pure cost. `witnesses` is append-only -- push_back below is its only
+  // lastCheckpointedCount marks how far the file is current.
+  // `witnesses` is append-only -- push_back below is its only
   // mutation after the initial loadWitnesses(), and applyNameAliases()
   // deliberately builds a SEPARATE vector so that interpretations never
   // mutate the observation record -- so the size changes if and only if the
@@ -2238,7 +2607,7 @@ int main(int argc, char *argv[]) {
     if (!force && witnesses.size() == lastCheckpointedCount)
       return;
     try {
-      writeWitnesses(cobordismsPath, witnesses);
+      appendWitnesses(cobordismsPath, witnesses, lastCheckpointedCount);
       // Only on success -- a checkpoint that threw has NOT reached disk, and
       // marking it clean here would suppress every later attempt to write the
       // same witnesses, turning a transient write failure into silent loss.
@@ -2248,6 +2617,14 @@ int main(int argc, char *argv[]) {
       // end-of-row write is still to come, and that one is allowed to throw.
       std::cerr << "[!] witness checkpoint failed: " << e.what() << "\n";
     }
+  };
+  // The end-of-row and end-of-run write: appends whatever is new, and --
+  // unlike a checkpoint -- lets a failure propagate. Writes nothing at all
+  // when nothing is new, so a --solve-only run never touches the file.
+  auto flushWitnesses = [&] {
+    std::lock_guard<std::mutex> lock(witnessMutex);
+    appendWitnesses(cobordismsPath, witnesses, lastCheckpointedCount);
+    lastCheckpointedCount = witnesses.size();
   };
 
   const auto sweepStart = std::chrono::steady_clock::now();
@@ -2300,15 +2677,22 @@ int main(int argc, char *argv[]) {
     std::optional<cobordismgraph::RowOrientation> rowOrientation;
     size_t searchSideBC = 0;
     int componentCount = 1;
-    std::string rowOwnName;
+    // The row's own link on the search side: sorted edge indices of that
+    // boundary component's built triangulation. Seeded, these are the seed's
+    // own edges there (L x {0}), and no other searchable triangle can touch
+    // that component (asserted once below), so every surface's search side
+    // IS this set and nothing needs checking per surface. Unseeded, they are
+    // the image of L under the row map, and splitBoundary() filters on them.
+    std::vector<size_t> rowSearchEdges;
     regina::Triangulation<4> tri;
     bool buildFailed = false;
 
     // buildRowOrientation() lives inside this try alongside parsePDCode/
-    // buildLink: it throws regina::InvalidArgument too (empty edge set, or
-    // a boundary component that isn't isomorphic to the row's own
-    // triangulation), and letting that escape would abort the entire
-    // sweep over one bad row rather than skipping it.
+    // buildLink: it throws regina::InvalidArgument too (empty edge set, a
+    // boundary component that isn't isomorphic to the row's own
+    // triangulation, or a link image that doesn't chain), and letting that
+    // escape would abort the entire sweep over one bad row rather than
+    // skipping it.
     try {
       pdcode = knotbuilder::parsePDCode(row.pdNotation);
       link = knotbuilder::buildLink(pdcode);
@@ -2316,7 +2700,6 @@ int main(int argc, char *argv[]) {
       auto &[t2, edges2, reversed2] = link;
       Link linkGrouping(t2, edges2);
       componentCount = linkGrouping.countComponents();
-      rowOwnName = identify::identify(linkGrouping);
 
       std::vector<int> edgeIndices;
       edgeIndices.reserve(edges2.size());
@@ -2342,8 +2725,30 @@ int main(int argc, char *argv[]) {
           seedFaces.push_back(static_cast<int>(t->index()));
 
       if (!seedFaces.empty())
-        rowOrientation = cobordismgraph::buildRowOrientation(
-            edges2, reversed2, tri.boundaryComponent(searchSideBC)->build());
+        rowSearchEdges = seedEdgesOn(tri, seedFaces, searchSideBC);
+      rowOrientation = cobordismgraph::buildRowOrientation(
+          edges2, reversed2, tri.boundaryComponent(searchSideBC)->build(),
+          seedFaces.empty() ? nullptr : &rowSearchEdges);
+      if (seedFaces.empty())
+        rowSearchEdges = rowOrientation->edges;
+
+      // Setup-time checks on the row's own link, in place of any
+      // per-surface ones: the search side is fixed from here on.
+      if (rowSearchEdges.size() != edges2.size())
+        throw regina::InvalidArgument(
+            "the search side holds " + std::to_string(rowSearchEdges.size()) +
+            " link edges, the diagram " + std::to_string(edges2.size()));
+      if (rowOrientation->components !=
+          static_cast<size_t>(componentCount))
+        throw regina::InvalidArgument(
+            "the search-side link has " +
+            std::to_string(rowOrientation->components) +
+            " components, the diagram " + std::to_string(componentCount));
+      if (rowOrientation->divergedFromDefaultIsomorphism)
+        std::cerr << "[i] " << row.name
+                  << ": the diagram's triangulation has a symmetry moving "
+                     "L; using the map that takes L onto its own seed "
+                     "(isIsomorphicTo() would not have)\n";
     } catch (const regina::InvalidArgument &e) {
       std::cerr << "[!] " << row.name << ": failed to build (" << e.what()
                 << "), skipping\n";
@@ -2369,6 +2774,21 @@ int main(int argc, char *argv[]) {
       eOpt.emplace(tri, seedFaces, searchSideBC);
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
+
+    if (!seedFaces.empty()) {
+      // The invariant that makes the search side fixed: no searchable
+      // triangle other than the seed has an edge on it. Checked once here
+      // rather than re-derived for every surface found.
+      size_t touching = e.countSearchableFacesTouching(searchSideBC);
+      if (touching != 0) {
+        flagFatalBug(row.name + ": " + std::to_string(touching) +
+                     " searchable non-seed triangles have an edge on the "
+                     "search side, so found surfaces could change it.");
+        haltIfFatalBugDetected();
+      }
+      // Its name is known by construction; never identify it.
+      e.primeBoundaryName(searchSideBC, rowSearchEdges, row.name);
+    }
 
     // Fresh per row, so each census line describes one row's search.
     std::optional<SelfIntersectionCensus> selfIntersectionCensus;
@@ -2405,7 +2825,64 @@ int main(int argc, char *argv[]) {
         searchOutcome = why;
     };
 
-    std::atomic<long long> orientationRejections{0};
+    const identify::RecognitionCacheStats recognitionBefore =
+        identify::recognitionCacheStats();
+    const long long pairSigCountBefore = pairSigCount.load();
+    const auto censusWritesBefore = census::insertCounts();
+    const long long pairSigMillisBefore = pairSigMillis.load();
+
+    // Every surface the drain describes lands in exactly one of these, and
+    // at row end they must add up to what the search accepted (see the
+    // accounting check after e.search()). A surface can never again vanish
+    // between the search and the witness file without being counted.
+    struct RowAccounting {
+      std::atomic<long long> described{0};
+      std::atomic<long long> recorded{0};
+      std::atomic<long long> duplicate{0};
+      std::atomic<long long> orientation{0}; // another oriented variant
+      std::atomic<long long> searchSideElsewhere{0}; // unseeded only
+      // Impossible for a correct build; any nonzero count halts the run.
+      std::atomic<long long> nonOrientable{0};
+      std::atomic<long long> searchSideBroken{0};
+      std::atomic<long long> orientationBroken{0};
+      std::atomic<long long> multiFarSide{0};
+      std::atomic<long long> unnamedSide{0};
+
+      long long impossible() const {
+        return nonOrientable + searchSideBroken + orientationBroken +
+               multiFarSide + unnamedSide;
+      }
+      long long bucketed() const {
+        return recorded + duplicate + orientation + searchSideElsewhere +
+               impossible();
+      }
+    } acct;
+
+    // --rejection-sample-log: the pair signatures of the first few surfaces
+    // each rejection reason turns away in this row, so a misbehaving gate
+    // can be audited offline without re-searching.
+    std::mutex rejectionSampleMutex;
+    std::map<std::string, int> rejectionSamplesTaken;
+    auto sampleRejection = [&](const char *reason,
+                               const SurfaceBoundaryInfo &info) {
+      if (!rejectionSampleLog)
+        return;
+      {
+        std::lock_guard<std::mutex> lock(rejectionSampleMutex);
+        if (rejectionSamplesTaken[reason]++ >= REJECTION_SAMPLES_PER_REASON)
+          return;
+      }
+      std::string sig =
+          info.capturePairSig ? info.capturePairSig() : std::string{};
+      std::lock_guard<std::mutex> lock(rejectionSampleMutex);
+      *rejectionSampleLog << csvField(row.name) << ',' << reason << ','
+                          << info.tubedGenus << ','
+                          << (info.connected ? "true" : "false") << ','
+                          << csvField(info.boundaryDescription) << ','
+                          << csvField(sig) << '\n';
+      rejectionSampleLog->flush();
+    };
+
     std::atomic<long long> newWitnessesThisRow{0};
     std::atomic<bool> resolvedThisRow{false};
 
@@ -2471,8 +2948,14 @@ int main(int argc, char *argv[]) {
         surfaceLog->writeRow(row2.str());
       }
 
-      if (!info.orientable)
-        return; // defensive; orientableOnly=true already prunes these
+      acct.described.fetch_add(1, std::memory_order_relaxed);
+
+      if (!info.orientable) {
+        // orientableOnly=true prunes these during the search.
+        acct.nonOrientable.fetch_add(1, std::memory_order_relaxed);
+        sampleRejection("non-orientable", info);
+        return;
+      }
 
       // A disconnected find is NOT discarded any more. Its components tube
       // into a single connected surface with the same boundary and genus
@@ -2488,17 +2971,37 @@ int main(int argc, char *argv[]) {
         return info.capturePairSig ? info.capturePairSig() : std::string{};
       };
 
+      // Seeded, the search side is L by construction (asserted once at row
+      // setup), so splitBoundary() just takes component searchSideBC.
+      // Unseeded, it filters on L's own edges, setwise.
       BoundarySplit split =
-          splitBoundary(info.boundaryComponents, searchSideBC, rowOwnName);
+          splitBoundary(info.boundaryComponents, searchSideBC,
+                        seedFaces.empty() ? &rowSearchEdges : nullptr);
 
-      if (split.searchCurveCount != static_cast<size_t>(componentCount))
-        return; // this row's own link isn't (wholly) the boundary here, so
-                // whatever this surface witnesses, it isn't about this row
+      if (split.unnamedSide) {
+        acct.unnamedSide.fetch_add(1, std::memory_order_relaxed);
+        sampleRejection("unnamed-side", info);
+        return;
+      }
+      if (split.searchCurveCount != static_cast<size_t>(componentCount)) {
+        if (seedFaces.empty()) {
+          // Unseeded: a different link on the search side, so whatever
+          // this surface witnesses, it isn't about this row.
+          acct.searchSideElsewhere.fetch_add(1, std::memory_order_relaxed);
+          sampleRejection("search-side-elsewhere", info);
+        } else {
+          acct.searchSideBroken.fetch_add(1, std::memory_order_relaxed);
+          sampleRejection("search-side-broken", info);
+        }
+        return;
+      }
 
-      // A mixed orientation match means the surface witnesses a DIFFERENT
-      // oriented variant of this same-complement diagram -- exactly the
-      // L6a3{0}/L6a3{1} misattribution this check exists to catch.
-      if (rowOrientation) {
+      // Orientation: a surface component whose curves induce a pattern no
+      // flip of that component can fix witnesses a DIFFERENT oriented
+      // variant of this link -- the L6a3{0}/L6a3{1} misattribution. Judged
+      // per surface component, since each can be oriented independently
+      // (classifyRowOrientation()).
+      {
         std::vector<OrientedCurve> searchSideCurves;
         bool foundSearchSide = false;
         for (auto &[c, curves] : info.captureOrientedBoundaryLinks()) {
@@ -2508,10 +3011,20 @@ int main(int argc, char *argv[]) {
             break;
           }
         }
-        if (!foundSearchSide ||
-            !cobordismgraph::matchesRowOrientation(*rowOrientation,
-                                                   searchSideCurves)) {
-          orientationRejections.fetch_add(1, std::memory_order_relaxed);
+        const cobordismgraph::OrientationVerdict verdict =
+            foundSearchSide
+                ? cobordismgraph::classifyRowOrientation(
+                      *rowOrientation, searchSideCurves,
+                      info.captureBoundaryEdgeSurfaceComponent())
+                : cobordismgraph::OrientationVerdict::incoherentCurve;
+        if (verdict == cobordismgraph::OrientationVerdict::mismatch) {
+          acct.orientation.fetch_add(1, std::memory_order_relaxed);
+          sampleRejection("orientation", info);
+          return;
+        }
+        if (verdict != cobordismgraph::OrientationVerdict::match) {
+          acct.orientationBroken.fetch_add(1, std::memory_order_relaxed);
+          sampleRejection("orientation-broken", info);
           return;
         }
       }
@@ -2546,12 +3059,17 @@ int main(int argc, char *argv[]) {
         w.otherComponents = far.components;
         w.otherCandidates = names.candidates(farName, far.components);
       } else {
-        return; // a (k+1)-way cobordism; sound to use, but not yet
-                // implemented -- see the plan's out-of-scope note
+        // S^3 x I has two boundary components, so this cannot happen.
+        acct.multiFarSide.fetch_add(1, std::memory_order_relaxed);
+        sampleRejection("multi-far-side", info);
+        return;
       }
 
-      if (!recordWitness(w, capturePairSig))
+      if (!recordWitness(w, capturePairSig)) {
+        acct.duplicate.fetch_add(1, std::memory_order_relaxed);
         return;
+      }
+      acct.recorded.fetch_add(1, std::memory_order_relaxed);
       newWitnessesThisRow.fetch_add(1, std::memory_order_relaxed);
 
       // Does this witness alone already settle the row? Checked cheaply
@@ -2760,7 +3278,51 @@ int main(int argc, char *argv[]) {
 
     if (surfaceLog)
       surfaceLog->finalize();
-    if (finalStats.deepestExhaustedCap) {
+
+    // Accounting: every surface the search accepted must have been
+    // described by the drain (unless the drain was deliberately cut short),
+    // and every described surface must sit in exactly one bucket. Anything
+    // else means surfaces vanished unexamined -- the failure mode that once
+    // emptied whole rows without a trace -- and halts the run once this
+    // row's witnesses are safely written.
+    const long long accepted = finalStats.satisfyingCount;
+    const long long described = acct.described.load();
+    const long long rebuildFailed = e.rebuildFailures();
+    const bool drainSkipped = e.boundaryProcessingSkipped();
+    std::string accountingFailure;
+    if (acct.bucketed() != described)
+      accountingFailure = std::to_string(described) +
+                          " surfaces described but " +
+                          std::to_string(acct.bucketed()) + " accounted for";
+    else if (rebuildFailed > 0)
+      accountingFailure = std::to_string(rebuildFailed) +
+                          " accepted surfaces failed to rebuild in the drain";
+    else if (!drainSkipped && described != accepted)
+      accountingFailure = std::to_string(accepted) +
+                          " surfaces accepted but " +
+                          std::to_string(described) + " described";
+    else if (acct.impossible() > 0)
+      accountingFailure =
+          std::to_string(acct.impossible()) +
+          " surfaces hit a state that cannot occur (non-orientable " +
+          std::to_string(acct.nonOrientable.load()) + ", search side " +
+          std::to_string(acct.searchSideBroken.load()) + ", orientation " +
+          std::to_string(acct.orientationBroken.load()) + ", multi far side " +
+          std::to_string(acct.multiFarSide.load()) + ", unnamed side " +
+          std::to_string(acct.unnamedSide.load()) + ")";
+    // Surfaces were accepted, yet not one reached the witness record. That
+    // can be genuine (every one witnesses another oriented variant), but it
+    // is also exactly what a broken gate looks like, so it never licenses a
+    // negative.
+    const long long examined = acct.recorded.load() + acct.duplicate.load();
+    const bool nothingExamined = described > 0 && examined == 0;
+    if (nothingExamined)
+      std::cout << "[!] " << row.name << ": WARNING: " << described
+                << " surfaces accepted but none reached the witness record; "
+                   "no exhaustion claimed for this search\n";
+
+    if (finalStats.deepestExhaustedCap && accountingFailure.empty() &&
+        !nothingExamined && !drainSkipped) {
       OutputRow &out = outputRows[row.name];
       // Never let a shallower run overwrite a deeper exhaustive result.
       out.exhaustedDepth =
@@ -2800,15 +3362,18 @@ int main(int argc, char *argv[]) {
       out.searchOutcome = searchOutcome;
     }
 
-    writeWitnesses(cobordismsPath, witnesses);
+    flushWitnesses();
     writeOutputCsv(*outputPath, rows, outputRows);
 
     for (const std::string &reason : contradictions)
       flagFatalBug(reason);
+    if (!accountingFailure.empty())
+      flagFatalBug(row.name + ": surface accounting failed -- " +
+                   accountingFailure + ".");
     if (fatalBugDetected_.load())
       haltIfFatalBugDetected();
 
-    long long rejected = orientationRejections.load();
+    long long rejected = acct.orientation.load();
     std::cout << "[+] " << row.name << ": "
               << newWitnessesThisRow.load() << " new witnesses, outcome "
               << searchOutcome;
@@ -2816,6 +3381,66 @@ int main(int argc, char *argv[]) {
       std::cout << ", " << rejected
                 << " surfaces rejected on orientation mismatch";
     std::cout << "\n";
+    // Its own line, parsed by tools/orchestrate/dispatch.py (RE_ACCOUNTING);
+    // the summary line above stays exactly as RE_OUTCOME expects.
+    std::cout << "[+] " << row.name << ": accounting: accepted " << accepted
+              << ", described " << described << ", recorded "
+              << acct.recorded.load() << ", duplicate "
+              << acct.duplicate.load() << ", other-orientation "
+              << acct.orientation.load() << ", search-side-elsewhere "
+              << acct.searchSideElsewhere.load() << ", impossible "
+              << acct.impossible() << ", drain "
+              << (drainSkipped ? "skipped" : "complete") << ", "
+              << (nothingExamined ? "WARNING" : "ok") << "\n";
+    {
+      const identify::RecognitionCacheStats r =
+          identify::recognitionCacheStats();
+      const identify::BoundarySignatureCacheStats b =
+          e.boundarySignatureCacheStats();
+      auto secs = [](long long ms) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1) << ms / 1000.0;
+        return o.str();
+      };
+      const auto censusWritesNow = census::insertCounts();
+      const long long censusOk =
+          censusWritesNow.first - censusWritesBefore.first;
+      const long long censusFailed =
+          censusWritesNow.second - censusWritesBefore.second;
+      std::cout << "[+] " << row.name << ": identification: boundary cache "
+                << b.hits << "/" << b.checks << " hits, census checks "
+                << (r.censusChecks - recognitionBefore.censusChecks)
+                << " (local hits "
+                << (r.localCensusHits - recognitionBefore.localCensusHits)
+                << "), Pachner knots "
+                << (r.pachnerKnots.attempts -
+                    recognitionBefore.pachnerKnots.attempts)
+                << " tried/"
+                << (r.pachnerKnots.successes -
+                    recognitionBefore.pachnerKnots.successes)
+                << " named/"
+                << secs(r.pachnerKnots.milliseconds -
+                        recognitionBefore.pachnerKnots.milliseconds)
+                << "s, links "
+                << (r.pachnerLinks.attempts -
+                    recognitionBefore.pachnerLinks.attempts)
+                << "/"
+                << (r.pachnerLinks.successes -
+                    recognitionBefore.pachnerLinks.successes)
+                << "/"
+                << secs(r.pachnerLinks.milliseconds -
+                        recognitionBefore.pachnerLinks.milliseconds)
+                << "s, pairsigs " << (pairSigCount.load() - pairSigCountBefore)
+                << "/" << secs(pairSigMillis.load() - pairSigMillisBefore)
+                << "s, census writes " << censusOk << " ok/" << censusFailed
+                << " failed\n";
+      // A census that cannot be written to costs nothing in correctness,
+      // but every name it fails to keep is recomputed by every later row.
+      if (censusFailed > 0)
+        std::cout << "[!] " << row.name << ": WARNING: " << censusFailed
+                  << " census writes failed (names found here will not "
+                     "reach later rows)\n";
+    }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.
     if (resolveUnlinked)
@@ -2868,7 +3493,7 @@ int main(int argc, char *argv[]) {
   // reflects everything its witness file knows.
   for (const std::string &reason : resolveAll())
     flagFatalBug(reason);
-  writeWitnesses(cobordismsPath, witnesses);
+  flushWitnesses();
   writeOutputCsv(*outputPath, rows, outputRows);
   haltIfFatalBugDetected();
 
