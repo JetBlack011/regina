@@ -2937,6 +2937,8 @@ int main(int argc, char *argv[]) {
     std::atomic<long long> latestSatisfying{0};
 
     SurfaceSearchCallbacks callbacks;
+    // A stop nobody else noted (SIGINT) is not running out of candidates.
+    callbacks.onInterrupted = [&] { noteStop("interrupted"); };
     callbacks.onProgress = [&](const SearchStats &stats) {
       latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
       printProgress(stats, e);
@@ -3384,6 +3386,10 @@ int main(int argc, char *argv[]) {
                                    finalStats, *selfIntersectionCensus);
     progressPrevLines_ = 0;
     ++searchedThisRun;
+
+    // A row that cannot account for its surfaces vouches for no negative.
+    if (!accountingFailure.empty() || nothingExamined)
+      noteStop("unaccounted");
 
     // Record what this search actually cost before anything else, so even
     // a fatal halt below leaves the bookkeeping behind.

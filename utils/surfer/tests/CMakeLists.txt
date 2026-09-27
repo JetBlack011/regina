@@ -88,3 +88,11 @@ add_test(NAME name_independence_test
                  $<TARGET_FILE:verifyslicegenus>)
 set_tests_properties(name_independence_test PROPERTIES
   LABELS "surfer" TIMEOUT 600)
+
+# A search stopped by SIGINT must not be recorded as having run out of
+# candidates. See the script's header.
+add_test(NAME interrupted_outcome_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/interrupted_outcome_test.sh
+                 $<TARGET_FILE:verifyslicegenus>)
+set_tests_properties(interrupted_outcome_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300 SKIP_RETURN_CODE 77)

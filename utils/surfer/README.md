@@ -135,6 +135,7 @@ needs an idle machine. Besides each component's own unit tests:
 | `tests/predicate_order_test` | `KnottedSurface`'s prunes (P_1, flatness, transversality) agree with a from-scratch reference on every set of triangles in small closed triangulations, whatever the order faces are added, including one-vertex ones where a triangle has several corners at a vertex |
 | `tests/rowmap_test` | the row map lands exactly on L × {0}, no searchable face touches it, the bare collar classifies as matching (optionally over a whole table) |
 | `tests/name_independence_test.sh` | perturbing every name (identified or drawn: it runs with diagram naming and requires that it was used) changes nothing the search accepts or records |
+| `tests/interrupted_outcome_test.sh` | a search stopped by SIGINT is recorded as `interrupted`, never `exhausted` |
 | `tests/census_test` | census lookups, and that an insert after a hit lands |
 | `tests/cobordismgraph_test` | the solver's rules, `splitBoundary`, per-component orientation, witness identity |
 | `knotbuilder/tests/diagramdrawer_test` | the drawer (see `knotbuilder/README.md`) |
