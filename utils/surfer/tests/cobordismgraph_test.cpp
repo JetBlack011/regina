@@ -257,6 +257,52 @@ void test_unlink_far_side_carries_no_component_penalty() {
     EXPECT_EQ(v.status == Status::verified, true, "and the row verifies");
 }
 
+void test_derived_lower_above_derived_upper_is_a_contradiction() {
+    // K bounds a disc (a direct genus-0 witness: hi 0, constructive), and a
+    // genus-1 cobordism runs from K to a knot far side whose every candidate
+    // has literature g4 = 3, which transports lo(K) >= 3 - 1 - 1 + 1 = 2.
+    // Two candidates keep the reverse rule out, so nothing else can notice.
+    // Both bounds sit inside K's literature interval [0, 2], but together
+    // they say 2 <= g4(K) <= 0: a witness, a name or a table is wrong, and
+    // the status is the computation's only consistency check (paper,
+    // def:status). It must not come out "verified".
+    NameTable names;
+    names.addLiterature("K", 0, 2);
+    names.addLiterature("J", 3, 3);
+    names.addLiterature("J2", 3, 3);
+    auto bounds = propagate({direct("K", 1, 0),
+                             cobordism("K", 1, "J", 1, 1, {"J", "J2"})},
+                            names);
+
+    EXPECT_EQ(bounds["K"].hi, 0, "the disc gives hi(K) = 0");
+    EXPECT_EQ(bounds["K"].lo, 2, "the cobordism gives lo(K) = 2");
+    Verdict v = judge("K", bounds["K"], names);
+    EXPECT_EQ(v.status == Status::contradiction, true,
+              "derived lo 2 above derived hi 0 is a contradiction, not a "
+              "verification");
+}
+
+void test_knot_far_side_named_as_a_link_bounds_nothing() {
+    // One curve was observed on the far side, but the name it was given is a
+    // link's base, so no registered variant has the observed count: the
+    // identification and the geometry disagree. candidates() then hands back
+    // every link variant, and a one-curve far side bears a bound
+    // (farSideBearsBound), so the subject would be bounded by a LINK's g4 as
+    // if it were this knot's. The witness is built as the driver builds it
+    // (verifyslicegenus.cpp: otherCandidates = candidates(name, observed)).
+    NameTable names;
+    names.addLiterature("K", 0, 3);
+    names.addLiterature("L2a1{0}", 0, 0);
+    names.addLiterature("L2a1{1}", 0, 0);
+    Witness w = cobordism("K", 1, "L2a1", 1, 0,
+                          names.candidates("L2a1", 1));
+    auto bounds = propagate({w}, names);
+
+    EXPECT_EQ(bounds.contains("K") && bounds.at("K").haveUpper(), false,
+              "a knot far side whose name only matches links carries no "
+              "bound: no candidate is a knot");
+}
+
 void test_linked_far_side_bounds_nothing() {
     // The unlink exemption is the ONLY way a multi-component far side gets
     // to carry a bound. Every other multi-component name is a statement
@@ -1401,6 +1447,10 @@ void run(const std::string &name, void (*fn)()) {
 
 int main() {
     run("components_from_name", test_components_from_name);
+    run("derived_lower_above_derived_upper_is_a_contradiction",
+        test_derived_lower_above_derived_upper_is_a_contradiction);
+    run("knot_far_side_named_as_a_link_bounds_nothing",
+        test_knot_far_side_named_as_a_link_bounds_nothing);
     run("proved_link_far_side_bears_bound",
         test_proved_link_far_side_bears_bound);
     run("split_names", test_split_names);

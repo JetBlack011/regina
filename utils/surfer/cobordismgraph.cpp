@@ -261,11 +261,12 @@ NameTable::candidates(const std::string &name,
     for (const std::string &candidate : it->second)
         if (components(candidate) == *observedComponents)
             filtered.push_back(candidate);
-    // An empty result would mean every registered variant of this base has
-    // the wrong component count, i.e. the identification and the geometry
-    // disagree. Hand back the unfiltered set and let the max/min in propagate()
-    // stay okay.
-    return filtered.empty() ? it->second : filtered;
+    // An empty result means every registered variant of this base has the
+    // wrong component count, i.e. the identification and the geometry
+    // disagree. The far side is none of those variants, so a max/min over
+    // them bounds nothing: hand back the name itself, which is unregistered
+    // and so bears no bound.
+    return filtered.empty() ? std::vector<std::string>{name} : filtered;
 }
 
 /* Witness cobordisms (cobordisms that verify slice genus somehow) */
@@ -930,6 +931,15 @@ Verdict judge(const std::string &name, const Bounds &bounds,
         v.haveLiterature = true;
         v.litLo = info->litLo;
         v.litHi = info->litHi;
+    }
+
+    if (bounds.haveUpper() && bounds.haveLower() && bounds.lo > bounds.hi) {
+        v.status = Status::contradiction;
+        std::ostringstream msg;
+        msg << name << ": derived a lower bound of " << bounds.lo
+            << ", ABOVE the derived upper bound " << bounds.hi << ".";
+        v.reason = msg.str();
+        return v;
     }
 
     if (v.haveLiterature) {
