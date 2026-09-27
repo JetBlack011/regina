@@ -952,11 +952,25 @@ bool KnottedSurface::addFace(int f) {
     EmbeddedSubmanifold<4, 2>::removeFace(f);
   };
 
+  // Register all three corners before checking any petal: a triangle can
+  // have two or three corners at one vertex, and a petal checked before its
+  // last corner is listed has an incomplete trace.
+  for (int local = 0; local <= 2; ++local) {
+    facesAtVertex_[node.face->face<0>(local)->index()].push_back({f, local});
+    pushed = local + 1;
+  }
+
   for (int local = 0; local <= 2; ++local) {
     auto *ambientVertex = node.face->face<0>(local);
     size_t v = ambientVertex->index();
-    facesAtVertex_[v].push_back({f, local});
-    pushed = local + 1;
+    // A petal this triangle meets more than once is checked once.
+    bool seenBefore = false;
+    for (int earlier = 0; earlier < local; ++earlier)
+      if (node.face->face<0>(earlier) == ambientVertex &&
+          vertexClassRoot(f, earlier) == vertexClassRoot(f, local))
+        seenBefore = true;
+    if (seenBefore)
+      continue;
 
     // Vertex<4>::buildLink() is a closed S^3 only for interior ambient
     // vertices, which is what the hereditary proofs below rely on; a

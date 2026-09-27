@@ -14,6 +14,7 @@ set(TESTS
   rowmap_test
   enumerator_test
   farsidenaming_test
+  predicate_order_test
 )
 
 # Every test just links surfer_common (defined in ../CMakeLists.txt) rather
@@ -33,6 +34,9 @@ endforeach()
 # rather than a narrow set of hand-picked cases, so it can take on the order
 # of a couple of minutes; correctness coverage is the priority here.
 set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
+# Every set of triangles up to a size cap in several small closed
+# triangulations, each checked against a from-scratch reference.
+set_tests_properties(predicate_order_test PROPERTIES TIMEOUT 300)
 
 
 # One-off generation utility -- not a CTest test: builds the Rolfsen <->
@@ -68,6 +72,13 @@ target_compile_options(profile_pairsig PRIVATE -g)
 #   replay_pairsigs group0.txt group1.txt ...
 add_executable(replay_pairsigs replay_pairsigs.cpp)
 target_link_libraries(replay_pairsigs surfer_common)
+
+# Review utility: counts triangles with a repeated vertex in each table row's
+# thickening, built as verifyslicegenus builds it. Not a CTest test:
+#
+#   review_repeated_vertices knots.csv links.csv
+add_executable(review_repeated_vertices review_repeated_vertices.cpp)
+target_link_libraries(review_repeated_vertices surfer_common)
 
 # No gate may depend on an identified name: the same exhaustive search, with
 # every name perturbed, must accept exactly the same surfaces. See the
