@@ -292,8 +292,13 @@ identify::RecognitionResult
 resolveRecognition(const regina::Triangulation<3> &complement,
                    const std::string &sig) {
     ssize_t genus = cachedGenus(complement, sig);
-    if (genus != -1)
-        return *lookupRecognition(sig); // fully resolved; census never applies
+    if (genus != -1) {
+        // Fully resolved; census never applies. Another thread may have
+        // cleared the cache since cachedGenus() stored the genus.
+        if (auto cached = lookupRecognition(sig))
+            return *cached;
+        return identify::RecognitionResult{.genus = genus};
+    }
 
     // The Pachner search is the expensive rung. A knot's name can bear a
     // slice-genus bound, so it is worth it there; a link's name, taken from

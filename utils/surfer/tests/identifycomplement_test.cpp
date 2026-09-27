@@ -19,8 +19,11 @@
 // a test of automorphism-invariance shouldn't be circular with the
 // machinery it's checking.
 
+#include <atomic>
+#include <chrono>
 #include <iostream>
 #include <optional>
+#include <thread>
 #include <sstream>
 #include <string>
 #include <unistd.h>
@@ -224,10 +227,10 @@ void test_recognition_cache_clear_threshold() {
     // topologically distinct complements, not just different edge counts.
     // Drilling no edges at all from a fixed triangulation just recognizes
     // that triangulation itself (buildComplement()'s pinch loop is a no-op
-    // on an empty edge set) -- so pairing the trivial pentachoron-boundary
-    // case (an unknot complement, genus 1) with the figure-eight knot
-    // complement (genuinely hyperbolic, not any handlebody) guarantees two
-    // distinct isoSigs.
+    // on an empty edge set) -- so pairing the pentachoron-boundary case (one
+    // edge with distinct ends, which pinching just collapses, leaving S^3)
+    // with the figure-eight knot complement (genuinely hyperbolic, not any
+    // handlebody) guarantees two distinct isoSigs.
     regina::Triangulation<3> boundary = testBoundary();
     regina::Triangulation<3> figureEight = regina::Example<3>::figureEight();
 
@@ -241,6 +244,81 @@ void test_recognition_cache_clear_threshold() {
     EXPECT_EQ(identify::recognitionCacheStats().cacheResets >= 1, true,
               "recognitionCache reset at least once after exceeding its "
               "(deliberately tiny) limit");
+
+    identify::recognitionCacheLimit.store(defaultLimit);
+    identify::resetRecognitionCacheForTesting();
+}
+
+void test_recognition_cache_clear_race() {
+    // resolveRecognition() takes the genus from cachedGenus(), which stores
+    // it and releases recognitionCacheMutex, and then dereferences
+    // lookupRecognition(sig) under a second lock. storeRecognition() clears
+    // the whole cache once it is at recognitionCacheLimit, so another
+    // thread's store can land between the two and leave an empty optional.
+    // With the limit at 1, every store of a different signature clears it:
+    // four threads name one complement while four others churn another.
+    // Each answer must be the one a quiet, single-threaded call gives. The
+    // churners also clear the cache directly, as a store at the limit does,
+    // so the narrow window between the two lookups is actually reached.
+    // The three edges of one triangle: an unknotted circle, whose complement
+    // is a solid torus, so resolveRecognition() takes the genus != -1 branch
+    // that dereferences the second lookup. (A single edge with distinct ends
+    // just collapses, leaving S^3, which takes the census branch instead.)
+    auto unknot = [](const regina::Triangulation<3> &t) {
+        const regina::Triangle<3> *f = t.triangle(0);
+        return EdgeComplement(t, {f->edge(0), f->edge(1), f->edge(2)});
+    };
+    regina::Triangulation<3> boundary = testBoundary();
+    identify::resetRecognitionCacheForTesting();
+    const std::string expected = identify::identify(unknot(boundary));
+    EXPECT_EQ(expected, std::string("Unknot"),
+              "the quiet call takes the genus != -1 branch");
+
+    const size_t defaultLimit = identify::recognitionCacheLimit.load();
+    identify::recognitionCacheLimit.store(1);
+    identify::resetRecognitionCacheForTesting();
+
+    std::atomic<long> calls{0}, wrong{0};
+    std::atomic<bool> stop{false};
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(20);
+    auto namer = [&] {
+        regina::Triangulation<3> own = testBoundary();
+        for (int i = 0; i < 4000 && !stop.load(); ++i) {
+            std::string name = identify::identify(unknot(own));
+            ++calls;
+            if (name != expected && ++wrong <= 5)
+                std::cout << "  wrong name: '" << name << "'\n";
+            if (std::chrono::steady_clock::now() > deadline)
+                stop.store(true);
+        }
+    };
+    auto churner = [&] {
+        regina::Triangulation<3> own = regina::Example<3>::figureEight();
+        while (!stop.load()) {
+            identify::identify(EdgeComplement(own, {}));
+            for (int k = 0; k < 1000 && !stop.load(); ++k)
+                identify::resetRecognitionCacheForTesting();
+            if (std::chrono::steady_clock::now() > deadline)
+                stop.store(true);
+        }
+    };
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t)
+        threads.emplace_back(namer);
+    for (int t = 0; t < 4; ++t)
+        threads.emplace_back(churner);
+    for (int t = 0; t < 4; ++t)
+        threads[t].join();
+    stop.store(true);
+    for (size_t t = 4; t < threads.size(); ++t)
+        threads[t].join();
+
+    std::cout << "  " << calls.load() << " calls naming '" << expected
+              << "'\n";
+    EXPECT_EQ(wrong.load(), 0L,
+              "every concurrent identification agrees with the quiet one, "
+              "however often the cache is cleared underneath it");
 
     identify::recognitionCacheLimit.store(defaultLimit);
     identify::resetRecognitionCacheForTesting();
@@ -551,6 +629,7 @@ int main() {
         test_boundary_signature_cache_clear_threshold);
     run("recognition_cache_clear_threshold",
         test_recognition_cache_clear_threshold);
+    run("recognition_cache_clear_race", test_recognition_cache_clear_race);
     run("identify_link_unlink", test_identify_link_unlink);
     run("identify_link_hopf_not_unknot", test_identify_link_hopf_not_unknot);
     run("pachner_search_policy", test_pachner_search_policy);
