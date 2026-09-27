@@ -53,11 +53,11 @@ std::string csvField(std::string_view s);
  * (e.g. rewrite-and-atomically-rename after each unit of progress).
  *
  * shardForThisThread() caches its result in a thread_local, function-static
- * pointer -- correct as long as at most one CsvWriter of a given instance
- * is ever written to concurrently by a given thread (i.e. a thread reusing
- * itself across two different CsvWriter instances gets a fresh cache miss
- * against the second one, which is fine -- the cache is per-instance state,
- * not per-thread-global).
+ * pointer, which is per thread and shared by every CsvWriter. So the pointer
+ * is kept together with the id of the writer it belongs to, and a thread
+ * writing to a different writer (verifyslicegenus makes one per row, at the
+ * same address each time) takes a fresh shard instead of the previous
+ * writer's destroyed one.
  */
 class CsvWriter {
 public:
@@ -92,6 +92,9 @@ private:
   std::filesystem::path outputPath_;
   std::string headerLine_;
   unsigned maxShards_;
+  // Distinguishes this writer in the thread-local shard cache: a later
+  // writer can occupy the same address (a std::optional reused per row).
+  uint64_t id_;
   std::mutex registryMutex_;
   size_t nextShard_ = 0; // guarded by registryMutex_
   std::vector<std::unique_ptr<Shard>> shards_;

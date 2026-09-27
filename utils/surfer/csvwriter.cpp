@@ -7,6 +7,7 @@
 #include "csvwriter.h"
 
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include <stdexcept>
 
@@ -28,7 +29,10 @@ std::string csvField(std::string_view s) {
 CsvWriter::CsvWriter(std::filesystem::path outputPath, std::string headerLine,
                      unsigned numThreads)
     : outputPath_(std::move(outputPath)), headerLine_(std::move(headerLine)),
-      maxShards_(std::max<unsigned>(1, std::min(numThreads, MAX_SHARDS))) {}
+      maxShards_(std::max<unsigned>(1, std::min(numThreads, MAX_SHARDS))) {
+  static std::atomic<uint64_t> nextId{1};
+  id_ = nextId.fetch_add(1);
+}
 
 void CsvWriter::writeRow(const std::string &row) {
   Shard &shard = shardForThisThread();
@@ -74,9 +78,11 @@ void CsvWriter::flush(Shard &shard) {
 }
 
 CsvWriter::Shard &CsvWriter::shardForThisThread() {
+  static thread_local uint64_t cachedFor = 0;
   static thread_local Shard *cached = nullptr;
-  if (cached)
+  if (cached && cachedFor == id_)
     return *cached;
+  cachedFor = id_;
   std::lock_guard<std::mutex> lock(registryMutex_);
   if (shards_.size() < maxShards_) {
     auto shard = std::make_unique<Shard>();
