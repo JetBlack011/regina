@@ -22,505 +22,515 @@ EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     : skeleton_(skeleton), faces_(skeleton.numFaces()), classRoots_(subdim - 1),
       registryUndoLog_(subdim - 1), checkpoints_(skeleton.numFaces()),
       orientationDsu_(skeleton.numFaces()) {
-  const auto &tri = skeleton_.triangulation();
-  regina::for_constexpr<0, subdim>([&](auto kW) {
-    constexpr int k = decltype(kW)::value;
-    std::get<k>(faceCount_).assign(tri.template countFaces<k>(), 0);
-  });
-  dsu_.reserve(subdim - 1);
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    constexpr int k = decltype(kW)::value;
-    classRoots_[k].assign(tri.template countFaces<k>(), {});
-    dsu_.emplace_back(skeleton_.numFaces() *
-                      regina::FaceNumbering<subdim, k>::nFaces);
-  });
+    const auto &tri = skeleton_.triangulation();
+    regina::for_constexpr<0, subdim>([&](auto kW) {
+        constexpr int k = decltype(kW)::value;
+        std::get<k>(faceCount_).assign(tri.template countFaces<k>(), 0);
+    });
+    dsu_.reserve(subdim - 1);
+    regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+        constexpr int k = decltype(kW)::value;
+        classRoots_[k].assign(tri.template countFaces<k>(), {});
+        dsu_.emplace_back(skeleton_.numFaces() *
+                          regina::FaceNumbering<subdim, k>::nFaces);
+    });
 
-  facetIsAmbientBoundary_.resize(tri.template countFaces<subdim - 1>());
-  for (size_t i = 0; i < facetIsAmbientBoundary_.size(); ++i)
-    facetIsAmbientBoundary_[i] = tri.template face<subdim - 1>(i)->isBoundary();
+    facetIsAmbientBoundary_.resize(tri.template countFaces<subdim - 1>());
+    for (size_t i = 0; i < facetIsAmbientBoundary_.size(); ++i)
+        facetIsAmbientBoundary_[i] =
+            tri.template face<subdim - 1>(i)->isBoundary();
 
-  for (auto &cp : checkpoints_) {
-    cp.dsuMark.assign(subdim - 1, 0);
-    cp.registryMark.assign(subdim - 1, 0);
-  }
+    for (auto &cp : checkpoints_) {
+        cp.dsuMark.assign(subdim - 1, 0);
+        cp.registryMark.assign(subdim - 1, 0);
+    }
 }
 
 template <int dim, int subdim>
 EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
     const Skeleton<dim, subdim> &skeleton, const std::vector<int> &seedFaces)
     : EmbeddedSubmanifold(skeleton) {
-  if (!addFaces(seedFaces))
-    throw regina::InvalidArgument(
-        "EmbeddedSubmanifold::EmbeddedSubmanifold(): seedFaces could not "
-        "be jointly added -- no addition order makes every face embed.");
+    if (!addFaces(seedFaces))
+        throw regina::InvalidArgument(
+            "EmbeddedSubmanifold::EmbeddedSubmanifold(): seedFaces could not "
+            "be jointly added -- no addition order makes every face embed.");
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::addFaces(const std::vector<int> &faces) {
-  // With Phase 2 disabled (see addFace()), addFace()'s only remaining
-  // requirement is the facet-level (codimension-1) boundary condition,
-  // which -- for a target set that's genuinely fine at that level -- holds
-  // regardless of order (whichever of a facet's <=2 triangles is added
-  // second just finds the first already there). So a single pass suffices;
-  // no more searching for a working order via repeated retries.
-  std::vector<int> added; // commit order, for rollback on failure
-  for (int f : faces) {
-    if (!addFace(f)) {
-      for (auto it = added.rbegin(); it != added.rend(); ++it)
-        removeFace(*it);
-      return false;
+    // With Phase 2 disabled (see addFace()), addFace()'s only remaining
+    // requirement is the facet-level (codimension-1) boundary condition,
+    // which -- for a target set that's genuinely fine at that level -- holds
+    // regardless of order (whichever of a facet's <=2 triangles is added
+    // second just finds the first already there). So a single pass suffices;
+    // no more searching for a working order via repeated retries.
+    std::vector<int> added; // commit order, for rollback on failure
+    for (int f : faces) {
+        if (!addFace(f)) {
+            for (auto it = added.rbegin(); it != added.rend(); ++it)
+                removeFace(*it);
+            return false;
+        }
+        added.push_back(f);
     }
-    added.push_back(f);
-  }
-  return true;
+    return true;
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::addFace(int f) {
-  const auto &node = skeleton_.getNodes()[f];
+    const auto &node = skeleton_.getNodes()[f];
 
-  // Phase 1: Check Condition 1 (facet condition) and build F_bitmask.
-  // F_bitmask has bit j set iff local facet j of the new simplex is being
-  // glued to a boundary facet of the current submanifold.
-  std::array<bool, subdim + 1> facetIsUsed = {};
-  int F_bitmask = 0;
+    // Phase 1: Check Condition 1 (facet condition) and build F_bitmask.
+    // F_bitmask has bit j set iff local facet j of the new simplex is being
+    // glued to a boundary facet of the current submanifold.
+    std::array<bool, subdim + 1> facetIsUsed = {};
+    int F_bitmask = 0;
 
-  for (const auto &g : node.gluings) {
-    const int dstFacet = g.gluing[g.srcFacet];
+    for (const auto &g : node.gluings) {
+        const int dstFacet = g.gluing[g.srcFacet];
 
-    if (g.dstIndex == static_cast<size_t>(f)) {
-      // Self-gluing: facets g.srcFacet and dstFacet of this simplex are
-      // the same (subdim-1)-face in tri_. Each pair is listed twice in
-      // gluings; process only srcFacet < dstFacet to avoid double-work.
-      if (g.srcFacet >= dstFacet)
-        continue;
+        if (g.dstIndex == static_cast<size_t>(f)) {
+            // Self-gluing: facets g.srcFacet and dstFacet of this simplex are
+            // the same (subdim-1)-face in tri_. Each pair is listed twice in
+            // gluings; process only srcFacet < dstFacet to avoid double-work.
+            if (g.srcFacet >= dstFacet)
+                continue;
 
-      if (facetIsUsed[g.srcFacet] || facetIsUsed[dstFacet])
-        return false;
+            if (facetIsUsed[g.srcFacet] || facetIsUsed[dstFacet])
+                return false;
 
-      // Adding this simplex will increment the count for the shared face by
-      // 2 (once per local facet). It must currently be absent.
-      if (std::get<subdim - 1>(
-              faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)
-                              ->index()] != 0)
-        return false;
+            // Adding this simplex will increment the count for the shared face
+            // by 2 (once per local facet). It must currently be absent.
+            if (std::get<subdim - 1>(
+                    faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)
+                                    ->index()] != 0)
+                return false;
 
-      facetIsUsed[g.srcFacet] = true;
-      facetIsUsed[dstFacet] = true;
-      // Self-gluings are NOT added to F_bitmask: they are internal to the
-      // new simplex, not gluings to the existing submanifold.
+            facetIsUsed[g.srcFacet] = true;
+            facetIsUsed[dstFacet] = true;
+            // Self-gluings are NOT added to F_bitmask: they are internal to the
+            // new simplex, not gluings to the existing submanifold.
 
-    } else if (faces_[g.dstIndex] != nullptr) {
-      // External gluing to an existing simplex in the submanifold.
-      if (facetIsUsed[g.srcFacet])
-        return false;
+        } else if (faces_[g.dstIndex] != nullptr) {
+            // External gluing to an existing simplex in the submanifold.
+            if (facetIsUsed[g.srcFacet])
+                return false;
 
-      // The destination facet must be a boundary facet (count == 1).
-      if (std::get<subdim - 1>(
-              faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)
-                              ->index()] != 1)
-        return false;
+            // The destination facet must be a boundary facet (count == 1).
+            if (std::get<subdim - 1>(
+                    faceCount_)[node.face->template face<subdim - 1>(g.srcFacet)
+                                    ->index()] != 1)
+                return false;
 
-      facetIsUsed[g.srcFacet] = true;
-      F_bitmask |= (1 << g.srcFacet);
-    }
-    // Gluings to faces not in the submanifold are ignored.
-  }
-
-  // Phase 2: Check Condition 2 (higher-codimension condition) -- DISABLED.
-  //
-  // This required that every k-face (k <= subdim-2, i.e. vertices when
-  // subdim == 2) of the new simplex already touched by the submanifold be a
-  // subface of some facet actually being glued in this same call. That's a
-  // sound-but-incomplete, ORDER-DEPENDENT check: it can reject a face whose
-  // only "explaining" neighbor hasn't been added yet, even when the full
-  // target set is genuinely fine, and -- worse -- some closing dependencies
-  // (e.g. completing a cycle) are mutually circular, so no order at all
-  // satisfies it (see utils/surfer/ADDFACE_VERTEX_COLLISION_BUG.md and the
-  // CollarBuilder investigation that motivated this).
-  //
-  // Disabled per conjecture: the self-intersections this allowed through
-  // are always cusp (tangential), never transversal, intersections, and
-  // should always be resolvable after the fact -- rather than rejected
-  // during search. That means addFace()/search() can accept submanifolds
-  // that are not genuinely embedded (not injective) at codimension >= 2.
-  //
-  // What is now known (pl_enumeration_draft §4.5): the conjecture holds in
-  // a precise, weaker form. A self-intersection at an INTERIOR vertex whose
-  // trace T_v(S) is the unlink is removable, canonically, without changing
-  // the abstract surface; KnottedSurface::isResolvable() certifies exactly
-  // that, and --resolve-unlinked accepts such surfaces. The unqualified
-  // conjecture is false: a Hopf trace is a genuine transverse double point
-  // (P_transverse prunes it), a Whitehead trace passes every prune yet is
-  // not removable, and two open petals at a boundary vertex mean the
-  // boundary curves themselves touch. Codimension-1
-  // (facet-level, Phase 1 above) checks are NOT affected and remain in
-  // place -- those failures are genuinely unfixable.
-  //
-  // bool valid = true;
-  // regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-  //   if (!valid)
-  //     return;
-  //   constexpr int k = decltype(kW)::value;
-  //   const auto &counts = std::get<k>(faceCount_);
-  //   for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
-  //     if (counts[node.face->template face<k>(i)->index()] == 0)
-  //       continue;
-  //
-  //     // Bitmask of local vertex indices (0..subdim) of the i-th k-face.
-  //     const auto perm = regina::FaceNumbering<subdim, k>::ordering(i);
-  //     int S = 0;
-  //     for (int j = 0; j <= k; ++j)
-  //       S |= (1 << perm[j]);
-  //
-  //     // Facet j (opposite vertex j) contains this k-face iff j NOT in S.
-  //     // The face is covered by some facet in F iff (F_bitmask & ~S) != 0.
-  //     if ((F_bitmask & ~S) == 0) {
-  //       valid = false;
-  //       return;
-  //     }
-  //   }
-  // });
-  // if (!valid)
-  //   return false;
-
-  // Phase 3: All conditions pass — commit state.
-  // For k == subdim-1, iterating all subdim+1 local facet indices handles
-  // self-gluings automatically: if two local facets share a tri_-face, its
-  // count increments twice, making it interior immediately.
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    constexpr int k = decltype(kW)::value;
-    auto &counts = std::get<k>(faceCount_);
-    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
-      counts[node.face->template face<k>(i)->index()]++;
-  });
-
-  // Snapshot the isEmbedded()-tracking structures' undo points before
-  // touching them, so removeFace(f) can roll back exactly what this call
-  // does below (mirroring how faceCount_'s increments above are undone by
-  // symmetric decrements in removeFace()).
-  for (int k = 0; k < subdim - 1; ++k) {
-    checkpoints_[f].dsuMark[k] = dsu_[k].checkpoint();
-    checkpoints_[f].registryMark[k] = registryUndoLog_[k].size();
-  }
-  checkpoints_[f].orientationDsuMark = orientationDsu_.checkpoint();
-
-  // k == subdim-1 (facets): increment counts[idx] one local facet at a time
-  // (rather than in the generic loop above), tracking each individual
-  // increment's before/after value -- self-gluings pass through count == 1
-  // transiently (0 -> 1 -> 2, both steps within this same loop, since both
-  // of a self-gluing pair's local facets map to the same ambient idx), and
-  // that transient state must both raise and then lower badProperCount_
-  // within this call, which a single post-hoc scan of the final counts
-  // can't distinguish from a facet that is genuinely staying at 1.
-  {
-    auto &counts = std::get<subdim - 1>(faceCount_);
-    for (int i = 0; i <= subdim; ++i) {
-      size_t idx = node.face->template face<subdim - 1>(i)->index();
-      int before = counts[idx]++;
-      int after = before + 1;
-
-      if (!facetIsAmbientBoundary_[idx]) {
-        if (after == 1)
-          badProperCount_++; // just became a boundary facet of subtri_
-        else if (after == 2)
-          badProperCount_--; // just got glued over (leaving boundary again)
-      }
-    }
-  }
-
-  auto *src = subtri_.newSimplex();
-  faces_[f] = src;
-
-  bool thisFaceViolatesOrientability = false;
-  for (const auto &g : node.gluings) {
-    if (faces_[g.dstIndex] == nullptr)
-      continue;
-    if (src->adjacentSimplex(g.srcFacet) != nullptr)
-      continue; // already joined (second direction of a self-gluing)
-
-    // Orientability tracking: incrementally maintains isOrientable_ via a
-    // union-find-with-parity (orientationDsu_, one node per ambient
-    // subdim-face) over this same set of gluing events, rather than a
-    // second walk over node.gluings. A complex admits a consistent
-    // orientation iff each simplex can be assigned a +1/-1 label such
-    // that every gluing's required same/different relationship (derived
-    // from g.gluing's sign) is satisfiable -- exactly what
-    // RollbackUnionFind's parity tracking checks. The specific mapping
-    // from sign() to "sameOrientation" below is an arbitrary-but-fixed
-    // convention: detecting a *contradiction* is invariant under globally
-    // relabelling which sign means "same", so it doesn't need to match
-    // any external convention (e.g. Regina's own), only be applied
-    // consistently here.
-    bool sameOrientation = g.gluing.sign() < 0;
-    if (g.dstIndex == static_cast<size_t>(f)) {
-      // Self-gluing: f related to itself. Requiring "different" from
-      // itself is an immediate contradiction; requiring "same" is
-      // trivially satisfied (nothing to unite).
-      if (!sameOrientation)
-        thisFaceViolatesOrientability = true;
-    } else {
-      int other = static_cast<int>(g.dstIndex);
-      if (orientationDsu_.find(f) == orientationDsu_.find(other)) {
-        if (orientationDsu_.sameOrientation(f, other) != sameOrientation)
-          thisFaceViolatesOrientability = true;
-      } else {
-        orientationDsu_.unite(f, other, sameOrientation);
-      }
+            facetIsUsed[g.srcFacet] = true;
+            F_bitmask |= (1 << g.srcFacet);
+        }
+        // Gluings to faces not in the submanifold are ignored.
     }
 
-    // isEmbedded() tracking: this gluing identifies local facet g.srcFacet
-    // of the new simplex with the corresponding facet of faces_[g.dstIndex]
-    // via g.gluing. For k in [0, subdim-2], every local k-face of the new
-    // simplex properly contained in that facet (i.e. not touching the
-    // vertex opposite it, g.srcFacet) is thereby identified with its image
-    // under g.gluing on the dst side -- handles self-gluings
-    // (g.dstIndex == f) and external gluings uniformly, and this direction
-    // alone covers a self-gluing's reverse direction too (see the
-    // adjacentSimplex guard above).
+    // Phase 2: Check Condition 2 (higher-codimension condition) -- DISABLED.
+    //
+    // This required that every k-face (k <= subdim-2, i.e. vertices when
+    // subdim == 2) of the new simplex already touched by the submanifold be a
+    // subface of some facet actually being glued in this same call. That's a
+    // sound-but-incomplete, ORDER-DEPENDENT check: it can reject a face whose
+    // only "explaining" neighbor hasn't been added yet, even when the full
+    // target set is genuinely fine, and -- worse -- some closing dependencies
+    // (e.g. completing a cycle) are mutually circular, so no order at all
+    // satisfies it (see utils/surfer/ADDFACE_VERTEX_COLLISION_BUG.md and the
+    // CollarBuilder investigation that motivated this).
+    //
+    // Disabled per conjecture: the self-intersections this allowed through
+    // are always cusp (tangential), never transversal, intersections, and
+    // should always be resolvable after the fact -- rather than rejected
+    // during search. That means addFace()/search() can accept submanifolds
+    // that are not genuinely embedded (not injective) at codimension >= 2.
+    //
+    // What is now known (pl_enumeration_draft §4.5): the conjecture holds in
+    // a precise, weaker form. A self-intersection at an INTERIOR vertex whose
+    // trace T_v(S) is the unlink is removable, canonically, without changing
+    // the abstract surface; KnottedSurface::isResolvable() certifies exactly
+    // that, and --resolve-unlinked accepts such surfaces. The unqualified
+    // conjecture is false: a Hopf trace is a genuine transverse double point
+    // (P_transverse prunes it), a Whitehead trace passes every prune yet is
+    // not removable, and two open petals at a boundary vertex mean the
+    // boundary curves themselves touch. Codimension-1
+    // (facet-level, Phase 1 above) checks are NOT affected and remain in
+    // place -- those failures are genuinely unfixable.
+    //
+    // bool valid = true;
+    // regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+    //   if (!valid)
+    //     return;
+    //   constexpr int k = decltype(kW)::value;
+    //   const auto &counts = std::get<k>(faceCount_);
+    //   for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+    //     if (counts[node.face->template face<k>(i)->index()] == 0)
+    //       continue;
+    //
+    //     // Bitmask of local vertex indices (0..subdim) of the i-th k-face.
+    //     const auto perm = regina::FaceNumbering<subdim, k>::ordering(i);
+    //     int S = 0;
+    //     for (int j = 0; j <= k; ++j)
+    //       S |= (1 << perm[j]);
+    //
+    //     // Facet j (opposite vertex j) contains this k-face iff j NOT in S.
+    //     // The face is covered by some facet in F iff (F_bitmask & ~S) != 0.
+    //     if ((F_bitmask & ~S) == 0) {
+    //       valid = false;
+    //       return;
+    //     }
+    //   }
+    // });
+    // if (!valid)
+    //   return false;
+
+    // Phase 3: All conditions pass — commit state.
+    // For k == subdim-1, iterating all subdim+1 local facet indices handles
+    // self-gluings automatically: if two local facets share a tri_-face, its
+    // count increments twice, making it interior immediately.
     regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-      constexpr int k = decltype(kW)::value;
-      for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
-        auto S = regina::FaceNumbering<subdim, k>::ordering(i);
-        bool touchesGluedFacet = false;
-        for (int t = 0; t <= k; ++t)
-          if (S[t] == g.srcFacet) {
-            touchesGluedFacet = true;
-            break;
-          }
-        if (touchesGluedFacet)
-          continue; // this k-face isn't contained in the shared facet
-
-        int j = regina::FaceNumbering<subdim, k>::faceNumber(g.gluing * S);
-        size_t v = node.face->template face<k>(i)->index();
-        unite_(k, v, f * regina::FaceNumbering<subdim, k>::nFaces + i,
-               static_cast<int>(g.dstIndex) *
-                       regina::FaceNumbering<subdim, k>::nFaces +
-                   j);
-      }
+        constexpr int k = decltype(kW)::value;
+        auto &counts = std::get<k>(faceCount_);
+        for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
+            counts[node.face->template face<k>(i)->index()]++;
     });
 
-    src->join(g.srcFacet, faces_[g.dstIndex], g.gluing);
-  }
-
-  // Mirrors singularCount_/isEmbedded_'s pattern: a per-face flag (not a
-  // full undo log) suffices, since removeFace() always undoes the most
-  // recently added face (LIFO), so exactly one addFace()/removeFace() pair
-  // ever contributes/retracts a given face's count -- no need to track
-  // *how many* individual gluings this face violated, only whether it
-  // violated any.
-  checkpoints_[f].causedOrientationViolation = thisFaceViolatesOrientability;
-  if (thisFaceViolatesOrientability)
-    ++orientationViolationCount_;
-
-  // isEmbedded() tracking: register every local k-face slot of the new
-  // simplex against its ambient k-face's known classes, whether or not it
-  // participated in a gluing above -- an unregistered slot landing on an
-  // already-populated ambient k-face is exactly a new singularity.
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    constexpr int k = decltype(kW)::value;
-    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
-      size_t v = node.face->template face<k>(i)->index();
-      int r = dsu_[k].find(f * regina::FaceNumbering<subdim, k>::nFaces + i);
-      registerRoot_(k, v, r);
+    // Snapshot the isEmbedded()-tracking structures' undo points before
+    // touching them, so removeFace(f) can roll back exactly what this call
+    // does below (mirroring how faceCount_'s increments above are undone by
+    // symmetric decrements in removeFace()).
+    for (int k = 0; k < subdim - 1; ++k) {
+        checkpoints_[f].dsuMark[k] = dsu_[k].checkpoint();
+        checkpoints_[f].registryMark[k] = registryUndoLog_[k].size();
     }
-  });
+    checkpoints_[f].orientationDsuMark = orientationDsu_.checkpoint();
 
-  cachedPairSig_.reset(); // see pairSig(): the tracked subcomplex just changed
-  return true;
+    // k == subdim-1 (facets): increment counts[idx] one local facet at a time
+    // (rather than in the generic loop above), tracking each individual
+    // increment's before/after value -- self-gluings pass through count == 1
+    // transiently (0 -> 1 -> 2, both steps within this same loop, since both
+    // of a self-gluing pair's local facets map to the same ambient idx), and
+    // that transient state must both raise and then lower badProperCount_
+    // within this call, which a single post-hoc scan of the final counts
+    // can't distinguish from a facet that is genuinely staying at 1.
+    {
+        auto &counts = std::get<subdim - 1>(faceCount_);
+        for (int i = 0; i <= subdim; ++i) {
+            size_t idx = node.face->template face<subdim - 1>(i)->index();
+            int before = counts[idx]++;
+            int after = before + 1;
+
+            if (!facetIsAmbientBoundary_[idx]) {
+                if (after == 1)
+                    badProperCount_++; // just became a boundary facet of
+                                       // subtri_
+                else if (after == 2)
+                    badProperCount_--; // just got glued over (leaving boundary
+                                       // again)
+            }
+        }
+    }
+
+    auto *src = subtri_.newSimplex();
+    faces_[f] = src;
+
+    bool thisFaceViolatesOrientability = false;
+    for (const auto &g : node.gluings) {
+        if (faces_[g.dstIndex] == nullptr)
+            continue;
+        if (src->adjacentSimplex(g.srcFacet) != nullptr)
+            continue; // already joined (second direction of a self-gluing)
+
+        // Orientability tracking: incrementally maintains isOrientable_ via a
+        // union-find-with-parity (orientationDsu_, one node per ambient
+        // subdim-face) over this same set of gluing events, rather than a
+        // second walk over node.gluings. A complex admits a consistent
+        // orientation iff each simplex can be assigned a +1/-1 label such
+        // that every gluing's required same/different relationship (derived
+        // from g.gluing's sign) is satisfiable -- exactly what
+        // RollbackUnionFind's parity tracking checks. The specific mapping
+        // from sign() to "sameOrientation" below is an arbitrary-but-fixed
+        // convention: detecting a *contradiction* is invariant under globally
+        // relabelling which sign means "same", so it doesn't need to match
+        // any external convention (e.g. Regina's own), only be applied
+        // consistently here.
+        bool sameOrientation = g.gluing.sign() < 0;
+        if (g.dstIndex == static_cast<size_t>(f)) {
+            // Self-gluing: f related to itself. Requiring "different" from
+            // itself is an immediate contradiction; requiring "same" is
+            // trivially satisfied (nothing to unite).
+            if (!sameOrientation)
+                thisFaceViolatesOrientability = true;
+        } else {
+            int other = static_cast<int>(g.dstIndex);
+            if (orientationDsu_.find(f) == orientationDsu_.find(other)) {
+                if (orientationDsu_.sameOrientation(f, other) !=
+                    sameOrientation)
+                    thisFaceViolatesOrientability = true;
+            } else {
+                orientationDsu_.unite(f, other, sameOrientation);
+            }
+        }
+
+        // isEmbedded() tracking: this gluing identifies local facet g.srcFacet
+        // of the new simplex with the corresponding facet of faces_[g.dstIndex]
+        // via g.gluing. For k in [0, subdim-2], every local k-face of the new
+        // simplex properly contained in that facet (i.e. not touching the
+        // vertex opposite it, g.srcFacet) is thereby identified with its image
+        // under g.gluing on the dst side -- handles self-gluings
+        // (g.dstIndex == f) and external gluings uniformly, and this direction
+        // alone covers a self-gluing's reverse direction too (see the
+        // adjacentSimplex guard above).
+        regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+            constexpr int k = decltype(kW)::value;
+            for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+                auto S = regina::FaceNumbering<subdim, k>::ordering(i);
+                bool touchesGluedFacet = false;
+                for (int t = 0; t <= k; ++t)
+                    if (S[t] == g.srcFacet) {
+                        touchesGluedFacet = true;
+                        break;
+                    }
+                if (touchesGluedFacet)
+                    continue; // this k-face isn't contained in the shared facet
+
+                int j =
+                    regina::FaceNumbering<subdim, k>::faceNumber(g.gluing * S);
+                size_t v = node.face->template face<k>(i)->index();
+                unite_(k, v, f * regina::FaceNumbering<subdim, k>::nFaces + i,
+                       static_cast<int>(g.dstIndex) *
+                               regina::FaceNumbering<subdim, k>::nFaces +
+                           j);
+            }
+        });
+
+        src->join(g.srcFacet, faces_[g.dstIndex], g.gluing);
+    }
+
+    // Mirrors singularCount_/isEmbedded_'s pattern: a per-face flag (not a
+    // full undo log) suffices, since removeFace() always undoes the most
+    // recently added face (LIFO), so exactly one addFace()/removeFace() pair
+    // ever contributes/retracts a given face's count -- no need to track
+    // *how many* individual gluings this face violated, only whether it
+    // violated any.
+    checkpoints_[f].causedOrientationViolation = thisFaceViolatesOrientability;
+    if (thisFaceViolatesOrientability)
+        ++orientationViolationCount_;
+
+    // isEmbedded() tracking: register every local k-face slot of the new
+    // simplex against its ambient k-face's known classes, whether or not it
+    // participated in a gluing above -- an unregistered slot landing on an
+    // already-populated ambient k-face is exactly a new singularity.
+    regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+        constexpr int k = decltype(kW)::value;
+        for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i) {
+            size_t v = node.face->template face<k>(i)->index();
+            int r =
+                dsu_[k].find(f * regina::FaceNumbering<subdim, k>::nFaces + i);
+            registerRoot_(k, v, r);
+        }
+    });
+
+    cachedPairSig_
+        .reset(); // see pairSig(): the tracked subcomplex just changed
+    return true;
 }
 
 template <int dim, int subdim>
 void EmbeddedSubmanifold<dim, subdim>::removeFace(int f) {
-  auto *face = faces_[f];
-  if (face == nullptr)
-    throw regina::InvalidArgument(
-        "EmbeddedSubmanifold::removeFace(): Was asked to remove a face "
-        "which is not in the embedded submanifold.");
+    auto *face = faces_[f];
+    if (face == nullptr)
+        throw regina::InvalidArgument(
+            "EmbeddedSubmanifold::removeFace(): Was asked to remove a face "
+            "which is not in the embedded submanifold.");
 
-  const auto &node = skeleton_.getNodes()[f];
+    const auto &node = skeleton_.getNodes()[f];
 
-  // isEmbedded() tracking: undo, in strict reverse order, exactly what the
-  // matching addFace(f) logged -- both the registry (classRoots_/
-  // singularCount_) and the underlying DSU unions. Relies on the caller's
-  // LIFO discipline: removeFace() is only ever called on the most recently
-  // added face, so checkpoints_[f] is always this face's own contribution.
-  for (int k = 0; k < subdim - 1; ++k) {
-    auto &log = registryUndoLog_[k];
-    auto &roots = classRoots_[k];
-    while (log.size() > checkpoints_[f].registryMark[k]) {
-      const auto &e = log.back();
-      auto &rv = roots[e.v];
-      if (e.wasInsert) {
-        rv.erase(std::find(rv.begin(), rv.end(), e.root));
-      } else {
-        rv.push_back(e.root);
-      }
-      singularCount_ -= e.singularDelta;
-      isEmbedded_ = (singularCount_ == 0);
-      log.pop_back();
+    // isEmbedded() tracking: undo, in strict reverse order, exactly what the
+    // matching addFace(f) logged -- both the registry (classRoots_/
+    // singularCount_) and the underlying DSU unions. Relies on the caller's
+    // LIFO discipline: removeFace() is only ever called on the most recently
+    // added face, so checkpoints_[f] is always this face's own contribution.
+    for (int k = 0; k < subdim - 1; ++k) {
+        auto &log = registryUndoLog_[k];
+        auto &roots = classRoots_[k];
+        while (log.size() > checkpoints_[f].registryMark[k]) {
+            const auto &e = log.back();
+            auto &rv = roots[e.v];
+            if (e.wasInsert) {
+                rv.erase(std::find(rv.begin(), rv.end(), e.root));
+            } else {
+                rv.push_back(e.root);
+            }
+            singularCount_ -= e.singularDelta;
+            isEmbedded_ = (singularCount_ == 0);
+            log.pop_back();
+        }
+        dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
     }
-    dsu_[k].rollbackTo(checkpoints_[f].dsuMark[k]);
-  }
-  orientationDsu_.rollbackTo(checkpoints_[f].orientationDsuMark);
-  if (checkpoints_[f].causedOrientationViolation)
-    --orientationViolationCount_;
+    orientationDsu_.rollbackTo(checkpoints_[f].orientationDsuMark);
+    if (checkpoints_[f].causedOrientationViolation)
+        --orientationViolationCount_;
 
-  // isProper() tracking: mirrors addFace()'s badProperCount_ update (see
-  // its comment for why self-gluings need this per-facet handling), just
-  // in reverse.
-  {
-    auto &counts = std::get<subdim - 1>(faceCount_);
-    for (int i = 0; i <= subdim; ++i) {
-      size_t idx = node.face->template face<subdim - 1>(i)->index();
-      int before = counts[idx]--;
-      if (facetIsAmbientBoundary_[idx])
-        continue;
-      if (before == 1)
-        badProperCount_--; // leaving count 1 -> 0
-      else if (before == 2)
-        badProperCount_++; // leaving count 2 -> 1
+    // isProper() tracking: mirrors addFace()'s badProperCount_ update (see
+    // its comment for why self-gluings need this per-facet handling), just
+    // in reverse.
+    {
+        auto &counts = std::get<subdim - 1>(faceCount_);
+        for (int i = 0; i <= subdim; ++i) {
+            size_t idx = node.face->template face<subdim - 1>(i)->index();
+            int before = counts[idx]--;
+            if (facetIsAmbientBoundary_[idx])
+                continue;
+            if (before == 1)
+                badProperCount_--; // leaving count 1 -> 0
+            else if (before == 2)
+                badProperCount_++; // leaving count 2 -> 1
+        }
     }
-  }
 
-  regina::for_constexpr<0, subdim - 1>([&](auto kW) {
-    constexpr int k = decltype(kW)::value;
-    auto &counts = std::get<k>(faceCount_);
-    for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
-      counts[node.face->template face<k>(i)->index()]--;
-  });
+    regina::for_constexpr<0, subdim - 1>([&](auto kW) {
+        constexpr int k = decltype(kW)::value;
+        auto &counts = std::get<k>(faceCount_);
+        for (int i = 0; i < regina::FaceNumbering<subdim, k>::nFaces; ++i)
+            counts[node.face->template face<k>(i)->index()]--;
+    });
 
-  faces_[f] = nullptr;
-  subtri_.removeSimplex(face);
-  cachedPairSig_.reset(); // see pairSig(): the tracked subcomplex just changed
+    faces_[f] = nullptr;
+    subtri_.removeSimplex(face);
+    cachedPairSig_
+        .reset(); // see pairSig(): the tracked subcomplex just changed
 }
 
 template <int dim, int subdim>
 void EmbeddedSubmanifold<dim, subdim>::unite_(int k, size_t v, int slotA,
                                               int slotB) {
-  auto &dsu = dsu_[k];
-  int rootABefore = dsu.find(slotA);
-  int rootBBefore = dsu.find(slotB);
-  if (rootABefore == rootBBefore)
-    return; // already identified
+    auto &dsu = dsu_[k];
+    int rootABefore = dsu.find(slotA);
+    int rootBBefore = dsu.find(slotB);
+    if (rootABefore == rootBBefore)
+        return; // already identified
 
-  dsu.unite(slotA, slotB);
-  int survivor = dsu.find(slotA);
-  int absorbed = (survivor == rootABefore) ? rootBBefore : rootABefore;
+    dsu.unite(slotA, slotB);
+    int survivor = dsu.find(slotA);
+    int absorbed = (survivor == rootABefore) ? rootBBefore : rootABefore;
 
-  // If `absorbed` was itself an already-registered class at v, this merge
-  // just identified two previously-independent classes -- if that leaves
-  // exactly one class behind, v just stopped being a singularity. If
-  // `absorbed` was never registered (e.g. it's the brand-new slot of the
-  // face currently being added), there's nothing to remove here; the
-  // survivor gets (re-)registered by registerRoot_()'s pass afterward.
-  auto &roots = classRoots_[k][v];
-  auto it = std::find(roots.begin(), roots.end(), absorbed);
-  if (it != roots.end()) {
-    roots.erase(it);
-    int delta = (roots.size() == 1) ? -1 : 0;
-    singularCount_ += delta;
-    isEmbedded_ = (singularCount_ == 0);
-    registryUndoLog_[k].push_back(
-        {.v = v, .root = absorbed, .wasInsert = false, .singularDelta = delta});
-  }
+    // If `absorbed` was itself an already-registered class at v, this merge
+    // just identified two previously-independent classes -- if that leaves
+    // exactly one class behind, v just stopped being a singularity. If
+    // `absorbed` was never registered (e.g. it's the brand-new slot of the
+    // face currently being added), there's nothing to remove here; the
+    // survivor gets (re-)registered by registerRoot_()'s pass afterward.
+    auto &roots = classRoots_[k][v];
+    auto it = std::find(roots.begin(), roots.end(), absorbed);
+    if (it != roots.end()) {
+        roots.erase(it);
+        int delta = (roots.size() == 1) ? -1 : 0;
+        singularCount_ += delta;
+        isEmbedded_ = (singularCount_ == 0);
+        registryUndoLog_[k].push_back({.v = v,
+                                       .root = absorbed,
+                                       .wasInsert = false,
+                                       .singularDelta = delta});
+    }
 }
 
 template <int dim, int subdim>
 void EmbeddedSubmanifold<dim, subdim>::registerRoot_(int k, size_t v, int r) {
-  auto &roots = classRoots_[k][v];
-  if (std::find(roots.begin(), roots.end(), r) != roots.end())
-    return; // already registered (e.g. the dst side of an external gluing)
+    auto &roots = classRoots_[k][v];
+    if (std::find(roots.begin(), roots.end(), r) != roots.end())
+        return; // already registered (e.g. the dst side of an external gluing)
 
-  roots.push_back(r);
-  int delta = (roots.size() == 2) ? 1 : 0;
-  singularCount_ += delta;
-  isEmbedded_ = (singularCount_ == 0);
-  registryUndoLog_[k].push_back(
-      {.v = v, .root = r, .wasInsert = true, .singularDelta = delta});
+    roots.push_back(r);
+    int delta = (roots.size() == 2) ? 1 : 0;
+    singularCount_ += delta;
+    isEmbedded_ = (singularCount_ == 0);
+    registryUndoLog_[k].push_back(
+        {.v = v, .root = r, .wasInsert = true, .singularDelta = delta});
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::isProper() const {
-  return badProperCount_ == 0;
+    return badProperCount_ == 0;
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::boundaryComponentsMapInjectively()
     const {
-  std::unordered_map<size_t, const regina::BoundaryComponent<dim> *>
-      subToAmbient;
-  std::unordered_set<const regina::BoundaryComponent<dim> *> usedAmbient;
+    std::unordered_map<size_t, const regina::BoundaryComponent<dim> *>
+        subToAmbient;
+    std::unordered_set<const regina::BoundaryComponent<dim> *> usedAmbient;
 
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue;
+    for (size_t f = 0; f < faces_.size(); ++f) {
+        const auto *simplex = faces_[f];
+        if (simplex == nullptr)
+            continue;
 
-    for (int i = 0; i <= subdim; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue;
+        for (int i = 0; i <= subdim; ++i) {
+            if (simplex->adjacentSimplex(i) != nullptr)
+                continue;
 
-      const auto *ambientFacet =
-          skeleton_.getNodes()[f].face->template face<subdim - 1>(i);
-      const auto *ambientBC = ambientFacet->boundaryComponent();
-      if (ambientBC == nullptr)
-        return false;
+            const auto *ambientFacet =
+                skeleton_.getNodes()[f].face->template face<subdim - 1>(i);
+            const auto *ambientBC = ambientFacet->boundaryComponent();
+            if (ambientBC == nullptr)
+                return false;
 
-      const auto *subFacet = simplex->template face<subdim - 1>(i);
-      const auto *subBC = subFacet->boundaryComponent();
-      assert(subBC != nullptr);
+            const auto *subFacet = simplex->template face<subdim - 1>(i);
+            const auto *subBC = subFacet->boundaryComponent();
+            assert(subBC != nullptr);
 
-      size_t subIdx = subBC->index();
-      auto it = subToAmbient.find(subIdx);
-      if (it == subToAmbient.end()) {
-        if (usedAmbient.contains(ambientBC))
-          return false;
-        subToAmbient.emplace(subIdx, ambientBC);
-        usedAmbient.insert(ambientBC);
-      } else {
-        assert(it->second == ambientBC);
-        if (it->second != ambientBC)
-          return false;
-      }
+            size_t subIdx = subBC->index();
+            auto it = subToAmbient.find(subIdx);
+            if (it == subToAmbient.end()) {
+                if (usedAmbient.contains(ambientBC))
+                    return false;
+                subToAmbient.emplace(subIdx, ambientBC);
+                usedAmbient.insert(ambientBC);
+            } else {
+                assert(it->second == ambientBC);
+                if (it->second != ambientBC)
+                    return false;
+            }
+        }
     }
-  }
-  return true;
+    return true;
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::satisfies(BoundaryCondition cond) const {
-  switch (cond) {
-  case BoundaryCondition::all:
-    return true;
-  case BoundaryCondition::closed:
-    return isClosed();
-  case BoundaryCondition::proper:
-    return isProper();
-  case BoundaryCondition::connected:
-    return boundaryComponentsMapInjectively();
-  }
+    switch (cond) {
+    case BoundaryCondition::all:
+        return true;
+    case BoundaryCondition::closed:
+        return isClosed();
+    case BoundaryCondition::proper:
+        return isProper();
+    case BoundaryCondition::connected:
+        return boundaryComponentsMapInjectively();
+    }
 
-  throw regina::InvalidArgument(
-      "EmbeddedSubmanifold::satisfies(): Invalid BoundaryCondition");
+    throw regina::InvalidArgument(
+        "EmbeddedSubmanifold::satisfies(): Invalid BoundaryCondition");
 }
 
 template <int dim, int subdim>
 bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
     const std::vector<typename Skeleton<dim, subdim>::Gluing> &gluings) {
-  std::array<std::array<bool, subdim + 1>, subdim + 1> partnerSeen{};
-  for (const auto &g : gluings)
-    if (g.srcIndex == g.dstIndex)
-      partnerSeen[g.srcFacet][g.gluing[g.srcFacet]] = true;
+    std::array<std::array<bool, subdim + 1>, subdim + 1> partnerSeen{};
+    for (const auto &g : gluings)
+        if (g.srcIndex == g.dstIndex)
+            partnerSeen[g.srcFacet][g.gluing[g.srcFacet]] = true;
 
-  for (int i = 0; i <= subdim; ++i) {
-    int distinctPartners = 0;
-    for (int j = 0; j <= subdim; ++j)
-      distinctPartners += partnerSeen[i][j];
-    if (distinctPartners >= 2)
-      return true;
-  }
-  return false;
+    for (int i = 0; i <= subdim; ++i) {
+        int distinctPartners = 0;
+        for (int j = 0; j <= subdim; ++j)
+            distinctPartners += partnerSeen[i][j];
+        if (distinctPartners >= 2)
+            return true;
+    }
+    return false;
 }
 
 // template <int dim, int subdim>
@@ -564,16 +574,15 @@ bool EmbeddedSubmanifold<dim, subdim>::hasIrreparableSelfGluing(
 
 template <int dim, int subdim>
 const std::string &EmbeddedSubmanifold<dim, subdim>::pairSig() const {
-  if (!cachedPairSig_) {
-    // Identical strings either way -- the context is a cheaper route to the
-    // same encoding, never a different one (see PairSigContext). Without one
-    // this recomputes the ambient's isomorphism signature from scratch on
-    // every call, which is the whole cost.
-    cachedPairSig_ = pairSigCtx_
-                         ? pairSigCtx_->get().sig(markedFaces())
-                         : ::pairSig<dim, subdim>(skeleton_, *this);
-  }
-  return *cachedPairSig_;
+    if (!cachedPairSig_) {
+        // Identical strings either way -- the context is a cheaper route to the
+        // same encoding, never a different one (see PairSigContext). Without
+        // one this recomputes the ambient's isomorphism signature from scratch
+        // on every call, which is the whole cost.
+        cachedPairSig_ = pairSigCtx_ ? pairSigCtx_->get().sig(markedFaces())
+                                     : ::pairSig<dim, subdim>(skeleton_, *this);
+    }
+    return *cachedPairSig_;
 }
 
 template class EmbeddedSubmanifold<3, 2>;
@@ -581,538 +590,543 @@ template class EmbeddedSubmanifold<4, 2>;
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
     : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(ownedPetalCache_) {
-  const auto &tri = skeleton.triangulation();
-  bdryComponents_.reserve(tri.countBoundaryComponents());
-  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
-  facesAtVertex_.resize(tri.countVertices());
-  vertexEmbedIndexCache_.resize(tri.countVertices());
+    const auto &tri = skeleton.triangulation();
+    bdryComponents_.reserve(tri.countBoundaryComponents());
+    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+        bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+    facesAtVertex_.resize(tri.countVertices());
+    vertexEmbedIndexCache_.resize(tri.countVertices());
 }
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                PetalCache &petalCache)
     : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(petalCache) {
-  const auto &tri = skeleton.triangulation();
-  bdryComponents_.reserve(tri.countBoundaryComponents());
-  for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-    bdryComponents_.push_back(tri.boundaryComponent(c)->build());
-  facesAtVertex_.resize(tri.countVertices());
-  vertexEmbedIndexCache_.resize(tri.countVertices());
+    const auto &tri = skeleton.triangulation();
+    bdryComponents_.reserve(tri.countBoundaryComponents());
+    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
+        bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+    facesAtVertex_.resize(tri.countVertices());
+    vertexEmbedIndexCache_.resize(tri.countVertices());
 }
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                const std::vector<int> &seedFaces)
     : KnottedSurface(skeleton) {
-  if (!addFaces(seedFaces))
-    throw regina::InvalidArgument(
-        "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
-        "added -- no addition order makes every face embed without "
-        "creating a transverse self-intersection or non-locally-flat "
-        "point.");
+    if (!addFaces(seedFaces))
+        throw regina::InvalidArgument(
+            "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
+            "added -- no addition order makes every face embed without "
+            "creating a transverse self-intersection or non-locally-flat "
+            "point.");
 }
 
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                PetalCache &petalCache,
                                const std::vector<int> &seedFaces)
     : KnottedSurface(skeleton, petalCache) {
-  if (!addFaces(seedFaces))
-    throw regina::InvalidArgument(
-        "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
-        "added -- no addition order makes every face embed without "
-        "creating a transverse self-intersection or non-locally-flat "
-        "point.");
+    if (!addFaces(seedFaces))
+        throw regina::InvalidArgument(
+            "KnottedSurface::KnottedSurface(): seedFaces could not be jointly "
+            "added -- no addition order makes every face embed without "
+            "creating a transverse self-intersection or non-locally-flat "
+            "point.");
 }
 
 KnottedSurface::KnottedSurface(const SelfIntersectionOptions &options,
                                const Skeleton<4, 2> &skeleton,
                                PetalCache &petalCache)
     : KnottedSurface(skeleton, petalCache) {
-  resolveUnlinked_ = options.resolveUnlinked;
-  census_ = options.census;
-  if (options.pairSigContext)
-    usePairSigContext(options.pairSigContext);
+    resolveUnlinked_ = options.resolveUnlinked;
+    census_ = options.census;
+    if (options.pairSigContext)
+        usePairSigContext(options.pairSigContext);
 }
 
 std::vector<size_t> KnottedSurface::singularVertices_() const {
-  std::vector<size_t> result;
-  const size_t want = singularVertexCount();
-  for (size_t v = 0; v < facesAtVertex_.size() && result.size() < want; ++v)
-    if (registeredClassRoots(v).size() >= 2)
-      result.push_back(v);
-  return result;
+    std::vector<size_t> result;
+    const size_t want = singularVertexCount();
+    for (size_t v = 0; v < facesAtVertex_.size() && result.size() < want; ++v)
+        if (registeredClassRoots(v).size() >= 2)
+            result.push_back(v);
+    return result;
 }
 
 bool KnottedSurface::vertexUnlinked_(size_t v) const {
-  const auto *ambientVertex = skeleton_.triangulation().vertex(v);
-  if (ambientVertex->isBoundary())
-    return false;
+    const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+    if (ambientVertex->isBoundary())
+        return false;
 
-  // A copy: petalCorners_()/internPetal() below do not touch the registry,
-  // but nothing here should depend on that.
-  const std::vector<int> roots = registeredClassRoots(v);
-  std::vector<PetalCache::PetalId> ids;
-  ids.reserve(roots.size());
-  for (int root : roots) {
-    // At an interior vertex every petal of a proper surface is closed; an
-    // open one means the surface is not proper there, and the petal is not
-    // a curve in Lk(v) at all.
-    if (!isPetalClosed_(v, root))
-      return false;
-    ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
-  }
+    // A copy: petalCorners_()/internPetal() below do not touch the registry,
+    // but nothing here should depend on that.
+    const std::vector<int> roots = registeredClassRoots(v);
+    std::vector<PetalCache::PetalId> ids;
+    ids.reserve(roots.size());
+    for (int root : roots) {
+        // At an interior vertex every petal of a proper surface is closed; an
+        // open one means the surface is not proper there, and the petal is not
+        // a curve in Lk(v) at all.
+        if (!isPetalClosed_(v, root))
+            return false;
+        ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
+    }
 
-  // The answer depends only on which petals are present at v (the same
-  // petal-identity argument as addFace()'s unknot/linking memoization).
-  if (auto cached =
-          petalCache_.lookupPetalSet(PetalCache::SetQuery::unlink, ids))
-    return *cached;
+    // The answer depends only on which petals are present at v (the same
+    // petal-identity argument as addFace()'s unknot/linking memoization).
+    if (auto cached =
+            petalCache_.lookupPetalSet(PetalCache::SetQuery::unlink, ids))
+        return *cached;
 
-  std::vector<const regina::Edge<3> *> edges;
-  for (int root : roots) {
-    auto curve = petalTrace_(ambientVertex, v, root);
-    edges.insert(edges.end(), curve.begin(), curve.end());
-  }
-  bool unlinked = identify::certifiesUnlink(ambientVertex->buildLink(), edges,
-                                            roots.size());
-  petalCache_.recordPetalSet(PetalCache::SetQuery::unlink, ids, unlinked);
-  return unlinked;
+    std::vector<const regina::Edge<3> *> edges;
+    for (int root : roots) {
+        auto curve = petalTrace_(ambientVertex, v, root);
+        edges.insert(edges.end(), curve.begin(), curve.end());
+    }
+    bool unlinked = identify::certifiesUnlink(ambientVertex->buildLink(), edges,
+                                              roots.size());
+    petalCache_.recordPetalSet(PetalCache::SetQuery::unlink, ids, unlinked);
+    return unlinked;
 }
 
 std::optional<bool> KnottedSurface::boundaryVertexUnlinked_(size_t v) const {
-  const auto *ambientVertex = skeleton_.triangulation().vertex(v);
-  const std::vector<int> roots = registeredClassRoots(v);
-  std::vector<PetalCache::PetalId> ids;
-  ids.reserve(roots.size());
-  size_t open = 0;
-  for (int root : roots) {
-    if (!isPetalClosed_(v, root))
-      ++open;
-    ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
-  }
-  if (open > 1)
-    return std::nullopt;
+    const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+    const std::vector<int> roots = registeredClassRoots(v);
+    std::vector<PetalCache::PetalId> ids;
+    ids.reserve(roots.size());
+    size_t open = 0;
+    for (int root : roots) {
+        if (!isPetalClosed_(v, root))
+            ++open;
+        ids.push_back(petalCache_.internPetal(petalCorners_(v, root)));
+    }
+    if (open > 1)
+        return std::nullopt;
 
-  if (auto cached =
-          petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnlink, ids))
-    return *cached;
+    if (auto cached =
+            petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnlink, ids))
+        return *cached;
 
-  std::vector<const regina::Edge<3> *> edges;
-  for (int root : roots) {
-    // petalTrace_() collects the petal's trace whether it is a cycle or,
-    // for an open petal, an arc.
-    auto curve = petalTrace_(ambientVertex, v, root);
-    edges.insert(edges.end(), curve.begin(), curve.end());
-  }
-  identify::CappedCurves capped;
-  bool unlinked =
-      identify::capInCone(ambientVertex->buildLink(), edges, capped) &&
-      capped.components == roots.size() &&
-      identify::certifiesUnlink(capped.tri, capped.edges, roots.size());
-  petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnlink, ids,
-                             unlinked);
-  return unlinked;
+    std::vector<const regina::Edge<3> *> edges;
+    for (int root : roots) {
+        // petalTrace_() collects the petal's trace whether it is a cycle or,
+        // for an open petal, an arc.
+        auto curve = petalTrace_(ambientVertex, v, root);
+        edges.insert(edges.end(), curve.begin(), curve.end());
+    }
+    identify::CappedCurves capped;
+    bool unlinked =
+        identify::capInCone(ambientVertex->buildLink(), edges, capped) &&
+        capped.components == roots.size() &&
+        identify::certifiesUnlink(capped.tri, capped.edges, roots.size());
+    petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnlink, ids,
+                               unlinked);
+    return unlinked;
 }
 
 bool KnottedSurface::isResolvable() const {
-  for (size_t v : singularVertices_())
-    if (!vertexUnlinked_(v))
-      return false;
-  return true;
+    for (size_t v : singularVertices_())
+        if (!vertexUnlinked_(v))
+            return false;
+    return true;
 }
 
 void KnottedSurface::tallySelfIntersection() const {
-  if (!census_)
-    return;
-  census_->singular.fetch_add(1, std::memory_order_relaxed);
+    if (!census_)
+        return;
+    census_->singular.fetch_add(1, std::memory_order_relaxed);
 
-  bool anyBoundary = false;
-  bool certified = true; // every singular vertex that is not multi-open
-  std::vector<size_t> multiOpen;
-  for (size_t v : singularVertices_()) {
-    if (!skeleton_.triangulation().vertex(v)->isBoundary()) {
-      if (!vertexUnlinked_(v))
-        certified = false;
-      continue;
-    }
-    anyBoundary = true;
-    auto capped = boundaryVertexUnlinked_(v);
-    if (!capped)
-      multiOpen.push_back(v);
-    else if (!*capped)
-      certified = false;
-  }
-
-  if (multiOpen.empty()) {
-    auto &bucket = anyBoundary
-                       ? (certified ? census_->boundaryUnlinked
-                                    : census_->boundaryUncertified)
-                       : (certified ? census_->interiorUnlinked
-                                    : census_->interiorUncertified);
-    bucket.fetch_add(1, std::memory_order_relaxed);
-    return;
-  }
-
-  census_->multiOpen.fetch_add(1, std::memory_order_relaxed);
-  if (census_->searchSideBoundary < 0)
-    return;
-  for (size_t v : multiOpen)
-    if (static_cast<long>(skeleton_.triangulation()
-                              .vertex(v)
-                              ->boundaryComponent()
-                              ->index()) == census_->searchSideBoundary) {
-      census_->multiOpenSearchSide.fetch_add(1, std::memory_order_relaxed);
-      return;
+    bool anyBoundary = false;
+    bool certified = true; // every singular vertex that is not multi-open
+    std::vector<size_t> multiOpen;
+    for (size_t v : singularVertices_()) {
+        if (!skeleton_.triangulation().vertex(v)->isBoundary()) {
+            if (!vertexUnlinked_(v))
+                certified = false;
+            continue;
+        }
+        anyBoundary = true;
+        auto capped = boundaryVertexUnlinked_(v);
+        if (!capped)
+            multiOpen.push_back(v);
+        else if (!*capped)
+            certified = false;
     }
 
-  census_->multiOpenFar.fetch_add(1, std::memory_order_relaxed);
-  if (certified) {
-    census_->multiOpenFarClean.fetch_add(1, std::memory_order_relaxed);
-    if (multiOpen.size() == 1) {
-      const std::vector<int> &roots = registeredClassRoots(multiOpen[0]);
-      if (roots.size() == 2 && !isPetalClosed_(multiOpen[0], roots[0]) &&
-          !isPetalClosed_(multiOpen[0], roots[1]))
-        census_->multiOpenFarSimple.fetch_add(1, std::memory_order_relaxed);
+    if (multiOpen.empty()) {
+        auto &bucket = anyBoundary ? (certified ? census_->boundaryUnlinked
+                                                : census_->boundaryUncertified)
+                                   : (certified ? census_->interiorUnlinked
+                                                : census_->interiorUncertified);
+        bucket.fetch_add(1, std::memory_order_relaxed);
+        return;
     }
-  }
 
-  // A configuration is the vertex together with its full set of petals,
-  // each petal by its sorted corners -- the same identity the PetalCache
-  // keys on, so equal hashes mean the same local picture.
-  std::vector<uint64_t> configs;
-  for (size_t v : multiOpen) {
-    std::vector<uint64_t> petals;
-    for (int root : registeredClassRoots(v)) {
-      std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
-      std::sort(corners.begin(), corners.end());
-      petals.push_back(CornerVectorHash{}(corners));
+    census_->multiOpen.fetch_add(1, std::memory_order_relaxed);
+    if (census_->searchSideBoundary < 0)
+        return;
+    for (size_t v : multiOpen)
+        if (static_cast<long>(skeleton_.triangulation()
+                                  .vertex(v)
+                                  ->boundaryComponent()
+                                  ->index()) == census_->searchSideBoundary) {
+            census_->multiOpenSearchSide.fetch_add(1,
+                                                   std::memory_order_relaxed);
+            return;
+        }
+
+    census_->multiOpenFar.fetch_add(1, std::memory_order_relaxed);
+    if (certified) {
+        census_->multiOpenFarClean.fetch_add(1, std::memory_order_relaxed);
+        if (multiOpen.size() == 1) {
+            const std::vector<int> &roots = registeredClassRoots(multiOpen[0]);
+            if (roots.size() == 2 && !isPetalClosed_(multiOpen[0], roots[0]) &&
+                !isPetalClosed_(multiOpen[0], roots[1]))
+                census_->multiOpenFarSimple.fetch_add(
+                    1, std::memory_order_relaxed);
+        }
     }
-    std::sort(petals.begin(), petals.end());
-    uint64_t h = static_cast<uint64_t>(v) * 0x9e3779b97f4a7c15ULL;
-    for (uint64_t p : petals)
-      h ^= p + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-    configs.push_back(h);
-  }
-  census_->recordFarConfigs(configs, certified);
+
+    // A configuration is the vertex together with its full set of petals,
+    // each petal by its sorted corners -- the same identity the PetalCache
+    // keys on, so equal hashes mean the same local picture.
+    std::vector<uint64_t> configs;
+    for (size_t v : multiOpen) {
+        std::vector<uint64_t> petals;
+        for (int root : registeredClassRoots(v)) {
+            std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
+            std::sort(corners.begin(), corners.end());
+            petals.push_back(CornerVectorHash{}(corners));
+        }
+        std::sort(petals.begin(), petals.end());
+        uint64_t h = static_cast<uint64_t>(v) * 0x9e3779b97f4a7c15ULL;
+        for (uint64_t p : petals)
+            h ^= p + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        configs.push_back(h);
+    }
+    census_->recordFarConfigs(configs, certified);
 }
 
 size_t KnottedSurface::CornerVectorHash::operator()(
     const std::vector<PetalCache::Corner> &corners) const {
-  size_t h = corners.size();
-  for (const auto &[f, local] : corners)
-    h ^= ((static_cast<size_t>(f) << 2) | static_cast<size_t>(local)) +
-         0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-  return h;
+    size_t h = corners.size();
+    for (const auto &[f, local] : corners)
+        h ^= ((static_cast<size_t>(f) << 2) | static_cast<size_t>(local)) +
+             0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    return h;
 }
 
 bool KnottedSurface::boundaryPetalUnknotted_(size_t v, int root) const {
-  std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
-  std::sort(corners.begin(), corners.end());
-  if (auto it = boundaryFlatMemo_.find(corners); it != boundaryFlatMemo_.end())
-    return it->second;
+    std::vector<PetalCache::Corner> corners = petalCorners_(v, root);
+    std::sort(corners.begin(), corners.end());
+    if (auto it = boundaryFlatMemo_.find(corners);
+        it != boundaryFlatMemo_.end())
+        return it->second;
 
-  // The answer depends only on the petal's corners (the same identity
-  // argument as addFace()'s memoization), so the shared cache applies too.
-  std::vector<PetalCache::PetalId> id{petalCache_.internPetal(corners)};
-  auto unknotted =
-      petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnknot, id);
-  if (!unknotted) {
-    const auto *ambientVertex = skeleton_.triangulation().vertex(v);
-    identify::CappedCurves capped;
-    // A trace that cannot be capped (an arc end off the boundary, i.e. a
-    // non-proper surface) is not certified flat, so it counts as knotted.
-    bool isUnknot =
-        identify::capInCone(ambientVertex->buildLink(),
-                            petalTrace_(ambientVertex, v, root), capped) &&
-        capped.components == 1 &&
-        identify::isUnknot(Knot(capped.tri, capped.edges));
-    petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnknot, id,
-                               isUnknot);
-    unknotted = isUnknot;
-  }
+    // The answer depends only on the petal's corners (the same identity
+    // argument as addFace()'s memoization), so the shared cache applies too.
+    std::vector<PetalCache::PetalId> id{petalCache_.internPetal(corners)};
+    auto unknotted =
+        petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnknot, id);
+    if (!unknotted) {
+        const auto *ambientVertex = skeleton_.triangulation().vertex(v);
+        identify::CappedCurves capped;
+        // A trace that cannot be capped (an arc end off the boundary, i.e. a
+        // non-proper surface) is not certified flat, so it counts as knotted.
+        bool isUnknot =
+            identify::capInCone(ambientVertex->buildLink(),
+                                petalTrace_(ambientVertex, v, root), capped) &&
+            capped.components == 1 &&
+            identify::isUnknot(Knot(capped.tri, capped.edges));
+        petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnknot, id,
+                                   isUnknot);
+        unknotted = isUnknot;
+    }
 
-  if (boundaryFlatMemo_.size() >= BOUNDARY_FLAT_MEMO_LIMIT)
-    boundaryFlatMemo_.clear();
-  boundaryFlatMemo_.emplace(std::move(corners), *unknotted);
-  return *unknotted;
+    if (boundaryFlatMemo_.size() >= BOUNDARY_FLAT_MEMO_LIMIT)
+        boundaryFlatMemo_.clear();
+    boundaryFlatMemo_.emplace(std::move(corners), *unknotted);
+    return *unknotted;
 }
 
 bool KnottedSurface::isSmoothAtBoundary() const {
-  const auto &tri = skeleton_.triangulation();
-  bool smooth = true;
-  for (size_t v = 0; v < facesAtVertex_.size() && smooth; ++v) {
-    if (facesAtVertex_[v].empty() || !tri.vertex(v)->isBoundary())
-      continue;
-    for (int root : registeredClassRoots(v))
-      if (!boundaryPetalUnknotted_(v, root)) {
-        smooth = false;
-        break;
-      }
-  }
-
-  if (census_) {
-    census_->audited.fetch_add(1, std::memory_order_relaxed);
-    if (!smooth) {
-      census_->auditKnotted.fetch_add(1, std::memory_order_relaxed);
-      // pairSig() is the expensive part; only pay it for a hit that will be
-      // kept.
-      if (census_->wantsKnottedHit())
-        census_->recordKnottedHit(pairSig());
+    const auto &tri = skeleton_.triangulation();
+    bool smooth = true;
+    for (size_t v = 0; v < facesAtVertex_.size() && smooth; ++v) {
+        if (facesAtVertex_[v].empty() || !tri.vertex(v)->isBoundary())
+            continue;
+        for (int root : registeredClassRoots(v))
+            if (!boundaryPetalUnknotted_(v, root)) {
+                smooth = false;
+                break;
+            }
     }
-  }
-  return smooth;
+
+    if (census_) {
+        census_->audited.fetch_add(1, std::memory_order_relaxed);
+        if (!smooth) {
+            census_->auditKnotted.fetch_add(1, std::memory_order_relaxed);
+            // pairSig() is the expensive part; only pay it for a hit that will
+            // be kept.
+            if (census_->wantsKnottedHit())
+                census_->recordKnottedHit(pairSig());
+        }
+    }
+    return smooth;
 }
 
 const regina::Edge<3> *
 KnottedSurface::linkEdgeForTriangle_(const regina::Vertex<4> *ambientVertex,
                                      int f, int localVertex) const {
-  size_t v = ambientVertex->index();
-  auto &cache = vertexEmbedIndexCache_[v];
-  if (!cache) {
-    cache.emplace();
-    size_t i = 0;
-    for (const auto &emb : ambientVertex->embeddings())
-      (*cache)[static_cast<uint64_t>(emb.simplex()->index()) * 5 +
-               static_cast<uint64_t>(emb.face())] = i++;
-  }
+    size_t v = ambientVertex->index();
+    auto &cache = vertexEmbedIndexCache_[v];
+    if (!cache) {
+        cache.emplace();
+        size_t i = 0;
+        for (const auto &emb : ambientVertex->embeddings())
+            (*cache)[static_cast<uint64_t>(emb.simplex()->index()) * 5 +
+                     static_cast<uint64_t>(emb.face())] = i++;
+    }
 
-  const auto *triangle = skeleton_.getNodes()[f].face;
-  auto emb = triangle->front();
-  auto *pent = emb.simplex();
-  regina::Perm<5> perm = emb.vertices();
-  int vLocal = perm[localVertex];
-  int w1 = perm[(localVertex + 1) % 3];
-  int w2 = perm[(localVertex + 2) % 3];
+    const auto *triangle = skeleton_.getNodes()[f].face;
+    auto emb = triangle->front();
+    auto *pent = emb.simplex();
+    regina::Perm<5> perm = emb.vertices();
+    int vLocal = perm[localVertex];
+    int w1 = perm[(localVertex + 1) % 3];
+    int w2 = perm[(localVertex + 2) % 3];
 
-  size_t idx = cache->at(static_cast<uint64_t>(pent->index()) * 5 +
-                         static_cast<uint64_t>(vLocal));
-  auto *tet = ambientVertex->buildLink().tetrahedron(idx);
-  regina::Perm<5> inv = pent->tetrahedronMapping(vLocal).inverse();
-  return tet->edge(inv[w1], inv[w2]);
+    size_t idx = cache->at(static_cast<uint64_t>(pent->index()) * 5 +
+                           static_cast<uint64_t>(vLocal));
+    auto *tet = ambientVertex->buildLink().tetrahedron(idx);
+    regina::Perm<5> inv = pent->tetrahedronMapping(vLocal).inverse();
+    return tet->edge(inv[w1], inv[w2]);
 }
 
 bool KnottedSurface::isPetalClosed_(size_t v, int root) const {
-  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
-    if (vertexClassRoot(f, localVertex) != root)
-      continue;
+    for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+        if (vertexClassRoot(f, localVertex) != root)
+            continue;
 
-    const auto *face = skeleton_.getNodes()[f].face;
-    for (int i = 0; i <= 2; ++i) {
-      if (i == localVertex)
-        continue; // the opposite edge, not a spoke
-      if (facetCount(face->face<1>(i)->index()) != 2)
-        return false;
+        const auto *face = skeleton_.getNodes()[f].face;
+        for (int i = 0; i <= 2; ++i) {
+            if (i == localVertex)
+                continue; // the opposite edge, not a spoke
+            if (facetCount(face->face<1>(i)->index()) != 2)
+                return false;
+        }
     }
-  }
-  return true;
+    return true;
 }
 
 std::vector<const regina::Edge<3> *>
-KnottedSurface::petalTrace_(const regina::Vertex<4> *ambientVertex,
-                            size_t v, int root) const {
-  std::vector<const regina::Edge<3> *> curve;
-  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
-    if (vertexClassRoot(f, localVertex) != root)
-      continue;
-    curve.push_back(linkEdgeForTriangle_(ambientVertex, f, localVertex));
-  }
-  return curve;
+KnottedSurface::petalTrace_(const regina::Vertex<4> *ambientVertex, size_t v,
+                            int root) const {
+    std::vector<const regina::Edge<3> *> curve;
+    for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+        if (vertexClassRoot(f, localVertex) != root)
+            continue;
+        curve.push_back(linkEdgeForTriangle_(ambientVertex, f, localVertex));
+    }
+    return curve;
 }
 
-std::vector<PetalCache::Corner>
-KnottedSurface::petalCorners_(size_t v, int root) const {
-  std::vector<PetalCache::Corner> corners;
-  for (const auto &[f, localVertex] : facesAtVertex_[v]) {
-    if (vertexClassRoot(f, localVertex) != root)
-      continue;
-    corners.emplace_back(f, localVertex);
-  }
-  return corners;
+std::vector<PetalCache::Corner> KnottedSurface::petalCorners_(size_t v,
+                                                              int root) const {
+    std::vector<PetalCache::Corner> corners;
+    for (const auto &[f, localVertex] : facesAtVertex_[v]) {
+        if (vertexClassRoot(f, localVertex) != root)
+            continue;
+        corners.emplace_back(f, localVertex);
+    }
+    return corners;
 }
 
 bool KnottedSurface::addFace(int f) {
-  if (!EmbeddedSubmanifold<4, 2>::addFace(f))
-    return false;
+    if (!EmbeddedSubmanifold<4, 2>::addFace(f))
+        return false;
 
-  // Filter out surfaces which are not locally flat or have transverse
-  // self-intersections
-  const auto &node = skeleton_.getNodes()[f];
+    // Filter out surfaces which are not locally flat or have transverse
+    // self-intersections
+    const auto &node = skeleton_.getNodes()[f];
 
-  // On an early failure below, facesAtVertex_ may only have been pushed to
-  // for some of the 3 local vertices -- removeFace(f) unconditionally pops
-  // all 3, so calling it here would pop entries this call never pushed
-  // (corrupting an unrelated vertex's list, or underflowing an empty one).
-  // rollback() undoes exactly the `pushed` entries this call made, then
-  // reuses the base class's removeFace() for the rest of the undo.
-  int pushed = 0;
-  auto rollback = [&] {
-    for (int local = pushed - 1; local >= 0; --local) {
-      size_t v = node.face->face<0>(local)->index();
-      facesAtVertex_[v].pop_back();
-    }
-    EmbeddedSubmanifold<4, 2>::removeFace(f);
-  };
-
-  // Register all three corners before checking any petal: a triangle can
-  // have two or three corners at one vertex, and a petal checked before its
-  // last corner is listed has an incomplete trace.
-  for (int local = 0; local <= 2; ++local) {
-    facesAtVertex_[node.face->face<0>(local)->index()].push_back({f, local});
-    pushed = local + 1;
-  }
-
-  for (int local = 0; local <= 2; ++local) {
-    auto *ambientVertex = node.face->face<0>(local);
-    size_t v = ambientVertex->index();
-    // A petal this triangle meets more than once is checked once.
-    bool seenBefore = false;
-    for (int earlier = 0; earlier < local; ++earlier)
-      if (node.face->face<0>(earlier) == ambientVertex &&
-          vertexClassRoot(f, earlier) == vertexClassRoot(f, local))
-        seenBefore = true;
-    if (seenBefore)
-      continue;
-
-    // Vertex<4>::buildLink() is a closed S^3 only for interior ambient
-    // vertices, which is what the hereditary proofs below rely on; a
-    // boundary vertex's link has boundary itself. Skipping it here is
-    // sound, not just expedient: under-checking can only miss a prune,
-    // never accept an otherwise-invalid state, and boundary-vertex
-    // flatness is already handled separately by boundaryLinks().
-    if (ambientVertex->isBoundary())
-      continue;
-
-    int root = vertexClassRoot(f, local);
-    if (!isPetalClosed_(v, root))
-      continue;
-
-    // Petal identity (which triangle-corners are in this DSU class) is a
-    // pure function of which triangles are currently present at v -- never
-    // of anything else in the submanifold (see addFace()'s DSU-union logic
-    // above) -- so the same petal recurring across different DFS
-    // branches/backtracks always has the same isUnknot()/linkingNumberWith()
-    // answer. petalCache_ memoizes those answers by petal identity, so a
-    // repeat occurrence costs a cache lookup instead of rebuilding a Knot
-    // and calling into Regina's isSolidTorus()/HomologicalData machinery.
-    auto idA = petalCache_.internPetal(petalCorners_(v, root));
-
-    // Built lazily: only needed on an actual cache miss below.
-    std::optional<Knot> knotA;
-    auto ensureKnotA = [&]() -> Knot & {
-      if (!knotA)
-        knotA.emplace(ambientVertex->buildLink(),
-                      petalTrace_(ambientVertex, v, root));
-      return *knotA;
+    // On an early failure below, facesAtVertex_ may only have been pushed to
+    // for some of the 3 local vertices -- removeFace(f) unconditionally pops
+    // all 3, so calling it here would pop entries this call never pushed
+    // (corrupting an unrelated vertex's list, or underflowing an empty one).
+    // rollback() undoes exactly the `pushed` entries this call made, then
+    // reuses the base class's removeFace() for the rest of the undo.
+    int pushed = 0;
+    auto rollback = [&] {
+        for (int local = pushed - 1; local >= 0; --local) {
+            size_t v = node.face->face<0>(local)->index();
+            facesAtVertex_[v].pop_back();
+        }
+        EmbeddedSubmanifold<4, 2>::removeFace(f);
     };
 
-    auto cachedUnknot = petalCache_.lookupUnknot(idA);
-    bool isUnknot;
-    if (cachedUnknot) {
-      isUnknot = *cachedUnknot;
-    } else {
-      isUnknot = identify::isUnknot(ensureKnotA());
-      petalCache_.recordUnknot(idA, isUnknot);
-    }
-    if (!isUnknot) {
-      // Non-locally-flat: this petal just closed into a knotted circle in
-      // Lk(v). Hereditary under removeFace() (a closed curve can only
-      // shrink to an open arc on removal, never split into a smaller
-      // closed loop -- arcs are never "knotted"), so safe to reject
-      // permanently here rather than deferring to a post-hoc filter.
-      petalCache_.recordLocalFlatnessRejection();
-      rollback();
-      return false;
+    // Register all three corners before checking any petal: a triangle can
+    // have two or three corners at one vertex, and a petal checked before its
+    // last corner is listed has an incomplete trace.
+    for (int local = 0; local <= 2; ++local) {
+        facesAtVertex_[node.face->face<0>(local)->index()].push_back(
+            {f, local});
+        pushed = local + 1;
     }
 
-    for (int other : registeredClassRoots(v)) {
-      if (other == root || !isPetalClosed_(v, other))
-        continue;
+    for (int local = 0; local <= 2; ++local) {
+        auto *ambientVertex = node.face->face<0>(local);
+        size_t v = ambientVertex->index();
+        // A petal this triangle meets more than once is checked once.
+        bool seenBefore = false;
+        for (int earlier = 0; earlier < local; ++earlier)
+            if (node.face->face<0>(earlier) == ambientVertex &&
+                vertexClassRoot(f, earlier) == vertexClassRoot(f, local))
+                seenBefore = true;
+        if (seenBefore)
+            continue;
 
-      auto idB = petalCache_.internPetal(petalCorners_(v, other));
-      auto cachedLink = petalCache_.lookupLinksNonzero(idA, idB);
-      bool nonzero;
-      if (cachedLink) {
-        nonzero = *cachedLink;
-      } else {
-        Knot knotB(ambientVertex->buildLink(),
-                   petalTrace_(ambientVertex, v, other));
-        nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
-        petalCache_.recordLinksNonzero(idA, idB, nonzero);
-      }
-      if (nonzero) {
-        // Transverse self-intersection: two closed, nonzero-linked petals
-        // at v. Hereditary under removeFace() (the same isotopy that
-        // would separate two petals still separates any subset of them),
-        // so this can never resolve later -- safe to prune permanently.
-        petalCache_.recordTransverseRejection();
-        rollback();
-        return false;
-      }
+        // Vertex<4>::buildLink() is a closed S^3 only for interior ambient
+        // vertices, which is what the hereditary proofs below rely on; a
+        // boundary vertex's link has boundary itself. Skipping it here is
+        // sound, not just expedient: under-checking can only miss a prune,
+        // never accept an otherwise-invalid state, and boundary-vertex
+        // flatness is already handled separately by boundaryLinks().
+        if (ambientVertex->isBoundary())
+            continue;
+
+        int root = vertexClassRoot(f, local);
+        if (!isPetalClosed_(v, root))
+            continue;
+
+        // Petal identity (which triangle-corners are in this DSU class) is a
+        // pure function of which triangles are currently present at v -- never
+        // of anything else in the submanifold (see addFace()'s DSU-union logic
+        // above) -- so the same petal recurring across different DFS
+        // branches/backtracks always has the same
+        // isUnknot()/linkingNumberWith() answer. petalCache_ memoizes those
+        // answers by petal identity, so a repeat occurrence costs a cache
+        // lookup instead of rebuilding a Knot and calling into Regina's
+        // isSolidTorus()/HomologicalData machinery.
+        auto idA = petalCache_.internPetal(petalCorners_(v, root));
+
+        // Built lazily: only needed on an actual cache miss below.
+        std::optional<Knot> knotA;
+        auto ensureKnotA = [&]() -> Knot & {
+            if (!knotA)
+                knotA.emplace(ambientVertex->buildLink(),
+                              petalTrace_(ambientVertex, v, root));
+            return *knotA;
+        };
+
+        auto cachedUnknot = petalCache_.lookupUnknot(idA);
+        bool isUnknot;
+        if (cachedUnknot) {
+            isUnknot = *cachedUnknot;
+        } else {
+            isUnknot = identify::isUnknot(ensureKnotA());
+            petalCache_.recordUnknot(idA, isUnknot);
+        }
+        if (!isUnknot) {
+            // Non-locally-flat: this petal just closed into a knotted circle in
+            // Lk(v). Hereditary under removeFace() (a closed curve can only
+            // shrink to an open arc on removal, never split into a smaller
+            // closed loop -- arcs are never "knotted"), so safe to reject
+            // permanently here rather than deferring to a post-hoc filter.
+            petalCache_.recordLocalFlatnessRejection();
+            rollback();
+            return false;
+        }
+
+        for (int other : registeredClassRoots(v)) {
+            if (other == root || !isPetalClosed_(v, other))
+                continue;
+
+            auto idB = petalCache_.internPetal(petalCorners_(v, other));
+            auto cachedLink = petalCache_.lookupLinksNonzero(idA, idB);
+            bool nonzero;
+            if (cachedLink) {
+                nonzero = *cachedLink;
+            } else {
+                Knot knotB(ambientVertex->buildLink(),
+                           petalTrace_(ambientVertex, v, other));
+                nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
+                petalCache_.recordLinksNonzero(idA, idB, nonzero);
+            }
+            if (nonzero) {
+                // Transverse self-intersection: two closed, nonzero-linked
+                // petals at v. Hereditary under removeFace() (the same isotopy
+                // that would separate two petals still separates any subset of
+                // them), so this can never resolve later -- safe to prune
+                // permanently.
+                petalCache_.recordTransverseRejection();
+                rollback();
+                return false;
+            }
+        }
     }
-  }
-  return true;
+    return true;
 }
 
 bool KnottedSurface::addFaces(const std::vector<int> &faces) {
-  std::vector<int> added;
-  for (int f : faces) {
-    if (!addFace(f)) {
-      for (auto it = added.rbegin(); it != added.rend(); ++it)
-        removeFace(*it);
-      return false;
+    std::vector<int> added;
+    for (int f : faces) {
+        if (!addFace(f)) {
+            for (auto it = added.rbegin(); it != added.rend(); ++it)
+                removeFace(*it);
+            return false;
+        }
+        added.push_back(f);
     }
-    added.push_back(f);
-  }
-  return true;
+    return true;
 }
 
 void KnottedSurface::removeFace(int f) {
-  const auto &node = skeleton_.getNodes()[f];
-  EmbeddedSubmanifold<4, 2>::removeFace(f);
-  for (int local = 0; local <= 2; ++local) {
-    size_t v = node.face->face<0>(local)->index();
-    facesAtVertex_[v].pop_back();
-  }
+    const auto &node = skeleton_.getNodes()[f];
+    EmbeddedSubmanifold<4, 2>::removeFace(f);
+    for (int local = 0; local <= 2; ++local) {
+        size_t v = node.face->face<0>(local)->index();
+        facesAtVertex_[v].pop_back();
+    }
 }
 
 std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
-  std::vector<std::unordered_set<const regina::Edge<3> *>> edgesByComponent(
-      bdryComponents_.size());
+    std::vector<std::unordered_set<const regina::Edge<3> *>> edgesByComponent(
+        bdryComponents_.size());
 
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue;
+    for (size_t f = 0; f < faces_.size(); ++f) {
+        const auto *simplex = faces_[f];
+        if (simplex == nullptr)
+            continue;
 
-    for (int i = 0; i <= 2; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue; // internal facet of subtri_
+        for (int i = 0; i <= 2; ++i) {
+            if (simplex->adjacentSimplex(i) != nullptr)
+                continue; // internal facet of subtri_
 
-      const auto *ambientFacet = skeleton_.getNodes()[f].face->face<1>(i);
-      const auto *ambientBC = ambientFacet->boundaryComponent();
-      if (ambientBC == nullptr)
-        continue; // shouldn't happen when cond is proper/connected
+            const auto *ambientFacet = skeleton_.getNodes()[f].face->face<1>(i);
+            const auto *ambientBC = ambientFacet->boundaryComponent();
+            if (ambientBC == nullptr)
+                continue; // shouldn't happen when cond is proper/connected
 
-      size_t c = ambientBC->index();
+            size_t c = ambientBC->index();
 
-      for (int k = 0; k < ambientBC->countEdges(); ++k) {
-        if (ambientBC->edge(k) == ambientFacet) {
-          edgesByComponent[c].insert(bdryComponents_[c].edge(k));
-          break;
+            for (int k = 0; k < ambientBC->countEdges(); ++k) {
+                if (ambientBC->edge(k) == ambientFacet) {
+                    edgesByComponent[c].insert(bdryComponents_[c].edge(k));
+                    break;
+                }
+            }
         }
-      }
     }
-  }
 
-  std::vector<std::pair<size_t, Link>> result;
-  for (size_t c = 0; c < edgesByComponent.size(); ++c) {
-    if (edgesByComponent[c].empty())
-      continue;
+    std::vector<std::pair<size_t, Link>> result;
+    for (size_t c = 0; c < edgesByComponent.size(); ++c) {
+        if (edgesByComponent[c].empty())
+            continue;
 
-    std::vector<const regina::Edge<3> *> edgeList(edgesByComponent[c].begin(),
-                                                  edgesByComponent[c].end());
-    result.emplace_back(c, Link(bdryComponents_[c], edgeList));
-  }
-  return result;
+        std::vector<const regina::Edge<3> *> edgeList(
+            edgesByComponent[c].begin(), edgesByComponent[c].end());
+        result.emplace_back(c, Link(bdryComponents_[c], edgeList));
+    }
+    return result;
 }
 
 namespace {
@@ -1126,221 +1140,224 @@ namespace {
 // break below.
 std::vector<OrientedCurve>
 chainIntoCurves(const std::vector<OrientedEdge> &directed) {
-  std::unordered_map<const regina::Vertex<3> *, OrientedEdge> outFrom;
-  for (const auto &oe : directed) {
-    const regina::Vertex<3> *tail =
-        oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-    outFrom[tail] = oe;
-  }
-
-  std::vector<OrientedCurve> curves;
-  std::unordered_set<const regina::Edge<3> *> visited;
-  for (const auto &oe : directed) {
-    if (visited.contains(oe.edge))
-      continue;
-
-    OrientedCurve curve;
-    const regina::Vertex<3> *start =
-        oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-    const regina::Vertex<3> *curr = start;
-    for (size_t step = 0; step <= directed.size(); ++step) {
-      auto it = outFrom.find(curr);
-      if (it == outFrom.end())
-        break; // shouldn't happen -- see this function's own doc comment
-      const OrientedEdge &next = it->second;
-      visited.insert(next.edge);
-      curve.push_back(next);
-      curr = next.reversed ? next.edge->vertex(0) : next.edge->vertex(1);
-      if (curr == start)
-        break;
+    std::unordered_map<const regina::Vertex<3> *, OrientedEdge> outFrom;
+    for (const auto &oe : directed) {
+        const regina::Vertex<3> *tail =
+            oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
+        outFrom[tail] = oe;
     }
-    curves.push_back(std::move(curve));
-  }
-  return curves;
+
+    std::vector<OrientedCurve> curves;
+    std::unordered_set<const regina::Edge<3> *> visited;
+    for (const auto &oe : directed) {
+        if (visited.contains(oe.edge))
+            continue;
+
+        OrientedCurve curve;
+        const regina::Vertex<3> *start =
+            oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
+        const regina::Vertex<3> *curr = start;
+        for (size_t step = 0; step <= directed.size(); ++step) {
+            auto it = outFrom.find(curr);
+            if (it == outFrom.end())
+                break; // shouldn't happen -- see this function's own doc
+                       // comment
+            const OrientedEdge &next = it->second;
+            visited.insert(next.edge);
+            curve.push_back(next);
+            curr = next.reversed ? next.edge->vertex(0) : next.edge->vertex(1);
+            if (curr == start)
+                break;
+        }
+        curves.push_back(std::move(curve));
+    }
+    return curves;
 }
 } // namespace
 
 std::map<const regina::Edge<3> *, size_t>
 KnottedSurface::boundaryEdgeSurfaceComponent() const {
-  std::map<const regina::Edge<3> *, size_t> result;
+    std::map<const regina::Edge<3> *, size_t> result;
 
-  // Same walk as orientedBoundaryLinks(), recording the surface component
-  // rather than the induced direction. Kept as its own pass rather than
-  // folded into that return type, so existing callers are untouched.
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue;
-    const size_t surfaceComponent = simplex->component()->index();
+    // Same walk as orientedBoundaryLinks(), recording the surface component
+    // rather than the induced direction. Kept as its own pass rather than
+    // folded into that return type, so existing callers are untouched.
+    for (size_t f = 0; f < faces_.size(); ++f) {
+        const auto *simplex = faces_[f];
+        if (simplex == nullptr)
+            continue;
+        const size_t surfaceComponent = simplex->component()->index();
 
-    for (int i = 0; i <= 2; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue; // internal facet of subtri_
+        for (int i = 0; i <= 2; ++i) {
+            if (simplex->adjacentSimplex(i) != nullptr)
+                continue; // internal facet of subtri_
 
-      const auto *ambientTriangle = skeleton_.getNodes()[f].face;
-      const auto *ambientFacet = ambientTriangle->template face<1>(i);
-      const auto *ambientBC = ambientFacet->boundaryComponent();
-      if (ambientBC == nullptr)
-        continue;
+            const auto *ambientTriangle = skeleton_.getNodes()[f].face;
+            const auto *ambientFacet = ambientTriangle->template face<1>(i);
+            const auto *ambientBC = ambientFacet->boundaryComponent();
+            if (ambientBC == nullptr)
+                continue;
 
-      const size_t c = ambientBC->index();
-      for (int k = 0; k < ambientBC->countEdges(); ++k) {
-        if (ambientBC->edge(k) == ambientFacet) {
-          result[bdryComponents_[c].edge(k)] = surfaceComponent;
-          break;
+            const size_t c = ambientBC->index();
+            for (int k = 0; k < ambientBC->countEdges(); ++k) {
+                if (ambientBC->edge(k) == ambientFacet) {
+                    result[bdryComponents_[c].edge(k)] = surfaceComponent;
+                    break;
+                }
+            }
         }
-      }
     }
-  }
-  return result;
+    return result;
 }
 
 std::vector<std::pair<size_t, std::vector<OrientedCurve>>>
 KnottedSurface::orientedBoundaryLinks() const {
-  std::vector<std::vector<OrientedEdge>> directedByComponent(
-      bdryComponents_.size());
+    std::vector<std::vector<OrientedEdge>> directedByComponent(
+        bdryComponents_.size());
 
-  for (size_t f = 0; f < faces_.size(); ++f) {
-    const auto *simplex = faces_[f];
-    if (simplex == nullptr)
-      continue;
+    for (size_t f = 0; f < faces_.size(); ++f) {
+        const auto *simplex = faces_[f];
+        if (simplex == nullptr)
+            continue;
 
-    // subtri_'s own per-triangle orientation: faces_[f]'s local vertex
-    // numbering is the ambient triangle's own local numbering directly (no
-    // permutation -- addFace() creates faces_[f] via subtri_.newSimplex(),
-    // unpermuted, and expresses every gluing via the ambient face's own
-    // relative gluing perm), so this sign tells us whether that same
-    // local order (0,1,2) is subtri_'s positive traversal (+1) or its
-    // reverse (-1).
-    int sign = simplex->orientation();
+        // subtri_'s own per-triangle orientation: faces_[f]'s local vertex
+        // numbering is the ambient triangle's own local numbering directly (no
+        // permutation -- addFace() creates faces_[f] via subtri_.newSimplex(),
+        // unpermuted, and expresses every gluing via the ambient face's own
+        // relative gluing perm), so this sign tells us whether that same
+        // local order (0,1,2) is subtri_'s positive traversal (+1) or its
+        // reverse (-1).
+        int sign = simplex->orientation();
 
-    for (int i = 0; i <= 2; ++i) {
-      if (simplex->adjacentSimplex(i) != nullptr)
-        continue; // internal facet of subtri_
+        for (int i = 0; i <= 2; ++i) {
+            if (simplex->adjacentSimplex(i) != nullptr)
+                continue; // internal facet of subtri_
 
-      const auto *ambientTriangle = skeleton_.getNodes()[f].face;
-      const auto *ambientFacet = ambientTriangle->template face<1>(i);
-      const auto *ambientBC = ambientFacet->boundaryComponent();
-      if (ambientBC == nullptr)
-        continue; // shouldn't happen when cond is proper/connected
+            const auto *ambientTriangle = skeleton_.getNodes()[f].face;
+            const auto *ambientFacet = ambientTriangle->template face<1>(i);
+            const auto *ambientBC = ambientFacet->boundaryComponent();
+            if (ambientBC == nullptr)
+                continue; // shouldn't happen when cond is proper/connected
 
-      size_t c = ambientBC->index();
+            size_t c = ambientBC->index();
 
-      // Facet i excludes local vertex i; the other two, walked in the
-      // triangle's own positive cyclic order (0,1,2,0,...), give this
-      // facet's induced direction: tail -> head = (i+1)%3 -> (i+2)%3 when
-      // sign>0, reversed when sign<0.
-      int tailLocal = sign > 0 ? (i + 1) % 3 : (i + 2) % 3;
-      int headLocal = sign > 0 ? (i + 2) % 3 : (i + 1) % 3;
+            // Facet i excludes local vertex i; the other two, walked in the
+            // triangle's own positive cyclic order (0,1,2,0,...), give this
+            // facet's induced direction: tail -> head = (i+1)%3 -> (i+2)%3 when
+            // sign>0, reversed when sign<0.
+            int tailLocal = sign > 0 ? (i + 1) % 3 : (i + 2) % 3;
+            int headLocal = sign > 0 ? (i + 2) % 3 : (i + 1) % 3;
 
-      // Maps the ambient edge's own inherent vertex(0)/vertex(1) to the
-      // ambient triangle's local vertex numbering -- p[0]/p[1] are exactly
-      // {tailLocal, headLocal} in some order (CLAUDE.md's own note on
-      // Face<dim,subdim>::edgeMapping()); which order tells us whether our
-      // tail is the edge's vertex(0) or vertex(1).
-      regina::Perm<5> p = ambientTriangle->edgeMapping(i);
-      bool edgeReversed = (p[0] == headLocal); // tail is edge->vertex(1)
+            // Maps the ambient edge's own inherent vertex(0)/vertex(1) to the
+            // ambient triangle's local vertex numbering -- p[0]/p[1] are
+            // exactly {tailLocal, headLocal} in some order (CLAUDE.md's own
+            // note on Face<dim,subdim>::edgeMapping()); which order tells us
+            // whether our tail is the edge's vertex(0) or vertex(1).
+            regina::Perm<5> p = ambientTriangle->edgeMapping(i);
+            bool edgeReversed = (p[0] == headLocal); // tail is edge->vertex(1)
 
-      for (int k = 0; k < ambientBC->countEdges(); ++k) {
-        if (ambientBC->edge(k) == ambientFacet) {
-          // Same-indexed edges of bdryComponents_[c] and ambientBC are
-          // numbered the same way (BoundaryComponent<4>::build()'s own
-          // documented guarantee -- see this feature's design notes for
-          // the pinched-face exception, confirmed not applicable to this
-          // pipeline), so the direction transfers with no further
-          // correspondence work.
-          directedByComponent[c].push_back(
-              {bdryComponents_[c].edge(k), edgeReversed});
-          break;
+            for (int k = 0; k < ambientBC->countEdges(); ++k) {
+                if (ambientBC->edge(k) == ambientFacet) {
+                    // Same-indexed edges of bdryComponents_[c] and ambientBC
+                    // are numbered the same way
+                    // (BoundaryComponent<4>::build()'s own documented guarantee
+                    // -- see this feature's design notes for the pinched-face
+                    // exception, confirmed not applicable to this pipeline), so
+                    // the direction transfers with no further correspondence
+                    // work.
+                    directedByComponent[c].push_back(
+                        {bdryComponents_[c].edge(k), edgeReversed});
+                    break;
+                }
+            }
         }
-      }
     }
-  }
 
-  std::vector<std::pair<size_t, std::vector<OrientedCurve>>> result;
-  for (size_t c = 0; c < directedByComponent.size(); ++c) {
-    if (directedByComponent[c].empty())
-      continue;
-    result.emplace_back(c, chainIntoCurves(directedByComponent[c]));
-  }
-  return result;
+    std::vector<std::pair<size_t, std::vector<OrientedCurve>>> result;
+    for (size_t c = 0; c < directedByComponent.size(); ++c) {
+        if (directedByComponent[c].empty())
+            continue;
+        result.emplace_back(c, chainIntoCurves(directedByComponent[c]));
+    }
+    return result;
 }
 
 KnottedSurface::SurfaceTypeKey
 KnottedSurface::surfaceTypeKey(const regina::Triangulation<2> &surface) {
-  bool isOrientable = surface.isOrientable();
-  int punctures = surface.countBoundaryComponents();
-  // For c components, chi = 2c - 2g - b (orientable) or 2c - k - b (not),
-  // summing genus/crosscaps over components. The connected case (c == 1)
-  // reduces to the familiar formula, so this changes nothing there -- but
-  // without the factor of c a disconnected surface reports a genus too low
-  // by exactly c - 1, which shows up as nonsense like "genus -2, 6
-  // punctures" for three disjoint annuli.
-  int components = static_cast<int>(surface.countComponents());
-  int genus = isOrientable
-                  ? (2 * components - surface.eulerChar() - punctures) / 2
-                  : 2 * components - surface.eulerChar() - punctures;
-  return {isOrientable, genus, punctures};
+    bool isOrientable = surface.isOrientable();
+    int punctures = surface.countBoundaryComponents();
+    // For c components, chi = 2c - 2g - b (orientable) or 2c - k - b (not),
+    // summing genus/crosscaps over components. The connected case (c == 1)
+    // reduces to the familiar formula, so this changes nothing there -- but
+    // without the factor of c a disconnected surface reports a genus too low
+    // by exactly c - 1, which shows up as nonsense like "genus -2, 6
+    // punctures" for three disjoint annuli.
+    int components = static_cast<int>(surface.countComponents());
+    int genus = isOrientable
+                    ? (2 * components - surface.eulerChar() - punctures) / 2
+                    : 2 * components - surface.eulerChar() - punctures;
+    return {isOrientable, genus, punctures};
 }
 
 KnottedSurface::TubedSurfaceType
 KnottedSurface::tubedSurfaceType(const regina::Triangulation<2> &surface) {
-  TubedSurfaceType out;
-  // triangulateComponents() hands back each component as a standalone
-  // Triangulation<2>, so surfaceTypeKey() applies to it unchanged rather
-  // than needing a separate per-Component<2> Euler characteristic path.
-  for (const regina::Triangulation<2> &comp : surface.triangulateComponents()) {
-    if (comp.countBoundaryComponents() == 0) {
-      ++out.closedComponents; // discarded, see this method's doc comment
-      continue;
+    TubedSurfaceType out;
+    // triangulateComponents() hands back each component as a standalone
+    // Triangulation<2>, so surfaceTypeKey() applies to it unchanged rather
+    // than needing a separate per-Component<2> Euler characteristic path.
+    for (const regina::Triangulation<2> &comp :
+         surface.triangulateComponents()) {
+        if (comp.countBoundaryComponents() == 0) {
+            ++out.closedComponents; // discarded, see this method's doc comment
+            continue;
+        }
+        auto [orientable, genus, punctures] = surfaceTypeKey(comp);
+        ++out.boundedComponents;
+        out.genus += genus;
+        out.punctures += punctures;
     }
-    auto [orientable, genus, punctures] = surfaceTypeKey(comp);
-    ++out.boundedComponents;
-    out.genus += genus;
-    out.punctures += punctures;
-  }
-  return out;
+    return out;
 }
 
 std::string KnottedSurface::formatSurfaceType(const SurfaceTypeKey &key) {
-  auto [isOrientable, genus, punctures] = key;
-  std::ostringstream ans;
+    auto [isOrientable, genus, punctures] = key;
+    std::ostringstream ans;
 
-  if (isOrientable) {
-    if (genus == 0 && punctures == 1)
-      ans << "Disc";
-    else if (genus == 0 && punctures == 2)
-      ans << "Annulus";
-    else {
-      if (genus == 0)
-        ans << "Sphere";
-      else if (genus == 1)
-        ans << "Torus";
-      else
-        ans << "Orientable genus " << genus << " surface";
+    if (isOrientable) {
+        if (genus == 0 && punctures == 1)
+            ans << "Disc";
+        else if (genus == 0 && punctures == 2)
+            ans << "Annulus";
+        else {
+            if (genus == 0)
+                ans << "Sphere";
+            else if (genus == 1)
+                ans << "Torus";
+            else
+                ans << "Orientable genus " << genus << " surface";
 
-      if (punctures == 1)
-        ans << ", 1 puncture";
-      else if (punctures > 1)
-        ans << ", " << punctures << " punctures";
+            if (punctures == 1)
+                ans << ", 1 puncture";
+            else if (punctures > 1)
+                ans << ", " << punctures << " punctures";
+        }
+    } else {
+        if (genus == 1 && punctures == 1)
+            ans << "Möbius band";
+        else {
+            if (genus == 1)
+                ans << "Projective plane";
+            else if (genus == 2)
+                ans << "Klein bottle";
+            else
+                ans << "Non-orientable genus " << genus << " surface";
+
+            if (punctures == 1)
+                ans << ", 1 puncture";
+            else if (punctures > 1)
+                ans << ", " << punctures << " punctures";
+        }
     }
-  } else {
-    if (genus == 1 && punctures == 1)
-      ans << "Möbius band";
-    else {
-      if (genus == 1)
-        ans << "Projective plane";
-      else if (genus == 2)
-        ans << "Klein bottle";
-      else
-        ans << "Non-orientable genus " << genus << " surface";
 
-      if (punctures == 1)
-        ans << ", 1 puncture";
-      else if (punctures > 1)
-        ans << ", " << punctures << " punctures";
-    }
-  }
-
-  return ans.str();
+    return ans.str();
 }
