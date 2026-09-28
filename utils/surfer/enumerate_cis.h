@@ -12,6 +12,7 @@
 //
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -43,6 +44,14 @@ class ConditionalPredicate {
 
     /** Reverses a prior successful tryAdd(v); see the class documentation. */
     virtual void undo(int v) = 0;
+
+    /**
+     * Whether a rejection was a work budget running out rather than a prune
+     * (see BudgetedPredicate), in which case the enumerator suspends the
+     * pass instead of setting the child aside. Only the outermost predicate
+     * handed to the enumerator is asked.
+     */
+    virtual bool budgetExhausted() const { return false; }
 
     virtual ~ConditionalPredicate() = default;
 };
@@ -112,10 +121,16 @@ class InterruptiblePredicate : public ConditionalPredicate {
  * (shallow-first) order, so a search stopped by a wall-clock limit always
  * explores the same prefix of the cheapest roots and never touches the rest
  * -- a longer run is a longer prefix, not a different sample. Rationing each
- * root instead, and doubling the ration each pass, gives every root
- * attention while keeping total work within a constant factor of the final
- * pass (the standard iterative-deepening amortisation, applied to effort
- * rather than depth). See EmbeddingSearch::runSearch_'s round loop.
+ * root instead, and growing the ration each pass, gives every root attention.
+ * Passes carry on from one another (see freeAttempts()), so the rationing
+ * costs no retracing; until 2026-09-28 each pass re-walked its root from the
+ * start, about half of all attempts. See EmbeddingSearch::runSearch_'s
+ * round loop.
+ *
+ * WHAT IT COUNTS. Every attempt it is handed. The depth cap lives in the
+ * enumerator (ConnectedInducedSubgraphEnumerator::setMaxSize()), so each of
+ * those reaches the embedding checks; until 2026-09-28 the cap was a
+ * predicate inside this one, and 97% of the charges were at-cap refusals.
  *
  * A negative budget means unlimited, in which case this decorator is
  * transparent apart from counting; 0 rejects everything (see reset()).
@@ -128,6 +143,11 @@ class BudgetedPredicate : public ConditionalPredicate {
     long long budget_;            /**< Attempts allowed per root; negative is unlimited, 0 rejects all. */
     long long spent_ = 0;         /**< Attempts made on the current root. */
     bool exhausted_ = false;      /**< Whether the budget ran out on this root. */
+    long long attempts_ = 0;
+        /**< Every tryAdd() call over this object's lifetime, budgeted or not
+             and never reset -- measurement only (the `search profile:`
+             line). */
+    long long free_ = 0; /**< Uncharged attempts left; see freeAttempts(). */
 
   public:
     /** Wraps `inner`; see reset() for how `budget` is interpreted. */
@@ -135,6 +155,11 @@ class BudgetedPredicate : public ConditionalPredicate {
         : inner_(inner), budget_(budget) {}
 
     bool tryAdd(int v) override {
+        ++attempts_;
+        if (free_ > 0) { // re-adding a suspended pass's path; see freeAttempts()
+            --free_;
+            return inner_.tryAdd(v);
+        }
         if (budget_ >= 0) {
             if (spent_ >= budget_) {
                 exhausted_ = true;
@@ -145,32 +170,35 @@ class BudgetedPredicate : public ConditionalPredicate {
         return inner_.tryAdd(v);
     }
 
+    bool budgetExhausted() const override { return exhausted_; }
+
+    /**
+     * Lets the next `n` tryAdd() calls through uncharged: the re-adds of
+     * the path back to where the root's previous pass stopped (see
+     * ConnectedInducedSubgraphEnumerator::Position), already paid for. Call
+     * after reset().
+     */
+    void freeAttempts(long long n) { free_ = n; }
+
     // As InterruptiblePredicate: a successful tryAdd(v) always delegated to
     // inner_, so undo(v) can delegate unconditionally.
     void undo(int v) override { inner_.undo(v); }
 
     /**
-     * Clears the per-root counters and sets this root's allowance.
+     * Clears the per-root counters and sets this root's allowance for one
+     * pass. A suspended root's next pass carries on where it stopped (see
+     * ConnectedInducedSubgraphEnumerator::Position), so its allowances add
+     * up: after k passes it has had budget * (1 + growth + ... ) attempts,
+     * none of them spent retracing earlier ones.
      *
-     * \param budget negative for unlimited, 0 to reject everything (used for
-     *        a root already enumerated to completion in an earlier pass),
-     *        positive for a ration of that many attempts.
-     *
-     * A finished root must be re-walked with a 0 allowance rather than
-     * skipped outright: ConnectedInducedSubgraphEnumerator mutates its
-     * candidate list per root -- enumerateFromRootFiltered() ends by
-     * re-appending the root at the tail -- and that list's ORDER decides the
-     * sibling order of every later root. Skipping a root therefore changes
-     * how subsequent roots are traversed, which breaks the replay the
-     * cross-pass deduplication depends on. Rejecting at the root instead
-     * leaves the candidate bookkeeping (which sits outside the predicate
-     * check) identical while costing only O(degree), since a rejected root
-     * never recurses.
+     * \param budget negative for unlimited, 0 to reject everything, positive
+     *        for a ration of that many attempts.
      */
     void reset(long long budget) {
         budget_ = budget;
         spent_ = 0;
         exhausted_ = false;
+        free_ = 0;
     }
 
     /**
@@ -181,6 +209,9 @@ class BudgetedPredicate : public ConditionalPredicate {
     bool exhausted() const { return exhausted_; }
 
     long long spent() const { return spent_; }
+
+    /** Every tryAdd() call so far; see attempts_. */
+    long long attempts() const { return attempts_; }
 };
 
 /**
@@ -200,15 +231,23 @@ class DepthCappedPredicate : public ConditionalPredicate {
     ConditionalPredicate &inner_; /**< The predicate being decorated. */
     int maxDepth_; /**< The cap on nested successful tryAdd() calls. */
     int depth_ = 0; /**< The number of currently-nested successful tryAdd() calls. */
+    long long evaluated_ = 0;
+        /**< tryAdd() calls the cap let through to `inner`, over this
+             object's lifetime -- measurement only (the `search profile:`
+             line). */
 
   public:
     /** Wraps `inner`, capping nested successful tryAdd()s at `maxDepth` (clamped to >= 1). */
     DepthCappedPredicate(ConditionalPredicate &inner, int maxDepth)
         : inner_(inner), maxDepth_(std::max(1, maxDepth)) {}
 
+    /** tryAdd() calls passed on to `inner` so far; see evaluated_. */
+    long long evaluated() const { return evaluated_; }
+
     bool tryAdd(int v) override {
         if (depth_ >= maxDepth_)
             return false;
+        ++evaluated_;
         if (!inner_.tryAdd(v))
             return false;
         ++depth_;
@@ -228,6 +267,53 @@ class DepthCappedPredicate : public ConditionalPredicate {
  */
 class ConnectedInducedSubgraphEnumerator {
   public:
+    /** How a call to enumerateFromRootFiltered() ended. */
+    enum class Outcome {
+        completed, /**< The root's subtree was enumerated to the end. */
+        suspended, /**< The predicate's budget ran out; see Position. */
+        stopped,   /**< Resuming failed: the predicate refused to re-add the
+                        recorded path, which only an external stop (see
+                        InterruptiblePredicate) can explain. */
+    };
+
+    /**
+     * Where a budgeted pass over one root stopped, so the next pass can
+     * carry on from there rather than retrace it. The enumerator's state at
+     * any node is a function of the path to it and of the children pruned
+     * along the way (see relink()), so it is enough to record, per level
+     * (indexed by |U| at that node): the index, in the node's snapshot of
+     * candidates, of the child being explored -- at the deepest level, of
+     * the child whose attempt the budget refused, to be tried first next
+     * time -- and the children pruned at the node so far, in order.
+     *
+     * Independent of any one enumerator's arrays, so a root suspended on one
+     * worker thread can resume on another. Empty means "start from the
+     * root". Resuming re-adds the root and one child per level below the
+     * deepest: rebuildAttempts() of them, which the caller lets through
+     * uncharged (BudgetedPredicate::freeAttempts()) and which are not
+     * reported again.
+     */
+    struct Position {
+        struct Level {
+            long childIndex = -1; /**< Index in the node's candidate snapshot. */
+            int child = 0;        /**< That child, to check the rebuild against. */
+            std::vector<int> pruned; /**< Children pruned at this node so far. */
+        };
+        std::vector<Level> levels; /**< Indexed by |U| at the node. */
+        size_t deepest = 0;        /**< The level the budget ran out at. */
+
+        bool empty() const { return levels.empty(); }
+        long long rebuildAttempts() const {
+            if (levels.empty())
+                return 0;
+            long long n = 1; // the root
+            for (size_t l = 0; l < deepest && l < levels.size(); ++l)
+                if (levels[l].childIndex >= 0)
+                    ++n;
+            return n;
+        }
+    };
+
     /**
      * A graph obtained by contracting a connected seed set of some
      * original graph into a single vertex, always given the
@@ -269,7 +355,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        const std::vector<std::vector<int>> &adj)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1) {
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1) {
         initUnseededRoots_();
     }
 
@@ -288,7 +374,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        ConditionalPredicate &predicate)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1),
           isSeeded_(isSeeded) {
         if (isSeeded_)
             seedFastForward_(&predicate);
@@ -305,7 +391,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        bool isSeeded)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1),
           isSeeded_(isSeeded) {
         if (isSeeded_)
             seedFastForward_(nullptr);
@@ -320,6 +406,19 @@ class ConnectedInducedSubgraphEnumerator {
      * construction) when seeded.
      */
     const std::vector<int> &getRoots() const { return roots_; }
+
+    /**
+     * Caps the sets visited at `maxSize` vertices (0: no cap), the seed's
+     * contracted vertex counting as one.
+     *
+     * The cap lives here rather than in a predicate: a node AT the cap then
+     * returns at once, where a DepthCappedPredicate lets it scan every
+     * candidate and offer each valid child to the predicate chain, only to
+     * be refused. That was 94% of all nodes, 98% of all candidate scanning
+     * and 97% of all tryAdd() calls on a profiled row -- none of it able to
+     * find anything, and all of it charged to the root's budget.
+     */
+    void setMaxSize(size_t maxSize) { maxSize_ = maxSize; }
 
     /**
      * Restores the candidate list to the order it had immediately after
@@ -340,7 +439,7 @@ class ConnectedInducedSubgraphEnumerator {
      * enumeration it precedes. A no-op for unseeded enumerators.
      */
     void resetCandidateOrder() {
-        if (canonicalCandidates_.empty())
+        if (!isSeeded_)
             return;
         candNext[0] = 0;
         candPrev[0] = 0;
@@ -374,14 +473,21 @@ class ConnectedInducedSubgraphEnumerator {
      * As enumerate(), but only descends into (and reports) vertex sets
      * satisfying `predicate`, in addition to connectivity.
      *
-     * \pre `predicate` is hereditary: for every connected U* satisfying
-     * it, every connected subset of U* also satisfies it. Given that,
-     * this finds every connected induced subgraph satisfying the
+     * \pre `predicate` is anti-monotonic: for every connected U* satisfying
+     * it, every connected subset of U* also satisfies it (the paper's
+     * Definition def:anti-monotonic, restricted to connected sets). Given
+     * that, this finds every connected induced subgraph satisfying the
      * predicate, with no duplicates, visiting only the
      * predicate-satisfying nodes plus a thin "boundary" of their failing
      * children -- not the whole search space.
      *
-     * \warning If `predicate` is not hereditary, this can silently miss
+     * Anti-monotonicity is also what lets a child that fails at a node be
+     * set aside for that node's whole subtree (see extendFiltered()), and a
+     * seed neighbour that fails with the seed alone for good (see
+     * seedFastForward_). Heredity -- surviving only the passage to the
+     * canonical parent -- would not be enough for either.
+     *
+     * \warning If `predicate` is not anti-monotonic, this can silently miss
      * results.
      */
     void enumerateFiltered(
@@ -412,10 +518,20 @@ class ConnectedInducedSubgraphEnumerator {
             enumerateFromRootFiltered(s, visit, predicate);
     }
 
-    /** Per-root counterpart to the ConditionalPredicate overload above. */
-    void enumerateFromRootFiltered(
+    /**
+     * Per-root counterpart to the ConditionalPredicate overload above.
+     *
+     * With a `position`, a pass that runs out of budget records where it
+     * stopped there and returns Outcome::suspended; handed back on the next
+     * call (with a fresh budget), the same position makes that call carry on
+     * from exactly there. The concatenation of the passes' reports is then
+     * exactly one unbudgeted pass's, in order: nothing is visited twice, and
+     * nothing is retraced. Without one, a budget refusal ends the pass like
+     * a prune, as before.
+     */
+    Outcome enumerateFromRootFiltered(
         int s, const std::function<void(const std::vector<int> &)> &visit,
-        ConditionalPredicate &predicate);
+        ConditionalPredicate &predicate, Position *position = nullptr);
 
   private:
     int n; /**< The number of vertices in the graph (numbered 1..n). */
@@ -479,9 +595,12 @@ class ConnectedInducedSubgraphEnumerator {
     bool isSeeded_ = false;
 
     std::vector<int> roots_; /**< See getRoots(). */
+    size_t maxSize_ = 0; /**< See setMaxSize(). */
     std::vector<int> canonicalCandidates_;
-        /**< The candidate list's order immediately after seeding; see
-             resetCandidateOrder(). Empty when unseeded. */
+        /**< The candidate list's order immediately after seeding: the roots,
+             since a seed neighbour that fails with the seed alone is pruned
+             for good (see seedFastForward_). See resetCandidateOrder().
+             Empty when unseeded. */
 
     /** Populates roots_ with every vertex 1..n (the unseeded case). */
     void initUnseededRoots_() {
@@ -508,6 +627,31 @@ class ConnectedInducedSubgraphEnumerator {
      * always safe to clear and reuse rather than reallocate.
      */
     std::vector<std::vector<int>> siblingBuf, introducedBuf;
+
+    /**
+     * Per-depth buffers of the children extendFiltered() has pruned at the
+     * current node, each with the list neighbours it had when it was
+     * unlinked: out of the candidate list (so no deeper node scans or tries
+     * them) but still in C (so none is re-introduced), until the node's loop
+     * ends and relinks them in place. See extendFiltered().
+     */
+    std::vector<std::vector<std::array<int, 3>>> prunedBuf;
+
+    /**
+     * Puts v back into the candidate list between `prev` and `next`, the
+     * neighbours it had when it was unlinked. Exact as long as every unlink
+     * since has been undone, last in first out (Knuth's dancing links),
+     * which is how extendFiltered() and enumerateFromRootFiltered() use it:
+     * so every node's loop leaves the list exactly as it found it, and the
+     * list at any node is a function of the path to it alone.
+     */
+    void relink(int v, int prev, int next) {
+        candNext[prev] = v;
+        candPrev[next] = v;
+        candNext[v] = next;
+        candPrev[v] = prev;
+        inC[v] = true;
+    }
 
     /**
      * Adapts a stateless whole-U predicate into the ConditionalPredicate
@@ -556,8 +700,13 @@ class ConnectedInducedSubgraphEnumerator {
      * As extend(), but only reports/descends when `predicate.tryAdd(w)`
      * passes -- see enumerateFiltered() for the correctness requirement
      * this relies on.
+     *
+     * `resume`, if set, is a position to rebuild on the way down (see
+     * Position); `record`, if set, receives the position if the budget runs
+     * out.
      */
-    void extendFiltered(int s, ConditionalPredicate &predicate);
+    Outcome extendFiltered(int s, ConditionalPredicate &predicate,
+                           const Position *resume, Position *record);
 };
 
 #endif // ENUMERATE_CIS_H

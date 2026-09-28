@@ -325,10 +325,15 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
     auto type = KnottedSurface::surfaceTypeKey(embedding.triangulation());
     ++localTypeCounts_[type];
     if (wantLinks_) {
+        // Only the faces beyond the seed: every drain embedding already
+        // holds it (see residentFaces_()).
         std::vector<int> faceIndices;
-        for (int v : U)
+        for (int v : U) {
+            if (v == 1 && owner_.isSeeded_)
+                continue;
             for (int f : owner_.graph_.graphToSkel[v - 1])
                 faceIndices.push_back(f);
+        }
         localPending_.push_back(std::move(faceIndices));
     } else if (callbacks_.onSurfaceFound) {
         // Idempotent, so this costs nothing after the first call.
@@ -384,7 +389,8 @@ void SurfaceSearch::ThreadHook::onFlush() {
         if (batch.empty())
             break; // fully drained
         if (!helperEmbedding_) {
-            helperEmbedding_.emplace(owner_.skeleton_, owner_.petalCache_);
+            helperEmbedding_.emplace(owner_.skeleton_, owner_.petalCache_,
+                                     owner_.residentFaces_());
             helperEmbedding_->usePairSigContext(&owner_.pairSigCtx_);
         }
         for (const auto &faceIndices : batch)
@@ -416,8 +422,14 @@ void SurfaceSearch::backgroundDrainLoop_(
     const SurfaceSearchCallbacks &callbacks) {
     using namespace std::chrono_literals;
     constexpr size_t POP_BATCH = 64;
-    KnottedSurface embedding(skeleton_, petalCache_);
+    KnottedSurface embedding(skeleton_, petalCache_, residentFaces_());
     embedding.usePairSigContext(&pairSigCtx_);
+    // First, so the seed is still the first surface described; see
+    // pendingSeed_.
+    if (pendingSeed_) {
+        processEntry_(embedding, *pendingSeed_, callbacks);
+        pendingSeed_.reset();
+    }
     while (!workersFinished.load(std::memory_order_relaxed)) {
         auto items = pendingSurfaces_.popSome(POP_BATCH);
         if (items.empty()) {
@@ -438,9 +450,23 @@ void SurfaceSearch::backgroundDrainLoop_(
     }
 }
 
+const std::vector<int> &SurfaceSearch::residentFaces_() const {
+    static const std::vector<int> none;
+    // Graph vertex 1 of a seeded graph is the whole seed; see
+    // buildSeededGraph_.
+    return isSeeded_ ? graph_.graphToSkel[0] : none;
+}
+
 void SurfaceSearch::processRemainingSurfaceBoundaries(
     unsigned numThreads, const SurfaceSearchCallbacks &callbacks) {
-    processBatchParallel_(pendingSurfaces_.drain(), numThreads, callbacks);
+    std::vector<std::vector<int>> batch = pendingSurfaces_.drain();
+    // backgroundDrainLoop_ describes the seed before anything else, so this
+    // only catches a seed that no aux thread was ever spawned to take.
+    if (pendingSeed_) {
+        batch.insert(batch.begin(), std::move(*pendingSeed_));
+        pendingSeed_.reset();
+    }
+    processBatchParallel_(std::move(batch), numThreads, callbacks);
 }
 
 void SurfaceSearch::processBatchParallel_(
@@ -475,7 +501,7 @@ void SurfaceSearch::processBatchParallel_(
     });
 
     auto worker = [&]() {
-        KnottedSurface embedding(skeleton_, petalCache_);
+        KnottedSurface embedding(skeleton_, petalCache_, residentFaces_());
         embedding.usePairSigContext(&pairSigCtx_);
         while (true) {
             if (skipRemainingDrain_.load(std::memory_order_relaxed))
@@ -549,7 +575,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                 .closedComponents = tubed.closedComponents,
                 .punctures = punctures,
                 .connected = embedding.triangulation().isConnected(),
-                .triangleCount = static_cast<long long>(faceIndices.size()),
+                .triangleCount = static_cast<long long>(
+                    residentFaces_().size() + faceIndices.size()),
                 .mostRestrictive = classifyByLinks_(links),
                 .capturePairSig =
                     limits_.capturePairSig
@@ -564,7 +591,7 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
     }
 
     // Reverse order, mirroring how the DFS itself would back out --
-    // resets embedding to empty for the next entry.
+    // returns embedding to just its resident faces for the next entry.
     for (auto it = faceIndices.rbegin(); it != faceIndices.rend(); ++it)
         embedding.removeFace(*it);
 }
@@ -636,37 +663,11 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                           [&probe] { return probe.pairSig(); })
                     : std::function<std::string()>{};
             if (wantLinks) {
-                auto links = probe.boundaryLinks();
-                std::string descriptor;
-                std::vector<BoundaryComponentNames> boundaryComponents;
-                if (!links.empty()) {
-                    std::tie(descriptor, boundaryComponents) =
-                        describeBoundary_(links);
-                    linkTally_.record(descriptor, type);
-                }
-                auto tubed = tubedFieldsFor(probe.triangulation(), genus,
-                                            punctures);
-                if (callbacks.onSurfaceBoundaryProcessed)
-                    callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
-                        SurfaceFoundInfo{.orientable = orientable,
-                                        .genus = genus,
-                                        .tubedGenus = tubed.genus,
-                                        .closedComponents =
-                                            tubed.closedComponents,
-                                        .punctures = punctures,
-                                        .connected =
-                                            probe.triangulation().isConnected(),
-                                        .triangleCount = triangleCount,
-                                        .mostRestrictive =
-                                            classifyByLinks_(links),
-                                        .capturePairSig = capturePairSig,
-                                        .resolvedVertices = static_cast<int>(
-                                            probe.singularVertexCount())},
-                        descriptor, boundaryComponents,
-                        [&probe] { return probe.orientedBoundaryLinks(); },
-                        [&probe] {
-                            return probe.boundaryEdgeSurfaceComponent();
-                        }});
+                // Described by the aux thread, first; see pendingSeed_.
+                // processEntry_ does exactly what describing it here did.
+                // Its entry is empty: the seed is all resident faces (see
+                // residentFaces_()).
+                pendingSeed_ = std::vector<int>{};
             } else if (callbacks.onSurfaceFound) {
                 auto tubed = tubedFieldsFor(probe.triangulation(), genus,
                                             punctures);

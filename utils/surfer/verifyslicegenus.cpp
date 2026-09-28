@@ -42,6 +42,7 @@
 #include "farsidenaming.h"
 #include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
+#include "linkingnumber.h"
 #include "identifycomplement.h"
 
 using namespace cobordismgraph;
@@ -1763,6 +1764,13 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     per-root budgets, worth the time (default: "
          "off).\n";
   std::cerr
+      << "    --audit-linking : Validation only (slow). Compute every petal "
+         "linking number\n"
+         "                     twice -- by cochains (linkingnumber.h) and by "
+         "drilling plus\n"
+         "                     homology -- and halt after the row on any "
+         "disagreement.\n";
+  std::cerr
       << "    --resolve-unlinked : Also accept surfaces that meet themselves "
          "only at\n"
          "                     interior vertices whose trace (all petals "
@@ -2087,6 +2095,8 @@ int main(int argc, char *argv[]) {
       researchSettled = true;
     } else if (arg == "--resolve-unlinked") {
       resolveUnlinked = true;
+    } else if (arg == "--audit-linking") {
+      linkingnumber::auditLinkingNumbers.store(true);
     } else if (arg == "--self-intersection-census") {
       if (i + 1 >= argc)
         usage(argv[0], "--self-intersection-census requires a value.");
@@ -3144,8 +3154,28 @@ int main(int argc, char *argv[]) {
       latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
       printProgress(stats, e);
     };
+    // The equalising rule, checked where each surface is counted, so a row
+    // stops at the target rather than a progress tick later (see
+    // SearchCallbacks::surfaceTarget). The watchdog below still checks it
+    // too, as a backstop. As there, the drain is let finish unless
+    // --skip-drain-on-timeout.
+    if (surfaceTarget) {
+      callbacks.surfaceTarget = *surfaceTarget;
+      callbacks.onSurfaceTarget = [&] {
+        noteStop("surface-target");
+        if (skipDrainOnTimeout)
+          e.skipRemainingBoundaryProcessing();
+      };
+    }
+    // For the `search profile:` line: petal-cache counters as root filtering
+    // ends, and the post-search drain tail.
+    std::optional<PetalCache::Stats> petalAtRootsReady;
+    callbacks.onRootsReady = [&] { petalAtRootsReady = e.petalCacheStats(); };
+    size_t drainTailQueued = 0;
+    std::chrono::steady_clock::duration drainTailTime{};
     callbacks.onBoundaryProcessingStarted = [&](size_t total,
                                                 unsigned threads) {
+      drainTailQueued = total;
       progressPrevLines_ = 0;
       std::cerr << "[+] boundary processing: " << total
                 << " queued surfaces, " << threads << " threads\n";
@@ -3164,6 +3194,7 @@ int main(int argc, char *argv[]) {
         };
     callbacks.onBoundaryProcessingComplete =
         [&](size_t total, std::chrono::steady_clock::duration elapsed) {
+          drainTailTime = elapsed;
           progressPrevLines_ = 0;
           std::cerr << "[+] boundary processing: done (" << total
                     << " processed in " << formatElapsed(elapsed) << ")\n";
@@ -3727,6 +3758,64 @@ int main(int argc, char *argv[]) {
         std::cout << "[!] " << row.name << ": WARNING: " << censusFailed
                   << " census writes failed (names found here will not "
                      "reach later rows)\n";
+
+      // Where the row's search time went. Measurement only; parsed by
+      // utils/surfer/tools/bench_search.sh.
+      const SearchStats::Profile &p = finalStats.profile;
+      const PetalCache::Stats petals = e.petalCacheStats();
+      const PetalCache::Stats atRoots = petalAtRootsReady.value_or(petals);
+      auto dsecs = [](std::chrono::steady_clock::duration d) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1)
+          << std::chrono::duration<double>(d).count();
+        return o.str();
+      };
+      auto nsecs = [](long long nanos) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1) << nanos / 1e9;
+        return o.str();
+      };
+      auto unknotMisses = [](const PetalCache::Stats &s) {
+        return s.unknotChecks - s.unknotCacheHits;
+      };
+      auto linkingMisses = [](const PetalCache::Stats &s) {
+        return s.linkingChecks - s.linkingCacheHits;
+      };
+      std::cout << "[+] " << row.name << ": search profile: prototype "
+                << dsecs(p.prototype) << "s (unknot misses "
+                << unknotMisses(atRoots) << " in "
+                << nsecs(atRoots.unknotMissNanos) << "s, linking misses "
+                << linkingMisses(atRoots) << " in "
+                << nsecs(atRoots.linkingMissNanos) << "s); rounds";
+      for (auto round : p.rounds)
+        std::cout << " " << dsecs(round) << "s";
+      std::cout << "; drain tail " << drainTailQueued << " surfaces in "
+                << dsecs(drainTailTime) << "s; nodes " << p.nodes
+                << ", attempts " << p.attempts << ", evaluated "
+                << p.evaluated << ", charged " << p.charged << ", replayed "
+                << p.replayed
+                << "; petal misses: unknot " << unknotMisses(petals) << " in "
+                << nsecs(petals.unknotMissNanos) << "s, linking "
+                << linkingMisses(petals) << " in "
+                << nsecs(petals.linkingMissNanos) << "s (cochains "
+                << petals.linkingFast << ", fallbacks "
+                << petals.linkingFallbacks << ")";
+      if (linkingnumber::auditLinkingNumbers.load())
+        std::cout << "; linking audit: " << petals.linkingAudited
+                  << " checked (" << petals.linkingAuditNonzero
+                  << " linked), " << petals.linkingDisagreements
+                  << " disagree, drilling route "
+                  << nsecs(petals.linkingAuditOldNanos) << "s";
+      std::cout << "\n";
+      // The audit exists to catch exactly this; a wrong linking number
+      // prunes (or keeps) surfaces it should not.
+      if (petals.linkingDisagreements > 0) {
+        flagFatalBug(row.name + ": " +
+                     std::to_string(petals.linkingDisagreements) +
+                     " petal linking numbers disagree between the cochain "
+                     "and drilling routes (--audit-linking).");
+        haltIfFatalBugDetected();
+      }
     }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.

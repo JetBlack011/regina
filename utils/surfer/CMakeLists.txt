@@ -10,7 +10,7 @@ add_library(surfer_common STATIC
   knotbuilder/knotbuilder.cpp knotbuilder/blockgeometry.cpp knotbuilder/diagramdrawer.cpp
   cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
-  linkcomplement.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
+  linkcomplement.cpp linkingnumber.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
   cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp farsideredraw.cpp
   exactnaming/exacttables.cpp exactnaming/gaussdiagram.cpp exactnaming/exactnamer.cpp

@@ -10,7 +10,9 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 #include <thread>
+#include <vector>
 
 #include "embeddedsubmanifold.h"
 #include "embeddingsearch.h"
@@ -364,6 +366,34 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     std::atomic<bool> skipRemainingDrain_{false};
     /** See rebuildFailures(). */
     std::atomic<long long> rebuildFailures_{0};
+
+    /**
+     * The seed's own faces, when the seed is itself an accepted surface and
+     * boundary links are wanted. backgroundDrainLoop_ describes it before
+     * anything else, instead of the calling thread describing it before any
+     * worker starts: describing it needs its pair signature, and the first
+     * pair signature builds pairSigCtx_ (isoSigDetail of the whole
+     * ambient, 21-26 s at 10 crossings), which used to hold every worker
+     * back for that long. Written before the aux thread is spawned and
+     * cleared by that thread, so it needs no lock.
+     */
+    std::optional<std::vector<int>> pendingSeed_;
+
+    /**
+     * The faces every drained surface shares: the seed's when seeded (every
+     * surface a seeded search finds contains the seed), otherwise none.
+     * Every drain embedding is built already holding them, and a queued
+     * entry lists only the faces beyond them (see ThreadHook::onFound), so
+     * describing a surface re-adds its few added faces rather than the whole
+     * seed -- ~124 addFace() calls per surface before, ~4 now -- and the
+     * queue holds a few ints per surface instead of the seed's ~120.
+     *
+     * Identical results: the embedding holds the same faces, added in the
+     * same order (the seed's, then the entry's), and removing an entry's
+     * faces in reverse returns it exactly to the seed-only state (rollback
+     * union-find).
+     */
+    const std::vector<int> &residentFaces_() const;
 
     /**
      * Shared across every KnottedSurface this search constructs.
