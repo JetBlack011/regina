@@ -87,6 +87,12 @@ struct WorkerStats {
     long long pendingSatisfyingCount = 0;
     long long pendingFaceSum = 0;
     long long pendingResolvedCount = 0;
+    // For SearchStats::Profile; see its fields.
+    long long nodes = 0;
+    long long attempts = 0;
+    long long evaluated = 0;
+    long long charged = 0;
+    long long replayed = 0;
 };
 } // namespace
 
@@ -208,6 +214,10 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // Shallow-first: descending vertex id.
     std::sort(roots.begin(), roots.end(), [](int a, int b) { return a > b; });
 
+    const auto prototypeTime = std::chrono::steady_clock::now() - searchStart;
+    if (callbacks.onRootsReady)
+        callbacks.onRootsReady();
+
     const size_t totalRootsPerPass = roots.size();
 
     const unsigned resolvedFinalThreads = finalThreads.value_or(numThreads);
@@ -250,6 +260,10 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // over passes equal the full enumeration, with no duplicate surfaces
     // reaching the boundary-identification queue.
     std::vector<long long> visitsLastPass(roots.size(), 0);
+    // spentLastPass[i]: root i's budget spend in the previous pass, for
+    // SearchStats::Profile::replayed only. Same access rules as
+    // visitsLastPass.
+    std::vector<long long> spentLastPass(roots.size(), 0);
     // rootLevel[i]: how many budget passes root i has had. Its ration is
     // rootBudgetStart * growth^rootLevel[i]. Levels are sequential PER ROOT
     // (pass k+1 needs pass k's visit count to know what to skip) but wholly
@@ -333,6 +347,11 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         auto &localEnumerator = *localEnumeratorOpt;
         WorkerStats &local = perThreadStats[tid];
         auto threadHook = makeThreadHook();
+        // The seeded constructor's own seed commit and root probes are not
+        // root enumeration; the profile counts from here on.
+        const long long attemptsAtStart = budgeted.attempts();
+        const long long evaluatedAtStart =
+            cappedOpt ? cappedOpt->evaluated() : 0;
 
         // Dispatch is safe only because resetCandidateOrder() below makes a
         // root's traversal a function of that root alone, not of which roots
@@ -465,6 +484,12 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                 },
                 *activePredicate);
             visitsLastPass[idx] = visits;
+            local.nodes += visits;
+            local.charged += budgeted.spent();
+            // This pass re-walked the previous one charge for charge, up to
+            // the smaller of the two spends.
+            local.replayed += std::min(spentLastPass[idx], budgeted.spent());
+            spentLastPass[idx] = budgeted.spent();
             // A root that never hit its budget was enumerated exhaustively
             // (within this round's depth cap), so it needs no further pass.
             // An interrupted run must not claim this: stopRequested_ prunes
@@ -486,6 +511,12 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                 queueCv.notify_all();
             }
         }
+        const long long rootAttempts = budgeted.attempts() - attemptsAtStart;
+        local.attempts += rootAttempts;
+        // Uncapped, nothing stands between the budget and the embedding
+        // checks, so every attempt is evaluated.
+        local.evaluated += cappedOpt ? cappedOpt->evaluated() - evaluatedAtStart
+                                     : rootAttempts;
         // Flush this thread's remainder so the global count ends up exact.
         if (local.pendingSatisfyingCount > 0) {
             stats.satisfyingCount.fetch_add(local.pendingSatisfyingCount,
@@ -587,10 +618,13 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // Returns whether every root finished, i.e. whether this round enumerated
     // its depth exhaustively -- a statement about the object, not about how
     // long we ran.
+    std::vector<std::chrono::steady_clock::duration> roundTimes;
     auto runRound = [&](std::optional<long long> capFaces,
                         long long suppressBelow, unsigned threadCount) -> bool {
+        const auto roundStart = std::chrono::steady_clock::now();
         std::fill(rootDone.begin(), rootDone.end(), 0);
         std::fill(visitsLastPass.begin(), visitsLastPass.end(), 0);
+        std::fill(spentLastPass.begin(), spentLastPass.end(), 0);
         std::fill(rootLevel.begin(), rootLevel.end(), 0u);
         {
             std::lock_guard<std::mutex> lock(queueMutex);
@@ -605,6 +639,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             roundThreads.emplace_back(worker, t, capFaces, suppressBelow);
         for (auto &th : roundThreads)
             th.join();
+        roundTimes.push_back(std::chrono::steady_clock::now() - roundStart);
 
         if (stopRequested_.load(std::memory_order_relaxed))
             return false;
@@ -661,6 +696,15 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     SearchStats finalStats =
         snapshotStats(totalFound, totalEmbedded, total, totalFaceSum);
+    finalStats.profile.prototype = prototypeTime;
+    finalStats.profile.rounds = roundTimes;
+    for (const WorkerStats &local : perThreadStats) {
+        finalStats.profile.nodes += local.nodes;
+        finalStats.profile.attempts += local.attempts;
+        finalStats.profile.evaluated += local.evaluated;
+        finalStats.profile.charged += local.charged;
+        finalStats.profile.replayed += local.replayed;
+    }
     if (callbacks.onSearchComplete)
         callbacks.onSearchComplete(finalStats);
 

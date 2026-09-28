@@ -12,9 +12,19 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <chrono>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+
+namespace {
+// For PetalCache's miss timings (the per-row `search profile:` line).
+long long nanosSince(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now() - start)
+        .count();
+}
+} // namespace
 
 template <int dim, int subdim>
 EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
@@ -1022,8 +1032,10 @@ bool KnottedSurface::addFace(int f) {
         if (cachedUnknot) {
             isUnknot = *cachedUnknot;
         } else {
+            const auto start = std::chrono::steady_clock::now();
             isUnknot = identify::isUnknot(ensureKnotA());
             petalCache_.recordUnknot(idA, isUnknot);
+            petalCache_.recordUnknotMissTime(nanosSince(start));
         }
         if (!isUnknot) {
             // Non-locally-flat: this petal just closed into a knotted circle in
@@ -1046,10 +1058,12 @@ bool KnottedSurface::addFace(int f) {
             if (cachedLink) {
                 nonzero = *cachedLink;
             } else {
+                const auto start = std::chrono::steady_clock::now();
                 Knot knotB(ambientVertex->buildLink(),
                            petalTrace_(ambientVertex, v, other));
                 nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
                 petalCache_.recordLinksNonzero(idA, idB, nonzero);
+                petalCache_.recordLinkingMissTime(nanosSince(start));
             }
             if (nonzero) {
                 // Transverse self-intersection: two closed, nonzero-linked

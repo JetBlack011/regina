@@ -3144,8 +3144,15 @@ int main(int argc, char *argv[]) {
       latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
       printProgress(stats, e);
     };
+    // For the `search profile:` line: petal-cache counters as root filtering
+    // ends, and the post-search drain tail.
+    std::optional<PetalCache::Stats> petalAtRootsReady;
+    callbacks.onRootsReady = [&] { petalAtRootsReady = e.petalCacheStats(); };
+    size_t drainTailQueued = 0;
+    std::chrono::steady_clock::duration drainTailTime{};
     callbacks.onBoundaryProcessingStarted = [&](size_t total,
                                                 unsigned threads) {
+      drainTailQueued = total;
       progressPrevLines_ = 0;
       std::cerr << "[+] boundary processing: " << total
                 << " queued surfaces, " << threads << " threads\n";
@@ -3164,6 +3171,7 @@ int main(int argc, char *argv[]) {
         };
     callbacks.onBoundaryProcessingComplete =
         [&](size_t total, std::chrono::steady_clock::duration elapsed) {
+          drainTailTime = elapsed;
           progressPrevLines_ = 0;
           std::cerr << "[+] boundary processing: done (" << total
                     << " processed in " << formatElapsed(elapsed) << ")\n";
@@ -3727,6 +3735,46 @@ int main(int argc, char *argv[]) {
         std::cout << "[!] " << row.name << ": WARNING: " << censusFailed
                   << " census writes failed (names found here will not "
                      "reach later rows)\n";
+
+      // Where the row's search time went. Measurement only; parsed by
+      // utils/surfer/tools/bench_search.sh.
+      const SearchStats::Profile &p = finalStats.profile;
+      const PetalCache::Stats petals = e.petalCacheStats();
+      const PetalCache::Stats atRoots = petalAtRootsReady.value_or(petals);
+      auto dsecs = [](std::chrono::steady_clock::duration d) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1)
+          << std::chrono::duration<double>(d).count();
+        return o.str();
+      };
+      auto nsecs = [](long long nanos) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1) << nanos / 1e9;
+        return o.str();
+      };
+      auto unknotMisses = [](const PetalCache::Stats &s) {
+        return s.unknotChecks - s.unknotCacheHits;
+      };
+      auto linkingMisses = [](const PetalCache::Stats &s) {
+        return s.linkingChecks - s.linkingCacheHits;
+      };
+      std::cout << "[+] " << row.name << ": search profile: prototype "
+                << dsecs(p.prototype) << "s (unknot misses "
+                << unknotMisses(atRoots) << " in "
+                << nsecs(atRoots.unknotMissNanos) << "s, linking misses "
+                << linkingMisses(atRoots) << " in "
+                << nsecs(atRoots.linkingMissNanos) << "s); rounds";
+      for (auto round : p.rounds)
+        std::cout << " " << dsecs(round) << "s";
+      std::cout << "; drain tail " << drainTailQueued << " surfaces in "
+                << dsecs(drainTailTime) << "s; nodes " << p.nodes
+                << ", attempts " << p.attempts << ", evaluated "
+                << p.evaluated << ", charged " << p.charged << ", replayed "
+                << p.replayed
+                << "; petal misses: unknot " << unknotMisses(petals) << " in "
+                << nsecs(petals.unknotMissNanos) << "s, linking "
+                << linkingMisses(petals) << " in "
+                << nsecs(petals.linkingMissNanos) << "s\n";
     }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.

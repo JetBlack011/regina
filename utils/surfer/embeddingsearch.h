@@ -128,6 +128,39 @@ struct SearchStats {
            -- an ordinary timed-out run proves nothing, since it only ever
            covers a prefix of the root list. */
 
+  /**
+   * Where the search's work went -- measurement only, printed as the
+   * per-row `search profile:` line and read by utils/surfer/tools/
+   * bench_search.sh. Filled in only on the final SearchStats (search()'s
+   * return value and onSearchComplete); zero in progress snapshots.
+   */
+  struct Profile {
+    std::chrono::steady_clock::duration prototype{};
+        /**< Seed commit plus root filtering, on the calling thread, before
+             any worker starts. */
+    std::vector<std::chrono::steady_clock::duration> rounds;
+        /**< Wall time of each depth round actually run, in order. */
+    long long nodes = 0;
+        /**< Visit callbacks fired, replayed budget-pass visits included
+             (foundCount counts only the new ones). */
+    long long attempts = 0;
+        /**< tryAdd() calls made while enumerating roots (the per-worker
+             seed fast-forward excluded), at-cap rejections included. */
+    long long evaluated = 0;
+        /**< Of attempts, those the depth cap let through to the embedding
+             checks. */
+    long long charged = 0;
+        /**< Of attempts, those charged to a root's budget (every pass's
+             spend, summed); 0 when unbudgeted. The rest were rejected after
+             the budget ran out, while the pass unwound. charged - replayed
+             is the charged length of each root's traversal, summed, which
+             an unbudgeted run's `attempts` must equal. */
+    long long replayed = 0;
+        /**< Budget-charged attempts that retraced an earlier budget pass of
+             the same root: each pass re-walks its root from the start, so
+             this is min(previous pass's spend, this pass's spend), summed. */
+  } profile;
+
   /** Returns the average face count among satisfying finds, or 0 if there are none. */
   double averageSatisfyingFaces() const {
     return satisfyingCount > 0
@@ -151,6 +184,11 @@ struct SearchCallbacks {
   std::function<void(const SearchStats &)> onSearchComplete;
       /**< Fired once, when the search has finished (the same
            SearchStats is also returned by search() itself). */
+  std::function<void()> onRootsReady;
+      /**< Fired once, on the calling thread, when root filtering is done
+           and before any worker starts -- lets a caller split its own
+           counters (e.g. PetalCache misses) between that single-threaded
+           phase and the rest. */
 };
 
 /**

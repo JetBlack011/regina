@@ -172,6 +172,16 @@ void PetalCache::recordTransverseRejection() {
     ++stats_.transverseRejections;
 }
 
+void PetalCache::recordUnknotMissTime(long long nanos) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stats_.unknotMissNanos += nanos;
+}
+
+void PetalCache::recordLinkingMissTime(long long nanos) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stats_.linkingMissNanos += nanos;
+}
+
 PetalCache::Stats PetalCache::stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return stats_;

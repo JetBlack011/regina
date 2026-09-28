@@ -128,6 +128,10 @@ class BudgetedPredicate : public ConditionalPredicate {
     long long budget_;            /**< Attempts allowed per root; negative is unlimited, 0 rejects all. */
     long long spent_ = 0;         /**< Attempts made on the current root. */
     bool exhausted_ = false;      /**< Whether the budget ran out on this root. */
+    long long attempts_ = 0;
+        /**< Every tryAdd() call over this object's lifetime, budgeted or not
+             and never reset -- measurement only (the `search profile:`
+             line). */
 
   public:
     /** Wraps `inner`; see reset() for how `budget` is interpreted. */
@@ -135,6 +139,7 @@ class BudgetedPredicate : public ConditionalPredicate {
         : inner_(inner), budget_(budget) {}
 
     bool tryAdd(int v) override {
+        ++attempts_;
         if (budget_ >= 0) {
             if (spent_ >= budget_) {
                 exhausted_ = true;
@@ -181,6 +186,9 @@ class BudgetedPredicate : public ConditionalPredicate {
     bool exhausted() const { return exhausted_; }
 
     long long spent() const { return spent_; }
+
+    /** Every tryAdd() call so far; see attempts_. */
+    long long attempts() const { return attempts_; }
 };
 
 /**
@@ -200,15 +208,23 @@ class DepthCappedPredicate : public ConditionalPredicate {
     ConditionalPredicate &inner_; /**< The predicate being decorated. */
     int maxDepth_; /**< The cap on nested successful tryAdd() calls. */
     int depth_ = 0; /**< The number of currently-nested successful tryAdd() calls. */
+    long long evaluated_ = 0;
+        /**< tryAdd() calls the cap let through to `inner`, over this
+             object's lifetime -- measurement only (the `search profile:`
+             line). */
 
   public:
     /** Wraps `inner`, capping nested successful tryAdd()s at `maxDepth` (clamped to >= 1). */
     DepthCappedPredicate(ConditionalPredicate &inner, int maxDepth)
         : inner_(inner), maxDepth_(std::max(1, maxDepth)) {}
 
+    /** tryAdd() calls passed on to `inner` so far; see evaluated_. */
+    long long evaluated() const { return evaluated_; }
+
     bool tryAdd(int v) override {
         if (depth_ >= maxDepth_)
             return false;
+        ++evaluated_;
         if (!inner_.tryAdd(v))
             return false;
         ++depth_;

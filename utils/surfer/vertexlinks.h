@@ -149,6 +149,16 @@ public:
   /** As recordLocalFlatnessRejection(), for a transverse self-intersection rejection. */
   void recordTransverseRejection();
 
+  /**
+   * Adds the wall time one cache miss spent computing its answer:
+   * Knot::isUnknot() for recordUnknotMissTime(), Knot::linkingNumberWith()
+   * for recordLinkingMissTime(). Measurement only, for the per-row
+   * `search profile:` line; see Stats.
+   */
+  void recordUnknotMissTime(long long nanos);
+  /** As recordUnknotMissTime(), for a linking-number miss. */
+  void recordLinkingMissTime(long long nanos);
+
   /** Counters for how much recomputation this cache is actually avoiding, and how often addFace()'s checks actually reject something. */
   struct Stats {
     long long unknotChecks = 0;
@@ -160,6 +170,8 @@ public:
     long long cacheResets = 0; /**< How many times this cache has been fully cleared after exceeding its clear threshold. */
     long long petalSetChecks = 0;    /**< lookupPetalSet() calls. */
     long long petalSetCacheHits = 0; /**< ... that found an answer. */
+    long long unknotMissNanos = 0;   /**< Time spent computing unknot misses; see recordUnknotMissTime(). */
+    long long linkingMissNanos = 0;  /**< Time spent computing linking-number misses. */
   };
 
   /**
