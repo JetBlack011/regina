@@ -88,6 +88,9 @@ struct Config {
   /// verifyslicegenus row per hop, its witnesses read back from their pair
   /// signatures. Both search the same thickening with the same shape.
   std::string hopMode = "process";
+  /// Each hop's search shape: the campaign's (hosts.conf) unless the
+  /// --hop-* options change it. Either hop mode uses it.
+  HopShape hopShape;
   bool verbose = false;
 };
 
@@ -718,7 +721,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   } else {
     std::ofstream(dir + "/input.csv") << "Name,PD Notation,Genus-4D\n"
                                       << rowName << "," << row.pd << ",[0;99]\n";
-    const HopShape shape;
+    const HopShape &shape = cfg_.hopShape;
     std::vector<std::string> argv = {
         cfg_.verify, "--input", dir + "/input.csv", "--output", dir + "/out.csv",
         "--cobordisms", dir + "/cob.csv", "--census-db", cfg_.censusDb,
@@ -915,11 +918,11 @@ int Cascade::run() {
     if (!census::setCensusPath(cfg_.censusDb))
       std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
     census::retriangulateOnMiss.store(false);
-    identify::recognitionCacheLimit.store(HopShape{}.recognitionCacheLimit);
+    identify::recognitionCacheLimit.store(cfg_.hopShape.recognitionCacheLimit);
     const auto t0 = std::chrono::steady_clock::now();
     signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);
     // The hops' far-side namers share the node namer's table caches.
-    searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, HopShape{},
+    searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, cfg_.hopShape,
                                               static_cast<unsigned>(cfg_.threads),
                                               namer_.caches());
     std::cout << "[+] hops in process: " << signatures_->knots() << " knot and "
@@ -929,6 +932,12 @@ int Cascade::run() {
               << " s)\n";
   } else if (cfg_.hopMode != "child") {
     throw std::invalid_argument("--hop-mode must be process or child");
+  }
+  {
+    const HopShape &s = cfg_.hopShape;
+    std::cout << "[+] hop shape: cap " << s.maxFaces << ", IDDFS " << s.iddfsIterations
+              << " from " << s.iddfsStart << " step " << s.iddfsStep << ", root budget "
+              << s.rootBudgetStart << " x" << s.rootBudgetGrowth << "\n";
   }
   if (!cfg_.masterWitnesses.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
@@ -1044,6 +1053,10 @@ int main(int argc, char **argv) {
     else if (a == "--constructive") c.literature = false;
     else if (a == "--master-witnesses") c.masterWitnesses = next();
     else if (a == "--hop-mode") c.hopMode = next();
+    else if (a == "--hop-max-faces") c.hopShape.maxFaces = std::stoll(next());
+    else if (a == "--hop-iddfs-start") c.hopShape.iddfsStart = std::stoll(next());
+    else if (a == "--hop-iddfs-iterations") c.hopShape.iddfsIterations = std::stoul(next());
+    else if (a == "--hop-root-budget") c.hopShape.rootBudgetStart = std::stoll(next());
     else if (a == "--verbose") c.verbose = true;
     else {
       std::cerr << "unknown argument " << a << "\n";
