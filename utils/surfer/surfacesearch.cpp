@@ -360,6 +360,30 @@ void SurfaceSearch::ThreadHook::onFound(EmbeddedSubmanifold<4, 2> &embedding,
     }
 }
 
+size_t SurfaceSearch::ThreadHook::drainBatch_() {
+    constexpr size_t HELPER_DRAIN_BATCH = 64;
+    auto batch = owner_.pendingSurfaces_.popSome(HELPER_DRAIN_BATCH);
+    if (batch.empty())
+        return 0;
+    if (!helperEmbedding_) {
+        helperEmbedding_.emplace(owner_.skeleton_, owner_.petalCache_,
+                                 owner_.residentFaces_());
+        helperEmbedding_->usePairSigContext(&owner_.pairSigCtx_);
+    }
+    for (const auto &faceIndices : batch)
+        owner_.processEntry_(*helperEmbedding_, faceIndices, callbacks_);
+    owner_.pendingSurfaces_.recordProducerDrain(batch.size());
+    return batch.size();
+}
+
+bool SurfaceSearch::ThreadHook::onPaused() {
+    // Only the queue's own pause is ours to help with; and a stop takes the
+    // rest of the queue to the post-search drain (or discards it).
+    if (!wantLinks_ || owner_.stopRequested_.load(std::memory_order_relaxed))
+        return false;
+    return drainBatch_() > 0;
+}
+
 void SurfaceSearch::ThreadHook::onFlush() {
     tally_.merge(localTypeCounts_);
     if (!wantLinks_)
@@ -378,24 +402,16 @@ void SurfaceSearch::ThreadHook::onFlush() {
         callbacks_.onQueueDrainPause(owner_.pendingSurfaces_.size(),
                                     owner_.pendingSurfaces_.cap());
 
-    constexpr size_t HELPER_DRAIN_BATCH = 64;
+    // Every other worker drains too while the pause holds it (onPaused()),
+    // so the queue empties at the drain's full width, not one thread's.
     bool interrupted = false;
     while (true) {
         if (owner_.stopRequested_.load(std::memory_order_relaxed)) {
             interrupted = true;
             break;
         }
-        auto batch = owner_.pendingSurfaces_.popSome(HELPER_DRAIN_BATCH);
-        if (batch.empty())
+        if (drainBatch_() == 0)
             break; // fully drained
-        if (!helperEmbedding_) {
-            helperEmbedding_.emplace(owner_.skeleton_, owner_.petalCache_,
-                                     owner_.residentFaces_());
-            helperEmbedding_->usePairSigContext(&owner_.pairSigCtx_);
-        }
-        for (const auto &faceIndices : batch)
-            owner_.processEntry_(*helperEmbedding_, faceIndices, callbacks_);
-        owner_.pendingSurfaces_.recordProducerDrain(batch.size());
     }
 
     owner_.pauseRequested_.store(false, std::memory_order_relaxed);

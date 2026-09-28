@@ -312,8 +312,12 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             orientOpt.emplace(predicate, embedding);
             embeddingPredicate = &*orientOpt;
         }
-        InterruptiblePredicate interruptible(*embeddingPredicate,
-                                             stopRequested_, pauseRequested_);
+        // Before the predicate, which calls it while a pause holds this
+        // worker (RunSearchThreadHook::onPaused()).
+        auto threadHook = makeThreadHook();
+        InterruptiblePredicate interruptible(
+            *embeddingPredicate, stopRequested_, pauseRequested_,
+            [&threadHook] { return threadHook->onPaused(); });
         // Outermost, so its counter sees every attempt. The depth cap is the
         // enumerator's own (setMaxSize() below), so every attempt it charges
         // reaches the embedding checks -- the cost it exists to ration.
@@ -344,7 +348,6 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                            1, iddfsMaxDepth(*capFaces, isSeeded_)))
                      : 0);
         WorkerStats &local = perThreadStats[tid];
-        auto threadHook = makeThreadHook();
         // The seeded constructor's own seed commit and root probes are not
         // root enumeration; the profile counts from here on.
         const long long attemptsAtStart = budgeted.attempts();

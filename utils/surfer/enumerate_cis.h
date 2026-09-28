@@ -75,6 +75,11 @@ class ConditionalPredicate {
  * losing any embeddings to a spurious prune. A blocked tryAdd() still
  * unblocks promptly if `*stopRequested` fires (checked in the same wait
  * loop), so Ctrl+C is never delayed behind a pause.
+ *
+ * While blocked, it calls `whilePaused` (when given) instead of sleeping,
+ * and sleeps only when that reports nothing to do: SurfaceSearch has each
+ * paused worker drain the queue the pause is for, rather than leaving the
+ * whole drain to the one worker that called it.
  */
 class InterruptiblePredicate : public ConditionalPredicate {
     ConditionalPredicate &inner_; /**< The predicate being decorated. */
@@ -82,19 +87,23 @@ class InterruptiblePredicate : public ConditionalPredicate {
         /**< External stop signal, checked on every tryAdd(). */
     const std::atomic<bool> &pauseRequested_;
         /**< External pause signal, blocking (not rejecting) tryAdd() while set. */
+    std::function<bool()> whilePaused_;
+        /**< Work to do while blocked; true if there was some. */
 
   public:
     /** Wraps `inner`, checking `stopRequested`/`pauseRequested` on every tryAdd(). */
     InterruptiblePredicate(ConditionalPredicate &inner,
                            const std::atomic<bool> &stopRequested,
-                           const std::atomic<bool> &pauseRequested)
+                           const std::atomic<bool> &pauseRequested,
+                           std::function<bool()> whilePaused = {})
         : inner_(inner), stopRequested_(stopRequested),
-          pauseRequested_(pauseRequested) {}
+          pauseRequested_(pauseRequested), whilePaused_(std::move(whilePaused)) {}
 
     bool tryAdd(int v) override {
         while (pauseRequested_.load(std::memory_order_relaxed) &&
                !stopRequested_.load(std::memory_order_relaxed))
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            if (!whilePaused_ || !whilePaused_())
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
         if (stopRequested_.load(std::memory_order_relaxed))
             return false;
         return inner_.tryAdd(v);

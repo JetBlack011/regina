@@ -232,6 +232,14 @@ public:
   virtual void onFound(EmbeddedSubmanifold<dim, subdim> &embedding,
                        const std::vector<int> &U, long long faceCount) = 0;
   virtual void onFlush() = 0;
+  /**
+   * Called, over and over, by this thread's worker while a pause
+   * (EmbeddingSearch::pauseRequested_) holds its DFS: do one bounded piece
+   * of whatever the pause is for, and return whether there was any. The
+   * worker sleeps only when this returns false, so a pause keeps every
+   * worker busy rather than one. The default has nothing to do.
+   */
+  virtual bool onPaused() { return false; }
   virtual ~RunSearchThreadHook() = default;
 };
 
