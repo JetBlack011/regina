@@ -22,8 +22,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -233,6 +235,7 @@ struct WatchdogLimits {
 /**
  * Polls every 200 ms, while the search and its drain run, and calls
  * `endRow(why)` at most once: "surface-target", "timeout" or "quiescent".
+ * stop() wakes it at once rather than waiting out its poll.
  * The surface target is checked before the clocks, so a row reaching it in
  * the same tick as a deadline records "surface-target": the two mean
  * different things to anyone later reading the negative.
@@ -259,6 +262,8 @@ private:
     std::function<void(const char *)> endRow_;
     std::atomic<long long> satisfying_{0};
     std::atomic<bool> done_{false};
+    std::mutex wakeMutex_;
+    std::condition_variable wake_;
     std::thread thread_;
 };
 

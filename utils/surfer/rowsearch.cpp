@@ -251,7 +251,12 @@ RowWatchdog::RowWatchdog(WatchdogLimits limits,
             std::chrono::steady_clock::now() +
             std::chrono::duration<double>(limits_.rowSeconds.value_or(0));
         while (!done_.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            {
+                std::unique_lock<std::mutex> lock(wakeMutex_);
+                wake_.wait_for(lock, std::chrono::milliseconds(200), [this] {
+                    return done_.load(std::memory_order_relaxed);
+                });
+            }
             if (done_.load(std::memory_order_relaxed))
                 break;
             // Checked before the clocks: see the class comment.
@@ -286,7 +291,11 @@ RowWatchdog::RowWatchdog(WatchdogLimits limits,
 }
 
 void RowWatchdog::stop() {
-    done_.store(true, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(wakeMutex_);
+        done_.store(true, std::memory_order_relaxed);
+    }
+    wake_.notify_all();
     if (thread_.joinable())
         thread_.join();
 }
