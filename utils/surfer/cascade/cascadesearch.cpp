@@ -678,7 +678,12 @@ void Cascade::expand(NodeId n, long surfaces) {
         "--harvest", "--boundary-condition", "proper", "--research-settled",
         "--per-knot-time-limit", "7200", "--threads", std::to_string(cfg_.threads),
         "--surface-target", std::to_string(surfaces), "--resolve-unlinked",
-        "--exact-far-side-names", "--no-retriangulate-on-miss"};
+        "--exact-far-side-names", "--no-retriangulate-on-miss",
+        "--pending-surface-cap", std::to_string(shape.pendingSurfaceCap),
+        "--petal-cache-limit", std::to_string(shape.petalCacheLimit),
+        "--recognition-cache-limit", std::to_string(shape.recognitionCacheLimit),
+        "--boundary-signature-cache-limit",
+        std::to_string(shape.boundarySignatureCacheLimit)};
     r = runChild(argv, dir + "/log.txt", dir + "/err.txt");
     t0 = std::chrono::steady_clock::now();
     std::vector<Witness> ws = readWitnesses(dir + "/cob.csv");
@@ -886,6 +891,7 @@ int Cascade::run() {
     if (!census::setCensusPath(cfg_.censusDb))
       std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
     census::retriangulateOnMiss.store(false);
+    identify::recognitionCacheLimit.store(HopShape{}.recognitionCacheLimit);
     const auto t0 = std::chrono::steady_clock::now();
     signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);
     searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, HopShape{},

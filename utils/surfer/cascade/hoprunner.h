@@ -36,6 +36,14 @@ struct HopShape {
   long long rootBudgetStart = 840;
   long long rootBudgetGrowth = 2;
   bool resolveUnlinked = true;
+  /// hosts.conf's per-host limits, identical on every host. The pending
+  /// cap in particular: at the binary's default (500,000) a search pauses
+  /// to drain its queue, which a campaign row never does.
+  size_t pendingSurfaceCap = 20'000'000;
+  size_t petalCacheLimit = 12'000'000;
+  size_t boundarySignatureCacheLimit = 1'000'000;
+  /// Process-wide (identify::recognitionCacheLimit); set by the driver.
+  size_t recognitionCacheLimit = 1'500'000;
 };
 
 /// A surface a hop kept.

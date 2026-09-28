@@ -76,6 +76,9 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
 
   SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
   SurfaceSearchLimits limits;
+  limits.pendingSurfaceCap = shape_.pendingSurfaceCap;
+  limits.petalCacheLimit = shape_.petalCacheLimit;
+  limits.boundarySignatureCacheLimit = shape_.boundarySignatureCacheLimit;
   // Only a multi-curve component's curve COUNT is ever used, as in
   // verifyslicegenus; and no pair signatures (faces are kept instead).
   limits.nameLinkCurves = false;
