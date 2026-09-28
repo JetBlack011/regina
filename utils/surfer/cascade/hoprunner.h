@@ -76,10 +76,14 @@ class HopSearcher {
 public:
   /// `signatures` and `exact` name far sides as verifyslicegenus names them
   /// (farside::DiagramNamer), which is what surfaces are deduplicated by.
-  /// Both must outlive the searcher.
+  /// Both must outlive the searcher. Every hop's exact names use one set of
+  /// table caches (`exactCaches`, or the searcher's own when null), so what
+  /// naming learns about the tables -- the HOMFLY index above all -- is
+  /// built once, not once per hop.
   HopSearcher(const farside::SignatureTable &signatures,
               const exactnaming::ExactTables *exact, HopShape shape,
-              unsigned threads);
+              unsigned threads,
+              std::shared_ptr<exactnaming::TableCaches> exactCaches = nullptr);
 
   /**
    * Searches `row`'s thickening, seeded with its collar, under `proper`,
@@ -105,6 +109,7 @@ private:
   const exactnaming::ExactTables *exact_;
   HopShape shape_;
   unsigned threads_;
+  std::shared_ptr<exactnaming::TableCaches> exactCaches_;
 };
 
 /// The pair signature of a kept surface, from its faces and the thickening

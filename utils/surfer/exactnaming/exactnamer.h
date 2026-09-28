@@ -153,10 +153,47 @@ struct FarSideName {
     std::string proof() const;
 };
 
+/**
+ * What an ExactNamer learns about its tables, whatever its limits: the
+ * entries' HOMFLY polynomials and the index over them, their flype orbits,
+ * their complements in the SnapPea kernel, and their canonical names. Each
+ * is built on first use -- the HOMFLY index alone is ~34,000 polynomials --
+ * so namers over the same tables can share one (ExactNamer::caches()), as a
+ * cascade's node namer and every hop's far-side namer do. Guarded by its
+ * own locks.
+ */
+struct TableCaches {
+    explicit TableCaches(const ExactTables &t) : tables(&t) {}
+    const ExactTables *tables; /**< the tables these entries belong to */
+
+    std::mutex cacheMutex; /**< homfly and flypeOrbits */
+    std::map<std::pair<const TableEntry *, bool>, regina::Laurent2<regina::Integer>> homfly;
+    /** HOMFLY polynomial (either mirror, as a string) -> the bases having it;
+     *  built on first use of the table-side step. */
+    std::once_flag homflyIndexOnce;
+    std::map<std::string, std::vector<std::string>> homflyIndex;
+    /** Flype orbits by entry, built on first use. */
+    std::map<const TableEntry *, std::set<std::string>> flypeOrbits;
+    /** Table entries' complements in the SnapPea kernel, built on first use
+     *  (guarded by their own mutex: building one takes the kernel's). */
+    std::mutex kernelMutex;
+    std::map<const TableEntry *, std::unique_ptr<KernelLink>> kernelLinks;
+    /** canonicalName(), by entry, filled a whole base at a time. */
+    std::mutex classMutex;
+    std::map<const TableEntry *, std::string> canonicalOf;
+    std::vector<std::string> classConflicts;
+};
+
 class ExactNamer {
   public:
-    explicit ExactNamer(const ExactTables &tables, NamerLimits limits = {})
-        : tables_(tables), limits_(limits) {}
+    /** \param caches shared with other namers over the same `tables`
+     *         (caches()); a new one when null. */
+    explicit ExactNamer(const ExactTables &tables, NamerLimits limits = {},
+                        std::shared_ptr<TableCaches> caches = nullptr);
+
+    /** This namer's table caches, to share with another namer over the same
+     *  tables. */
+    const std::shared_ptr<TableCaches> &caches() const { return caches_; }
 
     /**
      * \param drawn an oriented, planar diagram of the far side, component i
@@ -213,29 +250,12 @@ class ExactNamer {
 
     const ExactTables &tables_;
     NamerLimits limits_;
-    mutable std::mutex cacheMutex_;
-    mutable std::map<std::pair<const TableEntry *, bool>, regina::Laurent2<regina::Integer>> homfly_;
-    /** HOMFLY polynomial (either mirror, as a string) -> the bases having it;
-     *  built on first use of the table-side step. */
-    mutable std::once_flag homflyIndexOnce_;
-    mutable std::map<std::string, std::vector<std::string>> homflyIndex_;
-    /** Flype orbits by entry, built on first use. */
-    mutable std::map<const TableEntry *, std::set<std::string>> flypeOrbits_;
-    /** Table entries' complements in the SnapPea kernel, built on first use
-     *  (guarded by their own mutex: building one takes the kernel's). */
-    mutable std::mutex kernelCacheMutex_;
-    mutable std::map<const TableEntry *, std::unique_ptr<KernelLink>> kernelLinks_;
-    /** canonicalName(), by entry, filled a whole base at a time. */
-    mutable std::mutex classMutex_;
-    mutable std::map<const TableEntry *, std::string> canonicalOf_;
+    std::shared_ptr<TableCaches> caches_; /**< never null */
 
   public:
     /** Variants merged by isometry whose literature 4-genera differ: a
      *  table error or a bug, and never silently. */
     std::vector<std::string> classConflicts() const;
-
-  private:
-    mutable std::vector<std::string> classConflicts_;
 };
 
 /** Pairwise linking numbers of a diagram's components, sorted. */

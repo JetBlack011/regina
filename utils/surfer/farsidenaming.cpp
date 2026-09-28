@@ -197,13 +197,14 @@ std::string DiagramNamer::nameOnce(const Link &curves) const {
     return name;
 }
 
-void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables) {
+void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables,
+                                    std::shared_ptr<exactnaming::TableCaches> caches) {
     exactnaming::NamerLimits fast;
     fast.simplifyTries = 2;
     fast.exhaustiveHeight = 0;
     fast.searchHeight = -1; // no Reidemeister search in the search
     fast.deepHeight = -1;
-    exact_ = std::make_unique<exactnaming::ExactNamer>(tables, fast);
+    exact_ = std::make_unique<exactnaming::ExactNamer>(tables, fast, std::move(caches));
 }
 
 std::optional<std::string> DiagramNamer::orientedName(

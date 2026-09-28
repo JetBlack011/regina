@@ -125,8 +125,11 @@ class DiagramNamer : public BoundaryNamer {
     /**
      * Turns on orientedName() (verifyslicegenus --exact-far-side-names).
      * \param tables outlives this namer.
+     * \param caches what naming learns about `tables`, shared with other
+     *        namers over them (a cascade's hops share one); new when null.
      */
-    void enableExactNames(const exactnaming::ExactTables &tables);
+    void enableExactNames(const exactnaming::ExactTables &tables,
+                          std::shared_ptr<exactnaming::TableCaches> caches = nullptr);
     bool exactNamesOn() const { return exact_ != nullptr; }
 
     /**

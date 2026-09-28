@@ -918,8 +918,10 @@ int Cascade::run() {
     identify::recognitionCacheLimit.store(HopShape{}.recognitionCacheLimit);
     const auto t0 = std::chrono::steady_clock::now();
     signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);
+    // The hops' far-side namers share the node namer's table caches.
     searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, HopShape{},
-                                              static_cast<unsigned>(cfg_.threads));
+                                              static_cast<unsigned>(cfg_.threads),
+                                              namer_.caches());
     std::cout << "[+] hops in process: " << signatures_->knots() << " knot and "
               << signatures_->links() << " link diagram signatures ("
               << std::fixed << std::setprecision(1)

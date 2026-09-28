@@ -57,8 +57,13 @@ std::string groupingOf(const farside::OutgoingLink &link,
 
 HopSearcher::HopSearcher(const farside::SignatureTable &signatures,
                          const exactnaming::ExactTables *exact, HopShape shape,
-                         unsigned threads)
-    : signatures_(signatures), exact_(exact), shape_(shape), threads_(threads) {}
+                         unsigned threads,
+                         std::shared_ptr<exactnaming::TableCaches> exactCaches)
+    : signatures_(signatures), exact_(exact), shape_(shape), threads_(threads),
+      exactCaches_(std::move(exactCaches)) {
+  if (exact_ && !exactCaches_)
+    exactCaches_ = std::make_shared<exactnaming::TableCaches>(*exact_);
+}
 
 HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                         const std::string &rowName, long long surfaceTarget,
@@ -72,7 +77,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
 
   // Declared before the search, which holds a pointer to it.
   farside::DiagramNamer namer(rb.link.tri, rb.pdcode.size(), *rb.cob, signatures_);
-  if (exact_) namer.enableExactNames(*exact_);
+  if (exact_) namer.enableExactNames(*exact_, exactCaches_);
 
   SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
   SurfaceSearchLimits limits;
