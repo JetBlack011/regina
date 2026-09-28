@@ -12,6 +12,7 @@
 //
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -550,11 +551,28 @@ class ConnectedInducedSubgraphEnumerator {
 
     /**
      * Per-depth buffers of the children extendFiltered() has pruned at the
-     * current node: out of the candidate list (so no deeper node scans or
-     * tries them) but still in C (so none is re-introduced), until the
-     * node's loop ends. See extendFiltered().
+     * current node, each with the list neighbours it had when it was
+     * unlinked: out of the candidate list (so no deeper node scans or tries
+     * them) but still in C (so none is re-introduced), until the node's loop
+     * ends and relinks them in place. See extendFiltered().
      */
-    std::vector<std::vector<int>> prunedBuf;
+    std::vector<std::vector<std::array<int, 3>>> prunedBuf;
+
+    /**
+     * Puts v back into the candidate list between `prev` and `next`, the
+     * neighbours it had when it was unlinked. Exact as long as every unlink
+     * since has been undone, last in first out (Knuth's dancing links),
+     * which is how extendFiltered() and enumerateFromRootFiltered() use it:
+     * so every node's loop leaves the list exactly as it found it, and the
+     * list at any node is a function of the path to it alone.
+     */
+    void relink(int v, int prev, int next) {
+        candNext[prev] = v;
+        candPrev[next] = v;
+        candNext[v] = next;
+        candPrev[v] = prev;
+        inC[v] = true;
+    }
 
     /**
      * Adapts a stateless whole-U predicate into the ConditionalPredicate

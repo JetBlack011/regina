@@ -151,6 +151,7 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
             return; // a cap of 0 added faces: not even the root
         report = &visit;
         const int w = s;
+        const int prev = candPrev[w], next = candNext[w];
 
         detachToU(w);
         U.push_back(w);
@@ -176,7 +177,9 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
 
         U.pop_back();
         inU[w] = false;
-        addCandidate(w, 1, 1); // restore as a candidate for the next root
+        // Back where it was, so the list is canonical again for the next
+        // root; see relink().
+        relink(w, prev, next);
 
         return;
     }
@@ -334,7 +337,7 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
     siblings.clear();
     for (int v = candNext[0]; v != 0; v = candNext[v])
         siblings.push_back(v);
-    std::vector<int> &pruned = prunedBuf[U.size()];
+    std::vector<std::array<int, 3>> &pruned = prunedBuf[U.size()];
     pruned.clear();
 
     for (int w : siblings) {
@@ -344,7 +347,8 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
             continue;
 
         const int wDist = dw;
-        const int wParent = parentOf[w];
+        // w's list neighbours, to put it back exactly there; see relink().
+        const int prev = candPrev[w], next = candNext[w];
 
         detachToU(w);
         U.push_back(w);
@@ -374,7 +378,7 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
 
             U.pop_back();
             inU[w] = false;
-            addCandidate(w, wParent, wDist);
+            relink(w, prev, next); // in place, not at the tail
             continue;
         }
 
@@ -390,8 +394,10 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
         U.pop_back();
         inU[w] = false;
         inC[w] = true;
-        pruned.push_back(w);
+        pruned.push_back({w, prev, next});
     }
-    for (int w : pruned)
-        listPushBack(w); // back into the list, after this node's own loop
+    // Back in place after this node's own loop, last pruned first, so the
+    // list leaves this node exactly as it came in; see relink().
+    for (auto it = pruned.rbegin(); it != pruned.rend(); ++it)
+        relink((*it)[0], (*it)[1], (*it)[2]);
 }
