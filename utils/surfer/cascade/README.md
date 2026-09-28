@@ -192,6 +192,10 @@ that says nothing about K.
 | E3 | an in-process hop accounts for its surfaces as `verifyslicegenus` does (the canaries' 3_1 and L2a1{0} counts at cap 3) | `hoprunner_test` |
 | E4 | every surface it keeps gives the same edge read in process as read back from its pair signature (computed later from its faces), up to the row's and the far side's symmetries | |
 | E5 | its keys are distinct, and a stop request ends it | |
+| E6 | a kept surface rebuilt from its faces (a certificate's route) reads exactly as in process: the same far-side curves on the same surface components; faces missing a seed triangle, or any other triangle, are refused | |
+| E7 | the build digest is the same for two builds of one row, and differs for another row or another layer count | `testBuildChecksum` |
+| D6 | `removeNugatoryCrossings()` removes every nugatory crossing and nothing else, keeping the link (Jones polynomial), every linking number and the component order, on connected sums through a twist (knots and links, both signs) and on kinks from Regina's own type I moves; a reduced diagram comes back untouched | `nodes_test` |
+| D7 | a row with a nugatory crossing cannot be certified, and its reduced diagram's row can | `testReducedRowsCertify` |
 
 **Mutation check (2026-09-28).** Each break of `profile.cpp` is caught:
 
@@ -271,11 +275,22 @@ What changes is what happens to an accepted surface:
   alone collapses it.
 - It keeps its faces (`SurfaceBoundaryInfo::captureFaces`), not a pair
   signature.
-- A certificate signs only the witnesses its proof uses (`pairSigsOf()`):
-  each row rebuilt once, its ambient part computed once (`PairSigContext`),
-  rows in parallel. Nearly all of a signature's cost is the ambient's, about
-  50 s for a 10-crossing row. In the certificate such a witness is named by
-  its signature's key, like any other, and its hop key becomes `provenance`.
+- **A certificate records it by those faces**, with its row PD, its layers, and
+  the thickening's digest (`WitnessRedrawer::buildChecksum()`: every gluing,
+  and which pentachoron face each triangle is). Its key is its hop key
+  (`hop<k>#<i>`).
+  - The checker rebuilds the row's thickening from the PD and refuses a
+    different digest, so a change to the construction, or to Regina's
+    skeleton numbering, is caught rather than misread.
+  - It then rebuilds the surface face by face with the search's own checks
+    (`farsidediagram --faces`, `WitnessRedrawer::rebuild()`).
+- **No pair signature is computed for a certificate.** Its cost is almost all
+  the ambient's isomorphism signature: about 25 s of one thread for a
+  10-crossing row on halcyon, and different for every row, since every row
+  has its own thickening. It was 61% of Pool A v1's wall time (below).
+  `pairSigsOf()` (each row rebuilt once, its ambient part computed once,
+  rows in parallel) remains for a witness bound for the atlas, which keys
+  witnesses by their signatures.
 
 `--hop-mode child` keeps the old route: a `verifyslicegenus` child per hop,
 its witnesses read back from their pair signatures.
@@ -312,7 +327,47 @@ search).** The same targets, one after the other; per-hop figures from
   ambient.
 - **Whole runs were therefore about equal:** 81 vs 92 s, and 116 vs 110 s.
   In-process runs gain as proofs take more hops, or as hops go without a
-  success.
+  success. Certificates from faces (above) have since removed the signing.
+
+## Pool A: the cascade against the sweep (2026-09-28, halcyon, 14 threads)
+
+The 30 rows the atlas verified only through a chain of other rows
+(`depends_on`, 2–6 rows long). The cascade ran each one alone, constructive,
+with the master withheld, so its only leaves were the tables and anchors. It
+used 50k surfaces per hop (up to 200k) and at most 8 expansions.
+
+**The sweep's cost, measured with the same binary and machine.** Eight rows,
+each run exactly as a campaign row (`remote_run.sh`'s flags, `hosts.conf`'s
+`[campaign]` and `[halcyon]` values, 1M surfaces):
+
+| row | wall | CPU | witnesses |
+|---|---|---|---|
+| `6_1` | 27 s | 330 s | 12 (cap 5 exhausted at 947k) |
+| `8_8` | 40 s | 460 s | 22 |
+| `9_20` | 50 s | 492 s | 33 |
+| `10_27` | 58 s | 517 s | 42 |
+| `L10a118{0}` | 54 s | 549 s | 8 |
+| `L9a27{1}` | 55 s | 546 s | 38 |
+| `L10a37{0}` | 63 s | 598 s | 29 |
+| `11a_213` | 71 s | 619 s | 63 |
+
+**v1 (in-process hops, certificates signed inline).**
+- 30 of 30 proved, in 91 hops (2–5 per target).
+- 1,224 s of wall time, and about 3,040 CPU-s: the searches 2,160, signing 748,
+  assembly 112.
+- The sweep's chains for the same 30 targets span 120 rows, ≈ 61,800 CPU-s at
+  the rows' ~515 CPU-s. So the cascade used about 1/20 of the CPU, or 1/29
+  counting the searches alone.
+- The comparison is per target. A sweep row serves many targets at once, so
+  this is not a comparison of campaign totals.
+- halcyon's cores were 13% busy on average. Of the wall time:
+  - the certificate's signing took 61%, one thread;
+  - the hops took 28%, at about 6 of 14 cores (at 50k surfaces a hop's setup
+    and drain tail are a large share);
+  - assembly took 9%, one thread.
+- 3 nodes were refused as hop rows: their simplified diagrams kept a nugatory
+  crossing, which knotbuilder's drawer cannot certify
+  (`removeNugatoryCrossings()` since).
 
 ## The independent checker (`tools/cascade_check.py`)
 
@@ -326,7 +381,12 @@ search).** The same targets, one after the other; per-hop figures from
 The checker replays the certificate without calling any cascade code:
 - **Redrawing.** It rereads each witness with `farsidediagram --gauss` (the
   search pipeline's validated drawer; `--gauss` adds each diagram's signed
-  Gauss data, and the output is unchanged without it).
+  Gauss data, and the output is unchanged without it). An in-process
+  witness goes through `--faces`. The row's rebuilt thickening must match
+  the certificate's digest, and the surface is rebuilt with the search's
+  embedding, flatness and properness checks before it is read.
+  `CASCADE_ATLAS` points the checker at an atlas checkout elsewhere than
+  yoga's.
 - **The row-to-node map.** It finds this with its own exhaustive diagram
   isomorphism.
 - **Pieces.** It re-splits far sides with its own union-find, and reproduces
