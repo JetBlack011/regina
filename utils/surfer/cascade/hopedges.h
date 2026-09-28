@@ -1,0 +1,105 @@
+// hopedges.h
+//
+// One hop's witnesses, turned into proof-graph edges. See README.md,
+// "Composing hops".
+
+#pragma once
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "exactnaming/gaussdiagram.h"
+#include "farsideredraw.h"
+#include "nodes.h"
+#include "proofgraph.h"
+
+namespace cascade {
+
+/// What a hop searched: a node, as the diagram written into the row's PD.
+struct HopRow {
+  NodeId node = -1;
+  /// The diagram the row was built from (its PD), components in its order.
+  exactnaming::GaussDiagram diagram;
+  /// diagram component i is the node's component nodeMap[i].
+  std::vector<int> nodeMap;
+  std::string pd;   ///< as written to the row, `;`-separated
+  int layers = 2;   ///< thicken_layers of the witnesses
+};
+
+struct HopWitness {
+  std::string pairsig;
+  int genus = 0; ///< the witness's tubed genus (cobordisms.csv `genus`)
+  std::string key; ///< provenance (witness key)
+};
+
+struct HopEdge {
+  bool ok = false;
+  std::string why;          ///< when !ok
+  bool direct = false;      ///< no far side: the surface bounds the row alone
+  EdgeId edge = -1;         ///< the witness edge (when not direct)
+  NodeId farNode = -1;      ///< the far side's node (a split whole or a piece)
+  std::vector<NodeMatch> pieces; ///< its split pieces, interned
+  /// Per piece: which far-side curves (drawn order) its components are.
+  std::vector<std::vector<size_t>> pieceOrigins;
+  EdgeId splitEdge = -1;    ///< the split edge, when the far side is split
+  /// Per far-side curve (in this read's order): its edges of T, sorted.
+  /// Curve order is a property of the read, not of the cobordism; tests use
+  /// these to compare two reads up to relabelling the curves.
+  std::vector<std::vector<size_t>> farCurveEdges;
+  CobordismShape shape;
+};
+
+/**
+ * Turns witnesses of one hop row into edges of the proof graph.
+ *
+ * Construction certifies the row: the row's own link, drawn from knotbuilder's
+ * triangulation of `row.pd`, must be isomorphic as a diagram to `row.diagram`
+ * (orientation kept, no mirror). That isomorphism is the map from the
+ * witnesses' incoming curves (knotbuilder's component order) to the node's
+ * components, and it is the per-node certificate that the triangulation
+ * searched carries the node's oriented link. Throws std::runtime_error if it
+ * does not exist: a hop whose row cannot be certified contributes nothing.
+ */
+class HopAssembler {
+public:
+  /// How a witness is read back from its pair signature. `fast` is
+  /// WitnessRedrawer::outgoingLinkFast() (no re-run of the embeddedness
+  /// checks a stored witness already passed; milliseconds); `reference`
+  /// rebuilds a KnottedSurface (~1 s). hopedges_test checks they agree.
+  enum class Read { fast, reference };
+
+  HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+               Read read = Read::fast);
+
+  HopEdge add(const HopWitness &w);
+
+  /// knotbuilder's row component i is the node's component rowToNode()[i].
+  const std::vector<int> &rowToNode() const { return rowToNode_; }
+
+private:
+  struct ReadBack {
+    farside::OutgoingLink link;
+    std::vector<size_t> surfaceOfRowComponent; ///< per knotbuilder row component
+  };
+  std::optional<ReadBack> readBack(const std::string &pairsig, std::string &why) const;
+  Read read_;
+  ProofGraph &g_;
+  NodeRegistry &nodes_;
+  HopRow row_;
+  std::unique_ptr<farside::WitnessRedrawer> redraw_;
+  std::vector<size_t> componentOfRowEdge_;
+  std::vector<int> rowToNode_;
+};
+
+/// The GaussDiagram of a drawn diagram, `origin` = drawn component index.
+exactnaming::GaussDiagram gaussOf(const knotbuilder::Diagram &d);
+
+/// A PD code for a connected diagram, as a row's `PD Notation` (`;`-separated,
+/// labels from 1). Throws if the PD would not fix every orientation
+/// (regina::Link::pdAmbiguous()), unless every ambiguous component is split
+/// from the rest, when orientation there cannot matter.
+std::string rowPD(const exactnaming::GaussDiagram &d);
+
+} // namespace cascade

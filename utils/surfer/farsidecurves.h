@@ -107,6 +107,12 @@ std::optional<std::map<size_t, int>> incomingFlips(
 struct OutgoingLink {
     std::vector<knotbuilder::EdgeCycle> curves; /**< In knotbuilder's T. */
     std::vector<size_t> surfaceComponent;       /**< Per curve. */
+    /** The incoming side, per incoming curve: the index of its first edge in
+     *  the incoming boundary component's built triangulation, and the surface
+     *  component it lies on. Filled by WitnessRedrawer::outgoingLinkFast()
+     *  only (the cascade needs both ends); empty otherwise. */
+    std::vector<size_t> incomingFirstEdge;
+    std::vector<size_t> incomingSurfaceComponent;
 };
 
 /**

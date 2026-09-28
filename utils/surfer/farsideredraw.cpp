@@ -247,6 +247,11 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
         return std::nullopt;
     }
     OutgoingLink out;
+    for (const OrientedCurve &curve : incoming) {
+        if (curve.empty()) continue;
+        out.incomingFirstEdge.push_back(curve.front().edge->index());
+        out.incomingSurfaceComponent.push_back(surfaceOf.at(curve.front().edge));
+    }
     for (const OrientedCurve &curve : chain(directed[outgoing_->boundaryComponent()])) {
         if (curve.empty()) continue;
         const size_t comp = surfaceOf.at(curve.front().edge);

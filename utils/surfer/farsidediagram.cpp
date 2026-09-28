@@ -5,7 +5,12 @@
 //  signatures.
 //
 //  Usage:
-//    farsidediagram [--layers N] '<row PD code>' < pairsigs
+//    farsidediagram [--layers N] [--gauss] '<row PD code>' < pairsigs
+//
+//  --gauss appends each diagram's signed Gauss data (signs=, gauss=) to the
+//  ROW line and to every W line: per component, in curve order, the
+//  crossings it passes. cascade_check.py reads it; without the flag the
+//  output is unchanged.
 //
 //  --layers is the witnesses' thicken_layers (cobordisms.csv): 2, the
 //  default, for everything since early September; 1 for the earliest runs.
@@ -83,15 +88,50 @@ std::string list(const std::vector<T> &v) {
 
 } // namespace
 
+// Signed Gauss data (--gauss): the crossing signs, then per component the
+// crossings it passes in order (+(k+1) over crossing k, -(k+1) under), which
+// is the whole oriented diagram and names every curve by its index.
+std::string gaussFields(const knotbuilder::Diagram &d) {
+    std::ostringstream o;
+    o << " signs=[";
+    for (size_t k = 0; k < d.crossings.size(); ++k) o << (k ? "," : "") << d.crossings[k].sign;
+    o << "] gauss=[";
+    for (size_t c = 0; c < d.gauss.size(); ++c) o << (c ? "," : "") << list(d.gauss[c]);
+    return o.str() + "]";
+}
+
+// Each far-side curve's edges of T, sorted (--gauss): what identifies a curve
+// across two reads that list the curves in different orders.
+std::string curveEdges(const std::vector<knotbuilder::EdgeCycle> &curves) {
+    std::ostringstream o;
+    o << " edges=[";
+    for (size_t c = 0; c < curves.size(); ++c) {
+        std::vector<size_t> es;
+        for (const auto &de : curves[c]) es.push_back(de.edge);
+        std::sort(es.begin(), es.end());
+        o << (c ? "," : "") << list(es);
+    }
+    return o.str() + "]";
+}
+
 int main(int argc, char **argv) {
     int layers = 2;
+    bool gauss = false;
     int arg = 1;
-    if (argc == 4 && std::string(argv[1]) == "--layers") {
-        layers = std::stoi(argv[2]);
-        arg = 3;
+    while (arg < argc && std::string(argv[arg]).rfind("--", 0) == 0) {
+        const std::string flag = argv[arg];
+        if (flag == "--layers" && arg + 1 < argc) {
+            layers = std::stoi(argv[arg + 1]);
+            arg += 2;
+        } else if (flag == "--gauss") {
+            gauss = true;
+            ++arg;
+        } else {
+            break;
+        }
     }
     if (argc != arg + 1 || layers < 1) {
-        std::cerr << "usage: farsidediagram [--layers N] '<row PD code>' < pairsigs\n";
+        std::cerr << "usage: farsidediagram [--layers N] [--gauss] '<row PD code>' < pairsigs\n";
         return 2;
     }
     const farside::WitnessRedrawer redraw(argv[arg], layers);
@@ -108,7 +148,8 @@ int main(int argc, char **argv) {
             componentOfRowEdge[i] = compOfT.at(built.edges[i]->index());
     }
     const knotbuilder::Diagram rowDiagram = redraw.drawer().draw(rowCycles);
-    std::cout << "ROW components=" << rowCycles.size() << " lk=" << matrix(rowDiagram) << "\n";
+    std::cout << "ROW components=" << rowCycles.size() << " lk=" << matrix(rowDiagram)
+              << (gauss ? gaussFields(rowDiagram) : std::string()) << "\n";
 
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -159,7 +200,9 @@ int main(int argc, char **argv) {
             std::cout << "W " << id << " ok components=" << d.components
                       << " crossingless=" << list(d.crossingless) << " pd=" << pdOut.str()
                       << " lk=" << matrix(d) << " surface=" << list(link->surfaceComponent)
-                      << " incoming=" << inc.str() << "\n";
+                      << " incoming=" << inc.str()
+                      << (gauss ? gaussFields(d) + curveEdges(link->curves) : std::string())
+                      << "\n";
         } catch (const std::exception &e) {
             std::cout << "W " << id << " FAILED " << e.what() << "\n";
         }
