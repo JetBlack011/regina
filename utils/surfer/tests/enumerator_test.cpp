@@ -146,8 +146,8 @@ std::set<std::vector<int>> bruteForce(const Graph &g,
 }
 
 // Runs the enumerator the way runSearch_() drives it, returning every set it
-// reports (in original ids) with multiplicity.
-std::map<std::vector<int>, int> enumerateLikeSearch(
+// reports (in original ids), in the order reported.
+std::vector<std::vector<int>> enumerateLikeSearch(
     const Graph &g, const std::vector<int> &seed, ForbiddenPairs *pred,
     const Config &config) {
     std::optional<ConnectedInducedSubgraphEnumerator::SeededGraph> sg;
@@ -194,36 +194,30 @@ std::map<std::vector<int>, int> enumerateLikeSearch(
     std::vector<int> roots = e->getRoots();
     std::sort(roots.begin(), roots.end(), std::greater<>());
 
-    std::map<std::vector<int>, int> seen;
+    std::vector<std::vector<int>> seen;
     auto record = [&](const std::vector<int> &U) {
         std::vector<int> set;
         for (int v : U)
             for (int o : expand(v))
                 set.push_back(o);
         std::sort(set.begin(), set.end());
-        ++seen[set];
+        seen.push_back(std::move(set));
     };
 
+    // Each root's passes carry on from where the last stopped, the budget
+    // growing as in the search; the re-adds back down are uncharged.
     for (int s : roots) {
-        long long skip = 0;
+        ConnectedInducedSubgraphEnumerator::Position position;
         for (unsigned level = 0;; ++level) {
             long long budget = -1;
             if (config.budgetStart)
                 budget = *config.budgetStart << level;
             e->resetCandidateOrder();
             budgeted.reset(budget);
-            long long visits = 0;
-            const long long skipVisits = skip;
-            e->enumerateFromRootFiltered(
-                s,
-                [&](const std::vector<int> &U) {
-                    if (++visits <= skipVisits)
-                        return; // reported by an earlier pass
-                    record(U);
-                },
-                budgeted);
-            skip = visits;
-            if (!budgeted.exhausted())
+            budgeted.freeAttempts(position.rebuildAttempts());
+            const auto outcome =
+                e->enumerateFromRootFiltered(s, record, budgeted, &position);
+            if (outcome != ConnectedInducedSubgraphEnumerator::Outcome::suspended)
                 break;
         }
     }
@@ -270,7 +264,11 @@ void runOne(std::mt19937 &rng, const Config &config, const std::string &tag) {
 
     auto expected =
         bruteForce(g, seed, pred ? &*pred : nullptr, config.cap);
-    auto got = enumerateLikeSearch(g, seed, pred ? &*pred : nullptr, config);
+    const auto sequence =
+        enumerateLikeSearch(g, seed, pred ? &*pred : nullptr, config);
+    std::map<std::vector<int>, int> got;
+    for (const auto &set : sequence)
+        ++got[set];
 
     size_t duplicates = 0, extra = 0, missing = 0;
     for (const auto &[set, count] : got) {
@@ -284,6 +282,21 @@ void runOne(std::mt19937 &rng, const Config &config, const std::string &tag) {
                std::to_string(missing) + " missing, " +
                std::to_string(extra) + " extra, " +
                std::to_string(duplicates) + " reported more than once");
+
+    // Budgeted passes that carry on from one another must visit exactly
+    // what one unbudgeted pass does, in the same order -- at any ration,
+    // however small (a ration of 1 suspends after every attempt).
+    if (config.budgetStart) {
+        Config unbudgeted = config;
+        unbudgeted.budgetStart.reset();
+        const auto reference =
+            enumerateLikeSearch(g, seed, pred ? &*pred : nullptr, unbudgeted);
+        expect(sequence == reference,
+               tag + " (n=" + std::to_string(n) +
+                   "): budgeted passes visit in the unbudgeted order (" +
+                   std::to_string(sequence.size()) + " vs " +
+                   std::to_string(reference.size()) + " visits)");
+    }
 }
 
 } // namespace
@@ -302,6 +315,10 @@ int main() {
         {"unseeded + budget", {.budgetStart = 1}},
         {"seeded + cap 3 + budget",
          {.seeded = true, .cap = 3, .budgetStart = 3}},
+        {"seeded + predicate + cap 4 + budget 1",
+         {.seeded = true, .predicate = true, .cap = 4, .budgetStart = 1}},
+        {"unseeded + predicate + budget 7",
+         {.predicate = true, .budgetStart = 7}},
     };
     for (const auto &[tag, config] : configs)
         for (int trial = 0; trial < 60; ++trial)

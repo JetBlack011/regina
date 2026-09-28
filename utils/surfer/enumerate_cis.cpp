@@ -10,6 +10,7 @@
 #include <cassert>
 #include <queue>
 #include <set>
+#include <stdexcept>
 #include <unordered_set>
 
 ConnectedInducedSubgraphEnumerator::SeededGraph
@@ -143,12 +144,34 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRoot(
     dist[s] = -1;
 }
 
-void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
+ConnectedInducedSubgraphEnumerator::Outcome
+ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     int s, const std::function<void(const std::vector<int> &)> &visit,
-    ConditionalPredicate &predicate) {
+    ConditionalPredicate &predicate, Position *position) {
+    // Resume from the recorded position, if any, and record afresh.
+    Position resumeFrom;
+    const Position *resume = nullptr;
+    if (position && !position->empty()) {
+        resumeFrom = std::move(*position);
+        resume = &resumeFrom;
+    }
+    if (position) {
+        position->levels.clear();
+        position->deepest = 0;
+    }
+    // A rejected root: a budget refusal suspends the root before it starts
+    // (it resumes from scratch); a refused re-add while resuming can only be
+    // an external stop.
+    auto rootRefused = [&] {
+        if (resume)
+            return Outcome::stopped;
+        return position && predicate.budgetExhausted() ? Outcome::suspended
+                                                       : Outcome::completed;
+    };
+
     if (isSeeded_) {
         if (maxSize_ && U.size() >= maxSize_)
-            return; // a cap of 0 added faces: not even the root
+            return Outcome::completed; // a cap of 0 added faces: not even the root
         report = &visit;
         const int w = s;
         const int prev = candPrev[w], next = candNext[w];
@@ -157,6 +180,7 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
         U.push_back(w);
         inU[w] = true;
 
+        Outcome outcome;
         // Introduce w's neighbours only once w passes; see extendFiltered().
         if (predicate.tryAdd(w)) {
             std::vector<int> &introduced = introducedBuf[U.size()];
@@ -167,12 +191,15 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
                     introduced.push_back(x);
                 }
 
-            (*report)(U);
-            extendFiltered(1, predicate);
+            if (!resume)
+                (*report)(U); // a resumed root was reported by an earlier pass
+            outcome = extendFiltered(1, predicate, resume, position);
             predicate.undo(w);
 
             for (int x : introduced)
                 removeCandidate(x);
+        } else {
+            outcome = rootRefused();
         }
 
         U.pop_back();
@@ -181,7 +208,7 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
         // root; see relink().
         relink(w, prev, next);
 
-        return;
+        return outcome;
     }
 
     report = &visit;
@@ -190,23 +217,28 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     inU[s] = true;
     dist[s] = 0;
 
+    Outcome outcome;
     if (predicate.tryAdd(s)) {
-        (*report)(U); // output {s}
+        if (!resume)
+            (*report)(U); // output {s}
 
         for (int w : adj[s])
             if (w > s && !inU[w] && !inC[w])
                 addCandidate(w, s, 1);
 
-        extendFiltered(s, predicate);
+        outcome = extendFiltered(s, predicate, resume, position);
 
         while (!listEmpty())
             removeCandidate(listFront()); // reset before next root
         predicate.undo(s);
+    } else {
+        outcome = rootRefused();
     }
 
     U.pop_back();
     inU[s] = false;
     dist[s] = -1;
+    return outcome;
 }
 
 void ConnectedInducedSubgraphEnumerator::seedFastForward_(
@@ -324,25 +356,75 @@ void ConnectedInducedSubgraphEnumerator::extend(int s) {
     }
 }
 
-void ConnectedInducedSubgraphEnumerator::extendFiltered(
-    int s, ConditionalPredicate &predicate) {
-    if (maxSize_ && U.size() >= maxSize_)
-        return; // at the cap: no child can be added; see setMaxSize()
+ConnectedInducedSubgraphEnumerator::Outcome
+ConnectedInducedSubgraphEnumerator::extendFiltered(
+    int s, ConditionalPredicate &predicate, const Position *resume,
+    Position *record) {
+    const size_t level = U.size();
+    if (maxSize_ && level >= maxSize_)
+        return Outcome::completed; // at the cap; see setMaxSize()
     const int u = U.back();
     const int du = dist[u];
 
     // See extend()'s identical snapshot for why this is a reused per-depth
     // buffer rather than a fresh std::vector<int>(C.begin(), C.end()).
-    std::vector<int> &siblings = siblingBuf[U.size()];
+    std::vector<int> &siblings = siblingBuf[level];
     siblings.clear();
     for (int v = candNext[0]; v != 0; v = candNext[v])
         siblings.push_back(v);
-    std::vector<std::array<int, 3>> &pruned = prunedBuf[U.size()];
+    std::vector<std::array<int, 3>> &pruned = prunedBuf[level];
     pruned.clear();
 
-    for (int w : siblings) {
+    // Resuming: this node's snapshot is the one the suspended pass saw
+    // (the list is a function of the path; see relink()), so put its pruned
+    // children aside again, in the same order, and pick up the loop at the
+    // recorded child. Above the deepest level that child is on the recorded
+    // path: re-added without being reported, and descended into. At the
+    // deepest level it is the one whose attempt the budget refused: tried
+    // afresh.
+    const bool resumeHere = resume && level <= resume->deepest &&
+                            level < resume->levels.size();
+    size_t start = 0;
+    if (resumeHere) {
+        const Position::Level &at = resume->levels[level];
+        for (int p : at.pruned) {
+            const int prev = candPrev[p], next = candNext[p];
+            listErase(p); // stays in C
+            pruned.push_back({p, prev, next});
+        }
+        start = static_cast<size_t>(at.childIndex);
+    }
+
+    // Back in place, last pruned first, so the list leaves this node exactly
+    // as it came in; see relink().
+    auto restorePruned = [&] {
+        for (auto it = pruned.rbegin(); it != pruned.rend(); ++it)
+            relink((*it)[0], (*it)[1], (*it)[2]);
+    };
+    auto recordHere = [&](size_t index, int child) {
+        if (record->levels.size() <= level)
+            record->levels.resize(level + 1);
+        Position::Level &at = record->levels[level];
+        at.childIndex = static_cast<long>(index);
+        at.child = child;
+        at.pruned.clear();
+        for (const auto &p : pruned)
+            at.pruned.push_back(p[0]);
+    };
+
+    for (size_t i = start; i < siblings.size(); ++i) {
+        const int w = siblings[i];
+        const bool rebuilding = resumeHere && i == start &&
+                                level < resume->deepest;
         const int dw = dist[w];
         const bool validChild = (w > s) && (dw > du || (dw == du && w > u));
+        // A rebuilt node must offer exactly the child the suspended pass was
+        // exploring; anything else means the rebuild went wrong, and carrying
+        // on would silently skip or repeat part of the tree.
+        if (rebuilding && (w != resume->levels[level].child || !validChild))
+            throw std::logic_error(
+                "ConnectedInducedSubgraphEnumerator: a resumed pass did not "
+                "rebuild the snapshot it recorded");
         if (!validChild)
             continue;
 
@@ -369,8 +451,11 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
                     introduced.push_back(x);
                 }
 
-            (*report)(U);
-            extendFiltered(s, predicate); // only descend on a pass
+            if (!rebuilding)
+                (*report)(U); // a rebuilt node was reported by an earlier pass
+            // Only descend on a pass.
+            const Outcome below = extendFiltered(
+                s, predicate, rebuilding ? resume : nullptr, record);
             predicate.undo(w); // reverse tryAdd(w) -- see class contract
 
             for (int x : introduced)
@@ -379,7 +464,31 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
             U.pop_back();
             inU[w] = false;
             relink(w, prev, next); // in place, not at the tail
+            if (below != Outcome::completed) {
+                if (below == Outcome::suspended)
+                    recordHere(i, w); // this node is on the path
+                restorePruned();
+                return below;
+            }
             continue;
+        }
+
+        U.pop_back();
+        inU[w] = false;
+        if (rebuilding) {
+            // It passed when first added, so only an external stop refuses
+            // it now.
+            relink(w, prev, next);
+            restorePruned();
+            return Outcome::stopped;
+        }
+        if (record && predicate.budgetExhausted()) {
+            // Suspend: w was not judged, so it is tried first next time.
+            relink(w, prev, next);
+            recordHere(i, w);
+            record->deepest = level;
+            restorePruned();
+            return Outcome::suspended;
         }
 
         // tryAdd made no net change (transactional contract), so there is
@@ -388,16 +497,11 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
         // predicate is anti-monotonic (see enumerateFiltered()). So keep it
         // out of the list for the rest of this loop -- no later sibling's
         // subtree scans or tries it again -- but in C, so none re-introduces
-        // it. A rejection that is not a prune (the budget running out, a stop)
-        // does the same harmlessly: nothing after it in this pass is
-        // reported.
-        U.pop_back();
-        inU[w] = false;
+        // it. (Without a `record`, a budget refusal lands here too, which is
+        // harmless: nothing after it in this pass is reported.)
         inC[w] = true;
         pruned.push_back({w, prev, next});
     }
-    // Back in place after this node's own loop, last pruned first, so the
-    // list leaves this node exactly as it came in; see relink().
-    for (auto it = pruned.rbegin(); it != pruned.rend(); ++it)
-        relink((*it)[0], (*it)[1], (*it)[2]);
+    restorePruned();
+    return Outcome::completed;
 }
