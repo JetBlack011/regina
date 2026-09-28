@@ -380,6 +380,22 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     std::optional<std::vector<int>> pendingSeed_;
 
     /**
+     * The faces every drained surface shares: the seed's when seeded (every
+     * surface a seeded search finds contains the seed), otherwise none.
+     * Every drain embedding is built already holding them, and a queued
+     * entry lists only the faces beyond them (see ThreadHook::onFound), so
+     * describing a surface re-adds its few added faces rather than the whole
+     * seed -- ~124 addFace() calls per surface before, ~4 now -- and the
+     * queue holds a few ints per surface instead of the seed's ~120.
+     *
+     * Identical results: the embedding holds the same faces, added in the
+     * same order (the seed's, then the entry's), and removing an entry's
+     * faces in reverse returns it exactly to the seed-only state (rollback
+     * union-find).
+     */
+    const std::vector<int> &residentFaces_() const;
+
+    /**
      * Shared across every KnottedSurface this search constructs.
      */
     PetalCache petalCache_;
