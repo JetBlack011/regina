@@ -3493,9 +3493,16 @@ int main(int argc, char *argv[]) {
                   << " (+" << ns.jonesLinks << " by Jones), learned link "
                   << ns.learnedLinks
                   << "; complement fallbacks " << ns.fallbacks << " ("
-                  << ns.learned << " learned); diagrams "
+                  << ns.learned << " learned, " << ns.nonPlanar
+                  << " non-planar drawings); diagrams "
                   << secs(ns.microsDiagram / 1000) << "s, fallbacks "
                   << secs(ns.microsFallback / 1000) << "s\n";
+        // Harmless to the names (each went to the complement route), but
+        // each is a drawer defect that must be found.
+        if (ns.nonPlanar > 0)
+          std::cout << "[!] " << row.name << ": WARNING: " << ns.nonPlanar
+                    << " far-side drawings were not planar diagrams (drawer "
+                       "defect; named by the complement route instead)\n";
       }
       // A census that cannot be written to costs nothing in correctness,
       // but every name it fails to keep is recomputed by every later row.

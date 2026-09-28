@@ -25,10 +25,12 @@
  *      curve has nothing else, since at any vertex it has only its own two
  *      edges and every other edge leaves the wall at once.
  *    - A region's bottom and top points both project to one corner of the
- *      squares around it. If the curve passes through both (not along the
- *      vertical edge joining them), the cyclic order of its four ends
- *      around that corner decides whether that is a crossing (top over
- *      bottom) or two passes that merely touch.
+ *      squares around it. If the curve passes through both, the cyclic
+ *      order of its four ends around that corner decides whether that is a
+ *      crossing (top over bottom) or two passes that merely touch. That
+ *      includes a curve running along the vertical edge joining them: its
+ *      tent leaves the corner and comes back to it, so its shadow passes
+ *      the corner twice.
  *    - A pass through a cone apex becomes an arc over (top apex) or under
  *      (bottom apex) everything, routed through the squares, with height
  *      monotone along it so that it stays unknotted.
@@ -37,7 +39,9 @@
  *  and every crossing is found inside one block (or at one corner), so no
  *  global layout of the diagram is ever computed. All arithmetic is exact
  *  (integer coordinates, 128-bit products); a degenerate projection throws
- *  Degenerate, and draw() retries with other perturbations.
+ *  Degenerate, and draw() retries with other perturbations. A drawing that
+ *  is not a planar diagram throws NonPlanar and is never retried: every
+ *  curve in S^3 has a planar diagram, so that would be a defect here.
  *
  *  The result is oriented: component i is traversed in the order and
  *  direction of the i-th EdgeCycle given.
@@ -88,16 +92,40 @@ struct Diagram {
     std::vector<CrossingInfo> crossings; /**< Parallel to pd. */
     size_t components = 0;
     std::vector<size_t> crossingless;
+    /**
+     * Per component, in order, the crossings it passes: +(k+1) over crossing
+     * k, -(k+1) under it (Regina's fromData() convention); empty for a
+     * crossingless component. With the signs in `crossings` this is the
+     * whole oriented diagram, and unlike `pd` it fixes the orientation of a
+     * component that passes over everything it meets (a PD code cannot:
+     * see regina::Link::pdAmbiguous()).
+     */
+    std::vector<std::vector<long>> gauss;
 
     /** The linking number of components i and j (i != j). */
     long linkingNumber(size_t i, size_t j) const;
 
-    /** As a regina::Link, crossingless components included. */
+    /**
+     * As a regina::Link, built from `gauss` and the crossing signs, so every
+     * component keeps its drawn orientation; component i is the i-th curve
+     * drawn, crossingless ones included.
+     */
     regina::Link link() const;
 };
 
 /** Thrown for a degenerate projection. draw() retries past it. */
 class Degenerate : public std::runtime_error {
+  public:
+    using std::runtime_error::runtime_error;
+};
+
+/**
+ * Thrown when a drawing is not a planar (classical) diagram. Every closed
+ * curve in S^3 has a planar diagram, so this is a defect of the drawer,
+ * never a property of the curves. draw() does not retry past it: another
+ * perturbation might hide the defect, not remove it.
+ */
+class NonPlanar : public std::runtime_error {
   public:
     using std::runtime_error::runtime_error;
 };

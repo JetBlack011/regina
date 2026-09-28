@@ -32,8 +32,10 @@
  *      bear a bound, so that is what must be ruled out first).
  *
  *  Everything else -- a knot the table does not know, a link the Jones
- *  polynomial cannot tell from an unlink, a degenerate drawing -- falls
- *  back to identify::identify(), the complement route, exactly as before.
+ *  polynomial cannot tell from an unlink, a degenerate drawing, a drawing
+ *  the drawer refuses as not planar (a drawer defect, counted in
+ *  NamingStats::nonPlanar) -- falls back to identify::identify(), the
+ *  complement route, exactly as before.
  *  Whatever it returns is remembered against the diagram's signature (a
  *  diagram determines its link), so each distinct diagram costs at most one
  *  fallback per row, and repeats of it get the same name.
@@ -89,6 +91,9 @@ struct NamingStats {
         learnedKnots{0}, tableLinks{0}, diagramLinks{0}, jonesLinks{0},
         learnedLinks{0}, fallbacks{0}, learned{0}, microsDiagram{0},
         microsFallback{0};
+    std::atomic<long long> nonPlanar{0};
+    /**< Drawings the drawer refused as not planar (knotbuilder::NonPlanar):
+         each is a drawer defect, named by the complement route instead. */
 };
 
 /**

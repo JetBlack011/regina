@@ -77,16 +77,21 @@ curve of T becomes a curve on S², and height says what passes over what:
   pushed into one adjacent block. Only the edge's middle moves, a distance of
   1/200 of the block into the box's interior, and the push grows with height,
   so that wall points differing only in height separate. A vertical corner edge
-  gets a two-point tent, so that its projection does not fold back on itself.
-  This is an isotopy of the curve. Near the wall the curve has nothing else:
+  gets a two-point tent: a thin loop that leaves the corner and comes back to
+  it, so that its projection does not fold back along itself (it still
+  returns to the corner point; see **Corners**). This is an isotopy of the curve. Near the wall the curve has nothing else:
   at a vertex it has only its own two edges, and every other edge leaves the
   wall at once.
 - **Corners.** A region's bottom and top points project to the same corner of
-  every square around it. If the curve passes through both (not along the
-  vertical edge joining them), walk the squares around that corner
-  counterclockwise. The cyclic order of the curve's four ends there decides
-  whether it is a crossing (interleaved: the top pass over the bottom one) or
-  two passes that merely touch.
+  every square around it. If the curve passes through both, walk the squares
+  around that corner counterclockwise. The cyclic order of the curve's four
+  ends there decides whether it is a crossing (interleaved: the top pass over
+  the bottom one) or two passes that merely touch. This includes a curve
+  running **along the vertical edge** joining them: its tent's shadow passes
+  the corner twice, on the way in at the bottom point and on the way out at the
+  top one, and those two passes cross whenever their ends interleave. Until
+  2026-09-27 that case was skipped as "one pass", which lost the crossing; see
+  the validation notes below.
 - **Cones.** A pass through a cone apex (curve edges u → apex → w) becomes an
   arc over everything (top apex) or under everything (bottom apex). It is
   routed through the squares by a breadth-first path, crossing sides at fixed
@@ -101,8 +106,23 @@ degenerate projection (two pieces touching, collinear overlaps, equal heights)
 throws `Degenerate`, and `draw()` retries with other perturbations. None has
 been needed on any input so far.
 
+**Planarity gate.** Every closed curve in S³ has a planar diagram, so a drawing
+that is not one (`regina::Link::isClassical()` false) is a defect of the
+drawer. `draw()` throws `NonPlanar` for it and never retries, since another
+perturbation could hide the defect rather than remove it. The search's namer
+(`../farsidenaming.h`) then names that far side by the complement route and
+counts it (`non-planar drawings`, with a WARNING line per row). The check runs
+on the raw drawing, before any `simplify()`.
+
 **Orientation.** Component i of the result is the i-th `EdgeCycle` given,
-traversed in its given direction. The PD code follows the KnotTheory
+traversed in its given direction. `Diagram::link()` builds the Regina link from
+each component's signed crossing sequence (`Diagram::gauss`,
+`regina::Link::fromData()`), not from the PD code. A PD code cannot fix the
+orientation of a component that passes over every crossing it meets
+(`regina::Link::pdAmbiguous()`): 14 of c4's 4,416 drawn far sides have one.
+Before 2026-09-27, `link()` went through the PD code, which was harmless while
+names ignored orientation, and wrong for oriented ones. The two-curve test now
+requires Regina's linking number to equal the drawer's own on every drawing. The PD code follows the KnotTheory
 convention (the incoming under-strand first, then counterclockwise), and
 `CrossingInfo::sign` is +1 for a right-handed crossing. `linkingNumber(i, j)`
 is half the signed sum over crossings between i and j.
@@ -115,16 +135,42 @@ is half the signed sum over crossings between i and j.
 | every table row (all 12,965 knots through 13 crossings, all 4,188 oriented links through 11): draw knotbuilder's own link from T | **all identical to the input diagram**: the same Regina signature with neither mirror nor reversal allowed, and the same signed linking matrix up to relabelling components. 7.6 s for the knots, 2.1 s for the links |
 | negative test: one component of the Hopf link drawn reversed | caught: the signature changes and the linking number is negated |
 | random closed curves in T (80 in `ctest`, 95% through a wall, corner line or cone point) | drawn unknot ⇔ the complement drilled from T is a solid torus |
+| **every** simple closed curve of ≤ 5 edges in T for 3_1, 4_1, 5_2 and L4a1{0} (27,472 curves), each drawn with all 8 perturbations and in both directions (439,549 drawings, 5 s in `ctest`) | **all planar**; every 25th also agrees with drilling (unknot ⇔ solid torus). Without the vertical-edge fix: 20 non-planar drawings, all 5-edge curves up a corner edge. `SHORT_CYCLES_MAX_LEN=6` (172,749 curves, 2.76M drawings, ~15 s) also passes |
+| pairs of disjoint curves of ≤ 5 edges, one through a region's bottom point and one through its top point (6,833 pairs at every corner of 3_1, 4_1 and L4a1{0}; 68,325 drawings, < 1 s) | **all planar**. Every perturbation, both component orders and global reversal give the same HOMFLY polynomial and linking number, and Regina's linking number equals the drawer's own |
+| three pieces through one point | refused as `Degenerate` (the order of the crossings there would be arbitrary). Never seen in the tests above, nor on c4's 4,416 far sides (redrawn identically with the guard) |
 | 400 real far sides from 287 rows (114 knots, 286 links, prime and knotted per the diagram pipeline), via `farsidediagram` | **400/400** named as the pipeline recorded, by its own `fsid.identify_piece` on the drawn diagram |
 | 122 genus-0 witnesses whose surface is a union of annuli, pairing row components with far-side components (82 with nonzero linking numbers) | **all 122** preserve every linking number exactly, as a concordance of oriented links must |
+| all 4,416 c4 witnesses (77 rows, 2026-09-27), redrawn by `farsidediagram` before and after the vertical-edge fix | before: 17 non-planar. After: **0 non-planar, 0 failed**. 4,212 drawings identical; 187 gain exactly one crossing with an unchanged HOMFLY polynomial (the nugatory kinks the old code dropped). No table name changes, other than `simplify()` luck |
 
-The table sweep, the random curves and the negative test are in
-`tests/diagramdrawer_test.cpp`. The witness checks are
+The table sweep, the random curves, the short-curve test and the negative test
+are in `tests/diagramdrawer_test.cpp`. The witness checks are
 `cobordism-atlas/tools/farside/drawfromT/test_cpp_farsides.py`.
 
 The sweep only exercises the paths knotbuilder's own link uses: interior edges
 and the bottom-face diagonal. Walls, corners and cones are covered by the
-random curves and, more strongly, by the real far sides.
+random curves, by the real far sides and, exhaustively for short curves, by the
+short-curve test. A short curve stays near one wall or corner, so that test
+covers every local configuration a curve of that length can make.
+
+**The vertical-edge defect (found and fixed 2026-09-27).** A curve running up a
+vertical corner edge was treated as one pass through the corner, although its
+tent's shadow passes the corner twice. When the ends before and after both
+pointed into the tent's wedge, in crossed order, the crossing there was lost.
+The loss is always visible: the two crossings of the curve with the tent are
+then each interlaced with an odd number of others, which breaks Gauss's parity
+condition, so the drawing is **never planar**. In every other case the lost
+double point is a nugatory kink, which changes nothing. Redrawing c4 bore out
+both halves: 17 non-planar drawings and 187 dropped kinks, and nothing else.
+In campaign c4 (binary from `32566f81e`), the search recorded 13 far sides
+under non-planar `diagram:` names, which bear nothing. Knots with such a
+drawing fell back to the complement route, and all 571 drawer-dependent
+bound-bearing names checked agree with redrawing. The earlier checks could not
+see it:
+- the table sweep never runs up a corner edge;
+- the 80 random curves are too few to hit the tent's wedge;
+- the defect is rare on real far sides (17 in 4,416, and direction-dependent), so the 400-far-side check plausibly contained none;
+- nothing checked planarity.
+The short-curve test finds it at once (20 drawings).
 
 ## Using it
 

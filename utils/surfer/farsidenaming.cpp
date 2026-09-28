@@ -173,6 +173,9 @@ std::string DiagramNamer::nameOnce(const Link &curves) const {
                 return "diagram:" + key.substr(1);
             }
         }
+    } catch (const knotbuilder::NonPlanar &) {
+        ++stats_.nonPlanar;
+        key.clear(); // a drawer defect: never name from it, and never learn
     } catch (const knotbuilder::Degenerate &) {
         key.clear(); // fall through to the complement route
     } catch (const regina::InvalidArgument &) {
