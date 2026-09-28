@@ -315,27 +315,20 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         }
         InterruptiblePredicate interruptible(*embeddingPredicate,
                                              stopRequested_, pauseRequested_);
-        // Only constructed for a capped (iterative-deepening) round.
-        std::optional<DepthCappedPredicate> cappedOpt;
-        ConditionalPredicate *activePredicate = &interruptible;
-        if (capFaces) {
-            long long maxDepth = iddfsMaxDepth(*capFaces, isSeeded_);
-            cappedOpt.emplace(interruptible, static_cast<int>(maxDepth));
-            activePredicate = &*cappedOpt;
-        }
-        // Outermost, so its counter sees every attempt the depth cap lets
-        // through. Constructed even when unbudgeted, where it is transparent
-        // -- that keeps one code path for both modes.
+        // Outermost, so its counter sees every attempt. The depth cap is the
+        // enumerator's own (setMaxSize() below), so every attempt it charges
+        // reaches the embedding checks -- the cost it exists to ration.
+        // Constructed even when unbudgeted, where it is transparent -- that
+        // keeps one code path for both modes.
         //
         // Constructed UNLIMITED (-1) whatever the per-root ration will be:
         // a seeded enumerator commits the seed via one tryAdd() during
         // construction below, before any root is reached, and that commit
         // must succeed or the enumerator's invariants break (it later
-        // removes faces it believes it added). DepthCappedPredicate clamps
-        // maxDepth to >= 1 for exactly the same reason. The real ration is
-        // installed per root by reset().
-        BudgetedPredicate budgeted(*activePredicate, -1);
-        activePredicate = &budgeted;
+        // removes faces it believes it added). The real ration is installed
+        // per root by reset().
+        BudgetedPredicate budgeted(interruptible, -1);
+        ConditionalPredicate *activePredicate = &budgeted;
         std::optional<ConnectedInducedSubgraphEnumerator> localEnumeratorOpt;
         if (isSeeded_)
             localEnumeratorOpt.emplace(graph_.adjList.first,
@@ -345,13 +338,17 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             localEnumeratorOpt.emplace(graph_.adjList.first,
                                        graph_.adjList.second);
         auto &localEnumerator = *localEnumeratorOpt;
+        // At least 1, so a seeded search can always commit its seed (as
+        // DepthCappedPredicate's own clamp did).
+        localEnumerator.setMaxSize(
+            capFaces ? static_cast<size_t>(std::max<long long>(
+                           1, iddfsMaxDepth(*capFaces, isSeeded_)))
+                     : 0);
         WorkerStats &local = perThreadStats[tid];
         auto threadHook = makeThreadHook();
         // The seeded constructor's own seed commit and root probes are not
         // root enumeration; the profile counts from here on.
         const long long attemptsAtStart = budgeted.attempts();
-        const long long evaluatedAtStart =
-            cappedOpt ? cappedOpt->evaluated() : 0;
 
         // Dispatch is safe only because resetCandidateOrder() below makes a
         // root's traversal a function of that root alone, not of which roots
@@ -513,10 +510,10 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         }
         const long long rootAttempts = budgeted.attempts() - attemptsAtStart;
         local.attempts += rootAttempts;
-        // Uncapped, nothing stands between the budget and the embedding
-        // checks, so every attempt is evaluated.
-        local.evaluated += cappedOpt ? cappedOpt->evaluated() - evaluatedAtStart
-                                     : rootAttempts;
+        // The cap is the enumerator's (setMaxSize()), so nothing between the
+        // budget and the embedding checks refuses: every attempt is
+        // evaluated.
+        local.evaluated += rootAttempts;
         // Flush this thread's remainder so the global count ends up exact.
         if (local.pendingSatisfyingCount > 0) {
             stats.satisfyingCount.fetch_add(local.pendingSatisfyingCount,

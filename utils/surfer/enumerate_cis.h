@@ -338,6 +338,19 @@ class ConnectedInducedSubgraphEnumerator {
     const std::vector<int> &getRoots() const { return roots_; }
 
     /**
+     * Caps the sets visited at `maxSize` vertices (0: no cap), the seed's
+     * contracted vertex counting as one.
+     *
+     * The cap lives here rather than in a predicate: a node AT the cap then
+     * returns at once, where a DepthCappedPredicate lets it scan every
+     * candidate and offer each valid child to the predicate chain, only to
+     * be refused. That was 94% of all nodes, 98% of all candidate scanning
+     * and 97% of all tryAdd() calls on a profiled row -- none of it able to
+     * find anything, and all of it charged to the root's budget.
+     */
+    void setMaxSize(size_t maxSize) { maxSize_ = maxSize; }
+
+    /**
      * Restores the candidate list to the order it had immediately after
      * seeding, making a root's traversal independent of which roots this
      * enumerator processed before it.
@@ -502,6 +515,7 @@ class ConnectedInducedSubgraphEnumerator {
     bool isSeeded_ = false;
 
     std::vector<int> roots_; /**< See getRoots(). */
+    size_t maxSize_ = 0; /**< See setMaxSize(). */
     std::vector<int> canonicalCandidates_;
         /**< The candidate list's order immediately after seeding: the roots,
              since a seed neighbour that fails with the seed alone is pruned

@@ -147,6 +147,8 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     int s, const std::function<void(const std::vector<int> &)> &visit,
     ConditionalPredicate &predicate) {
     if (isSeeded_) {
+        if (maxSize_ && U.size() >= maxSize_)
+            return; // a cap of 0 added faces: not even the root
         report = &visit;
         const int w = s;
 
@@ -321,6 +323,8 @@ void ConnectedInducedSubgraphEnumerator::extend(int s) {
 
 void ConnectedInducedSubgraphEnumerator::extendFiltered(
     int s, ConditionalPredicate &predicate) {
+    if (maxSize_ && U.size() >= maxSize_)
+        return; // at the cap: no child can be added; see setMaxSize()
     const int u = U.back();
     const int du = dist[u];
 

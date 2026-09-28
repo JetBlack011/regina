@@ -178,11 +178,6 @@ std::map<std::vector<int>, int> enumerateLikeSearch(
         pred->marks.clear();
         inner = pred;
     }
-    std::optional<DepthCappedPredicate> capped;
-    if (config.cap) {
-        capped.emplace(*inner, config.seeded ? *config.cap + 1 : *config.cap);
-        inner = &*capped;
-    }
     BudgetedPredicate budgeted(*inner, -1);
 
     std::optional<ConnectedInducedSubgraphEnumerator> e;
@@ -190,6 +185,11 @@ std::map<std::vector<int>, int> enumerateLikeSearch(
         e.emplace(graph->n, graph->adj, true, budgeted);
     else
         e.emplace(graph->n, graph->adj);
+    // The cap as the search sets it: the enumerator's own, in vertices, the
+    // seed's contracted vertex counting as one.
+    if (config.cap)
+        e->setMaxSize(static_cast<size_t>(
+            std::max(1, config.seeded ? *config.cap + 1 : *config.cap)));
 
     std::vector<int> roots = e->getRoots();
     std::sort(roots.begin(), roots.end(), std::greater<>());
