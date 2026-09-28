@@ -154,22 +154,24 @@ void ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
         U.push_back(w);
         inU[w] = true;
 
-        std::vector<int> &introduced = introducedBuf[U.size()];
-        introduced.clear();
-        for (int x : adj[w])
-            if (x > 1 && !inU[x] && !inC[x]) {
-                addCandidate(x, w, dist[w] + 1);
-                introduced.push_back(x);
-            }
-
+        // Introduce w's neighbours only once w passes; see extendFiltered().
         if (predicate.tryAdd(w)) {
+            std::vector<int> &introduced = introducedBuf[U.size()];
+            introduced.clear();
+            for (int x : adj[w])
+                if (x > 1 && !inU[x] && !inC[x]) {
+                    addCandidate(x, w, dist[w] + 1);
+                    introduced.push_back(x);
+                }
+
             (*report)(U);
             extendFiltered(1, predicate);
             predicate.undo(w);
+
+            for (int x : introduced)
+                removeCandidate(x);
         }
 
-        for (int x : introduced)
-            removeCandidate(x);
         U.pop_back();
         inU[w] = false;
         addCandidate(w, 1, 1); // restore as a candidate for the next root
@@ -336,24 +338,31 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
         U.push_back(w);
         inU[w] = true;
 
-        std::vector<int> &introduced = introducedBuf[U.size()];
-        introduced.clear();
-        for (int x : adj[w])
-            if (x > s && !inU[x] && !inC[x]) {
-                addCandidate(x, w, wDist + 1);
-                introduced.push_back(x);
-            }
-
+        // w's neighbours join C only once w passes. Nearly every child fails
+        // (97% on a profiled row), and introducing its neighbours only to
+        // remove them again cost that row ~30% of its wall time. Doing it
+        // after the check changes nothing observable: no predicate reads C,
+        // and a vertex outside U and C always has dist -1 and parentOf 0, so
+        // introducing and then removing candidates restores C exactly.
         if (predicate.tryAdd(w)) { // local, incremental check
+            std::vector<int> &introduced = introducedBuf[U.size()];
+            introduced.clear();
+            for (int x : adj[w])
+                if (x > s && !inU[x] && !inC[x]) {
+                    addCandidate(x, w, wDist + 1);
+                    introduced.push_back(x);
+                }
+
             (*report)(U);
             extendFiltered(s, predicate); // only descend on a pass
             predicate.undo(w); // reverse tryAdd(w) -- see class contract
+
+            for (int x : introduced)
+                removeCandidate(x);
         }
         // else: tryAdd made no net change (transactional contract), so
         // there's nothing to undo -- just prune.
 
-        for (int x : introduced)
-            removeCandidate(x);
         U.pop_back();
         inU[w] = false;
         addCandidate(w, wParent, wDist);
