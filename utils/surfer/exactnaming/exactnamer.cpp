@@ -5,11 +5,13 @@
 #include "exactnamer.h"
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 namespace exactnaming {
 
@@ -95,7 +97,33 @@ bool ExactNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) con
 std::vector<const TableEntry *> ExactNamer::homflyCandidates(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const {
     std::call_once(homflyIndexOnce_, [this] {
-        for (const TableEntry &e : tables_.entries()) {
+        // Every entry's polynomial and its mirror's (~34,000 through 13
+        // crossings) cost ~3.8 s on one thread, paid at the first lookup in
+        // each process. They are independent, so they are found on a pool,
+        // cached, and then indexed in table order as before.
+        const std::vector<TableEntry> &entries = tables_.entries();
+        std::vector<regina::Laurent2<regina::Integer>> found(2 * entries.size());
+        std::atomic<size_t> next{0};
+        auto work = [&] {
+            for (size_t i; (i = next.fetch_add(1)) < found.size();) {
+                regina::Link l(entries[i / 2].diagram);
+                if (i % 2)
+                    l.reflect();
+                found[i] = l.homfly();
+            }
+        };
+        std::vector<std::thread> pool;
+        for (unsigned t = 1; t < std::max(1u, std::thread::hardware_concurrency()); ++t)
+            pool.emplace_back(work);
+        work();
+        for (std::thread &t : pool)
+            t.join();
+        {
+            std::lock_guard<std::mutex> lock(cacheMutex_);
+            for (size_t i = 0; i < found.size(); ++i)
+                homfly_.try_emplace({&entries[i / 2], i % 2 == 1}, std::move(found[i]));
+        }
+        for (const TableEntry &e : entries) {
             for (int mirror = 0; mirror < 2; ++mirror) {
                 auto &bases = homflyIndex_[homfly(e, mirror == 1).str()];
                 if (std::find(bases.begin(), bases.end(), e.base) == bases.end())
