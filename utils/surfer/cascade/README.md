@@ -19,7 +19,7 @@ between hops. The plan is `~/.claude/plans/i-ve-put-you-into-idempotent-hamming.
 | `hoprunner.{h,cpp}` | a hop searched in process on `../rowsearch.h` (see "In-process hops") |
 | `leaves.{h,cpp}` | literature leaves: table values, and which a proof may use |
 | `cascadesearch.cpp` | the driver: hops in process (default) or as `verifyslicegenus` children (`--hop-mode child`) |
-| `tools/cascade_check.py` | the independent checker |
+| `tools/cascade_check.py` | the independent checker; `tools/cascade_check_test.py` tests its own diagram code |
 | `tests/` | one test per module; `data/` holds real witnesses from the Phase 0 hops and small tables |
 
 The first four files have no Regina dependency.
@@ -196,6 +196,7 @@ that says nothing about K.
 | E7 | the build digest is the same for two builds of one row, and differs for another row or another layer count | `testBuildChecksum` |
 | D6 | `removeNugatoryCrossings()` removes every nugatory crossing and nothing else, keeping the link (Jones polynomial), every linking number and the component order, on connected sums through a twist (knots and links, both signs) and on kinks from Regina's own type I moves; a reduced diagram comes back untouched | `nodes_test` |
 | D7 | a row with a nugatory crossing cannot be certified, and its reduced diagram's row can | `testReducedRowsCertify` |
+| D8 | the checker's own removal (union-find, written separately) keeps the link and linking numbers, removes kinks and twists between summands, keeps a crossing whose two loops another component joins, turns over exactly the side between the crossing's visits (pinned: deleting the crossing without the turn gives another diagram of the same link, which the invariants cannot see), and a nugatory drawing matches its relabelled reduced node | `tools/cascade_check_test.py` |
 
 **Mutation check (2026-09-28).** Each break of `profile.cpp` is caught:
 
@@ -393,9 +394,12 @@ The checker replays the certificate without calling any cascade code:
   splits that appear only after simplification with its own Regina
   `simplify()` runs, each an isotopy.
 - **Piece identities.** It reproduces the diagram match under exactly the
-  certificate's map. Failing that, it looks for an isometry carrying
-  meridians with one sign (the atlas's `row_certificates.meridian_signs`),
-  with cusps built in component order.
+  certificate's map, trying the drawn piece and 40 of its own `simplify()`
+  runs, each also with its nugatory crossings removed by its own code, either
+  way up (a node's diagram is reduced; since v3, non-hyperbolic pieces reach
+  such nodes and have no isometry to fall back on). Failing that, it looks
+  for an isometry carrying meridians with one sign (the atlas's
+  `row_certificates.meridian_signs`), with cusps built in component order.
 - **Literature leaves.** It re-proves the node's identity with the atlas's
   own Python pipeline: `fsid.identify_knot` for knots,
   `row_certificates.certify_hyperbolic` (uniform sign) for links.

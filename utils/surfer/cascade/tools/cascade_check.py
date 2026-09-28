@@ -23,7 +23,8 @@ For every record of the proof it re-derives the claim:
                   diagram-isomorphism search), the far side's split pieces
                   (its own union-find on crossings) and each piece's identity
                   with its node (a diagram isomorphism under the certificate's
-                  component map, or a SnapPy isometry carrying meridians to
+                  component map, after its own simplification and removal of
+                  nugatory crossings, or a SnapPy isometry carrying meridians to
                   meridians with one sign realising that map); then the
                   glued surface's partition and genus by an Euler-
                   characteristic count
@@ -95,6 +96,65 @@ class Gauss:
 
     def reverse_all(self):
         return Gauss(self.signs, [list(reversed(w)) for w in self.comps])
+
+    def turned_over(self):
+        """The whole diagram turned over (a half turn about an axis in the
+        plane): every crossing swaps over and under, every sign stays."""
+        return Gauss(self.signs, [[-x for x in w] for w in self.comps])
+
+
+def nugatory_side(g, c):
+    """For a self-crossing c: the crossings cut off with the loop its
+    component runs between its two visits to c, if deleting c disconnects
+    that loop (and whatever crosses it) from the component's other loop;
+    else None. By union-find over the projection graph with c deleted."""
+    where = [(ci, p) for ci, w in enumerate(g.comps) for p, x in enumerate(w) if abs(x) - 1 == c]
+    if len(where) != 2 or where[0][0] != where[1][0]:
+        return None
+    w = g.comps[where[0][0]]
+    i, j = where[0][1], where[1][1]
+    parent = list(range(len(g.signs)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for word in g.comps:
+        for p in range(len(word)):
+            a, b = abs(word[p]) - 1, abs(word[(p + 1) % len(word)]) - 1
+            if c not in (a, b):
+                parent[find(a)] = find(b)
+    inner = {abs(x) - 1 for x in w[i + 1:j]}
+    outer = {abs(x) - 1 for x in w[j + 1:] + w[:i]}
+    roots = {find(k) for k in inner}
+    if roots & {find(k) for k in outer}:
+        return None
+    return {k for k in range(len(g.signs)) if k != c and find(k) in roots}
+
+
+def remove_nugatory(g):
+    """g with every nugatory crossing removed, each by turning over the side
+    it cuts off (a half turn about an axis in the plane through it, a rigid
+    motion): the crossing goes, that side's crossings swap over and under,
+    and every sign stays. An isotopy that keeps component order and
+    orientation."""
+    while True:
+        c = next((k for k in range(len(g.signs)) if nugatory_side(g, k) is not None), None)
+        if c is None:
+            return g
+        side = nugatory_side(g, c)
+        comps = []
+        for w in g.comps:
+            nw = []
+            for x in w:
+                k = abs(x) - 1
+                if k == c:
+                    continue
+                label = (k if k < c else k - 1) + 1
+                nw.append(label if (x > 0) != (k in side) else -label)
+            comps.append(nw)
+        g = Gauss([s for k, s in enumerate(g.signs) if k != c], comps)
 
 
 def pd_to_link(pd_text):
@@ -456,7 +516,8 @@ class Checker:
 
     def same_as_node(self, sub, node, comp_map, mirrored, reversed_):
         """Is diagram `sub` the node's link under comp_map (and flags)?
-        A diagram match of `sub` or one of our own simplifications of it
+        A diagram match of `sub` or one of our own simplifications of it,
+        with and without its nugatory crossings removed, either way up
         (each an isotopy, keeping component order); else an isometry
         carrying meridians with one sign realising comp_map; for a knot,
         any exterior isometry (Gordon-Luecke) or fsid proving both the same
@@ -467,10 +528,12 @@ class Checker:
                 l = sub.link()
                 l.simplify()
                 cand = Gauss.of_link(l)
-            t = cand.mirror() if mirrored else cand
-            t = t.reverse_all() if reversed_ else t
-            if iso_with_map(t, node, comp_map):
-                return True, 'diagram'
+            reduced = remove_nugatory(cand)
+            for c in (cand, reduced, reduced.turned_over()):
+                t = c.mirror() if mirrored else c
+                t = t.reverse_all() if reversed_ else t
+                if iso_with_map(t, node, comp_map):
+                    return True, 'diagram'
         ok, why = same_link_by_isometry(sub, node, comp_map, mirrored, reversed_)
         if ok or len(sub.comps) != 1:
             return ok, why
