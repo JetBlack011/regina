@@ -587,7 +587,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                     static_cast<int>(embedding.singularVertexCount())},
             descriptor, boundaryComponents,
             [&embedding] { return embedding.orientedBoundaryLinks(); },
-            [&embedding] { return embedding.boundaryEdgeSurfaceComponent(); }});
+            [&embedding] { return embedding.boundaryEdgeSurfaceComponent(); },
+            [&embedding] { return embedding.markedFaces(); }});
     }
 
     // Reverse order, mirroring how the DFS itself would back out --

@@ -15,20 +15,20 @@ between hops. The plan is `~/.claude/plans/i-ve-put-you-into-idempotent-hamming.
 | `proofgraph.{h,cpp}` | nodes, witness and split edges, immutable proof records, the fixed point |
 | `diagramiso.{h,cpp}` | diagram isomorphisms of signed Gauss data, with their component maps |
 | `nodes.{h,cpp}` | the node registry: exact identity and component maps; `simplifyKeepingComponents()` |
-| `hopedges.{h,cpp}` | a hop row's certificate, and each witness turned into edges and nodes |
-| `cascadesearch.cpp` | the driver (hops as `verifyslicegenus` child processes for now) |
-| `tests/` | one test per module; `data/` holds real witnesses from the Phase 0 hops |
+| `hopedges.{h,cpp}` | a hop row's certificate, and each witness (`add()`, from its pair signature) or surface read in process (`addRead()`) turned into edges and nodes |
+| `hoprunner.{h,cpp}` | a hop searched in process on `../rowsearch.h` (see "In-process hops") |
+| `leaves.{h,cpp}` | literature leaves: table values, and which a proof may use |
+| `cascadesearch.cpp` | the driver: hops in process (default) or as `verifyslicegenus` children (`--hop-mode child`) |
+| `tools/cascade_check.py` | the independent checker |
+| `tests/` | one test per module; `data/` holds real witnesses from the Phase 0 hops and small tables |
 
 The first four files have no Regina dependency.
 
 Still to come:
-- an in-process hop runner on a `RowSearch` extracted from `verifyslicegenus`,
-  after the hot-path work lands;
 - the SnapPy oracle (DG `PlausibleKnots`, `RibbonLinks`, HFK) for leaf facts
   beyond the tables;
-- master witnesses as free edges;
-- lower-bound propagation;
-- the independent checker `cascade_check.py` (atlas `tools/cascade/`).
+- switching hops early, depth first, when a far side could beat the demand
+  (`HopSearcher::run()`'s `stop` is the hook).
 
 ## Component maps
 
@@ -181,6 +181,7 @@ that says nothing about K.
 | C2 | reversing ONE component is rejected whenever it changes the writhe | |
 | C3 | mirror and global reversal are found only when allowed, and flagged | |
 | C4 | `splitPieces()` keeps every origin | |
+| C5 | a required component map is realised exactly when it is a symmetry (the Hopf link's swap is; the Whitehead diagram's is not) | `testRequiredComponentMap` |
 | D1 | `simplify()` keeps origins and every pairwise linking number over 240 random r2/r3 scrambles | `nodes_test` |
 | D2 | a relabelled diagram is a "diagram" hit with a correct map | |
 | D3 | scrambled diagrams of Whitehead, Borromean and Conway are one node; some need the isometry; linking numbers transport through the map | |
@@ -188,6 +189,9 @@ that says nothing about K.
 | D5 | one shared unknot node, with its disc | |
 | E1 | a real row (`10_3`) is certified, and all 9 real witnesses assemble; curve counts match the witness file; the identity far side is the row's own node; split far sides have several pieces; **`10_3` is proved slice**, constructively, and every record rechecks | `hopedges_test` |
 | E2 | a 2-component row (`L11n33{1}`) is certified; its identity witness joins each component to itself | |
+| E3 | an in-process hop accounts for its surfaces as `verifyslicegenus` does (the canaries' 3_1 and L2a1{0} counts at cap 3) | `hoprunner_test` |
+| E4 | every surface it keeps gives the same edge read in process as read back from its pair signature (computed later from its faces), up to the row's and the far side's symmetries | |
+| E5 | its keys are distinct, and a stop request ends it | |
 
 **Mutation check (2026-09-28).** Each break of `profile.cpp` is caught:
 
@@ -245,6 +249,70 @@ search shape plus `--exact-far-side-names`.
    its own canonical identity before computing pairsigs.
 6. The in-search names of one knot can differ (`K13n65` and `13n_65`). Node
    identity must never rest on names.
+
+## In-process hops (`hoprunner.h`, since 2026-09-28)
+
+A hop is one row searched on a node's diagram. By default it runs in the
+cascade's own process (`HopSearcher::run()`), on exactly what a
+`verifyslicegenus` row runs on, from `../rowsearch.h`:
+- the same thickening: the one the hop's `HopAssembler` certified, via
+  `WitnessRedrawer::rowBuild()`;
+- the same gates and accounting (`gateSurface()`, `RowAccounting`);
+- the same namer (`farside::DiagramNamer` with exact names);
+- the campaign's shape (`HopShape`: root budget 840 from c5 on).
+
+What changes is what happens to an accepted surface:
+- It is read straight off the search: `farside::orientedOutgoingLink()` over
+  the boundary the drain hands out, then `HopAssembler::addRead()`. There is
+  no pair signature written and read back.
+- It is deduplicated by `verifyslicegenus`'s witness identity plus its
+  grouping: which row components and how many far-side curves each surface
+  component carries. That grouping is what profiles read, and the identity
+  alone collapses it.
+- It keeps its faces (`SurfaceBoundaryInfo::captureFaces`), not a pair
+  signature.
+- A certificate signs only the witnesses its proof uses (`pairSigsOf()`):
+  each row rebuilt once, its ambient part computed once (`PairSigContext`),
+  rows in parallel. Nearly all of a signature's cost is the ambient's, about
+  50 s for a 10-crossing row. In the certificate such a witness is named by
+  its signature's key, like any other, and its hop key becomes `provenance`.
+
+`--hop-mode child` keeps the old route: a `verifyslicegenus` child per hop,
+its witnesses read back from their pair signatures.
+
+`hoprunner_test` pins the equivalence (E3–E5 above). An in-process read and a
+pair-signature read of one surface can differ in two harmless ways:
+- **The far side's curves sit elsewhere in T.** The signature route carries the
+  surface back by any isomorphism that sends its incoming curve onto L × {0},
+  and T has automorphisms preserving L.
+- **A symmetric far side is matched by either component map.** For the Hopf
+  link, both maps are true statements.
+
+The test therefore compares the edges up to the row's and the far side's
+symmetries (`findDiagramIsomorphism()` with a required component map).
+
+**A/B (2026-09-28, yoga, 10 threads, 50k surfaces per hop, the new master
+search).** The same targets, one after the other; per-hop figures from
+`cascade.jsonl`:
+
+| target | mode | hop wall | hop CPU | kept / witnesses | result |
+|---|---|---|---|---|---|
+| `10_155` | child | 71.4 s | 182 s | 18 | slice, 1 hop |
+| `10_155` | process | 25.8 s | 184 s | 18 | slice, 1 hop |
+| `11n_39` | child | 104.3 s | 290 s | 27 | slice, 1 hop |
+| `11n_39` | process | 33.6 s | 219 s | 26 | slice, 1 hop |
+
+- **Hops are about three times faster in process**, for the same result.
+- **Where the child's time went.** In `10_155`, the search itself took 2.9 s
+  and the drain 20 s. The pair signatures took 50.6 s of one thread, almost
+  all of it the ambient context.
+- **In process that cost moves to the certificate.** It is paid only when
+  the goal is met, once per distinct row in the proof. Both runs above signed
+  one witness serially, in ~55–65 s, before `pairSigsOf()` shared the
+  ambient.
+- **Whole runs were therefore about equal:** 81 vs 92 s, and 116 vs 110 s.
+  In-process runs gain as proofs take more hops, or as hops go without a
+  success.
 
 ## The independent checker (`tools/cascade_check.py`)
 

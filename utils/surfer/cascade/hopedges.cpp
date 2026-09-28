@@ -5,7 +5,6 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_map>
 
 #include <link/link.h>
 
@@ -61,16 +60,7 @@ HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                            Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
   redraw_ = std::make_unique<farside::WitnessRedrawer>(row_.pd, row_.layers);
-  const auto &built = redraw_->built();
   const auto &cycles = redraw_->rowCycles();
-  {
-    std::unordered_map<size_t, size_t> compOfT;
-    for (size_t c = 0; c < cycles.size(); ++c)
-      for (const auto &de : cycles[c]) compOfT[de.edge] = c;
-    componentOfRowEdge_.resize(built.edges.size());
-    for (size_t i = 0; i < built.edges.size(); ++i)
-      componentOfRowEdge_[i] = compOfT.at(built.edges[i]->index());
-  }
   // Certify the row: knotbuilder's link, drawn back, is row.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
   auto iso = findDiagramIsomorphism(drawn, row_.diagram, /*allowMirror=*/false,
@@ -86,68 +76,62 @@ HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
     rowToNode_[i] = row_.nodeMap[iso->componentMap[i]];
 }
 
-std::optional<HopAssembler::ReadBack>
+std::optional<farside::OutgoingLink>
 HopAssembler::readBack(const std::string &pairsig, std::string &why) const {
-  const size_t n = redraw_->rowCycles().size();
-  ReadBack rb;
-  rb.surfaceOfRowComponent.assign(n, static_cast<size_t>(-1));
-  auto place = [&](size_t firstEdgeIndex, size_t sc) -> bool {
-    const size_t rowEdge = redraw_->row().rowIndexOf.at(firstEdgeIndex);
-    const size_t rc = componentOfRowEdge_[rowEdge];
-    if (rb.surfaceOfRowComponent[rc] != static_cast<size_t>(-1)) {
-      why = "a row component met twice";
-      return false;
-    }
-    rb.surfaceOfRowComponent[rc] = sc;
-    return true;
-  };
-  if (read_ == Read::fast) {
-    auto link = redraw_->outgoingLinkFast(pairsig, why);
-    if (!link) return std::nullopt;
-    for (size_t i = 0; i < link->incomingFirstEdge.size(); ++i)
-      if (!place(link->incomingFirstEdge[i], link->incomingSurfaceComponent[i]))
-        return std::nullopt;
-    rb.link = std::move(*link);
-  } else {
-    auto carried = redraw_->carry(pairsig, why);
-    if (!carried) {
-      why = "carry: " + why;
-      return std::nullopt;
-    }
-    KnottedSurface surface(redraw_->skeleton(), *carried);
-    auto link = farside::orientedOutgoingLink(surface, redraw_->outgoing(),
-                                              redraw_->row(), redraw_->incomingBC());
-    if (!link) {
-      why = "incoming orientation inconsistent";
-      return std::nullopt;
-    }
-    const auto surfaceOf = surface.boundaryEdgeSurfaceComponent();
-    for (const auto &[bc, curves] : surface.orientedBoundaryLinks()) {
-      if (bc != redraw_->incomingBC()) continue;
-      for (const OrientedCurve &curve : curves)
-        if (!curve.empty() &&
-            !place(curve.front().edge->index(), surfaceOf.at(curve.front().edge)))
-          return std::nullopt;
-    }
-    rb.link = std::move(*link);
+  if (read_ == Read::fast) return redraw_->outgoingLinkFast(pairsig, why);
+  auto carried = redraw_->carry(pairsig, why);
+  if (!carried) {
+    why = "carry: " + why;
+    return std::nullopt;
   }
-  for (size_t sc : rb.surfaceOfRowComponent)
+  KnottedSurface surface(redraw_->skeleton(), *carried);
+  auto link = farside::orientedOutgoingLink(surface, redraw_->outgoing(),
+                                            redraw_->row(), redraw_->incomingBC());
+  if (!link) why = "incoming orientation inconsistent";
+  return link;
+}
+
+std::optional<std::vector<size_t>>
+HopAssembler::surfaceOfRowComponents(const farside::OutgoingLink &link,
+                                     std::string &why) const {
+  std::vector<size_t> of(redraw_->rowCycles().size(), static_cast<size_t>(-1));
+  for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i) {
+    const size_t rc = redraw_->rowComponentOf(link.incomingFirstEdge[i]);
+    if (of[rc] != static_cast<size_t>(-1)) {
+      why = "a row component met twice";
+      return std::nullopt;
+    }
+    of[rc] = link.incomingSurfaceComponent[i];
+  }
+  for (size_t sc : of)
     if (sc == static_cast<size_t>(-1)) {
       why = "a row component is on no surface component";
       return std::nullopt;
     }
-  return rb;
+  return of;
 }
 
 HopEdge HopAssembler::add(const HopWitness &w) {
-  HopEdge out;
   std::string why;
-  auto rb = readBack(w.pairsig, why);
-  if (!rb) {
+  auto link = readBack(w.pairsig, why);
+  if (!link) {
+    HopEdge out;
     out.why = why;
     return out;
   }
-  const farside::OutgoingLink *link = &rb->link;
+  return addRead(*link, w.genus, w.key);
+}
+
+HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
+                              const std::string &key) {
+  HopEdge out;
+  std::string why;
+  auto surfaceOfRowComponent = surfaceOfRowComponents(read, why);
+  if (!surfaceOfRowComponent) {
+    out.why = why;
+    return out;
+  }
+  const farside::OutgoingLink *link = &read;
 
   // Surface components, renumbered 0..c-1 in order of first appearance.
   std::map<size_t, int> compIndex;
@@ -158,9 +142,9 @@ HopEdge HopAssembler::add(const HopWitness &w) {
   const size_t n = redraw_->rowCycles().size();
   std::vector<int> inComp(n, -1);
   for (size_t rc = 0; rc < n; ++rc)
-    inComp[rc] = idx(rb->surfaceOfRowComponent[rc]);
+    inComp[rc] = idx((*surfaceOfRowComponent)[rc]);
   CobordismShape shape;
-  shape.genus = w.genus;
+  shape.genus = genus;
   shape.inComponent.resize(n);
   // Incoming curves in NODE order: node component rowToNode_[rc] <- rc.
   for (size_t rc = 0; rc < n; ++rc)
@@ -183,8 +167,8 @@ HopEdge HopAssembler::add(const HopWitness &w) {
     // A surface bounding the row alone: a leaf for the row's node.
     std::vector<int> labels(n);
     for (size_t i = 0; i < n; ++i) labels[i] = shape.inComponent[i];
-    g_.addLeaf(row_.node, Partition::fromLabels(labels), w.genus,
-               "direct witness " + w.key);
+    g_.addLeaf(row_.node, Partition::fromLabels(labels), genus,
+               "direct witness " + key);
     out.ok = true;
     out.direct = true;
     return out;
@@ -202,7 +186,7 @@ HopEdge HopAssembler::add(const HopWitness &w) {
     // simplify() can make a piece split further (a component unlinked by
     // Reidemeister moves): intern each resulting piece separately.
     for (const GaussDiagram &q : exactnaming::splitPieces(s)) {
-      out.pieces.push_back(nodes_.intern(q, "far side of " + w.key));
+      out.pieces.push_back(nodes_.intern(q, "far side of " + key));
       pieceOrigins.push_back(q.origin);
     }
   }
@@ -215,7 +199,7 @@ HopEdge HopAssembler::add(const HopWitness &w) {
   } else {
     // A split far side: a fresh whole node (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
-    out.farNode = g_.addNode(static_cast<int>(m), "split far side of " + w.key,
+    out.farNode = g_.addNode(static_cast<int>(m), "split far side of " + key,
                              linkingMatrix(whole));
     std::vector<NodeId> pn;
     std::vector<std::vector<int>> pmap;
@@ -232,7 +216,7 @@ HopEdge HopAssembler::add(const HopWitness &w) {
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addWitness(row_.node, out.farNode, shape, inMap, outMap, w.key);
+  out.edge = g_.addWitness(row_.node, out.farNode, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

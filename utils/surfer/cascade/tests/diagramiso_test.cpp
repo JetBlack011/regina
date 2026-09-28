@@ -95,6 +95,35 @@ long writhe(const GaussDiagram &d) {
   return w;
 }
 
+// A required component map: realised exactly when it is a symmetry of the
+// diagram (with a == b), never another map in its place.
+void testRequiredComponentMap() {
+  const GaussDiagram hopf = of(regina::ExampleLink::hopf());
+  const std::vector<int> id = {0, 1}, swap = {1, 0};
+  auto i = findDiagramIsomorphism(hopf, hopf, false, false, &id);
+  auto s = findDiagramIsomorphism(hopf, hopf, false, false, &swap);
+  CHECK(i && i->componentMap == id, "hopf: the identity is a symmetry");
+  CHECK(s && s->componentMap == swap,
+        "hopf: so is swapping its components, and the map returned is that swap");
+
+  const GaussDiagram wh = of(regina::ExampleLink::whitehead());
+  CHECK(wh.comps[0].size() != wh.comps[1].size(),
+        "whitehead: its two components cross differently often in this diagram");
+  CHECK(!findDiagramIsomorphism(wh, wh, true, true, &swap),
+        "whitehead: so no isomorphism of this diagram swaps them");
+  CHECK(findDiagramIsomorphism(wh, wh, true, true, &id), "whitehead: the identity");
+
+  const GaussDiagram &u = samples().back().d; // hopf u T(2,4) u 3_1
+  const std::vector<int> swapHopf = {1, 0, 2, 3, 4}, hopfToTorus = {2, 3, 0, 1, 4};
+  auto sh = findDiagramIsomorphism(u, u, false, false, &swapHopf);
+  CHECK(sh && sh->componentMap == swapHopf, "split union: swapping the Hopf pair");
+  CHECK(!findDiagramIsomorphism(u, u, true, true, &hopfToTorus),
+        "split union: the Hopf pair never maps onto T(2,4)");
+  const std::vector<int> tooShort = {0, 1};
+  CHECK(!findDiagramIsomorphism(u, u, true, true, &tooShort),
+        "a map of the wrong size is refused");
+}
+
 void testRelabellings() {
   std::mt19937 rng(11);
   for (const Named &s : samples()) {
@@ -215,6 +244,7 @@ void testSplitPiecesKeepOrigins() {
 } // namespace
 
 int main() {
+  testRequiredComponentMap();
   testRelabellings();
   testOrientationSensitivity();
   testMirrorAndReverse();

@@ -4,22 +4,26 @@
 //
 // Usage:
 //   cascadesearch --target-pd '<PD>' --target-name NAME --work DIR
-//                 --verifyslicegenus PATH --knot-table CSV --link-table CSV
-//                 [--knot-symmetry CSV] [--census-db PATH]
+//                 --knot-table CSV --link-table CSV --census-db PATH
+//                 [--knot-symmetry CSV] [--master-witnesses CSV]
+//                 [--hop-mode process|child] [--verifyslicegenus PATH]
 //                 [--goal-genus G] [--goal disjoint|connected]
 //                 [--hop-surfaces N] [--max-hop-surfaces N] [--threads T]
 //                 [--max-expansions K] [--cpu-budget SECONDS]
 //                 [--max-crossings C] [--strategy best|dfs|bfs]
 //                 [--literature | --constructive]
 //
-// Each expansion is one verifyslicegenus row (the campaign's search shape)
-// run as a child process on a node's diagram; its witnesses become edges of
-// the proof graph (hopedges.h), far sides become nodes (nodes.h), and bounds
-// are relaxed to a fixed point (proofgraph.h) after every hop. The run stops
-// when the target's goal has a proof, or the budget is spent.
+// Each expansion is one row searched on a node's diagram with the
+// campaign's search shape: in this process (hoprunner.h; the default), or
+// as a verifyslicegenus child (--hop-mode child, which needs
+// --verifyslicegenus). Its surfaces become edges of the proof graph
+// (hopedges.h), far sides become nodes (nodes.h), and bounds are relaxed to
+// a fixed point (proofgraph.h) after every hop. The run stops when the
+// target's goal has a proof, or the budget is spent.
 //
-// Writes, under DIR: hop_<k>_n<node>/ (each hop's row, witnesses and logs),
-// cascade.jsonl (one line per hop), and certificate.json when the goal is met.
+// Writes, under DIR: hop_<k>_n<node>/ (each hop's row and log, and a child
+// hop's witnesses), cascade.jsonl (one line per hop), and certificate.json
+// when the goal is met.
 
 #include <spawn.h>
 #include <sys/resource.h>
@@ -46,7 +50,10 @@
 
 #include "exactnaming/exactnamer.h"
 #include "exactnaming/exacttables.h"
+#include "farsidenaming.h"
 #include "hopedges.h"
+#include "hoprunner.h"
+#include "identifycomplement.h"
 #include "leaves.h"
 #include "nodes.h"
 #include "proofgraph.h"
@@ -75,6 +82,10 @@ struct Config {
   /// The atlas's master cobordisms.csv (read only): a node that IS a table
   /// entry the atlas searched gets that row's witnesses as free edges.
   std::string masterWitnesses;
+  /// "process": each hop searched in this process (hoprunner.h); "child": a
+  /// verifyslicegenus row per hop, its witnesses read back from their pair
+  /// signatures. Both search the same thickening with the same shape.
+  std::string hopMode = "process";
   bool verbose = false;
 };
 
@@ -338,7 +349,17 @@ private:
     /// for a hop on the node's own diagram, the registry's map for a master
     /// row (the table's diagram).
     std::vector<int> rowNodeMap;
+    /// An in-process hop's surface, as triangles of the row's thickening:
+    /// its pair signature is computed only if a certificate needs it.
+    std::vector<int> faces;
   };
+  /// The pair signatures a certificate carries for the in-process witnesses
+  /// its proof uses, signed now from their faces (pairSigsOf()). Master
+  /// witnesses carry theirs inline, and a child hop's is in its directory.
+  std::map<const EdgeInfo *, std::string>
+  certificatePairSigs(const std::vector<RecordId> &proof) const;
+  std::optional<farside::SignatureTable> signatures_;
+  std::unique_ptr<HopSearcher> searcher_;
   std::unique_ptr<MasterIndex> master_;
   std::map<std::string, std::string> tablePD_;
   std::set<NodeId> masterDone_;
@@ -577,51 +598,99 @@ void Cascade::expand(NodeId n, long surfaces) {
     return;
   }
   const std::string rowName = "cascade_n" + std::to_string(n);
-  std::ofstream(dir + "/input.csv") << "Name,PD Notation,Genus-4D\n"
-                                    << rowName << "," << row.pd << ",[0;99]\n";
-  std::vector<std::string> argv = {
-      cfg_.verify, "--input", dir + "/input.csv", "--output", dir + "/out.csv",
-      "--cobordisms", dir + "/cob.csv", "--census-db", cfg_.censusDb, "--no-census-updates",
-      "--knot-table", cfg_.knotTable, "--link-table", cfg_.linkTable,
-      "--max-crossings", "999", "--thicken-layers", "2", "--collar-layers", "2",
-      "--max-faces", "5", "--iddfs-iterations", "2", "--iddfs-start", "4", "--iddfs-step", "1",
-      "--root-budget-start", "50000", "--root-budget-growth", "2", "--no-cone", "--harvest",
-      "--boundary-condition", "proper", "--research-settled", "--per-knot-time-limit", "7200",
-      "--threads", std::to_string(cfg_.threads), "--surface-target", std::to_string(surfaces),
-      "--resolve-unlinked", "--exact-far-side-names", "--no-retriangulate-on-miss"};
-  ChildRun r = runChild(argv, dir + "/log.txt", dir + "/err.txt");
-  cpuSpent_ += r.cpu;
-  wallSpent_ += r.wall;
-  expansions_[n].push_back(surfaces);
-
   const size_t nodesBefore = g_.nodeCount();
-  const auto t0 = std::chrono::steady_clock::now();
   int assembled = 0, failed = 0;
-  std::vector<Witness> ws = readWitnesses(dir + "/cob.csv");
-  for (const Witness &w : ws) {
-    const std::string key = witnesskey::witnessKey(w.pairsig);
+  size_t witnesses = 0;
+  // One witness (or kept surface) into the graph. Its edge's key is its
+  // provenance: the witness key of a child hop's witness, or hop<k>#<i> for
+  // an in-process one, whose pair signature does not exist yet.
+  auto take = [&](const std::string &key, const std::string &label,
+                  const std::function<HopEdge()> &add, std::vector<int> faces) {
     HopEdge e;
     try {
-      e = hop->add({w.pairsig, w.genus, key});
+      e = add();
     } catch (const std::logic_error &ex) {
       // A broken invariant (e.g. simplify changed a linking number): never
       // silently. The witness is dropped, which is sound; the run goes on.
       ++invariantFailures_;
       e.why = std::string("INVARIANT: ") + ex.what();
-      std::cout << "[!!] witness " << key << " (" << w.other << "): " << e.why << "\n";
+      std::cout << "[!!] witness " << key << " (" << label << "): " << e.why << "\n";
     } catch (const std::exception &ex) {
       e.why = std::string("exception: ") + ex.what();
     }
     if (e.ok) {
       ++assembled;
-      if (e.direct) directInfo_[key] = {dir, row.pd, key, e, 2, "", row.nodeMap};
-      else edgeInfo_[e.edge] = {dir, row.pd, key, e, 2, "", row.nodeMap};
+      EdgeInfo info{dir, row.pd, key, e, 2, "", row.nodeMap, std::move(faces)};
+      if (e.direct) directInfo_[key] = std::move(info);
+      else edgeInfo_[e.edge] = std::move(info);
     } else {
       ++failed;
-      std::cout << "[!] witness " << witnesskey::witnessKey(w.pairsig) << " (" << w.other
-                << "): " << e.why << "\n";
+      std::cout << "[!] witness " << key << " (" << label << "): " << e.why << "\n";
+    }
+  };
+
+  ChildRun r;
+  std::chrono::steady_clock::time_point t0;
+  if (searcher_) {
+    HopRun run;
+    try {
+      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200);
+    } catch (const std::exception &e) {
+      refused_.insert(n);
+      log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
+          ",\"refused\":\"" + jsonEscape(e.what()) + "\"}");
+      std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
+      return;
+    }
+    r.status = run.accountingFailure.empty() ? 0 : 1;
+    r.wall = run.wall;
+    r.cpu = run.cpu;
+    std::ofstream(dir + "/log.txt")
+        << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
+        << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
+        << ": accounting: " << run.accounting << "\n";
+    if (!run.accountingFailure.empty())
+      std::cout << "[!!] hop " << k << ": surface accounting failed -- "
+                << run.accountingFailure << " (completeness only: nothing unsound "
+                << "is recorded)\n";
+    t0 = std::chrono::steady_clock::now();
+    witnesses = run.kept.size();
+    for (size_t i = 0; i < run.kept.size(); ++i) {
+      KeptSurface &ks = run.kept[i];
+      const std::string key = "hop" + std::to_string(k) + "#" + std::to_string(i);
+      take(key, ks.farName, [&] { return hop->addRead(ks.link, ks.genus, key); },
+           std::move(ks.faces));
+    }
+  } else {
+    std::ofstream(dir + "/input.csv") << "Name,PD Notation,Genus-4D\n"
+                                      << rowName << "," << row.pd << ",[0;99]\n";
+    const HopShape shape;
+    std::vector<std::string> argv = {
+        cfg_.verify, "--input", dir + "/input.csv", "--output", dir + "/out.csv",
+        "--cobordisms", dir + "/cob.csv", "--census-db", cfg_.censusDb,
+        "--no-census-updates", "--knot-table", cfg_.knotTable, "--link-table",
+        cfg_.linkTable, "--max-crossings", "999", "--thicken-layers", "2",
+        "--collar-layers", "2", "--max-faces", std::to_string(shape.maxFaces),
+        "--iddfs-iterations", std::to_string(shape.iddfsIterations), "--iddfs-start",
+        std::to_string(shape.iddfsStart), "--iddfs-step", std::to_string(shape.iddfsStep),
+        "--root-budget-start", std::to_string(shape.rootBudgetStart),
+        "--root-budget-growth", std::to_string(shape.rootBudgetGrowth), "--no-cone",
+        "--harvest", "--boundary-condition", "proper", "--research-settled",
+        "--per-knot-time-limit", "7200", "--threads", std::to_string(cfg_.threads),
+        "--surface-target", std::to_string(surfaces), "--resolve-unlinked",
+        "--exact-far-side-names", "--no-retriangulate-on-miss"};
+    r = runChild(argv, dir + "/log.txt", dir + "/err.txt");
+    t0 = std::chrono::steady_clock::now();
+    std::vector<Witness> ws = readWitnesses(dir + "/cob.csv");
+    witnesses = ws.size();
+    for (const Witness &w : ws) {
+      const std::string key = witnesskey::witnessKey(w.pairsig);
+      take(key, w.other, [&] { return hop->add({w.pairsig, w.genus, key}); }, {});
     }
   }
+  cpuSpent_ += r.cpu;
+  wallSpent_ += r.wall;
+  expansions_[n].push_back(surfaces);
   for (size_t m = nodesBefore; m < g_.nodeCount(); ++m)
     onNewNode(static_cast<NodeId>(m), depth_.at(n) + 1);
   g_.propagate();
@@ -634,7 +703,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   o << "{\"hop\":" << k << ",\"node\":" << n << ",\"crossings\":" << d.crossings()
     << ",\"surfaces\":" << surfaces << ",\"status\":" << r.status
     << ",\"wall\":" << std::fixed << std::setprecision(1) << r.wall << ",\"cpu\":" << r.cpu
-    << ",\"assemble\":" << assemble << ",\"witnesses\":" << ws.size()
+    << ",\"assemble\":" << assemble << ",\"witnesses\":" << witnesses
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
     << ",\"records\":" << g_.recordCount()
@@ -644,11 +713,42 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"invariant_failures\":" << invariantFailures_ << "}";
   log(o.str());
   std::cout << "[+] hop " << k << ": node " << n << " (" << d.crossings() << " crossings, "
-            << d.components() << " components): " << ws.size() << " witnesses, "
+            << d.components() << " components): " << witnesses << " witnesses, "
             << assembled << " assembled, " << (g_.nodeCount() - nodesBefore)
             << " new nodes; " << std::fixed << std::setprecision(0) << r.wall << " s wall, "
             << r.cpu << " s CPU; target best " << (best ? std::to_string(best->genus) : "none")
             << "\n";
+}
+
+std::map<const Cascade::EdgeInfo *, std::string>
+Cascade::certificatePairSigs(const std::vector<RecordId> &proof) const {
+  std::vector<const EdgeInfo *> infos;
+  for (RecordId r : proof) {
+    const Record &rec = g_.record(r);
+    const EdgeInfo *info = nullptr;
+    if (rec.kind == RecordKind::witnessForward || rec.kind == RecordKind::witnessReverse) {
+      if (auto it = edgeInfo_.find(rec.edge); it != edgeInfo_.end()) info = &it->second;
+    } else if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
+      if (auto it = directInfo_.find(rec.source.substr(15)); it != directInfo_.end())
+        info = &it->second;
+    }
+    if (info && !info->faces.empty() &&
+        std::find(infos.begin(), infos.end(), info) == infos.end())
+      infos.push_back(info);
+  }
+  std::vector<SignRequest> requests;
+  for (const EdgeInfo *info : infos) requests.push_back({info->rowPD, info->layers, info->faces});
+  const auto t0 = std::chrono::steady_clock::now();
+  const std::vector<std::string> sigs =
+      pairSigsOf(requests, static_cast<unsigned>(cfg_.threads));
+  if (!infos.empty())
+    std::cout << "[+] certificate: " << infos.size() << " pair signatures in " << std::fixed
+              << std::setprecision(0)
+              << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
+              << " s\n";
+  std::map<const EdgeInfo *, std::string> out;
+  for (size_t i = 0; i < infos.size(); ++i) out[infos[i]] = sigs[i];
+  return out;
 }
 
 void Cascade::writeCertificate() const {
@@ -661,7 +761,13 @@ void Cascade::writeCertificate() const {
     << best->genus << ",\"records\":[\n";
   bool first = true;
   std::set<NodeId> nodes;
-  for (RecordId r : g_.proof(best->record)) {
+  const std::vector<RecordId> proof = g_.proof(best->record);
+  const std::map<const EdgeInfo *, std::string> signedNow = certificatePairSigs(proof);
+  auto pairSigFor = [&](const EdgeInfo &info) {
+    auto s = signedNow.find(&info);
+    return s != signedNow.end() ? s->second : info.pairsig;
+  };
+  for (RecordId r : proof) {
     const Record &rec = g_.record(r);
     nodes.insert(rec.node);
     c << (first ? "" : ",\n") << "{\"id\":" << r << ",\"node\":" << rec.node
@@ -681,18 +787,28 @@ void Cascade::writeCertificate() const {
       const WitnessEdge &we = g_.witness(rec.edge);
       nodes.insert(we.in);
       nodes.insert(we.out);
-      c << ",\"witness\":\"" << jsonEscape(we.key) << "\",\"in\":" << we.in
+      const auto it = edgeInfo_.find(rec.edge);
+      // An in-process witness is named in the certificate by its pair
+      // signature's key, as every other witness is; its graph key (hop<k>#<i>)
+      // becomes its provenance.
+      const std::string pairsig =
+          it != edgeInfo_.end() ? pairSigFor(it->second) : std::string();
+      const bool inProcess = it != edgeInfo_.end() && !it->second.faces.empty();
+      c << ",\"witness\":\""
+        << jsonEscape(inProcess ? witnesskey::witnessKey(pairsig) : we.key) << "\"";
+      if (inProcess) c << ",\"provenance\":\"" << jsonEscape(we.key) << "\"";
+      c << ",\"in\":" << we.in
         << ",\"out\":" << we.out << ",\"shape\":{\"components\":" << we.shape.components
         << ",\"genus\":" << we.shape.genus << ",\"inComponent\":" << ints(we.shape.inComponent)
         << ",\"outComponent\":" << ints(we.shape.outComponent) << "},\"inMap\":"
         << ints(we.inMap) << ",\"outMap\":" << ints(we.outMap);
-      if (auto it = edgeInfo_.find(rec.edge); it != edgeInfo_.end()) {
+      if (it != edgeInfo_.end()) {
         const HopEdge &he = it->second.he;
         c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
           << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
           << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
-        if (!it->second.pairsig.empty())
-          c << ",\"pairsig\":\"" << jsonEscape(it->second.pairsig) << "\"";
+        if (!pairsig.empty())
+          c << ",\"pairsig\":\"" << jsonEscape(pairsig) << "\"";
         c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
         for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
           c << (j ? "," : "") << ints(he.farCurveEdges[j]);
@@ -721,11 +837,15 @@ void Cascade::writeCertificate() const {
     if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
       const std::string key = rec.source.substr(15);
       if (auto it = directInfo_.find(key); it != directInfo_.end()) {
-        c << ",\"witness\":\"" << jsonEscape(it->second.key) << "\",\"hop_dir\":\""
-          << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
+        const std::string pairsig = pairSigFor(it->second);
+        const bool inProcess = !it->second.faces.empty();
+        c << ",\"witness\":\""
+          << jsonEscape(inProcess ? witnesskey::witnessKey(pairsig) : it->second.key)
+          << "\",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
           << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
-        if (!it->second.pairsig.empty())
-          c << ",\"pairsig\":\"" << jsonEscape(it->second.pairsig) << "\"";
+        if (inProcess) c << ",\"provenance\":\"" << jsonEscape(it->second.key) << "\"";
+        if (!pairsig.empty())
+          c << ",\"pairsig\":\"" << jsonEscape(pairsig) << "\"";
       }
     }
     c << "}";
@@ -760,6 +880,24 @@ void Cascade::writeCertificate() const {
 
 int Cascade::run() {
   fs::create_directories(cfg_.work);
+  if (cfg_.hopMode == "process") {
+    // As a child hop runs verifyslicegenus: a private census copy, never
+    // written, and no Pachner searches on a census miss.
+    if (!census::setCensusPath(cfg_.censusDb))
+      std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
+    census::retriangulateOnMiss.store(false);
+    const auto t0 = std::chrono::steady_clock::now();
+    signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);
+    searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, HopShape{},
+                                              static_cast<unsigned>(cfg_.threads));
+    std::cout << "[+] hops in process: " << signatures_->knots() << " knot and "
+              << signatures_->links() << " link diagram signatures ("
+              << std::fixed << std::setprecision(1)
+              << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
+              << " s)\n";
+  } else if (cfg_.hopMode != "child") {
+    throw std::invalid_argument("--hop-mode must be process or child");
+  }
   if (!cfg_.masterWitnesses.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
     master_ = std::make_unique<MasterIndex>(cfg_.masterWitnesses);
@@ -873,16 +1011,18 @@ int main(int argc, char **argv) {
     else if (a == "--literature") c.literature = true;
     else if (a == "--constructive") c.literature = false;
     else if (a == "--master-witnesses") c.masterWitnesses = next();
+    else if (a == "--hop-mode") c.hopMode = next();
     else if (a == "--verbose") c.verbose = true;
     else {
       std::cerr << "unknown argument " << a << "\n";
       return 2;
     }
   }
-  if (c.targetPD.empty() || c.work.empty() || c.verify.empty() || c.knotTable.empty() ||
-      c.linkTable.empty() || c.censusDb.empty()) {
-    std::cerr << "cascadesearch: --target-pd, --work, --verifyslicegenus, --knot-table, "
-                 "--link-table and --census-db are required\n";
+  if (c.targetPD.empty() || c.work.empty() || c.knotTable.empty() ||
+      c.linkTable.empty() || c.censusDb.empty() ||
+      (c.hopMode == "child" && c.verify.empty())) {
+    std::cerr << "cascadesearch: --target-pd, --work, --knot-table, --link-table and "
+                 "--census-db are required, and --verifyslicegenus with --hop-mode child\n";
     return 2;
   }
   if (c.targetName.empty()) c.targetName = "target";

@@ -12,7 +12,6 @@
 #include <triangulation/dim2.h>
 #include <utilities/sigutils.h>
 
-#include "collar.h"
 #include "embeddedsubmanifold.h"
 #include "pairsig.h"
 
@@ -32,29 +31,25 @@ int carryTriangle(const regina::Triangle<4> *t, const regina::Isomorphism<4> &is
 
 } // namespace
 
-WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers)
-    : pd_(knotbuilder::parsePDCode(rowPD)), built_(knotbuilder::buildLink(pd_)) {
+WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
-    // The row's thickening, exactly as verifyslicegenus builds it.
-    std::vector<int> edgeIndices;
-    for (const regina::Edge<3> *e : built_.edges) edgeIndices.push_back(static_cast<int>(e->index()));
-    cob_ = std::make_unique<CobordismBuilder<3>>(built_.tri);
-    CollarBuilder collar(edgeIndices);
-    for (int i = 0; i < layers; ++i) {
-        cob_->thicken();
-        collar.addLayer(*cob_);
-    }
-    const regina::Triangulation<4> &W = cob_->getCobordism();
-    std::vector<int> seed;
-    for (regina::Triangle<4> *t : collar.resolve()) seed.push_back(static_cast<int>(t->index()));
-    incomingBC_ = cob_->baseBoundaryComponent()->index();
-    rowEdges_ = boundaryEdgesOf(W, seed, incomingBC_);
-    row_ = cobordismgraph::buildRowOrientation(built_.edges, built_.reversed,
-                                               W.boundaryComponent(incomingBC_)->build(), &rowEdges_);
-    outgoing_ = std::make_unique<OutgoingMap>(built_.tri, *cob_);
-    drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(built_.tri, pd_.size());
+    // The row's thickening, exactly as verifyslicegenus builds it: collared
+    // through every layer, no cone.
+    rowsearch::buildRow(rowPD, layers, layers, /*useCone=*/false, rb_);
+    const regina::Triangulation<4> &W = rb_.tri;
+    outgoing_ = std::make_unique<OutgoingMap>(rb_.link.tri, *rb_.cob);
+    drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(rb_.link.tri, rb_.pdcode.size());
     skeleton_ = std::make_unique<Skeleton<4, 2>>(W);
-    rowCycles_ = knotbuilder::DiagramDrawer::cyclesOf(built_.edges, built_.reversed);
+    rowCycles_ = knotbuilder::DiagramDrawer::cyclesOf(rb_.link.edges, rb_.link.reversed);
+    {
+        // A search-side edge -> its row edge (the row map) -> its T edge ->
+        // the cycle holding it.
+        std::unordered_map<size_t, size_t> cycleOfT;
+        for (size_t c = 0; c < rowCycles_.size(); ++c)
+            for (const auto &de : rowCycles_[c]) cycleOfT[de.edge] = c;
+        for (const auto &[edge, rowEdge] : rb_.orientation->rowIndexOf)
+            rowComponentOf_[edge] = cycleOfT.at(rb_.link.edges[rowEdge]->index());
+    }
     for (size_t c = 0; c < W.countBoundaryComponents(); ++c) {
         const regina::BoundaryComponent<4> *bc = W.boundaryComponent(c);
         // Same-indexed edges of bc and its build() are numbered alike
@@ -80,7 +75,7 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
         std::vector<int> image;
         image.reserve(faces.size());
         for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
-        if (boundaryEdgesOf(W, image, incomingBC_) != rowEdges_) return false;
+        if (boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
         carried = std::move(image);
         found = true;
         return true;
@@ -96,10 +91,10 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
         std::vector<int> image;
         for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
         if (isos < 4) {
-            auto in = boundaryEdgesOf(W, image, incomingBC_);
+            auto in = boundaryEdgesOf(W, image, rb_.searchSideBC);
             auto out = boundaryEdgesOf(W, image, outgoing_->boundaryComponent());
             std::vector<size_t> common;
-            std::ranges::set_intersection(in, rowEdges_, std::back_inserter(common));
+            std::ranges::set_intersection(in, rb_.searchEdges, std::back_inserter(common));
             sizes += " [in " + std::to_string(in.size()) + " edges, " +
                      std::to_string(common.size()) + " on L; out " + std::to_string(out.size()) + "]";
         }
@@ -107,7 +102,7 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
         return false;
     });
     why = "no isomorphism carries its incoming curve onto L (" + std::to_string(isos) +
-          " isomorphisms onto the thickening; L has " + std::to_string(rowEdges_.size()) +
+          " isomorphisms onto the thickening; L has " + std::to_string(rb_.searchEdges.size()) +
           " edges;" + sizes + ")";
     return std::nullopt;
 }
@@ -183,7 +178,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
         std::vector<int> image;
         image.reserve(faces.size());
         for (int f : faces) image.push_back(carryTriangle(ambient_->triangle(f), iso, W));
-        if (boundaryEdgesOf(W, image, incomingBC_) == rowEdges_) {
+        if (boundaryEdgesOf(W, image, rb_.searchSideBC) == rb_.searchEdges) {
             carried = std::move(image);
             break;
         }
@@ -240,8 +235,8 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
             surfaceOf[edge] = simplex->component()->index();
         }
     }
-    std::vector<OrientedCurve> incoming = chain(directed[incomingBC_]);
-    std::optional<std::map<size_t, int>> flips = incomingFlips(row_, incoming, surfaceOf);
+    std::vector<OrientedCurve> incoming = chain(directed[rb_.searchSideBC]);
+    std::optional<std::map<size_t, int>> flips = incomingFlips(*rb_.orientation, incoming, surfaceOf);
     if (!flips) {
         why = "incoming orientation is inconsistent";
         return std::nullopt;
@@ -285,7 +280,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLink(const std::string &pai
     }
     auto t1 = std::chrono::steady_clock::now();
     msBoundaryBuild_ += std::chrono::duration<double, std::milli>(tb - t0).count();
-    auto link = orientedOutgoingLink(surface, *outgoing_, row_, incomingBC_);
+    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.searchSideBC);
     msSurface_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
     if (!link) why = "incoming orientation is inconsistent";

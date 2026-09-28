@@ -19,6 +19,7 @@ where it is tested. Each header's own `\file` comment has the details.
 | `knotbuilder/triangulateknot` | a PD code → the triangulation's and its complement's isomorphism signatures |
 | `tools/bench_search.sh` | rough, repeatable search benchmarks, one row per run (see "Performance" below) |
 | `tools/compare_surface_sets.sh` | whether two builds accept and describe exactly the same surfaces: exhaustive runs with `--surface-log`, sorted and compared |
+| `cascade/cascadesearch` | goal-directed chained searches for one target: each hop searches a far side's own diagram, and bounds compose over a proof graph with partition-genus profiles. See `cascade/README.md` |
 
 `bogocheck.cpp` and `fillmanifold.cpp` are old scratch programs that no target
 builds.
@@ -43,7 +44,8 @@ builds.
 | `vertexlinks.{h,cpp}`, `rollbackunionfind.{h,cpp}` | the incremental local checks and their memoisation |
 | `linkingnumber.{h,cpp}` | the linking number of two closed petals' traces in Lk(v), by cochains on Lk(v) itself (since 2026-09-28): push B off into the dual cells, solve δx = PD(B*) over GF(2⁶¹−1), read x(A). Checks its own answer (δβ = 0, δx = β everywhere) and declines rather than guess; `KnottedSurface::addFace()` then falls back to drilling (`linkcomplement`). `--audit-linking` runs both routes on every miss |
 | `embeddingsearch.{h,cpp}` | the parallel search over roots (parallel across roots, never within one) |
-| `surfacesearch.{h,cpp}` | the search as `verifyslicegenus` uses it: enumeration plus the **drain**, which describes and names each accepted surface's boundary |
+| `surfacesearch.{h,cpp}` | the search as `verifyslicegenus` uses it: enumeration plus the **drain**, which describes and names each accepted surface's boundary. `captureFaces` hands out a described surface's triangles, from which its pair signature can be computed later |
+| `rowsearch.{h,cpp}` | **the row pipeline**, shared by `verifyslicegenus`, `cascadesearch`, `surfer` and `farsideredraw` (since 2026-09-28): `buildRow()` (T, the thickening, the collar seed, the row map and its setup checks), `gateSurface()` (orientable, search side intact, the row's own oriented variant, one far side), `farSideName()`, `RowAccounting` (the buckets and the `accounting:` line), `RowWatchdog` (surface target before the clocks), `conditionFor()` |
 
 **Naming boundaries**
 
@@ -279,7 +281,8 @@ needs an idle machine. Besides each component's own unit tests:
 |---|---|
 | `tests/enumerator_test` | the enumerator returns exactly the brute-force set of connected induced subgraphs (with seeds, budgets, depth caps, anti-monotonic filters); budgeted passes that resume one another visit exactly what one unbudgeted pass does, in the same order, down to a ration of one attempt |
 | `tests/predicate_order_test` | `KnottedSurface`'s prunes (P_1, flatness, transversality) agree with a from-scratch reference on every set of triangles in small closed triangulations, whatever the order faces are added, including one-vertex ones where a triangle has several corners at a vertex |
-| `tests/rowmap_test` | the row map lands exactly on L × {0}, no searchable face touches it, the bare collar classifies as matching (optionally over a whole table) |
+| `tests/rowmap_test` | `rowsearch::buildRow()`: the row map lands exactly on L × {0} (against an independent computation of the seed's edges), no searchable face touches it, the bare collar classifies as matching (optionally over a whole table) |
+| `tests/rowsearch_test` | the rest of `rowsearch.h` on its own: `conditionFor()`, the rejection names, every accounting bucket and failure message and the exact `accounting:` body `dispatch.py` parses, the watchdog's order and reasons; `gateSurface()` on exhaustive cap-3 searches reproducing the canaries' 3_1 and L2a1{0} counts with no naming at all; and a pair signature computed from `captureFaces()` equal to the captured one |
 | `tests/name_independence_test.sh` | perturbing every name (identified or drawn: it runs with diagram naming and requires that it was used) changes nothing the search accepts or records |
 | `tests/interrupted_outcome_test.sh` | a search stopped by SIGINT is recorded as `interrupted`, never `exhausted` |
 | `tests/census_test` | census lookups, and that an insert after a hit lands |

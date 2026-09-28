@@ -109,8 +109,7 @@ struct OutgoingLink {
     std::vector<size_t> surfaceComponent;       /**< Per curve. */
     /** The incoming side, per incoming curve: the index of its first edge in
      *  the incoming boundary component's built triangulation, and the surface
-     *  component it lies on. Filled by WitnessRedrawer::outgoingLinkFast()
-     *  only (the cascade needs both ends); empty otherwise. */
+     *  component it lies on (the cascade needs both ends). */
     std::vector<size_t> incomingFirstEdge;
     std::vector<size_t> incomingSurfaceComponent;
 };
@@ -123,6 +122,17 @@ struct OutgoingLink {
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
     const cobordismgraph::RowOrientation &row, size_t incomingBC);
+
+/**
+ * As above, from a surface's boundary as a search hands it out
+ * (SurfaceBoundaryInfo::captureOrientedBoundaryLinks() and
+ * captureBoundaryEdgeSurfaceComponent()) rather than a KnottedSurface.
+ */
+std::optional<OutgoingLink> orientedOutgoingLink(
+    const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+    const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
+    size_t incomingBC);
 
 /**
  * The edges of `faces` (triangle indices of `tri`) lying in boundary

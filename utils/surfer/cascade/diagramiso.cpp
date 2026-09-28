@@ -45,9 +45,11 @@ GaussDiagram reverseComponent(const GaussDiagram &d, size_t c) {
 
 namespace {
 
-// Orientation-preserving, non-mirroring isomorphism a -> b, or nullopt.
+// Orientation-preserving, non-mirroring isomorphism a -> b, or nullopt; one
+// realising `required` (a's component i -> b's required[i]) when given.
 std::optional<std::vector<int>> strictIsomorphism(const GaussDiagram &a,
-                                                  const GaussDiagram &b) {
+                                                  const GaussDiagram &b,
+                                                  const std::vector<int> *required) {
   const size_t m = a.components(), n = a.crossings();
   if (m != b.components() || n != b.crossings())
     return std::nullopt;
@@ -83,6 +85,8 @@ std::optional<std::vector<int>> strictIsomorphism(const GaussDiagram &a,
     const auto &wa = a.comps[ca];
     for (size_t cb = 0; cb < m; ++cb) {
       if (compUsed[cb] || b.comps[cb].size() != wa.size())
+        continue;
+      if (required && (*required)[ca] != static_cast<int>(cb))
         continue;
       const auto &wb = b.comps[cb];
       const size_t len = wa.size();
@@ -131,13 +135,16 @@ std::optional<std::vector<int>> strictIsomorphism(const GaussDiagram &a,
 
 std::optional<DiagramIsomorphism>
 findDiagramIsomorphism(const GaussDiagram &a, const GaussDiagram &b,
-                       bool allowMirror, bool allowReverse) {
+                       bool allowMirror, bool allowReverse,
+                       const std::vector<int> *componentMap) {
+  if (componentMap && componentMap->size() != a.components())
+    return std::nullopt;
   for (int mir = 0; mir <= (allowMirror ? 1 : 0); ++mir)
     for (int rev = 0; rev <= (allowReverse ? 1 : 0); ++rev) {
       GaussDiagram t = a;
       if (mir) t = mirrorImage(t);
       if (rev) t = reverseAll(t);
-      if (auto map = strictIsomorphism(t, b))
+      if (auto map = strictIsomorphism(t, b, componentMap))
         return DiagramIsomorphism{*map, mir == 1, rev == 1};
     }
   return std::nullopt;

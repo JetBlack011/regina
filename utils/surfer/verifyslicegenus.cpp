@@ -32,9 +32,7 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
 #include "cobordismgraph.h"
-#include "collar.h"
 #include "csvwriter.h"
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
@@ -44,6 +42,7 @@
 #include "linkcomplement.h"
 #include "linkingnumber.h"
 #include "identifycomplement.h"
+#include "rowsearch.h"
 
 using namespace cobordismgraph;
 
@@ -536,9 +535,9 @@ struct OutputRow {
            run must not erase a deeper exhaustive result. */
 };
 
-// Which BoundaryCondition to search a row under; see the switch in the
-// main loop for what each costs.
-enum class BoundaryConditionMode { automatic, connected, proper };
+// Which BoundaryCondition to search a row under; see
+// rowsearch::conditionFor() for what each costs.
+using rowsearch::BoundaryConditionMode;
 
 constexpr const char *OUTPUT_HEADER =
     "knot,resolved_genus,status,witness_kind,witness_pairsig,via_knot,"
@@ -652,31 +651,6 @@ constexpr const char *COBORDISMS_HEADER =
     "kind,subject,subject_components,other,other_candidates,other_components,"
     "genus,tubed,pairsig,source_row,thicken_layers,max_faces,"
     "resolved_vertices";
-
-// The seed's own edges in ambient boundary component `bcIndex`, as sorted
-// indices into that component's built triangulation -- the same numbering
-// KnottedSurface::boundaryLinks() uses (BoundaryComponent<4>::build()
-// numbers its edges as bc->edge(k)). For a collar seed on the search side,
-// exactly L x {0}.
-std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
-                                const std::vector<int> &seedFaces,
-                                size_t bcIndex) {
-  const regina::BoundaryComponent<4> *bc = tri.boundaryComponent(bcIndex);
-  std::unordered_map<const regina::Edge<4> *, size_t> local;
-  local.reserve(bc->countEdges());
-  for (size_t k = 0; k < bc->countEdges(); ++k)
-    local.emplace(bc->edge(k), k);
-  std::vector<size_t> edges;
-  for (int f : seedFaces) {
-    const regina::Triangle<4> *t = tri.triangle(f);
-    for (int i = 0; i < 3; ++i)
-      if (auto it = local.find(t->edge(i)); it != local.end())
-        edges.push_back(it->second);
-  }
-  std::ranges::sort(edges);
-  edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
-  return edges;
-}
 
 std::string formatWitness(const cobordismgraph::Witness &w) {
   std::ostringstream candidates;
@@ -2910,84 +2884,21 @@ int main(int argc, char *argv[]) {
               << ", " << row.hi << "], " << row.crossings
               << " crossings)...\n";
 
-    knotbuilder::PDCode pdcode;
-    knotbuilder::TriangulationWithLink link;
-    std::optional<CobordismBuilder<3>> cobOpt;
-    // Declared before eOpt, which holds a pointer to it.
+    // Declared before namer and eOpt, which hold pointers into it.
+    rowsearch::RowBuild rb;
     std::optional<farside::DiagramNamer> namer;
     std::optional<SurfaceSearch> eOpt;
-    std::vector<int> seedFaces;
-    std::optional<cobordismgraph::RowOrientation> rowOrientation;
-    size_t searchSideBC = 0;
-    int componentCount = 1;
-    // The row's own link on the search side: sorted edge indices of that
-    // boundary component's built triangulation. Seeded, these are the seed's
-    // own edges there (L x {0}), and no other searchable triangle can touch
-    // that component (asserted once below), so every surface's search side
-    // IS this set and nothing needs checking per surface. Unseeded, they are
-    // the image of L under the row map, and splitBoundary() filters on them.
-    std::vector<size_t> rowSearchEdges;
-    regina::Triangulation<4> tri;
     bool buildFailed = false;
 
-    // buildRowOrientation() lives inside this try alongside parsePDCode/
-    // buildLink: it throws regina::InvalidArgument too (empty edge set, a
-    // boundary component that isn't isomorphic to the row's own
-    // triangulation, or a link image that doesn't chain), and letting that
-    // escape would abort the entire sweep over one bad row rather than
-    // skipping it.
+    // buildRow() throws regina::InvalidArgument for a bad PD code and for a
+    // row map it cannot build or check (empty edge set, a boundary component
+    // that isn't isomorphic to the row's own triangulation, or a link image
+    // that doesn't chain); letting that escape would abort the entire sweep
+    // over one bad row rather than skipping it.
     try {
-      pdcode = knotbuilder::parsePDCode(row.pdNotation);
-      link = knotbuilder::buildLink(pdcode);
-
-      auto &[t2, edges2, reversed2] = link;
-      Link linkGrouping(t2, edges2);
-      componentCount = linkGrouping.countComponents();
-
-      std::vector<int> edgeIndices;
-      edgeIndices.reserve(edges2.size());
-      for (const regina::Edge<3> *e : edges2)
-        edgeIndices.push_back(static_cast<int>(e->index()));
-
-      cobOpt.emplace(t2);
-      CobordismBuilder<3> &cob = *cobOpt;
-      CollarBuilder collarBuilder(edgeIndices);
-      for (int i = 0; i < thickenLayers; ++i) {
-        cob.thicken();
-        if (i < collarLayers)
-          collarBuilder.addLayer(cob);
-      }
-      if (useCone)
-        cob.cone();
-
-      searchSideBC = cob.baseBoundaryComponent()->index();
-      tri = cob.getCobordism();
-
-      if (collarLayers > 0)
-        for (regina::Triangle<4> *t : collarBuilder.resolve())
-          seedFaces.push_back(static_cast<int>(t->index()));
-
-      if (!seedFaces.empty())
-        rowSearchEdges = seedEdgesOn(tri, seedFaces, searchSideBC);
-      rowOrientation = cobordismgraph::buildRowOrientation(
-          edges2, reversed2, tri.boundaryComponent(searchSideBC)->build(),
-          seedFaces.empty() ? nullptr : &rowSearchEdges);
-      if (seedFaces.empty())
-        rowSearchEdges = rowOrientation->edges;
-
-      // Setup-time checks on the row's own link, in place of any
-      // per-surface ones: the search side is fixed from here on.
-      if (rowSearchEdges.size() != edges2.size())
-        throw regina::InvalidArgument(
-            "the search side holds " + std::to_string(rowSearchEdges.size()) +
-            " link edges, the diagram " + std::to_string(edges2.size()));
-      if (rowOrientation->components !=
-          static_cast<size_t>(componentCount))
-        throw regina::InvalidArgument(
-            "the search-side link has " +
-            std::to_string(rowOrientation->components) +
-            " components, the diagram " + std::to_string(componentCount));
-      if (rowOrientation->divergedFromDefaultIsomorphism)
+      rowsearch::buildRow(row.pdNotation, thickenLayers, collarLayers, useCone,
+                          rb);
+      if (rb.orientation->divergedFromDefaultIsomorphism)
         std::cerr << "[i] " << row.name
                   << ": the diagram's triangulation has a symmetry moving "
                      "L; using the map that takes L onto its own seed "
@@ -3011,15 +2922,15 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    if (seedFaces.empty())
-      eOpt.emplace(tri);
+    if (rb.seedFaces.empty())
+      eOpt.emplace(rb.tri);
     else
-      eOpt.emplace(tri, seedFaces, searchSideBC);
+      eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
     if (signatureTable && !useCone) {
       try {
-        namer.emplace(link.tri, pdcode.size(), *cobOpt, *signatureTable);
+        namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatureTable);
         if (exactTables) namer->enableExactNames(*exactTables);
         e.setBoundaryNamer(&*namer);
       } catch (const std::exception &ex) {
@@ -3029,11 +2940,11 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if (!seedFaces.empty()) {
+    if (!rb.seedFaces.empty()) {
       // The invariant that makes the search side fixed: no searchable
       // triangle other than the seed has an edge on it. Checked once here
       // rather than re-derived for every surface found.
-      size_t touching = e.countSearchableFacesTouching(searchSideBC);
+      size_t touching = e.countSearchableFacesTouching(rb.searchSideBC);
       if (touching != 0) {
         flagFatalBug(row.name + ": " + std::to_string(touching) +
                      " searchable non-seed triangles have an edge on the "
@@ -3041,7 +2952,7 @@ int main(int argc, char *argv[]) {
         haltIfFatalBugDetected();
       }
       // Its name is known by construction; never identify it.
-      e.primeBoundaryName(searchSideBC, rowSearchEdges, row.name);
+      e.primeBoundaryName(rb.searchSideBC, rb.searchEdges, row.name);
     }
 
     // Fresh per row, so each census line describes one row's search.
@@ -3049,7 +2960,7 @@ int main(int argc, char *argv[]) {
     if (selfIntersectionCensusPath) {
       selfIntersectionCensus.emplace();
       selfIntersectionCensus->searchSideBoundary =
-          static_cast<long>(searchSideBC);
+          static_cast<long>(rb.searchSideBC);
     }
     e.configureSelfIntersections(
         {.resolveUnlinked = resolveUnlinked,
@@ -3085,32 +2996,9 @@ int main(int argc, char *argv[]) {
     const auto censusWritesBefore = census::insertCounts();
     const long long pairSigMillisBefore = pairSigMillis.load();
 
-    // Every surface the drain describes lands in exactly one of these, and
-    // at row end they must add up to what the search accepted (see the
-    // accounting check after e.search()). A surface can never again vanish
-    // between the search and the witness file without being counted.
-    struct RowAccounting {
-      std::atomic<long long> described{0};
-      std::atomic<long long> recorded{0};
-      std::atomic<long long> duplicate{0};
-      std::atomic<long long> orientation{0}; // another oriented variant
-      std::atomic<long long> searchSideElsewhere{0}; // unseeded only
-      // Impossible for a correct build; any nonzero count halts the run.
-      std::atomic<long long> nonOrientable{0};
-      std::atomic<long long> searchSideBroken{0};
-      std::atomic<long long> orientationBroken{0};
-      std::atomic<long long> multiFarSide{0};
-      std::atomic<long long> unnamedSide{0};
-
-      long long impossible() const {
-        return nonOrientable + searchSideBroken + orientationBroken +
-               multiFarSide + unnamedSide;
-      }
-      long long bucketed() const {
-        return recorded + duplicate + orientation + searchSideElsewhere +
-               impossible();
-      }
-    } acct;
+    // Every surface the drain describes lands in exactly one of its buckets
+    // (see the accounting check after e.search()).
+    rowsearch::RowAccounting acct;
 
     // --rejection-sample-log: the pair signatures of the first few surfaces
     // each rejection reason turns away in this row, so a misbehaving gate
@@ -3142,16 +3030,17 @@ int main(int argc, char *argv[]) {
 
     lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
 
-    // The watchdog polls at 200ms but has no access to SearchStats; this is
-    // the only place the live count is handed to us, so publish it for the
-    // watchdog to read rather than plumbing stats through a second path.
-    std::atomic<long long> latestSatisfying{0};
+    // Started just before the search (below). It polls at 200ms but has no
+    // access to SearchStats; onProgress is the only place the live count is
+    // handed to us, so it publishes it there.
+    std::optional<rowsearch::RowWatchdog> watchdog;
 
     SurfaceSearchCallbacks callbacks;
     // A stop nobody else noted (SIGINT) is not running out of candidates.
     callbacks.onInterrupted = [&] { noteStop("interrupted"); };
     callbacks.onProgress = [&](const SearchStats &stats) {
-      latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
+      if (watchdog)
+        watchdog->publishSatisfying(stats.satisfyingCount);
       printProgress(stats, e);
     };
     // The equalising rule, checked where each surface is counted, so a row
@@ -3227,12 +3116,17 @@ int main(int argc, char *argv[]) {
 
       acct.described.fetch_add(1, std::memory_order_relaxed);
 
-      if (!info.orientable) {
-        // orientableOnly=true prunes these during the search.
-        acct.nonOrientable.fetch_add(1, std::memory_order_relaxed);
-        sampleRejection("non-orientable", info);
+      // Orientable, search side intact, the row's own oriented variant, one
+      // far side (rowsearch::gateSurface()). The orientation check needs the
+      // search side's oriented curves, and an exact oriented far-side name
+      // (--exact-far-side-names) the rest, so the gate captures them once.
+      const rowsearch::GatedSurface gated = rowsearch::gateSurface(info, rb);
+      if (!gated.accepted()) {
+        acct.reject(gated.gate);
+        sampleRejection(rowsearch::gateReason(gated.gate), info);
         return;
       }
+      const BoundarySplit &split = gated.split;
 
       // A disconnected find is NOT discarded any more. Its components tube
       // into a single connected surface with the same boundary and genus
@@ -3248,70 +3142,9 @@ int main(int argc, char *argv[]) {
         return info.capturePairSig ? info.capturePairSig() : std::string{};
       };
 
-      // Seeded, the search side is L by construction (asserted once at row
-      // setup), so splitBoundary() just takes component searchSideBC.
-      // Unseeded, it filters on L's own edges, setwise.
-      BoundarySplit split =
-          splitBoundary(info.boundaryComponents, searchSideBC,
-                        seedFaces.empty() ? &rowSearchEdges : nullptr);
-
-      if (split.unnamedSide) {
-        acct.unnamedSide.fetch_add(1, std::memory_order_relaxed);
-        sampleRejection("unnamed-side", info);
-        return;
-      }
-      if (split.searchCurveCount != static_cast<size_t>(componentCount)) {
-        if (seedFaces.empty()) {
-          // Unseeded: a different link on the search side, so whatever
-          // this surface witnesses, it isn't about this row.
-          acct.searchSideElsewhere.fetch_add(1, std::memory_order_relaxed);
-          sampleRejection("search-side-elsewhere", info);
-        } else {
-          acct.searchSideBroken.fetch_add(1, std::memory_order_relaxed);
-          sampleRejection("search-side-broken", info);
-        }
-        return;
-      }
-
-      // Orientation: a surface component whose curves induce a pattern no
-      // flip of that component can fix witnesses a DIFFERENT oriented
-      // variant of this link -- the L6a3{0}/L6a3{1} misattribution. Judged
-      // per surface component, since each can be oriented independently
-      // (classifyRowOrientation()).
-      // Captured once: the orientation check needs the search side, and an
-      // exact oriented far-side name (--exact-far-side-names) the rest.
-      auto orientedLinks = info.captureOrientedBoundaryLinks();
-      const auto surfaceOf = info.captureBoundaryEdgeSurfaceComponent();
-      std::vector<OrientedCurve> searchSideCurves;
-      {
-        bool foundSearchSide = false;
-        for (auto &[c, curves] : orientedLinks) {
-          if (c == searchSideBC) {
-            searchSideCurves = curves;
-            foundSearchSide = true;
-            break;
-          }
-        }
-        const cobordismgraph::OrientationVerdict verdict =
-            foundSearchSide
-                ? cobordismgraph::classifyRowOrientation(
-                      *rowOrientation, searchSideCurves, surfaceOf)
-                : cobordismgraph::OrientationVerdict::incoherentCurve;
-        if (verdict == cobordismgraph::OrientationVerdict::mismatch) {
-          acct.orientation.fetch_add(1, std::memory_order_relaxed);
-          sampleRejection("orientation", info);
-          return;
-        }
-        if (verdict != cobordismgraph::OrientationVerdict::match) {
-          acct.orientationBroken.fetch_add(1, std::memory_order_relaxed);
-          sampleRejection("orientation-broken", info);
-          return;
-        }
-      }
-
       cobordismgraph::Witness w;
       w.subject = row.name;
-      w.subjectComponents = componentCount;
+      w.subjectComponents = rb.componentCount;
       w.genus = witnessGenus;
       w.tubed = tubed;
       w.sourceRow = row.name;
@@ -3321,7 +3154,8 @@ int main(int argc, char *argv[]) {
 
       if (split.otherSides.empty()) {
         w.kind = cobordismgraph::WitnessKind::direct;
-      } else if (split.otherSides.size() == 1) {
+      } else {
+        // Exactly one: the gate turns away more (multi-far-side).
         // A genuinely-linked far side is recorded but, unless it is a
         // knot or a proven unlink, it will not carry a bound: a complement
         // does not determine a link (cobordismgraph.h, \ref cg_farside).
@@ -3329,31 +3163,14 @@ int main(int argc, char *argv[]) {
         // later peripheral resolution needs as input; the solver's
         // farSideBearsBound() is what declines it.
         const BoundarySide &far = split.otherSides.front();
-        // Normalized, because identify() decorates a translated census hit
-        // as "4_1 (m004 : #1)" while the --input tables call it "4_1" --
-        // leaving the decoration on would make the far side a different
-        // graph node from the row for the very same knot.
-        std::string farName = cobordismgraph::normalizeIdentifiedName(far.name);
-        // Oriented, exact: two surfaces whose far sides are different
-        // orientation variants of one link must be two witnesses.
-        if (far.components > 1 && namer && namer->exactNamesOn()) {
-          if (auto flips = farside::incomingFlips(*rowOrientation,
-                                                  searchSideCurves, surfaceOf)) {
-            for (const auto &[bc, curves] : orientedLinks)
-              if (namer->handles(bc))
-                if (auto n = namer->orientedName(curves, surfaceOf, *flips))
-                  farName = *n;
-          }
-        }
+        // Normalized, so a census hit and the table name are one graph node,
+        // and oriented where exact names are on (rowsearch::farSideName()).
+        const std::string farName =
+            rowsearch::farSideName(gated, rb, namer ? &*namer : nullptr);
         w.kind = cobordismgraph::WitnessKind::cobordism;
         w.other = farName;
         w.otherComponents = far.components;
         w.otherCandidates = names.candidates(farName, far.components);
-      } else {
-        // S^3 x I has two boundary components, so this cannot happen.
-        acct.multiFarSide.fetch_add(1, std::memory_order_relaxed);
-        sampleRejection("multi-far-side", info);
-        return;
       }
 
       if (!recordWitness(w, capturePairSig)) {
@@ -3453,10 +3270,7 @@ int main(int argc, char *argv[]) {
       }
     };
 
-    std::atomic<bool> searchDone{false};
-    std::thread watchdog;
-    if (perKnotTimeLimit || harvestQuiescence || sweepTimeLimit ||
-        surfaceTarget) {
+    {
       // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
       //
       // The time limit bounds the *search*, not the row. Identification is
@@ -3478,51 +3292,20 @@ int main(int argc, char *argv[]) {
         if (skipDrainOnTimeout)
           e.skipRemainingBoundaryProcessing();
       };
-      watchdog = std::thread([&]() {
-        auto knotDeadline =
-            std::chrono::steady_clock::now() +
-            std::chrono::duration<double>(perKnotTimeLimit.value_or(0));
-        while (!searchDone.load(std::memory_order_relaxed)) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));
-          if (searchDone.load(std::memory_order_relaxed))
-            break;
-          // Checked before the clock so that a row which reaches the target
-          // is recorded as "surface-target" rather than "timeout" when both
-          // fire in the same tick -- the two mean different things to anyone
-          // later reading the negative, and the wall clock is only ever the
-          // backstop here.
-          if (surfaceTarget &&
-              latestSatisfying.load(std::memory_order_relaxed) >=
-                  *surfaceTarget) {
-            endRowNow("surface-target");
-            break;
-          }
-          auto now = std::chrono::steady_clock::now();
-          if (perKnotTimeLimit && now >= knotDeadline) {
-            endRowNow("timeout");
-            break;
-          }
-          if (sweepTimeLimit &&
-              now - sweepStart >
-                  std::chrono::duration<double>(*sweepTimeLimit)) {
-            endRowNow("timeout");
-            break;
-          }
+      rowsearch::WatchdogLimits watchdogLimits{
+          .surfaceTarget = surfaceTarget,
+          .rowSeconds = perKnotTimeLimit,
+          .sweepSeconds = sweepTimeLimit,
+          .sweepStart = sweepStart,
           // Quiescence: this row has stopped teaching us anything new, so
-          // spending the rest of its budget enumerating more of the same
-          // is worse than moving on to a row we know nothing about.
-          // Meaningful during the boundary drain too, since that is where
-          // witnesses are actually identified.
-          if (harvestQuiescence) {
-            long long idleMs =
-                tickNow() - lastNewWitnessTick.load(std::memory_order_relaxed);
-            if (idleMs > static_cast<long long>(*harvestQuiescence * 1000)) {
-              endRowNow("quiescent");
-              break;
-            }
-          }
-        }
-      });
+          // spending the rest of its budget enumerating more of the same is
+          // worse than moving on to a row we know nothing about.
+          .quiescenceSeconds = harvestQuiescence,
+          .idleMillis = [&] {
+            return tickNow() -
+                   lastNewWitnessTick.load(std::memory_order_relaxed);
+          }};
+      watchdog.emplace(std::move(watchdogLimits), endRowNow);
     }
 
     // A multi-component link's own boundary necessarily puts more than one
@@ -3540,32 +3323,14 @@ int main(int argc, char *argv[]) {
     // zero knot-to-link edges, while link rows produced 62 link-to-knot
     // ones. --boundary-condition proper lifts that, at the cost of much
     // weaker pruning.
-    BoundaryCondition cond;
-    switch (boundaryConditionMode) {
-    case BoundaryConditionMode::proper:
-      cond = BoundaryCondition::proper;
-      break;
-    case BoundaryConditionMode::connected:
-      // Honoured only where it is actually satisfiable: a multi-component
-      // link can never meet `connected` on its own search side, so forcing
-      // it there would just guarantee an empty search.
-      cond = componentCount == 1 ? BoundaryCondition::connected
-                                 : BoundaryCondition::proper;
-      break;
-    case BoundaryConditionMode::automatic:
-    default:
-      cond = componentCount == 1 ? BoundaryCondition::connected
-                                 : BoundaryCondition::proper;
-      break;
-    }
+    const BoundaryCondition cond =
+        rowsearch::conditionFor(boundaryConditionMode, rb.componentCount);
     const SearchStats finalStats =
         e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
                  iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true,
                  maxFaces, rootBudgetStart, rootBudgetGrowth);
 
-    searchDone.store(true, std::memory_order_relaxed);
-    if (watchdog.joinable())
-      watchdog.join();
+    watchdog->stop();
 
     if (surfaceLog)
       surfaceLog->finalize();
@@ -3578,35 +3343,14 @@ int main(int argc, char *argv[]) {
     // row's witnesses are safely written.
     const long long accepted = finalStats.satisfyingCount;
     const long long described = acct.described.load();
-    const long long rebuildFailed = e.rebuildFailures();
     const bool drainSkipped = e.boundaryProcessingSkipped();
-    std::string accountingFailure;
-    if (acct.bucketed() != described)
-      accountingFailure = std::to_string(described) +
-                          " surfaces described but " +
-                          std::to_string(acct.bucketed()) + " accounted for";
-    else if (rebuildFailed > 0)
-      accountingFailure = std::to_string(rebuildFailed) +
-                          " accepted surfaces failed to rebuild in the drain";
-    else if (!drainSkipped && described != accepted)
-      accountingFailure = std::to_string(accepted) +
-                          " surfaces accepted but " +
-                          std::to_string(described) + " described";
-    else if (acct.impossible() > 0)
-      accountingFailure =
-          std::to_string(acct.impossible()) +
-          " surfaces hit a state that cannot occur (non-orientable " +
-          std::to_string(acct.nonOrientable.load()) + ", search side " +
-          std::to_string(acct.searchSideBroken.load()) + ", orientation " +
-          std::to_string(acct.orientationBroken.load()) + ", multi far side " +
-          std::to_string(acct.multiFarSide.load()) + ", unnamed side " +
-          std::to_string(acct.unnamedSide.load()) + ")";
+    const std::string accountingFailure =
+        acct.failure(accepted, e.rebuildFailures(), drainSkipped);
     // Surfaces were accepted, yet not one reached the witness record. That
     // can be genuine (every one witnesses another oriented variant), but it
     // is also exactly what a broken gate looks like, so it never licenses a
     // negative.
-    const long long examined = acct.recorded.load() + acct.duplicate.load();
-    const bool nothingExamined = described > 0 && examined == 0;
+    const bool nothingExamined = acct.nothingExamined();
     if (nothingExamined)
       std::cout << "[!] " << row.name << ": WARNING: " << described
                 << " surfaces accepted but none reached the witness record; "
@@ -3678,15 +3422,8 @@ int main(int argc, char *argv[]) {
     std::cout << "\n";
     // Its own line, parsed by tools/orchestrate/dispatch.py (RE_ACCOUNTING);
     // the summary line above stays exactly as RE_OUTCOME expects.
-    std::cout << "[+] " << row.name << ": accounting: accepted " << accepted
-              << ", described " << described << ", recorded "
-              << acct.recorded.load() << ", duplicate "
-              << acct.duplicate.load() << ", other-orientation "
-              << acct.orientation.load() << ", search-side-elsewhere "
-              << acct.searchSideElsewhere.load() << ", impossible "
-              << acct.impossible() << ", drain "
-              << (drainSkipped ? "skipped" : "complete") << ", "
-              << (nothingExamined ? "WARNING" : "ok") << "\n";
+    std::cout << "[+] " << row.name << ": accounting: "
+              << acct.summary(accepted, drainSkipped) << "\n";
     {
       const identify::RecognitionCacheStats r =
           identify::recognitionCacheStats();
@@ -3854,8 +3591,8 @@ int main(int argc, char *argv[]) {
     // that isoSig, an identification the complement cannot support --
     // exactly the claim linknames.h forbids adding "from a complement match
     // alone". For a knot the same entry is sound by Gordon-Luecke.
-    if (censusUpdates && componentCount == 1) {
-      auto &[t2, edges2, reversed2] = link;
+    if (censusUpdates && rb.componentCount == 1) {
+      auto &[t2, edges2, reversed2] = rb.link;
       Link linkGrouping(t2, edges2);
       regina::Triangulation<3> complement = linkGrouping.buildComplement();
       census::insertCensusEntry(complement.isoSig(),

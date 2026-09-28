@@ -13,6 +13,7 @@ set(TESTS
   peripheral_test
   witnesskey_test
   rowmap_test
+  rowsearch_test
   enumerator_test
   farsidenaming_test
   predicate_order_test
@@ -41,6 +42,9 @@ set_tests_properties(predicate_order_test PROPERTIES TIMEOUT 300)
 # Compares with the old (drilling) route, ~1 s a call, on a sample; about a
 # minute. See linkingnumber_test.cpp's --full for the whole comparison.
 set_tests_properties(linkingnumber_test PROPERTIES TIMEOUT 300)
+# Two exhaustive cap-3 searches (the canaries' 3_1 and L2a1{0}) and a few
+# pair signatures; ~25 s on an idle machine.
+set_tests_properties(rowsearch_test PROPERTIES TIMEOUT 120)
 
 
 # One-off generation utility -- not a CTest test: builds the Rolfsen <->

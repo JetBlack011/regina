@@ -8,8 +8,8 @@
  *  \brief Redraws witnesses of one row from their pair signatures, exactly
  *  as the search itself would have seen them.
  *
- *  The row is thickened as verifyslicegenus thickens it (knotbuilder,
- *  CobordismBuilder x layers, CollarBuilder). A witness's decoded pair is
+ *  The row is thickened as verifyslicegenus thickens it
+ *  (rowsearch::buildRow()). A witness's decoded pair is
  *  carried onto that thickening by an isomorphism sending its incoming curve
  *  onto the row's L x {0}; from there the outgoing side is read through the
  *  thickening's own product structure (farside::OutgoingMap), so no
@@ -37,6 +37,7 @@
 #include "farsidecurves.h"
 #include "knotbuilder/diagramdrawer.h"
 #include "knotbuilder/knotbuilder.h"
+#include "rowsearch.h"
 #include "skeleton.h"
 
 namespace farside {
@@ -84,17 +85,24 @@ class WitnessRedrawer {
     std::optional<OutgoingLink> outgoingLinkFast(const std::string &pairsig,
                                                  std::string &why) const;
 
-    const regina::Triangulation<3> &knotT() const { return built_.tri; }
-    const regina::Triangulation<4> &thickening() const { return cob_->getCobordism(); }
+    const regina::Triangulation<3> &knotT() const { return rb_.link.tri; }
+    const regina::Triangulation<4> &thickening() const { return rb_.tri; }
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }
     const OutgoingMap &outgoing() const { return *outgoing_; }
-    const cobordismgraph::RowOrientation &row() const { return row_; }
-    size_t incomingBC() const { return incomingBC_; }
-    const std::vector<size_t> &rowEdges() const { return rowEdges_; }
+    const cobordismgraph::RowOrientation &row() const { return *rb_.orientation; }
+    size_t incomingBC() const { return rb_.searchSideBC; }
+    const std::vector<size_t> &rowEdges() const { return rb_.searchEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
     /** The row's own components, in DiagramDrawer::cyclesOf() order. */
     const std::vector<knotbuilder::EdgeCycle> &rowCycles() const { return rowCycles_; }
-    const knotbuilder::TriangulationWithLink &built() const { return built_; }
+    /** Which of rowCycles() the search-side edge `edgeIndex` (an index into
+     *  the incoming boundary component's built triangulation) lies on.
+     *  \throws std::out_of_range for an edge that is not one of L's. */
+    size_t rowComponentOf(size_t edgeIndex) const { return rowComponentOf_.at(edgeIndex); }
+    const knotbuilder::TriangulationWithLink &built() const { return rb_.link; }
+    /** The whole row build: a search run in thickening() (cascadesearch's
+     *  in-process hops) sees exactly what this redrawer reads. */
+    const rowsearch::RowBuild &rowBuild() const { return rb_; }
 
     /** Cumulative milliseconds spent decoding pair signatures, and searching
      *  for the isomorphism onto the thickening (carry()). */
@@ -110,16 +118,12 @@ class WitnessRedrawer {
     double msBoundaryBuild() const { return msBoundaryBuild_; }
 
   private:
-    knotbuilder::PDCode pd_;
-    knotbuilder::TriangulationWithLink built_;
-    std::unique_ptr<CobordismBuilder<3>> cob_;
-    size_t incomingBC_ = 0;
-    std::vector<size_t> rowEdges_;
-    cobordismgraph::RowOrientation row_;
+    rowsearch::RowBuild rb_; /**< T, the thickening, its collar and row map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
     std::vector<knotbuilder::EdgeCycle> rowCycles_;
+    std::unordered_map<size_t, size_t> rowComponentOf_; /**< see rowComponentOf() */
     mutable double msDecode_ = 0, msIso_ = 0, msSurface_ = 0, msRead_ = 0, msBoundaryBuild_ = 0;
 
     // The fast path's per-row state (outgoingLinkFast()).

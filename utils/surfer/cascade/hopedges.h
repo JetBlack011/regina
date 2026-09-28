@@ -73,23 +73,32 @@ public:
   HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                Read read = Read::fast);
 
+  /// A stored witness: read back from its pair signature, then addRead().
   HopEdge add(const HopWitness &w);
+
+  /// A surface already read: its oriented far side and incoming side, as
+  /// farside::orientedOutgoingLink() gives them for a surface in
+  /// redrawer().thickening() (an in-process hop's search; see hoprunner.h).
+  HopEdge addRead(const farside::OutgoingLink &link, int genus,
+                  const std::string &key);
 
   /// knotbuilder's row component i is the node's component rowToNode()[i].
   const std::vector<int> &rowToNode() const { return rowToNode_; }
 
+  /// The row's thickening and everything read from it.
+  const farside::WitnessRedrawer &redrawer() const { return *redraw_; }
+
 private:
-  struct ReadBack {
-    farside::OutgoingLink link;
-    std::vector<size_t> surfaceOfRowComponent; ///< per knotbuilder row component
-  };
-  std::optional<ReadBack> readBack(const std::string &pairsig, std::string &why) const;
+  std::optional<farside::OutgoingLink> readBack(const std::string &pairsig,
+                                                std::string &why) const;
+  /// Per knotbuilder row component, the surface component it lies on.
+  std::optional<std::vector<size_t>>
+  surfaceOfRowComponents(const farside::OutgoingLink &link, std::string &why) const;
   Read read_;
   ProofGraph &g_;
   NodeRegistry &nodes_;
   HopRow row_;
   std::unique_ptr<farside::WitnessRedrawer> redraw_;
-  std::vector<size_t> componentOfRowEdge_;
   std::vector<int> rowToNode_;
 };
 
