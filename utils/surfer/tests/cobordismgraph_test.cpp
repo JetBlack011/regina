@@ -1287,8 +1287,112 @@ void test_composite_parts() {
     EXPECT_EQ(compositeParts("3_1 #_ L2a1").has_value(), false,
               "no component index: refused, since K # L is not well defined "
               "without one");
-    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}").has_value(), false,
-              "the link part is a BASE name");
+    // An exact name writes L with its orientation tag, and the component as
+    // "?" when the namer does not compute it.
+    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}").has_value(), true,
+              "a TAGGED link part (exact names) is accepted");
+    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}")->link, std::string("L2a1{0}"),
+              "and kept with its tag");
+    EXPECT_EQ(compositeParts("3_1 #_? L2a1{0}")->component, -1,
+              "an unindexed component is -1");
+    EXPECT_EQ(compositeParts("mr8_17 #_? L2a1{0}")->knot, std::string("mr8_17"),
+              "a marked knot keeps its marks");
+    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{x}").has_value(), false,
+              "a malformed tag is refused");
+}
+
+void test_knot_marks() {
+    EXPECT_EQ(stripKnotMarks("mr8_17"), std::string("8_17"), "m and r stripped");
+    EXPECT_EQ(stripKnotMarks("r8_17"), std::string("8_17"), "r stripped");
+    EXPECT_EQ(stripKnotMarks("m3_1"), std::string("3_1"), "m stripped");
+    EXPECT_EQ(stripKnotMarks("11n_34"), std::string("11n_34"), "no marks, unchanged");
+    EXPECT_EQ(stripKnotMarks("mL2a1{0}"), std::string("mL2a1{0}"), "not a knot: unchanged");
+    EXPECT_EQ(knotSummands("3_1#mr8_17").size(), size_t(2), "a marked summand is a summand");
+}
+
+void test_elementary_slice_with_marks() {
+    NameTable names;
+    names.setSymmetry("3_1", SymmetryType::reversible);
+    names.setSymmetry("9_32", SymmetryType::chiral);
+    names.setSymmetry("8_17", SymmetryType::negativeAmphicheiral);
+    names.setSymmetry("12a_1", SymmetryType::positiveAmphicheiral);
+    EXPECT_EQ(isElementarySlice("9_32#mr9_32", names), true, "chiral: K # mrK = K # -K");
+    EXPECT_EQ(isElementarySlice("9_32#m9_32", names), false, "chiral: K # mK is not");
+    EXPECT_EQ(isElementarySlice("3_1#mr3_1", names), true, "reversible: the r is meaningless");
+    EXPECT_EQ(isElementarySlice("8_17#8_17", names), true, "negative amphicheiral: -K = K");
+    EXPECT_EQ(isElementarySlice("8_17#r8_17", names), false, "8_17 # r8_17 = 8_17 # m8_17 is not");
+    EXPECT_EQ(isElementarySlice("12a_1#r12a_1", names), true, "positive amphicheiral: -K = rK");
+    EXPECT_EQ(isElementarySlice("12a_1#12a_1", names), false, "and K # K is not");
+}
+
+void test_sum_pieces() {
+    auto p = sumPieces("5_1 #_? 3_1 #_? L4a1{1}");
+    EXPECT_EQ(p.has_value() && p->size() == 3, true, "knots summed into a link: three pieces");
+    EXPECT_EQ(p && (*p)[2] == std::make_pair(std::string("L4a1{1}"), 2), true, "the link, 2 components");
+    auto q = sumPieces("#{L2a1{0}[?] # L2a1{0}[?] ; L2a1{0}[?] # L6a3{0}[?]}");
+    EXPECT_EQ(q.has_value() && q->size() == 4, true,
+              "every written occurrence is a piece (over-counts, which only weakens)");
+    EXPECT_EQ(sumPieces("L2a1{0}#3_1").has_value(), false, "not a sum along components");
+    EXPECT_EQ(sumPieces("3_1 #_? L2a1").has_value(), false, "an untagged link states no count");
+    EXPECT_EQ(exactCandidates("L8n2{0}|L8n2{1}").size(), size_t(2), "proved alternatives");
+    EXPECT_EQ(exactCandidates("3_1#3_1|3_1#m3_1 u Unknot").size(), size_t(1),
+              "a split is one candidate");
+}
+
+// An exact far side bounds by ITS variant, not the worst of its base's, and
+// receives a bound from the subject whatever its component count.
+void test_exact_far_side() {
+    NameTable names;
+    names.addLiterature("S", 0, 9);
+    names.addLiterature("L7n1{0}", 2, 2);
+    names.addLiterature("L7n1{1}", 0, 0);
+    Witness w = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    w.farSideProved = true;
+    w.farSideExact = true;
+    auto bounds = propagate({w, direct("S", 1, 0)}, names);
+    EXPECT_EQ(bounds["S"].hi, 0, "the subject is bounded by its own genus-0 witness");
+    EXPECT_EQ(bounds["L7n1{1}"].haveUpper(), true, "an exact far side receives a bound");
+    EXPECT_EQ(bounds["L7n1{1}"].hi, 0, "g4(L1) <= g4(S) + g + n(S) - 1 = 0");
+
+    NameTable names2;
+    names2.addLiterature("S", 0, 9);
+    names2.addLiterature("L7n1{0}", 2, 2);
+    names2.addLiterature("L7n1{1}", 0, 0);
+    Witness v = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    v.farSideProved = true; // proved but not an identity
+    auto b2 = propagate({v}, names2);
+    EXPECT_EQ(b2["S"].hi, 1, "forward: g4(L7n1{1}) + 0 + 2 - 1, not L7n1{0}'s 2 + 1");
+    EXPECT_EQ(b2["L7n1{1}"].haveUpper(), false, "a description receives nothing");
+}
+
+// --sum-rules: a sum along components and a split with a link factor bound
+// the subject from their pieces; without the flag they bound nothing.
+void test_sum_rules() {
+    for (bool on : {false, true}) {
+        NameTable names;
+        names.setSumRules(on);
+        names.addLiterature("S", 0, 9);
+        names.addLiterature("T", 0, 9);
+        names.addLiterature("L7n1{0}", 2, 2);
+        names.addLiterature("L2a1{0}", 0, 0);
+        Witness sum = cobordism("S", 1, "#{L2a1{0}[?] # L7n1{0}[?]}", 3, 0,
+                                exactCandidates("#{L2a1{0}[?] # L7n1{0}[?]}"));
+        sum.farSideProved = true;
+        Witness split = cobordism("T", 1, "L7n1{0} u L2a1{0}", 4, 0,
+                                  exactCandidates("L7n1{0} u L2a1{0}"));
+        split.farSideProved = true;
+        auto bounds = propagate({sum, split}, names);
+        const std::string tag = on ? " (sum rules on)" : " (sum rules off)";
+        // Sum: g4 <= 2 + 0; >= 2 - (0 + 2 - 1) = 1. Subject: hi 2 + 0 + 3 - 1
+        // = 4, lo 1 - 0 - 1 + 1 = 1.
+        EXPECT_EQ(bounds["S"].haveUpper(), on, "sum: an upper bound only with the rule" + tag);
+        if (on) EXPECT_EQ(bounds["S"].hi, 4, "sum: g4(S) <= (2 + 0) + 0 + 3 - 1");
+        EXPECT_EQ(bounds["S"].haveLower() && bounds["S"].lo == 1, on,
+                  "sum: g4(S) >= (2 - (0 + 2 - 1)) - 0 - 1 + 1 = 1 only with the rule" + tag);
+        // Split: g4 >= 2 - (0 + 2 - 1) = 1, capping the Hopf link off.
+        EXPECT_EQ(bounds["T"].haveLower() && bounds["T"].lo == 1, on,
+                  "split with a link factor: lower bound 1 only with the rule" + tag);
+    }
 }
 
 void test_composite_far_side_upper_bound() {
@@ -1560,6 +1664,11 @@ int main() {
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
     run("witness_identity", test_witness_identity);
+    run("knot_marks", test_knot_marks);
+    run("elementary_slice_with_marks", test_elementary_slice_with_marks);
+    run("sum_pieces", test_sum_pieces);
+    run("exact_far_side", test_exact_far_side);
+    run("sum_rules", test_sum_rules);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

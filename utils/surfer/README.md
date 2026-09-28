@@ -49,6 +49,10 @@ builds.
 | `linkcomplement.{h,cpp}` | drilling curves (Weeks' edge pinching) to build their complement |
 | `farsidenaming.{h,cpp}` | **how the search names far sides** (since 2026-09-26): draw the curves (`knotbuilder/diagramdrawer`), simplify with Regina's `Link::simplify()`, and name by exact diagram signature against the knot and link tables. Anything a diagram cannot name falls back to `identifycomplement`. `--no-diagram-naming` restores the old route. |
 | `identifycomplement.{h,cpp}` | naming a complement: unknot and handlebody recognition, the local census (`census.sqlite`), Regina's census, and a Pachner search (knots only). Now the fallback for far sides, and still how everything else is named. `BoundarySignatureCache` memoises by the curve's edge set up to automorphism, in front of either route |
+| `exactnaming/` | **exact far-side names** (since 2026-09-27): an oriented far-side diagram named, with a proof, as a table entry or a split union / sum of table entries. Orientation variant and relative chirality are pinned, and every name is flagged as an identity or a description. Hyperbolic pieces are named by the SnapPea kernel's isometry test (an isometry of complements carrying meridians to meridians; the kernel's own isometry sources, which Regina ships unbuilt, are compiled into this library), the rest by Reidemeister searches. See `exactnaming/README.md` |
+| `farsideredraw.{h,cpp}` | a stored witness's outgoing link recovered from its pair signature, exactly as the search saw it (the row's own thickening, an isomorphism pinned by L × {0}); shared by `farsidediagram` and `farsidename` |
+| `farsidename.cpp` | the tool: pair signatures → exact names, one line per witness. Its output becomes the atlas's `data/far_side_exact.csv`, which the solvers read with `--far-side-exact` |
+| `tableclasses.cpp` | the table's link classes: table names that are one oriented link up to mirror and global reversal (a shared diagram, or an isometry carrying meridians to meridians with uniform orientation signs). Writes the atlas's `data/table_link_classes.csv`, which the solvers read with `--link-classes`; fails on a class whose literature values differ |
 | `linknames.h` | census names → KnotInfo / LinkInfo names |
 | `peripheral.{h,cpp}` | drilling while keeping meridians, signed by the curve's orientation |
 
@@ -101,7 +105,13 @@ guard against that whole class of fault:
   - a knot no table or earlier fallback knows;
   - a link whose linking numbers are all zero (it might be an unlink that
     the simplifier cannot clear, and an unlink bears a bound);
-  - a degenerate drawing.
+  - a degenerate drawing;
+  - a drawing the drawer refuses as **not planar** (`knotbuilder::NonPlanar`,
+    since 2026-09-27). That is always a drawer defect; each is counted in the
+    row's `diagram naming:` line (`non-planar drawings`), and any at all prints
+    a WARNING. Before the gate, the vertical-corner-edge defect
+    (`knotbuilder/README.md`) let 13 c4 far sides be named `diagram:` after a
+    non-planar drawing.
 
   A link that matches no table diagram and is provably not an unlink (a
   nonzero linking number, or a Jones polynomial other than the unlink's) is
@@ -137,7 +147,10 @@ needs an idle machine. Besides each component's own unit tests:
 | `tests/name_independence_test.sh` | perturbing every name (identified or drawn: it runs with diagram naming and requires that it was used) changes nothing the search accepts or records |
 | `tests/interrupted_outcome_test.sh` | a search stopped by SIGINT is recorded as `interrupted`, never `exhausted` |
 | `tests/census_test` | census lookups, and that an insert after a hit lands |
-| `tests/cobordismgraph_test` | the solver's rules, `splitBoundary`, per-component orientation, witness identity |
+| `tests/cobordismgraph_test` | the solver's rules, `splitBoundary`, per-component orientation, witness identity; exact far sides (bound by their own variant, receive a bound only when exact), `m`/`r` knot marks and the slice test with them, sum pieces, and `--sum-rules` |
+| `exactnaming/tests/exactnaming_test` | exact names: every table entry names itself, orientation variants pinned (L7n1{0} vs {1}), granny vs square, splits and sums, the search path forced, the table-side search and the isometry step each on its own |
+| `exactnaming/tests/snappeaisometry_test` | the SnapPea isometry test: far-side drawings of 8_16, L8a1, 10_151, L11n281 match their table entries; a HOMFLY twin (10_156) and three links sharing L11n353's complement do not |
+| `exactnaming/tests/isometry_validation` (not in ctest) | the isometry step on the whole table: kernel census vs KnotInfo/LinkInfo, every entry under every orientation transform scrambled and renamed, all HOMFLY- and volume-twin pairs, threads. See `exactnaming/README.md` |
 | `knotbuilder/tests/diagramdrawer_test` | the drawer (see `knotbuilder/README.md`) |
 | `tests/farsidenaming_test` | on real thickenings: the collar's far side is named as the row itself (a table knot, a table link's base) straight from its diagram, with no fallback; a small curve is `Unknot`; empty or missing signature tables are refused |
 
