@@ -156,9 +156,12 @@ struct SearchStats {
              is the charged length of each root's traversal, summed, which
              an unbudgeted run's `attempts` must equal. */
     long long replayed = 0;
-        /**< Budget-charged attempts that retraced an earlier budget pass of
-             the same root: each pass re-walks its root from the start, so
-             this is min(previous pass's spend, this pass's spend), summed. */
+        /**< The uncharged re-adds that take a suspended root back down to
+             where its previous budget pass stopped (see
+             ConnectedInducedSubgraphEnumerator::Position): a few per pass.
+             Until 2026-09-28 every pass re-walked its root from the start,
+             and this counted the charged attempts that retraced the previous
+             pass -- about half of all attempts. */
   } profile;
 
   /** Returns the average face count among satisfying finds, or 0 if there are none. */
@@ -189,6 +192,16 @@ struct SearchCallbacks {
            and before any worker starts -- lets a caller split its own
            counters (e.g. PetalCache misses) between that single-threaded
            phase and the rest. */
+  long long surfaceTarget = 0;
+      /**< If positive, the search stops itself once this many satisfying
+           candidates exist, checked by the worker that counts each one, so
+           it overshoots by at most the handful in flight. A watchdog
+           polling the once-a-second progress count overshot by up to a
+           second's worth, which became ~9% of a 1M target once the search
+           ran at ~90k satisfying candidates a second (2026-09-28). */
+  std::function<void()> onSurfaceTarget;
+      /**< Fired once, from a worker thread, when surfaceTarget is reached,
+           just before the search stops itself. */
 };
 
 /**

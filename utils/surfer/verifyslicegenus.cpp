@@ -3154,6 +3154,19 @@ int main(int argc, char *argv[]) {
       latestSatisfying.store(stats.satisfyingCount, std::memory_order_relaxed);
       printProgress(stats, e);
     };
+    // The equalising rule, checked where each surface is counted, so a row
+    // stops at the target rather than a progress tick later (see
+    // SearchCallbacks::surfaceTarget). The watchdog below still checks it
+    // too, as a backstop. As there, the drain is let finish unless
+    // --skip-drain-on-timeout.
+    if (surfaceTarget) {
+      callbacks.surfaceTarget = *surfaceTarget;
+      callbacks.onSurfaceTarget = [&] {
+        noteStop("surface-target");
+        if (skipDrainOnTimeout)
+          e.skipRemainingBoundaryProcessing();
+      };
+    }
     // For the `search profile:` line: petal-cache counters as root filtering
     // ends, and the post-search drain tail.
     std::optional<PetalCache::Stats> petalAtRootsReady;

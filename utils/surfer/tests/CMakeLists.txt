@@ -38,6 +38,9 @@ set_tests_properties(embeddedsubmanifold_test PROPERTIES TIMEOUT 300)
 # Every set of triangles up to a size cap in several small closed
 # triangulations, each checked against a from-scratch reference.
 set_tests_properties(predicate_order_test PROPERTIES TIMEOUT 300)
+# Compares with the old (drilling) route, ~1 s a call, on a sample; about a
+# minute. See linkingnumber_test.cpp's --full for the whole comparison.
+set_tests_properties(linkingnumber_test PROPERTIES TIMEOUT 300)
 
 
 # One-off generation utility -- not a CTest test: builds the Rolfsen <->

@@ -225,6 +225,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     std::atomic<size_t> nextRootIdx{0};
     std::atomic<bool> workersFinished{false};
+    std::atomic<bool> surfaceTargetReached{false}; // see SearchCallbacks
     // Iterative-deepening progress, for SearchStats::iddfsRound/
     // iddfsTotalRounds/iddfsCapped/iddfsCap.
     std::atomic<unsigned> currentIddfsRound{1};
@@ -451,15 +452,26 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                         local.pendingFaceSum += faceCount;
                         if (++local.pendingSatisfyingCount >=
                             FLUSH_EVERY_BDRY) {
-                            stats.satisfyingCount.fetch_add(
-                                local.pendingSatisfyingCount,
-                                std::memory_order_relaxed);
+                            const long long total =
+                                stats.satisfyingCount.fetch_add(
+                                    local.pendingSatisfyingCount,
+                                    std::memory_order_relaxed) +
+                                local.pendingSatisfyingCount;
                             stats.satisfyingFaceSum.fetch_add(
                                 local.pendingFaceSum,
                                 std::memory_order_relaxed);
                             local.pendingSatisfyingCount = 0;
                             local.pendingFaceSum = 0;
                             threadHook->onFlush();
+                            // The surface target, exactly; see
+                            // SearchCallbacks::surfaceTarget.
+                            if (callbacks.surfaceTarget > 0 &&
+                                total >= callbacks.surfaceTarget &&
+                                !surfaceTargetReached.exchange(true)) {
+                                if (callbacks.onSurfaceTarget)
+                                    callbacks.onSurfaceTarget();
+                                requestStop();
+                            }
                         }
                         auto prevMax = stats.largestSatisfying.load(
                             std::memory_order_relaxed);

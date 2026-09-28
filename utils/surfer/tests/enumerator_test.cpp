@@ -8,9 +8,12 @@
 //  graphs this checks that the enumerator visits EXACTLY the connected
 //  induced subgraphs a powerset sweep finds -- each one once -- in every
 //  configuration the search uses: unseeded and seeded (via contractSeed()),
-//  under a hereditary predicate, under a depth cap, and under per-root work
-//  budgets replayed pass by pass the way EmbeddingSearch::runSearch_() does
-//  (skipping the visits an earlier pass already reported).
+//  under an anti-monotonic predicate, under a depth cap (the enumerator's
+//  own, setMaxSize()), and under per-root work budgets, each pass carrying on
+//  from where the last stopped the way EmbeddingSearch::runSearch_() drives
+//  it. With a budget it also checks that the passes together visit exactly
+//  what one unbudgeted pass does, in the same order, down to a ration of one
+//  attempt per pass.
 //
 
 #include <algorithm>

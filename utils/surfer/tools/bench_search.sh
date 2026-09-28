@@ -201,6 +201,13 @@ f = {
     'linking_misses': grab(r'petal misses: unknot \d+ in [\d.]+s, linking (\d+ in [\d.]+s)'),
 }
 new = not os.path.exists(results)
+if not new:
+    # Never append a row under a header with other columns: every later
+    # reader would shift the fields.
+    header = open(results).readline().rstrip('\n').split('\t')
+    if header != list(f):
+        sys.exit(f"bench_search.sh: {results} has columns {header}, this "
+                 f"version writes {list(f)}; move it aside first")
 with open(results, 'a') as out:
     if new:
         out.write('\t'.join(f) + '\n')
