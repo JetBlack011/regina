@@ -30,6 +30,35 @@ Still to come:
 - switching hops early, depth first, when a far side could beat the demand
   (`HopSearcher::run()`'s `stop` is the hook).
 
+## Running it
+
+As Pool A runs it (`D` = the atlas's `data/`):
+
+```sh
+cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
+  --knot-table $D/4d_smooth_slice_genus_13_crossings_pd_codes.csv \
+  --link-table $D/links_4d_smooth_slice_genus_11_crossings_pd_codes.csv \
+  --knot-symmetry $D/knot_symmetry.csv --census-db <private census copy> \
+  --goal-genus 1 --constructive --threads 14 \
+  --hop-surfaces 50000 --max-hop-surfaces 200000 --max-expansions 8
+```
+
+| option | what |
+|---|---|
+| `--goal-genus g`, `--goal connected\|disjoint` | the bound to prove: connected g₄ ≤ g (the coarsest partition), or disjoint surfaces (singletons) |
+| `--constructive` / `--literature` | whether table values may be leaves (never the target's own) |
+| `--master-witnesses <cobordisms.csv>` | the atlas's witnesses as free edges for table nodes (read only) |
+| `--hop-surfaces`, `--max-hop-surfaces` | a hop's surface target, and the most a revisit may raise it to |
+| `--max-expansions`, `--cpu-budget` | stop after this many hops, or this much hop CPU (checked between hops) |
+| `--strategy best\|dfs\|bfs` | which node to expand next |
+| `--max-crossings n` | never expand a node whose diagram has more than n crossings (default 24) |
+| `--hop-max-faces`, `--hop-iddfs-start`, `--hop-iddfs-iterations`, `--hop-root-budget` | each hop's search shape; the defaults are the campaign's (cap 5, IDDFS 2 rounds from 4, root budget 840), and the driver prints the shape it uses |
+| `--hop-mode process\|child` | hops in this process (default) or as `verifyslicegenus` children (`--verifyslicegenus` then required) |
+
+It writes `cascade.jsonl` (one line per hop, with its phase timers),
+`driver.log` and, when the goal is met, `certificate.json` for
+`tools/cascade_check.py`.
+
 ## Component maps
 
 A profile is indexed by a link's components, so every place where one
@@ -369,6 +398,75 @@ each run exactly as a campaign row (`remote_run.sh`'s flags, `hosts.conf`'s
 - 3 nodes were refused as hop rows: their simplified diagrams kept a nugatory
   crossing, which knotbuilder's drawer cannot certify
   (`removeNugatoryCrossings()` since).
+
+**Each change measured alone, against its parent** (same 30 targets and
+settings; wall is the driver process, start to exit, summed):
+
+| run | change | met | hops | wall | hop CPU |
+|---|---|---|---|---|---|
+| v1 | in-process hops, certificates signed inline | 30/30 | 91 | 1,224 s | 2,157 s |
+| v2 | certificates from faces and a build digest (no pair signatures) | 30/30 | 90 | 465 s | 2,147 s |
+| v3 | nugatory crossings removed from node diagrams | 30/30 | 85 | 451 s | 2,078 s |
+| v4 | new nodes named on a pool; rounds and drain tail timed | 30/30 | 86 | 452 s | 2,087 s |
+| v5 | the search's progress reporters and the row watchdog woken when their work ends | 30/30 | 86 | 375 s | 2,079 s |
+| v6 | the exact namer's HOMFLY index built on a pool | 30/30 | 84 | 181 s | 2,085 s |
+| v7 | one set of exact-naming table caches per process, shared by the node namer and every hop | 30/30 | 84 | 167 s | 2,066 s |
+
+- v2's certificates all check (faces route).
+- v3 refuses no row. The three refused nodes now lead to shorter proofs:
+  `10_27` takes 2 hops instead of 4, and `L10a136{1;0}` 2 instead of 6.
+- v3's checks first failed, because the checker could not match a
+  non-hyperbolic piece to a reduced node. The checker now removes nugatory
+  crossings itself (D8), and every check passes, v4's included.
+- v4 gained nothing. Its timers show why:
+  - **"Naming" is an index build.** It costs 3.8 s at the first hop of every
+    target, whether that hop adds 2 new nodes or 28, and 0.0 s for the 160
+    nodes named at the 56 later hops. That 3.8 s is `ExactNamer`'s HOMFLY
+    index, which computes ~34,000 table polynomials on one thread the first
+    time a process needs it: 110 s of v4's 452. A pool of callers cannot
+    help; the index itself must be built in parallel.
+  - **The search's wall is 323 s**, over 86 hops:
+    - round 1: 62 s;
+    - round 2: 17.5 s;
+    - the drain tail: 135 s, draining 3.78M surfaces. At 50k surfaces a
+      round ends in under a second, so almost every surface is drained
+      after it;
+    - the rest: 108 s.
+
+    The search, the drain tail and the rest all come out near whole
+    seconds. Both progress reporters sleep in 1 s steps, and each is joined
+    only when it wakes. So every hop waits up to a second after its
+    enumeration and again after its drain, doing nothing. That is harmless
+    in a 60 s sweep row, but in a 2–6 s hop it is most of the idle cores.
+- v5 wakes the reporters (and the row watchdog, which polled every 200 ms)
+  the moment their work ends.
+  - The search's wall falls from 323 s to 247 s: the drain tail goes
+    135 → 80 s and the rest 108 → 87 s.
+  - The cores busy during the search rise from 6.5 to 8.4.
+  - The rest that remains is concentrated: 26 hops carry 86 of its 87 s,
+    at 3.3–3.8 s each, almost all of them a target's first hop.
+  - Each hop's far-side namer is a new `ExactNamer`, which builds the HOMFLY
+    index again when a drain thread first needs it. The search waits for
+    that build at the join, or finds it inside the drain tail (five hops
+    have tails of 4.1–4.6 s against a median of 0.65 s).
+  - So v5 spends ~220 of its 375 s building one index, one thread at a
+    time.
+- v6 builds the index on a pool: ~0.4 s instead of 3.8 s.
+  - The wall halves, 375 → 181 s.
+  - The rest falls from 87 s to 3.8 s (no hop over 1 s), the drain tail
+    from 80 s to 61 s, and naming from 110 s to 12.8 s.
+  - Serial time is 10% of hop wall. The search keeps **13.8 of 14 cores
+    busy**, and the whole run 82% of them (hop CPU against 14 × wall); the
+    remainder is per-process startup and the one index per process.
+- v7 shares one set of table caches (`exactnaming::TableCaches`) between the
+  node namer and every hop's far-side namer. So each process builds the
+  index once, on hop 0's drain pool, and the node namer reuses it.
+  - Naming falls from 12.8 s to 1.3 s, and serial time to 4% of hop wall.
+  - The wall is 167 s for all 30 targets. About 11 s of it is outside the
+    hops: startup, ~0.4 s per process, which a single long cascade pays once.
+  - The sweep's chains for the same targets cost ≈ 61,800 CPU-s, and the
+    cascade uses ~2,100: about 1/29. A sweep row serves many targets at
+    once, so this is per target, not per campaign.
 
 ## The independent checker (`tools/cascade_check.py`)
 
