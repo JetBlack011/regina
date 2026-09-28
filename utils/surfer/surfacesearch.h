@@ -10,7 +10,9 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 #include <thread>
+#include <vector>
 
 #include "embeddedsubmanifold.h"
 #include "embeddingsearch.h"
@@ -364,6 +366,18 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     std::atomic<bool> skipRemainingDrain_{false};
     /** See rebuildFailures(). */
     std::atomic<long long> rebuildFailures_{0};
+
+    /**
+     * The seed's own faces, when the seed is itself an accepted surface and
+     * boundary links are wanted. backgroundDrainLoop_ describes it before
+     * anything else, instead of the calling thread describing it before any
+     * worker starts: describing it needs its pair signature, and the first
+     * pair signature builds pairSigCtx_ (isoSigDetail of the whole
+     * ambient, 21-26 s at 10 crossings), which used to hold every worker
+     * back for that long. Written before the aux thread is spawned and
+     * cleared by that thread, so it needs no lock.
+     */
+    std::optional<std::vector<int>> pendingSeed_;
 
     /**
      * Shared across every KnottedSurface this search constructs.

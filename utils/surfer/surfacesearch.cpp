@@ -418,6 +418,12 @@ void SurfaceSearch::backgroundDrainLoop_(
     constexpr size_t POP_BATCH = 64;
     KnottedSurface embedding(skeleton_, petalCache_);
     embedding.usePairSigContext(&pairSigCtx_);
+    // First, so the seed is still the first surface described; see
+    // pendingSeed_.
+    if (pendingSeed_) {
+        processEntry_(embedding, *pendingSeed_, callbacks);
+        pendingSeed_.reset();
+    }
     while (!workersFinished.load(std::memory_order_relaxed)) {
         auto items = pendingSurfaces_.popSome(POP_BATCH);
         if (items.empty()) {
@@ -440,7 +446,14 @@ void SurfaceSearch::backgroundDrainLoop_(
 
 void SurfaceSearch::processRemainingSurfaceBoundaries(
     unsigned numThreads, const SurfaceSearchCallbacks &callbacks) {
-    processBatchParallel_(pendingSurfaces_.drain(), numThreads, callbacks);
+    std::vector<std::vector<int>> batch = pendingSurfaces_.drain();
+    // backgroundDrainLoop_ describes the seed before anything else, so this
+    // only catches a seed that no aux thread was ever spawned to take.
+    if (pendingSeed_) {
+        batch.insert(batch.begin(), std::move(*pendingSeed_));
+        pendingSeed_.reset();
+    }
+    processBatchParallel_(std::move(batch), numThreads, callbacks);
 }
 
 void SurfaceSearch::processBatchParallel_(
@@ -636,37 +649,9 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                           [&probe] { return probe.pairSig(); })
                     : std::function<std::string()>{};
             if (wantLinks) {
-                auto links = probe.boundaryLinks();
-                std::string descriptor;
-                std::vector<BoundaryComponentNames> boundaryComponents;
-                if (!links.empty()) {
-                    std::tie(descriptor, boundaryComponents) =
-                        describeBoundary_(links);
-                    linkTally_.record(descriptor, type);
-                }
-                auto tubed = tubedFieldsFor(probe.triangulation(), genus,
-                                            punctures);
-                if (callbacks.onSurfaceBoundaryProcessed)
-                    callbacks.onSurfaceBoundaryProcessed(SurfaceBoundaryInfo{
-                        SurfaceFoundInfo{.orientable = orientable,
-                                        .genus = genus,
-                                        .tubedGenus = tubed.genus,
-                                        .closedComponents =
-                                            tubed.closedComponents,
-                                        .punctures = punctures,
-                                        .connected =
-                                            probe.triangulation().isConnected(),
-                                        .triangleCount = triangleCount,
-                                        .mostRestrictive =
-                                            classifyByLinks_(links),
-                                        .capturePairSig = capturePairSig,
-                                        .resolvedVertices = static_cast<int>(
-                                            probe.singularVertexCount())},
-                        descriptor, boundaryComponents,
-                        [&probe] { return probe.orientedBoundaryLinks(); },
-                        [&probe] {
-                            return probe.boundaryEdgeSurfaceComponent();
-                        }});
+                // Described by the aux thread, first; see pendingSeed_.
+                // processEntry_ does exactly what describing it here did.
+                pendingSeed_ = seedFaces;
             } else if (callbacks.onSurfaceFound) {
                 auto tubed = tubedFieldsFor(probe.triangulation(), genus,
                                             punctures);
