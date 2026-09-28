@@ -8,6 +8,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,12 +24,24 @@ std::vector<std::vector<int>> linkingMatrix(const exactnaming::GaussDiagram &d);
 /**
  * Simplifies a diagram with regina::Link::simplify() (Reidemeister moves
  * only: never reflects or reverses, and keeps component indices, a zero-
- * crossing component in its slot), keeping `origin`. Throws std::logic_error
+ * crossing component in its slot), keeping `origin`, then removes every
+ * nugatory crossing left (removeNugatoryCrossings()): a hop's row must be a
+ * reduced diagram for knotbuilder's drawer to certify it. Throws std::logic_error
  * if the component count or any pairwise linking number changed: component
  * identity is what every profile is indexed by, so a violation must stop
  * everything rather than mislabel components.
  */
 exactnaming::GaussDiagram simplifyKeepingComponents(const exactnaming::GaussDiagram &d);
+
+/// A nugatory crossing of `d` (one whose removal disconnects its diagram:
+/// always a self-crossing), or nullopt if `d` is reduced.
+std::optional<size_t> nugatoryCrossing(const exactnaming::GaussDiagram &d);
+
+/// `d` with every nugatory crossing removed: each by turning over the side it
+/// cuts off, which deletes it, swaps over and under on that side's crossings
+/// and keeps every sign. The same oriented link, components in the same
+/// order, with every linking number kept.
+exactnaming::GaussDiagram removeNugatoryCrossings(exactnaming::GaussDiagram d);
 
 /// How a diagram was found to be a node.
 struct NodeMatch {

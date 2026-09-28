@@ -13,6 +13,7 @@
 #include <link/link.h>
 
 #include "../diagramiso.h"
+#include "../hopedges.h"
 #include "../nodes.h"
 #include "check.h"
 #include "exactnaming/exacttables.h"
@@ -190,9 +191,130 @@ void testUnknot() {
   CHECK_EQ(m2.node, m.node, "one unknot node");
 }
 
+// `a` summed along its component `onComponent` with the knot `k` through a
+// twist: that component's word becomes `c(over) a... c(under) k...`, where
+// crossing 0 is the twist. Nugatory by construction, with all of `a` on the
+// side it cuts off (a's other components included, being linked only with
+// that side).
+GaussDiagram sumThroughTwist(const GaussDiagram &a, size_t onComponent,
+                             const GaussDiagram &k, int sign) {
+  GaussDiagram d;
+  d.signs.push_back(sign);
+  d.signs.insert(d.signs.end(), a.signs.begin(), a.signs.end());
+  d.signs.insert(d.signs.end(), k.signs.begin(), k.signs.end());
+  auto shift = [](long x, long by) { return x > 0 ? x + by : x - by; };
+  const long na = static_cast<long>(a.crossings());
+  for (size_t c = 0; c < a.components(); ++c) {
+    std::vector<long> w;
+    if (c == onComponent) w.push_back(+1);
+    for (long x : a.comps[c]) w.push_back(shift(x, 1));
+    if (c == onComponent) {
+      w.push_back(-1);
+      for (long x : k.comps[0]) w.push_back(shift(x, 1 + na));
+    }
+    d.comps.push_back(w);
+  }
+  d.origin = a.origin;
+  return d;
+}
+
+bool sameDiagram(const GaussDiagram &a, const GaussDiagram &b) {
+  return a.signs == b.signs && a.comps == b.comps && a.origin == b.origin;
+}
+
+// removeNugatoryCrossings(): every nugatory crossing goes, nothing else
+// changes -- the link (Jones polynomial), every linking number, the
+// component order -- and a reduced diagram comes back untouched.
+void testNugatoryCrossings() {
+  using regina::ExampleLink;
+  const GaussDiagram trefoil = of(ExampleLink::trefoilLeft());
+  const GaussDiagram fig8 = of(ExampleLink::figureEight());
+  const GaussDiagram whitehead = of(ExampleLink::whitehead());
+  const GaussDiagram borromean = of(ExampleLink::borromean());
+
+  for (const GaussDiagram *r : {&trefoil, &fig8, &whitehead, &borromean}) {
+    CHECK(!nugatoryCrossing(*r), "a reduced diagram has no nugatory crossing");
+    CHECK(sameDiagram(removeNugatoryCrossings(*r), *r),
+          "a reduced diagram comes back untouched");
+  }
+
+  // Connected sums through a twist, knots and links, both twist signs.
+  struct Case { const char *name; const GaussDiagram *a; size_t on; const GaussDiagram *k; };
+  const Case cases[] = {{"3_1 # 4_1", &trefoil, 0, &fig8},
+                        {"4_1 # 3_1", &fig8, 0, &trefoil},
+                        {"whitehead(0) # 3_1", &whitehead, 0, &trefoil},
+                        {"whitehead(1) # 4_1", &whitehead, 1, &fig8},
+                        {"borromean(2) # 3_1", &borromean, 2, &trefoil}};
+  for (const Case &cs : cases)
+    for (int sign : {+1, -1}) {
+      const std::string name = std::string(cs.name) + (sign > 0 ? " (+)" : " (-)");
+      const GaussDiagram d = sumThroughTwist(*cs.a, cs.on, *cs.k, sign);
+      auto c = nugatoryCrossing(d);
+      CHECK(c && *c == 0, name + ": the twist is found nugatory");
+      const GaussDiagram r = removeNugatoryCrossings(d);
+      CHECK_EQ(r.crossings(), cs.a->crossings() + cs.k->crossings(),
+               name + ": exactly the twist goes");
+      CHECK(!nugatoryCrossing(r), name + ": the result is reduced");
+      CHECK_EQ(r.components(), d.components(), name + ": the components stay");
+      CHECK(r.origin == d.origin, name + ": origins stay");
+      CHECK(linkingMatrix(r) == linkingMatrix(d), name + ": every linking number stays");
+      CHECK(r.link().jones() == d.link().jones(), name + ": the same link (Jones)");
+      CHECK(r.link().jones() == cs.a->link().jones() * cs.k->link().jones(),
+            name + ": the connected sum (Jones is multiplicative)");
+    }
+
+  // Kinks, from Regina's own type I moves, anywhere, either way round.
+  std::mt19937 rng(7);
+  for (const GaussDiagram *base : {&fig8, &whitehead}) {
+    for (int trial = 0; trial < 20; ++trial) {
+      regina::Link l = base->link();
+      for (int t = 0; t < 3; ++t) {
+        regina::Crossing *x = l.crossing(rng() % l.size());
+        l.r1(rng() % 2 ? x->upper() : x->lower(), static_cast<int>(rng() % 2),
+             rng() % 2 ? 1 : -1);
+      }
+      GaussDiagram d = GaussDiagram::of(l, base->origin);
+      CHECK(nugatoryCrossing(d).has_value(), "kinks are nugatory");
+      const GaussDiagram r = removeNugatoryCrossings(d);
+      CHECK_EQ(r.crossings(), base->crossings(), "every kink goes, nothing else");
+      CHECK(linkingMatrix(r) == linkingMatrix(*base), "kinks: linking numbers stay");
+      CHECK(r.link().jones() == base->link().jones(), "kinks: the same link (Jones)");
+    }
+  }
+}
+
+// Why reduction matters: a hop's row is certified by drawing knotbuilder's
+// link back (HopAssembler), and knotbuilder's drawer cannot draw a diagram
+// with a nugatory crossing. The reduced diagram's row certifies.
+void testReducedRowsCertify() {
+  using regina::ExampleLink;
+  const GaussDiagram d =
+      sumThroughTwist(of(ExampleLink::trefoilLeft()), 0, of(ExampleLink::figureEight()), 1);
+  auto certifies = [](const GaussDiagram &diagram) {
+    ProofGraph g;
+    NodeRegistry reg(g);
+    HopRow row;
+    row.node = reg.intern(diagram, "row").node;
+    row.diagram = diagram;
+    row.nodeMap = {0};
+    row.pd = rowPD(diagram);
+    row.layers = 2;
+    try {
+      HopAssembler hop(g, reg, row);
+      return true;
+    } catch (const std::exception &) {
+      return false;
+    }
+  };
+  CHECK(!certifies(d), "a row with a nugatory crossing cannot be certified");
+  CHECK(certifies(removeNugatoryCrossings(d)), "its reduced diagram's row certifies");
+}
+
 } // namespace
 
 int main() {
+  testNugatoryCrossings();
+  testReducedRowsCertify();
   testLinking();
   testSimplifyKeepsComponents();
   testDiagramHits();
