@@ -7,7 +7,11 @@ Written separately from the C++ cascade (cascade/*.cpp), in the spirit of
 frontier.py --check: nothing here calls the cascade's composition, identity
 or bookkeeping code. What it does use:
   - farsidediagram --gauss (the search pipeline's own far-side drawer,
-    validated separately: knotbuilder/README.md) to re-read each witness;
+    validated separately: knotbuilder/README.md) to re-read each witness:
+    from its pair signature, or -- an in-process hop's witness -- from its
+    triangles in the row's thickening (--faces), which farsidediagram
+    rebuilds with the search's own embedding checks, after the rebuilt
+    thickening's digest has been matched to the one the certificate records;
   - Regina (Link.fromData / fromPD) and SnapPy (isometries) as libraries.
 
 For every record of the proof it re-derives the claim:
@@ -36,7 +40,7 @@ csv.field_size_limit(10**9)
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FSD = os.path.normpath(os.path.join(
     HERE, '../../../../build/utils/surfer/farsidediagram'))
-ATLAS = '/home/john/Projects/triangles/cobordism-atlas'
+ATLAS = os.environ.get('CASCADE_ATLAS', '/home/john/Projects/triangles/cobordism-atlas')
 
 import regina  # noqa: E402
 
@@ -403,20 +407,33 @@ class Checker:
         ck = (hop_dir, key)
         if ck in self.fsd_cache:
             return self.fsd_cache[ck]
-        if record is not None and 'pairsig' in record:
+        faces = record is not None and 'faces' in record
+        if faces:
+            # An in-process witness: its triangles in the row's thickening,
+            # rebuilt by farsidediagram --faces with the search's own checks.
+            # The digest below proves the rebuilt thickening is the one they
+            # index.
+            w = {'data': ','.join(str(t) for t in record['faces']),
+                 'thicken_layers': str(record.get('layers', 2)), 'genus': None}
+        elif record is not None and 'pairsig' in record:
             # A master witness: its pair signature travels in the certificate,
             # under a provenance-prefixed key ("master:<sha1[:12]>").
             ps = record['pairsig']
             if hashlib.sha1(ps.encode()).hexdigest()[:12] != key.split(':')[-1]:
                 raise RuntimeError(f'inline pair signature does not hash to {key}')
-            w = {'pairsig': ps, 'thicken_layers': str(record.get('layers', 2)),
+            w = {'data': ps, 'thicken_layers': str(record.get('layers', 2)),
                  'genus': None}
         else:
             w = self.pairsig(hop_dir, key)
-        out = subprocess.run([self.fsd, '--layers', w['thicken_layers'] or '2', '--gauss',
-                              row_pd], input=f'0 {w["pairsig"]}\n', capture_output=True,
+            w['data'] = w['pairsig']
+        out = subprocess.run([self.fsd, '--layers', w['thicken_layers'] or '2', '--gauss']
+                             + (['--faces'] if faces else []) + [row_pd],
+                             input=f'0 {w["data"]}\n', capture_output=True,
                              text=True).stdout.splitlines()
         row = dict(kv.split('=', 1) for kv in out[0].split(' ')[1:])
+        if faces and row.get('build') != record.get('build'):
+            raise RuntimeError(f"the rebuilt thickening's digest {row.get('build')} is not "
+                               f"the one its faces were recorded in ({record.get('build')})")
         wl = [l for l in out if l.startswith('W ')][0]
         if ' ok ' not in wl:
             raise RuntimeError(f'farsidediagram: {wl}')
@@ -502,7 +519,7 @@ class Checker:
             self.notes.append(f'record {r["id"]}: literature {name} {t}; identity: {why}')
             return True
         if src.startswith('direct witness '):
-            d = self.redraw(r['hop_dir'], r['row_pd'], r['witness'])
+            d = self.redraw(r['hop_dir'], r['row_pd'], r['witness'], r)
             if d['far'].comps:
                 return self.fail(r['id'], 'a direct witness with a far side')
             return self.fail(r['id'], 'direct witnesses: replay not implemented')

@@ -65,6 +65,8 @@ struct HopRun {
   std::string outcome;           ///< surface-target, exhausted, timeout, stopped
   double wall = 0;               ///< seconds
   double cpu = 0;                ///< process CPU seconds over the hop
+  double setup = 0;              ///< wall before the search: namer, search, seed checks
+  double search = 0;             ///< wall of the search itself, drain included
 };
 
 class HopSearcher {

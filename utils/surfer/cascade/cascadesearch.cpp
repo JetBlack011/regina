@@ -349,15 +349,16 @@ private:
     /// for a hop on the node's own diagram, the registry's map for a master
     /// row (the table's diagram).
     std::vector<int> rowNodeMap;
-    /// An in-process hop's surface, as triangles of the row's thickening:
-    /// its pair signature is computed only if a certificate needs it.
+    /// An in-process hop's surface, as triangles of the row's thickening,
+    /// and that thickening's digest (WitnessRedrawer::buildChecksum()). A
+    /// certificate carries both; the checker rebuilds the row, refuses a
+    /// different digest, and rebuilds the surface from its faces. No pair
+    /// signature is ever computed for it (that is only for a witness bound
+    /// for the atlas; pairSigsOf()).
     std::vector<int> faces;
+    std::string build;
   };
-  /// The pair signatures a certificate carries for the in-process witnesses
-  /// its proof uses, signed now from their faces (pairSigsOf()). Master
-  /// witnesses carry theirs inline, and a child hop's is in its directory.
-  std::map<const EdgeInfo *, std::string>
-  certificatePairSigs(const std::vector<RecordId> &proof) const;
+  static void writeSurface(std::ostream &c, const EdgeInfo &info);
   std::optional<farside::SignatureTable> signatures_;
   std::unique_ptr<HopSearcher> searcher_;
   std::unique_ptr<MasterIndex> master_;
@@ -587,6 +588,11 @@ void Cascade::expand(NodeId n, long surfaces) {
   std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
   row.pd = rowPD(d);
   row.layers = 2;
+  using clock = std::chrono::steady_clock;
+  auto seconds = [](clock::time_point a, clock::time_point b) {
+    return std::chrono::duration<double>(b - a).count();
+  };
+  const auto tRow = clock::now();
   std::unique_ptr<HopAssembler> hop;
   try {
     hop = std::make_unique<HopAssembler>(g_, reg_, row);
@@ -597,13 +603,18 @@ void Cascade::expand(NodeId n, long surfaces) {
     std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
     return;
   }
+  // Where a hop's time goes, logged per hop: the row's build and
+  // certification, the search's setup and the search itself, adding its
+  // surfaces, naming new nodes, and relaxing the graph.
+  double rowSeconds = seconds(tRow, clock::now()), setupSeconds = 0, searchSeconds = 0;
   const std::string rowName = "cascade_n" + std::to_string(n);
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
   size_t witnesses = 0;
   // One witness (or kept surface) into the graph. Its edge's key is its
   // provenance: the witness key of a child hop's witness, or hop<k>#<i> for
-  // an in-process one, whose pair signature does not exist yet.
+  // an in-process one, which has no pair signature.
+  const std::string build = searcher_ ? hop->redrawer().buildChecksum() : std::string();
   auto take = [&](const std::string &key, const std::string &label,
                   const std::function<HopEdge()> &add, std::vector<int> faces) {
     HopEdge e;
@@ -620,7 +631,9 @@ void Cascade::expand(NodeId n, long surfaces) {
     }
     if (e.ok) {
       ++assembled;
-      EdgeInfo info{dir, row.pd, key, e, 2, "", row.nodeMap, std::move(faces)};
+      const bool inProcess = !faces.empty();
+      EdgeInfo info{dir, row.pd, key, e, 2, "", row.nodeMap, std::move(faces),
+                    inProcess ? build : std::string()};
       if (e.direct) directInfo_[key] = std::move(info);
       else edgeInfo_[e.edge] = std::move(info);
     } else {
@@ -645,6 +658,8 @@ void Cascade::expand(NodeId n, long surfaces) {
     r.status = run.accountingFailure.empty() ? 0 : 1;
     r.wall = run.wall;
     r.cpu = run.cpu;
+    setupSeconds = run.setup;
+    searchSeconds = run.search;
     std::ofstream(dir + "/log.txt")
         << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
         << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
@@ -696,10 +711,14 @@ void Cascade::expand(NodeId n, long surfaces) {
   cpuSpent_ += r.cpu;
   wallSpent_ += r.wall;
   expansions_[n].push_back(surfaces);
+  const auto tNodes = clock::now();
+  const double addSeconds = seconds(t0, tNodes);
   for (size_t m = nodesBefore; m < g_.nodeCount(); ++m)
     onNewNode(static_cast<NodeId>(m), depth_.at(n) + 1);
+  const auto tProp = clock::now();
   g_.propagate();
   g_.propagateLower();
+  const double nodeSeconds = seconds(tNodes, tProp), propagateSeconds = seconds(tProp, clock::now());
   const int targetLower = g_.lower(target_, goalPartition(target_));
   const double assemble = std::chrono::duration<double>(
       std::chrono::steady_clock::now() - t0).count();
@@ -708,7 +727,10 @@ void Cascade::expand(NodeId n, long surfaces) {
   o << "{\"hop\":" << k << ",\"node\":" << n << ",\"crossings\":" << d.crossings()
     << ",\"surfaces\":" << surfaces << ",\"status\":" << r.status
     << ",\"wall\":" << std::fixed << std::setprecision(1) << r.wall << ",\"cpu\":" << r.cpu
-    << ",\"assemble\":" << assemble << ",\"witnesses\":" << witnesses
+    << ",\"assemble\":" << assemble << ",\"row\":" << rowSeconds
+    << ",\"setup\":" << setupSeconds << ",\"search\":" << searchSeconds
+    << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
+    << ",\"propagate\":" << propagateSeconds << ",\"witnesses\":" << witnesses
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
     << ",\"records\":" << g_.recordCount()
@@ -725,35 +747,17 @@ void Cascade::expand(NodeId n, long surfaces) {
             << "\n";
 }
 
-std::map<const Cascade::EdgeInfo *, std::string>
-Cascade::certificatePairSigs(const std::vector<RecordId> &proof) const {
-  std::vector<const EdgeInfo *> infos;
-  for (RecordId r : proof) {
-    const Record &rec = g_.record(r);
-    const EdgeInfo *info = nullptr;
-    if (rec.kind == RecordKind::witnessForward || rec.kind == RecordKind::witnessReverse) {
-      if (auto it = edgeInfo_.find(rec.edge); it != edgeInfo_.end()) info = &it->second;
-    } else if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
-      if (auto it = directInfo_.find(rec.source.substr(15)); it != directInfo_.end())
-        info = &it->second;
-    }
-    if (info && !info->faces.empty() &&
-        std::find(infos.begin(), infos.end(), info) == infos.end())
-      infos.push_back(info);
+// How a certificate finds a witness's surface: a master witness's pair
+// signature inline; an in-process one's faces in its row's thickening, with
+// that thickening's digest; a child hop's by its key in the hop directory's
+// witness file (nothing here).
+void Cascade::writeSurface(std::ostream &c, const EdgeInfo &info) {
+  if (!info.pairsig.empty()) c << ",\"pairsig\":\"" << jsonEscape(info.pairsig) << "\"";
+  if (!info.faces.empty()) {
+    c << ",\"faces\":[";
+    for (size_t i = 0; i < info.faces.size(); ++i) c << (i ? "," : "") << info.faces[i];
+    c << "],\"build\":\"" << info.build << "\"";
   }
-  std::vector<SignRequest> requests;
-  for (const EdgeInfo *info : infos) requests.push_back({info->rowPD, info->layers, info->faces});
-  const auto t0 = std::chrono::steady_clock::now();
-  const std::vector<std::string> sigs =
-      pairSigsOf(requests, static_cast<unsigned>(cfg_.threads));
-  if (!infos.empty())
-    std::cout << "[+] certificate: " << infos.size() << " pair signatures in " << std::fixed
-              << std::setprecision(0)
-              << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
-              << " s\n";
-  std::map<const EdgeInfo *, std::string> out;
-  for (size_t i = 0; i < infos.size(); ++i) out[infos[i]] = sigs[i];
-  return out;
 }
 
 void Cascade::writeCertificate() const {
@@ -766,13 +770,7 @@ void Cascade::writeCertificate() const {
     << best->genus << ",\"records\":[\n";
   bool first = true;
   std::set<NodeId> nodes;
-  const std::vector<RecordId> proof = g_.proof(best->record);
-  const std::map<const EdgeInfo *, std::string> signedNow = certificatePairSigs(proof);
-  auto pairSigFor = [&](const EdgeInfo &info) {
-    auto s = signedNow.find(&info);
-    return s != signedNow.end() ? s->second : info.pairsig;
-  };
-  for (RecordId r : proof) {
+  for (RecordId r : g_.proof(best->record)) {
     const Record &rec = g_.record(r);
     nodes.insert(rec.node);
     c << (first ? "" : ",\n") << "{\"id\":" << r << ",\"node\":" << rec.node
@@ -793,15 +791,7 @@ void Cascade::writeCertificate() const {
       nodes.insert(we.in);
       nodes.insert(we.out);
       const auto it = edgeInfo_.find(rec.edge);
-      // An in-process witness is named in the certificate by its pair
-      // signature's key, as every other witness is; its graph key (hop<k>#<i>)
-      // becomes its provenance.
-      const std::string pairsig =
-          it != edgeInfo_.end() ? pairSigFor(it->second) : std::string();
-      const bool inProcess = it != edgeInfo_.end() && !it->second.faces.empty();
-      c << ",\"witness\":\""
-        << jsonEscape(inProcess ? witnesskey::witnessKey(pairsig) : we.key) << "\"";
-      if (inProcess) c << ",\"provenance\":\"" << jsonEscape(we.key) << "\"";
+      c << ",\"witness\":\"" << jsonEscape(we.key) << "\"";
       c << ",\"in\":" << we.in
         << ",\"out\":" << we.out << ",\"shape\":{\"components\":" << we.shape.components
         << ",\"genus\":" << we.shape.genus << ",\"inComponent\":" << ints(we.shape.inComponent)
@@ -812,8 +802,7 @@ void Cascade::writeCertificate() const {
         c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
           << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
           << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
-        if (!pairsig.empty())
-          c << ",\"pairsig\":\"" << jsonEscape(pairsig) << "\"";
+        writeSurface(c, it->second);
         c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
         for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
           c << (j ? "," : "") << ints(he.farCurveEdges[j]);
@@ -842,15 +831,10 @@ void Cascade::writeCertificate() const {
     if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
       const std::string key = rec.source.substr(15);
       if (auto it = directInfo_.find(key); it != directInfo_.end()) {
-        const std::string pairsig = pairSigFor(it->second);
-        const bool inProcess = !it->second.faces.empty();
-        c << ",\"witness\":\""
-          << jsonEscape(inProcess ? witnesskey::witnessKey(pairsig) : it->second.key)
+        c << ",\"witness\":\"" << jsonEscape(it->second.key)
           << "\",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
           << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
-        if (inProcess) c << ",\"provenance\":\"" << jsonEscape(it->second.key) << "\"";
-        if (!pairsig.empty())
-          c << ",\"pairsig\":\"" << jsonEscape(pairsig) << "\"";
+        writeSurface(c, it->second);
       }
     }
     c << "}";

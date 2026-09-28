@@ -14,6 +14,8 @@
 
 #include "embeddedsubmanifold.h"
 #include "pairsig.h"
+#include "vertexlinks.h"
+#include "witnesskey.h"
 
 namespace farside {
 
@@ -285,6 +287,69 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLink(const std::string &pai
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
     if (!link) why = "incoming orientation is inconsistent";
     return link;
+}
+
+bool WitnessRedrawer::rebuild(const std::vector<int> &faces, KnottedSurface &surface,
+                              std::string &why) const {
+    const regina::Triangulation<4> &W = rb_.tri;
+    for (int f : faces)
+        if (f < 0 || static_cast<size_t>(f) >= W.countTriangles()) {
+            why = "face " + std::to_string(f) + " is not a triangle of the thickening";
+            return false;
+        }
+    // Before anything is built: the search side must be exactly L x {0}.
+    if (boundaryEdgesOf(W, faces, rb_.searchSideBC) != rb_.searchEdges) {
+        why = "its incoming boundary is not L x {0}";
+        return false;
+    }
+    if (!surface.addFaces(faces)) {
+        why = "its faces fail the search's embedding checks";
+        return false;
+    }
+    if (!surface.satisfies(BoundaryCondition::proper)) {
+        why = "it is not properly embedded";
+        return false;
+    }
+    if (!surface.isAcceptable()) {
+        why = "it is not acceptable (a self-intersection that does not resolve, "
+              "or not smooth at the boundary)";
+        return false;
+    }
+    return true;
+}
+
+std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFromFaces(const std::vector<int> &faces,
+                                                                   std::string &why) const {
+    PetalCache cache;
+    KnottedSurface::SelfIntersectionOptions options;
+    options.resolveUnlinked = true;
+    KnottedSurface surface(options, *skeleton_, cache);
+    if (!rebuild(faces, surface, why)) return std::nullopt;
+    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.searchSideBC);
+    if (!link) why = "incoming orientation is inconsistent";
+    return link;
+}
+
+std::string WitnessRedrawer::buildChecksum() const {
+    const regina::Triangulation<4> &W = rb_.tri;
+    std::string data = std::to_string(W.size()) + '|';
+    for (size_t i = 0; i < W.size(); ++i) {
+        const regina::Pentachoron<4> *p = W.pentachoron(i);
+        for (int f = 0; f < 5; ++f) {
+            if (const regina::Pentachoron<4> *adj = p->adjacentPentachoron(f))
+                data += std::to_string(adj->index()) + ':' +
+                        std::to_string(p->adjacentGluing(f).S5Index());
+            else
+                data += '-';
+            data += ',';
+        }
+    }
+    data += '|';
+    for (size_t k = 0; k < W.countTriangles(); ++k) {
+        const auto &emb = W.triangle(k)->front();
+        data += std::to_string(emb.simplex()->index()) + ':' + std::to_string(emb.face()) + ',';
+    }
+    return witnesskey::sha1Hex(data).substr(0, 16);
 }
 
 } // namespace farside

@@ -85,6 +85,30 @@ class WitnessRedrawer {
     std::optional<OutgoingLink> outgoingLinkFast(const std::string &pairsig,
                                                  std::string &why) const;
 
+    /**
+     * Rebuilds a surface given by its triangles in thickening() -- as an
+     * in-process cascade hop keeps them -- face by face into `surface`, which
+     * must be empty, over skeleton(), made with resolveUnlinked on. It runs
+     * the search's own checks: every face must add, and the whole must
+     * satisfy `proper`, be acceptable (embedded or resolvable, and smooth at
+     * the boundary), and meet the incoming boundary in exactly L x {0}.
+     * False, with `why`, otherwise.
+     */
+    bool rebuild(const std::vector<int> &faces, KnottedSurface &surface,
+                 std::string &why) const;
+
+    /** As outgoingLink(), for a surface given by its faces (rebuild()). */
+    std::optional<OutgoingLink> outgoingLinkFromFaces(const std::vector<int> &faces,
+                                                      std::string &why) const;
+
+    /**
+     * A digest of thickening(): its size, every gluing, and which pentachoron
+     * face each triangle is. Faces recorded against one build are read only
+     * in a build with the same digest, so a change to the construction (or to
+     * Regina's skeleton numbering) is refused rather than misread.
+     */
+    std::string buildChecksum() const;
+
     const regina::Triangulation<3> &knotT() const { return rb_.link.tri; }
     const regina::Triangulation<4> &thickening() const { return rb_.tri; }
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }

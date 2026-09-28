@@ -185,13 +185,15 @@ void checkRow(const farside::SignatureTable &sigs, const std::string &name,
   CHECK(!run.kept.empty(), name + ": surfaces kept");
 
   std::set<std::string> keys;
-  int same = 0, compared = 0;
+  int same = 0, compared = 0, fromFaces = 0;
+  const farside::WitnessRedrawer &redraw = inProcess.redrawer();
+  const std::vector<int> seed = redraw.rowBuild().seedFaces;
   for (size_t i = 0; i < run.kept.size(); ++i) {
     const KeptSurface &k = run.kept[i];
     keys.insert(k.key);
     const std::string key = name + "#" + std::to_string(i);
     const HopEdge a = inProcess.addRead(k.link, k.genus, key);
-    const std::string sig = pairSigOf(inProcess.redrawer().thickening(), k.faces);
+    const std::string sig = pairSigOf(redraw.thickening(), k.faces);
     signed_.push_back({{pd, 2, k.faces}, sig});
     const HopEdge b = byPairSig.add({sig, k.genus, key});
     ++compared;
@@ -202,12 +204,60 @@ void checkRow(const farside::SignatureTable &sigs, const std::string &name,
                 << a.ok << " '" << a.why << "', by pair signature ok=" << b.ok << " '" << b.why
                 << "'; they differ beyond the row's and far side's symmetries\n";
     }
+    // A certificate's route: the faces, rebuilt in the same thickening,
+    // read exactly as the search read them -- same curves, same components.
+    std::string why;
+    auto link = redraw.outgoingLinkFromFaces(k.faces, why);
+    if (link) {
+      const HopEdge c = inProcess.addRead(*link, k.genus, key);
+      if (c.ok && c.farCurveEdges == a.farCurveEdges && c.shape.outComponent == a.shape.outComponent &&
+          c.shape.inComponent == a.shape.inComponent && c.farNode == a.farNode)
+        ++fromFaces;
+    } else {
+      std::cout << "  " << name << " kept surface " << i << ": from faces: " << why << "\n";
+    }
   }
   CHECK_EQ(static_cast<size_t>(keys.size()), run.kept.size(),
            name + ": one surface per key");
   CHECK_EQ(same, compared,
            name + ": every kept surface reads the same in process and from its "
                   "pair signature");
+  CHECK_EQ(fromFaces, compared,
+           name + ": every kept surface reads exactly the same rebuilt from its faces");
+
+  // Faces that are not a surface of this row are refused, not misread.
+  const std::vector<int> &faces = run.kept.front().faces;
+  std::string why;
+  std::vector<int> noSeed;
+  for (int f : faces)
+    if (f != seed.front()) noSeed.push_back(f);
+  CHECK(!redraw.outgoingLinkFromFaces(noSeed, why),
+        name + ": a seed triangle missing is refused (" + why + ")");
+  // One triangle outside the seed dropped: its neighbours' edges become
+  // boundary inside the thickening, so the rest is not properly embedded.
+  auto outside = std::find_if(faces.rbegin(), faces.rend(), [&](int f) {
+    return std::find(seed.begin(), seed.end(), f) == seed.end();
+  });
+  if (outside != faces.rend()) {
+    std::vector<int> cut;
+    for (int f : faces)
+      if (f != *outside) cut.push_back(f);
+    CHECK(!redraw.outgoingLinkFromFaces(cut, why),
+          name + ": a surface with a triangle missing is refused (" + why + ")");
+  }
+}
+
+// The build digest names the thickening: the same for two builds of one row,
+// different for another row or another number of layers.
+void testBuildChecksum() {
+  const char *trefoil = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
+  const farside::WitnessRedrawer a(trefoil, 2), b(trefoil, 2);
+  const farside::WitnessRedrawer hopf("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 2);
+  const farside::WitnessRedrawer oneLayer(trefoil, 1);
+  CHECK_EQ(a.buildChecksum(), b.buildChecksum(), "digest: two builds of one row agree");
+  CHECK(a.buildChecksum() != hopf.buildChecksum(), "digest: another row differs");
+  CHECK(a.buildChecksum() != oneLayer.buildChecksum(), "digest: another layer count differs");
+  CHECK_EQ(a.buildChecksum().size(), static_cast<size_t>(16), "digest: 16 hex digits");
 }
 
 // pairSigsOf(): the rows rebuilt from their PD codes and signed with one
@@ -249,6 +299,7 @@ int main() {
       data + "/knots_to_6.csv", data + "/links_to_6.csv");
   checkRow(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
   checkRow(sigs, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
+  testBuildChecksum();
   testBatchSigning();
   testStop(sigs);
   return cascadetest::finish("hoprunner_test");

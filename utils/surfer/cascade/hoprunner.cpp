@@ -177,11 +177,14 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                      noteStop(why);
                      e.requestStop();
                    });
+  const auto searchStart = std::chrono::steady_clock::now();
+  out.setup = std::chrono::duration<double>(searchStart - wall0).count();
   const SearchStats stats = e.search(
       threads_, BoundaryCondition::proper, callbacks, shape_.iddfsIterations,
       shape_.iddfsStep, shape_.iddfsStart, std::nullopt,
       /*orientableOnly=*/true, shape_.maxFaces, shape_.rootBudgetStart,
       shape_.rootBudgetGrowth);
+  out.search = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
   watchdog->stop();
 
   const bool drainSkipped = e.boundaryProcessingSkipped();
