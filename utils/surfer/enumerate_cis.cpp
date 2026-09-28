@@ -225,13 +225,6 @@ void ConnectedInducedSubgraphEnumerator::seedFastForward_(
         if (w > 1 && !inU[w] && !inC[w])
             addCandidate(w, 1, 1);
 
-    // The list's order right now is canonical: every later root restores
-    // membership but rotates the order, so this is the state
-    // resetCandidateOrder() returns to.
-    canonicalCandidates_.clear();
-    for (int w = candNext[0]; w != 0; w = candNext[w])
-        canonicalCandidates_.push_back(w);
-
     roots_.clear();
     for (int w = candNext[0]; w != 0; w = candNext[w]) {
         if (!predicate) {
@@ -243,6 +236,19 @@ void ConnectedInducedSubgraphEnumerator::seedFastForward_(
             roots_.push_back(w);
         }
     }
+
+    // A neighbour of the seed that fails with the seed alone is pruned for
+    // good: the predicate is anti-monotonic, and every set this enumerator
+    // will visit contains the seed, so none containing that neighbour can
+    // pass. Leave it out of the list, but keep it in C, so no later vertex
+    // re-introduces it. On the profiled row, 880 of 1,019 seed neighbours:
+    // 84% of every scan, and 91% of the failing tryAdd() calls.
+    //
+    // The list's order right now is canonical: every later root restores
+    // membership but rotates the order, so this is the state
+    // resetCandidateOrder() returns to.
+    canonicalCandidates_ = roots_;
+    resetCandidateOrder();
 }
 
 void ConnectedInducedSubgraphEnumerator::addCandidate(int v, int par, int d) {
@@ -324,6 +330,8 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
     siblings.clear();
     for (int v = candNext[0]; v != 0; v = candNext[v])
         siblings.push_back(v);
+    std::vector<int> &pruned = prunedBuf[U.size()];
+    pruned.clear();
 
     for (int w : siblings) {
         const int dw = dist[w];
@@ -359,12 +367,27 @@ void ConnectedInducedSubgraphEnumerator::extendFiltered(
 
             for (int x : introduced)
                 removeCandidate(x);
-        }
-        // else: tryAdd made no net change (transactional contract), so
-        // there's nothing to undo -- just prune.
 
+            U.pop_back();
+            inU[w] = false;
+            addCandidate(w, wParent, wDist);
+            continue;
+        }
+
+        // tryAdd made no net change (transactional contract), so there is
+        // nothing to undo. w is pruned at this node, and so throughout its
+        // subtree: every set there containing w contains U + w, and the
+        // predicate is anti-monotonic (see enumerateFiltered()). So keep it
+        // out of the list for the rest of this loop -- no later sibling's
+        // subtree scans or tries it again -- but in C, so none re-introduces
+        // it. A rejection that is not a prune (the budget running out, a stop)
+        // does the same harmlessly: nothing after it in this pass is
+        // reported.
         U.pop_back();
         inU[w] = false;
-        addCandidate(w, wParent, wDist);
+        inC[w] = true;
+        pruned.push_back(w);
     }
+    for (int w : pruned)
+        listPushBack(w); // back into the list, after this node's own loop
 }

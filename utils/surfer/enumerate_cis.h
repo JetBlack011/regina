@@ -285,7 +285,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        const std::vector<std::vector<int>> &adj)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1) {
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1) {
         initUnseededRoots_();
     }
 
@@ -304,7 +304,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        ConditionalPredicate &predicate)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1),
           isSeeded_(isSeeded) {
         if (isSeeded_)
             seedFastForward_(&predicate);
@@ -321,7 +321,7 @@ class ConnectedInducedSubgraphEnumerator {
                                        bool isSeeded)
         : n(n), adj(adj), candNext(n + 1, 0), candPrev(n + 1, 0),
           dist(n + 1, -1), parentOf(n + 1, 0), inU(n + 1, false),
-          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1),
+          inC(n + 1, false), siblingBuf(n + 1), introducedBuf(n + 1), prunedBuf(n + 1),
           isSeeded_(isSeeded) {
         if (isSeeded_)
             seedFastForward_(nullptr);
@@ -356,7 +356,7 @@ class ConnectedInducedSubgraphEnumerator {
      * enumeration it precedes. A no-op for unseeded enumerators.
      */
     void resetCandidateOrder() {
-        if (canonicalCandidates_.empty())
+        if (!isSeeded_)
             return;
         candNext[0] = 0;
         candPrev[0] = 0;
@@ -390,14 +390,21 @@ class ConnectedInducedSubgraphEnumerator {
      * As enumerate(), but only descends into (and reports) vertex sets
      * satisfying `predicate`, in addition to connectivity.
      *
-     * \pre `predicate` is hereditary: for every connected U* satisfying
-     * it, every connected subset of U* also satisfies it. Given that,
-     * this finds every connected induced subgraph satisfying the
+     * \pre `predicate` is anti-monotonic: for every connected U* satisfying
+     * it, every connected subset of U* also satisfies it (the paper's
+     * Definition def:anti-monotonic, restricted to connected sets). Given
+     * that, this finds every connected induced subgraph satisfying the
      * predicate, with no duplicates, visiting only the
      * predicate-satisfying nodes plus a thin "boundary" of their failing
      * children -- not the whole search space.
      *
-     * \warning If `predicate` is not hereditary, this can silently miss
+     * Anti-monotonicity is also what lets a child that fails at a node be
+     * set aside for that node's whole subtree (see extendFiltered()), and a
+     * seed neighbour that fails with the seed alone for good (see
+     * seedFastForward_). Heredity -- surviving only the passage to the
+     * canonical parent -- would not be enough for either.
+     *
+     * \warning If `predicate` is not anti-monotonic, this can silently miss
      * results.
      */
     void enumerateFiltered(
@@ -496,8 +503,10 @@ class ConnectedInducedSubgraphEnumerator {
 
     std::vector<int> roots_; /**< See getRoots(). */
     std::vector<int> canonicalCandidates_;
-        /**< The candidate list's order immediately after seeding; see
-             resetCandidateOrder(). Empty when unseeded. */
+        /**< The candidate list's order immediately after seeding: the roots,
+             since a seed neighbour that fails with the seed alone is pruned
+             for good (see seedFastForward_). See resetCandidateOrder().
+             Empty when unseeded. */
 
     /** Populates roots_ with every vertex 1..n (the unseeded case). */
     void initUnseededRoots_() {
@@ -524,6 +533,14 @@ class ConnectedInducedSubgraphEnumerator {
      * always safe to clear and reuse rather than reallocate.
      */
     std::vector<std::vector<int>> siblingBuf, introducedBuf;
+
+    /**
+     * Per-depth buffers of the children extendFiltered() has pruned at the
+     * current node: out of the candidate list (so no deeper node scans or
+     * tries them) but still in C (so none is re-introduced), until the
+     * node's loop ends. See extendFiltered().
+     */
+    std::vector<std::vector<int>> prunedBuf;
 
     /**
      * Adapts a stateless whole-U predicate into the ConditionalPredicate
