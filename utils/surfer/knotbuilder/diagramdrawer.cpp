@@ -88,11 +88,10 @@ long Diagram::linkingNumber(size_t i, size_t j) const {
 }
 
 regina::Link Diagram::link() const {
-    regina::Link out = pd.empty() ? regina::Link()
-                                  : regina::Link::fromPD(pd.begin(), pd.end());
-    if (!crossingless.empty())
-        out.insertLink(regina::Link(crossingless.size()));
-    return out;
+    std::vector<int> signs;
+    signs.reserve(crossings.size());
+    for (const CrossingInfo &c : crossings) signs.push_back(c.sign);
+    return regina::Link::fromData(signs.begin(), signs.end(), gauss.begin(), gauss.end());
 }
 
 // ---------------------------------------------------------------- the drawer
@@ -292,7 +291,6 @@ Diagram DiagramDrawer::Impl::draw(const std::vector<EdgeCycle> &curves,
                            unsigned seed) const {
     std::vector<Piece> pieces;
     std::vector<std::vector<size_t>> cyclesV;          // vertices, per component
-    std::set<std::pair<size_t, size_t>> adjacent;      // consecutive curve vertices
     const BlockCoord eps = S / 200;
     const XY tgt{S / 5 + static_cast<BlockCoord>(seed % 13) * S / 311,
                  -S / 7 + static_cast<BlockCoord>(seed % 11) * S / 293};
@@ -311,10 +309,6 @@ Diagram DiagramDrawer::Impl::draw(const std::vector<EdgeCycle> &curves,
             size_t nextTail = nx->vertex(ec[(k + 1) % m].reversed ? 1 : 0)->index();
             if (head != nextTail)
                 throw regina::InvalidArgument("draw: a curve is not a closed path");
-        }
-        for (size_t k = 0; k < m; ++k) {
-            auto a = vs[k], b = vs[(k + 1) % m];
-            adjacent.insert({std::min(a, b), std::max(a, b)});
         }
         size_t start = 0;
         while (start < m && apex.contains(vs[start])) ++start;
@@ -480,8 +474,13 @@ Diagram DiagramDrawer::Impl::draw(const std::vector<EdgeCycle> &curves,
         std::pair<long, long> key{std::min(v, w), std::max(v, w)};
         if (checked.contains(key)) continue;
         checked.insert(key);
-        if (adjacent.contains({static_cast<size_t>(key.first), static_cast<size_t>(key.second)}))
-            continue; // the curve runs up the corner edge itself: one pass
+        // This includes a curve running up the corner's own vertical edge
+        // (v and w consecutive). Its tent leaves the corner point and comes
+        // back to it, so the shadow passes the corner twice -- once on the
+        // way in at v, once on the way out at w -- and those two passes
+        // cross whenever their ends alternate, exactly as for any other
+        // two passes. (Skipping this case once lost that crossing, which
+        // left a non-planar diagram.)
 
         // The blocks around this corner, counterclockwise, starting from out0's.
         const long regionBottom = cv.first;
@@ -570,8 +569,17 @@ Diagram DiagramDrawer::Impl::draw(const std::vector<EdgeCycle> &curves,
             auto evs = events[i];
             std::sort(evs.begin(), evs.end(),
                       [](const Event &a, const Event &b) { return a.at < b.at; });
+            // Two crossings at one point of a piece mean three pieces through
+            // one point of the plane: their order along each strand is then
+            // arbitrary, and a wrong order can still be planar. Never guess.
+            for (size_t k = 1; k < evs.size(); ++k)
+                if (!(evs[k - 1].at < evs[k].at))
+                    throw Degenerate("three pieces cross at one point");
             for (const Event &e : evs) seq.push_back({e.crossing, e.over});
         }
+        std::vector<long> &g = out.gauss.emplace_back();
+        for (auto [id, over] : seq)
+            g.push_back(over ? static_cast<long>(id) + 1 : -static_cast<long>(id) - 1);
         if (seq.empty()) {
             out.crossingless.push_back(c);
             continue;
@@ -603,6 +611,12 @@ Diagram DiagramDrawer::Impl::draw(const std::vector<EdgeCycle> &curves,
         // [under-in, over-in, under-out, over-out] is a left-handed crossing.
         out.crossings.push_back({c.overComp, c.underComp, overFromRight ? -1 : 1});
     }
+    // Every closed curve in S^3 has a planar diagram, so a drawing that is
+    // not one is a defect here, and must never reach a name: a crossing
+    // missed or misordered leaves a virtual diagram, which simplify() can
+    // carry anywhere.
+    if (!out.pd.empty() && !out.link().isClassical())
+        throw NonPlanar("the drawing is not a planar diagram");
     return out;
 }
 

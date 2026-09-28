@@ -32,8 +32,10 @@
  *      bear a bound, so that is what must be ruled out first).
  *
  *  Everything else -- a knot the table does not know, a link the Jones
- *  polynomial cannot tell from an unlink, a degenerate drawing -- falls
- *  back to identify::identify(), the complement route, exactly as before.
+ *  polynomial cannot tell from an unlink, a degenerate drawing, a drawing
+ *  the drawer refuses as not planar (a drawer defect, counted in
+ *  NamingStats::nonPlanar) -- falls back to identify::identify(), the
+ *  complement route, exactly as before.
  *  Whatever it returns is remembered against the diagram's signature (a
  *  diagram determines its link), so each distinct diagram costs at most one
  *  fallback per row, and repeats of it get the same name.
@@ -43,7 +45,10 @@
 #define SURFER_FARSIDENAMING_H
 
 #include <atomic>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -51,6 +56,7 @@
 #include <triangulation/dim3.h>
 
 #include "cobordismbuilder.h"
+#include "exactnaming/exactnamer.h"
 #include "farsidecurves.h"
 #include "knotbuilder/diagramdrawer.h"
 #include "linkcomplement.h"
@@ -89,6 +95,12 @@ struct NamingStats {
         learnedKnots{0}, tableLinks{0}, diagramLinks{0}, jonesLinks{0},
         learnedLinks{0}, fallbacks{0}, learned{0}, microsDiagram{0},
         microsFallback{0};
+    std::atomic<long long> nonPlanar{0};
+    /**< Drawings the drawer refused as not planar (knotbuilder::NonPlanar):
+         each is a drawer defect, named by the complement route instead. */
+    std::atomic<long long> exactNamed{0}, exactCacheHits{0}, exactFailed{0};
+    /**< orientedName(): names computed, answered from the cache, and
+         drawings that failed (the witness then keeps its unoriented name). */
 };
 
 /**
@@ -110,6 +122,33 @@ class DiagramNamer : public BoundaryNamer {
     std::string name(const Link &curves) const override;
     const NamingStats &stats() const { return stats_; }
 
+    /**
+     * Turns on orientedName() (verifyslicegenus --exact-far-side-names).
+     * \param tables outlives this namer.
+     */
+    void enableExactNames(const exactnaming::ExactTables &tables);
+    bool exactNamesOn() const { return exact_ != nullptr; }
+
+    /**
+     * The exact name (exactnaming/) of ONE surface's outgoing curves,
+     * oriented as a cobordism from the row: each curve reversed when
+     * `flips` says its surface component runs against the row
+     * (farside::incomingFlips()). name() cannot give this -- it is asked once
+     * per edge set, and an edge set's orientation depends on the surface --
+     * so the search asks it per witness, for deduplicating by the ORIENTED
+     * far side (two surfaces whose far sides are different orientation
+     * variants of one link are two witnesses). Only exactnaming's fast path
+     * runs here (diagram matches and visible cuts, no Reidemeister search);
+     * a piece it cannot match is written as its exact oriented signature,
+     * which farsidename refines offline from the stored pair signature.
+     * Cached by the drawn diagram's exact signature. nullopt when exact names
+     * are off or the drawing fails.
+     */
+    std::optional<std::string> orientedName(
+        const std::vector<OrientedCurve> &outgoing,
+        const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+        const std::map<size_t, int> &flips) const;
+
   private:
     std::string nameOnce(const Link &curves) const;
 
@@ -122,6 +161,10 @@ class DiagramNamer : public BoundaryNamer {
          complement route gave that diagram. */
     mutable std::unordered_map<size_t, regina::Laurent<regina::Integer>> unlinkJones_;
     /**< n -> the Jones polynomial of the n-component unlink. */
+    std::unique_ptr<exactnaming::ExactNamer> exact_;
+    mutable std::mutex exactMutex_;
+    mutable std::unordered_map<std::string, std::string> exactCache_;
+    /**< drawn diagram's exact signature -> its exact name. */
     mutable NamingStats stats_;
 };
 

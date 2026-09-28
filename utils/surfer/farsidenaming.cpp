@@ -4,6 +4,7 @@
 
 #include "farsidenaming.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -173,6 +174,9 @@ std::string DiagramNamer::nameOnce(const Link &curves) const {
                 return "diagram:" + key.substr(1);
             }
         }
+    } catch (const knotbuilder::NonPlanar &) {
+        ++stats_.nonPlanar;
+        key.clear(); // a drawer defect: never name from it, and never learn
     } catch (const knotbuilder::Degenerate &) {
         key.clear(); // fall through to the complement route
     } catch (const regina::InvalidArgument &) {
@@ -191,6 +195,54 @@ std::string DiagramNamer::nameOnce(const Link &curves) const {
         if (learned_.try_emplace(key, name).second) ++stats_.learned;
     }
     return name;
+}
+
+void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables) {
+    exactnaming::NamerLimits fast;
+    fast.simplifyTries = 2;
+    fast.exhaustiveHeight = 0;
+    fast.searchHeight = -1; // no Reidemeister search in the search
+    fast.deepHeight = -1;
+    exact_ = std::make_unique<exactnaming::ExactNamer>(tables, fast);
+}
+
+std::optional<std::string> DiagramNamer::orientedName(
+    const std::vector<OrientedCurve> &outgoing,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+    const std::map<size_t, int> &flips) const {
+    if (!exact_) return std::nullopt;
+    try {
+        std::vector<knotbuilder::EdgeCycle> cycles;
+        for (const OrientedCurve &curve : outgoing) {
+            if (curve.empty()) continue;
+            auto comp = surfaceOf.find(curve.front().edge);
+            if (comp == surfaceOf.end()) return std::nullopt;
+            auto flip = flips.find(comp->second);
+            if (flip == flips.end()) return std::nullopt;
+            knotbuilder::EdgeCycle cyc = map_.carry(curve);
+            if (flip->second < 0) {
+                std::reverse(cyc.begin(), cyc.end());
+                for (auto &de : cyc) de.reversed = !de.reversed;
+            }
+            cycles.push_back(std::move(cyc));
+        }
+        const regina::Link drawn = drawer_.draw(cycles).link();
+        const std::string key = drawn.sig<2>(false, false, true);
+        {
+            std::lock_guard<std::mutex> lock(exactMutex_);
+            if (auto it = exactCache_.find(key); it != exactCache_.end()) {
+                ++stats_.exactCacheHits;
+                return it->second;
+            }
+        }
+        std::string name = exact_->name(drawn).name;
+        ++stats_.exactNamed;
+        std::lock_guard<std::mutex> lock(exactMutex_);
+        return exactCache_.try_emplace(key, std::move(name)).first->second;
+    } catch (const std::exception &) {
+        ++stats_.exactFailed;
+        return std::nullopt;
+    }
 }
 
 } // namespace farside

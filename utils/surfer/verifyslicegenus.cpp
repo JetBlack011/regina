@@ -889,6 +889,72 @@ struct FarSideResolution {
   std::string name;              // the ORIENTED name we have proved it to be
 };
 
+// One row of --far-side-exact: the far side redrawn from the witness's own
+// pair signature, oriented by its surface and named with a proof
+// (farsidename, exactnaming/).
+struct ExactFarSide {
+  std::string name;
+  bool exact = false; // an identity (may receive a bound), not a description
+  int components = 0; // curves drawn: must equal the witness's observed count
+};
+
+// Loads --far-side-exact: witness,name,exact,pinned,components,proof. A key
+// seen with two different names is a contradiction and is dropped.
+std::unordered_map<std::string, ExactFarSide>
+loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
+  std::unordered_map<std::string, ExactFarSide> out;
+  std::unordered_set<std::string> clash;
+  std::ifstream in(path);
+  if (!in)
+    throw std::runtime_error("Cannot open far-side exact names: " + path.string());
+  std::string line;
+  std::getline(in, line); // header
+  while (std::getline(in, line)) {
+    auto f = parseCsvLine(line);
+    if (f.size() < 5 || f[0].empty() || f[1].empty())
+      continue;
+    ExactFarSide e{f[1], f[2] == "1", std::stoi(f[4])};
+    auto [it, fresh] = out.try_emplace(f[0], e);
+    if (!fresh && (it->second.name != e.name || it->second.exact != e.exact))
+      clash.insert(f[0]);
+  }
+  for (const std::string &k : clash)
+    out.erase(k);
+  clashes = clash.size();
+  return out;
+}
+
+// Applies --far-side-exact to the solver's copy of the witnesses, last, so it
+// outranks aliases and resolutions: it is the far side drawn from this
+// witness's own surface. Refused (and counted) when the drawing's curve count
+// is not the count the search observed. The candidates are the name alone,
+// or its proved alternatives -- never a base's variants.
+std::vector<cobordismgraph::Witness>
+applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
+                  const std::unordered_map<std::string, ExactFarSide> &exact,
+                  size_t &applied, size_t &refused) {
+  applied = refused = 0;
+  for (cobordismgraph::Witness &w : witnesses) {
+    if (w.kind != cobordismgraph::WitnessKind::cobordism)
+      continue;
+    if (w.pairSigKey.empty() && !w.pairSig.empty())
+      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
+    auto it = exact.find(w.pairSigKey);
+    if (it == exact.end())
+      continue;
+    if (it->second.components != w.otherComponents) {
+      ++refused;
+      continue;
+    }
+    w.other = it->second.name;
+    w.otherCandidates = cobordismgraph::exactCandidates(it->second.name);
+    w.farSideProved = true;
+    w.farSideExact = it->second.exact;
+    ++applied;
+  }
+  return witnesses;
+}
+
 // Loads the per-witness far-side resolution table (see
 // --far-side-resolutions).
 //
@@ -1416,8 +1482,9 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --sweep-time-limit S ]\n"
          "    [ --knot-table <csv> ] [ --link-table <csv> ]\n"
          "    [ --name-aliases <csv> ]\n"
-         "    [ --far-side-resolutions <csv> ]\n"
-         "    [ --knot-symmetry <csv> ]\n"
+         "    [ --far-side-resolutions <csv> ] [ --far-side-exact <csv> ]\n"
+         "    [ --link-classes <csv> ]\n"
+         "    [ --knot-symmetry <csv> ] [ --sum-rules ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
          "    [ --iddfs-start N ] [ --iddfs-final-threads N ]\n"
@@ -1425,7 +1492,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --surface-log <path> ]\n"
          "    [ --surface-stats <path> ]\n"
          "    [ --no-census-updates ] [ --no-retriangulate-on-miss ]\n"
-         "    [ --no-diagram-naming ]\n"
+         "    [ --no-diagram-naming ] [ --exact-far-side-names ]\n"
          "    [ --retriangulate-height N ] [ --retriangulate-candidate-budget "
          "N ]\n"
          "    [ --retriangulate-time-budget S ]\n"
@@ -1632,6 +1699,19 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     a function of the link and --name-aliases "
          "cannot be\n"
          "                     right on every witness it matches.\n"
+      << "    --far-side-exact <csv> : per-WITNESS exact far-side names "
+         "(farsidename):\n"
+         "                     each far side redrawn from its own pair "
+         "signature and\n"
+         "                     named with a proof; outranks aliases and "
+         "resolutions.\n"
+      << "    --link-classes <csv> : the table's link classes (tableclasses): "
+         "table\n"
+         "                     names that are one oriented link, one graph "
+         "node each.\n"
+      << "    --sum-rules : bound sums along components and splits with link "
+         "factors\n"
+         "                     from their pieces.\n"
       << "    --name-aliases <csv> : observed -> classical far-side names, "
          "applied\n"
          "        when solving only; cobordisms.csv keeps what identify() "
@@ -1740,6 +1820,12 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     and safe to leave on (default: off).\n";
   std::cerr << "    --no-census-updates : Disable live census seeding "
                "(default: on).\n";
+  std::cerr << "    --exact-far-side-names : record a multi-curve far side under "
+               "its exact,\n"
+               "        ORIENTED name (exactnaming/, fast path), so witnesses are "
+               "deduplicated\n"
+               "        by the oriented far side; bears nothing until "
+               "--far-side-exact.\n";
   std::cerr << "    --no-diagram-naming : Name far sides by drilling their "
                "complement, as before, instead of drawing them as diagrams "
                "(farsidenaming.h; default: draw, falling back to the "
@@ -1804,6 +1890,9 @@ int main(int argc, char *argv[]) {
   // the alias table because it is keyed on the witness, not the name -- see
   // loadFarSideResolutions().
   std::string farSideResolutionPath;
+  std::string farSideExactPath;
+  std::string linkClassesPath;
+  bool sumRules = false;
   // Optional: knot symmetry types (data/knot_symmetry.csv). Without it only
   // the two long-standing slice composites are anchors; with it, every
   // composite whose summands pair off into concordance inverses.
@@ -1852,6 +1941,7 @@ int main(int argc, char *argv[]) {
   // per-witness far-side pipeline names every far side afterwards anyway.
   bool retriangulateLinksArg = false;
   bool diagramNaming = true;
+  bool exactFarSideNames = false;
   // One explicit full rewrite of the witness file (the 12->13 column
   // migration); otherwise the file is only ever appended to.
   bool rewriteWitnesses = false;
@@ -1912,6 +2002,16 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--far-side-resolutions requires a value.");
       farSideResolutionPath = argv[++i];
+    } else if (arg == "--far-side-exact") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--far-side-exact requires a value.");
+      farSideExactPath = argv[++i];
+    } else if (arg == "--link-classes") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--link-classes requires a value.");
+      linkClassesPath = argv[++i];
+    } else if (arg == "--sum-rules") {
+      sumRules = true;
     } else if (arg == "--name-aliases") {
       if (i + 1 >= argc)
         usage(argv[0], "--name-aliases requires a value.");
@@ -2021,6 +2121,8 @@ int main(int argc, char *argv[]) {
       retriangulateLinksArg = true;
     } else if (arg == "--no-diagram-naming") {
       diagramNaming = false;
+    } else if (arg == "--exact-far-side-names") {
+      exactFarSideNames = true;
     } else if (arg == "--rejection-sample-log") {
       if (i + 1 >= argc)
         usage(argv[0], "--rejection-sample-log requires a value.");
@@ -2304,6 +2406,25 @@ int main(int argc, char *argv[]) {
   // Exact diagram signatures of every table knot and link, for naming far
   // sides from their drawings (farsidenaming.h). Only a search needs them.
   std::optional<farside::SignatureTable> signatureTable;
+  std::optional<exactnaming::ExactTables> exactTables;
+  if (exactFarSideNames && (!diagramNaming || solveOnly))
+    std::cerr << "[!] --exact-far-side-names needs diagram naming and a search; "
+                 "ignored\n";
+  if (exactFarSideNames && diagramNaming && !solveOnly) {
+    const auto t0 = std::chrono::steady_clock::now();
+    try {
+      exactTables = exactnaming::ExactTables::load(knotTablePath, linkTablePath,
+                                                   knotSymmetryPath);
+      std::cout << "[+] exact far-side names: " << exactTables->size()
+                << " table entries ("
+                << std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0)
+                       .count()
+                << " ms)\n";
+    } catch (const std::exception &e) {
+      std::cerr << "[!] exact far-side names off: " << e.what() << "\n";
+    }
+  }
   if (diagramNaming && !solveOnly) {
     const auto t0 = std::chrono::steady_clock::now();
     try {
@@ -2335,8 +2456,11 @@ int main(int argc, char *argv[]) {
     }
   }
   pairSigReader().setPath(cobordismsPath);
-  std::vector<cobordismgraph::Witness> witnesses =
-      loadWitnesses(cobordismsPath, !farSideResolutionPath.empty());
+  // Both per-witness tables are keyed on the pair signature's key, which is
+  // hashed at load only when one of them will be looked up.
+  std::vector<cobordismgraph::Witness> witnesses = loadWitnesses(
+      cobordismsPath,
+      !farSideResolutionPath.empty() || !farSideExactPath.empty());
   std::cout << "[+] Resuming with " << witnesses.size()
             << " previously-recorded witnesses from " << cobordismsPath
             << "\n";
@@ -2398,8 +2522,59 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  std::unordered_map<std::string, ExactFarSide> farSideExact;
+  if (!farSideExactPath.empty()) {
+    size_t clashes = 0;
+    try {
+      farSideExact = loadFarSideExact(farSideExactPath, clashes);
+    } catch (const std::exception &e) {
+      std::cerr << "[!] could not load far-side exact names " << farSideExactPath
+                << ": " << e.what() << "\n";
+      return 1;
+    }
+    std::cout << "[+] Far-side exact names: " << farSideExact.size()
+              << " witnesses from " << farSideExactPath;
+    if (clashes)
+      std::cout << " (" << clashes << " with two names dropped)";
+    std::cout << "\n";
+  }
+
+  // --link-classes: table names that are one oriented link up to mirror and
+  // global reversal (tableclasses: a version of one table diagram is the
+  // other, or an isometry of the complements carries meridians to meridians
+  // with a uniform orientation sign). Every member is read as its class's
+  // canonical name, so a class is one node; tableclasses refuses a class
+  // whose members' literature values differ.
+  std::unordered_map<std::string, std::string> linkClasses;
+  if (!linkClassesPath.empty()) {
+    std::ifstream in(linkClassesPath);
+    if (!in) {
+      std::cerr << "[!] could not open link classes " << linkClassesPath << "\n";
+      return 1;
+    }
+    std::string line;
+    std::getline(in, line); // name,canonical,proof
+    while (std::getline(in, line)) {
+      auto f = parseCsvLine(line);
+      if (f.size() >= 2 && !f[0].empty() && !f[1].empty())
+        linkClasses[f[0]] = f[1];
+    }
+    std::cout << "[+] Link classes: " << linkClasses.size()
+              << " table names read as their class's canonical name, from "
+              << linkClassesPath << "\n";
+  }
+  auto classOf = [&linkClasses](const std::string &name) -> const std::string & {
+    auto it = linkClasses.find(name);
+    return it == linkClasses.end() ? name : it->second;
+  };
+  names.setSumRules(sumRules);
+  if (sumRules)
+    std::cout << "[+] Sum rules: sums along components and splits with link "
+                 "factors are bounded from their pieces\n";
+
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
+  size_t exactApplied = 0, exactRefused = 0;
   auto solverWitnesses = [&]() -> std::vector<cobordismgraph::Witness> {
     std::vector<cobordismgraph::Witness> out =
         nameAliases.empty()
@@ -2409,6 +2584,17 @@ int main(int argc, char *argv[]) {
       out = applyFarSideResolutions(std::move(out), witnesses,
                                     farSideResolutions, names,
                                     resolutionsApplied);
+    if (!farSideExact.empty())
+      out = applyFarSideExact(std::move(out), farSideExact, exactApplied, exactRefused);
+    // Last: whole names only. A name inside a sum or split is a piece,
+    // bounded by its literature value, which is the same across a class.
+    if (!linkClasses.empty())
+      for (cobordismgraph::Witness &w : out) {
+        w.subject = classOf(w.subject);
+        w.other = classOf(w.other);
+        for (std::string &c : w.otherCandidates)
+          c = classOf(c);
+      }
     return out;
   };
 
@@ -2436,6 +2622,13 @@ int main(int argc, char *argv[]) {
   if (!farSideResolutions.empty())
     std::cout << "[+] Far-side resolutions: applied to " << resolutionsApplied
               << " witness edges\n";
+  if (!farSideExact.empty())
+    std::cout << "[+] Far-side exact names: applied to " << exactApplied
+              << " witness edges"
+              << (exactRefused ? " (" + std::to_string(exactRefused) +
+                                     " refused: component count differs)"
+                               : std::string())
+              << "\n";
   std::cout << "[+] Solver: derived bounds for " << bounds.size()
             << " names\n\n";
 
@@ -2493,10 +2686,17 @@ int main(int argc, char *argv[]) {
     for (const auto &[name, unused] : outputRows)
       if (!bounds.contains(name))
         toJudge.push_back(name);
+    // --link-classes: a member is its class's node, so it is judged whenever
+    // that node has bounds, row or no row yet.
+    for (const auto &[member, canonical] : linkClasses)
+      if (bounds.contains(canonical) && !bounds.contains(member) &&
+          !outputRows.contains(member))
+        toJudge.push_back(member);
 
     for (const std::string &name : toJudge) {
       cobordismgraph::Bounds b; // default = nothing derived
-      if (auto it = bounds.find(name); it != bounds.end())
+      // A class member's row reads its class's node (--link-classes).
+      if (auto it = bounds.find(classOf(name)); it != bounds.end())
         b = it->second;
       cobordismgraph::Verdict v = cobordismgraph::judge(name, b, names);
       if (v.status == cobordismgraph::Status::contradiction)
@@ -2810,6 +3010,7 @@ int main(int argc, char *argv[]) {
     if (signatureTable && !useCone) {
       try {
         namer.emplace(link.tri, pdcode.size(), *cobOpt, *signatureTable);
+        if (exactTables) namer->enableExactNames(*exactTables);
         e.setBoundaryNamer(&*namer);
       } catch (const std::exception &ex) {
         std::cerr << "[!] " << row.name
@@ -3046,12 +3247,16 @@ int main(int argc, char *argv[]) {
       // variant of this link -- the L6a3{0}/L6a3{1} misattribution. Judged
       // per surface component, since each can be oriented independently
       // (classifyRowOrientation()).
+      // Captured once: the orientation check needs the search side, and an
+      // exact oriented far-side name (--exact-far-side-names) the rest.
+      auto orientedLinks = info.captureOrientedBoundaryLinks();
+      const auto surfaceOf = info.captureBoundaryEdgeSurfaceComponent();
+      std::vector<OrientedCurve> searchSideCurves;
       {
-        std::vector<OrientedCurve> searchSideCurves;
         bool foundSearchSide = false;
-        for (auto &[c, curves] : info.captureOrientedBoundaryLinks()) {
+        for (auto &[c, curves] : orientedLinks) {
           if (c == searchSideBC) {
-            searchSideCurves = std::move(curves);
+            searchSideCurves = curves;
             foundSearchSide = true;
             break;
           }
@@ -3059,8 +3264,7 @@ int main(int argc, char *argv[]) {
         const cobordismgraph::OrientationVerdict verdict =
             foundSearchSide
                 ? cobordismgraph::classifyRowOrientation(
-                      *rowOrientation, searchSideCurves,
-                      info.captureBoundaryEdgeSurfaceComponent())
+                      *rowOrientation, searchSideCurves, surfaceOf)
                 : cobordismgraph::OrientationVerdict::incoherentCurve;
         if (verdict == cobordismgraph::OrientationVerdict::mismatch) {
           acct.orientation.fetch_add(1, std::memory_order_relaxed);
@@ -3099,6 +3303,17 @@ int main(int argc, char *argv[]) {
         // leaving the decoration on would make the far side a different
         // graph node from the row for the very same knot.
         std::string farName = cobordismgraph::normalizeIdentifiedName(far.name);
+        // Oriented, exact: two surfaces whose far sides are different
+        // orientation variants of one link must be two witnesses.
+        if (far.components > 1 && namer && namer->exactNamesOn()) {
+          if (auto flips = farside::incomingFlips(*rowOrientation,
+                                                  searchSideCurves, surfaceOf)) {
+            for (const auto &[bc, curves] : orientedLinks)
+              if (namer->handles(bc))
+                if (auto n = namer->orientedName(curves, surfaceOf, *flips))
+                  farName = *n;
+          }
+        }
         w.kind = cobordismgraph::WitnessKind::cobordism;
         w.other = farName;
         w.otherComponents = far.components;
@@ -3493,9 +3708,18 @@ int main(int argc, char *argv[]) {
                   << " (+" << ns.jonesLinks << " by Jones), learned link "
                   << ns.learnedLinks
                   << "; complement fallbacks " << ns.fallbacks << " ("
-                  << ns.learned << " learned); diagrams "
+                  << ns.learned << " learned, " << ns.nonPlanar
+                  << " non-planar drawings); exact oriented names "
+                  << ns.exactNamed << " (+" << ns.exactCacheHits << " cached, "
+                  << ns.exactFailed << " failed); diagrams "
                   << secs(ns.microsDiagram / 1000) << "s, fallbacks "
                   << secs(ns.microsFallback / 1000) << "s\n";
+        // Harmless to the names (each went to the complement route), but
+        // each is a drawer defect that must be found.
+        if (ns.nonPlanar > 0)
+          std::cout << "[!] " << row.name << ": WARNING: " << ns.nonPlanar
+                    << " far-side drawings were not planar diagrams (drawer "
+                       "defect; named by the complement route instead)\n";
       }
       // A census that cannot be written to costs nothing in correctness,
       // but every name it fails to keep is recomputed by every later row.

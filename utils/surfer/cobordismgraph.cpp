@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <sstream>
 #include <tuple>
 #include <unordered_set>
@@ -109,7 +110,9 @@ std::optional<CompositeName> compositeParts(const std::string &name) {
                 return false;
         return true;
     };
-    const size_t k0 = (!knot.empty() && knot[0] == 'm') ? 1 : 0;
+    size_t k0 = 0;
+    if (k0 < knot.size() && knot[k0] == 'm') ++k0;
+    if (k0 < knot.size() && knot[k0] == 'r') ++k0;
     const size_t us = knot.find('_', k0);
     if (us == std::string::npos)
         return std::nullopt;
@@ -117,17 +120,28 @@ std::optional<CompositeName> compositeParts(const std::string &name) {
         (us > k0 && (knot[us - 1] == 'a' || knot[us - 1] == 'n')) ? us - 1 : us;
     if (!allDigits(knot, k0, de) || !allDigits(knot, us + 1, knot.size()))
         return std::nullopt;
-    if (!allDigits(comp, 0, comp.size()))
+    if (comp != "?" && !allDigits(comp, 0, comp.size()))
         return std::nullopt;
     size_t i = 1;
     if (link.empty() || link[0] != 'L')
         return std::nullopt;
     while (i < link.size() && std::isdigit(static_cast<unsigned char>(link[i])))
         ++i;
-    if (i == 1 || i >= link.size() || (link[i] != 'a' && link[i] != 'n') ||
-        !allDigits(link, i + 1, link.size()))
+    // An exact name writes L with its orientation tag, "L7n1{1}".
+    size_t end = link.size();
+    const size_t brace = link.find('{');
+    if (brace != std::string::npos) {
+        if (link.back() != '}' || brace + 2 > link.size())
+            return std::nullopt;
+        for (size_t k = brace + 1; k + 1 < link.size(); ++k)
+            if (!std::isdigit(static_cast<unsigned char>(link[k])) && link[k] != ';')
+                return std::nullopt;
+        end = brace;
+    }
+    if (i == 1 || i >= end || (link[i] != 'a' && link[i] != 'n') ||
+        !allDigits(link, i + 1, end))
         return std::nullopt;
-    return CompositeName{knot, std::stoi(comp), link};
+    return CompositeName{knot, comp == "?" ? -1 : std::stoi(comp), link};
 }
 
 std::vector<std::string> knotSummands(const std::string &name) {
@@ -152,8 +166,10 @@ std::vector<std::string> knotSummands(const std::string &name) {
     for (const std::string &p : parts) {
         if (p == "Unknot" || p == "mUnknot")
             continue;
-        // m? <digits> [a|n]? _ <digits>: "5_2", "m5_2", "11a_367".
-        const size_t k0 = (!p.empty() && p[0] == 'm') ? 1 : 0;
+        // m? r? <digits> [a|n]? _ <digits>: "5_2", "m5_2", "mr8_17", "11a_367".
+        size_t k0 = 0;
+        if (k0 < p.size() && p[k0] == 'm') ++k0;
+        if (k0 < p.size() && p[k0] == 'r') ++k0;
         const size_t us = p.find('_', k0);
         if (us == std::string::npos || us == k0 || us + 1 >= p.size())
             return {};
@@ -170,6 +186,115 @@ std::vector<std::string> knotSummands(const std::string &name) {
             return {};
     }
     return parts;
+}
+
+std::string stripKnotMarks(const std::string &name) {
+    size_t k = 0;
+    if (k < name.size() && name[k] == 'm') ++k;
+    if (k < name.size() && name[k] == 'r') ++k;
+    if (k == 0 || k == name.size() || !std::isdigit(static_cast<unsigned char>(name[k])))
+        return name;
+    const std::string rest = name.substr(k);
+    // Only a knot name: digits, optional a/n, '_', digits.
+    size_t i = 0;
+    while (i < rest.size() && std::isdigit(static_cast<unsigned char>(rest[i]))) ++i;
+    if (i < rest.size() && (rest[i] == 'a' || rest[i] == 'n')) ++i;
+    if (i >= rest.size() || rest[i] != '_') return name;
+    size_t j = ++i;
+    while (j < rest.size() && std::isdigit(static_cast<unsigned char>(rest[j]))) ++j;
+    return (j > i && j == rest.size()) ? rest : name;
+}
+
+namespace {
+
+// A table knot's name, unmarked: digits, an optional a/n, '_', digits.
+bool isKnotNameShape(const std::string &s) {
+    size_t i = 0;
+    while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) ++i;
+    if (i == 0) return false;
+    if (i < s.size() && (s[i] == 'a' || s[i] == 'n')) ++i;
+    if (i >= s.size() || s[i] != '_') return false;
+    size_t j = ++i;
+    while (j < s.size() && std::isdigit(static_cast<unsigned char>(s[j]))) ++j;
+    return j > i && j == s.size();
+}
+
+// A tagged table link, "L7n1{1}": its component count is in the tag.
+bool isTaggedLinkName(const std::string &s) {
+    if (s.size() < 5 || s[0] != 'L' || s.back() != '}') return false;
+    const size_t brace = s.find('{');
+    if (brace == std::string::npos) return false;
+    size_t i = 1;
+    while (i < brace && std::isdigit(static_cast<unsigned char>(s[i]))) ++i;
+    if (i == 1 || i >= brace || (s[i] != 'a' && s[i] != 'n')) return false;
+    for (size_t k = i + 1; k < brace; ++k)
+        if (!std::isdigit(static_cast<unsigned char>(s[k]))) return false;
+    for (size_t k = brace + 1; k + 1 < s.size(); ++k)
+        if (!std::isdigit(static_cast<unsigned char>(s[k])) && s[k] != ';') return false;
+    return brace + 1 < s.size() - 1;
+}
+
+std::vector<std::string> splitOn(const std::string &s, const std::string &sep) {
+    std::vector<std::string> out;
+    size_t pos = 0;
+    for (;;) {
+        size_t at = s.find(sep, pos);
+        out.push_back(s.substr(pos, at == std::string::npos ? std::string::npos : at - pos));
+        if (at == std::string::npos) return out;
+        pos = at + sep.size();
+    }
+}
+
+} // namespace
+
+std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::string &name) {
+    std::vector<std::string> pieces;
+    if (name.size() > 3 && name.starts_with("#{") && name.back() == '}') {
+        for (const std::string &site : splitOn(name.substr(2, name.size() - 3), " ; "))
+            for (std::string tok : splitOn(site, " # ")) {
+                // Drop the component index, "[?]" or "[2]".
+                if (!tok.empty() && tok.back() == ']') {
+                    const size_t open = tok.rfind('[');
+                    if (open == std::string::npos) return std::nullopt;
+                    tok = tok.substr(0, open);
+                }
+                pieces.push_back(tok);
+            }
+    } else if (name.find(" #_") != std::string::npos &&
+               name.find(kSplitSeparator) == std::string::npos) {
+        std::vector<std::string> terms = splitOn(name, " #_");
+        pieces.push_back(terms[0]);
+        for (size_t t = 1; t < terms.size(); ++t) {
+            const size_t space = terms[t].find(' ');
+            if (space == std::string::npos) return std::nullopt;
+            pieces.push_back(terms[t].substr(space + 1)); // after "? " or "<c> "
+        }
+    } else {
+        return std::nullopt;
+    }
+    std::vector<std::pair<std::string, int>> out;
+    for (const std::string &p : pieces) {
+        if (p.find('|') != std::string::npos) return std::nullopt;
+        if (p == "Unknot") {
+            out.emplace_back(p, 1);
+        } else if (isKnotNameShape(stripKnotMarks(p))) {
+            out.emplace_back(stripKnotMarks(p), 1);
+        } else if (!knotSummands(p).empty()) {
+            out.emplace_back(p, 1);
+        } else if (isTaggedLinkName(p)) {
+            out.emplace_back(p, componentsFromName(p));
+        } else {
+            return std::nullopt;
+        }
+    }
+    return out;
+}
+
+std::vector<std::string> exactCandidates(const std::string &name) {
+    if (name.find(kSplitSeparator) != std::string::npos ||
+        name.find(" #_") != std::string::npos || name.find("#{") != std::string::npos)
+        return {name};
+    return factorAlternatives(name);
 }
 
 int componentsFromName(const std::string &name) {
@@ -344,9 +469,12 @@ bool supportContains(const std::vector<std::string> &support,
 
 namespace {
 
-// A prime knot's name, possibly mirrored: "3_1", "m3_1", "11n_34".
+// A prime knot's name, possibly marked: "3_1", "m3_1", "mr8_17", "11n_34".
 bool isPrimeKnotName(const std::string &alt) {
-    const std::string s = (alt.size() > 1 && alt[0] == 'm') ? alt.substr(1) : alt;
+    size_t k0 = 0;
+    if (k0 < alt.size() && alt[k0] == 'm') ++k0;
+    if (k0 < alt.size() && alt[k0] == 'r') ++k0;
+    const std::string s = alt.substr(k0);
     size_t i = 0;
     while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i])))
         ++i;
@@ -376,9 +504,31 @@ bool isKnotFactor(const std::string &alt) {
 // would give "3_1#3_1" (the granny, g_4 = 2), a different knot. Its summands
 // are unmirrored where the composite rule reads them.
 std::string unmirrored(const std::string &alt) {
-    return (alt.size() > 1 && alt[0] == 'm' && isPrimeKnotName(alt))
-               ? alt.substr(1)
-               : alt;
+    return isPrimeKnotName(alt) ? stripKnotMarks(alt) : alt;
+}
+
+// A split factor's component count, when its name states it (every
+// alternative agreeing): 1 for a knot, the tag's for a table link, the link's
+// for "K #_? L". nullopt otherwise -- "#{...}" does not say how many of its
+// written occurrences are one piece.
+std::optional<int> factorComponents(const std::string &factor) {
+    std::optional<int> count;
+    for (const std::string &alt : factorAlternatives(factor)) {
+        int n;
+        if (isKnotFactor(alt)) {
+            n = 1;
+        } else if (isTaggedLinkName(alt)) {
+            n = componentsFromName(alt);
+        } else if (auto pieces = sumPieces(alt);
+                   pieces && alt.find("#{") == std::string::npos) {
+            n = pieces->back().second;
+        } else {
+            return std::nullopt;
+        }
+        if (count && *count != n) return std::nullopt;
+        count = n;
+    }
+    return count;
 }
 
 } // namespace
@@ -439,11 +589,14 @@ UpperContribution upperOf(const std::string &name,
     // orientation, so take the WORST of its registered orientation variants;
     // if it has none, no bound.
     if (std::optional<CompositeName> cp = compositeParts(name)) {
-        const std::string knot =
-            cp->knot[0] == 'm' ? cp->knot.substr(1) : cp->knot;
+        const std::string knot = stripKnotMarks(cp->knot);
         UpperContribution k = upperOf(knot, bounds, names);
-        const std::vector<std::string> variants = names.candidates(cp->link);
-        const bool registered = !variants.empty() && variants.front() != cp->link;
+        // A TAGGED L comes from an exact name: it is its own only variant.
+        const bool tagged = cp->link.find('{') != std::string::npos;
+        const std::vector<std::string> variants =
+            tagged ? std::vector<std::string>{cp->link} : names.candidates(cp->link);
+        const bool registered =
+            tagged || (!variants.empty() && variants.front() != cp->link);
         if (k.value != NO_UPPER_BOUND && registered) {
             int worst = NO_UPPER_BOUND;
             std::vector<std::string> support = k.support;
@@ -462,6 +615,26 @@ UpperContribution upperOf(const std::string &name,
                 best = {.value = k.value + worst, .support = std::move(support)};
         }
     }
+    // A sum along components (--sum-rules): g_4(A # B) <= g_4(A) + g_4(B),
+    // boundary-connect-summing the pieces' minimal connected surfaces along
+    // the summed components -- constructive, whichever the components are.
+    if (names.sumRules())
+        if (auto pieces = sumPieces(name)) {
+            int total = 0;
+            std::vector<std::string> support;
+            bool haveAll = true;
+            for (const auto &[piece, n] : *pieces) {
+                UpperContribution u = upperOf(piece, bounds, names);
+                if (u.value == NO_UPPER_BOUND) {
+                    haveAll = false;
+                    break;
+                }
+                total += u.value;
+                mergeSupport(support, u.support);
+            }
+            if (haveAll && (best.value == NO_UPPER_BOUND || total < best.value))
+                best = {.value = total, .support = std::move(support)};
+        }
     // A composite KNOT A#B#...: g_4 is subadditive under connected sum, so
     // g_4 <= sum of the summands' g_4 (mirrors look up as their knot, g_4
     // being mirror-invariant).
@@ -472,8 +645,7 @@ UpperContribution upperOf(const std::string &name,
         for (const std::string &p : parts) {
             if (p == "Unknot" || p == "mUnknot")
                 continue;
-            UpperContribution u =
-                upperOf(p[0] == 'm' ? p.substr(1) : p, bounds, names);
+            UpperContribution u = upperOf(stripKnotMarks(p), bounds, names);
             if (u.value == NO_UPPER_BOUND) {
                 haveAll = false;
                 break;
@@ -582,6 +754,77 @@ LowerContribution lowerOf(const std::string &name,
             }
         }
     }
+    // --sum-rules, a split with ANY factors: cap every other factor off in a
+    // collar with its minimal connected surface. Gluing a connected surface
+    // on along k circles adds k - 1 to the genus, so
+    //     g_4(F_i) <= g_4(u F) + sum_{j != i} (g_4(F_j) + n(F_j) - 1).
+    // For knot factors that is the rule above, less its -(f - 1).
+    if (names.sumRules())
+        if (std::vector<std::string> factors = splitFactors(name); !factors.empty())
+            for (size_t i = 0; i < factors.size(); ++i) {
+                int value = NO_LOWER_BOUND;
+                std::vector<std::string> support;
+                bool ok = true;
+                for (const std::string &alt : factorAlternatives(factors[i])) {
+                    LowerContribution l = lowerOf(unmirrored(alt), bounds, names);
+                    if (l.value == NO_LOWER_BOUND) {
+                        ok = false;
+                        break;
+                    }
+                    value = value == NO_LOWER_BOUND ? l.value : std::min(value, l.value);
+                    mergeSupport(support, l.support);
+                }
+                for (size_t j = 0; ok && j < factors.size(); ++j) {
+                    if (j == i)
+                        continue;
+                    const std::optional<int> nj = factorComponents(factors[j]);
+                    if (!nj) {
+                        ok = false;
+                        break;
+                    }
+                    int worst = NO_UPPER_BOUND;
+                    for (const std::string &alt : factorAlternatives(factors[j])) {
+                        UpperContribution u = upperOf(unmirrored(alt), bounds, names);
+                        if (u.value == NO_UPPER_BOUND) {
+                            ok = false;
+                            break;
+                        }
+                        worst = worst == NO_UPPER_BOUND ? u.value : std::max(worst, u.value);
+                        mergeSupport(support, u.support);
+                    }
+                    if (ok)
+                        value -= worst + *nj - 1;
+                }
+                if (ok && (best.value == NO_LOWER_BOUND || value > best.value))
+                    best = {.value = value, .support = std::move(support)};
+            }
+    // --sum-rules, a sum along components: undoing a piece B (summing -B into
+    // the same component; B # -B bounds (B^3, T_B) x I, a disc and n(B) - 1
+    // annuli, each annulus a handle once glued on) costs g_4(B) + n(B) - 1,
+    //     g_4(P_i) <= g_4(sum) + sum_{j != i} (g_4(P_j) + n(P_j) - 1).
+    if (names.sumRules())
+        if (auto pieces = sumPieces(name))
+            for (size_t i = 0; i < pieces->size(); ++i) {
+                LowerContribution l = lowerOf((*pieces)[i].first, bounds, names);
+                if (l.value == NO_LOWER_BOUND)
+                    continue;
+                int value = l.value;
+                std::vector<std::string> support = l.support;
+                bool haveAll = true;
+                for (size_t j = 0; j < pieces->size(); ++j) {
+                    if (j == i)
+                        continue;
+                    UpperContribution u = upperOf((*pieces)[j].first, bounds, names);
+                    if (u.value == NO_UPPER_BOUND) {
+                        haveAll = false;
+                        break;
+                    }
+                    value -= u.value + (*pieces)[j].second - 1;
+                    mergeSupport(support, u.support);
+                }
+                if (haveAll && (best.value == NO_LOWER_BOUND || value > best.value))
+                    best = {.value = value, .support = std::move(support)};
+            }
     // A composite KNOT: K_i is concordant to (A # -rest), so
     //     g_4(K_i) <= g_4(A) + sum_{j != i} g_4(K_j),
     // i.e. g_4(A) >= g_4(K_i) - sum_{j != i} g_4(K_j), for every i. This is
@@ -591,7 +834,7 @@ LowerContribution lowerOf(const std::string &name,
         std::vector<std::string> knots;
         for (const std::string &p : parts)
             if (p != "Unknot" && p != "mUnknot")
-                knots.push_back(p[0] == 'm' ? p.substr(1) : p);
+                knots.push_back(stripKnotMarks(p));
         for (size_t i = 0; i < knots.size(); ++i) {
             LowerContribution l = lowerOf(knots[i], bounds, names);
             if (l.value == NO_LOWER_BOUND)
@@ -621,11 +864,13 @@ LowerContribution lowerOf(const std::string &name,
     //     g_4(K #_c L) >= g_4(L) - g_4(K).
     // L is proved up to orientation, so the MIN over its variants.
     if (std::optional<CompositeName> cp = compositeParts(name)) {
-        const std::string knot =
-            cp->knot[0] == 'm' ? cp->knot.substr(1) : cp->knot;
+        const std::string knot = stripKnotMarks(cp->knot);
         UpperContribution k = upperOf(knot, bounds, names);
-        const std::vector<std::string> variants = names.candidates(cp->link);
-        const bool registered = !variants.empty() && variants.front() != cp->link;
+        const bool tagged = cp->link.find('{') != std::string::npos;
+        const std::vector<std::string> variants =
+            tagged ? std::vector<std::string>{cp->link} : names.candidates(cp->link);
+        const bool registered =
+            tagged || (!variants.empty() && variants.front() != cp->link);
         if (k.value != NO_UPPER_BOUND && registered) {
             int least = NO_LOWER_BOUND;
             std::vector<std::string> support = k.support;
@@ -759,37 +1004,50 @@ bool isElementarySlice(const std::string &name, const NameTable &names) {
     std::vector<std::string> parts = knotSummands(name);
     if (parts.empty())
         return false;
-    // Tally each summand's concordance class against its inverse.
-    std::unordered_map<std::string, int> balance; // reversible: +1 K, -1 mK
-    std::unordered_map<std::string, int> copies;  // self-inverse classes
+    // Each summand reduced to what its symmetry type leaves meaningful of its
+    // marks (m: mirrored, r: reversed), as (knot, m, r) with the meaningless
+    // marks cleared; its concordance inverse -K = mrK reduced the same way.
+    // Slice when every reduced summand pairs off with its inverse (a
+    // self-inverse one with another copy of itself).
+    using Key = std::tuple<std::string, bool, bool>;
+    auto reduce = [](const std::string &knot, SymmetryType type, bool m, bool r) -> Key {
+        switch (type) {
+        case SymmetryType::fullyAmphicheiral: return {knot, false, false};
+        case SymmetryType::reversible: return {knot, m, false};         // K^r = K
+        case SymmetryType::negativeAmphicheiral: return {knot, m != r, false}; // K^r = mK
+        case SymmetryType::positiveAmphicheiral: return {knot, false, r};      // mK = K
+        default: return {knot, m, r};                                   // chiral
+        }
+    };
+    std::map<Key, int> count;
+    std::map<Key, Key> inverse;
     for (const std::string &p : parts) {
         if (p == "Unknot" || p == "mUnknot")
             continue;
-        const bool mirrored = p[0] == 'm';
-        const std::string knot = mirrored ? p.substr(1) : p;
+        size_t k = 0;
+        const bool m = k < p.size() && p[k] == 'm';
+        if (m) ++k;
+        const bool r = k < p.size() && p[k] == 'r';
+        if (r) ++k;
+        const std::string knot = p.substr(k);
         const SymmetryType *type = names.symmetry(knot);
         if (!type)
             return false;
-        switch (*type) {
-        case SymmetryType::reversible: // -K = mK
-            balance[knot] += mirrored ? -1 : 1;
-            break;
-        case SymmetryType::fullyAmphicheiral: // -K = K = mK
-            ++copies[knot];
-            break;
-        case SymmetryType::negativeAmphicheiral: // -K = K, -(mK) = mK
-            ++copies[p];
-            break;
-        default: // -K needs a reversal marker the name does not carry
-            return false;
+        const Key key = reduce(knot, *type, m, r);
+        ++count[key];
+        inverse[key] = reduce(knot, *type, !m, !r);
+    }
+    for (const auto &[key, n] : count) {
+        const Key &inv = inverse.at(key);
+        if (inv == key) {
+            if (n % 2 != 0)
+                return false;
+        } else {
+            auto it = count.find(inv);
+            if (it == count.end() || it->second != n)
+                return false;
         }
     }
-    for (const auto &[knot, b] : balance)
-        if (b != 0)
-            return false;
-    for (const auto &[cls, n] : copies)
-        if (n % 2 != 0)
-            return false;
     return true;
 }
 
@@ -853,7 +1111,12 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
             // only a single-component far side (a knot, by Gordon-Luecke)
             // qualifies. An unlink passes farSideBearsBound() but is an
             // axiom already, and a bound onto it would be meaningless.
-            if (w.otherComponents == 1 && w.otherCandidates.size() == 1)
+            // A far side named EXACTLY is an identity whatever its component
+            // count, so it may receive a bound too (never an unlink, which is
+            // an axiom).
+            if ((w.otherComponents == 1 || w.farSideExact) &&
+                w.otherCandidates.size() == 1 &&
+                !w.otherCandidates.front().ends_with("-component unlink"))
                 directions.push_back({w.otherCandidates.front(),
                                       w.otherComponents,
                                       {w.subject},

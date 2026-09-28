@@ -126,8 +126,8 @@ std::string baseName(const std::string &name);
  */
 struct CompositeName {
     std::string knot;
-    int component = 0;
-    std::string link;
+    int component = 0;  /**< -1 for "?": the namer did not compute it */
+    std::string link;   /**< a base, or a tagged variant ("L7n1{1}") from an exact name */
 };
 
 /** The parts of a composite name, or nullopt if `name` is not one. */
@@ -140,6 +140,35 @@ std::optional<CompositeName> compositeParts(const std::string &name);
  * ("A u B") are all refused.
  */
 std::vector<std::string> knotSummands(const std::string &name);
+
+/**
+ * A (possibly marked) prime knot name without its marks: "mr8_17" -> "8_17".
+ * An exact name marks a summand "m" (mirrored) and/or "r" (reversed)
+ * relative to the table's diagram, where its symmetry type makes the mark
+ * matter; g_4 sees neither. Any other name is returned unchanged.
+ */
+std::string stripKnotMarks(const std::string &name);
+
+/**
+ * The pieces of a sum along components, each with its component count:
+ * "K1 #_? K2 #_? L" (knots summed into components of the link L), or
+ * "#{A[?] # B[?] ; ...}" (sum sites, one per shared component). nullopt for
+ * anything else, or when a piece's name does not state its component count.
+ *
+ * In "#{...}" a piece summed at two sites is written at both, so every
+ * occurrence counts as a piece of its own. That can only over-count, which
+ * weakens both bounds built from the pieces and never makes one unsound.
+ */
+std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::string &name);
+
+/**
+ * What a far side named EXACTLY (--far-side-exact) may be: the name itself,
+ * or -- where the namer proved it one of a few orientation variants it could
+ * not tell apart -- those alternatives "A|B". Never widened to a base's
+ * variants. A split or a sum is one candidate: its alternatives live inside
+ * its factors and pieces.
+ */
+std::vector<std::string> exactCandidates(const std::string &name);
 
 /**
  * A prime knot's symmetry type, as data/knot_symmetry.csv records it
@@ -230,7 +259,18 @@ class NameTable {
         return it == symmetry_.end() ? nullptr : &it->second;
     }
 
+    /**
+     * Whether upperOf()/lowerOf() bound sums along components and splits
+     * with link factors from their pieces (--sum-rules): the additive upper
+     * bound, and the lower bounds g_4(F_i) - sum_{j != i} (g_4(F_j) + n(F_j)
+     * - 1) for a split and g_4(P_i) - sum_{j != i} (g_4(P_j) + n(P_j) - 1)
+     * for a sum. Off by default, like every other widening of what bounds.
+     */
+    void setSumRules(bool on) { sumRules_ = on; }
+    bool sumRules() const { return sumRules_; }
+
   private:
+    bool sumRules_ = false;
     std::unordered_map<std::string, SymmetryType> symmetry_;
     std::unordered_map<std::string, NameInfo> info_;
     std::unordered_map<std::string, std::vector<std::string>> byBase_;
@@ -313,6 +353,15 @@ struct Witness {
      * complete candidate set, so the max/min over them is sound.
      */
     bool farSideProved = false;
+    /**
+     * Whether the far side was named EXACTLY (--far-side-exact): redrawn
+     * from this witness's own pair signature, oriented by its surface, and
+     * named with a proof that is an identity (one link up to mirror and
+     * global reversal). Such a far side may also RECEIVE a bound from the
+     * subject, whatever its component count. Solver-side only; never
+     * recorded.
+     */
+    bool farSideExact = false;
 
     // Provenance: which search produced this, and under what budget.
     std::string sourceRow;

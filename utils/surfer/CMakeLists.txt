@@ -12,8 +12,19 @@ add_library(surfer_common STATIC
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
   linkcomplement.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
-  cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp)
+  cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp farsideredraw.cpp
+  exactnaming/exacttables.cpp exactnaming/gaussdiagram.cpp exactnaming/exactnamer.cpp
+  exactnaming/snappeaisometry.cpp
+  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
+
+# The SnapPea kernel's isometry sources, which Regina ships unbuilt
+# (engine/snappea/kernel/unused/), include their kernel headers by bare name.
+# Only these two files see the kernel directory: its headers (homology.h,
+# tables.h, ...) would shadow others anywhere else.
+set_source_files_properties(
+  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp
+  PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/engine/snappea/kernel")
 
 # Local census SQLite lookup (identifycomplement.cpp's
 # census::localCensusLookup()): not used anywhere else in the engine, so
@@ -34,6 +45,8 @@ set(UTILS
   verifyslicegenus
   peripheral_slopes
   farsidediagram
+  farsidename
+  tableclasses
 )
 
 foreach(EXE ${UTILS})
@@ -47,6 +60,7 @@ install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Ru
 # #include "cobordismbuilder.h") against this directory.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(knotbuilder)
+add_subdirectory(exactnaming)
 add_subdirectory(tests)
 
 if (REGINA_BUILD_ENGINE_DOCS)
