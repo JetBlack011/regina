@@ -468,6 +468,38 @@ settings; wall is the driver process, start to exit, summed):
     cascade uses ~2,100: about 1/29. A sweep row serves many targets at
     once, so this is per target, not per campaign.
 
+## Knots through 8 crossings (2026-09-28, halcyon, v8 build)
+
+After c4's merge the atlas verified 33 of the 35 knots through 8 crossings.
+`8_16` and `8_18` were only verified-assisted: their bounds rested on the
+literature values of `10_99` and `L10a71{0}`. The cascade ran each knot alone:
+constructive, master withheld, 50k surfaces per hop (up to 1M on a revisit),
+at most 7,200 CPU-s.
+
+| knot | goal | hops | wall | CPU | the proof, down to its one leaf |
+|---|---|---|---|---|---|
+| `8_16` | g₄ ≤ 1 | 18 | 100 s | 1,380 s | a witness to `L8a9{0}` plus one tube; `L8a9{0}` bounds an annulus: genus 0 to a 4-crossing 3-component link, genus 0 to a 2-component unlink, discs |
+| `8_18` | g₄ ≤ 1 | 14 | 73 s | 1,009 s | a witness to `L7a1{0}`, whose components bound disjoint surfaces of total genus 1: genus 0 to a 4-crossing 3-component link, then a 2-component unlink, discs |
+| `8_8` | slice | 1 | 2 s | 29 s | its own row's disc |
+| `8_9` | slice | 1 | 2 s | 29 s | its own row's disc |
+
+- Every certificate is CERTIFIED by `cascade_check.py`.
+- Every proof's only leaf is the unknot's disc, so with the literature lower
+  bounds every knot through 8 crossings now has a constructive proof of its
+  g₄: 33 from the sweep, `8_16` and `8_18` from the cascade.
+- The atlas's what-if chain for `8_16` (with exact far-side names) went
+  through `L8a9{0}` → `9_27`. The cascade reached `L8a9{0}` and proved it by
+  its own route.
+- Soundness rests on composing witnesses from different triangulations (the
+  plan's §1), which the paper does not yet state. Like every bound here, it
+  also inherits the draft's open check on relative Wall.
+- Stored in the atlas at `results/cascade/2026-09-28_knots8/`: per knot,
+  `certificate.json`, `check.txt`, `cascade.jsonl`, `driver.log` and the hop
+  directories.
+- In `8_16`'s run one node was refused as a hop row, for a new reason: its
+  triangulated row did not redraw as its own diagram (no
+  orientation-preserving isomorphism). It is not nugatory; still open.
+
 ## The independent checker (`tools/cascade_check.py`)
 
 `cascadesearch` writes `certificate.json` when a goal is met. It holds:
