@@ -6,6 +6,7 @@ set(TESTS
   vertexlinks_test
   pairsig_test
   linkcomplement_test
+  linkingnumber_test
   identifycomplement_test
   census_test
   cobordismgraph_test

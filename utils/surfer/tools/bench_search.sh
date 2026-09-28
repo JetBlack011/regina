@@ -37,6 +37,11 @@
 #   STORE      witness store copied in for B2 (default: none, i.e. empty)
 #   B1_ROWS    default: 10_141 L10a14{0} L10a127{1;1}
 #   B2_ROW     default: 10_141
+#   ROOT_BUDGET_START  override [campaign]'s (0 = unbudgeted; used to check
+#              that a budgeted run's charged - replayed equals an unbudgeted
+#              run's attempts)
+#   TAG        tag for `run` results (default: none)
+#   EXTRA_ARGS further verifyslicegenus flags, e.g. --audit-linking
 set -euo pipefail
 
 BENCH_DIR=${BENCH_DIR:-$HOME/bench-runs}
@@ -95,7 +100,7 @@ run_one() {
   local name safe run
   name=$(basename "$bin")
   safe=$(printf '%s' "$row" | tr -c 'A-Za-z0-9_.-' '_')
-  run=$BENCH_DIR/runs/$name/$mode/$safe
+  run=$BENCH_DIR/runs/$name/$mode/$safe${ROOT_BUDGET_START:+-budget$ROOT_BUDGET_START}
   rm -rf "$run"; mkdir -p "$run"
 
   {
@@ -122,7 +127,7 @@ run_one() {
     --name-aliases "$DATA/name_aliases.csv"
     --max-crossings "$CFG_MAX_CROSSINGS"
     --thicken-layers "$CFG_THICKEN_LAYERS" --collar-layers "$CFG_COLLAR_LAYERS"
-    --root-budget-start "$CFG_ROOT_BUDGET_START"
+    --root-budget-start "${ROOT_BUDGET_START:-$CFG_ROOT_BUDGET_START}"
     --root-budget-growth "$CFG_ROOT_BUDGET_GROWTH"
     --no-cone --harvest --boundary-condition proper --research-settled
     --threads "$THREADS"
@@ -143,9 +148,30 @@ run_one() {
   esac
   [ "$CFG_RESOLVE_UNLINKED" = 1 ] && cmd+=(--resolve-unlinked)
   [ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && cmd+=(--exact-far-side-names)
+  # Word-split on purpose: extra flags, e.g. EXTRA_ARGS=--audit-linking.
+  # shellcheck disable=SC2206
+  [ -n "${EXTRA_ARGS:-}" ] && cmd+=($EXTRA_ARGS)
 
-  /usr/bin/time -f '%e %M' -o "$run/time.txt" "${cmd[@]}" > "$run/log" 2> "$run/err" || {
-    echo "bench_search.sh: $name exited non-zero on $row ($mode); see $run" >&2; return 1; }
+  local rc=0
+  if [ -x /usr/bin/time ]; then
+    /usr/bin/time -f '%e %M' -o "$run/time.txt" "${cmd[@]}" > "$run/log" 2> "$run/err" || rc=$?
+  else
+    # No GNU time: wall from the clock, peak RSS from the kernel's own
+    # high-water mark (VmHWM), polled until the process exits.
+    local t0 hwm=0 pid now
+    t0=$(date +%s.%N)
+    "${cmd[@]}" > "$run/log" 2> "$run/err" &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+      now=$(awk '/^VmHWM:/ { print $2 }' "/proc/$pid/status" 2>/dev/null || true)
+      [ -n "$now" ] && [ "$now" -gt "$hwm" ] && hwm=$now
+      sleep 0.5
+    done
+    wait "$pid" || rc=$?
+    echo "$(echo "$(date +%s.%N) - $t0" | bc) $hwm" > "$run/time.txt"
+  fi
+  [ "$rc" -eq 0 ] || {
+    echo "bench_search.sh: $name exited $rc on $row ($mode); see $run" >&2; return 1; }
 
   python3 - "$RESULTS" "$run" "$name" "$mode" "$row" "$THREADS" "$HOST" "$tag" <<'EOF'
 import os, re, sys, time
@@ -230,7 +256,7 @@ EOF
 case ${1:-} in
   run)
     [ $# -eq 4 ] || { echo "usage: $0 run <binary> <b1|b2> <row>" >&2; exit 2; }
-    run_one "$2" "$3" "$4" ;;
+    run_one "$2" "$3" "$4" "${TAG:-}" ;;
   ab)
     [ $# -ge 3 ] || { echo "usage: $0 ab <binaryA> <binaryB> [reps]" >&2; exit 2; }
     tag="ab-$(date +%Y%m%dT%H%M%S)"

@@ -42,6 +42,7 @@
 #include "farsidenaming.h"
 #include "knotbuilder/knotbuilder.h"
 #include "linkcomplement.h"
+#include "linkingnumber.h"
 #include "identifycomplement.h"
 
 using namespace cobordismgraph;
@@ -1763,6 +1764,13 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     per-root budgets, worth the time (default: "
          "off).\n";
   std::cerr
+      << "    --audit-linking : Validation only (slow). Compute every petal "
+         "linking number\n"
+         "                     twice -- by cochains (linkingnumber.h) and by "
+         "drilling plus\n"
+         "                     homology -- and halt after the row on any "
+         "disagreement.\n";
+  std::cerr
       << "    --resolve-unlinked : Also accept surfaces that meet themselves "
          "only at\n"
          "                     interior vertices whose trace (all petals "
@@ -2087,6 +2095,8 @@ int main(int argc, char *argv[]) {
       researchSettled = true;
     } else if (arg == "--resolve-unlinked") {
       resolveUnlinked = true;
+    } else if (arg == "--audit-linking") {
+      linkingnumber::auditLinkingNumbers.store(true);
     } else if (arg == "--self-intersection-census") {
       if (i + 1 >= argc)
         usage(argv[0], "--self-intersection-census requires a value.");
@@ -3774,7 +3784,25 @@ int main(int argc, char *argv[]) {
                 << "; petal misses: unknot " << unknotMisses(petals) << " in "
                 << nsecs(petals.unknotMissNanos) << "s, linking "
                 << linkingMisses(petals) << " in "
-                << nsecs(petals.linkingMissNanos) << "s\n";
+                << nsecs(petals.linkingMissNanos) << "s (cochains "
+                << petals.linkingFast << ", fallbacks "
+                << petals.linkingFallbacks << ")";
+      if (linkingnumber::auditLinkingNumbers.load())
+        std::cout << "; linking audit: " << petals.linkingAudited
+                  << " checked (" << petals.linkingAuditNonzero
+                  << " linked), " << petals.linkingDisagreements
+                  << " disagree, drilling route "
+                  << nsecs(petals.linkingAuditOldNanos) << "s";
+      std::cout << "\n";
+      // The audit exists to catch exactly this; a wrong linking number
+      // prunes (or keeps) surfaces it should not.
+      if (petals.linkingDisagreements > 0) {
+        flagFatalBug(row.name + ": " +
+                     std::to_string(petals.linkingDisagreements) +
+                     " petal linking numbers disagree between the cochain "
+                     "and drilling routes (--audit-linking).");
+        haltIfFatalBugDetected();
+      }
     }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.

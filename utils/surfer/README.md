@@ -17,6 +17,8 @@ where it is tested. Each header's own `\file` comment has the details.
 | `peripheral_slopes` | drills far sides (from witnesses' pair signatures) or table links (from PD codes) keeping signed meridians, for the far-side pipeline's SnapPy half |
 | `farsidediagram` | witnesses' outgoing links as oriented diagrams, via `knotbuilder/diagramdrawer` (see `knotbuilder/README.md`) |
 | `knotbuilder/triangulateknot` | a PD code → the triangulation's and its complement's isomorphism signatures |
+| `tools/bench_search.sh` | rough, repeatable search benchmarks, one row per run (see "Performance" below) |
+| `tools/compare_surface_sets.sh` | whether two builds accept and describe exactly the same surfaces: exhaustive runs with `--surface-log`, sorted and compared |
 
 `bogocheck.cpp` and `fillmanifold.cpp` are old scratch programs that no target
 builds.
@@ -39,6 +41,7 @@ builds.
 | `skeleton.{h,cpp}` | adjacency graphs over faces |
 | `embeddedsubmanifold.{h,cpp}` | `EmbeddedSubmanifold` / `KnottedSurface`: a growing set of triangles with incremental embeddedness, local flatness, orientability; `orientedBoundaryLinks()` orients the boundary per surface component |
 | `vertexlinks.{h,cpp}`, `rollbackunionfind.{h,cpp}` | the incremental local checks and their memoisation |
+| `linkingnumber.{h,cpp}` | the linking number of two closed petals' traces in Lk(v), by cochains on Lk(v) itself (since 2026-09-28): push B off into the dual cells, solve δx = PD(B*) over GF(2⁶¹−1), read x(A). Checks its own answer (δβ = 0, δx = β everywhere) and declines rather than guess; `KnottedSurface::addFace()` then falls back to drilling (`linkcomplement`). `--audit-linking` runs both routes on every miss |
 | `embeddingsearch.{h,cpp}` | the parallel search over roots (parallel across roots, never within one) |
 | `surfacesearch.{h,cpp}` | the search as `verifyslicegenus` uses it: enumeration plus the **drain**, which describes and names each accepted surface's boundary |
 
@@ -134,6 +137,65 @@ guard against that whole class of fault:
   rewrite (the 12→13 column migration), and it verifies every line. A torn last
   line is ignored on load and truncated before the next append.
 
+## Performance: measuring it, and its history (since 2026-09-28)
+
+**The `search profile:` line.** Every row prints where its search time went,
+after its `identification:` line:
+
+```
+search profile: prototype 0.0s (unknot misses 18 in 0.0s, linking misses 0 in 0.0s);
+  rounds 34.3s; drain tail 396342 surfaces in 12.0s; nodes 61851814,
+  attempts 5253204209, evaluated 154402992, charged 5252432013, replayed 3115400000;
+  petal misses: unknot 967 in 2.9s, linking 161 in 0.0s (cochains 161, fallbacks 0)
+```
+
+- **prototype:** seed commit and root filtering, single-threaded, before any
+  worker starts.
+- **rounds:** each IDDFS round's wall time.
+- **drain tail:** what was left queued when the search ended.
+- **The walk:**
+  - nodes: visits, replays included;
+  - attempts: `tryAdd()` calls;
+  - evaluated: those that got past the depth cap;
+  - charged: those counted against root budgets;
+  - replayed: charged attempts retracing an earlier budget pass of the same
+    root.
+- **Petal misses:** time is thread time.
+
+In a budgeted round each root's walk is a function of the root alone, so the
+walk counts are deterministic. Identical counts between two builds mean they
+searched identically. And charged − replayed equals an unbudgeted run's
+attempts exactly, checked on `6_1` and `L6a3{1}` (2026-09-28).
+
+**The benchmarks** (`tools/bench_search.sh`), run on halcyon with its
+`hosts.conf` profile (14 threads):
+
+- **B1:** exhaustive to 4 added faces on `10_141`, `L10a14{0}` and
+  `L10a127{1;1}`, with an empty witness file.
+  - Fixed work, so every correct build accepts the same surfaces.
+  - `bench_search.sh ab A B` alternates the two builds (ABAB) and flags any
+    difference in accepted counts or in the walk.
+- **B2:** one production row (1M surfaces, caps 4 then 5, a copy of the real
+  witness store).
+
+Binaries are kept in halcyon's `~/bench-bins`, and results in
+`~/bench-runs/results.tsv`.
+
+**Equivalence.** `tools/compare_surface_sets.sh A B` runs the canary rows
+exhaustively at cap 3 with both builds. The sorted surface logs (type,
+triangle count and pair signature of every described surface) must be
+identical.
+
+**History.** B1 wall time per row, medians of two, in seconds. The "walk" and
+"sets" columns say whether the walk counts and the surface sets matched the
+build before.
+
+| build | change | 10_141 | L10a14{0} | L10a127{1;1} | total | walk | sets |
+|---|---|---|---|---|---|---|---|
+| `f183dffbe` | master | 105.7 | 110.9 | 113.5 | 330.2 | — | — |
+| 00-counters | the `search profile:` line | 105.6 | 110.4 | 112.8 | 328.9 (0.996×) | — | — |
+| 1a | a child's neighbours join C only once it passes `tryAdd` | 74.2 | 78.9 | 81.5 | 234.7 (0.712×) | same | same |
+
 ## Tests
 
 `ctest` from the build's `utils/surfer` directory; `embeddedsubmanifold_test`
@@ -153,6 +215,7 @@ needs an idle machine. Besides each component's own unit tests:
 | `exactnaming/tests/isometry_validation` (not in ctest) | the isometry step on the whole table: kernel census vs KnotInfo/LinkInfo, every entry under every orientation transform scrambled and renamed, all HOMFLY- and volume-twin pairs, threads. See `exactnaming/README.md` |
 | `knotbuilder/tests/diagramdrawer_test` | the drawer (see `knotbuilder/README.md`) |
 | `tests/farsidenaming_test` | on real thickenings: the collar's far side is named as the row itself (a table knot, a table link's base) straight from its diagram, with no fallback; a small curve is `Unknot`; empty or missing signature tables are refused |
+| `tests/linkingnumber_test` | the cochain linking number against diagrams (knotbuilder draws table links; Regina reads |lk| off the PD code: 0, 1, 2, 3), against the drilling route on random disjoint cycles, and on linked components rerouted across triangles (which cannot change lk). With a link table as argument, sweeps every 2-component row |
 
 The atlas adds campaign-level checks: `tools/orchestrate/canaries.sh` (exact
 surface accounting on fixed rows, run by `verify.sh gate` and at staging) and
