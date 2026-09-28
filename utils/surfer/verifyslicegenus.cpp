@@ -3221,8 +3221,16 @@ int main(int argc, char *argv[]) {
           worst = std::max(worst, hi);
           impliedAssisted = impliedAssisted || assisted;
         }
+        // As propagate(): an n-component unlink bounds n disjoint discs, so
+        // capping it off costs no tubes (the n - 1 is for a far side whose
+        // components are joined by one connected surface).
+        const bool unlinkFar =
+            std::all_of(w.otherCandidates.begin(), w.otherCandidates.end(),
+                        [](const std::string &c) {
+                          return c.ends_with("-component unlink");
+                        });
         if (haveAll)
-          implied = worst + w.genus + w.otherComponents - 1;
+          implied = worst + w.genus + (unlinkFar ? 0 : w.otherComponents - 1);
       }
 
       if (implied != cobordismgraph::NO_UPPER_BOUND && implied < row.lo) {
