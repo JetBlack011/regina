@@ -67,6 +67,9 @@ struct HopRun {
   double cpu = 0;                ///< process CPU seconds over the hop
   double setup = 0;              ///< wall before the search: namer, search, seed checks
   double search = 0;             ///< wall of the search itself, drain included
+  std::vector<double> rounds;    ///< each IDDFS round's wall (SearchStats::Profile)
+  size_t drainTail = 0;          ///< surfaces left for the drain when the search ended
+  double drainTailSeconds = 0;   ///< and the wall it took to describe them
 };
 
 class HopSearcher {

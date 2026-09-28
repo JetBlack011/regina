@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -44,6 +45,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <link/link.h>
@@ -320,6 +322,15 @@ private:
   }
 
   void onNewNode(NodeId n, int depth);
+  /// Names every node in `ns` (in parallel), then records each at `depth`
+  /// with its table name, literature leaf and lower bound (in order).
+  void onNewNodes(const std::vector<NodeId> &ns, int depth);
+  void applyName(NodeId n, const exactnaming::PieceName &pn);
+  std::vector<NodeId> nodesSince(size_t first) const {
+    std::vector<NodeId> ns;
+    for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
+    return ns;
+  }
   bool useful(NodeId n) const;
   std::optional<NodeId> choose(bool freeOnly = false);
   void expand(NodeId n, long surfaces);
@@ -373,17 +384,37 @@ private:
   int invariantFailures_ = 0;
 };
 
-void Cascade::onNewNode(NodeId n, int depth) {
-  depth_.emplace(n, depth);
-  if (!reg_.known(n) || n == reg_.unknot())
-    return;
-  const GaussDiagram &d = reg_.info(n).diagram;
-  exactnaming::PieceName pn;
-  try {
-    pn = namer_.identify(d);
-  } catch (const std::exception &e) {
-    return;
+void Cascade::onNewNode(NodeId n, int depth) { onNewNodes({n}, depth); }
+
+void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
+  // Naming is most of what a hop does outside its search, and each node's
+  // name is independent of the others', so the names are found on a pool
+  // (ExactNamer is safe to share: its caches are locked, and its SnapPea
+  // calls serialised) and applied here in node order, as one at a time would.
+  std::vector<std::optional<exactnaming::PieceName>> names(ns.size());
+  std::atomic<size_t> next{0};
+  auto work = [&] {
+    for (size_t i; (i = next.fetch_add(1)) < ns.size();) {
+      const NodeId n = ns[i];
+      if (!reg_.known(n) || n == reg_.unknot()) continue;
+      try {
+        names[i] = namer_.identify(reg_.info(n).diagram);
+      } catch (const std::exception &) {
+      }
+    }
+  };
+  std::vector<std::thread> pool;
+  const size_t threads = std::min<size_t>(std::max(cfg_.threads, 1), ns.size());
+  for (size_t t = 1; t < threads; ++t) pool.emplace_back(work);
+  work();
+  for (auto &t : pool) t.join();
+  for (size_t i = 0; i < ns.size(); ++i) {
+    depth_.emplace(ns[i], depth);
+    if (names[i]) applyName(ns[i], *names[i]);
   }
+}
+
+void Cascade::applyName(NodeId n, const exactnaming::PieceName &pn) {
   if (pn.by == exactnaming::PieceName::By::untabulated || !pn.pinned() || pn.names.size() != 1)
     return;
   const std::string &name = pn.names.front();
@@ -491,8 +522,7 @@ void Cascade::loadMaster(NodeId n) {
     }
   }
   expansions_[n].push_back(0); // counts as this level's expansion
-  for (size_t k = nodesBefore; k < g_.nodeCount(); ++k)
-    onNewNode(static_cast<NodeId>(k), depth_.at(n) + 1);
+  onNewNodes(nodesSince(nodesBefore), depth_.at(n) + 1);
   g_.propagate();
   g_.propagateLower();
   auto best = g_.best(target_, goalPartition(target_));
@@ -607,6 +637,9 @@ void Cascade::expand(NodeId n, long surfaces) {
   // certification, the search's setup and the search itself, adding its
   // surfaces, naming new nodes, and relaxing the graph.
   double rowSeconds = seconds(tRow, clock::now()), setupSeconds = 0, searchSeconds = 0;
+  std::string roundsJson = "[]";
+  size_t drainTail = 0;
+  double drainTailSeconds = 0;
   const std::string rowName = "cascade_n" + std::to_string(n);
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
@@ -660,6 +693,12 @@ void Cascade::expand(NodeId n, long surfaces) {
     r.cpu = run.cpu;
     setupSeconds = run.setup;
     searchSeconds = run.search;
+    std::ostringstream rj;
+    rj << std::fixed << std::setprecision(2) << '[';
+    for (size_t i = 0; i < run.rounds.size(); ++i) rj << (i ? "," : "") << run.rounds[i];
+    roundsJson = rj.str() + ']';
+    drainTail = run.drainTail;
+    drainTailSeconds = run.drainTailSeconds;
     std::ofstream(dir + "/log.txt")
         << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
         << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
@@ -713,8 +752,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   expansions_[n].push_back(surfaces);
   const auto tNodes = clock::now();
   const double addSeconds = seconds(t0, tNodes);
-  for (size_t m = nodesBefore; m < g_.nodeCount(); ++m)
-    onNewNode(static_cast<NodeId>(m), depth_.at(n) + 1);
+  onNewNodes(nodesSince(nodesBefore), depth_.at(n) + 1);
   const auto tProp = clock::now();
   g_.propagate();
   g_.propagateLower();
@@ -730,7 +768,9 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"assemble\":" << assemble << ",\"row\":" << rowSeconds
     << ",\"setup\":" << setupSeconds << ",\"search\":" << searchSeconds
     << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
-    << ",\"propagate\":" << propagateSeconds << ",\"witnesses\":" << witnesses
+    << ",\"propagate\":" << propagateSeconds << ",\"rounds\":" << roundsJson
+    << ",\"drain_tail\":" << drainTail << ",\"drain_tail_s\":" << drainTailSeconds
+    << ",\"witnesses\":" << witnesses
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
     << ",\"records\":" << g_.recordCount()

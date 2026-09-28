@@ -114,6 +114,10 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   };
   callbacks.surfaceTarget = surfaceTarget;
   callbacks.onSurfaceTarget = [&] { noteStop("surface-target"); };
+  callbacks.onBoundaryProcessingStarted = [&](size_t total, unsigned) { out.drainTail = total; };
+  callbacks.onBoundaryProcessingComplete = [&](size_t, std::chrono::steady_clock::duration d) {
+    out.drainTailSeconds = std::chrono::duration<double>(d).count();
+  };
 
   callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo &info) {
     acct.described.fetch_add(1, std::memory_order_relaxed);
@@ -185,6 +189,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
       /*orientableOnly=*/true, shape_.maxFaces, shape_.rootBudgetStart,
       shape_.rootBudgetGrowth);
   out.search = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
+  for (auto r : stats.profile.rounds) out.rounds.push_back(std::chrono::duration<double>(r).count());
   watchdog->stop();
 
   const bool drainSkipped = e.boundaryProcessingSkipped();
