@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -17,6 +18,12 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include <triangulation/forward.h>
+
+namespace linkingnumber {
+class Complex;
+}
 
 /*! \file utils/surfer/vertexlinks.h
  *  \brief Memoizes KnottedSurface::addFace()'s local-flatness and
@@ -149,6 +156,34 @@ public:
   /** As recordLocalFlatnessRejection(), for a transverse self-intersection rejection. */
   void recordTransverseRejection();
 
+  /**
+   * Adds the wall time one cache miss spent computing its answer:
+   * Knot::isUnknot() for recordUnknotMissTime(), Knot::linkingNumberWith()
+   * for recordLinkingMissTime(). Measurement only, for the per-row
+   * `search profile:` line; see Stats.
+   */
+  void recordUnknotMissTime(long long nanos);
+  /** As recordUnknotMissTime(), for a linking-number miss. */
+  void recordLinkingMissTime(long long nanos);
+
+  /**
+   * The flattened cell structure of ambient vertex `vertex`'s link `link`,
+   * for linkingnumber::linkingNumber(): built on first use, then shared by
+   * every thread. Keyed by the ambient vertex's index, which is why it lives
+   * here: this cache belongs to one search, so to one ambient triangulation.
+   */
+  std::shared_ptr<const linkingnumber::Complex>
+  linkComplex(size_t vertex, const regina::Triangulation<3> &link);
+
+  /**
+   * Records how one linking-number miss was answered: by
+   * linkingnumber::linkingNumber() (`fast`), or by the old route after it
+   * declined. With linkingnumber::auditLinkingNumbers, also whether the old
+   * route agreed and how long it took.
+   */
+  void recordLinkingRoute(bool fast);
+  void recordLinkingAudit(bool agreed, bool nonzero, long long oldNanos);
+
   /** Counters for how much recomputation this cache is actually avoiding, and how often addFace()'s checks actually reject something. */
   struct Stats {
     long long unknotChecks = 0;
@@ -160,6 +195,14 @@ public:
     long long cacheResets = 0; /**< How many times this cache has been fully cleared after exceeding its clear threshold. */
     long long petalSetChecks = 0;    /**< lookupPetalSet() calls. */
     long long petalSetCacheHits = 0; /**< ... that found an answer. */
+    long long unknotMissNanos = 0;   /**< Time spent computing unknot misses; see recordUnknotMissTime(). */
+    long long linkingMissNanos = 0;  /**< Time spent computing linking-number misses. */
+    long long linkingFast = 0;       /**< Misses answered by linkingnumber::linkingNumber(). */
+    long long linkingFallbacks = 0;  /**< ... that it declined, answered by the old route. */
+    long long linkingAudited = 0;    /**< With the audit on: misses also run by the old route. */
+    long long linkingDisagreements = 0; /**< ... whose two answers differed. Must stay 0. */
+    long long linkingAuditNonzero = 0; /**< ... whose (agreed) answer was nonzero: the pruning case. */
+    long long linkingAuditOldNanos = 0; /**< The old route's time on audited misses. */
   };
 
   /**
@@ -206,6 +249,11 @@ private:
   std::optional<std::vector<int>>
   petalSetKey_(SetQuery query,
                const std::vector<PetalId> &ids) const;
+
+  /** linkComplex()'s cache; its own lock, since building one is slow. */
+  std::mutex complexMutex_;
+  std::unordered_map<size_t, std::shared_ptr<const linkingnumber::Complex>>
+      linkComplexes_;
 
   size_t clearThreshold_ = DEFAULT_CLEAR_THRESHOLD;
   uint64_t epoch_ = 0; /**< Bumped every time this cache is cleared; see PetalId. */

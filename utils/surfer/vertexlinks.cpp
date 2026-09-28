@@ -5,6 +5,7 @@
 //
 
 #include "vertexlinks.h"
+#include "linkingnumber.h"
 
 #include <algorithm>
 
@@ -170,6 +171,47 @@ void PetalCache::recordLocalFlatnessRejection() {
 void PetalCache::recordTransverseRejection() {
     std::lock_guard<std::mutex> lock(mutex_);
     ++stats_.transverseRejections;
+}
+
+void PetalCache::recordUnknotMissTime(long long nanos) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stats_.unknotMissNanos += nanos;
+}
+
+void PetalCache::recordLinkingMissTime(long long nanos) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stats_.linkingMissNanos += nanos;
+}
+
+std::shared_ptr<const linkingnumber::Complex>
+PetalCache::linkComplex(size_t vertex, const regina::Triangulation<3> &link) {
+    {
+        std::lock_guard<std::mutex> lock(complexMutex_);
+        auto it = linkComplexes_.find(vertex);
+        if (it != linkComplexes_.end())
+            return it->second;
+    }
+    // Built outside the lock; two threads racing on one vertex just build it
+    // twice, and the first insert wins.
+    auto built = std::make_shared<const linkingnumber::Complex>(link);
+    std::lock_guard<std::mutex> lock(complexMutex_);
+    return linkComplexes_.emplace(vertex, std::move(built)).first->second;
+}
+
+void PetalCache::recordLinkingRoute(bool fast) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++(fast ? stats_.linkingFast : stats_.linkingFallbacks);
+}
+
+void PetalCache::recordLinkingAudit(bool agreed, bool nonzero,
+                                    long long oldNanos) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++stats_.linkingAudited;
+    if (!agreed)
+        ++stats_.linkingDisagreements;
+    else if (nonzero)
+        ++stats_.linkingAuditNonzero;
+    stats_.linkingAuditOldNanos += oldNanos;
 }
 
 PetalCache::Stats PetalCache::stats() const {

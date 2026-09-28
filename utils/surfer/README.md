@@ -17,6 +17,8 @@ where it is tested. Each header's own `\file` comment has the details.
 | `peripheral_slopes` | drills far sides (from witnesses' pair signatures) or table links (from PD codes) keeping signed meridians, for the far-side pipeline's SnapPy half |
 | `farsidediagram` | witnesses' outgoing links as oriented diagrams, via `knotbuilder/diagramdrawer` (see `knotbuilder/README.md`) |
 | `knotbuilder/triangulateknot` | a PD code → the triangulation's and its complement's isomorphism signatures |
+| `tools/bench_search.sh` | rough, repeatable search benchmarks, one row per run (see "Performance" below) |
+| `tools/compare_surface_sets.sh` | whether two builds accept and describe exactly the same surfaces: exhaustive runs with `--surface-log`, sorted and compared |
 
 `bogocheck.cpp` and `fillmanifold.cpp` are old scratch programs that no target
 builds.
@@ -35,10 +37,11 @@ builds.
 
 | file | what |
 |---|---|
-| `enumerate_cis.{h,cpp}` | connected induced subgraphs of the triangle-adjacency graph (optionally seeded, budgeted, with iterative deepening). Checked against brute force by `tests/enumerator_test` |
+| `enumerate_cis.{h,cpp}` | connected induced subgraphs of the triangle-adjacency graph (optionally seeded, budgeted, with iterative deepening). Since 2026-09-28, relying on the prunes being anti-monotonic: a child that fails is set aside for the rest of its parent's subtree, and a seed neighbour that fails with the seed alone for good; the depth cap is the enumerator's own (`setMaxSize()`), so a node at the cap returns at once; children go back into the candidate list in place, so the list at any node is a function of the path; and a budgeted pass that runs out records a `Position`, from which the next pass carries on instead of retracing. Checked against brute force, and resumed passes against one unbudgeted pass in order, by `tests/enumerator_test` |
 | `skeleton.{h,cpp}` | adjacency graphs over faces |
 | `embeddedsubmanifold.{h,cpp}` | `EmbeddedSubmanifold` / `KnottedSurface`: a growing set of triangles with incremental embeddedness, local flatness, orientability; `orientedBoundaryLinks()` orients the boundary per surface component |
 | `vertexlinks.{h,cpp}`, `rollbackunionfind.{h,cpp}` | the incremental local checks and their memoisation |
+| `linkingnumber.{h,cpp}` | the linking number of two closed petals' traces in Lk(v), by cochains on Lk(v) itself (since 2026-09-28): push B off into the dual cells, solve δx = PD(B*) over GF(2⁶¹−1), read x(A). Checks its own answer (δβ = 0, δx = β everywhere) and declines rather than guess; `KnottedSurface::addFace()` then falls back to drilling (`linkcomplement`). `--audit-linking` runs both routes on every miss |
 | `embeddingsearch.{h,cpp}` | the parallel search over roots (parallel across roots, never within one) |
 | `surfacesearch.{h,cpp}` | the search as `verifyslicegenus` uses it: enumeration plus the **drain**, which describes and names each accepted surface's boundary |
 
@@ -134,6 +137,139 @@ guard against that whole class of fault:
   rewrite (the 12→13 column migration), and it verifies every line. A torn last
   line is ignored on load and truncated before the next append.
 
+## Performance: measuring it, and its history (since 2026-09-28)
+
+**The `search profile:` line.** Every row prints where its search time went,
+after its `identification:` line:
+
+```
+search profile: prototype 0.0s (unknot misses 30 in 0.0s, linking misses 0 in 0.0s);
+  rounds 4.1s 7.1s 0.0s; drain tail 965785 surfaces in 42.0s; nodes 121818346,
+  attempts 131797610, evaluated 131797610, charged 131787694, replayed 7655;
+  petal misses: unknot 4110 in 17.2s, linking 762 in 0.0s (cochains 762, fallbacks 0)
+```
+
+- **prototype:** seed commit and root filtering, single-threaded, before any
+  worker starts.
+- **rounds:** each IDDFS round's wall time.
+- **drain tail:** what was left queued when the search ended.
+- **The walk:**
+  - nodes: visits;
+  - attempts: `tryAdd()` calls;
+  - evaluated: those that reach the embedding checks (all of them, now that
+    the depth cap is the enumerator's);
+  - charged: those counted against root budgets;
+  - replayed: the uncharged re-adds that resume a root where its previous
+    pass stopped.
+- **Petal misses:** time is thread time. `cochains`/`fallbacks` say how the
+  linking numbers were computed (`linkingnumber.h`), and `--audit-linking`
+  adds a comparison with drilling on every miss.
+
+In a budgeted round each root's walk is a function of the root alone, so the
+walk counts are deterministic. Identical counts between two builds mean they
+searched identically.
+
+Before 1e (resumed passes), each pass re-walked its root from the start, and
+"replayed" counted the charged attempts that retraced the previous pass.
+Charged − replayed then equalled an unbudgeted run's attempts exactly,
+checked on `6_1` and `L6a3{1}`.
+
+**The benchmarks** (`tools/bench_search.sh`), run on halcyon with its
+`hosts.conf` profile (14 threads):
+
+- **B1:** exhaustive to 4 added faces on `10_141`, `L10a14{0}` and
+  `L10a127{1;1}`, with an empty witness file.
+  - Fixed work, so every correct build accepts the same surfaces.
+  - `bench_search.sh ab A B` alternates the two builds (ABAB) and flags any
+    difference in accepted counts or in the walk.
+- **B2:** one production row (1M surfaces, caps 4 then 5, a copy of the real
+  witness store).
+
+Binaries are kept in halcyon's `~/bench-bins`, and results in
+`~/bench-runs/results.tsv`.
+
+**Equivalence.** `tools/compare_surface_sets.sh A B` runs the canary rows
+exhaustively at cap 3 with both builds. The sorted surface logs (type,
+triangle count and pair signature of every described surface) must be
+identical.
+
+**History.** B1 wall time per row, medians of two, in seconds. The "walk" and
+"sets" columns say whether the walk counts and the surface sets matched the
+build before.
+
+| build | change | 10_141 | L10a14{0} | L10a127{1;1} | total | walk | sets |
+|---|---|---|---|---|---|---|---|
+| `f183dffbe` | master | 105.7 | 110.9 | 113.5 | 330.2 | — | — |
+| 00-counters | the `search profile:` line | 105.6 | 110.4 | 112.8 | 328.9 (0.996×) | — | — |
+| 1a | a child's neighbours join C only once it passes `tryAdd` | 74.2 | 78.9 | 81.5 | 234.7 (0.712×) | same | same |
+| 3 | the seed's own report (and with it the pair-signature context) moves to the drain thread | 51.0 | 56.5 | 59.5 | 167.1 (0.715×) | same | same |
+| 4 | drain embeddings keep the seed; queued entries hold only the added faces | 47.5 | 52.0 | 54.5 | 154.1 (0.933×) | same | same |
+| 2 | petal linking numbers by cochains (`linkingnumber.h`) | 43.0 | 45.9 | 48.4 | 137.3 (0.903×) | same | same |
+| 1b | a child that fails is set aside for its parent's subtree; a seed neighbour that fails, for good | 39.7 | 43.3 | 45.9 | 128.8 (0.939×) | differs | same |
+| 1c | the depth cap is the enumerator's (`setMaxSize()`) | 38.9 | 42.0 | 45.2 | 126.1 (0.971×) | differs | same |
+| 1d | candidates go back into the list in place | 38.8 | 41.8 | 44.9 | 125.5 (1.002×) | differs | same |
+| 1e | budget passes resume instead of replaying | 38.3 | 41.6 | 44.5 | 124.4 (0.991×) | differs | same |
+| final | the surface target stops the search exactly | 38.5 | 41.5 | 44.7 | 124.7 (0.984×) | — | same |
+
+Each ratio is against the row above, measured in the same A/B run, so
+successive rows' absolute times differ by run-to-run noise (about ±1 s).
+Items 1b–1e change the order of the walk on purpose ("differs"); what must
+not change is what is accepted, and it did not, including for 1e at a
+budget of 2,000 attempts per pass (many suspensions and resumptions per
+root), and in `enumerator_test`, where resumed passes visit exactly what one
+unbudgeted pass does, in order. A budgeted and an unbudgeted run of 1e on
+`10_141` visit the same 29,314,297 nodes.
+
+B1 stops improving at 1b because it is no longer bound by the search: on
+`10_141` the search round is 69 s at 00, 22 s at 2 and 4 s at 1e. What is
+left is the pair-signature context (~27 s of one thread, which the first new
+witness waits for) and the drain.
+
+Item 3 helps B1, whose witness file starts empty, and any row whose seed is
+new. With the real witness store the seed's witness already exists, no pair
+signature is needed for it, and the prototype pass is already ~0 s.
+
+**B2** (`10_141`, 1M surfaces, a copy of the real witness store):
+
+| build | root budget | wall | rounds (cap 4, cap 5) | drain tail | peak RSS | attempts | linking misses (thread time) |
+|---|---|---|---|---|---|---|---|
+| 00-counters | 50,000 | 299.7 s | 70.7 s, 211.7 s | 409,505 in 12 s | 1,453 MB | 14.96 B | 1,057 (1,352 s) |
+| 4 | 50,000 | 190.7 s | 35.4 s, 137.4 s | 571,127 in 13 s | 1,238 MB | 14.59 B | 976 (1,209 s) |
+| 2 | 50,000 | 109.6 s | 22.6 s, 62.6 s | 854,384 in 19 s | 630 MB | 15.01 B | 1,022 (< 0.1 s) |
+| 1e | 50,000 | 59.7 s | 4.0 s, 8.2 s | 1,043,032 in 25 s | 666 MB | 0.147 B | 956 (< 0.1 s) |
+| 1e | 840 | 61.7 s | 3.9 s, 8.2 s | 1,087,392 in 25 s | 669 MB | 0.151 B | 915 (< 0.1 s) |
+| final | 840 | 59.1 s | 4.1 s, 7.1 s | 965,785 in 42 s | 642 MB | 0.132 B | 762 (< 0.1 s) |
+
+- The linking misses were about 32% of a production row's thread time;
+  item 2 takes them to under a second.
+- Before 1e, 55% of all attempts were replays of earlier budget passes
+  (8.23 B of 14.96 B at 00).
+- **The root budget.** 1e changes what a unit of it buys, so
+  `root_budget_start` was recalibrated to keep c4's shape: c4's rows made a
+  median 10.2 round-2 passes per root (quartiles 9.9–10.3, over all 308).
+  1e at 50,000 made 4.3, and 840 gives 10.2.
+  - Measure with `tools/round_passes.py <row>.err`.
+  - `hosts.conf` `[campaign]` sets 840 from c5 on.
+- **The surface target.** At 1e's speed, the watchdog's once-a-second stop
+  overshot the target by 9% (1,090,787 accepted for 1M). The search now
+  stops itself exactly (1,000,003).
+- The last row's drain tail includes waiting for the pair-signature context,
+  which it built in the tail rather than during the search.
+
+**Where a production row's time goes now** (`perf` flat profile of the final
+B2 row):
+- allocator churn (`malloc`, `free` and friends): ~37%;
+- the pair-signature context's isomorphism signature (`IsoSigData::fillFrom`,
+  `encode`): ~5%, all on one thread, at the first new witness;
+- the drain's per-surface work (`boundaryLinks`, `orientedBoundaryLinks`,
+  `boundaryEdgeSurfaceComponent`, `singularVertices_`, and Regina building
+  the boundary curves' triangulations): ~15%;
+- the search itself (`addFace`, `extendFiltered`): ~9%.
+
+At 00, the enumerator's own code alone was 60% of a B1 row. The next
+targets are the pair-signature context (cache it per row, or build it off
+the critical path) and the drain's allocations.
+
 ## Tests
 
 `ctest` from the build's `utils/surfer` directory; `embeddedsubmanifold_test`
@@ -141,7 +277,7 @@ needs an idle machine. Besides each component's own unit tests:
 
 | test | guards |
 |---|---|
-| `tests/enumerator_test` | the enumerator returns exactly the brute-force set of connected induced subgraphs (with seeds, budgets, iterative deepening, hereditary filters) |
+| `tests/enumerator_test` | the enumerator returns exactly the brute-force set of connected induced subgraphs (with seeds, budgets, depth caps, anti-monotonic filters); budgeted passes that resume one another visit exactly what one unbudgeted pass does, in the same order, down to a ration of one attempt |
 | `tests/predicate_order_test` | `KnottedSurface`'s prunes (P_1, flatness, transversality) agree with a from-scratch reference on every set of triangles in small closed triangulations, whatever the order faces are added, including one-vertex ones where a triangle has several corners at a vertex |
 | `tests/rowmap_test` | the row map lands exactly on L × {0}, no searchable face touches it, the bare collar classifies as matching (optionally over a whole table) |
 | `tests/name_independence_test.sh` | perturbing every name (identified or drawn: it runs with diagram naming and requires that it was used) changes nothing the search accepts or records |
@@ -153,6 +289,7 @@ needs an idle machine. Besides each component's own unit tests:
 | `exactnaming/tests/isometry_validation` (not in ctest) | the isometry step on the whole table: kernel census vs KnotInfo/LinkInfo, every entry under every orientation transform scrambled and renamed, all HOMFLY- and volume-twin pairs, threads. See `exactnaming/README.md` |
 | `knotbuilder/tests/diagramdrawer_test` | the drawer (see `knotbuilder/README.md`) |
 | `tests/farsidenaming_test` | on real thickenings: the collar's far side is named as the row itself (a table knot, a table link's base) straight from its diagram, with no fallback; a small curve is `Unknot`; empty or missing signature tables are refused |
+| `tests/linkingnumber_test` | the cochain linking number against diagrams (knotbuilder draws table links; Regina reads |lk| off the PD code: 0, 1, 2, 3), against the drilling route on random disjoint cycles, and on linked components rerouted across triangles (which cannot change lk). With a link table as argument, sweeps every 2-component row |
 
 The atlas adds campaign-level checks: `tools/orchestrate/canaries.sh` (exact
 surface accounting on fixed rows, run by `verify.sh gate` and at staging) and

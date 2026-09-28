@@ -7,14 +7,26 @@
 #include "embeddedsubmanifold.h"
 
 #include "identifycomplement.h"
+#include "linkingnumber.h"
 #include "pairsig.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <chrono>
+#include <iostream>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+
+namespace {
+// For PetalCache's miss timings (the per-row `search profile:` line).
+long long nanosSince(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now() - start)
+        .count();
+}
+} // namespace
 
 template <int dim, int subdim>
 EmbeddedSubmanifold<dim, subdim>::EmbeddedSubmanifold(
@@ -1022,8 +1034,10 @@ bool KnottedSurface::addFace(int f) {
         if (cachedUnknot) {
             isUnknot = *cachedUnknot;
         } else {
+            const auto start = std::chrono::steady_clock::now();
             isUnknot = identify::isUnknot(ensureKnotA());
             petalCache_.recordUnknot(idA, isUnknot);
+            petalCache_.recordUnknotMissTime(nanosSince(start));
         }
         if (!isUnknot) {
             // Non-locally-flat: this petal just closed into a knotted circle in
@@ -1046,9 +1060,36 @@ bool KnottedSurface::addFace(int f) {
             if (cachedLink) {
                 nonzero = *cachedLink;
             } else {
-                Knot knotB(ambientVertex->buildLink(),
-                           petalTrace_(ambientVertex, v, other));
-                nonzero = ensureKnotA().linkingNumberWith(knotB) != 0;
+                // By cochains on Lk(v) (linkingnumber.h), which is exact and
+                // checks its own answer; by drilling plus homology only when
+                // it declines. The audit runs both and compares.
+                const auto start = std::chrono::steady_clock::now();
+                const regina::Triangulation<3> &link =
+                    ambientVertex->buildLink();
+                const std::vector<const regina::Edge<3> *> traceB =
+                    petalTrace_(ambientVertex, v, other);
+                const std::optional<long> fast = linkingnumber::linkingNumber(
+                    *petalCache_.linkComplex(v, link), ensureKnotA().edges(),
+                    traceB);
+                petalCache_.recordLinkingRoute(fast.has_value());
+                const long lk =
+                    fast ? *fast
+                         : ensureKnotA().linkingNumberWith(Knot(link, traceB));
+                petalCache_.recordLinkingMissTime(nanosSince(start));
+                if (fast && linkingnumber::auditLinkingNumbers.load(
+                                std::memory_order_relaxed)) {
+                    const auto auditStart = std::chrono::steady_clock::now();
+                    const long old =
+                        ensureKnotA().linkingNumberWith(Knot(link, traceB));
+                    petalCache_.recordLinkingAudit(old == *fast, *fast != 0,
+                                                   nanosSince(auditStart));
+                    if (old != *fast)
+                        std::cerr << "[!] BUG: linking numbers disagree at "
+                                     "ambient vertex "
+                                  << v << ": " << *fast << " by cochains, "
+                                  << old << " by drilling\n";
+                }
+                nonzero = lk != 0;
                 petalCache_.recordLinksNonzero(idA, idB, nonzero);
             }
             if (nonzero) {
