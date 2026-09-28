@@ -18,6 +18,9 @@
 #   CAP     face cap (default 3, as canaries.sh)
 #   THREADS default 8
 #   BUDGET  --root-budget-start (default 0: unbudgeted)
+#   PENDING_CAP  --pending-surface-cap (default: the binary's own). Set it
+#           small to make the search pause and drain its queue many times
+#           in a row that would otherwise never reach the cap.
 #   ATLAS   cobordism-atlas checkout (default: as bench_search.sh)
 #   WORK    scratch directory (default: a mktemp directory, removed on
 #           success and kept on failure)
@@ -31,6 +34,8 @@ ROWS=("$@")
 CAP=${CAP:-3}
 THREADS=${THREADS:-8}
 BUDGET=${BUDGET:-0}
+CAPFLAG=()
+[ -n "${PENDING_CAP:-}" ] && CAPFLAG=(--pending-surface-cap "$PENDING_CAP")
 if [ -z "${ATLAS:-}" ]; then
   for d in "$HOME/Projects/cobordism-atlas" "$HOME/Projects/triangles/cobordism-atlas"; do
     [ -d "$d/data" ] && { ATLAS=$d; break; }
@@ -69,7 +74,7 @@ run() {
         --thicken-layers 2 --collar-layers 2 --max-faces "$CAP" \
         --root-budget-start "$BUDGET" --root-budget-growth 2 \
         --no-cone --harvest --boundary-condition proper --research-settled \
-        --surface-log "$out/surfaces$i.csv" \
+        --surface-log "$out/surfaces$i.csv" "${CAPFLAG[@]}" \
         --threads "$THREADS" > "$out/log$i" 2> "$out/err$i" || {
       echo "compare_surface_sets.sh: $tag failed on $r; see $out/err$i" >&2; return 1; }
     tail -n +2 "$out/surfaces$i.csv" | sort > "$out/surfaces$i.sorted"
@@ -102,7 +107,7 @@ for r in "${ROWS[@]}"; do
 done
 
 if [ "$fail" -eq 0 ]; then
-  echo "compare_surface_sets.sh: IDENTICAL on ${#ROWS[@]} rows (cap $CAP, budget $BUDGET)"
+  echo "compare_surface_sets.sh: IDENTICAL on ${#ROWS[@]} rows (cap $CAP, budget $BUDGET${PENDING_CAP:+, pending cap $PENDING_CAP})"
   [ -n "$KEEP" ] || rm -rf "$WORK"
 else
   echo "compare_surface_sets.sh: DIFFERENT; kept $WORK"
