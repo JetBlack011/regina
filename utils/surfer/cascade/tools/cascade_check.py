@@ -399,11 +399,20 @@ class Checker:
                     return r
         raise RuntimeError(f'witness {key} not in {hop_dir}/cob.csv')
 
-    def redraw(self, hop_dir, row_pd, key):
+    def redraw(self, hop_dir, row_pd, key, record=None):
         ck = (hop_dir, key)
         if ck in self.fsd_cache:
             return self.fsd_cache[ck]
-        w = self.pairsig(hop_dir, key)
+        if record is not None and 'pairsig' in record:
+            # A master witness: its pair signature travels in the certificate,
+            # under a provenance-prefixed key ("master:<sha1[:12]>").
+            ps = record['pairsig']
+            if hashlib.sha1(ps.encode()).hexdigest()[:12] != key.split(':')[-1]:
+                raise RuntimeError(f'inline pair signature does not hash to {key}')
+            w = {'pairsig': ps, 'thicken_layers': str(record.get('layers', 2)),
+                 'genus': None}
+        else:
+            w = self.pairsig(hop_dir, key)
         out = subprocess.run([self.fsd, '--layers', w['thicken_layers'] or '2', '--gauss',
                               row_pd], input=f'0 {w["pairsig"]}\n', capture_output=True,
                              text=True).stdout.splitlines()
@@ -412,8 +421,13 @@ class Checker:
         if ' ok ' not in wl:
             raise RuntimeError(f'farsidediagram: {wl}')
         f = dict(kv.split('=', 1) for kv in wl.split(' ', 3)[3].split(' '))
+        if 'genus' not in f:
+            raise RuntimeError('farsidediagram gave no genus (rebuild it)')
+        surface_genus = int(f['genus'])  # from the pair signature's own surface
+        if w['genus'] is not None and int(w['genus']) != surface_genus:
+            raise RuntimeError(f'witness file genus {w["genus"]} != surface genus {surface_genus}')
         res = {
-            'genus': int(w['genus']),
+            'genus': surface_genus,
             'row': Gauss(json.loads(row['signs']), json.loads(row['gauss'])),
             'far': Gauss(json.loads(f['signs']), json.loads(f['gauss'])),
             'surface': json.loads(f['surface']),
@@ -422,6 +436,40 @@ class Checker:
         }
         self.fsd_cache[ck] = res
         return res
+
+    def same_as_node(self, sub, node, comp_map, mirrored, reversed_):
+        """Is diagram `sub` the node's link under comp_map (and flags)?
+        A diagram match of `sub` or one of our own simplifications of it
+        (each an isotopy, keeping component order); else an isometry
+        carrying meridians with one sign realising comp_map; for a knot,
+        any exterior isometry (Gordon-Luecke) or fsid proving both the same
+        table knot."""
+        for attempt in range(41):
+            cand = sub
+            if attempt:
+                l = sub.link()
+                l.simplify()
+                cand = Gauss.of_link(l)
+            t = cand.mirror() if mirrored else cand
+            t = t.reverse_all() if reversed_ else t
+            if iso_with_map(t, node, comp_map):
+                return True, 'diagram'
+        ok, why = same_link_by_isometry(sub, node, comp_map, mirrored, reversed_)
+        if ok or len(sub.comps) != 1:
+            return ok, why
+        import snappy
+        try:
+            a, b = snappy_link(sub).exterior(), snappy_link(node).exterior()
+            if a.is_isometric_to(b):
+                return True, 'knot exterior isometry'
+        except Exception:
+            pass
+        fsid = atlas_module('fsid')
+        na, pa, _ = fsid.identify_knot(snappy_link(sub))
+        nb, pb, _ = fsid.identify_knot(snappy_link(node))
+        if na is not None and na.lstrip('m') == (nb or '').lstrip('m'):
+            return True, f'both proved {na} ({pa}/{pb})'
+        return False, f'{why}; knot not identified ({na}, {nb})'
 
     def fail(self, rid, why):
         self.problems.append(f'record {rid}: {why}')
@@ -462,7 +510,7 @@ class Checker:
 
     # -- witnesses
     def check_witness(self, r):
-        d = dict(self.redraw(r['hop_dir'], r['row_pd'], r['witness']))
+        d = dict(self.redraw(r['hop_dir'], r['row_pd'], r['witness'], r))
         rid = r['id']
         # Put our redraw's far-side curves in the CERTIFICATE's order: two
         # reads may list them differently; a curve is its set of edges.
@@ -475,12 +523,29 @@ class Checker:
                 return self.fail(rid, 'far-side curves do not match by edge set')
             d['surface'] = [d['surface'][perm[j]] for j in range(len(perm))]
             d['far'] = Gauss(d['far'].signs, [d['far'].comps[perm[j]] for j in range(len(perm))])
-        # the row -> node map, by our own isomorphism search
+        # the row -> node map. Step 1: the redrawn row IS the row's own
+        # diagram (its PD, read by Regina), by our own isomorphism search.
+        # Step 2: that diagram IS the node, under the certificate's
+        # row_node_map (identity when the row is the node's own diagram),
+        # proved like a far-side piece.
         in_node = r['in']
-        found = find_iso(d['row'], self.node_gauss(in_node), False, False)
-        if not found:
-            return self.fail(rid, 'the row does not redraw as its node (no isomorphism)')
-        row_to_node, _, _ = found
+        node_g = self.node_gauss(in_node)
+        if 'row_node_map' in r:
+            row_g = Gauss.of_link(pd_to_link(r['row_pd']))
+            found = find_iso(d['row'], row_g, False, False)
+            if not found:
+                return self.fail(rid, 'the row does not redraw as its own PD (no isomorphism)')
+            drawn_to_row, _, _ = found
+            rmap = r['row_node_map']
+            ok, why = self.same_as_node(row_g, node_g, rmap, False, False)
+            if not ok:
+                return self.fail(rid, f'the row diagram is not node {in_node} under its map: {why}')
+            row_to_node = [rmap[drawn_to_row[i]] for i in range(len(drawn_to_row))]
+        else:
+            found = find_iso(d['row'], node_g, False, False)
+            if not found:
+                return self.fail(rid, 'the row does not redraw as its node (no isomorphism)')
+            row_to_node, _, _ = found
         n_in = len(d['row'].comps)
         # the shape, from the redraw
         sc_of_row = {}
@@ -540,30 +605,10 @@ class Checker:
                     return self.fail(rid, f'piece {p["origins"]} is not an unknot')
                 continue
             node = self.node_gauss(p['node'])
-            ok = False
-            if p['method'] in ('diagram', 'new'):
-                # 'new': the node was created from this piece's own
-                # simplification, so the same reproduction applies.
-                # The cascade matched the piece's SIMPLIFICATION to the node's
-                # diagram. Reproduce that with our own simplifications (each an
-                # isotopy, keeping component order), accepting only an
-                # isomorphism with exactly the certificate's map and flags.
-                cand = sub
-                for attempt in range(41):
-                    if attempt:
-                        l = sub.link()
-                        l.simplify()
-                        cand = Gauss.of_link(l)
-                    t = cand.mirror() if p['mirrored'] else cand
-                    t = t.reverse_all() if p['reversed'] else t
-                    if iso_with_map(t, node, p['componentMap']):
-                        ok = True
-                        break
+            ok, why = self.same_as_node(sub, node, p['componentMap'], p['mirrored'],
+                                        p['reversed'])
             if not ok:
-                ok, why = same_link_by_isometry(sub, node, p['componentMap'],
-                                                p['mirrored'], p['reversed'])
-                if not ok:
-                    return self.fail(rid, f'piece {p["origins"]} -> node {p["node"]}: {why}')
+                return self.fail(rid, f'piece {p["origins"]} -> node {p["node"]}: {why}')
         # The maps must agree with the pieces: one piece -> outMap is its
         # component map; several -> the far node is a split whole whose split
         # record's pieceMap is the pieces' maps (checked in check_split via

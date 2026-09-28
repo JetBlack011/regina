@@ -72,6 +72,10 @@ struct Config {
   size_t maxCrossings = 24;
   std::string strategy = "best";
   bool literature = true;
+  /// The atlas's master cobordisms.csv (read only): a node that IS a table
+  /// entry the atlas searched gets that row's witnesses as free edges.
+  std::string masterWitnesses;
+  bool verbose = false;
 };
 
 std::string jsonEscape(const std::string &s) {
@@ -111,7 +115,98 @@ GaussDiagram of(const regina::Link &l) {
 
 struct Witness {
   std::string other, pairsig;
-  int genus = 0, otherComponents = 0;
+  int genus = 0, otherComponents = 0, layers = 2;
+};
+
+// Splits one cobordisms.csv line (quoted fields may hold commas).
+std::vector<std::string> csvFields(const std::string &line) {
+  std::vector<std::string> f;
+  std::string cur;
+  bool q = false;
+  for (char c : line) {
+    if (c == '"') q = !q;
+    else if (c == ',' && !q) { f.push_back(cur); cur.clear(); }
+    else cur += c;
+  }
+  f.push_back(cur);
+  return f;
+}
+
+/**
+ * The atlas's master witness file, read only: one scan records where each
+ * subject's lines start; a subject's witnesses are read on demand. Columns
+ * as in cobordisms.csv: kind,subject,subject_components,other,
+ * other_candidates,other_components,genus,tubed,pairsig,source_row,
+ * thicken_layers,max_faces[,resolved_vertices].
+ */
+class MasterIndex {
+public:
+  /// A table name's base: orientation tag and a knot's mirror prefix
+  /// dropped. Used only to FIND candidate witnesses; every one found is
+  /// redrawn and identified exactly before it means anything.
+  static std::string base(std::string name) {
+    if (auto b = name.find('{'); b != std::string::npos) name.resize(b);
+    if (name.size() > 1 && name[0] == 'm' && std::isdigit(static_cast<unsigned char>(name[1])))
+      name.erase(0, 1);
+    return name;
+  }
+
+  explicit MasterIndex(const std::string &path) : path_(path) {
+    std::ifstream in(path);
+    if (!in) throw std::runtime_error("cannot read " + path);
+    std::string line;
+    std::getline(in, line);
+    std::streamoff at = in.tellg();
+    while (std::getline(in, line)) {
+      const auto a = line.find(','), b = line.find(',', a + 1);
+      if (a != std::string::npos && b != std::string::npos) {
+        offsets_[line.substr(a + 1, b - a - 1)].push_back(at);
+        // field 3 (other) follows subject_components
+        const auto c = line.find(',', b + 1), d = c == std::string::npos
+                                                      ? std::string::npos
+                                                      : line.find(',', c + 1);
+        if (d != std::string::npos)
+          byOther_[base(line.substr(c + 1, d - c - 1))].push_back(at);
+      }
+      at = in.tellg();
+    }
+  }
+  bool has(const std::string &subject) const { return offsets_.count(subject) > 0; }
+  /// Witnesses of the row `subject`.
+  std::vector<std::pair<std::string, Witness>> rows(const std::string &subject) const {
+    auto it = offsets_.find(subject);
+    return it == offsets_.end() ? std::vector<std::pair<std::string, Witness>>{}
+                                : read(it->second, 1u << 30);
+  }
+  /// Witnesses of OTHER rows whose recorded far side has this base name (a
+  /// hint only), with their subjects; at most `cap`.
+  std::vector<std::pair<std::string, Witness>> byFarSide(const std::string &b, size_t cap) const {
+    auto it = byOther_.find(b);
+    return it == byOther_.end() ? std::vector<std::pair<std::string, Witness>>{}
+                                : read(it->second, cap);
+  }
+  size_t subjects() const { return offsets_.size(); }
+
+private:
+  std::vector<std::pair<std::string, Witness>> read(const std::vector<std::streamoff> &offs,
+                                                    size_t cap) const {
+    std::vector<std::pair<std::string, Witness>> out;
+    std::ifstream in(path_);
+    std::string line;
+    for (std::streamoff off : offs) {
+      if (out.size() >= cap) break;
+      in.seekg(off);
+      if (!std::getline(in, line)) continue;
+      auto f = csvFields(line);
+      if (f.size() < 11) continue;
+      out.push_back({f[1], {f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
+                            f[10].empty() ? 2 : std::stoi(f[10])}});
+    }
+    return out;
+  }
+  std::string path_;
+  std::unordered_map<std::string, std::vector<std::streamoff>> offsets_;
+  std::unordered_map<std::string, std::vector<std::streamoff>> byOther_;
 };
 
 std::vector<Witness> readWitnesses(const std::string &path) {
@@ -121,17 +216,25 @@ std::vector<Witness> readWitnesses(const std::string &path) {
   std::string line;
   std::getline(in, line);
   while (std::getline(in, line)) {
-    std::vector<std::string> f;
-    std::string cur;
-    bool q = false;
-    for (char c : line) {
-      if (c == '"') q = !q;
-      else if (c == ',' && !q) { f.push_back(cur); cur.clear(); }
-      else cur += c;
+    auto f = csvFields(line);
+    if (f.size() < 11) continue; // torn last line
+    out.push_back({f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
+                   f[10].empty() ? 2 : std::stoi(f[10])});
+  }
+  return out;
+}
+
+// name -> the table's PD string, as the atlas's rows were searched from it.
+std::map<std::string, std::string> tablePDs(const std::vector<std::string> &files) {
+  std::map<std::string, std::string> out;
+  for (const std::string &file : files) {
+    std::ifstream in(file);
+    std::string line;
+    std::getline(in, line);
+    while (std::getline(in, line)) {
+      auto f = csvFields(line);
+      if (f.size() >= 2) out[f[0]] = f[1];
     }
-    f.push_back(cur);
-    if (f.size() < 9) continue; // torn last line
-    out.push_back({f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5])});
   }
   return out;
 }
@@ -207,7 +310,7 @@ private:
 
   void onNewNode(NodeId n, int depth);
   bool useful(NodeId n) const;
-  std::optional<NodeId> choose();
+  std::optional<NodeId> choose(bool freeOnly = false);
   void expand(NodeId n, long surfaces);
   void writeCertificate() const;
   void log(const std::string &line) {
@@ -229,7 +332,18 @@ private:
   struct EdgeInfo {
     std::string hopDir, rowPD, key;
     HopEdge he;
+    int layers = 2;
+    std::string pairsig; ///< inline for master witnesses (no hop directory)
+    /// The row diagram's component i is the node's rowNodeMap[i]: identity
+    /// for a hop on the node's own diagram, the registry's map for a master
+    /// row (the table's diagram).
+    std::vector<int> rowNodeMap;
   };
+  std::unique_ptr<MasterIndex> master_;
+  std::map<std::string, std::string> tablePD_;
+  std::set<NodeId> masterDone_;
+  bool masterRowsFor(NodeId n, std::vector<std::string> *rows = nullptr) const;
+  void loadMaster(NodeId n);
   std::map<EdgeId, EdgeInfo> edgeInfo_;
   std::map<std::string, EdgeInfo> directInfo_; // by witness key
   double cpuSpent_ = 0, wallSpent_ = 0;
@@ -267,6 +381,112 @@ void Cascade::onNewNode(NodeId n, int depth) {
              "literature " + name + " " + e->g4);
 }
 
+bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
+  if (!master_) return false;
+  auto it = tableName_.find(n);
+  if (it == tableName_.end()) return false;
+  // Every table entry of this link's class (one oriented link up to mirror
+  // and global reversal) is the same node; each is a row of its own.
+  const std::string canon = tables_.canonical(it->second);
+  const exactnaming::TableEntry *e = tables_.entry(it->second);
+  if (!e) return false;
+  bool any = !master_->byFarSide(MasterIndex::base(it->second), 1).empty();
+  for (const exactnaming::TableEntry *v : tables_.variants(e->base))
+    if (tables_.canonical(v->name) == canon && master_->has(v->name)) {
+      any = true;
+      if (rows) rows->push_back(v->name);
+    }
+  return any;
+}
+
+void Cascade::loadMaster(NodeId n) {
+  masterDone_.insert(n);
+  std::vector<std::string> own;
+  if (!masterRowsFor(n, &own)) return;
+  const size_t nodesBefore = g_.nodeCount();
+  int assembled = 0, failed = 0, refusedRows = 0;
+  // Witnesses by subject row: this node's own rows (every witness), and
+  // other rows whose recorded far side names this node's base (a hint: the
+  // far side is redrawn and identified exactly like any other).
+  std::map<std::string, std::vector<Witness>> bySubject;
+  std::set<std::string> ownRows(own.begin(), own.end());
+  for (const std::string &name : own)
+    for (auto &[subj, w] : master_->rows(name)) bySubject[subj].push_back(w);
+  size_t reverse = 0;
+  for (auto &[subj, w] : master_->byFarSide(MasterIndex::base(tableName_[n]), 300))
+    if (!ownRows.count(subj)) {
+      bySubject[subj].push_back(w);
+      ++reverse;
+    }
+  for (const auto &[name, ws] : bySubject) {
+    const exactnaming::TableEntry *e = tables_.entry(name);
+    auto pdIt = tablePD_.find(name);
+    if (!e || pdIt == tablePD_.end()) continue;
+    // The row as the atlas searched it: the table's own diagram and PD, a
+    // node by the registry's exact tests. An own row must be THIS node.
+    GaussDiagram d = of(e->diagram);
+    NodeMatch m = reg_.intern(simplifyKeepingComponents(d), "row " + name);
+    if (ownRows.count(name) && m.node != n) {
+      ++refusedRows;
+      std::cout << "[!] master row " << name << " did not intern as node " << n
+                << " (got " << m.node << "); not used\n";
+      continue;
+    }
+    std::map<int, std::vector<const Witness *>> byLayers;
+    for (const Witness &w : ws) byLayers[w.layers].push_back(&w);
+    for (const auto &[layers, group] : byLayers) {
+      HopRow row;
+      row.node = m.node;
+      row.diagram = d;
+      row.nodeMap = m.componentMap;
+      row.pd = pdIt->second;
+      row.layers = layers;
+      std::unique_ptr<HopAssembler> hop;
+      try {
+        hop = std::make_unique<HopAssembler>(g_, reg_, row);
+      } catch (const std::exception &ex) {
+        ++refusedRows;
+        std::cout << "[!] master row " << name << " refused: " << ex.what() << "\n";
+        continue;
+      }
+      for (const Witness *w : group) {
+        const std::string key = witnesskey::witnessKey(w->pairsig);
+        HopEdge he;
+        try {
+          he = hop->add({w->pairsig, w->genus, "master:" + key});
+        } catch (const std::logic_error &ex) {
+          ++invariantFailures_;
+          std::cout << "[!!] master witness " << key << ": INVARIANT: " << ex.what() << "\n";
+        } catch (const std::exception &ex) {
+          he.why = ex.what();
+        }
+        if (!he.ok) { ++failed; continue; }
+        ++assembled;
+        EdgeInfo info{"master", row.pd, key, he, layers, w->pairsig, row.nodeMap};
+        if (he.direct) directInfo_["master:" + key] = info;
+        else edgeInfo_[he.edge] = info;
+      }
+    }
+  }
+  expansions_[n].push_back(0); // counts as this level's expansion
+  for (size_t k = nodesBefore; k < g_.nodeCount(); ++k)
+    onNewNode(static_cast<NodeId>(k), depth_.at(n) + 1);
+  g_.propagate();
+  g_.propagateLower();
+  auto best = g_.best(target_, goalPartition(target_));
+  std::ostringstream o;
+  o << "{\"master\":\"" << jsonEscape(tableName_[n]) << "\",\"node\":" << n
+    << ",\"own_rows\":" << own.size() << ",\"reverse_witnesses\":" << reverse
+    << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedRows
+    << ",\"assembled\":" << assembled << ",\"failed\":" << failed
+    << ",\"nodes\":" << g_.nodeCount() << ",\"target_best\":"
+    << (best ? std::to_string(best->genus) : "null") << "}";
+  log(o.str());
+  std::cout << "[+] master rows of node " << n << " (" << tableName_[n] << "): "
+            << assembled << " witnesses assembled, " << failed << " failed; target best "
+            << (best ? std::to_string(best->genus) : "none") << "\n";
+}
+
 bool Cascade::useful(NodeId n) const {
   // What-if: give n the best profile it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
@@ -284,7 +504,8 @@ bool Cascade::useful(NodeId n) const {
   return goalMetIn(what, target_, goalPartition(target_), cfg_.goalGenus);
 }
 
-std::optional<NodeId> Cascade::choose() {
+// freeOnly: only nodes whose master rows are not yet loaded (no search).
+std::optional<NodeId> Cascade::choose(bool freeOnly) {
   struct Cand {
     NodeId n;
     std::tuple<int, double, int, size_t> key;
@@ -294,8 +515,21 @@ std::optional<NodeId> Cascade::choose() {
     if (!reg_.known(n) || n == reg_.unknot() || refused_.count(n)) continue;
     const NodeInfo &ni = reg_.info(n);
     if (ni.diagram.crossings() > cfg_.maxCrossings) continue;
-    if (!expansions_[n].empty()) continue; // one expansion per budget level
-    if (n != target_ && !useful(n)) continue;
+    if (freeOnly) {
+      if (masterDone_.count(n) || !masterRowsFor(n)) continue;
+    } else if (!expansions_[n].empty()) {
+      continue; // one expansion per budget level
+    }
+    const bool use = n == target_ || useful(n);
+    if (cfg_.verbose && !freeOnly) {
+      auto t = tableName_.find(n);
+      std::cout << "    candidate " << n << " (" << ni.diagram.crossings() << "x, "
+                << ni.diagram.components() << "c, "
+                << (t == tableName_.end() ? "untabulated" : t->second) << ", depth " << dep
+                << "): " << (use ? "useful" : "not useful")
+                << (masterRowsFor(n) && !masterDone_.count(n) ? ", master rows" : "") << "\n";
+    }
+    if (!use) continue;
     const int crossings = static_cast<int>(ni.diagram.crossings());
     const double vol = ni.hyperbolic ? ni.volume : 1e9;
     int order = 0;
@@ -380,8 +614,8 @@ void Cascade::expand(NodeId n, long surfaces) {
     }
     if (e.ok) {
       ++assembled;
-      if (e.direct) directInfo_[key] = {dir, row.pd, key, e};
-      else edgeInfo_[e.edge] = {dir, row.pd, key, e};
+      if (e.direct) directInfo_[key] = {dir, row.pd, key, e, 2, "", row.nodeMap};
+      else edgeInfo_[e.edge] = {dir, row.pd, key, e, 2, "", row.nodeMap};
     } else {
       ++failed;
       std::cout << "[!] witness " << witnesskey::witnessKey(w.pairsig) << " (" << w.other
@@ -455,8 +689,11 @@ void Cascade::writeCertificate() const {
       if (auto it = edgeInfo_.find(rec.edge); it != edgeInfo_.end()) {
         const HopEdge &he = it->second.he;
         c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
-          << jsonEscape(it->second.rowPD) << "\",\"split_edge\":" << he.splitEdge
-          << ",\"farCurveEdges\":[";
+          << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
+          << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
+        if (!it->second.pairsig.empty())
+          c << ",\"pairsig\":\"" << jsonEscape(it->second.pairsig) << "\"";
+        c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
         for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
           c << (j ? "," : "") << ints(he.farCurveEdges[j]);
         c << "],\"pieces\":[";
@@ -483,10 +720,13 @@ void Cascade::writeCertificate() const {
     }
     if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
       const std::string key = rec.source.substr(15);
-      if (auto it = directInfo_.find(key); it != directInfo_.end())
-        c << ",\"witness\":\"" << jsonEscape(key) << "\",\"hop_dir\":\""
+      if (auto it = directInfo_.find(key); it != directInfo_.end()) {
+        c << ",\"witness\":\"" << jsonEscape(it->second.key) << "\",\"hop_dir\":\""
           << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
-          << jsonEscape(it->second.rowPD) << "\"";
+          << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
+        if (!it->second.pairsig.empty())
+          c << ",\"pairsig\":\"" << jsonEscape(it->second.pairsig) << "\"";
+      }
     }
     c << "}";
     first = false;
@@ -520,6 +760,15 @@ void Cascade::writeCertificate() const {
 
 int Cascade::run() {
   fs::create_directories(cfg_.work);
+  if (!cfg_.masterWitnesses.empty()) {
+    const auto t0 = std::chrono::steady_clock::now();
+    master_ = std::make_unique<MasterIndex>(cfg_.masterWitnesses);
+    tablePD_ = tablePDs({cfg_.knotTable, cfg_.linkTable});
+    std::cout << "[+] master witnesses: " << master_->subjects() << " subjects indexed in "
+              << std::fixed << std::setprecision(0)
+              << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
+              << " s (read only)\n";
+  }
   GaussDiagram raw = of(linkFromRowPD(cfg_.targetPD));
   GaussDiagram simp = simplifyKeepingComponents(raw);
   if (exactnaming::splitPieces(simp).size() != 1)
@@ -543,13 +792,25 @@ int Cascade::run() {
   const auto start = std::chrono::steady_clock::now();
   long budget = cfg_.hopSurfaces;
   while (!goalMet()) {
-    if (hops_ >= cfg_.maxExpansions) { std::cout << "[-] expansion limit\n"; break; }
-    if (cpuSpent_ >= cfg_.cpuBudget) { std::cout << "[-] CPU budget spent\n"; break; }
     if (!g_.contradictions().empty()) {
       for (const auto &c : g_.contradictions()) std::cout << "[!!] CONTRADICTION: " << c << "\n";
       return 3;
     }
+    // Free edges first (no search, so no budget): the target's own master
+    // rows, if it is a table entry the atlas searched.
+    if (master_ && !masterDone_.count(target_) && masterRowsFor(target_)) {
+      loadMaster(target_);
+      continue;
+    }
+    // Then any useful node the atlas already searched: its rows are free.
+    if (master_)
+      if (auto f = choose(/*freeOnly=*/true)) {
+        loadMaster(*f);
+        continue;
+      }
     auto n = choose();
+    if (hops_ >= cfg_.maxExpansions) { std::cout << "[-] expansion limit\n"; break; }
+    if (cpuSpent_ >= cfg_.cpuBudget) { std::cout << "[-] CPU budget spent\n"; break; }
     if (!n) {
       // Every useful node searched at this budget: search them again deeper
       // (a surface-target round only covers a prefix of the roots).
@@ -611,6 +872,8 @@ int main(int argc, char **argv) {
     else if (a == "--strategy") c.strategy = next();
     else if (a == "--literature") c.literature = true;
     else if (a == "--constructive") c.literature = false;
+    else if (a == "--master-witnesses") c.masterWitnesses = next();
+    else if (a == "--verbose") c.verbose = true;
     else {
       std::cerr << "unknown argument " << a << "\n";
       return 2;

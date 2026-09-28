@@ -288,6 +288,24 @@ restrictions, direct witnesses, for now) counts as a failure, never a pass.
 | `11a_58` | slice | 1 | 1,002 s | CERTIFIED |
 | `11a_87` | slice | 1 | 952 s | CERTIFIED |
 
+| `11a_96` | slice | **5** | 5,206 s | CERTIFIED |
+| `L8a9{0}` (master witnesses only) | slice | **0** | 0 s | CERTIFIED |
+
+**Master witnesses as free edges** (`--master-witnesses`, off by default and
+for the benchmark).
+- **What is loaded.** One read-only scan indexes the master
+  `cobordisms.csv` by subject and by recorded far side. Far-side names are
+  only a hint; every witness found is redrawn and identified exactly. When a
+  node is a table entry the atlas searched, the driver loads that row's
+  witnesses, and those of other rows whose far side names it. The latter are
+  the atlas's reverse hops, which a forward search from the node cannot find.
+- **The row's own identity.** Each row is certified like a hop, and must
+  intern as the node. Its map, `row_node_map`, is in the certificate, and the
+  checker proves it independently.
+- **Scheduling.** Free loads come before any paid hop.
+- **Result.** `L8a9{0}` (the atlas's chain `L8a9{0}` → `6_1` → unlink) is
+  proved with no search at all: 479 witnesses assembled, 117 s.
+
 **`11a_35` is the first multi-hop proof.** One hop on `11a_35` alone reached
 only genus 1. The proof:
 1. a band takes `11a_35` to a 2-component link L (node 19);

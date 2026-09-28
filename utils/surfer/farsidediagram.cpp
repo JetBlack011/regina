@@ -201,7 +201,11 @@ int main(int argc, char **argv) {
                       << " crossingless=" << list(d.crossingless) << " pd=" << pdOut.str()
                       << " lk=" << matrix(d) << " surface=" << list(link->surfaceComponent)
                       << " incoming=" << inc.str()
-                      << (gauss ? gaussFields(d) + curveEdges(link->curves) : std::string())
+                      << (gauss ? gaussFields(d) + curveEdges(link->curves) + " genus=" +
+                                      std::to_string(KnottedSurface::tubedSurfaceType(
+                                                         surface.triangulation())
+                                                         .genus)
+                                : std::string())
                       << "\n";
         } catch (const std::exception &e) {
             std::cout << "W " << id << " FAILED " << e.what() << "\n";
