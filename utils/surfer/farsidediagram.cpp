@@ -18,6 +18,12 @@
 //  in-process witness. It is rebuilt face by face with the search's own
 //  checks (WitnessRedrawer::rebuild()) before anything is read from it.
 //
+//  --pairsig (with --faces) appends each rebuilt surface's pair signature,
+//  as verifyslicegenus would record it (pairsig=, over the row's own
+//  thickening), whether it is connected (connected=) and its resolved
+//  vertices (resolved=): what turns a certificate's in-process witness into
+//  an ordinary cobordisms.csv row.
+//
 //  --layers is the witnesses' thicken_layers (cobordisms.csv): 2, the
 //  default, for everything since early September; 1 for the earliest runs.
 //
@@ -125,6 +131,7 @@ int main(int argc, char **argv) {
     int layers = 2;
     bool gauss = false;
     bool facesInput = false;
+    bool pairsigOut = false;
     int arg = 1;
     while (arg < argc && std::string(argv[arg]).rfind("--", 0) == 0) {
         const std::string flag = argv[arg];
@@ -137,13 +144,16 @@ int main(int argc, char **argv) {
         } else if (flag == "--faces") {
             facesInput = true;
             ++arg;
+        } else if (flag == "--pairsig") {
+            pairsigOut = true;
+            ++arg;
         } else {
             break;
         }
     }
-    if (argc != arg + 1 || layers < 1) {
-        std::cerr << "usage: farsidediagram [--layers N] [--gauss] [--faces] '<row PD code>' "
-                     "< pairsigs (or faces)\n";
+    if (argc != arg + 1 || layers < 1 || (pairsigOut && !facesInput)) {
+        std::cerr << "usage: farsidediagram [--layers N] [--gauss] [--faces [--pairsig]] "
+                     "'<row PD code>' < pairsigs (or faces)\n";
         return 2;
     }
     const farside::WitnessRedrawer redraw(argv[arg], layers);
@@ -164,6 +174,11 @@ int main(int argc, char **argv) {
               << (gauss ? gaussFields(rowDiagram) + " build=" + redraw.buildChecksum()
                         : std::string())
               << "\n";
+
+    // Pair signatures (--pairsig): the thickening's own part is computed once,
+    // at the first surface, as pairSigsOf() does.
+    std::optional<PairSigContext<4, 2>> sigContext;
+    std::vector<int> currentFaces;
 
     // One witness's W line, from its surface in the thickening.
     auto describe = [&](const std::string &id, KnottedSurface &surface) {
@@ -208,8 +223,14 @@ int main(int argc, char **argv) {
                                       std::to_string(KnottedSurface::tubedSurfaceType(
                                                          surface.triangulation())
                                                          .genus)
-                                : std::string())
-                      << "\n";
+                                : std::string());
+            if (pairsigOut) {
+                if (!sigContext) sigContext.emplace(redraw.thickening());
+                std::cout << " resolved=" << surface.singularVertexCount()
+                          << " connected=" << (surface.triangulation().isConnected() ? 1 : 0)
+                          << " pairsig=" << sigContext->sig(currentFaces);
+            }
+            std::cout << "\n";
     };
 
     std::string line;
@@ -232,6 +253,7 @@ int main(int argc, char **argv) {
                     std::cout << "W " << id << " FAILED " << why << "\n";
                     continue;
                 }
+                currentFaces = faces;
                 describe(id, surface);
             } else {
                 std::optional<std::vector<int>> carried = redraw.carry(data, why);
