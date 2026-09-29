@@ -70,6 +70,26 @@ hop's accounting as `[+] hop <k> <subject>: accounting: ...` in
 `[+] <target>: <n> new witnesses, outcome <met|expansion-limit|cpu-budget|nothing-useful|contradiction>`
 (n: the witnesses the store gained).
 
+**`profiles.jsonl`** (since 2026-09-29, for the atlas page). The run's end
+writes it, and so does a contradiction halt. It has one line per node of the
+proof graph:
+- `node`, `name`:
+  - the target's name, a proved table name, `Unknot` or
+    `<k>-component unlink` for a crossingless node;
+  - otherwise the store's `cascade:<run>/<target>/n<id>`.
+- `table`, `label`, `depth`, `crossings` (absent for a split far side's
+  whole, which has no diagram of its own), and whether it was `searched`;
+- `ProofGraph::profileFields()`:
+  - its `linking` matrix and literature `genus_lower`;
+  - its Pareto `entries` (partition, genus, record);
+  - `lower`, for nodes of at most five components: every partition with a
+    positive lower bound, or `forbidden` where the linking numbers rule it
+    out.
+
+A node's profile is its whole state in "Profiles" below. The certificates
+keep only the partitions a proof used. `proofgraph_test`
+`testProfileFields` pins the format.
+
 ## Witnesses for the atlas (`keptstore.h`, since 2026-09-28)
 
 Every surface a hop keeps is a real cobordism, and one a later search's
