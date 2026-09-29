@@ -44,6 +44,7 @@ builds.
 | `vertexlinks.{h,cpp}`, `rollbackunionfind.{h,cpp}` | the incremental local checks and their memoisation |
 | `linkingnumber.{h,cpp}` | the linking number of two closed petals' traces in Lk(v), by cochains on Lk(v) itself (since 2026-09-28): push B off into the dual cells, solve δx = PD(B*) over GF(2⁶¹−1), read x(A). Checks its own answer (δβ = 0, δx = β everywhere) and declines rather than guess; `KnottedSurface::addFace()` then falls back to drilling (`linkcomplement`). `--audit-linking` runs both routes on every miss |
 | `embeddingsearch.{h,cpp}` | the parallel search over roots (parallel across roots, never within one) |
+| `searchfrontier.{h,cpp}` | **a search's frontier** (since 2026-09-29): exactly how far it got, per root, and a place to resume it from; see "Search frontiers" below |
 | `surfacesearch.{h,cpp}` | the search as `verifyslicegenus` uses it: enumeration plus the **drain**, which describes and names each accepted surface's boundary. `captureFaces` hands out a described surface's triangles, from which its pair signature can be computed later |
 | `rowsearch.{h,cpp}` | **the row pipeline**, shared by `verifyslicegenus`, `cascadesearch`, `surfer` and `farsideredraw` (since 2026-09-28): `buildRow()` (T, the thickening, the collar seed, the row map and its setup checks), `gateSurface()` (orientable, search side intact, the row's own oriented variant, one far side), `farSideName()`, `RowAccounting` (the buckets and the `accounting:` line), `RowWatchdog` (surface target before the clocks), `conditionFor()` |
 
@@ -139,6 +140,76 @@ guard against that whole class of fault:
   `--solve-only` never writes. `--rewrite-witnesses` is the one explicit
   rewrite (the 12→13 column migration), and it verifies every line. A torn last
   line is ignored on load and truncated before the next append.
+
+## Search frontiers (since 2026-09-29)
+
+A search's traversal is a function of its search graph, its roots and its
+schedule alone: each root's walk depends on that root only, and budget passes
+carry on from a recorded `Position`. So where a search stopped is fully
+described by the IDDFS round it was in and, for each root of that round,
+whether it finished, how many budget passes it had, and where its last pass
+stopped. A `SearchFrontier` (`searchfrontier.h`) records exactly that. It adds
+cumulative counts over every run that continued it, and a fingerprint.
+
+**The fingerprint** is a sha1 over what fixes the traversal and what it
+accepts:
+- `SearchFrontier::kTraversalVersion`;
+- the triangulation's gluings, the search graph and each vertex's faces (as a
+  set: the seed's faces arrive in no fixed order);
+- the sorted roots, the round and budget schedule, the boundary condition,
+  orientability pruning, and `resolve_unlinked`.
+
+A frontier resumes only a search with the same fingerprint; any other starts
+afresh and says why.
+
+**Recording is exact.** While recording, a stop (surface target, clock,
+Ctrl+C) suspends each in-flight root where it stands, as a spent budget does
+(`BudgetedPredicate::suspendOnStop()`). So a resumed search reports exactly what
+the uninterrupted one would have, nothing twice and nothing missed; the seed
+is not reported again either. `embeddingsearch_test` checks this. Chains of
+runs stopped every few surfaces and resumed through a `write()`/`read()` round
+trip are compared with one uninterrupted run, over these shapes:
+- unseeded and seeded;
+- unbudgeted and budgeted;
+- with and without IDDFS rounds;
+- on 1 and 2 threads.
+
+`test_traversal_pinned` pins a stopped frontier's digest to the version: bump
+`kTraversalVersion` with any change to what the enumeration visits or in what
+order, and re-pin.
+
+**A surface target is the search's breadth.** A resumed search counts its
+frontier's surfaces, so it adds only the new ones. One already that broad
+stops before it starts.
+
+**In the drivers:**
+- `verifyslicegenus --frontier-dir D` writes `D/<row>.frontier`, and
+  `--resume-frontier-dir D` carries each row on from one. They may be the same
+  directory.
+- A frontier is written only after the row's witnesses are on disk, and only
+  when its accounting balanced, something was examined, and its drain ran to the
+  end. Otherwise a later run would skip surfaces nobody looked at.
+- Each row then prints `breadth:`: the round and cap, roots done and part-walked,
+  cumulative counts, the fingerprint, whether it resumed, and what the frontier
+  cost.
+- `cascadesearch` records every in-process hop's frontier (`hop_*/frontier.txt`)
+  and carries a node's next hop on from it. The budget doubling ("raising the
+  hop budget") therefore no longer searches each node's prefix again, and a node
+  whose frontier is complete is never chosen again.
+
+**What a resume costs**, measured on `10_141` at the production shape (4
+threads, 2026-09-29):
+- The fingerprint and snapshot take 0.01–0.03 s, and the frontier file is
+  6.3 KB.
+- Rebuilding the part-walked roots' paths took 323 re-added faces against 7M
+  attempts.
+- Carrying the row on from 100k to 200k surfaces spent 22.5 s of search on the
+  new 100k, where the first 100k took 24.5 s.
+- A resume already at its target returns in 1.5 s.
+
+End to end, `8_8` at cap 3 was run once exhaustively, and again as six runs
+stopped every 3,000 surfaces, each resumed from the last. The chain accepted
+the same 16,447 surfaces in all and kept the same six witnesses.
 
 ## Performance: measuring it, and its history (since 2026-09-28)
 

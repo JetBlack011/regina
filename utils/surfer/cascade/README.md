@@ -342,6 +342,30 @@ search shape plus `--exact-far-side-names`.
 6. The in-search names of one knot can differ (`K13n65` and `13n_65`). Node
    identity must never rest on names.
 
+## A node's next hop carries on from its last (since 2026-09-29)
+
+Every in-process hop records its search frontier (`../searchfrontier.h`):
+exactly how far each root got. It is written to `hop_*/frontier.txt` and kept
+per node.
+- **A node's next hop resumes it.** That happens when the loop raises the hop
+  budget and searches every useful node again deeper, or when a hub is widened.
+  The hop's surface target is its breadth, so it adds only the surfaces beyond
+  the frontier. Before, each doubling searched every node's prefix again.
+- **Cost.** A node searched at 2,000, then 4,000, then 8,000 surfaces now
+  searches 8,000 in all instead of 14,000. Measured on `3_1`, the three hops
+  reached a cumulative 2,003, 4,002 and 8,003 surfaces.
+- **Nodes with nothing new to search.** A node already searched past the budget
+  (a hub's wide hop, say) is skipped at that budget. One whose frontier is
+  complete is never chosen again.
+- **When a frontier is kept.** Only if its hop's accounting balanced and its
+  drain ran to the end; otherwise the node's next hop starts afresh.
+- **The log.** Each hop prints `[+] hop k <subject>: breadth: ...; resumed
+  yes|no|none`.
+
+Frontiers live in the process: a new cascade run starts every node afresh.
+Carrying them across runs needs the node's row to be the same row. The
+fingerprint would check that, but runs do not yet share a node registry.
+
 ## In-process hops (`hoprunner.h`, since 2026-09-28)
 
 A hop is one row searched on a node's diagram. By default it runs in the
