@@ -532,6 +532,18 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     }
 
     /**
+     * The pair-signature context of this search's ambient, built on the
+     * first call (isoSigDetail of the whole ambient: tens of seconds at 10
+     * crossings) and shared thereafter; concurrent callers wait for the one
+     * build. What a caller signing surfaces off the drain threads needs:
+     * context.sig(SurfaceBoundaryInfo::captureFaces()) is exactly the
+     * surface's pairSig().
+     */
+    const PairSigContext<4, 2> &pairSigContext() const {
+        return pairSigCtx_.get();
+    }
+
+    /**
      * Records `name` as boundary component `component`'s identity for the
      * edge set `edgeIndices` (sorted), so it is never identified. For an
      * edge set known by construction: a row's own link on its search side.

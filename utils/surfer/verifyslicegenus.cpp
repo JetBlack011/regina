@@ -10,6 +10,8 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -272,6 +274,142 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
       << get(census.audited) << ',' << get(census.auditKnotted) << ','
       << csvField(hits) << '\n';
 }
+
+// Signs a row's new witnesses off the drain threads (2026-09-29).
+//
+// A witness's pair signature needs the row's pair-signature context (the
+// whole ambient's isoSigDetail: ~27 s at 10 crossings on halcyon, 2-3 min on
+// a loaded yoga), built by the first signature. Signed where it was found, the
+// first new witness -- the seed, on a fresh row, taken by the aux drain thread
+// -- held up the whole drain for that long, and any drain thread that met
+// another new witness waited too.
+//
+// So the drain only queues a witness's faces (captureFaces(), exactly what
+// pairSig() signs), and one signer thread signs them in order, publishing
+// each as it is signed, so checkpoints still persist them mid-row. The
+// signer builds the context when the first witness arrives -- at once on a
+// fresh row, whose seed is new -- so it overlaps the search, and a row that
+// finds nothing new never builds it (LazyPairSigContext's reason for being
+// lazy). After the drain, finish() signs what is left with every thread the
+// row had and waits, before the row's witnesses are written.
+class WitnessSigner {
+public:
+  using Context = std::function<const PairSigContext<4, 2> &()>;
+  using Publish = std::function<void(cobordismgraph::Witness &&)>;
+
+  WitnessSigner(Context context, Publish publish)
+      : context_(std::move(context)), publish_(std::move(publish)),
+        start_(std::chrono::steady_clock::now()) {
+    threads_.emplace_back([this] { loop(); });
+  }
+
+  WitnessSigner(const WitnessSigner &) = delete;
+  WitnessSigner &operator=(const WitnessSigner &) = delete;
+
+  // On any exit, the threads are joined (what is queued is still signed).
+  ~WitnessSigner() {
+    try {
+      finish(1);
+    } catch (...) {
+    }
+  }
+
+  void add(cobordismgraph::Witness w, std::vector<int> faces) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      queue_.push_back({std::move(w), std::move(faces)});
+    }
+    cv_.notify_one();
+  }
+
+  // Signs everything still queued with `threads` threads in all, and waits.
+  // Rethrows a failure to build the context or to sign.
+  void finish(unsigned threads) {
+    if (finished_)
+      return;
+    const auto t0 = std::chrono::steady_clock::now();
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      closing_ = true;
+    }
+    cv_.notify_all();
+    for (unsigned t = 1; t < threads; ++t)
+      threads_.emplace_back([this] { loop(); });
+    for (std::thread &t : threads_)
+      t.join();
+    threads_.clear();
+    finished_ = true;
+    finishSeconds_ = std::chrono::duration<double>(
+                         std::chrono::steady_clock::now() - t0)
+                         .count();
+    if (!error_.empty())
+      throw std::runtime_error("signing a witness: " + error_);
+  }
+
+  long long signedCount() const { return signed_.load(); }
+  long long signMillis() const { return signMillis_.load(); }
+  // From the row's start until the context was ready; 0 if never needed.
+  double contextSeconds() const { return contextSeconds_; }
+  // What finish() added to the row: the wait for the last signatures.
+  double finishSeconds() const { return finishSeconds_; }
+
+private:
+  struct Pending {
+    cobordismgraph::Witness w;
+    std::vector<int> faces;
+  };
+
+  void loop() {
+    while (true) {
+      Pending p;
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [this] { return !queue_.empty() || closing_; });
+        if (queue_.empty() || !error_.empty())
+          return;
+        p = std::move(queue_.front());
+        queue_.pop_front();
+      }
+      try {
+        // The first call builds the context; the others wait for it.
+        const PairSigContext<4, 2> &context = context_();
+        if (!contextReady_.exchange(true))
+          contextSeconds_ = std::chrono::duration<double>(
+                                std::chrono::steady_clock::now() - start_)
+                                .count();
+        const auto t0 = std::chrono::steady_clock::now();
+        p.w.pairSig = context.sig(p.faces);
+        signMillis_.fetch_add(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0)
+                .count());
+        signed_.fetch_add(1);
+        publish_(std::move(p.w));
+      } catch (const std::exception &e) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (error_.empty())
+          error_ = e.what();
+        return;
+      }
+    }
+  }
+
+  Context context_;
+  Publish publish_;
+  std::chrono::steady_clock::time_point start_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::deque<Pending> queue_;
+  bool closing_ = false;
+  bool finished_ = false;
+  std::string error_;
+  std::vector<std::thread> threads_;
+  std::atomic<long long> signed_{0};
+  std::atomic<long long> signMillis_{0};
+  std::atomic<bool> contextReady_{false};
+  double contextSeconds_ = 0;
+  double finishSeconds_ = 0;
+};
 
 // Fired from callbacks.onProgress once per second while a knot's search runs.
 void printProgress(const SearchStats &stats, SurfaceSearch &e) {
@@ -2395,9 +2533,25 @@ int main(int argc, char *argv[]) {
                std::chrono::steady_clock::now().time_since_epoch())
         .count();
   };
+  // The current row's signer (WitnessSigner), while its search runs.
+  WitnessSigner *activeSigner = nullptr;
   auto recordWitness = [&](cobordismgraph::Witness w,
-                           const std::function<std::string()> &capturePairSig)
+                           const std::function<std::string()> &capturePairSig,
+                           const std::function<std::vector<int>()> &captureFaces)
       -> bool {
+    // A row's signer takes the witness's faces and signs it off this (drain)
+    // thread; its identity is claimed now, so the dedup stays exact.
+    if (activeSigner && captureFaces) {
+      std::string identity = cobordismgraph::witnessIdentity(w);
+      {
+        std::lock_guard<std::mutex> lock(witnessMutex);
+        if (!witnessIdentities.insert(std::move(identity)).second)
+          return false;
+        lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
+      }
+      activeSigner->add(std::move(w), captureFaces());
+      return true;
+    }
     // capturePairSig() must NOT run under witnessMutex. It computes a
     // 4-dimensional isomorphism signature of the whole cobordism, and perf
     // puts it at ~93% of the drain's CPU (IsoSigData<1,4>::fillFrom plus
@@ -2863,7 +3017,7 @@ int main(int argc, char *argv[]) {
         w.otherCandidates = names.candidates(farName, far.components);
       }
 
-      if (!recordWitness(w, capturePairSig)) {
+      if (!recordWitness(w, capturePairSig, info.captureFaces)) {
         acct.duplicate.fetch_add(1, std::memory_order_relaxed);
         return;
       }
@@ -3023,10 +3177,43 @@ int main(int argc, char *argv[]) {
     // weaker pruning.
     const BoundaryCondition cond =
         rowsearch::conditionFor(boundaryConditionMode, rb.componentCount);
+    // The row's new witnesses are signed off the drain threads, the
+    // pair-signature context built by the signer at the first of them
+    // (WitnessSigner).
+    std::optional<WitnessSigner> signer;
+    signer.emplace(
+        [&e]() -> const PairSigContext<4, 2> & { return e.pairSigContext(); },
+        [&](cobordismgraph::Witness &&w) {
+          std::lock_guard<std::mutex> lock(witnessMutex);
+          witnesses.push_back(std::move(w));
+        });
+    struct SignerScope {
+      WitnessSigner *&active;
+      ~SignerScope() { active = nullptr; }
+    } signerScope{activeSigner};
+    activeSigner = &*signer;
     const SearchStats finalStats =
         e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
                  iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true,
                  maxFaces, rootBudgetStart, rootBudgetGrowth);
+    // Every surface is described; sign what is still queued, with every
+    // thread, before anything reads or writes this row's witnesses.
+    signer->finish(numThreads);
+    activeSigner = nullptr;
+    pairSigCount.fetch_add(signer->signedCount());
+    pairSigMillis.fetch_add(signer->signMillis());
+    std::cout << "[+] " << row.name << ": pair signatures: "
+              << signer->signedCount() << " signed in " << std::fixed
+              << std::setprecision(1) << signer->signMillis() / 1000.0
+              << "s of thread time; context ";
+    if (signer->signedCount() > 0)
+      std::cout << "ready " << signer->contextSeconds()
+                << "s after the search began";
+    else
+      std::cout << "not needed";
+    std::cout << "; " << signer->finishSeconds()
+              << "s after the drain finishing\n"
+              << std::defaultfloat;
 
     watchdog->stop();
 
