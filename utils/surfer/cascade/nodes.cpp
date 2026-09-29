@@ -137,14 +137,53 @@ GaussDiagram removeNugatoryCrossings(GaussDiagram d) {
   return d;
 }
 
+GaussDiagram liftSplitComponents(GaussDiagram d) {
+  for (;;) {
+    // A component over (or under) at every crossing it meets has no
+    // self-crossing, so it is an unknot lying above (below) everything else:
+    // lifting it off is an isotopy, and it becomes a split unknot.
+    std::optional<size_t> lift;
+    for (size_t c = 0; c < d.components() && !lift; ++c) {
+      const auto &w = d.comps[c];
+      if (w.empty()) continue;
+      const bool over = std::all_of(w.begin(), w.end(), [](long x) { return x > 0; });
+      const bool under = std::all_of(w.begin(), w.end(), [](long x) { return x < 0; });
+      if (over || under) lift = c;
+    }
+    if (!lift) return d;
+    std::vector<char> drop(d.crossings(), 0);
+    for (long x : d.comps[*lift]) drop[std::labs(x) - 1] = 1;
+    std::vector<long> renumbered(d.crossings(), 0);
+    GaussDiagram r;
+    r.origin = d.origin;
+    for (size_t k = 0; k < d.crossings(); ++k)
+      if (!drop[k]) {
+        r.signs.push_back(d.signs[k]);
+        renumbered[k] = static_cast<long>(r.signs.size());
+      }
+    for (const auto &w : d.comps) {
+      std::vector<long> nw;
+      for (long x : w) {
+        const size_t k = std::labs(x) - 1;
+        if (!drop[k]) nw.push_back(x > 0 ? renumbered[k] : -renumbered[k]);
+      }
+      r.comps.push_back(std::move(nw));
+    }
+    d = std::move(r);
+  }
+}
+
 GaussDiagram simplifyKeepingComponents(const GaussDiagram &d) {
   regina::Link l = d.link();
   l.simplify();
   // Reduced as well: knotbuilder's drawer cannot draw a diagram with a
   // nugatory crossing back (a block's corners meet), so a hop on one could
   // not be certified. Regina's simplify() removes kinks but not every
-  // nugatory crossing.
-  GaussDiagram s = removeNugatoryCrossings(GaussDiagram::of(l, d.origin));
+  // nugatory crossing. And with every component that lies above (or below)
+  // everything lifted off: its PD code cannot carry its orientation, so its
+  // row could not be certified either; lifted, it is a split unknot.
+  GaussDiagram s = liftSplitComponents(
+      removeNugatoryCrossings(liftSplitComponents(GaussDiagram::of(l, d.origin))));
   if (s.components() != d.components())
     throw std::logic_error("simplify changed the number of components");
   if (linkingMatrix(s) != linkingMatrix(d))

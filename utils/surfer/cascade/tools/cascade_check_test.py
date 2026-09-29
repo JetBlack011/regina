@@ -95,7 +95,20 @@ def test_same_as_node_through_a_twist():
         check(ok and why == 'diagram', f'turned-over node not matched: {why}')
 
 
-for t in (test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
+def test_lift_split():
+    # a far side a hop refused (11a_239's run): component 1 passes over both
+    # its crossings, so it is a split unknot lying above the rest
+    g = G([1, 1, 1, -1, -1, -1], [[5, -6], [4, 2], [1, -4, -5, 6, -2, -3], [-1, 3]])
+    r = cc.lift_split(g)
+    check(r.comps[1] == [] and len(r.signs) == 4, f'lift: {r.comps}')
+    check(same_link(g, r), 'lift: link changed')
+    check(len(cc.split_pieces(r)) >= 2, 'lift: the unknot is not split off')
+    check(cc.lift_split(r).comps == r.comps, 'lift: lifted twice')
+    h = G([1, 1], [[1, -2], [-1, 2]])
+    check(cc.lift_split(h).comps == h.comps, 'lift: the Hopf link changed')
+
+
+for t in (test_lift_split, test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
           test_crossing_joined_through_another_component, test_reduced_untouched,
           test_same_as_node_through_a_twist):
     t()

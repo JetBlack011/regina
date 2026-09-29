@@ -133,6 +133,24 @@ def nugatory_side(g, c):
     return {k for k in range(len(g.signs)) if k != c and find(k) in roots}
 
 
+def lift_split(g):
+    """g with every component that passes over (or under) at every crossing
+    it meets lifted off, leaving it crossingless: having no self-crossing, it
+    is an unknot above (below) the rest, so lifting it is an isotopy that
+    splits it off. Repeated until none is left."""
+    while True:
+        lift = next((c for c, w in enumerate(g.comps)
+                     if w and (all(x > 0 for x in w) or all(x < 0 for x in w))), None)
+        if lift is None:
+            return g
+        gone = {abs(x) - 1 for x in g.comps[lift]}
+        keep = [k for k in range(len(g.signs)) if k not in gone]
+        new = {k: i + 1 for i, k in enumerate(keep)}
+        g = Gauss([g.signs[k] for k in keep],
+                  [[(1 if x > 0 else -1) * new[abs(x) - 1] for x in w if abs(x) - 1 not in gone]
+                   for w in g.comps])
+
+
 def remove_nugatory(g):
     """g with every nugatory crossing removed, each by turning over the side
     it cuts off (a half turn about an axis in the plane through it, a rigid
@@ -648,9 +666,10 @@ class Checker:
         far = d['far']
         cert_pieces = r.get('pieces', [])
         claimed = sorted(sorted(p['origins']) for p in cert_pieces)
-        # A drawn piece may come apart only after Reidemeister moves: find,
-        # for every drawn piece, a simplification (our own Regina calls; an
-        # isotopy) that splits it exactly as claimed.
+        # A drawn piece may come apart only after Reidemeister moves, or once
+        # a component lying above (below) everything is lifted off: find, for
+        # every drawn piece, a simplification (our own Regina calls and
+        # lifting; each an isotopy) that splits it exactly as claimed.
         diagram_of = {}  # tuple(origins) -> Gauss of that claimed piece
         for drawn in split_pieces(far):
             want = [c for c in claimed if set(c) <= set(drawn)]
@@ -661,10 +680,14 @@ class Checker:
                 diagram_of[tuple(want[0])] = sub
                 continue
             found = None
-            for attempt in range(40):
-                l = sub.link()
-                l.simplify()
-                g = Gauss.of_link(l)  # components keep their order (Link.simplify)
+            for attempt in range(41):
+                if attempt:
+                    l = sub.link()
+                    l.simplify()
+                    g = Gauss.of_link(l)  # components keep their order (Link.simplify)
+                else:
+                    g = sub
+                g = lift_split(g)
                 groups = [sorted(drawn[i] for i in grp) for grp in split_pieces(g)]
                 if sorted(groups) == sorted(want):
                     found = g

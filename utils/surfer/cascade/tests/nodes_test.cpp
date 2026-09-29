@@ -310,11 +310,67 @@ void testReducedRowsCertify() {
   CHECK(certifies(removeNugatoryCrossings(d)), "its reduced diagram's row certifies");
 }
 
+// A far side a hop refused (11a_239's run, 2026-09-28, node 46): component
+// 1 passes over both crossings it meets, so its PD code cannot carry its
+// orientation and the row did not certify. Lifted off, it is a split unknot:
+// the link is unchanged (Jones polynomial, linking numbers), the diagram
+// comes apart, and every piece's row certifies.
+void testLiftedRowsCertify() {
+  GaussDiagram d;
+  d.signs = {1, 1, 1, -1, -1, -1};
+  d.comps = {{5, -6}, {4, 2}, {1, -4, -5, 6, -2, -3}, {-1, 3}};
+  d.origin = {0, 1, 2, 3};
+  auto certifies = [](const GaussDiagram &diagram) {
+    ProofGraph g;
+    NodeRegistry reg(g);
+    HopRow row;
+    row.node = reg.intern(diagram, "row").node;
+    row.diagram = diagram;
+    row.nodeMap.resize(diagram.components());
+    std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
+    row.pd = rowPD(diagram);
+    row.layers = 2;
+    try {
+      HopAssembler hop(g, reg, row);
+      return true;
+    } catch (const std::exception &) {
+      return false;
+    }
+  };
+  CHECK(d.link().pdAmbiguous(), "the refused row's PD code is ambiguous");
+  CHECK(!certifies(d), "the refused row does not certify");
+
+  const GaussDiagram lifted = liftSplitComponents(d);
+  CHECK(lifted.components() == 4 && lifted.comps[1].empty(),
+        "the over-everywhere component is lifted off, crossingless");
+  CHECK(lifted.crossings() == 4, "its two crossings go, and only those");
+  CHECK(lifted.link().jones() == d.link().jones(), "lifting keeps the link (Jones)");
+  CHECK(linkingMatrix(lifted) == linkingMatrix(d), "lifting keeps every linking number");
+  CHECK(liftSplitComponents(lifted).comps == lifted.comps, "nothing further to lift");
+
+  const GaussDiagram s = simplifyKeepingComponents(d);
+  const auto pieces = exactnaming::splitPieces(s);
+  CHECK(pieces.size() >= 2, "simplified, the far side comes apart");
+  bool all = true;
+  for (const GaussDiagram &p : pieces)
+    if (p.crossings() > 0 && !certifies(p)) all = false;
+  CHECK(all, "every piece's row certifies");
+
+  // A component over everywhere but linked cannot exist in a planar
+  // diagram; one mixing over and under is never lifted.
+  GaussDiagram hopf;
+  hopf.signs = {1, 1};
+  hopf.comps = {{1, -2}, {-1, 2}};
+  hopf.origin = {0, 1};
+  CHECK(liftSplitComponents(hopf).comps == hopf.comps, "the Hopf link is left alone");
+}
+
 } // namespace
 
 int main() {
   testNugatoryCrossings();
   testReducedRowsCertify();
+  testLiftedRowsCertify();
   testLinking();
   testSimplifyKeepsComponents();
   testDiagramHits();

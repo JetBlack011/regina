@@ -43,6 +43,14 @@ std::optional<size_t> nugatoryCrossing(const exactnaming::GaussDiagram &d);
 /// order, with every linking number kept.
 exactnaming::GaussDiagram removeNugatoryCrossings(exactnaming::GaussDiagram d);
 
+/// `d` with every component that is over (or under) at every crossing it
+/// meets lifted off: its crossings deleted, leaving it crossingless. Such a
+/// component has no self-crossing, so it is an unknot above (below)
+/// everything else, and lifting it is an isotopy that splits it off. Its PD
+/// code could not carry its orientation (Regina's pdAmbiguous()), so a row
+/// keeping it could not be certified. Repeated until none is left.
+exactnaming::GaussDiagram liftSplitComponents(exactnaming::GaussDiagram d);
+
 /// How a diagram was found to be a node.
 struct NodeMatch {
   NodeId node = -1;
