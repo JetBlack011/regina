@@ -28,6 +28,12 @@
 std::string csvField(std::string_view s);
 
 /**
+ * Splits one CSV line into its fields per RFC 4180 (quotes, doubled-quote
+ * escaping): the inverse of csvField() field by field. No embedded newlines.
+ */
+std::vector<std::string> parseCsvLine(const std::string &line);
+
+/**
  * Buffers CSV rows, distributing writers across a small, bounded pool of
  * shard files (at most MAX_SHARDS, and never more than numThreads) rather
  * than one shard per thread -- a caller's own thread count can be set far

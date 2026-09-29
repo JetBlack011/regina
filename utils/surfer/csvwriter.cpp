@@ -98,3 +98,41 @@ CsvWriter::Shard &CsvWriter::shardForThisThread() {
   cached = shards_[nextShard_++ % shards_.size()].get();
   return *cached;
 }
+
+// Minimal RFC-4180 field parser (quotes, doubled-quote escaping) -- needed
+// to read our OWN --output file back on resume, since witness_pairsig/
+// depends_on may have been written through csvField() and can contain
+// commas.
+std::vector<std::string> parseCsvLine(const std::string &line) {
+  std::vector<std::string> fields;
+  size_t i = 0;
+  while (i <= line.size()) {
+    std::string field;
+    if (i < line.size() && line[i] == '"') {
+      ++i;
+      while (i < line.size()) {
+        if (line[i] == '"') {
+          if (i + 1 < line.size() && line[i + 1] == '"') {
+            field += '"';
+            i += 2;
+          } else {
+            ++i;
+            break;
+          }
+        } else {
+          field += line[i++];
+        }
+      }
+    } else {
+      while (i < line.size() && line[i] != ',')
+        field += line[i++];
+    }
+    fields.push_back(field);
+    if (i < line.size() && line[i] == ',') {
+      ++i;
+      continue;
+    }
+    break;
+  }
+  return fields;
+}

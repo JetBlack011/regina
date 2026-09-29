@@ -12,6 +12,7 @@ set(TESTS
   cobordismgraph_test
   peripheral_test
   witnesskey_test
+  witnessstore_test
   rowmap_test
   rowsearch_test
   enumerator_test

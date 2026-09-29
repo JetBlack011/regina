@@ -67,9 +67,10 @@ builds.
 |---|---|
 | `pairsig.{h,cpp}` | isomorphism signatures of (ambient, surface) pairs: a witness's canonical form, and `fromPairSig()` to decode one |
 | `witnesskey.{h,cpp}` | `sha1(pairsig)[:12]`, the key per-witness far-side resolutions are stored under |
+| `witnessstore.{h,cpp}` | the witness file itself (since 2026-09-28, moved out of `verifyslicegenus.cpp`): its 13-column line format, the append-only `appendWitnesses()` (fsync, torn-line truncation, 12-column refusal), `loadWitnesses()` without pair signatures, `--rewrite-witnesses`, and the table rows' reader. `verifyslicegenus` and `cascadesearch --witness-store` (`cascade/keptstore.h`) both append through it; `witnessstore_test` |
 | `cobordismgraph.{h,cpp}` | the solver (`propagate()`: the cobordism inequalities over witnesses and literature bounds), plus the per-surface decisions: `splitBoundary()` (which boundary is the search side), `buildRowOrientation()` / `classifyRowOrientation()` (does the surface run with the row's orientation), `witnessIdentity()` (dedupe) |
 | `farsidecurves.{h,cpp}` | a surface's outgoing curves carried onto knotbuilder's T through the thickening's own top prisms, oriented against the row per surface component: the far side as an **oriented** link |
-| `csvwriter.{h,cpp}` | sharded CSV output |
+| `csvwriter.{h,cpp}` | sharded CSV output; `csvField()` and its inverse `parseCsvLine()` |
 
 `tools/frontier.py` in the atlas is a deliberately independent
 reimplementation of the solver; `frontier.py --check` must say AGREE after any
