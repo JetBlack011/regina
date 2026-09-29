@@ -415,6 +415,19 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
     /**< The ambient triangulation's boundary components. */
 
     /**
+     * bdryEdgeLocal_[i]: for the ambient edge of index i on the boundary, its
+     * index k within its boundary component, so that
+     * bdryComponents_[c].edge(k) is the same edge (BoundaryComponent<4>::
+     * build()'s numbering); -1 off the boundary. The boundary-link
+     * describers used to find k by scanning the component's every edge, for
+     * each boundary edge of each surface the drain describes.
+     */
+    std::vector<int> bdryEdgeLocal_;
+
+    /** Fills bdryComponents_ and bdryEdgeLocal_ from `tri`. */
+    void initBoundary_(const regina::Triangulation<4> &tri);
+
+    /**
      * (ambient face index, local vertex index) pairs of the surface
      * currently touching ambient vertex `v` (indexed by `v`), in insertion
      * order.

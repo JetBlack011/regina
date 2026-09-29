@@ -600,12 +600,21 @@ const std::string &EmbeddedSubmanifold<dim, subdim>::pairSig() const {
 template class EmbeddedSubmanifold<3, 2>;
 template class EmbeddedSubmanifold<4, 2>;
 
+void KnottedSurface::initBoundary_(const regina::Triangulation<4> &tri) {
+    bdryComponents_.reserve(tri.countBoundaryComponents());
+    bdryEdgeLocal_.assign(tri.countEdges(), -1);
+    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c) {
+        const auto *bc = tri.boundaryComponent(c);
+        bdryComponents_.push_back(bc->build());
+        for (size_t k = 0; k < bc->countEdges(); ++k)
+            bdryEdgeLocal_[bc->edge(k)->index()] = static_cast<int>(k);
+    }
+}
+
 KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton)
     : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(ownedPetalCache_) {
     const auto &tri = skeleton.triangulation();
-    bdryComponents_.reserve(tri.countBoundaryComponents());
-    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-        bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+    initBoundary_(tri);
     facesAtVertex_.resize(tri.countVertices());
     vertexEmbedIndexCache_.resize(tri.countVertices());
 }
@@ -614,9 +623,7 @@ KnottedSurface::KnottedSurface(const Skeleton<4, 2> &skeleton,
                                PetalCache &petalCache)
     : EmbeddedSubmanifold<4, 2>(skeleton), petalCache_(petalCache) {
     const auto &tri = skeleton.triangulation();
-    bdryComponents_.reserve(tri.countBoundaryComponents());
-    for (size_t c = 0; c < tri.countBoundaryComponents(); ++c)
-        bdryComponents_.push_back(tri.boundaryComponent(c)->build());
+    initBoundary_(tri);
     facesAtVertex_.resize(tri.countVertices());
     vertexEmbedIndexCache_.resize(tri.countVertices());
 }
@@ -1148,13 +1155,8 @@ std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
                 continue; // shouldn't happen when cond is proper/connected
 
             size_t c = ambientBC->index();
-
-            for (int k = 0; k < ambientBC->countEdges(); ++k) {
-                if (ambientBC->edge(k) == ambientFacet) {
-                    edgesByComponent[c].insert(bdryComponents_[c].edge(k));
-                    break;
-                }
-            }
+            if (const int k = bdryEdgeLocal_[ambientFacet->index()]; k >= 0)
+                edgesByComponent[c].insert(bdryComponents_[c].edge(k));
         }
     }
 
@@ -1240,12 +1242,8 @@ KnottedSurface::boundaryEdgeSurfaceComponent() const {
                 continue;
 
             const size_t c = ambientBC->index();
-            for (int k = 0; k < ambientBC->countEdges(); ++k) {
-                if (ambientBC->edge(k) == ambientFacet) {
-                    result[bdryComponents_[c].edge(k)] = surfaceComponent;
-                    break;
-                }
-            }
+            if (const int k = bdryEdgeLocal_[ambientFacet->index()]; k >= 0)
+                result[bdryComponents_[c].edge(k)] = surfaceComponent;
         }
     }
     return result;
@@ -1297,20 +1295,15 @@ KnottedSurface::orientedBoundaryLinks() const {
             regina::Perm<5> p = ambientTriangle->edgeMapping(i);
             bool edgeReversed = (p[0] == headLocal); // tail is edge->vertex(1)
 
-            for (int k = 0; k < ambientBC->countEdges(); ++k) {
-                if (ambientBC->edge(k) == ambientFacet) {
-                    // Same-indexed edges of bdryComponents_[c] and ambientBC
-                    // are numbered the same way
-                    // (BoundaryComponent<4>::build()'s own documented guarantee
-                    // -- see this feature's design notes for the pinched-face
-                    // exception, confirmed not applicable to this pipeline), so
-                    // the direction transfers with no further correspondence
-                    // work.
-                    directedByComponent[c].push_back(
-                        {bdryComponents_[c].edge(k), edgeReversed});
-                    break;
-                }
-            }
+            // Same-indexed edges of bdryComponents_[c] and ambientBC are
+            // numbered the same way (BoundaryComponent<4>::build()'s own
+            // documented guarantee -- see this feature's design notes for the
+            // pinched-face exception, confirmed not applicable to this
+            // pipeline), so the direction transfers with no further
+            // correspondence work.
+            if (const int k = bdryEdgeLocal_[ambientFacet->index()]; k >= 0)
+                directedByComponent[c].push_back(
+                    {bdryComponents_[c].edge(k), edgeReversed});
         }
     }
 
