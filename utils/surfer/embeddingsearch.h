@@ -20,6 +20,7 @@
 
 #include "embeddedsubmanifold.h"
 #include "enumerate_cis.h"
+#include "searchfrontier.h"
 #include "skeleton.h"
 
 /*! \file utils/surfer/embeddingsearch.h
@@ -520,6 +521,72 @@ public:
    * -- see that method's own doc comment.
    */
   void requestStop() { stopRequested_.store(true, std::memory_order_relaxed); }
+
+  /**
+   * Makes the next search() carry on from `frontier` (see SearchFrontier),
+   * skipping everything the run that recorded it covered, if and only if
+   * its fingerprint is this search's; otherwise the search starts afresh
+   * and resumeRefusal() says why. Null (the default) starts afresh.
+   * `frontier` must outlive that search().
+   */
+  void setResumeFrontier(const SearchFrontier *frontier) {
+    resumeFrontier_ = frontier;
+  }
+
+  /**
+   * Makes the next search() record its frontier: where each root of the
+   * round it ended in stopped, exactly (a stop suspends each in-flight root
+   * where it stands; see BudgetedPredicate::suspendOnStop()). Read it with
+   * frontier(). Off by default, which leaves search() as it was.
+   */
+  void setRecordFrontier(bool record) { recordFrontier_ = record; }
+
+  /**
+   * The last search()'s frontier, if it recorded one: cumulative over the
+   * frontier it resumed, if it resumed one.
+   */
+  const std::optional<SearchFrontier> &frontier() const { return frontier_; }
+
+  /** Whether the last search() resumed the frontier it was given. */
+  bool resumedFrontier() const { return resumed_; }
+
+  /**
+   * Why the last search() did not resume the frontier it was given; empty
+   * if it did, or was given none.
+   */
+  const std::string &resumeRefusal() const { return resumeRefusal_; }
+
+protected:
+  /**
+   * What a subclass accepts beyond what this class sees, as text for the
+   * frontier fingerprint (SurfaceSearch: whether resolvable surfaces
+   * count). A frontier's prefix is only skippable by a search that would
+   * have accepted the same surfaces in it.
+   */
+  std::string frontierContext_;
+
+  /**
+   * sha1 over everything that fixes a search's traversal and what it
+   * accepts: the traversal version (SearchFrontier::kTraversalVersion), the
+   * triangulation's gluings, the search graph and its skeleton map, the
+   * sorted roots, the round and budget schedule, the boundary condition,
+   * orientability pruning and frontierContext_.
+   */
+  std::string frontierFingerprint_(const std::vector<int> &roots,
+                                   BoundaryCondition cond,
+                                   unsigned iddfsIterations,
+                                   long long iddfsStart, long long iddfsStep,
+                                   std::optional<long long> hardFaceCap,
+                                   bool orientableOnly,
+                                   long long rootBudgetStart,
+                                   long long rootBudgetGrowth) const;
+
+private:
+  const SearchFrontier *resumeFrontier_ = nullptr;
+  bool recordFrontier_ = false;
+  std::optional<SearchFrontier> frontier_;
+  bool resumed_ = false;
+  std::string resumeRefusal_;
 
 protected:
   /**

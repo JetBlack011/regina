@@ -27,6 +27,8 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
+#include "witnesskey.h"
+
 #define FLUSH_EVERY_BDRY 1
 #define FLUSH_EVERY_EMBEDDED 1
 #define FLUSH_EVERY_FOUND 10'000
@@ -143,6 +145,53 @@ EmbeddingSearch<dim, subdim>::EmbeddingSearch(
 }
 
 template <int dim, int subdim>
+std::string EmbeddingSearch<dim, subdim>::frontierFingerprint_(
+    const std::vector<int> &roots, BoundaryCondition cond,
+    unsigned iddfsIterations, long long iddfsStart, long long iddfsStep,
+    std::optional<long long> hardFaceCap, bool orientableOnly,
+    long long rootBudgetStart, long long rootBudgetGrowth) const {
+    std::ostringstream s;
+    s << "traversal " << SearchFrontier::kTraversalVersion << " dim " << dim
+      << " subdim " << subdim << "\ntri";
+    // The labelled triangulation: the graph's faces and the predicate's
+    // checks are both read off it.
+    const regina::Triangulation<dim> &tri = skeleton_.triangulation();
+    s << ' ' << tri.size();
+    for (size_t i = 0; i < tri.size(); ++i) {
+        const auto *simplex = tri.simplex(i);
+        for (int f = 0; f <= dim; ++f) {
+            const auto *adj = simplex->adjacentSimplex(f);
+            s << ' ';
+            if (adj)
+                s << adj->index() << ':' << simplex->adjacentGluing(f).str();
+            else
+                s << '-';
+        }
+    }
+    s << "\ngraph " << graph_.adjList.first;
+    for (const auto &neighbours : graph_.adjList.second) {
+        s << " |";
+        for (int v : neighbours)
+            s << ' ' << v;
+    }
+    s << "\nskeleton";
+    for (const auto &faces : graph_.graphToSkel) {
+        s << " |";
+        for (int f : faces)
+            s << ' ' << f;
+    }
+    s << "\nseeded " << (isSeeded_ ? 1 : 0) << "\nroots";
+    for (int r : roots)
+        s << ' ' << r;
+    s << "\niddfs " << iddfsIterations << ' ' << iddfsStart << ' ' << iddfsStep
+      << " hard " << (hardFaceCap ? std::to_string(*hardFaceCap) : "-")
+      << "\nbudget " << rootBudgetStart << ' ' << rootBudgetGrowth
+      << "\ncondition " << boundaryConditionName(cond) << " orientable "
+      << (orientableOnly ? 1 : 0) << "\ncontext " << frontierContext_ << '\n';
+    return witnesskey::sha1Hex(s.str());
+}
+
+template <int dim, int subdim>
 template <typename EmbeddingT>
 SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     unsigned numThreads, BoundaryCondition cond,
@@ -173,6 +222,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     long long seedFaceSum = 0;
     long long seedFaceCount = 0;
     long long seedResolvedCount = 0;
+    bool seedSatisfies = false;
     if (isSeeded_) {
         auto protoEmbedding = makeEmbedding();
         EmbeddednessPredicate protoPredicate(protoEmbedding,
@@ -203,9 +253,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             seedMaxFaces = static_cast<long long>(
                 protoEmbedding.triangulation().size());
             seedFaceSum = seedMaxFaces;
-            // graph_.graphToSkel[0] is the whole seed -- see
-            // buildSeededGraph_.
-            onSeedFound(graph_.graphToSkel[0]);
+            seedSatisfies = true; // reported below, unless resuming
         }
     } else {
         roots.resize(graph_.adjList.first);
@@ -215,13 +263,51 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // Shallow-first: descending vertex id.
     std::sort(roots.begin(), roots.end(), [](int a, int b) { return a > b; });
 
+    const unsigned resolvedFinalThreads = finalThreads.value_or(numThreads);
+    const long long resolvedIddfsStart = iddfsStart.value_or(iddfsStep);
+
+    // The frontier this search carries on from, if it was given one that is
+    // its own, and the one it records; see SearchFrontier.
+    frontier_.reset();
+    resumed_ = false;
+    resumeRefusal_.clear();
+    std::string fingerprint;
+    if (recordFrontier_ || resumeFrontier_)
+        fingerprint = frontierFingerprint_(
+            roots, cond, iddfsIterations, resolvedIddfsStart, iddfsStep,
+            hardFaceCap, orientableOnly, rootBudgetStart, rootBudgetGrowth);
+    const SearchFrontier *resume = nullptr;
+    if (resumeFrontier_) {
+        if (resumeFrontier_->fingerprint != fingerprint)
+            resumeRefusal_ = "its fingerprint is not this search's";
+        else if (resumeFrontier_->roots.size() != roots.size() ||
+                 resumeFrontier_->rounds != iddfsIterations + 1 ||
+                 resumeFrontier_->round < 1 ||
+                 resumeFrontier_->round > iddfsIterations + 1)
+            resumeRefusal_ = "its roots or rounds are not this search's";
+        else {
+            resume = resumeFrontier_;
+            resumed_ = true;
+        }
+    }
+
+    // The seed alone: reported by the run a frontier started with, so a
+    // resumed run neither reports nor counts it again.
+    if (seedSatisfies && resume) {
+        seedFoundCount = seedEmbeddedCount = seedSubgraphCount = 0;
+        seedMaxFaces = seedFaceSum = seedResolvedCount = 0;
+    } else if (seedSatisfies) {
+        // graph_.graphToSkel[0] is the whole seed -- see buildSeededGraph_.
+        onSeedFound(graph_.graphToSkel[0]);
+    } else if (resume) {
+        seedFoundCount = seedEmbeddedCount = 0;
+    }
+
     const auto prototypeTime = std::chrono::steady_clock::now() - searchStart;
     if (callbacks.onRootsReady)
         callbacks.onRootsReady();
 
     const size_t totalRootsPerPass = roots.size();
-
-    const unsigned resolvedFinalThreads = finalThreads.value_or(numThreads);
 
     std::atomic<size_t> nextRootIdx{0};
     std::atomic<bool> workersFinished{false};
@@ -337,6 +423,11 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             localEnumeratorOpt.emplace(graph_.adjList.first,
                                        graph_.adjList.second);
         auto &localEnumerator = *localEnumeratorOpt;
+        // Recording a frontier: a stop suspends each root where it stands.
+        // Only now, after the seed's commit and root probes above, which
+        // must never be refused by it.
+        if (recordFrontier_)
+            budgeted.suspendOnStop(&stopRequested_);
         // At least 1, so a seeded search can always commit its seed (as
         // DepthCappedPredicate's own clamp did).
         localEnumerator.setMaxSize(
@@ -499,11 +590,15 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             // (within this round's depth cap), so it needs no further pass.
             // An interrupted run must not claim this: stopRequested_ prunes
             // via InterruptiblePredicate without tripping the budget, which
-            // would otherwise look like completion.
+            // would otherwise look like completion. Recording a frontier, a
+            // stop always suspends instead (suspendOnStop()), so completion
+            // is real even with a stop raised -- and a frontier must say so,
+            // or its root would be walked again from scratch.
             const bool finished =
                 outcome ==
                     ConnectedInducedSubgraphEnumerator::Outcome::completed &&
-                !stopRequested_.load(std::memory_order_relaxed);
+                (recordFrontier_ ||
+                 !stopRequested_.load(std::memory_order_relaxed));
             stats.rootsCompleted.fetch_add(1, std::memory_order_relaxed);
             {
                 std::lock_guard<std::mutex> lock(queueMutex);
@@ -629,18 +724,31 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     // Returns whether every root finished, i.e. whether this round enumerated
     // its depth exhaustively -- a statement about the object, not about how
     // long we ran.
+    //
+    // `from`, if set, is a frontier stopped in this round: its finished roots
+    // stay finished, and the rest carry on at their recorded level and
+    // position, exactly as its own run would have.
     std::vector<std::chrono::steady_clock::duration> roundTimes;
     auto runRound = [&](std::optional<long long> capFaces,
-                        long long suppressBelow, unsigned threadCount) -> bool {
+                        long long suppressBelow, unsigned threadCount,
+                        const SearchFrontier *from) -> bool {
         const auto roundStart = std::chrono::steady_clock::now();
         std::fill(rootDone.begin(), rootDone.end(), 0);
         for (auto &position : positions)
             position = {}; // each round starts every root from scratch
         std::fill(rootLevel.begin(), rootLevel.end(), 0u);
+        if (from)
+            for (size_t i = 0; i < roots.size(); ++i) {
+                rootDone[i] = from->roots[i].done ? 1 : 0;
+                rootLevel[i] = from->roots[i].level;
+                positions[i] = from->roots[i].position;
+            }
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            rootQueue.assign(roots.size(), 0);
-            std::iota(rootQueue.begin(), rootQueue.end(), size_t{0});
+            rootQueue.clear();
+            for (size_t i = 0; i < roots.size(); ++i)
+                if (!rootDone[i])
+                    rootQueue.push_back(i);
             rootsInFlight = 0;
         }
 
@@ -658,17 +766,54 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                            [](uint8_t d) { return d != 0; });
     };
 
-    const long long resolvedIddfsStart = iddfsStart.value_or(iddfsStep);
+    // The frontier, taken once: when a round ends on a stop (its threads
+    // joined, so every root's state is final), or when every round ran.
+    auto takeFrontier = [&](unsigned round, std::optional<long long> cap,
+                            long long suppressBelow, bool complete) {
+        if (!recordFrontier_ || frontier_)
+            return;
+        SearchFrontier f;
+        f.fingerprint = fingerprint;
+        f.round = round;
+        f.rounds = iddfsIterations + 1;
+        f.cap = cap;
+        f.suppressBelow = suppressBelow;
+        f.complete = complete;
+        f.roots.resize(roots.size());
+        for (size_t i = 0; i < roots.size(); ++i) {
+            SearchFrontier::Root &r = f.roots[i];
+            r.done = complete || rootDone[i] != 0;
+            if (!r.done) {
+                r.level = rootLevel[i];
+                r.position = positions[i];
+            }
+        }
+        frontier_ = std::move(f);
+    };
+
+    // A resumed search starts in its frontier's round, the rounds before
+    // having run to the end; a complete frontier leaves nothing to run.
+    unsigned firstRound = 1;
     long long prevCap = 0;
-    for (unsigned iter = 1; iter <= iddfsIterations; ++iter) {
+    if (resume) {
+        firstRound = resume->complete ? iddfsIterations + 2 : resume->round;
+        prevCap = resume->suppressBelow;
+        if (resume->deepestExhausted)
+            deepestExhausted.store(*resume->deepestExhausted,
+                                   std::memory_order_relaxed);
+    }
+    for (unsigned iter = firstRound; iter <= iddfsIterations; ++iter) {
         long long cap = iddfsCapForRound(iter, resolvedIddfsStart, iddfsStep);
         currentIddfsRound.store(iter, std::memory_order_relaxed);
         currentIddfsCapped.store(true, std::memory_order_relaxed);
         currentIddfsCap.store(cap, std::memory_order_relaxed);
-        if (runRound(cap, prevCap, numThreads))
+        if (runRound(cap, prevCap, numThreads,
+                     resume && iter == firstRound ? resume : nullptr))
             deepestExhausted.store(cap, std::memory_order_relaxed);
-        if (stopRequested_.load(std::memory_order_relaxed))
+        if (stopRequested_.load(std::memory_order_relaxed)) {
+            takeFrontier(iter, cap, prevCap, false);
             break;
+        }
         prevCap = cap;
     }
 
@@ -677,10 +822,17 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     currentIddfsCapped.store(hardFaceCap.has_value(),
                              std::memory_order_relaxed);
     currentIddfsCap.store(hardFaceCap.value_or(0), std::memory_order_relaxed);
-    if (!finalPassRedundant) {
-        if (runRound(hardFaceCap, prevCap, resolvedFinalThreads) && hardFaceCap)
+    if (!finalPassRedundant && firstRound <= iddfsIterations + 1) {
+        const SearchFrontier *from =
+            resume && firstRound == iddfsIterations + 1 ? resume : nullptr;
+        if (runRound(hardFaceCap, prevCap, resolvedFinalThreads, from) &&
+            hardFaceCap)
             deepestExhausted.store(*hardFaceCap, std::memory_order_relaxed);
+        if (stopRequested_.load(std::memory_order_relaxed))
+            takeFrontier(iddfsIterations + 1, hardFaceCap, prevCap, false);
     }
+    if (!stopRequested_.load(std::memory_order_relaxed))
+        takeFrontier(iddfsIterations + 1, hardFaceCap, prevCap, true);
 
     {
         std::lock_guard<std::mutex> lock(reporterMutex);
@@ -719,6 +871,17 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         finalStats.profile.evaluated += local.evaluated;
         finalStats.profile.charged += local.charged;
         finalStats.profile.replayed += local.replayed;
+    }
+    if (frontier_) {
+        // Cumulative over the frontier this run carried on from.
+        frontier_->deepestExhausted = finalStats.deepestExhaustedCap;
+        frontier_->runs = (resume ? resume->runs : 0) + 1;
+        frontier_->satisfying =
+            (resume ? resume->satisfying : 0) + finalStats.satisfyingCount;
+        frontier_->found =
+            (resume ? resume->found : 0) + finalStats.foundCount;
+        frontier_->attempts =
+            (resume ? resume->attempts : 0) + finalStats.profile.attempts;
     }
     if (callbacks.onSearchComplete)
         callbacks.onSearchComplete(finalStats);

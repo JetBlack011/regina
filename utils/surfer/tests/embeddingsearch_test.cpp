@@ -19,6 +19,7 @@
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/example2.h>
+#include <triangulation/example3.h>
 #include <unistd.h>
 
 #include "cobordismbuilder.h"
@@ -26,6 +27,7 @@
 #include "embeddingsearch.h"
 #include "knotbuilder/knotbuilder.h"
 #include "surfacesearch.h"
+#include "witnesskey.h"
 
 static int passed = 0, failed_count = 0;
 
@@ -1098,6 +1100,224 @@ void test_resolve_unlinked_seeded_search() {
               "resolvedVertices > 0");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Search frontiers (SearchFrontier). A search stopped anywhere and carried on
+// from its recorded frontier must, over the whole chain of runs, report
+// exactly what one uninterrupted run reports: nothing twice (the seed
+// included), nothing missed, whatever the threads, budgets and rounds. Each
+// frontier crosses a write()/read() round trip between runs, as it does
+// between processes. Counts are the check, as in the budget tests above;
+// the face sum makes a duplicate and a miss unlikely to cancel.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+struct FrontierShape {
+    unsigned threads;
+    unsigned iterations;
+    long long step;
+    std::optional<long long> start;
+    std::optional<long long> hard;
+    long long budget;
+    long long growth;
+};
+
+std::string describe(const FrontierShape &s) {
+    std::ostringstream d;
+    d << "threads " << s.threads << ", rounds " << s.iterations << "+1, cap "
+      << (s.hard ? std::to_string(*s.hard) : "none") << ", budget " << s.budget
+      << "x" << s.growth;
+    return d.str();
+}
+
+SearchStats runShape(EmbeddingSearch<3, 2> &e, const FrontierShape &s,
+                     long long target) {
+    SearchCallbacks callbacks;
+    callbacks.surfaceTarget = target;
+    return e.search(s.threads, BoundaryCondition::all, callbacks, s.iterations,
+                    s.step, s.start, std::nullopt, false, s.hard, s.budget,
+                    s.growth);
+}
+
+SearchFrontier roundTrip(const SearchFrontier &f) {
+    std::stringstream text;
+    f.write(text);
+    return SearchFrontier::read(text);
+}
+
+// Runs `s` as a chain of runs stopped every `target` satisfying candidates,
+// each carrying on from the last one's frontier, and checks the chain
+// against one uninterrupted run.
+void checkChain(const regina::Triangulation<3> &tri,
+                const std::vector<int> &seed, const FrontierShape &s) {
+    auto make = [&] {
+        return seed.empty() ? std::make_unique<EmbeddingSearch<3, 2>>(tri)
+                            : std::make_unique<EmbeddingSearch<3, 2>>(tri, seed);
+    };
+    auto plain = make();
+    const SearchStats base = runShape(*plain, s, 0);
+    const long long target = std::max<long long>(1, base.satisfyingCount / 9);
+
+    long long found = 0, satisfying = 0, faceSum = 0;
+    unsigned runs = 0, resumedRuns = 0;
+    std::optional<SearchFrontier> frontier;
+    while (runs < 1000) {
+        auto e = make();
+        SearchFrontier from;
+        if (frontier) {
+            from = roundTrip(*frontier);
+            e->setResumeFrontier(&from);
+        }
+        e->setRecordFrontier(true);
+        // The last runs go unlimited, so the chain always ends.
+        const SearchStats st = runShape(*e, s, runs < 12 ? target : 0);
+        ++runs;
+        resumedRuns += e->resumedFrontier();
+        found += st.foundCount;
+        satisfying += st.satisfyingCount;
+        faceSum += st.satisfyingFaceSum;
+        frontier = e->frontier();
+        if (!frontier || frontier->complete)
+            break;
+    }
+    const std::string d = " (" + describe(s) + (seed.empty() ? "" : ", seeded") +
+                          ", " + std::to_string(runs) + " runs)";
+    EXPECT_EQ(runs > 2, true, "the chain really was stopped and resumed" + d);
+    EXPECT_EQ(resumedRuns, runs - 1, "every run after the first resumed" + d);
+    EXPECT_EQ(found, base.foundCount, "found: nothing twice, nothing missed" + d);
+    EXPECT_EQ(satisfying, base.satisfyingCount, "satisfying matches" + d);
+    EXPECT_EQ(faceSum, base.satisfyingFaceSum, "satisfying face sum matches" + d);
+    EXPECT_EQ(frontier && frontier->complete, true, "the last frontier is complete" + d);
+    if (frontier) {
+        EXPECT_EQ(frontier->runs, runs, "the frontier counts every run" + d);
+        EXPECT_EQ(frontier->found, base.foundCount, "cumulative found" + d);
+        EXPECT_EQ(frontier->satisfying, base.satisfyingCount,
+                  "cumulative satisfying" + d);
+        EXPECT_EQ(frontier->deepestExhausted.value_or(-1),
+                  base.deepestExhaustedCap.value_or(-1),
+                  "the exhaustive claim is the uninterrupted run's" + d);
+    }
+}
+} // namespace
+
+void test_frontier_resume_matches_single_pass() {
+    std::cout << "\n--- frontiers: stopped and resumed chains match one run ---\n";
+    const regina::Triangulation<3> tri = regina::Example<3>::weeks();
+    const std::vector<FrontierShape> shapes = {
+        {1, 0, 0, std::nullopt, 4, 0, 2}, // unbudgeted, one capped round
+        {1, 0, 0, std::nullopt, 4, 1, 2}, // many budget passes per root
+        {2, 0, 0, std::nullopt, 4, 3, 3},
+        {1, 2, 1, 2, 4, 1, 2},            // rounds capped 2, 3, then 4
+        {2, 2, 1, 2, 4, 2, 2},
+    };
+    for (const auto &s : shapes)
+        checkChain(tri, {}, s);
+    const std::vector<int> seed = {static_cast<int>(tri.triangle(0)->index())};
+    for (const auto &s : shapes)
+        checkChain(tri, seed, s);
+}
+
+// A frontier resumes only the search it describes: another shape refuses it
+// and starts afresh, reporting exactly what a fresh run does.
+void test_frontier_refused_by_another_search() {
+    std::cout << "\n--- frontiers: a foreign frontier is refused ---\n";
+    const regina::Triangulation<3> tri = regina::Example<3>::weeks();
+    const FrontierShape recorded{1, 0, 0, std::nullopt, 4, 1, 2};
+    EmbeddingSearch<3, 2> first(tri);
+    first.setRecordFrontier(true);
+    runShape(first, recorded, 5);
+    const SearchFrontier f = *first.frontier();
+    EXPECT_EQ(f.complete, false, "the recording run stopped part-way");
+
+    for (const FrontierShape &other :
+         {FrontierShape{1, 0, 0, std::nullopt, 3, 1, 2},   // another cap
+          FrontierShape{1, 0, 0, std::nullopt, 4, 2, 2},   // another budget
+          FrontierShape{1, 1, 1, 3, 4, 1, 2}}) {           // other rounds
+        EmbeddingSearch<3, 2> fresh(tri);
+        const SearchStats want = runShape(fresh, other, 0);
+        EmbeddingSearch<3, 2> e(tri);
+        e.setResumeFrontier(&f);
+        const SearchStats got = runShape(e, other, 0);
+        EXPECT_EQ(e.resumedFrontier(), false, "refused (" + describe(other) + ")");
+        EXPECT_EQ(e.resumeRefusal().empty(), false, "with a reason");
+        EXPECT_EQ(got.foundCount, want.foundCount, "and ran as a fresh search");
+    }
+    // Another triangulation, same shape. (The search keeps a pointer to its
+    // triangulation, so it must outlive it.)
+    const regina::Triangulation<3> poincare = regina::Example<3>::poincare();
+    EmbeddingSearch<3, 2> e(poincare);
+    e.setResumeFrontier(&f);
+    runShape(e, recorded, 0);
+    EXPECT_EQ(e.resumedFrontier(), false, "refused by another triangulation");
+}
+
+// The traversal, pinned: a fixed search stopped at a fixed point must record
+// exactly this frontier. A change to what the enumeration visits, or in what
+// order, changes it -- so it fails here until SearchFrontier::
+// kTraversalVersion is bumped (making every older frontier foreign) and the
+// digest re-pinned.
+void test_traversal_pinned() {
+    std::cout << "\n--- frontiers: the traversal is pinned to its version ---\n";
+    static_assert(SearchFrontier::kTraversalVersion == 1,
+                  "re-pin test_traversal_pinned for the new traversal version");
+    const regina::Triangulation<3> tri = regina::Example<3>::weeks();
+    EmbeddingSearch<3, 2> e(tri);
+    e.setRecordFrontier(true);
+    // Stopped part-way through its last round (66 satisfying in all), so
+    // the frontier holds real positions.
+    const SearchStats st = runShape(e, {1, 1, 1, 3, 5, 2, 2}, 20);
+    SearchFrontier f = *e.frontier();
+    EXPECT_EQ(f.complete, false, "the pinned run stopped part-way");
+    EXPECT_EQ(f.rootsStarted() > 0, true, "with part-walked roots");
+    f.fingerprint = "-"; // the digest is of the traversal alone
+    std::ostringstream text;
+    f.write(text);
+    std::cout << "  frontier: " << f.summary() << "\n";
+    EXPECT_EQ(st.foundCount, 742LL, "found at the stop");
+    EXPECT_EQ(witnesskey::sha1Hex(text.str()),
+              std::string("d8f3482a0242f579f6373d503afc95bffbb6572a"),
+              "the recorded frontier's digest");
+}
+
+void test_frontier_file_round_trip() {
+    std::cout << "\n--- frontiers: the file format round-trips ---\n";
+    SearchFrontier f;
+    f.fingerprint = "abc123";
+    f.round = 2;
+    f.rounds = 3;
+    f.cap = 5;
+    f.suppressBelow = 4;
+    f.deepestExhausted = 4;
+    f.runs = 3;
+    f.satisfying = 17;
+    f.found = 99;
+    f.attempts = 1234;
+    f.roots.resize(4);
+    f.roots[0].done = true;
+    f.roots[2].level = 3;
+    f.roots[2].position.deepest = 1;
+    f.roots[2].position.levels = {{0, 7, {}}, {2, 9, {4, 5}}};
+    std::stringstream text;
+    f.write(text);
+    const SearchFrontier g = SearchFrontier::read(text);
+    std::ostringstream a, b;
+    f.write(a);
+    g.write(b);
+    EXPECT_EQ(b.str(), a.str(), "write(read(write(f))) == write(f)");
+    EXPECT_EQ(g.rootsDone(), size_t{1}, "one root done");
+    EXPECT_EQ(g.rootsStarted(), size_t{1}, "one root part-walked");
+    EXPECT_EQ(g.maxLevel(), 3u, "max level");
+    EXPECT_EQ(g.cap.value_or(-1), 5LL, "cap");
+    EXPECT_EQ(g.roots[2].position.levels[1].pruned.size(), size_t{2}, "pruned list");
+
+    std::stringstream truncated(a.str().substr(0, a.str().size() - 4));
+    bool threw = false;
+    try {
+        SearchFrontier::read(truncated);
+    } catch (const std::runtime_error &) {
+        threw = true;
+    }
+    EXPECT_EQ(threw, true, "a truncated file is refused");
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -1148,6 +1368,12 @@ int main() {
         test_deepest_exhausted_cap_reported);
     run("test_resolve_unlinked_seeded_search",
         test_resolve_unlinked_seeded_search);
+    run("test_frontier_file_round_trip", test_frontier_file_round_trip);
+    run("test_frontier_resume_matches_single_pass",
+        test_frontier_resume_matches_single_pass);
+    run("test_frontier_refused_by_another_search",
+        test_frontier_refused_by_another_search);
+    run("test_traversal_pinned", test_traversal_pinned);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

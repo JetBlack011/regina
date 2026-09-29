@@ -168,6 +168,14 @@ ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
         return position && predicate.budgetExhausted() ? Outcome::suspended
                                                        : Outcome::completed;
     };
+    // A stopped pass never got back down to where it was to carry on, so it
+    // leaves the position as it came in: the root can still resume from
+    // there (a SearchFrontier records it).
+    auto finish = [&](Outcome outcome) {
+        if (outcome == Outcome::stopped && position && resume)
+            *position = std::move(resumeFrom);
+        return outcome;
+    };
 
     if (isSeeded_) {
         if (maxSize_ && U.size() >= maxSize_)
@@ -208,7 +216,7 @@ ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
         // root; see relink().
         relink(w, prev, next);
 
-        return outcome;
+        return finish(outcome);
     }
 
     report = &visit;
@@ -238,7 +246,7 @@ ConnectedInducedSubgraphEnumerator::enumerateFromRootFiltered(
     U.pop_back();
     inU[s] = false;
     dist[s] = -1;
-    return outcome;
+    return finish(outcome);
 }
 
 void ConnectedInducedSubgraphEnumerator::seedFastForward_(

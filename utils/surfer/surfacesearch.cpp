@@ -634,6 +634,10 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   long long rootBudgetGrowth) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
+    // What this search accepts beyond EmbeddingSearch's view, for a
+    // frontier's fingerprint (see SearchFrontier).
+    frontierContext_ = std::string("resolve_unlinked ") +
+                       (selfIntersections_.resolveUnlinked ? "1" : "0");
 
     // Thread safety (and performance): Vertex<4>::buildLink() caches
     // its result as a plain, unsynchronized lazily-constructed pointer

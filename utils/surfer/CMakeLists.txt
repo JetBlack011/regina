@@ -13,7 +13,7 @@ add_library(surfer_common STATIC
   linkcomplement.cpp linkingnumber.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
   rowsearch.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
-  witnessstore.cpp
+  witnessstore.cpp searchfrontier.cpp
   cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp farsideredraw.cpp
   exactnaming/exacttables.cpp exactnaming/gaussdiagram.cpp exactnaming/exactnamer.cpp
   exactnaming/snappeaisometry.cpp

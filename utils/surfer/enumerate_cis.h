@@ -148,17 +148,33 @@ class BudgetedPredicate : public ConditionalPredicate {
              and never reset -- measurement only (the `search profile:`
              line). */
     long long free_ = 0; /**< Uncharged attempts left; see freeAttempts(). */
+    const std::atomic<bool> *stop_ = nullptr; /**< See suspendOnStop(). */
 
   public:
     /** Wraps `inner`; see reset() for how `budget` is interpreted. */
     BudgetedPredicate(ConditionalPredicate &inner, long long budget)
         : inner_(inner), budget_(budget) {}
 
+    /**
+     * Makes a raised `stop` end the pass as a spent budget does, so the
+     * enumerator records exactly where the walk stopped (a Position) instead
+     * of unwinding it as a prune. That is what makes a recorded
+     * SearchFrontier exact. Null (the default) leaves stops to
+     * InterruptiblePredicate. The re-adds of a resumed path are exempt: a
+     * stop there ends the pass as Outcome::stopped, which leaves the
+     * position as it was.
+     */
+    void suspendOnStop(const std::atomic<bool> *stop) { stop_ = stop; }
+
     bool tryAdd(int v) override {
         ++attempts_;
         if (free_ > 0) { // re-adding a suspended pass's path; see freeAttempts()
             --free_;
             return inner_.tryAdd(v);
+        }
+        if (stop_ && stop_->load(std::memory_order_relaxed)) {
+            exhausted_ = true;
+            return false;
         }
         if (budget_ >= 0) {
             if (spent_ >= budget_) {
@@ -167,7 +183,14 @@ class BudgetedPredicate : public ConditionalPredicate {
             }
             ++spent_;
         }
-        return inner_.tryAdd(v);
+        if (inner_.tryAdd(v))
+            return true;
+        // A stop raised after the check above may be what refused v (see
+        // InterruptiblePredicate): suspend at v rather than prune it. If
+        // the refusal was the predicate's own, v is merely judged again.
+        if (stop_ && stop_->load(std::memory_order_relaxed))
+            exhausted_ = true;
+        return false;
     }
 
     bool budgetExhausted() const override { return exhausted_; }
