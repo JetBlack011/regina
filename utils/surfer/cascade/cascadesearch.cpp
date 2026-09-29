@@ -1075,13 +1075,27 @@ int Cascade::run() {
   if (exactnaming::splitPieces(simp).size() != 1)
     throw std::runtime_error("the target is a split diagram; give one piece");
   // The target's own table name, so its literature value never proves it.
+  bool named = false;
   try {
     auto pn = namer_.identify(simp);
-    if (pn.names.size() == 1) targetCanonical_ = tables_.canonical(pn.names.front());
+    if (pn.names.size() == 1 && pn.by != exactnaming::PieceName::By::untabulated) {
+      targetCanonical_ = tables_.canonical(pn.names.front());
+      named = true;
+    }
   } catch (...) {
   }
-  if (targetCanonical_.empty() && tables_.entry(cfg_.targetName))
-    targetCanonical_ = tables_.canonical(cfg_.targetName);
+  if (tables_.entry(cfg_.targetName)) {
+    // The PD must be the entry it is run as: its witnesses are recorded
+    // under that name (--witness-store), so an alternative diagram, or a PD
+    // copied wrongly, that the exact namer proves to be another link is
+    // refused outright. A namer that cannot tell (cheap limits) is not a
+    // refusal; the table's own PD needs no proof.
+    const std::string &claimed = tables_.canonical(cfg_.targetName);
+    if (named && targetCanonical_ != claimed)
+      throw std::runtime_error("the target PD is " + targetCanonical_ + ", not " +
+                               cfg_.targetName + " (" + claimed + ")");
+    targetCanonical_ = claimed;
+  }
   NodeMatch t = reg_.intern(simp, "target " + cfg_.targetName);
   target_ = t.node;
   onNewNode(target_, 0);
