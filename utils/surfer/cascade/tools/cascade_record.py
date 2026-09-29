@@ -124,24 +124,29 @@ def lk_entries(text):
     return sorted(x for row in json.loads(text) for x in row)
 
 
-def record_target(d, run, fsd, max_faces, jobs):
-    cert = json.load(open(os.path.join(d, 'certificate.json')))
-    nodes = {n['id']: n for n in cert['nodes']}
-    target = cert['target']
+def row_items(cert):
+    """A proof's in-process witnesses grouped by the row they were found on:
+    [((row PD, layers), [records])], in certificate order."""
     by_row = {}
     for r in cert['records']:
         if 'faces' in r:
             by_row.setdefault((r['row_pd'], r.get('layers', 2)), []).append(r)
-    def signed(item):
-        (row_pd, layers), recs = item
-        build, got = sign(fsd, row_pd, layers, [(r['id'], r['faces']) for r in recs])
-        back = read_back(fsd, row_pd, layers, [(r['id'], got[r['id']]['pairsig']) for r in recs])
-        return build, got, back
+    return list(by_row.items())
 
-    # Each row's signature context costs seconds; rows are signed in parallel.
-    items = list(by_row.items())
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        results = list(pool.map(signed, items))
+
+def sign_row(fsd, item):
+    """One row's surfaces signed, and each signature read back."""
+    (row_pd, layers), recs = item
+    build, got = sign(fsd, row_pd, layers, [(r['id'], r['faces']) for r in recs])
+    back = read_back(fsd, row_pd, layers, [(r['id'], got[r['id']]['pairsig']) for r in recs])
+    return build, got, back
+
+
+def record_target(d, run, max_faces, cert, items, results):
+    """A proof's rows for the store, from its rows' signatures (`results`,
+    one per item of row_items(cert))."""
+    nodes = {n['id']: n for n in cert['nodes']}
+    target = cert['target']
     witnesses, links, used = [], [], set()
     for ((row_pd, layers), recs), (build, got, back) in zip(items, results):
         for r in recs:
@@ -230,17 +235,40 @@ def main():
     # One row per surface: a proof may use one witness twice (once in each
     # direction), and proofs may share witnesses.
     known_sigs = existing(os.path.join(a.store, 'witnesses.csv'), lambda r: r['pairsig'])
+    todo = []
     for d in a.dirs:
         check = os.path.join(d, 'check.txt')
         if not os.path.exists(check) or not open(check).read().rstrip().endswith('VERDICT: CERTIFIED'):
             print(f'skipped (not CERTIFIED): {d}')
             continue
-        target = json.load(open(os.path.join(d, 'certificate.json')))['target']
-        if (a.run, target) in done:
-            print(f'already recorded: {a.run} {target}')
+        cert = json.load(open(os.path.join(d, 'certificate.json')))
+        if (a.run, cert['target']) in done:
+            print(f"already recorded: {a.run} {cert['target']}")
             continue
-        proof, witnesses, links, node_rows = record_target(d, a.run, a.farsidediagram,
-                                                           a.max_faces, a.jobs)
+        todo.append((d, cert, row_items(cert)))
+    # Every row of every proof signed on one pool: most proofs have one or two
+    # rows, so signing proof by proof leaves the cores idle.
+    tasks = [(k, i) for k, (_, _, items) in enumerate(todo) for i in range(len(items))]
+    results = {}
+    with ThreadPoolExecutor(max_workers=a.jobs) as pool:
+        futures = {pool.submit(sign_row, a.farsidediagram, todo[k][2][i]): (k, i) for k, i in tasks}
+        for fut in futures:
+            k, i = futures[fut]
+            try:
+                results[(k, i)] = fut.result()
+            except Exception as e:
+                results[(k, i)] = e
+    for k, (d, cert, items) in enumerate(todo):
+        failed = [results[(k, i)] for i in range(len(items)) if isinstance(results[(k, i)], Exception)]
+        try:
+            if failed:
+                raise failed[0]
+            proof, witnesses, links, node_rows = record_target(
+                d, a.run, a.max_faces, cert, items, [results[(k, i)] for i in range(len(items))])
+        except Exception as e:
+            print(f"FAILED {cert['target']}: {e}")
+            continue
+        target = cert['target']
         fresh = []
         for w in witnesses:
             if w['pairsig'] not in known_sigs:
