@@ -1389,6 +1389,25 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     whether raising it would buy anything. Cheap, "
          "cumulative,\n"
          "                     and safe to leave on (default: off).\n";
+  std::cerr << "    --frontier-dir <dir> : Record each row's search frontier "
+               "(searchfrontier.h)\n"
+               "                     as <dir>/<row>.frontier: exactly how far "
+               "every root got,\n"
+               "                     cumulative over any run it resumed. Written "
+               "only after the\n"
+               "                     row's witnesses are on disk, and only when "
+               "its accounting\n"
+               "                     balanced and its drain ran to the end "
+               "(default: off).\n";
+  std::cerr << "    --resume-frontier-dir <dir> : Carry each row on from "
+               "<dir>/<row>.frontier,\n"
+               "                     if there is one and it is this search's "
+               "(same row,\n"
+               "                     triangulation, shape and acceptance): the "
+               "covered prefix\n"
+               "                     is skipped, not re-searched. May be the same "
+               "directory as\n"
+               "                     --frontier-dir (default: off).\n";
   std::cerr << "    --no-census-updates : Disable live census seeding "
                "(default: on).\n";
   std::cerr << "    --exact-far-side-names : record a multi-curve far side under "
@@ -1497,6 +1516,8 @@ int main(int argc, char *argv[]) {
   std::optional<long long> surfaceTarget;
   std::optional<std::string> surfaceLogPath;
   std::optional<std::string> surfaceStatsPath;
+  std::optional<std::string> frontierDir;       // see --frontier-dir
+  std::optional<std::string> resumeFrontierDir; // see --resume-frontier-dir
   bool researchSettled = false;    // see --research-settled
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
   long long rootBudgetGrowth = 2;
@@ -1661,6 +1682,14 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--surface-log requires a value.");
       surfaceLogPath = argv[++i];
+    } else if (arg == "--frontier-dir") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--frontier-dir requires a value.");
+      frontierDir = argv[++i];
+    } else if (arg == "--resume-frontier-dir") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--resume-frontier-dir requires a value.");
+      resumeFrontierDir = argv[++i];
     } else if (arg == "--research-settled") {
       researchSettled = true;
     } else if (arg == "--resolve-unlinked") {
@@ -2573,6 +2602,22 @@ int main(int argc, char *argv[]) {
       eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
     SurfaceSearch &e = *eOpt;
     e.configureLimits(limits);
+    // The row's frontier: carried on from, and recorded (see --frontier-dir).
+    auto frontierPath = [&](const std::string &dir) {
+      return dir + "/" + row.name + ".frontier";
+    };
+    std::optional<SearchFrontier> resumeFrom;
+    if (resumeFrontierDir) {
+      try {
+        resumeFrom = SearchFrontier::load(frontierPath(*resumeFrontierDir));
+      } catch (const std::exception &ex) {
+        std::cout << "[!] " << row.name << ": WARNING: frontier not read ("
+                  << ex.what() << "); searching from the start\n";
+      }
+      if (resumeFrom)
+        e.setResumeFrontier(&*resumeFrom);
+    }
+    e.setRecordFrontier(frontierDir.has_value());
     if (signatureTable && !useCone) {
       try {
         namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatureTable);
@@ -3056,6 +3101,43 @@ int main(int argc, char *argv[]) {
 
     flushWitnesses();
     writeOutputCsv(*outputPath, rows, outputRows);
+
+    // The row's breadth, and its frontier: written only now that every
+    // witness of the prefix it covers is on disk, and only when the row can
+    // vouch for having examined every surface in it -- else a later run
+    // would skip surfaces nobody looked at.
+    if (resumeFrom || frontierDir) {
+      std::cout << "[+] " << row.name << ": breadth: ";
+      if (const auto &f = e.frontier())
+        std::cout << f->summary() << "; fingerprint "
+                  << f->fingerprint.substr(0, 12);
+      else
+        std::cout << "not recorded";
+      std::cout << "; resumed "
+                << (!resumeFrom ? std::string("none")
+                    : e.resumedFrontier()
+                        ? std::string("yes (") +
+                              std::to_string(resumeFrom->runs) + " runs before)"
+                        : "no: " + e.resumeRefusal())
+                << "; frontier " << std::fixed << std::setprecision(2)
+                << e.frontierSeconds() << "s, replayed "
+                << finalStats.profile.replayed << " re-adds\n"
+                << std::defaultfloat;
+      if (frontierDir && e.frontier()) {
+        if (accountingFailure.empty() && !nothingExamined && !drainSkipped) {
+          try {
+            std::filesystem::create_directories(*frontierDir);
+            e.frontier()->save(frontierPath(*frontierDir));
+          } catch (const std::exception &ex) {
+            std::cout << "[!] " << row.name << ": WARNING: frontier not "
+                      << "written: " << ex.what() << "\n";
+          }
+        } else {
+          std::cout << "[!] " << row.name << ": frontier not written: the "
+                    << "row cannot vouch for every surface in its prefix\n";
+        }
+      }
+    }
 
     for (const std::string &reason : contradictions)
       flagFatalBug(reason);

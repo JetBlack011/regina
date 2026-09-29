@@ -196,7 +196,10 @@ struct SearchCallbacks {
   long long surfaceTarget = 0;
       /**< If positive, the search stops itself once this many satisfying
            candidates exist, checked by the worker that counts each one, so
-           it overshoots by at most the handful in flight. A watchdog
+           it overshoots by at most the handful in flight. It is the
+           search's BREADTH: a search that resumed a frontier counts that
+           frontier's surfaces too (SearchFrontier::satisfying), and one
+           already that broad stops before it starts. A watchdog
            polling the once-a-second progress count overshot by up to a
            second's worth, which became ~9% of a 1M target once the search
            ran at ~90k satisfying candidates a second (2026-09-28). */
@@ -551,6 +554,13 @@ public:
   bool resumedFrontier() const { return resumed_; }
 
   /**
+   * Wall seconds the last search() spent on frontiers: the fingerprint and
+   * the snapshot. (A resumed root's re-added path is the search's own work,
+   * counted in SearchStats::Profile::replayed.)
+   */
+  double frontierSeconds() const { return frontierSeconds_; }
+
+  /**
    * Why the last search() did not resume the frontier it was given; empty
    * if it did, or was given none.
    */
@@ -587,6 +597,7 @@ private:
   std::optional<SearchFrontier> frontier_;
   bool resumed_ = false;
   std::string resumeRefusal_;
+  double frontierSeconds_ = 0;
 
 protected:
   /**

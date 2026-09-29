@@ -432,6 +432,11 @@ private:
   size_t storedAppended_ = 0;             ///< witnesses the store gained
   std::set<NodeId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
+  /// Each searched node's latest usable frontier (searchfrontier.h): its next
+  /// hop carries on from there instead of searching the prefix again.
+  std::map<NodeId, SearchFrontier> frontiers_;
+  /// Nodes whose search ran to the end at the hop shape: nothing is left.
+  std::set<NodeId> searchedOut_;
 };
 
 std::string Cascade::subjectName(NodeId n) const {
@@ -662,6 +667,7 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
     if (!reg_.known(n) || n == reg_.unknot() || refused_.count(n)) continue;
     const NodeInfo &ni = reg_.info(n);
     if (ni.diagram.crossings() > cfg_.maxCrossings) continue;
+    if (!freeOnly && searchedOut_.count(n)) continue; // nothing left to search
     if (freeOnly) {
       if (masterDone_.count(n) || !masterRowsFor(n)) continue;
     } else if (!expansions_[n].empty()) {
@@ -702,6 +708,19 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
 }
 
 void Cascade::expand(NodeId n, long surfaces) {
+  // A node searched before carries on from where that search stopped (the
+  // hop's surface target is its breadth, so it adds only what is new); one
+  // already searched this far (a hub's wide hop, say) has nothing new at
+  // this budget.
+  const SearchFrontier *resume = nullptr;
+  if (searcher_)
+    if (auto f = frontiers_.find(n); f != frontiers_.end()) resume = &f->second;
+  if (resume && resume->satisfying >= surfaces) {
+    expansions_[n].push_back(surfaces);
+    std::cout << "[+] node " << n << " already searched to " << resume->satisfying
+              << " surfaces; nothing new at " << surfaces << "\n";
+    return;
+  }
   const int k = hops_++;
   const std::string dir = cfg_.work + "/hop_" + std::to_string(k) + "_n" + std::to_string(n);
   fs::create_directories(dir);
@@ -792,7 +811,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   if (searcher_) {
     HopRun run;
     try {
-      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200);
+      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200, {}, resume);
     } catch (const std::exception &e) {
       refused_.insert(n);
       log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
@@ -824,6 +843,25 @@ void Cascade::expand(NodeId n, long surfaces) {
       std::cout << "[!!] hop " << k << ": surface accounting failed -- "
                 << run.accountingFailure << " (completeness only: nothing unsound "
                 << "is recorded)\n";
+    // The node's breadth so far, and where its next hop carries on from.
+    std::cout << "[+] hop " << k << " " << rowName << ": breadth: "
+              << (run.frontier ? run.frontier->summary() : std::string("not recorded"))
+              << "; resumed "
+              << (!resume ? std::string("none")
+                  : run.resumed ? std::string("yes")
+                                : "no: " + run.resumeRefusal)
+              << "\n";
+    if (run.frontier) {
+      if (run.frontier->complete) searchedOut_.insert(n);
+      try {
+        run.frontier->save(dir + "/frontier.txt");
+      } catch (const std::exception &e) {
+        std::cout << "[!] hop " << k << ": frontier not written: " << e.what() << "\n";
+      }
+      frontiers_[n] = std::move(*run.frontier);
+    } else {
+      frontiers_.erase(n); // not vouched for: the next search starts afresh
+    }
     if (!cfg_.witnessStore.empty()) {
       // Every kept surface, durably, before the graph takes its faces.
       std::vector<PendingWitness> pending;

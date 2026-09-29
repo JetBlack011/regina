@@ -1167,8 +1167,10 @@ void checkChain(const regina::Triangulation<3> &tri,
             e->setResumeFrontier(&from);
         }
         e->setRecordFrontier(true);
-        // The last runs go unlimited, so the chain always ends.
-        const SearchStats st = runShape(*e, s, runs < 12 ? target : 0);
+        // A surface target is the search's breadth, cumulative over the
+        // chain. The last runs go unlimited, so the chain always ends.
+        const SearchStats st =
+            runShape(*e, s, runs < 12 ? target * (runs + 1) : 0);
         ++runs;
         resumedRuns += e->resumedFrontier();
         found += st.foundCount;
@@ -1239,6 +1241,20 @@ void test_frontier_refused_by_another_search() {
         EXPECT_EQ(e.resumedFrontier(), false, "refused (" + describe(other) + ")");
         EXPECT_EQ(e.resumeRefusal().empty(), false, "with a reason");
         EXPECT_EQ(got.foundCount, want.foundCount, "and ran as a fresh search");
+    }
+    // Its own search, asked for no more breadth than it already has, does
+    // nothing and hands the frontier on (one more run).
+    {
+        EmbeddingSearch<3, 2> same(tri);
+        same.setResumeFrontier(&f);
+        same.setRecordFrontier(true);
+        const SearchStats st = runShape(same, recorded, f.satisfying);
+        EXPECT_EQ(same.resumedFrontier(), true, "its own search resumes it");
+        EXPECT_EQ(st.foundCount, 0LL, "a target already reached searches nothing");
+        EXPECT_EQ(same.frontier() && same.frontier()->satisfying == f.satisfying &&
+                      same.frontier()->rootsDone() == f.rootsDone() &&
+                      same.frontier()->runs == f.runs + 1,
+                  true, "and hands the frontier on unchanged");
     }
     // Another triangulation, same shape. (The search keeps a pointer to its
     // triangulation, so it must outlive it.)

@@ -68,7 +68,8 @@ HopSearcher::HopSearcher(const farside::SignatureTable &signatures,
 HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                         const std::string &rowName, long long surfaceTarget,
                         double seconds,
-                        const std::function<bool(const KeptSurface &)> &stop) const {
+                        const std::function<bool(const KeptSurface &)> &stop,
+                        const SearchFrontier *resume) const {
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = cpuSeconds();
   const rowsearch::RowBuild &rb = row.rowBuild();
@@ -90,6 +91,10 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   limits.capturePairSig = false;
   e.configureLimits(limits);
   e.setBoundaryNamer(&namer);
+  // Always recorded (it costs one fingerprint): a later hop from this node
+  // carries on from it instead of searching this prefix again.
+  e.setRecordFrontier(true);
+  e.setResumeFrontier(resume);
   if (const size_t touching = e.countSearchableFacesTouching(rb.searchSideBC))
     throw std::runtime_error("hop: " + std::to_string(touching) +
                              " searchable non-seed triangles touch the search "
@@ -203,6 +208,11 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   out.accounting = acct.summary(out.accepted, drainSkipped);
   out.accountingFailure = acct.failure(out.accepted, e.rebuildFailures(), drainSkipped);
   out.outcome = outcome;
+  out.resumed = e.resumedFrontier();
+  out.resumeRefusal = e.resumeRefusal();
+  // Only a prefix whose every surface was examined may be skipped later.
+  if (out.accountingFailure.empty() && !drainSkipped)
+    out.frontier = e.frontier();
   out.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
   out.cpu = cpuSeconds() - cpu0;
   return out;

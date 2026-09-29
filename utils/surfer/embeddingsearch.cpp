@@ -174,10 +174,15 @@ std::string EmbeddingSearch<dim, subdim>::frontierFingerprint_(
         for (int v : neighbours)
             s << ' ' << v;
     }
+    // Each vertex's faces as a set: the seed's arrive in no fixed order
+    // (measured: two hops on one row), and it is committed whole, so only
+    // which faces it holds can matter to the search.
     s << "\nskeleton";
     for (const auto &faces : graph_.graphToSkel) {
+        std::vector<int> sorted(faces);
+        std::sort(sorted.begin(), sorted.end());
         s << " |";
-        for (int f : faces)
+        for (int f : sorted)
             s << ' ' << f;
     }
     s << "\nseeded " << (isSeeded_ ? 1 : 0) << "\nroots";
@@ -271,11 +276,20 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
     frontier_.reset();
     resumed_ = false;
     resumeRefusal_.clear();
+    frontierSeconds_ = 0;
+    auto frontierClock = [this](std::chrono::steady_clock::time_point since) {
+        frontierSeconds_ += std::chrono::duration<double>(
+                                std::chrono::steady_clock::now() - since)
+                                .count();
+    };
     std::string fingerprint;
-    if (recordFrontier_ || resumeFrontier_)
+    if (recordFrontier_ || resumeFrontier_) {
+        const auto t = std::chrono::steady_clock::now();
         fingerprint = frontierFingerprint_(
             roots, cond, iddfsIterations, resolvedIddfsStart, iddfsStep,
             hardFaceCap, orientableOnly, rootBudgetStart, rootBudgetGrowth);
+        frontierClock(t);
+    }
     const SearchFrontier *resume = nullptr;
     if (resumeFrontier_) {
         if (resumeFrontier_->fingerprint != fingerprint)
@@ -332,6 +346,21 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                             .resolvedCount = seedResolvedCount};
     std::vector<WorkerStats> perThreadStats(
         std::max(numThreads, resolvedFinalThreads));
+
+    // The surface target is the search's breadth (see
+    // SearchCallbacks::surfaceTarget): a resumed search has already covered
+    // its frontier's surfaces, and one already that broad stops at once.
+    long long surfaceTarget = callbacks.surfaceTarget;
+    if (surfaceTarget > 0 && resume) {
+        surfaceTarget -= resume->satisfying;
+        if (surfaceTarget <= 0) {
+            surfaceTarget = 0;
+            surfaceTargetReached.store(true);
+            if (callbacks.onSurfaceTarget)
+                callbacks.onSurfaceTarget();
+            requestStop();
+        }
+    }
 
     // Per-root scheduling state, shared across budget passes within one
     // depth round. Plain values rather than atomics: within a pass each root
@@ -556,8 +585,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                             threadHook->onFlush();
                             // The surface target, exactly; see
                             // SearchCallbacks::surfaceTarget.
-                            if (callbacks.surfaceTarget > 0 &&
-                                total >= callbacks.surfaceTarget &&
+                            if (surfaceTarget > 0 && total >= surfaceTarget &&
                                 !surfaceTargetReached.exchange(true)) {
                                 if (callbacks.onSurfaceTarget)
                                     callbacks.onSurfaceTarget();
@@ -772,6 +800,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
                             long long suppressBelow, bool complete) {
         if (!recordFrontier_ || frontier_)
             return;
+        const auto t = std::chrono::steady_clock::now();
         SearchFrontier f;
         f.fingerprint = fingerprint;
         f.round = round;
@@ -789,6 +818,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             }
         }
         frontier_ = std::move(f);
+        frontierClock(t);
     };
 
     // A resumed search starts in its frontier's round, the rounds before

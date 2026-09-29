@@ -16,6 +16,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,7 @@
 #include "farsidecurves.h"
 #include "farsidenaming.h"
 #include "farsideredraw.h"
+#include "searchfrontier.h"
 
 namespace cascade {
 
@@ -75,6 +77,13 @@ struct HopRun {
   std::vector<double> rounds;    ///< each IDDFS round's wall (SearchStats::Profile)
   size_t drainTail = 0;          ///< surfaces left for the drain when the search ended
   double drainTailSeconds = 0;   ///< and the wall it took to describe them
+  /// Where the search stopped (searchfrontier.h), cumulative over the
+  /// frontier it resumed; unset when the hop cannot vouch for every surface
+  /// in it (accounting failed, or its drain was cut short), so that a later
+  /// hop never skips surfaces nobody examined.
+  std::optional<SearchFrontier> frontier;
+  bool resumed = false;          ///< carried on from the frontier it was given
+  std::string resumeRefusal;     ///< why not, when given one it refused
 };
 
 class HopSearcher {
@@ -105,9 +114,14 @@ public:
    *
    * \throws std::runtime_error when the row's seed invariant fails.
    */
+  /// `resume`, if set, is an earlier hop's frontier on this row: the search
+  /// carries on from it (if it is this search's; see HopRun::resumeRefusal).
+  /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
+  /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   HopRun run(const farside::WitnessRedrawer &row, const std::string &rowName,
              long long surfaceTarget, double seconds,
-             const std::function<bool(const KeptSurface &)> &stop = {}) const;
+             const std::function<bool(const KeptSurface &)> &stop = {},
+             const SearchFrontier *resume = nullptr) const;
 
 private:
   const farside::SignatureTable &signatures_;
