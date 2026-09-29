@@ -3408,20 +3408,8 @@ int main(int argc, char *argv[]) {
                 << " failed\n";
       if (namer) {
         const farside::NamingStats &ns = namer->stats();
-        std::cout << "[+] " << row.name << ": diagram naming: " << ns.calls
-                  << " far sides drawn: unknot " << ns.unknots << ", unlink "
-                  << ns.unlinks << ", table knot " << ns.tableKnots
-                  << ", learned knot " << ns.learnedKnots << ", table link "
-                  << ns.tableLinks << ", other link " << ns.diagramLinks
-                  << " (+" << ns.jonesLinks << " by Jones), learned link "
-                  << ns.learnedLinks
-                  << "; complement fallbacks " << ns.fallbacks << " ("
-                  << ns.learned << " learned, " << ns.nonPlanar
-                  << " non-planar drawings); exact oriented names "
-                  << ns.exactNamed << " (+" << ns.exactCacheHits << " cached, "
-                  << ns.exactFailed << " failed); diagrams "
-                  << secs(ns.microsDiagram / 1000) << "s, fallbacks "
-                  << secs(ns.microsFallback / 1000) << "s\n";
+        std::cout << "[+] " << row.name << ": diagram naming: " << ns.summary()
+                  << "\n";
         // Harmless to the names (each went to the complement route), but
         // each is a drawer defect that must be found.
         if (ns.nonPlanar > 0)

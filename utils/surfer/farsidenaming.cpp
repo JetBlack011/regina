@@ -8,6 +8,8 @@
 #include <array>
 #include <chrono>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 
 #include <link/link.h>
 
@@ -99,9 +101,50 @@ DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossin
                            const CobordismBuilder<3> &cob, const SignatureTable &table)
     : map_(knotT, cob), drawer_(knotT, crossings), table_(table) {}
 
+void NamingStats::noteDuration(long long micros, const char *route,
+                               const std::string &name) {
+    long long seen = slowestMicros_.load(std::memory_order_relaxed);
+    if (micros <= seen) return;
+    std::lock_guard<std::mutex> lock(slowestMutex_);
+    if (micros <= slowestMicros_.load()) return;
+    slowestMicros_.store(micros);
+    slowest_ = std::string(route) + ' ' + name;
+}
+
+std::string NamingStats::slowest() const {
+    std::lock_guard<std::mutex> lock(slowestMutex_);
+    return slowest_;
+}
+
+std::string NamingStats::summary() const {
+    auto secs = [](long long micros) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1) << micros / 1e6;
+        return o.str();
+    };
+    std::ostringstream o;
+    o << calls << " far sides drawn: unknot " << unknots << ", unlink " << unlinks
+      << ", table knot " << tableKnots << ", learned knot " << learnedKnots
+      << ", table link " << tableLinks << ", other link " << diagramLinks << " (+"
+      << jonesLinks << " by Jones), learned link " << learnedLinks
+      << "; complement fallbacks " << fallbacks << " (" << learned << " learned, "
+      << nonPlanar << " non-planar drawings); exact oriented names " << exactNamed
+      << " (+" << exactCacheHits << " cached, " << exactFailed << " failed); diagrams "
+      << secs(microsDiagram) << "s, fallbacks " << secs(microsFallback) << "s, exact "
+      << secs(microsExact) << "s; slowest " << secs(slowestMicros()) << "s";
+    if (const std::string s = slowest(); !s.empty()) o << " (" << s << ")";
+    return o.str();
+}
+
 std::string DiagramNamer::name(const Link &curves) const {
     ++stats_.calls;
-    return identify::perturbedForTesting(nameOnce(curves));
+    const auto start = std::chrono::steady_clock::now();
+    const long long fallbacksBefore = stats_.fallbacks.load();
+    std::string out = nameOnce(curves);
+    stats_.noteDuration(microsSince(start),
+                        stats_.fallbacks.load() != fallbacksBefore ? "complement" : "diagram",
+                        out);
+    return identify::perturbedForTesting(std::move(out));
 }
 
 std::string DiagramNamer::nameOnce(const Link &curves) const {
@@ -236,7 +279,11 @@ std::optional<std::string> DiagramNamer::orientedName(
                 return it->second;
             }
         }
+        const auto start = std::chrono::steady_clock::now();
         std::string name = exact_->name(drawn).name;
+        const long long micros = microsSince(start);
+        stats_.microsExact += micros;
+        stats_.noteDuration(micros, "exact", name);
         ++stats_.exactNamed;
         std::lock_guard<std::mutex> lock(exactMutex_);
         return exactCache_.try_emplace(key, std::move(name)).first->second;

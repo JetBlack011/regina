@@ -779,6 +779,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   std::string roundsJson = "[]";
   size_t drainTail = 0;
   double drainTailSeconds = 0;
+  std::string namingJson; // in-process hops only: the drain's naming times
   // The hop's subject: what its witnesses are recorded under, and what its
   // log lines are named by (subjectName()).
   const std::string rowName = subjectName(n);
@@ -844,11 +845,21 @@ void Cascade::expand(NodeId n, long surfaces) {
     std::ofstream(dir + "/log.txt")
         << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
         << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
-        << ": accounting: " << run.accounting << "\n";
+        << ": accounting: " << run.accounting << "\n[+] " << rowName
+        << ": diagram naming: " << run.naming << "\n";
+    namingJson = [&] {
+      std::ostringstream o;
+      o << std::fixed << std::setprecision(1) << ",\"naming_diagram_s\":"
+        << run.namingDiagramSeconds << ",\"naming_fallback_s\":" << run.namingFallbackSeconds
+        << ",\"naming_exact_s\":" << run.namingExactSeconds
+        << ",\"naming_slowest_s\":" << run.namingSlowestSeconds;
+      return o.str();
+    }();
     // Every hop's accounting in the driver log too, in verifyslicegenus's
     // shape after the hop number, so a campaign audits each hop as it
     // audits a row (tools/orchestrate/audit_rows.py).
     std::cout << "[+] hop " << k << " " << rowName << ": accounting: " << run.accounting
+              << "\n[+] hop " << k << " " << rowName << ": diagram naming: " << run.naming
               << "\n";
     if (!run.accountingFailure.empty())
       std::cout << "[!!] hop " << k << ": surface accounting failed -- "
@@ -953,7 +964,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
     << ",\"propagate\":" << propagateSeconds << ",\"rounds\":" << roundsJson
     << ",\"drain_tail\":" << drainTail << ",\"drain_tail_s\":" << drainTailSeconds
-    << ",\"witnesses\":" << witnesses
+    << namingJson << ",\"witnesses\":" << witnesses
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
     << ",\"records\":" << g_.recordCount()

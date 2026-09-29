@@ -77,6 +77,12 @@ struct HopRun {
   std::vector<double> rounds;    ///< each IDDFS round's wall (SearchStats::Profile)
   size_t drainTail = 0;          ///< surfaces left for the drain when the search ended
   double drainTailSeconds = 0;   ///< and the wall it took to describe them
+  /// The drain's far-side naming: the `diagram naming:` body
+  /// (farside::NamingStats::summary()), its times by route, and the slowest
+  /// single name, which is what can hold a drain's last thread alone.
+  std::string naming;
+  double namingDiagramSeconds = 0, namingFallbackSeconds = 0, namingExactSeconds = 0;
+  double namingSlowestSeconds = 0;
   /// Where the search stopped (searchfrontier.h), cumulative over the
   /// frontier it resumed; unset when the hop cannot vouch for every surface
   /// in it (accounting failed, or its drain was cut short), so that a later

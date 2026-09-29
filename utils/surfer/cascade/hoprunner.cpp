@@ -204,6 +204,14 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   watchdog->stop();
 
   const bool drainSkipped = e.boundaryProcessingSkipped();
+  {
+    const farside::NamingStats &ns = namer.stats();
+    out.naming = ns.summary();
+    out.namingDiagramSeconds = ns.microsDiagram / 1e6;
+    out.namingFallbackSeconds = ns.microsFallback / 1e6;
+    out.namingExactSeconds = ns.microsExact / 1e6;
+    out.namingSlowestSeconds = ns.slowestMicros() / 1e6;
+  }
   out.accepted = stats.satisfyingCount;
   out.accounting = acct.summary(out.accepted, drainSkipped);
   out.accountingFailure = acct.failure(out.accepted, e.rebuildFailures(), drainSkipped);

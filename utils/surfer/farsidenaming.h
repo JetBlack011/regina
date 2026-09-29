@@ -101,6 +101,23 @@ struct NamingStats {
     std::atomic<long long> exactNamed{0}, exactCacheHits{0}, exactFailed{0};
     /**< orientedName(): names computed, answered from the cache, and
          drawings that failed (the witness then keeps its unoriented name). */
+    std::atomic<long long> microsExact{0};
+    /**< Time in the exact namer itself (computed names only, not cache hits). */
+
+    /** The slowest single naming so far: which route, what it named, how
+        long. One slow name can hold a whole drain's last thread. */
+    void noteDuration(long long micros, const char *route, const std::string &name);
+    long long slowestMicros() const { return slowestMicros_.load(); }
+    std::string slowest() const; ///< "<route> <name>", or empty
+
+    /** The `diagram naming:` body, as verifyslicegenus and each cascade hop
+        print it: counts by outcome, times by route, and the slowest name. */
+    std::string summary() const;
+
+  private:
+    std::atomic<long long> slowestMicros_{0};
+    mutable std::mutex slowestMutex_;
+    std::string slowest_;
 };
 
 /**
