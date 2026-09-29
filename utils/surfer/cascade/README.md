@@ -58,6 +58,7 @@ cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
 | `--witness-store <csv> --run-name <name>` | record every kept surface for the atlas ("Witnesses for the atlas" below); in-process hops only |
 | `--dedupe-against <csv>` (repeatable) | read-only witness files whose identities the store must not repeat (the master) |
 | `--sign-only` | the store step alone, over `--work`'s `hop_*/kept.csv` (a killed run) |
+| `--hub-degree D --hub-surfaces N` | hub breadth (John, 2026-09-29): a node chosen for expansion with at least D witness edges is expanded once at N surfaces (when above the current budget), for many more first-level far sides where many routes meet, as `verifyslicegenus`'s wide rows do; logged `[+] hub: ...` |
 | `--lower-report [--lower-sources <csv>]` | write `lower_report.jsonl`: what each tabulated node's lower bound carries to the target ("Lower bounds" below) |
 
 It writes `cascade.jsonl` (one line per hop, with its phase timers),

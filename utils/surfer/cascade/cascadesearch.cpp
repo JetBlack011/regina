@@ -118,6 +118,11 @@ struct Config {
   /// literature bounds are not Lipschitz.
   bool lowerReport = false;
   std::string lowerSources;
+  /// Hub breadth (John, 2026-09-29): a node with at least hubDegree witness
+  /// edges is expanded once at hubSurfaces or more, as verifyslicegenus's
+  /// wide rows are, for many more first-level far sides. 0: off.
+  size_t hubDegree = 0;
+  long hubSurfaces = 0;
 };
 
 std::string jsonEscape(const std::string &s) {
@@ -425,6 +430,7 @@ private:
   std::map<NodeId, std::string> hopSubject_; ///< each searched node's subject name
   bool stored_ = false;
   size_t storedAppended_ = 0;             ///< witnesses the store gained
+  std::set<NodeId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
 };
 
@@ -1152,7 +1158,17 @@ int Cascade::run() {
       std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
       continue;
     }
-    expand(*n, budget);
+    long surfaces = budget;
+    if (cfg_.hubDegree > 0 && !boosted_.count(*n) &&
+        g_.node(*n).witnessEdges.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
+      // A hub: many routes meet here, so one wide hop from it buys many
+      // more first-level candidates than another narrow one elsewhere.
+      surfaces = cfg_.hubSurfaces;
+      boosted_.insert(*n);
+      std::cout << "[+] hub: node " << *n << " has " << g_.node(*n).witnessEdges.size()
+                << " witness edges; expanding it at " << surfaces << " surfaces\n";
+    }
+    expand(*n, surfaces);
   }
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   auto best = g_.best(target_, goalPartition(target_));
@@ -1284,6 +1300,7 @@ void Cascade::printProfile() const {
             << " max_hop_surfaces=" << cfg_.maxHopSurfaces
             << " max_expansions=" << cfg_.maxExpansions << " cpu_budget=" << cfg_.cpuBudget
             << " strategy=" << cfg_.strategy << " max_crossings=" << cfg_.maxCrossings
+            << " hub_degree=" << cfg_.hubDegree << " hub_surfaces=" << cfg_.hubSurfaces
             << " threads=" << cfg_.threads << " max_faces=" << s.maxFaces
             << " iddfs_iterations=" << s.iddfsIterations << " iddfs_start=" << s.iddfsStart
             << " iddfs_step=" << s.iddfsStep << " root_budget_start=" << s.rootBudgetStart
@@ -1346,6 +1363,8 @@ int main(int argc, char **argv) {
     else if (a == "--run-name") c.runName = next();
     else if (a == "--dedupe-against") c.dedupeAgainst.push_back(next());
     else if (a == "--sign-only") c.signOnly = true;
+    else if (a == "--hub-degree") c.hubDegree = std::stoul(next());
+    else if (a == "--hub-surfaces") c.hubSurfaces = std::stol(next());
     else if (a == "--lower-report") c.lowerReport = true;
     else if (a == "--lower-sources") c.lowerSources = next();
     else {
