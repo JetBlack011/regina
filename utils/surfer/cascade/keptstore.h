@@ -56,6 +56,7 @@ struct StoreResult {
  */
 StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
-                      const cobordismgraph::NameTable &names, unsigned threads);
+                      const cobordismgraph::NameTable &names, unsigned threads,
+                      const std::string &pairSigCache = "");
 
 } // namespace cascade

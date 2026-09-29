@@ -1527,6 +1527,15 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     whether raising it would buy anything. Cheap, "
          "cumulative,\n"
          "                     and safe to leave on (default: off).\n";
+  std::cerr << "    --pair-sig-cache <dir> : Keep each row's pair-signature "
+               "context\n"
+               "                     (the ambient's isoSig and automorphisms: "
+               "tens of seconds\n"
+               "                     at 10 crossings) in <dir>, keyed by the "
+               "exact triangulation\n"
+               "                     and verified on loading, so a row searched "
+               "again does not\n"
+               "                     rebuild it (default: off).\n";
   std::cerr << "    --frontier-dir <dir> : Record each row's search frontier "
                "(searchfrontier.h)\n"
                "                     as <dir>/<row>.frontier: exactly how far "
@@ -1655,6 +1664,7 @@ int main(int argc, char *argv[]) {
   std::optional<std::string> surfaceLogPath;
   std::optional<std::string> surfaceStatsPath;
   std::optional<std::string> frontierDir;       // see --frontier-dir
+  std::optional<std::string> pairSigCacheDir;   // see --pair-sig-cache
   std::optional<std::string> resumeFrontierDir; // see --resume-frontier-dir
   bool researchSettled = false;    // see --research-settled
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
@@ -1820,6 +1830,10 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--surface-log requires a value.");
       surfaceLogPath = argv[++i];
+    } else if (arg == "--pair-sig-cache") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--pair-sig-cache requires a value.");
+      pairSigCacheDir = argv[++i];
     } else if (arg == "--frontier-dir") {
       if (i + 1 >= argc)
         usage(argv[0], "--frontier-dir requires a value.");
@@ -2772,6 +2786,8 @@ int main(int argc, char *argv[]) {
         e.setResumeFrontier(&*resumeFrom);
     }
     e.setRecordFrontier(frontierDir.has_value());
+    if (pairSigCacheDir)
+      e.setPairSigCacheDir(*pairSigCacheDir);
     if (signatureTable && !useCone) {
       try {
         namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatureTable);
@@ -3207,7 +3223,9 @@ int main(int argc, char *argv[]) {
               << std::setprecision(1) << signer->signMillis() / 1000.0
               << "s of thread time; context ";
     if (signer->signedCount() > 0)
-      std::cout << "ready " << signer->contextSeconds()
+      std::cout << (e.pairSigContextLoaded() ? "loaded from the cache, "
+                                             : "built, ")
+                << "ready " << signer->contextSeconds()
                 << "s after the search began";
     else
       std::cout << "not needed";

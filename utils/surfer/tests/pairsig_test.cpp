@@ -29,6 +29,8 @@
 
 #include <iostream>
 #include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -451,6 +453,106 @@ void test_context_matches_free_function() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Test 7b: a stored context (PairSigContext::cached()) signs exactly as a
+// built one, and one that is damaged, or another ambient's, is never used.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+int signatureMismatches(const PairSigContext<4, 2> &a,
+                        const PairSigContext<4, 2> &b, int nTriangles) {
+    int mismatches = a.ambientSig() != b.ambientSig() ? 1 : 0;
+    mismatches += a.automorphismCount() != b.automorphismCount() ? 1 : 0;
+    for (int x = 0; x < nTriangles; ++x) {
+        if (a.sig({x}) != b.sig({x}))
+            ++mismatches;
+        for (int y = x + 1; y < nTriangles; ++y)
+            if (a.sig({x, y}) != b.sig({x, y}))
+                ++mismatches;
+    }
+    return mismatches;
+}
+
+std::string onlyFileIn(const std::string &dir) {
+    std::string found;
+    for (const auto &entry : std::filesystem::directory_iterator(dir))
+        if (entry.path().extension() == ".pairsigctx")
+            found = entry.path().string();
+    return found;
+}
+} // namespace
+
+void test_context_cache() {
+    std::cout << "\n--- PairSigContext::cached(): stored contexts ---\n";
+    char dirTemplate[] = "/tmp/pairsig_cache_test_XXXXXX";
+    const std::string dir = mkdtemp(dirTemplate);
+
+    regina::Triangulation<4> tri;
+    auto *p = tri.newPentachoron();
+    auto *q = tri.newPentachoron();
+    p->join(4, q, regina::Perm<5>());
+    q->join(0, q, regina::Perm<5>(1, 0, 2, 3, 4));
+    const int nTri = static_cast<int>(tri.countFaces<2>());
+    const PairSigContext<4, 2> reference(tri);
+
+    bool loaded = true;
+    auto built = PairSigContext<4, 2>::cached(tri, dir, &loaded);
+    EXPECT_EQ(loaded, false, "an empty cache builds the context");
+    const std::string file = onlyFileIn(dir);
+    EXPECT_EQ(file.empty(), false, "and stores it");
+    auto again = PairSigContext<4, 2>::cached(tri, dir, &loaded);
+    EXPECT_EQ(loaded, true, "a stored context is loaded");
+    EXPECT_EQ(signatureMismatches(*again, reference, nTri), 0,
+              "a loaded context signs every 1- and 2-face set as a built one");
+
+    // Damaged: truncated (no end line), then another ambient's signature.
+    std::string text;
+    {
+        std::ifstream in(file);
+        text.assign(std::istreambuf_iterator<char>(in), {});
+    }
+    std::ofstream(file, std::ios::trunc) << text.substr(0, text.size() / 2);
+    auto rebuilt = PairSigContext<4, 2>::cached(tri, dir, &loaded);
+    EXPECT_EQ(loaded, false, "a truncated file is rebuilt, not read");
+    EXPECT_EQ(signatureMismatches(*rebuilt, reference, nTri), 0,
+              "and the rebuilt context is right");
+    auto reloaded = PairSigContext<4, 2>::cached(tri, dir, &loaded);
+    EXPECT_EQ(loaded, true, "and replaced: the next call loads it");
+
+    regina::Triangulation<4> other;
+    other.newPentachoron()->join(0, other.newPentachoron(), regina::Perm<5>());
+    other.pentachoron(0)->join(1, other.pentachoron(1), regina::Perm<5>());
+    const size_t sigAt = text.find("\nsig ") + 5;
+    const size_t sigEnd = text.find('\n', sigAt);
+    std::ofstream(file, std::ios::trunc)
+        << text.substr(0, sigAt) << other.isoSig() << text.substr(sigEnd);
+    auto verified = PairSigContext<4, 2>::cached(tri, dir, &loaded);
+    EXPECT_EQ(loaded, false,
+              "a file whose isomorphism does not carry the ambient onto its "
+              "canonical form is rebuilt");
+    EXPECT_EQ(signatureMismatches(*verified, reference, nTri), 0,
+              "and the rebuilt context is right");
+
+    // A relabelled copy is another key, so never this one's context.
+    const regina::Triangulation<4> relabelled =
+        regina::Isomorphism<4>::random(tri.size())(tri);
+    const bool sameLabels = relabelled == tri;
+    auto theirs = PairSigContext<4, 2>::cached(relabelled, dir, &loaded);
+    if (!sameLabels) {
+        EXPECT_EQ(loaded, false, "a relabelled ambient is not given this "
+                                 "ambient's stored context");
+        // Locals: the comma in PairSigContext<4, 2> would split the macro's
+        // arguments.
+        using Ctx = PairSigContext<4, 2>;
+        const bool keysDiffer =
+            Ctx::ambientKey(relabelled) != Ctx::ambientKey(tri);
+        EXPECT_EQ(keysDiffer, true, "its key differs");
+    }
+    const PairSigContext<4, 2> theirReference(relabelled);
+    EXPECT_EQ(signatureMismatches(*theirs, theirReference, nTri), 0,
+              "and its own context is right");
+    std::filesystem::remove_all(dir);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Test 8: signatures a context produces still DECODE.
 //
 // Byte equality with the old path (test 7) proves the encoding did not
@@ -594,6 +696,7 @@ int main() {
     run("empty_marked_set", test_empty_marked_set);
     run("malformed_input", test_malformed_input);
     run("context_matches_free_function", test_context_matches_free_function);
+    run("context_cache", test_context_cache);
     run("context_output_decodes", test_context_output_decodes);
     run("context_concurrent_first_use", test_context_concurrent_first_use);
 

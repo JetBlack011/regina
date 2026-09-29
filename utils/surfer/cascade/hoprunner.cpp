@@ -224,7 +224,7 @@ std::string pairSigOf(const regina::Triangulation<4> &thickening,
 }
 
 std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
-                                    unsigned threads) {
+                                    unsigned threads, const std::string &cacheDir) {
   std::map<std::pair<std::string, int>, std::vector<size_t>> byRow;
   for (size_t i = 0; i < requests.size(); ++i)
     byRow[{requests[i].rowPD, requests[i].layers}].push_back(i);
@@ -241,8 +241,10 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
         const auto &[row, indices] = *rows[r];
         rowsearch::RowBuild rb;
         rowsearch::buildRow(row.first, row.second, row.second, /*useCone=*/false, rb);
-        const PairSigContext<4, 2> context(rb.tri);
-        for (size_t i : indices) out[i] = context.sig(requests[i].faces);
+        const std::unique_ptr<PairSigContext<4, 2>> context =
+            cacheDir.empty() ? std::make_unique<PairSigContext<4, 2>>(rb.tri)
+                             : PairSigContext<4, 2>::cached(rb.tri, cacheDir);
+        for (size_t i : indices) out[i] = context->sig(requests[i].faces);
       } catch (const std::exception &e) {
         std::lock_guard<std::mutex> lock(errorMutex);
         error = e.what();

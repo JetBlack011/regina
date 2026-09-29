@@ -544,6 +544,18 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     }
 
     /**
+     * Reads and writes the pair-signature context through `dir`
+     * (PairSigContext::cached()), so a row searched again, or signed again
+     * later, does not rebuild it. Call before search().
+     */
+    void setPairSigCacheDir(const std::string &dir) {
+        pairSigCtx_.setCacheDir(dir);
+    }
+
+    /** Whether the context was read from the cache (see setPairSigCacheDir()). */
+    bool pairSigContextLoaded() const { return pairSigCtx_.loaded(); }
+
+    /**
      * Records `name` as boundary component `component`'s identity for the
      * edge set `edgeIndices` (sorted), so it is never identified. For an
      * edge set known by construction: a row's own link on its search side.

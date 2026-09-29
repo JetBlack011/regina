@@ -8,13 +8,18 @@
 
 #include <algorithm>
 #include <cassert>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 #include <utilities/exception.h>
 #include <utilities/sigutils.h>
+
+#include "witnesskey.h"
 
 namespace {
 
@@ -230,6 +235,174 @@ DecodedKnottedSurfaceSig fromKnottedSurfaceSig(const std::string &sigStr) {
     return DecodedKnottedSurfaceSig{
         .ambient = std::move(ambient), .skeleton = std::move(skeleton),
         .surface = std::move(surface)};
+}
+
+template <int dim, int subdim>
+PairSigContext<dim, subdim>::PairSigContext(
+        const regina::Triangulation<dim> &ambient, Detail detail,
+        std::vector<regina::Isomorphism<dim>> autos)
+    : ambient_(&ambient),
+      sig_(std::move(detail.first)),
+      psi0_(std::move(detail.second)),
+      canon_(regina::Triangulation<dim>::fromSig(sig_)),
+      autos_(std::move(autos)),
+      numFaces_(canon_.template countFaces<subdim>()),
+      width_(regina::Base64Encoder::integerWidth(
+          numFaces_ == 0 ? 0 : numFaces_ - 1)) {
+    // The same invariant as the building constructor: both skeletons exist
+    // before any concurrent sig().
+    static_cast<void>(ambient_->isConnected());
+    static_cast<void>(canon_.template countFaces<subdim>());
+}
+
+template <int dim, int subdim>
+bool PairSigContext<dim, subdim>::verifies() const {
+    if (psi0_.size() != ambient_->size() || autos_.empty())
+        return false;
+    if (psi0_(*ambient_) != canon_)
+        return false;
+    for (const auto &alpha : autos_)
+        if (alpha.size() != canon_.size() || alpha(canon_) != canon_)
+            return false;
+    return true;
+}
+
+template <int dim, int subdim>
+std::string PairSigContext<dim, subdim>::ambientKey(
+        const regina::Triangulation<dim> &ambient) {
+    std::ostringstream s;
+    s << "dim " << dim << " size " << ambient.size();
+    for (size_t i = 0; i < ambient.size(); ++i) {
+        const auto *simplex = ambient.simplex(i);
+        for (int f = 0; f <= dim; ++f) {
+            const auto *adj = simplex->adjacentSimplex(f);
+            s << ' ';
+            if (adj)
+                s << adj->index() << ':'
+                  << simplex->adjacentGluing(f).SnIndex();
+            else
+                s << '-';
+        }
+    }
+    return witnesskey::sha1Hex(s.str());
+}
+
+namespace {
+
+// One isomorphism as "image:SnIndex" per simplex.
+template <int dim>
+void writeIso(std::ostream &out, const regina::Isomorphism<dim> &iso) {
+    out << "iso";
+    for (size_t i = 0; i < iso.size(); ++i)
+        out << ' ' << iso.simpImage(i) << ':' << iso.facetPerm(i).SnIndex();
+    out << '\n';
+}
+
+template <int dim>
+regina::Isomorphism<dim> readIso(std::istream &in, size_t n) {
+    std::string line;
+    if (!std::getline(in, line))
+        throw std::runtime_error("truncated");
+    std::istringstream fields(line);
+    std::string tag;
+    fields >> tag;
+    if (tag != "iso")
+        throw std::runtime_error("expected an isomorphism");
+    regina::Isomorphism<dim> iso(n);
+    for (size_t i = 0; i < n; ++i) {
+        long image = 0;
+        int index = 0;
+        char colon = 0;
+        if (!(fields >> image >> colon >> index) || colon != ':' || image < 0 ||
+            static_cast<size_t>(image) >= n || index < 0 ||
+            index >= static_cast<int>(regina::Perm<dim + 1>::nPerms))
+            throw std::runtime_error("malformed isomorphism");
+        iso.simpImage(i) = image;
+        iso.facetPerm(i) = regina::Perm<dim + 1>::Sn[index];
+    }
+    return iso;
+}
+
+} // namespace
+
+template <int dim, int subdim>
+void PairSigContext<dim, subdim>::save_(const std::string &path) const {
+    const std::string tmp = path + ".tmp";
+    {
+        std::ofstream out(tmp, std::ios::trunc);
+        out << "surfer-pairsig-context 1\n"
+            << "dim " << dim << " subdim " << subdim << " key "
+            << ambientKey(*ambient_) << " size " << ambient_->size()
+            << " autos " << autos_.size() << '\n'
+            << "sig " << sig_ << '\n';
+        writeIso<dim>(out, psi0_);
+        for (const auto &alpha : autos_)
+            writeIso<dim>(out, alpha);
+        out << "end\n";
+        out.flush();
+        if (!out)
+            throw std::runtime_error("cannot write " + tmp);
+    }
+    std::filesystem::rename(tmp, path);
+}
+
+template <int dim, int subdim>
+std::unique_ptr<PairSigContext<dim, subdim>>
+PairSigContext<dim, subdim>::cached(const regina::Triangulation<dim> &ambient,
+                                    const std::string &cacheDir,
+                                    bool *loaded) {
+    if (loaded)
+        *loaded = false;
+    const std::string key = ambientKey(ambient);
+    const std::string path = cacheDir + "/" + key + "." +
+                             std::to_string(dim) + "-" +
+                             std::to_string(subdim) + ".pairsigctx";
+    if (std::ifstream in(path); in) {
+        try {
+            std::string line, fileKey;
+            int fileDim = 0, fileSubdim = 0;
+            size_t size = 0, autoCount = 0;
+            std::getline(in, line);
+            if (line != "surfer-pairsig-context 1")
+                throw std::runtime_error("unknown format");
+            std::getline(in, line);
+            std::istringstream head(line);
+            std::string k1, k2, k3, k4, k5;
+            head >> k1 >> fileDim >> k2 >> fileSubdim >> k3 >> fileKey >> k4 >>
+                size >> k5 >> autoCount;
+            if (!head || fileDim != dim || fileSubdim != subdim ||
+                fileKey != key || size != ambient.size())
+                throw std::runtime_error("not this ambient's");
+            std::getline(in, line);
+            if (line.rfind("sig ", 0) != 0)
+                throw std::runtime_error("expected the signature");
+            std::string sig = line.substr(4);
+            regina::Isomorphism<dim> psi0 = readIso<dim>(in, size);
+            std::vector<regina::Isomorphism<dim>> autos;
+            for (size_t a = 0; a < autoCount; ++a)
+                autos.push_back(readIso<dim>(in, size));
+            if (!std::getline(in, line) || line != "end")
+                throw std::runtime_error("truncated");
+            std::unique_ptr<PairSigContext> ctx(new PairSigContext(
+                ambient, Detail(std::move(sig), std::move(psi0)),
+                std::move(autos)));
+            if (ctx->verifies()) {
+                if (loaded)
+                    *loaded = true;
+                return ctx;
+            }
+        } catch (const std::exception &) {
+            // Unreadable or not this ambient's: rebuilt and replaced below.
+        }
+    }
+    auto ctx = std::make_unique<PairSigContext>(ambient);
+    try {
+        std::filesystem::create_directories(cacheDir);
+        ctx->save_(path);
+    } catch (const std::exception &) {
+        // A cache that cannot be written costs speed only.
+    }
+    return ctx;
 }
 
 template class PairSigContext<3, 2>;

@@ -111,6 +111,7 @@ struct Config {
   /// (keptstore.h); empty for none. Read-only stores to deduplicate against
   /// (the master, say), and the run's name for cascade: subjects.
   std::string witnessStore, runName;
+  std::string pairSigCache; ///< --pair-sig-cache: stored pair-signature contexts
   std::vector<std::string> dedupeAgainst;
   bool signOnly = false;
   /// Write lower_report.jsonl at the end (writeLowerReport()); the sources
@@ -477,7 +478,8 @@ void Cascade::storeWitnesses() {
   witnessstore::loadNameTable(cfg_.knotTable, names);
   witnessstore::loadNameTable(cfg_.linkTable, names);
   const StoreResult s = storeKept(readKept(cfg_.work), cfg_.witnessStore, cfg_.dedupeAgainst,
-                                  names, static_cast<unsigned>(cfg_.threads));
+                                  names, static_cast<unsigned>(cfg_.threads),
+                                  cfg_.pairSigCache);
   storedAppended_ = s.appended;
   std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
             << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
@@ -906,6 +908,10 @@ void Cascade::expand(NodeId n, long surfaces) {
         "--recognition-cache-limit", std::to_string(shape.recognitionCacheLimit),
         "--boundary-signature-cache-limit",
         std::to_string(shape.boundarySignatureCacheLimit)};
+    if (!cfg_.pairSigCache.empty()) {
+      argv.push_back("--pair-sig-cache");
+      argv.push_back(cfg_.pairSigCache);
+    }
     r = runChild(argv, dir + "/log.txt", dir + "/err.txt");
     t0 = std::chrono::steady_clock::now();
     std::vector<Witness> ws = readWitnesses(dir + "/cob.csv");
@@ -1398,6 +1404,7 @@ int main(int argc, char **argv) {
       c.hopShape.recognitionCacheLimit = std::stoull(next());
     else if (a == "--verbose") c.verbose = true;
     else if (a == "--witness-store") c.witnessStore = next();
+    else if (a == "--pair-sig-cache") c.pairSigCache = next();
     else if (a == "--run-name") c.runName = next();
     else if (a == "--dedupe-against") c.dedupeAgainst.push_back(next());
     else if (a == "--sign-only") c.signOnly = true;
@@ -1424,7 +1431,8 @@ int main(int argc, char **argv) {
       witnessstore::loadNameTable(c.knotTable, names);
       witnessstore::loadNameTable(c.linkTable, names);
       const StoreResult s = storeKept(readKept(c.work), c.witnessStore, c.dedupeAgainst,
-                                      names, static_cast<unsigned>(c.threads));
+                                      names, static_cast<unsigned>(c.threads),
+                                      c.pairSigCache);
       std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
                 << s.appended << " appended to " << c.witnessStore << "\n";
       return 0;

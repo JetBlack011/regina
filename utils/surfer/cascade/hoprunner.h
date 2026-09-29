@@ -149,7 +149,10 @@ struct SignRequest {
 /// distinct row is rebuilt (rowsearch::buildRow(), deterministic, so faces
 /// index it as they did the searched one) and its ambient part computed once
 /// (PairSigContext), up to `threads` rows at a time. In request order.
+/// With a `cacheDir`, each row's context is read from there when stored and
+/// stored when built (PairSigContext::cached()), so a row signed again in a
+/// later run -- a node the cascade meets often -- costs no rebuild.
 std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
-                                    unsigned threads);
+                                    unsigned threads, const std::string &cacheDir = "");
 
 } // namespace cascade

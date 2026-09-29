@@ -154,12 +154,47 @@ class PairSigContext {
     /** How many automorphisms of the canonical ambient sig() minimises over. */
     size_t automorphismCount() const { return autos_.size(); }
 
+    /**
+     * The context for `ambient`, from `cacheDir` when a context for this
+     * exact labelled triangulation is stored there (since 2026-09-29), else
+     * built and stored there (atomically: a temporary file, then a rename).
+     *
+     * A stored context is keyed by ambientKey() and holds what is expensive
+     * to compute: the ambient's isoSig, the isomorphism onto its canonical
+     * form, and every automorphism of that form. It is verified on loading,
+     * in time linear in the ambient: the isomorphism must carry the ambient
+     * onto the canonical form exactly, and each automorphism must carry the
+     * canonical form onto itself. One that fails is rebuilt and replaced.
+     * (That the automorphisms are ALL of them is not re-checked: a context
+     * file is written only by this function, from findAllIsomorphisms().)
+     *
+     * \param loaded if given, set to whether the context came from the cache.
+     */
+    static std::unique_ptr<PairSigContext>
+    cached(const regina::Triangulation<dim> &ambient,
+           const std::string &cacheDir, bool *loaded = nullptr);
+
+    /**
+     * sha1 over `ambient`'s gluings (every simplex's adjacent simplex and
+     * gluing permutation): a stored context's key. Any relabelling changes it.
+     */
+    static std::string ambientKey(const regina::Triangulation<dim> &ambient);
+
   private:
     using Detail = std::pair<std::string, regina::Isomorphism<dim>>;
 
     static Detail detailFor(const regina::Triangulation<dim> &ambient);
 
     PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail);
+
+    /** A context restored from a file; see cached(). */
+    PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail,
+                   std::vector<regina::Isomorphism<dim>> autos);
+
+    /** Whether the stored parts are this ambient's; see cached(). */
+    bool verifies() const;
+
+    void save_(const std::string &path) const;
 
     const regina::Triangulation<dim> *ambient_;
     std::string sig_;
@@ -198,9 +233,19 @@ class LazyPairSigContext {
     LazyPairSigContext(const LazyPairSigContext &) = delete;
     LazyPairSigContext &operator=(const LazyPairSigContext &) = delete;
 
+    /**
+     * Reads and writes the context through `dir` (PairSigContext::cached()).
+     * Empty (the default) builds it in memory only. Call before get().
+     */
+    void setCacheDir(std::string dir) { cacheDir_ = std::move(dir); }
+
     const PairSigContext<dim, subdim> &get() const {
         std::call_once(once_, [this] {
-            ctx_ = std::make_unique<PairSigContext<dim, subdim>>(*ambient_);
+            if (cacheDir_.empty())
+                ctx_ = std::make_unique<PairSigContext<dim, subdim>>(*ambient_);
+            else
+                ctx_ = PairSigContext<dim, subdim>::cached(*ambient_, cacheDir_,
+                                                           &loaded_);
         });
         return *ctx_;
     }
@@ -208,10 +253,15 @@ class LazyPairSigContext {
     /** Whether the context has actually been built yet (for tests/reporting). */
     bool built() const { return static_cast<bool>(ctx_); }
 
+    /** Whether get() read the context from the cache instead of building it. */
+    bool loaded() const { return loaded_; }
+
   private:
     const regina::Triangulation<dim> *ambient_;
+    std::string cacheDir_;
     mutable std::once_flag once_;
     mutable std::unique_ptr<PairSigContext<dim, subdim>> ctx_;
+    mutable bool loaded_ = false;
 };
 
 /**

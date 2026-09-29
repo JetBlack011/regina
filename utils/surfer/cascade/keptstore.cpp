@@ -135,7 +135,8 @@ std::vector<PendingWitness> readKept(const std::string &work) {
 
 StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
-                      const cobordismgraph::NameTable &names, unsigned threads) {
+                      const cobordismgraph::NameTable &names, unsigned threads,
+                      const std::string &pairSigCache) {
   StoreResult r;
   r.kept = pending.size();
   if (pending.empty()) return r;
@@ -158,7 +159,7 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   requests.reserve(fresh.size());
   for (const PendingWitness &p : fresh) requests.push_back({p.rowPD, p.layers, p.faces});
   const auto t0 = std::chrono::steady_clock::now();
-  std::vector<std::string> sigs = pairSigsOf(requests, threads);
+  std::vector<std::string> sigs = pairSigsOf(requests, threads, pairSigCache);
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
   std::vector<cobordismgraph::Witness> out;
