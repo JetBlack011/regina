@@ -108,9 +108,37 @@ def test_lift_split():
     check(cc.lift_split(h).comps == h.comps, 'lift: the Hopf link changed')
 
 
+def test_literature_leaf_of_the_target_under_another_name():
+    # L11a397{1;0} and L11a397{0;0} are one link (a meridian-carrying
+    # isometry; data/table_link_classes.csv), and {1;1} is another. A
+    # literature leaf on the class-mate would prove the target by its own
+    # literature value: refused with the class table, and without it by the
+    # isometry. The other variant is not the target, so is not refused.
+    atlas = cc.ATLAS + '/data/'
+    knots = atlas + '4d_smooth_slice_genus_13_crossings_pd_codes.csv'
+    links = atlas + 'links_4d_smooth_slice_genus_11_crossings_pd_codes.csv'
+    target = 'L11a397{1;0}'
+    for label, classes in (('class table', None), ('isometry', '/nonexistent')):
+        tables = cc.load_tables(knots, links, classes)
+        cert = {'target': target, 'records': [],
+                'nodes': [{'id': 0, 'label': 'target ' + target, 'components': 3,
+                           'pd': tables['pd'][target]}]}
+        ch = cc.Checker(cert, None, tables)
+        own, why = ch.is_target_link('L11a397{0;0}')
+        check(own, f'{label}: the class-mate was not found to be the target ({why})')
+        other, why = ch.is_target_link('L11a397{1;1}')
+        check(not other, f'{label}: another variant was taken for the target ({why})')
+        leaf = {'id': 1, 'node': 0, 'kind': 'leaf', 'genus': 1, 'partition': '{0,1,2}',
+                'source': 'literature L11a397{0;0} ' + tables['g4']['L11a397{0;0}']}
+        check(not ch.check_leaf(leaf), f'{label}: a class-mate literature leaf was accepted')
+        check(any("the target's own link" in p for p in ch.problems),
+              f'{label}: refused for another reason: {ch.problems}')
+
+
 for t in (test_lift_split, test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
           test_crossing_joined_through_another_component, test_reduced_untouched,
-          test_same_as_node_through_a_twist):
+          test_same_as_node_through_a_twist,
+          test_literature_leaf_of_the_target_under_another_name):
     t()
 print(f'{"FAILED" if failures else "passed"}: {failures} failures')
 sys.exit(1 if failures else 0)

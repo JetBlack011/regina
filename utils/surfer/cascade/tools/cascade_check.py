@@ -475,6 +475,25 @@ class Checker:
         self.problems = []
         self.notes = []
 
+    def is_target_link(self, name):
+        """Whether the table entry `name` is the target's own link (one
+        oriented link up to mirror and global reversal) under another name:
+        by the class table when there is one, else by the meridian-carrying
+        isometry that proves every identity here (one-sided: an identity it
+        cannot prove is not refused). A literature leaf on such an entry would
+        prove the target by its own literature value."""
+        target = self.cert['target']
+        classes = self.tables.get('classes', {})
+        if classes.get(name, name) == classes.get(target, target):
+            return True, 'data/table_link_classes.csv'
+        if name not in self.tables['pd'] or target not in self.tables['pd']:
+            return False, ''
+        tnode = [n['id'] for n in self.cert['nodes'] if n['label'].startswith('target')][0]
+        try:
+            return prove_table_identity(self.node_gauss(tnode), name, self.tables)
+        except Exception as e:  # noqa: BLE001 -- unproved is not refused
+            return False, f'{type(e).__name__}: {e}'
+
     def node_gauss(self, n):
         node = self.nodes[n]
         if 'gauss' in node:
@@ -603,6 +622,10 @@ class Checker:
                 return self.fail(r['id'], f'table says {t}, record says {g4}/{r["genus"]}')
             if name == self.cert['target']:
                 return self.fail(r['id'], "the target's own literature value")
+            own, why_own = self.is_target_link(name)
+            if own:
+                return self.fail(r['id'], f"{name} is the target's own link ({why_own}), "
+                                          "so its literature value is the target's own")
             if len(set(partition_labels(r['partition']))) != 1:
                 return self.fail(r['id'], 'literature bounds only the connected genus')
             ok, why = prove_table_identity(self.node_gauss(r['node']), name, self.tables)
@@ -830,13 +853,22 @@ class Checker:
         return not self.problems
 
 
-def load_tables(knots, links):
-    t = {'g4': {}, 'pd': {}}
+def load_tables(knots, links, classes=None):
+    """The tables, and (when the file exists) data/table_link_classes.csv:
+    each table name to its class's canonical name. `classes` defaults to that
+    file beside the link table."""
+    t = {'g4': {}, 'pd': {}, 'classes': {}}
     for f in (knots, links):
         with open(f) as fh:
             for r in csv.DictReader(fh):
                 t['g4'][r['Name']] = r['Genus-4D']
                 t['pd'][r['Name']] = r[[k for k in r if k.startswith('PD')][0]]
+    if classes is None:
+        classes = os.path.join(os.path.dirname(links), 'table_link_classes.csv')
+    if os.path.exists(classes):
+        with open(classes) as fh:
+            for r in csv.DictReader(fh):
+                t['classes'][r['name']] = r['canonical']
     return t
 
 

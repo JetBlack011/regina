@@ -423,6 +423,15 @@ private:
   std::set<NodeId> masterDone_;
   bool masterRowsFor(NodeId n, std::vector<std::string> *rows = nullptr) const;
   void loadMaster(NodeId n);
+  /// The class a table name stands for, as the namer names nodes: its base's
+  /// variants that are one oriented link up to mirror and global reversal,
+  /// by diagram OR by a meridian-carrying isometry (ExactNamer::
+  /// canonicalName(), data/table_link_classes.csv). ExactTables::canonical()
+  /// joins by diagram only, so it must never be compared with a node's name.
+  std::string classOf(const std::string &name) const {
+    const exactnaming::TableEntry *e = tables_.entry(name);
+    return e ? namer_.canonicalName(*e) : name;
+  }
   std::map<EdgeId, EdgeInfo> edgeInfo_;
   std::map<std::string, EdgeInfo> directInfo_; // by witness key
   double cpuSpent_ = 0, wallSpent_ = 0;
@@ -529,7 +538,7 @@ void Cascade::applyName(NodeId n, const exactnaming::PieceName &pn) {
   g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
   // Never let the target's own literature value prove the target, even
   // through a duplicate node of it (README.md, "Leaf facts").
-  if (!mayUseLiteratureUpperBound(tables_.canonical(name), targetCanonical_,
+  if (!mayUseLiteratureUpperBound(classOf(name), targetCanonical_,
                                   cfg_.literature))
     return;
   g_.addLeaf(n, Partition::coarsest(g_.node(n).components), hi,
@@ -542,12 +551,12 @@ bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
   if (it == tableName_.end()) return false;
   // Every table entry of this link's class (one oriented link up to mirror
   // and global reversal) is the same node; each is a row of its own.
-  const std::string canon = tables_.canonical(it->second);
+  const std::string canon = classOf(it->second);
   const exactnaming::TableEntry *e = tables_.entry(it->second);
   if (!e) return false;
   bool any = !master_->byFarSide(MasterIndex::base(it->second), 1).empty();
   for (const exactnaming::TableEntry *v : tables_.variants(e->base))
-    if (tables_.canonical(v->name) == canon && master_->has(v->name)) {
+    if (classOf(v->name) == canon && master_->has(v->name)) {
       any = true;
       if (rows) rows->push_back(v->name);
     }
@@ -1129,7 +1138,7 @@ int Cascade::run() {
   try {
     auto pn = namer_.identify(simp);
     if (pn.names.size() == 1 && pn.by != exactnaming::PieceName::By::untabulated) {
-      targetCanonical_ = tables_.canonical(pn.names.front());
+      targetCanonical_ = classOf(pn.names.front());
       named = true;
     }
   } catch (...) {
@@ -1140,7 +1149,7 @@ int Cascade::run() {
     // copied wrongly, that the exact namer proves to be another link is
     // refused outright. A namer that cannot tell (cheap limits) is not a
     // refusal; the table's own PD needs no proof.
-    const std::string &claimed = tables_.canonical(cfg_.targetName);
+    const std::string claimed = classOf(cfg_.targetName);
     if (named && targetCanonical_ != claimed)
       throw std::runtime_error("the target PD is " + targetCanonical_ + ", not " +
                                cfg_.targetName + " (" + claimed + ")");
