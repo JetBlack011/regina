@@ -700,14 +700,20 @@ The same argument is why σ or τ leaves on intermediate nodes could never
 raise a target's lower bound.
 
 **The lower report (`--lower-report`).** At a run's end, for each tabulated
-node Y, it seeds Y alone at a large M in a copy of the graph, relaxes, and
-reads M − lower(target): the least charge of carrying a bound from Y to the
-target over every path found. Each line of `lower_report.jsonl` gives Y's
-literature interval, whether it is a special source (from the atlas's
-`data/lower_bound_sources.csv` via `--lower-sources`), the charge,
-`carries` = lo(Y) − charge and `could_carry` = hi(Y) − charge. A carry
-above the target's own literature lower bound closes the entry from below.
-A special source at charge 1, or a `could_carry` above it, is a near miss
+node Y, it forgets every lower bound in a copy of the graph
+(`clearLowerBounds()`), seeds Y alone, relaxes, and reads lower(target):
+- `carries`: seeded at Y's literature lower bound, what Y alone gives the
+  target now;
+- `could_carry`: seeded at `could` = min(Y's literature upper bound, its
+  best proved genus), the most Y could ever give it.
+
+Only values Y could really have are seeded. A larger one (an earlier
+version seeded a huge M to read off charges) contradicts Y's own proved
+surfaces, and the split rules, which read those surfaces, then pump bounds
+without limit. Each line of `lower_report.jsonl` also says whether Y is a
+special source (the atlas's `data/lower_bound_sources.csv`, via
+`--lower-sources`). A `carries` above the target's literature lower bound
+closes the entry from below. A `could_carry` above it marks a near miss
 worth a deeper search.
 
 ### Implemented (`ProofGraph::propagateLower()`, `lower()`)
