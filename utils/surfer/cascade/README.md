@@ -500,6 +500,37 @@ at most 7,200 CPU-s.
   triangulated row did not redraw as its own diagram (no
   orientation-preserving isomorphism). It is not nugatory; still open.
 
+## Try other diagrams of a stuck target (2026-09-28)
+
+**Alternative diagrams can be incredibly productive.**
+- `11a_164` (slice) resisted every hop shape on its table diagram, at about
+  30,000 CPU-s in all, with a best bound of 1:
+  - 50k-surface hops;
+  - the master's witnesses;
+  - 1M-surface hops;
+  - 4M-surface hops with face cap 6.
+- From the first alternative diagram SnapPy offered, also 11 crossings, the
+  cascade found a two-band ribbon disc in **10 s and 2 hops**, CERTIFIED.
+- A hop changes the surface only near the outgoing end of one diagram's
+  thickening. So a band that is short in one diagram can be out of reach in
+  another, and more search on the same diagram only re-explores the same
+  neighbourhood.
+
+How:
+- `tools/alt_diagrams.py <knot>` generates diagrams (spherogram's
+  `many_diagrams()`, and `backtrack()` then a light simplify).
+- It keeps those proved to be the knot, by an isometry of exteriors with our
+  table PD's. By Gordon–Luecke that is the knot up to mirror, which g₄ does
+  not see.
+- Run each through `one_target.sh` at a cheap rung first. Keep the identity
+  proof beside the certificate (`identity_proofs.json`).
+- The cascade's own exact namer tags the target node with its table name
+  independently.
+
+Next for the scheduler: when a node stalls, revisit it with a **new
+diagram** before a bigger surface target. This is the plan's "a revisit
+prefers a new diagram variant", not yet implemented.
+
 ## The independent checker (`tools/cascade_check.py`)
 
 `cascadesearch` writes `certificate.json` when a goal is met. It holds:
