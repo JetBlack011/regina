@@ -99,6 +99,13 @@ through):
 - **Other columns.** `other_candidates` comes from the name tables
   (`NameTable::candidates()`), as the sweep fills it; `source_row` is the
   subject; `thicken_layers` 2; `max_faces` the hop's cap.
+- **Which row.** A pair signature's ambient is the hop row's thickening,
+  built from the node's own diagram, which is not the table's PD even for a
+  table-named node. So each appended witness also gets a line in
+  `<store>.rows.csv`: its key (sha1(pairsig)[:12]), layers and row PD.
+  `farsidename` accepts a PD in place of a row name. The atlas's
+  `run_farsidename.py --row-pds` feeds it from the sidecar, and without the
+  sidecar such witnesses cannot be redrawn.
 
 Checked (2026-09-28): `keptstore_test` (a real exhaustive 3_1 hop: kept.csv
 round-trips; one line per identity, each pair signature the one taken in the

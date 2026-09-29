@@ -13,7 +13,9 @@
 //  The limits default to exactnaming::NamerLimits.
 //
 //  stdin: one "<id>\t<row>\t<thicken_layers>\t<pair signature>" per line,
-//  grouped by row (each row's thickening is built once). stdout, one line
+//  grouped by row (each row's thickening is built once). <row> is a table
+//  name, or a PD code itself ("[...]" or "PD[...]": a cascade hop's row,
+//  which is a node's own diagram). stdout, one line
 //  per witness, tab-separated:
 //
 //    <id> <row> ok <name> <exact> <pinned> <components> <split_unknots>
@@ -140,9 +142,17 @@ int main(int argc, char **argv) {
         const auto start = std::chrono::steady_clock::now();
         try {
             if (redrawKey != row + "\t" + layers) {
-                auto it = pd.find(row);
-                if (it == pd.end()) throw regina::InvalidArgument("no PD code for row " + row);
-                std::string code = it->second;
+                // A row is a table name, or the PD code itself: a cascade
+                // hop's row is a node's own diagram, which no table holds
+                // (its witnesses' <store>.rows.csv gives it; cascade/keptstore.h).
+                std::string code;
+                if (!row.empty() && (row.front() == '[' || row.rfind("PD[", 0) == 0)) {
+                    code = row;
+                } else {
+                    auto it = pd.find(row);
+                    if (it == pd.end()) throw regina::InvalidArgument("no PD code for row " + row);
+                    code = it->second;
+                }
                 for (char &ch : code)
                     if (ch == ';') ch = ',';
                 flushRow(redraw.get());

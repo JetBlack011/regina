@@ -162,8 +162,10 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
   std::vector<cobordismgraph::Witness> out;
+  std::vector<std::pair<std::string, int>> rowOf; // parallel to out: row PD, layers
   out.reserve(fresh.size());
   for (size_t i = 0; i < fresh.size(); ++i) {
+    rowOf.emplace_back(fresh[i].rowPD, fresh[i].layers);
     cobordismgraph::Witness w = std::move(fresh[i].witness);
     w.pairSig = std::move(sigs[i]);
     if (w.pairSig.empty())
@@ -181,10 +183,27 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   std::unordered_set<std::string> now;
   identitiesOf(store, now);
   std::vector<cobordismgraph::Witness> append;
-  for (cobordismgraph::Witness &w : out)
-    if (!now.count(cobordismgraph::witnessIdentity(w))) append.push_back(std::move(w));
+  std::vector<std::pair<std::string, int>> appendRows;
+  for (size_t i = 0; i < out.size(); ++i)
+    if (!now.count(cobordismgraph::witnessIdentity(out[i]))) {
+      append.push_back(std::move(out[i]));
+      appendRows.push_back(rowOf[i]);
+    }
   witnessstore::appendWitnesses(store, append, 0);
   r.appended = append.size();
+  // Which diagram each pair signature's ambient was built from: a hop's row
+  // is a node's own diagram, not a table PD, so the atlas's farsidename
+  // (which rebuilds the row to redraw a far side) needs it. witness key
+  // (sha1(pairsig)[:12]), layers, row PD; appended beside the store.
+  if (!append.empty()) {
+    std::string buffer;
+    const std::string sidecar = store + ".rows.csv";
+    if (!fs::exists(sidecar)) buffer += "witness,layers,row_pd\n";
+    for (size_t i = 0; i < append.size(); ++i)
+      buffer += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
+                csvField(appendRows[i].first) + '\n';
+    std::ofstream(sidecar, std::ios::app) << buffer;
+  }
   return r;
 }
 

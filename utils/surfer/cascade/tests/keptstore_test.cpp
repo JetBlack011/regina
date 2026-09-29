@@ -170,6 +170,26 @@ int main() {
   CHECK_EQ(candidatesOk, static_cast<int>(stored.size()),
            "store: other_candidates as the sweep fills them");
 
+  // The row sidecar: one line per stored witness, its key a stored pair
+  // signature's and its row the hop's own PD.
+  {
+    std::ifstream in(store + ".rows.csv");
+    std::string line;
+    std::getline(in, line);
+    CHECK_EQ(line, std::string("witness,layers,row_pd"), "rows sidecar: header");
+    std::map<std::string, std::string> rows;
+    while (std::getline(in, line)) {
+      std::vector<std::string> f = parseCsvLine(line);
+      if (f.size() == 3) rows[f[0]] = f[2];
+    }
+    CHECK_EQ(rows.size(), stored.size(), "rows sidecar: one line per stored witness");
+    int keyed = 0;
+    for (const auto &w : witnessstore::loadWitnesses(store, true))
+      if (rows.count(w.pairSigKey) && rows[w.pairSigKey] == pd) ++keyed;
+    CHECK_EQ(keyed, static_cast<int>(stored.size()),
+             "rows sidecar: every stored witness keyed to its hop row's PD");
+  }
+
   // 3. Deduplication.
   s = storeKept(back, store, {}, names, 3);
   CHECK(s.fresh == 0 && s.appended == 0, "again: nothing new, nothing appended");
