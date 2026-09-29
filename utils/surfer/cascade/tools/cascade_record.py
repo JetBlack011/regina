@@ -87,10 +87,12 @@ def far_name(names):
     return ' u '.join(rest + ['Unknot'] * unknots)
 
 
-def sign(fsd, row_pd, layers, requests):
+def sign(fsd, row_pd, layers, requests, sig_cache=None):
     """{record id: fields} for one row's surfaces, and the row's digest."""
     lines = ''.join(f"{rid} {','.join(str(f) for f in faces)}\n" for rid, faces in requests)
-    out = subprocess.run([fsd, '--layers', str(layers), '--gauss', '--faces', '--pairsig', row_pd],
+    cache = ['--sig-cache', sig_cache] if sig_cache else []
+    out = subprocess.run([fsd, '--layers', str(layers), '--gauss', '--faces', '--pairsig', *cache,
+                          row_pd],
                          input=lines, capture_output=True, text=True, check=True).stdout.splitlines()
     row = dict(kv.split('=', 1) for kv in out[0].split(' ')[1:])
     got = {}
@@ -134,11 +136,11 @@ def row_items(cert):
     return list(by_row.items())
 
 
-def sign_row(fsd, item):
-    """One row's surfaces signed, and each signature read back."""
-    (row_pd, layers), recs = item
-    build, got = sign(fsd, row_pd, layers, [(r['id'], r['faces']) for r in recs])
-    back = read_back(fsd, row_pd, layers, [(r['id'], got[r['id']]['pairsig']) for r in recs])
+def sign_row(fsd, row_pd, layers, members, sig_cache=None):
+    """One row's surfaces -- from any number of proofs, as (uid, faces) --
+    signed in one call, and each signature read back."""
+    build, got = sign(fsd, row_pd, layers, members, sig_cache)
+    back = read_back(fsd, row_pd, layers, [(u, got[u]['pairsig']) for u, _ in members])
     return build, got, back
 
 
@@ -226,9 +228,13 @@ def main():
     ap.add_argument('--farsidediagram', default=DEFAULT_FSD)
     ap.add_argument('--max-faces', type=int, default=5)
     ap.add_argument('--jobs', type=int, default=4, help='rows signed at once')
+    ap.add_argument('--sig-cache', default=os.path.expanduser('~/.cache/cascade/sigs'),
+                    help="rows' signature contexts kept by build digest ('' for none)")
     ap.add_argument('dirs', nargs='+')
     a = ap.parse_args()
     os.makedirs(a.store, exist_ok=True)
+    if a.sig_cache:
+        os.makedirs(a.sig_cache, exist_ok=True)
     csv.field_size_limit(10**9)
     done = existing(os.path.join(a.store, 'proofs.csv'), lambda r: (r['run'], r['target']))
     known_nodes = existing(os.path.join(a.store, 'nodes.csv'), lambda r: r['name'])
@@ -246,25 +252,42 @@ def main():
             print(f"already recorded: {a.run} {cert['target']}")
             continue
         todo.append((d, cert, row_items(cert)))
-    # Every row of every proof signed on one pool: most proofs have one or two
-    # rows, so signing proof by proof leaves the cores idle.
-    tasks = [(k, i) for k, (_, _, items) in enumerate(todo) for i in range(len(items))]
-    results = {}
+    # Every surface of every proof, grouped by the row it lies on -- one
+    # farsidediagram call per distinct row, however many proofs share it
+    # (1,192 witnesses of the 11-crossing ladder lie on 856 rows; one row
+    # serves 55 proofs) -- all on one pool. A row's signature context, 99.8%
+    # of the cost, is then built once, and kept across runs by --sig-cache.
+    groups, uid_of = {}, {}
+    for k, (_, _, items) in enumerate(todo):
+        for (row_pd, layers), recs in items:
+            for r in recs:
+                uid = len(uid_of)
+                uid_of[(k, r['id'])] = uid
+                groups.setdefault((row_pd, layers, r['build']), []).append((uid, r['faces']))
+    signed = {}
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:
-        futures = {pool.submit(sign_row, a.farsidediagram, todo[k][2][i]): (k, i) for k, i in tasks}
+        futures = {pool.submit(sign_row, a.farsidediagram, row_pd, layers, members, a.sig_cache):
+                   (row_pd, layers, build) for (row_pd, layers, build), members in groups.items()}
         for fut in futures:
-            k, i = futures[fut]
             try:
-                results[(k, i)] = fut.result()
+                signed[futures[fut]] = fut.result()
             except Exception as e:
-                results[(k, i)] = e
+                signed[futures[fut]] = e
     for k, (d, cert, items) in enumerate(todo):
-        failed = [results[(k, i)] for i in range(len(items)) if isinstance(results[(k, i)], Exception)]
         try:
-            if failed:
-                raise failed[0]
-            proof, witnesses, links, node_rows = record_target(
-                d, a.run, a.max_faces, cert, items, [results[(k, i)] for i in range(len(items))])
+            results = []
+            for (row_pd, layers), recs in items:
+                got, back, build = {}, {}, None
+                for r in recs:
+                    s = signed[(row_pd, layers, r['build'])]
+                    if isinstance(s, Exception):
+                        raise s
+                    build, g, b = s
+                    got[r['id']] = g[uid_of[(k, r['id'])]]
+                    back[r['id']] = b.get(uid_of[(k, r['id'])], {'failed': 'no line'})
+                results.append((build, got, back))
+            proof, witnesses, links, node_rows = record_target(d, a.run, a.max_faces, cert, items,
+                                                               results)
         except Exception as e:
             print(f"FAILED {cert['target']}: {e}")
             continue

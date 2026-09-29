@@ -22,7 +22,10 @@
 //  as verifyslicegenus would record it (pairsig=, over the row's own
 //  thickening), whether it is connected (connected=) and its resolved
 //  vertices (resolved=): what turns a certificate's in-process witness into
-//  an ordinary cobordisms.csv row.
+//  an ordinary cobordisms.csv row. --sig-cache DIR (with --pairsig) keeps the
+//  thickening's own part of the signature -- 99.8% of its cost -- in DIR by
+//  the thickening's digest, checked on every use (pairsig.h, Detail), so a
+//  row met again costs a fraction of a second instead of tens.
 //
 //  --layers is the witnesses' thicken_layers (cobordisms.csv): 2, the
 //  default, for everything since early September; 1 for the earliest runs.
@@ -53,6 +56,8 @@
 //
 
 #include <algorithm>
+#include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <map>
@@ -61,6 +66,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include <unistd.h>
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
@@ -132,6 +139,7 @@ int main(int argc, char **argv) {
     bool gauss = false;
     bool facesInput = false;
     bool pairsigOut = false;
+    std::string sigCache;
     int arg = 1;
     while (arg < argc && std::string(argv[arg]).rfind("--", 0) == 0) {
         const std::string flag = argv[arg];
@@ -147,13 +155,17 @@ int main(int argc, char **argv) {
         } else if (flag == "--pairsig") {
             pairsigOut = true;
             ++arg;
+        } else if (flag == "--sig-cache" && arg + 1 < argc) {
+            sigCache = argv[arg + 1];
+            arg += 2;
         } else {
             break;
         }
     }
-    if (argc != arg + 1 || layers < 1 || (pairsigOut && !facesInput)) {
-        std::cerr << "usage: farsidediagram [--layers N] [--gauss] [--faces [--pairsig]] "
-                     "'<row PD code>' < pairsigs (or faces)\n";
+    if (argc != arg + 1 || layers < 1 || (pairsigOut && !facesInput) ||
+        (!sigCache.empty() && !pairsigOut)) {
+        std::cerr << "usage: farsidediagram [--layers N] [--gauss] "
+                     "[--faces [--pairsig [--sig-cache DIR]]] '<row PD code>' < pairsigs (or faces)\n";
         return 2;
     }
     const farside::WitnessRedrawer redraw(argv[arg], layers);
@@ -178,6 +190,47 @@ int main(int argc, char **argv) {
     // Pair signatures (--pairsig): the thickening's own part is computed once,
     // at the first surface, as pairSigsOf() does.
     std::optional<PairSigContext<4, 2>> sigContext;
+    // With --sig-cache, the ambient part is kept per thickening, named by its
+    // digest: <DIR>/<build>.detail holds its isoSig and the isomorphism
+    // (tight encoding) onto the triangulation that sig decodes to. A kept
+    // detail is used only after checking that its isomorphism carries THIS
+    // thickening onto exactly that triangulation (PairSigContext::Detail);
+    // anything else is recomputed and rewritten.
+    auto makeContext = [&] {
+        using Ctx = PairSigContext<4, 2>;
+        const regina::Triangulation<4> &t = redraw.thickening();
+        const std::string path =
+            sigCache.empty() ? "" : sigCache + "/" + redraw.buildChecksum() + ".detail";
+        if (!path.empty()) {
+            std::ifstream in(path);
+            std::string sig, iso;
+            if (std::getline(in, sig) && std::getline(in, iso)) {
+                try {
+                    Ctx::Detail d{sig, regina::Isomorphism<4>::tightDecoding(iso)};
+                    if (d.second.size() == t.size() &&
+                        d.second(t) == regina::Triangulation<4>::fromSig(sig)) {
+                        sigContext.emplace(t, std::move(d));
+                        std::cerr << "sig-cache hit " << redraw.buildChecksum() << "\n";
+                        return;
+                    }
+                } catch (const std::exception &) {
+                }
+                std::cerr << "sig-cache entry rejected " << redraw.buildChecksum() << "\n";
+            }
+        }
+        Ctx::Detail d = Ctx::detailFor(t);
+        if (!path.empty()) {
+            // Written aside and renamed: a reader never sees half an entry.
+            const std::string tmp = path + ".tmp." + std::to_string(::getpid());
+            {
+                std::ofstream out(tmp);
+                out << d.first << "\n" << d.second.tightEncoding() << "\n";
+            }
+            std::rename(tmp.c_str(), path.c_str());
+            std::cerr << "sig-cache miss " << redraw.buildChecksum() << "\n";
+        }
+        sigContext.emplace(t, std::move(d));
+    };
     std::vector<int> currentFaces;
 
     // One witness's W line, from its surface in the thickening.
@@ -225,7 +278,7 @@ int main(int argc, char **argv) {
                                                          .genus)
                                 : std::string());
             if (pairsigOut) {
-                if (!sigContext) sigContext.emplace(redraw.thickening());
+                if (!sigContext) makeContext();
                 std::cout << " resolved=" << surface.singularVertexCount()
                           << " connected=" << (surface.triangulation().isConnected() ? 1 : 0)
                           << " pairsig=" << sigContext->sig(currentFaces);
