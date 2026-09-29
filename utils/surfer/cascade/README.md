@@ -58,6 +58,23 @@ cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
 | `--witness-store <csv> --run-name <name>` | record every kept surface for the atlas ("Witnesses for the atlas" below); in-process hops only |
 | `--dedupe-against <csv>` (repeatable) | read-only witness files whose identities the store must not repeat (the master) |
 | `--sign-only` | the store step alone, over `--work`'s `hop_*/kept.csv` (a killed run) |
+
+**Table classes.** A table name stands for its class: the variants of its
+base that are one oriented link up to mirror and global reversal, joined by
+coinciding diagrams or by an isometry carrying meridians to meridians with one
+sign (`ExactNamer::canonicalName()`, the classes of
+`data/table_link_classes.csv`). Nodes are named by that class, so every
+comparison of a table name with a node's name goes through `classOf()`: the
+target check (a target PD the namer proves to be another class is refused),
+the literature guard (no leaf in the target's class, under any name) and
+`--master-witnesses` (every class member's rows). `ExactTables::canonical()`
+joins by diagram only and must not be compared with a node's name: until
+`53e65b14b` it was, and 27 of `2026-09-open2`'s targets were refused as
+their own class-mates (`L11a397{1;0}` "is" `L11a397{0;0}`). Each class-mate
+was searched in its own right, so nothing was lost. `cascade_check.py`
+applies the same rule independently: it refuses a literature leaf in the
+target's class, by the class table or by its own isometry test, and a scan
+of every certificate on both hosts (1,618) found none that used one.
 | `--hub-degree D --hub-surfaces N` | hub breadth (John, 2026-09-29): a node chosen for expansion with at least D witness edges is expanded once at N surfaces (when above the current budget), for many more first-level far sides where many routes meet, as `verifyslicegenus`'s wide rows do; logged `[+] hub: ...` |
 | `--lower-report [--lower-sources <csv>]` | write `lower_report.jsonl`: what each tabulated node's lower bound carries to the target ("Lower bounds" below) |
 
@@ -66,7 +83,12 @@ It writes `cascade.jsonl` (one line per hop, with its phase timers),
 `tools/cascade_check.py`. The driver log starts with a `[+] profile:` line
 (every setting that decides what the run covers, as `key=value`), gives each
 hop's accounting as `[+] hop <k> <subject>: accounting: ...` in
-`verifyslicegenus`'s shape, and ends with the line a campaign parses,
+`verifyslicegenus`'s shape, then its far-side naming as `[+] hop <k>
+<subject>: diagram naming: ...` (`NamingStats::summary()`, also in the hop's
+`log.txt`: counts by outcome, time by route, and the slowest single name,
+which is what can leave one thread draining alone; `cascade.jsonl` has the
+times as `naming_diagram_s`, `naming_fallback_s`, `naming_exact_s` and
+`naming_slowest_s`), and ends with the line a campaign parses,
 `[+] <target>: <n> new witnesses, outcome <met|expansion-limit|cpu-budget|nothing-useful|contradiction>`
 (n: the witnesses the store gained).
 
