@@ -178,6 +178,41 @@ void test_direct_witness_gives_upper_bound() {
               "constructive -- nothing taken on faith");
 }
 
+void test_external_proofs() {
+    // --cascade-proofs: a certified proof is a base case like a direct
+    // witness, constructive only when it names no literature value, and it
+    // grounds chains through the witnesses.
+    NameTable names;
+    names.addLiterature("K", 1, 1);
+    names.addLiterature("J", 0, 1);
+    names.addLiterature("M", 2, 2);
+    names.addLiterature("S", 0, 0);
+    {
+        auto bounds = propagate({cobordism("J", 1, "K", 1, 0)}, names,
+                                {{"K", 1, {}, "cascade:run/K"}});
+        EXPECT_EQ(bounds["K"].hi, 1, "a proof bounds its target");
+        EXPECT_EQ(bounds["K"].basis == Basis::constructive, true,
+                  "with no literature leaves it is constructive");
+        EXPECT_EQ(bounds["K"].viaName, std::string("cascade:run/K"),
+                  "the report names the proof");
+        EXPECT_EQ(bounds["J"].hi, 1, "and grounds a chain: J <= K + 0");
+        EXPECT_EQ(bounds["J"].basis == Basis::constructive, true,
+                  "still constructive along the chain");
+    }
+    {
+        auto bounds = propagate({}, names, {{"K", 1, {"S", "M"}, "cascade:run/K"}});
+        EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
+                  "literature leaves make it assisted");
+        EXPECT_EQ(bounds["K"].support.size(), static_cast<size_t>(2),
+                  "the leaves are its support");
+    }
+    {
+        auto bounds = propagate({}, names, {{"K", 1, {"K"}, "cascade:run/K"}});
+        EXPECT_EQ(bounds["K"].haveUpper(), false,
+                  "a proof resting on the target's own literature value is circular");
+    }
+}
+
 void test_knot_cobordism_reduces_to_the_classic_rule() {
     // With n_0 = n_1 = 1 the component terms vanish and the inequality is
     // the familiar |g_4(K_0) - g_4(K_1)| <= g. This is the regression guard
@@ -1551,6 +1586,7 @@ void run(const std::string &name, void (*fn)()) {
 
 int main() {
     run("components_from_name", test_components_from_name);
+    run("external_proofs", test_external_proofs);
     run("derived_lower_above_derived_upper_is_a_contradiction",
         test_derived_lower_above_derived_upper_is_a_contradiction);
     run("knot_far_side_named_as_a_link_bounds_nothing",

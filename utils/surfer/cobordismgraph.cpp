@@ -1066,7 +1066,8 @@ std::optional<SymmetryType> parseSymmetryType(const std::string &text) {
 }
 
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
+propagate(const std::vector<Witness> &witnesses, const NameTable &names,
+          const std::vector<ExternalProof> &external) {
     std::unordered_map<std::string, Bounds> bounds;
     seedAxioms(bounds, witnesses, names);
 
@@ -1076,6 +1077,17 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names) {
         if (w.kind == WitnessKind::direct)
             relaxUpper(bounds, names, w.subject, w.genus, /*support=*/{}, w,
                        "");
+
+    // Certified proofs from outside (--cascade-proofs): a base case too, as
+    // constructive as their leaves. Recorded as direct, via the proof's
+    // source, so a report names where the bound came from.
+    for (const ExternalProof &p : external) {
+        Witness w;
+        w.kind = WitnessKind::direct;
+        w.subject = p.name;
+        w.genus = p.genus;
+        relaxUpper(bounds, names, p.name, p.genus, p.support, w, p.source);
+    }
 
     // Relax every cobordism in both directions until nothing moves (this will
     // halt eventually: see propagate()'s doc comment).

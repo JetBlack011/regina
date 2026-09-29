@@ -481,8 +481,24 @@ struct Bounds {
  * planar surface (tube the `n` discs together -- genus 0, `n` boundary
  * circles), so both get `hi = lo = 0` constructively.
  */
+/**
+ * An upper bound proved outside this solver's witnesses: a certified
+ * cascadesearch proof (regina-john cascade/, checked by cascade_check.py),
+ * read from the atlas's data/cascade_proofs.csv (--cascade-proofs).
+ * `support` names the literature values the proof's leaves use; empty for a
+ * constructive proof. Seeded like a direct witness, so it grounds chains
+ * exactly as one does.
+ */
+struct ExternalProof {
+    std::string name;
+    int genus = 0;
+    std::vector<std::string> support;
+    std::string source; ///< e.g. "cascade:2026-09-28_knots8/8_16"
+};
+
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<Witness> &witnesses, const NameTable &names);
+propagate(const std::vector<Witness> &witnesses, const NameTable &names,
+          const std::vector<ExternalProof> &external = {});
 
 /* Reporting */
 

@@ -1041,7 +1041,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "    [ --knot-table <csv> ] [ --link-table <csv> ]\n"
          "    [ --name-aliases <csv> ]\n"
          "    [ --far-side-resolutions <csv> ] [ --far-side-exact <csv> ]\n"
-         "    [ --link-classes <csv> ]\n"
+         "    [ --link-classes <csv> ] [ --cascade-proofs <csv> ]\n"
          "    [ --knot-symmetry <csv> ] [ --sum-rules ]\n"
          "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
          "    [ --collar-layers N ] [ --iddfs-iterations N --iddfs-step D ]\n"
@@ -1267,6 +1267,12 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "table\n"
          "                     names that are one oriented link, one graph "
          "node each.\n"
+      << "    --cascade-proofs <csv> : certified cascadesearch proofs (the "
+         "atlas's\n"
+         "                     data/cascade_proofs.csv), each an upper bound "
+         "on its\n"
+         "                     target resting on the literature values it "
+         "names.\n"
       << "    --sum-rules : bound sums along components and splits with link "
          "factors\n"
          "                     from their pieces.\n"
@@ -1457,6 +1463,9 @@ int main(int argc, char *argv[]) {
   std::string farSideResolutionPath;
   std::string farSideExactPath;
   std::string linkClassesPath;
+  // Optional: the atlas's data/cascade_proofs.csv (certified cascadesearch
+  // proofs), each an upper-bound axiom on its target.
+  std::string cascadeProofsPath;
   bool sumRules = false;
   // Optional: knot symmetry types (data/knot_symmetry.csv). Without it only
   // the two long-standing slice composites are anchors; with it, every
@@ -1575,6 +1584,10 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--link-classes requires a value.");
       linkClassesPath = argv[++i];
+    } else if (arg == "--cascade-proofs") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--cascade-proofs requires a value.");
+      cascadeProofsPath = argv[++i];
     } else if (arg == "--sum-rules") {
       sumRules = true;
     } else if (arg == "--name-aliases") {
@@ -2139,6 +2152,55 @@ int main(int argc, char *argv[]) {
     std::cout << "[+] Sum rules: sums along components and splits with link "
                  "factors are bounded from their pieces\n";
 
+  // --cascade-proofs: target,goal,bound,basis,support,verdict,source,...
+  // Only CERTIFIED proofs of the connected goal bound g4; names (the target
+  // and every literature leaf) read through the link classes, as witnesses'.
+  std::vector<cobordismgraph::ExternalProof> externalProofs;
+  if (!cascadeProofsPath.empty()) {
+    std::ifstream in(cascadeProofsPath);
+    if (!in) {
+      std::cerr << "[!] could not open cascade proofs " << cascadeProofsPath << "\n";
+      return 1;
+    }
+    std::string line;
+    std::getline(in, line);
+    const std::vector<std::string> head = parseCsvLine(line);
+    auto col = [&head](const std::string &c) {
+      return static_cast<size_t>(std::find(head.begin(), head.end(), c) - head.begin());
+    };
+    const size_t cT = col("target"), cG = col("goal"), cB = col("bound"),
+                 cS = col("support"), cV = col("verdict"), cSrc = col("source");
+    if (std::max({cT, cG, cB, cS, cV, cSrc}) >= head.size()) {
+      std::cerr << "[!] " << cascadeProofsPath
+                << ": needs target,goal,bound,support,verdict,source columns\n";
+      return 1;
+    }
+    size_t skipped = 0;
+    while (std::getline(in, line)) {
+      if (line.empty())
+        continue;
+      const auto f = parseCsvLine(line);
+      if (f.size() < head.size() || f[cV] != "CERTIFIED" || f[cG] != "connected") {
+        ++skipped;
+        continue;
+      }
+      cobordismgraph::ExternalProof p;
+      p.name = classOf(f[cT]);
+      p.genus = std::stoi(f[cB]);
+      std::istringstream support(f[cS]);
+      for (std::string s; std::getline(support, s, ';');)
+        if (!s.empty())
+          p.support.push_back(classOf(s));
+      p.source = f[cSrc];
+      externalProofs.push_back(std::move(p));
+    }
+    std::cout << "[+] Cascade proofs: " << externalProofs.size()
+              << " certified bounds on connected g4 from " << cascadeProofsPath;
+    if (skipped)
+      std::cout << " (" << skipped << " others skipped)";
+    std::cout << "\n";
+  }
+
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
   size_t exactApplied = 0, exactRefused = 0;
@@ -2178,7 +2240,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "[!] " << e.what() << "\n";
     return 1;
   }
-  auto bounds = cobordismgraph::propagate(initialWitnesses, names);
+  auto bounds = cobordismgraph::propagate(initialWitnesses, names, externalProofs);
   // Release it now: it is a full witness set, pair signatures included, and
   // held for the rest of the run it raised peak memory by ~45% -- enough for
   // a full-master --solve-only to be OOM-killed on yoga (2026-09-24).
@@ -2238,7 +2300,7 @@ int main(int argc, char *argv[]) {
   // row's harvested cobordisms settle a later row before it is ever
   // searched.
   auto resolveAll = [&]() -> std::vector<std::string> {
-    bounds = cobordismgraph::propagate(solverWitnesses(), names);
+    bounds = cobordismgraph::propagate(solverWitnesses(), names, externalProofs);
     std::vector<std::string> contradictions;
 
     // Every name that could need its row rewritten -- crucially including
