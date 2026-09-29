@@ -631,8 +631,22 @@ void Cascade::expand(NodeId n, long surfaces) {
     hop = std::make_unique<HopAssembler>(g_, reg_, row);
   } catch (const std::exception &e) {
     refused_.insert(n);
+    // The row as given, to diagnose the refusal: its PD, whether Regina can
+    // recover every orientation from that PD, and the node's own diagram.
+    std::ostringstream gauss;
+    gauss << "{\"signs\":[";
+    for (size_t i = 0; i < d.signs.size(); ++i) gauss << (i ? "," : "") << d.signs[i];
+    gauss << "],\"gauss\":[";
+    for (size_t c = 0; c < d.comps.size(); ++c) {
+      gauss << (c ? ",[" : "[");
+      for (size_t j = 0; j < d.comps[c].size(); ++j) gauss << (j ? "," : "") << d.comps[c][j];
+      gauss << "]";
+    }
+    gauss << "]}";
     log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
-        ",\"refused\":\"" + jsonEscape(e.what()) + "\"}");
+        ",\"refused\":\"" + jsonEscape(e.what()) + "\",\"pd\":\"" + jsonEscape(row.pd) +
+        "\",\"pd_ambiguous\":" + (d.link().pdAmbiguous() ? "true" : "false") +
+        ",\"diagram\":" + gauss.str() + "}");
     std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
     return;
   }
