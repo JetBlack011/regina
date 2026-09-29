@@ -71,6 +71,8 @@ def existing(path, key):
 def node_name(run, target, node):
     if node.get('table'):
         return node['table']
+    if node.get('label') == f'target {target}':
+        return target  # a target beyond the tables keeps its own name (18nh_00000707)
     if not node.get('signs'):
         k = node['components']
         return 'Unknot' if k == 1 else f'{k}-component unlink'
