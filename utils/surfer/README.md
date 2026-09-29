@@ -330,6 +330,44 @@ signature is needed for it, and the prototype pass is already ~0 s.
 - The last row's drain tail includes waiting for the pair-signature context,
   which it built in the tail rather than during the search.
 
+**The drain and the pair-signature context (2026-09-29).** Measured the same
+way: B1 on halcyon, 14 threads, root budget 840, ABAB with two repeats. Each
+change is timed against its parent in the same run, and every build accepted
+exactly the same surfaces in every run (488,635, 514,330 and 544,443). The
+baseline is `a8f277027`'s glibc build; the commits between it and the
+allocator change add only frontier code, which does nothing without its flags.
+
+| build | change | 10_141 | L10a14{0} | L10a127{1;1} | total | accepted |
+|---|---|---|---|---|---|---|
+| `a8f277027` | baseline (glibc `malloc`) | 37.9 | 40.9 | 43.5 | 122.2 | — |
+| `ceabfe3c8` | mimalloc, statically linked | 31.7 | 32.5 | 34.5 | 98.7 (0.81×) | same |
+| `cf7b01566` | an edge complement's drilling map built only when it is drilled | 29.8 | 30.6 | 32.1 | 92.4 (0.94×) | same |
+| `2389b8535` | a boundary edge's index in its component by table, not by scan | 29.3 | 30.0 | 31.6 | 90.9 (0.99×) | same |
+| `e840087ea` | new witnesses signed on their own thread, which builds the context | 27.4 | 27.6 | 27.8 | 82.7 (0.91×) | same |
+
+- **The context is now most of a B1 row.** B1 rows start from an empty witness
+  file, so every row builds the pair-signature context (~25 s of one thread),
+  while its search takes ~3 s and its drain ~1 s. `e840087ea` overlaps the build
+  with those few seconds, but the row still waits out the rest before writing
+  its witnesses.
+- **In production** the search and drain are longer (tens of seconds for 1M
+  surfaces), so the overlap hides more of it. A row with no new witness never
+  builds the context at all.
+- **The cache.** `740d8fdc2` (`--pair-sig-cache`) removes the build for any row
+  searched again. On `10_141` at the production shape (200k surfaces, fresh
+  witness file, 14 threads):
+  - cold (context built): 27.1 and 27.2 s, the context ready 26.8 s after the
+    search began;
+  - warm (context loaded): 3.0 and 3.0 s.
+- **mimalloc on yoga's drain** (`10_141`, 4 threads, a store already holding
+  the row's witnesses): 0.22 → 0.11 ms per surface drained. The search rounds
+  went 16–18 → 11 s, and CPU per surface 1.87 → 1.11 ms. Yoga's laptop CPU
+  throttles under sustained load, so only the interleaved pairs there are
+  comparable.
+- **Building mimalloc.** It must be built from source (`~/.local/lib/libmimalloc.a`,
+  mimalloc 3.5.3). Arch's packaged archive is LTO bitcode, which the link
+  silently skips, so CMake now refuses any archive without a real `malloc`.
+
 **Where a production row's time goes now** (`perf` flat profile of the final
 B2 row):
 - allocator churn (`malloc`, `free` and friends): ~37%;
