@@ -20,7 +20,7 @@ add_library(surfer_common STATIC
   exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp
   cascade/partition.cpp cascade/profile.cpp cascade/proofgraph.cpp
   cascade/diagramiso.cpp cascade/nodes.cpp cascade/hopedges.cpp cascade/leaves.cpp
-  cascade/hoprunner.cpp)
+  cascade/hoprunner.cpp cascade/keptstore.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
 
 # The SnapPea kernel's isometry sources, which Regina ships unbuilt

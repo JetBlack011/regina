@@ -12,6 +12,18 @@
 //                 [--max-expansions K] [--cpu-budget SECONDS]
 //                 [--max-crossings C] [--strategy best|dfs|bfs]
 //                 [--literature | --constructive]
+//                 [--witness-store CSV --run-name NAME [--dedupe-against CSV]...]
+//   cascadesearch --sign-only --work DIR --witness-store CSV
+//                 --knot-table CSV --link-table CSV [--dedupe-against CSV]...
+//
+// With --witness-store, every surface a hop keeps is also recorded for the
+// atlas (keptstore.h): its hop appends it to <hop dir>/kept.csv at once, and
+// the run's end signs the ones whose witness is new (to the store and to
+// every --dedupe-against file) and appends them to the store, as the sweep
+// would have recorded them. A hop's subject is the target's own name, a
+// node's proved table name, or cascade:<run name>/<target>/n<node>, so no two
+// runs can ever record different links under one name. --sign-only does the
+// end-of-run step alone, for a run that was killed.
 //
 // Each expansion is one row searched on a node's diagram with the
 // campaign's search shape: in this process (hoprunner.h; the default), or
@@ -50,16 +62,19 @@
 
 #include <link/link.h>
 
+#include "csvwriter.h"
 #include "exactnaming/exactnamer.h"
 #include "exactnaming/exacttables.h"
 #include "farsidenaming.h"
 #include "hopedges.h"
 #include "hoprunner.h"
 #include "identifycomplement.h"
+#include "keptstore.h"
 #include "leaves.h"
 #include "nodes.h"
 #include "proofgraph.h"
 #include "witnesskey.h"
+#include "witnessstore.h"
 
 extern char **environ;
 
@@ -92,6 +107,17 @@ struct Config {
   /// --hop-* options change it. Either hop mode uses it.
   HopShape hopShape;
   bool verbose = false;
+  /// The atlas-format witness store every kept surface is recorded in
+  /// (keptstore.h); empty for none. Read-only stores to deduplicate against
+  /// (the master, say), and the run's name for cascade: subjects.
+  std::string witnessStore, runName;
+  std::vector<std::string> dedupeAgainst;
+  bool signOnly = false;
+  /// Write lower_report.jsonl at the end (writeLowerReport()); the sources
+  /// file (atlas data/lower_bound_sources.csv: name,...,special) marks which
+  /// literature bounds are not Lipschitz.
+  bool lowerReport = false;
+  std::string lowerSources;
 };
 
 std::string jsonEscape(const std::string &s) {
@@ -337,6 +363,17 @@ private:
   bool useful(NodeId n) const;
   std::optional<NodeId> choose(bool freeOnly = false);
   void expand(NodeId n, long surfaces);
+  /// The name node n's hop records its witnesses under: the target's own
+  /// name, a proved table name, or cascade:<run>/<target>/n<n>.
+  std::string subjectName(NodeId n) const;
+  /// With --witness-store: signs and stores every kept surface of the run,
+  /// and writes <work>/nodes.csv for the cascade: subjects. Idempotent.
+  void storeWitnesses();
+  void printOutcome(const std::string &outcome) const;
+  void printProfile() const;
+  /// With --lower-report: <work>/lower_report.jsonl, what each tabulated
+  /// node's lower bound carries to the target (README.md, "Lower bounds").
+  void writeLowerReport() const;
   void writeCertificate() const;
   void log(const std::string &line) {
     std::ofstream(cfg_.work + "/cascade.jsonl", std::ios::app) << line << "\n";
@@ -385,7 +422,56 @@ private:
   double cpuSpent_ = 0, wallSpent_ = 0;
   int hops_ = 0;
   int invariantFailures_ = 0;
+  std::map<NodeId, std::string> hopSubject_; ///< each searched node's subject name
+  bool stored_ = false;
+  size_t storedAppended_ = 0;             ///< witnesses the store gained
+  std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
 };
+
+std::string Cascade::subjectName(NodeId n) const {
+  if (n == target_ && cfg_.targetName != "target") return cfg_.targetName;
+  if (auto it = tableName_.find(n); it != tableName_.end() && tables_.entry(it->second))
+    return it->second;
+  return "cascade:" + cfg_.runName + "/" + cfg_.targetName + "/n" + std::to_string(n);
+}
+
+void Cascade::storeWitnesses() {
+  if (cfg_.witnessStore.empty() || stored_) return;
+  stored_ = true;
+  // The cascade: subjects, as the atlas's results/cascade/nodes.csv lists
+  // them (cascade_record.py), so a later identity can be attached to each.
+  {
+    std::ofstream nodes(cfg_.work + "/nodes.csv");
+    nodes << "name,components,crossings,pd,signs,gauss,label\n";
+    for (const auto &[n, name] : hopSubject_) {
+      if (name.rfind("cascade:", 0) != 0) continue;
+      const GaussDiagram &d = reg_.info(n).diagram;
+      std::ostringstream signs, gauss;
+      signs << '[';
+      for (size_t i = 0; i < d.signs.size(); ++i) signs << (i ? ", " : "") << d.signs[i];
+      signs << ']';
+      gauss << '[';
+      for (size_t c = 0; c < d.comps.size(); ++c) {
+        gauss << (c ? ", [" : "[");
+        for (size_t j = 0; j < d.comps[c].size(); ++j) gauss << (j ? ", " : "") << d.comps[c][j];
+        gauss << ']';
+      }
+      gauss << ']';
+      nodes << csvField(name) << ',' << d.components() << ',' << d.crossings() << ','
+            << csvField(rowPD(d)) << ',' << csvField(signs.str()) << ','
+            << csvField(gauss.str()) << ",node " << n << '\n';
+    }
+  }
+  cobordismgraph::NameTable names;
+  witnessstore::loadNameTable(cfg_.knotTable, names);
+  witnessstore::loadNameTable(cfg_.linkTable, names);
+  const StoreResult s = storeKept(readKept(cfg_.work), cfg_.witnessStore, cfg_.dedupeAgainst,
+                                  names, static_cast<unsigned>(cfg_.threads));
+  storedAppended_ = s.appended;
+  std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+            << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
+            << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
+}
 
 void Cascade::onNewNode(NodeId n, int depth) { onNewNodes({n}, depth); }
 
@@ -657,7 +743,10 @@ void Cascade::expand(NodeId n, long surfaces) {
   std::string roundsJson = "[]";
   size_t drainTail = 0;
   double drainTailSeconds = 0;
-  const std::string rowName = "cascade_n" + std::to_string(n);
+  // The hop's subject: what its witnesses are recorded under, and what its
+  // log lines are named by (subjectName()).
+  const std::string rowName = subjectName(n);
+  hopSubject_[n] = rowName;
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
   size_t witnesses = 0;
@@ -720,10 +809,28 @@ void Cascade::expand(NodeId n, long surfaces) {
         << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
         << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
         << ": accounting: " << run.accounting << "\n";
+    // Every hop's accounting in the driver log too, in verifyslicegenus's
+    // shape after the hop number, so a campaign audits each hop as it
+    // audits a row (tools/orchestrate/audit_rows.py).
+    std::cout << "[+] hop " << k << " " << rowName << ": accounting: " << run.accounting
+              << "\n";
     if (!run.accountingFailure.empty())
       std::cout << "[!!] hop " << k << ": surface accounting failed -- "
                 << run.accountingFailure << " (completeness only: nothing unsound "
                 << "is recorded)\n";
+    if (!cfg_.witnessStore.empty()) {
+      // Every kept surface, durably, before the graph takes its faces.
+      std::vector<PendingWitness> pending;
+      pending.reserve(run.kept.size());
+      for (const KeptSurface &ks : run.kept) {
+        PendingWitness p{ks.witness, row.pd, row.layers, ks.faces};
+        p.witness.sourceRow = rowName;
+        p.witness.thickenLayers = row.layers;
+        p.witness.maxFaces = cfg_.hopShape.maxFaces;
+        pending.push_back(std::move(p));
+      }
+      appendKept(dir, pending);
+    }
     t0 = std::chrono::steady_clock::now();
     witnesses = run.kept.size();
     for (size_t i = 0; i < run.kept.size(); ++i) {
@@ -953,6 +1060,7 @@ int Cascade::run() {
               << " from " << s.iddfsStart << " step " << s.iddfsStep << ", root budget "
               << s.rootBudgetStart << " x" << s.rootBudgetGrowth << "\n";
   }
+  printProfile();
   if (!cfg_.masterWitnesses.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
     master_ = std::make_unique<MasterIndex>(cfg_.masterWitnesses);
@@ -987,6 +1095,11 @@ int Cascade::run() {
   while (!goalMet()) {
     if (!g_.contradictions().empty()) {
       for (const auto &c : g_.contradictions()) std::cout << "[!!] CONTRADICTION: " << c << "\n";
+      // The surfaces are real whatever the contradiction's cause (a naming
+      // or solver bug), so they are kept, as verifyslicegenus writes its
+      // witnesses before its fatal-bug halt.
+      storeWitnesses();
+      printOutcome("contradiction");
       return 3;
     }
     // Free edges first (no search, so no budget): the target's own master
@@ -1002,12 +1115,24 @@ int Cascade::run() {
         continue;
       }
     auto n = choose();
-    if (hops_ >= cfg_.maxExpansions) { std::cout << "[-] expansion limit\n"; break; }
-    if (cpuSpent_ >= cfg_.cpuBudget) { std::cout << "[-] CPU budget spent\n"; break; }
+    if (hops_ >= cfg_.maxExpansions) {
+      std::cout << "[-] expansion limit\n";
+      stopReason_ = "expansion-limit";
+      break;
+    }
+    if (cpuSpent_ >= cfg_.cpuBudget) {
+      std::cout << "[-] CPU budget spent\n";
+      stopReason_ = "cpu-budget";
+      break;
+    }
     if (!n) {
       // Every useful node searched at this budget: search them again deeper
       // (a surface-target round only covers a prefix of the roots).
-      if (budget * 2 > cfg_.maxHopSurfaces) { std::cout << "[-] nothing useful left\n"; break; }
+      if (budget * 2 > cfg_.maxHopSurfaces) {
+        std::cout << "[-] nothing useful left\n";
+        stopReason_ = "nothing-useful";
+        break;
+      }
       budget *= 2;
       for (auto &[m, v] : expansions_) v.clear();
       std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
@@ -1021,6 +1146,8 @@ int Cascade::run() {
             << g_.recordCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
+  storeWitnesses();
+  writeLowerReport();
   if (goalMet()) {
     writeCertificate();
     bool constructive = true;
@@ -1031,9 +1158,116 @@ int Cascade::run() {
     std::cout << "[+] GOAL MET: " << cfg_.targetName << " genus <= " << best->genus << " ("
               << (constructive ? "constructive" : "literature-assisted") << "); certificate "
               << cfg_.work << "/certificate.json\n";
+    printOutcome("met");
     return 0;
   }
+  printOutcome(stopReason_);
   return 1;
+}
+
+void Cascade::writeLowerReport() const {
+  // For every tabulated node Y: the least charge of carrying a lower bound
+  // from Y to the target, over every path the graph holds. Measured by
+  // seeding Y alone at a large M in a copy and reading what reaches the
+  // target (propagateLower() takes the maximum over sources, and M dwarfs
+  // every real bound), so charge = M - lower(target). A literature bound
+  // lo(Y) carries lo(Y) - charge; hi(Y) - charge is the most Y could ever
+  // carry. README.md, "Lower bounds": only a charge-0 path to a source whose
+  // bound is not Lipschitz (lower_bound_sources.csv, `special`) can beat the
+  // target's own literature bound.
+  if (!cfg_.lowerReport) return;
+  constexpr int M = 1000;
+  std::map<std::string, bool> special;
+  if (!cfg_.lowerSources.empty()) {
+    std::ifstream in(cfg_.lowerSources);
+    std::string line;
+    std::getline(in, line);
+    std::vector<std::string> head = parseCsvLine(line);
+    const auto col = [&](const std::string &c) {
+      return static_cast<size_t>(std::find(head.begin(), head.end(), c) - head.begin());
+    };
+    const size_t nameCol = col("name"), specialCol = col("special");
+    while (std::getline(in, line)) {
+      const std::vector<std::string> f = parseCsvLine(line);
+      if (nameCol < f.size() && specialCol < f.size())
+        special[f[nameCol]] = f[specialCol] == "1";
+    }
+  }
+  const Partition goal = goalPartition(target_);
+  const int targetLower = g_.lower(target_, goal);
+  int litLo = -1;
+  if (const exactnaming::TableEntry *e = tables_.entry(cfg_.targetName))
+    if (auto g4 = parseTableG4(e->g4)) litLo = g4->first;
+  std::ofstream out(cfg_.work + "/lower_report.jsonl");
+  out << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_lower\":" << targetLower
+      << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g_.nodeCount() << "}\n";
+  int bestCarry = -M, bestCould = -M;
+  std::string bestName, bestCouldName;
+  for (const auto &[n, name] : tableName_) {
+    if (n == target_) continue;
+    const exactnaming::TableEntry *e = tables_.entry(name);
+    if (!e) continue;
+    auto g4 = parseTableG4(e->g4);
+    if (!g4) continue;
+    ProofGraph what = g_;
+    what.setGenusLowerBound(n, M, "lower-report what-if");
+    what.propagateLower();
+    const int reached = what.lower(target_, goal);
+    if (reached < M / 2) continue; // no path carries anything from n
+    const int charge = M - reached;
+    const auto sp = special.find(name);
+    out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << "\",\"lit_lo\":"
+        << g4->first << ",\"lit_hi\":" << g4->second << ",\"special\":"
+        << (sp == special.end() ? "null" : sp->second ? "true" : "false")
+        << ",\"charge\":" << charge << ",\"carries\":" << g4->first - charge
+        << ",\"could_carry\":" << g4->second - charge << "}\n";
+    if (g4->first - charge > bestCarry) {
+      bestCarry = g4->first - charge;
+      bestName = name;
+    }
+    if (g4->second - charge > bestCould) {
+      bestCould = g4->second - charge;
+      bestCouldName = name;
+    }
+  }
+  std::cout << "[+] lower report: target lower " << targetLower << " (literature " << litLo
+            << "); best carried " << (bestName.empty() ? std::string("none")
+                                                       : std::to_string(bestCarry) + " from " + bestName)
+            << "; most any tabulated node could carry "
+            << (bestCouldName.empty() ? std::string("none")
+                                      : std::to_string(bestCould) + " from " + bestCouldName)
+            << "\n";
+}
+
+void Cascade::printOutcome(const std::string &outcome) const {
+  // The line a campaign's runner parses, in verifyslicegenus's own shape
+  // (dispatch.py RE_OUTCOME): witnesses newly recorded, and why the run ended.
+  std::cout << "[+] " << cfg_.targetName << ": " << storedAppended_
+            << " new witnesses, outcome " << outcome << "\n";
+}
+
+void Cascade::printProfile() const {
+  // Everything that decides what a run covers, as key=value, so a campaign
+  // records what actually ran rather than what its configuration asked for.
+  const HopShape &s = cfg_.hopShape;
+  std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
+            << " goal_genus=" << cfg_.goalGenus << " literature=" << (cfg_.literature ? 1 : 0)
+            << " hop_mode=" << cfg_.hopMode << " hop_surfaces=" << cfg_.hopSurfaces
+            << " max_hop_surfaces=" << cfg_.maxHopSurfaces
+            << " max_expansions=" << cfg_.maxExpansions << " cpu_budget=" << cfg_.cpuBudget
+            << " strategy=" << cfg_.strategy << " max_crossings=" << cfg_.maxCrossings
+            << " threads=" << cfg_.threads << " max_faces=" << s.maxFaces
+            << " iddfs_iterations=" << s.iddfsIterations << " iddfs_start=" << s.iddfsStart
+            << " iddfs_step=" << s.iddfsStep << " root_budget_start=" << s.rootBudgetStart
+            << " root_budget_growth=" << s.rootBudgetGrowth << " layers=2"
+            << " resolve_unlinked=" << (s.resolveUnlinked ? 1 : 0)
+            << " exact_far_side_names=1 pending_surface_cap=" << s.pendingSurfaceCap
+            << " petal_cache_limit=" << s.petalCacheLimit
+            << " boundary_signature_cache_limit=" << s.boundarySignatureCacheLimit
+            << " recognition_cache_limit=" << s.recognitionCacheLimit
+            << " master_witnesses=" << (cfg_.masterWitnesses.empty() ? "none" : cfg_.masterWitnesses)
+            << " witness_store=" << (cfg_.witnessStore.empty() ? "none" : cfg_.witnessStore)
+            << " run_name=" << (cfg_.runName.empty() ? "none" : cfg_.runName) << "\n";
 }
 
 } // namespace
@@ -1071,11 +1305,54 @@ int main(int argc, char **argv) {
     else if (a == "--hop-iddfs-start") c.hopShape.iddfsStart = std::stoll(next());
     else if (a == "--hop-iddfs-iterations") c.hopShape.iddfsIterations = std::stoul(next());
     else if (a == "--hop-root-budget") c.hopShape.rootBudgetStart = std::stoll(next());
+    else if (a == "--hop-iddfs-step") c.hopShape.iddfsStep = std::stoll(next());
+    else if (a == "--hop-root-growth") c.hopShape.rootBudgetGrowth = std::stoll(next());
+    else if (a == "--hop-pending-cap") c.hopShape.pendingSurfaceCap = std::stoull(next());
+    else if (a == "--hop-petal-cache") c.hopShape.petalCacheLimit = std::stoull(next());
+    else if (a == "--hop-boundary-cache")
+      c.hopShape.boundarySignatureCacheLimit = std::stoull(next());
+    else if (a == "--hop-recognition-cache")
+      c.hopShape.recognitionCacheLimit = std::stoull(next());
     else if (a == "--verbose") c.verbose = true;
+    else if (a == "--witness-store") c.witnessStore = next();
+    else if (a == "--run-name") c.runName = next();
+    else if (a == "--dedupe-against") c.dedupeAgainst.push_back(next());
+    else if (a == "--sign-only") c.signOnly = true;
+    else if (a == "--lower-report") c.lowerReport = true;
+    else if (a == "--lower-sources") c.lowerSources = next();
     else {
       std::cerr << "unknown argument " << a << "\n";
       return 2;
     }
+  }
+  if (c.signOnly) {
+    // The end-of-run store step alone, for a run that was killed after its
+    // hops wrote kept.csv (the subjects are already in those lines).
+    if (c.work.empty() || c.witnessStore.empty() || c.knotTable.empty() ||
+        c.linkTable.empty()) {
+      std::cerr << "cascadesearch --sign-only: --work, --witness-store, --knot-table and "
+                   "--link-table are required\n";
+      return 2;
+    }
+    try {
+      cobordismgraph::NameTable names;
+      witnessstore::loadNameTable(c.knotTable, names);
+      witnessstore::loadNameTable(c.linkTable, names);
+      const StoreResult s = storeKept(readKept(c.work), c.witnessStore, c.dedupeAgainst,
+                                      names, static_cast<unsigned>(c.threads));
+      std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+                << s.appended << " appended to " << c.witnessStore << "\n";
+      return 0;
+    } catch (const std::exception &e) {
+      std::cerr << "cascadesearch: " << e.what() << "\n";
+      return 2;
+    }
+  }
+  if (!c.witnessStore.empty() && (c.runName.empty() || c.hopMode != "process")) {
+    // A child hop writes its own witnesses (hop dir cob.csv), under its own
+    // row name; only in-process hops are recorded through keptstore.h.
+    std::cerr << "cascadesearch: --witness-store needs --run-name, and in-process hops\n";
+    return 2;
   }
   if (c.targetPD.empty() || c.work.empty() || c.knotTable.empty() ||
       c.linkTable.empty() || c.censusDb.empty() ||

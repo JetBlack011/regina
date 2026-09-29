@@ -169,7 +169,8 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                   .resolvedVertices = info.resolvedVertices,
                   .farName = std::move(farName),
                   .faces = info.captureFaces(),
-                  .key = std::move(key)};
+                  .key = std::move(key),
+                  .witness = std::move(w)};
     std::lock_guard<std::mutex> lock(keptMutex);
     if (stop && !stopped.load() && stop(k)) {
       stopped.store(true);

@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "cobordismgraph.h"
 #include "exactnaming/exacttables.h"
 #include "farsidecurves.h"
 #include "farsidenaming.h"
@@ -54,6 +55,10 @@ struct KeptSurface {
   std::string farName;        ///< the namer's name; "" for no far side
   std::vector<int> faces;     ///< triangles of the row's thickening
   std::string key;            ///< its dedupe key (see HopSearcher::run())
+  /// The witness verifyslicegenus would record for it, every column but the
+  /// pair signature, other_candidates and the provenance (source row,
+  /// layers, face cap): its subject is the hop's rowName.
+  cobordismgraph::Witness witness;
 };
 
 /// What a hop did.

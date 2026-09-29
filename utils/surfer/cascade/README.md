@@ -52,12 +52,62 @@ cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
 | `--max-expansions`, `--cpu-budget` | stop after this many hops, or this much hop CPU (checked between hops) |
 | `--strategy best\|dfs\|bfs` | which node to expand next |
 | `--max-crossings n` | never expand a node whose diagram has more than n crossings (default 24) |
-| `--hop-max-faces`, `--hop-iddfs-start`, `--hop-iddfs-iterations`, `--hop-root-budget` | each hop's search shape; the defaults are the campaign's (cap 5, IDDFS 2 rounds from 4, root budget 840), and the driver prints the shape it uses |
+| `--hop-max-faces`, `--hop-iddfs-start`, `--hop-iddfs-iterations`, `--hop-iddfs-step`, `--hop-root-budget`, `--hop-root-growth` | each hop's search shape; the defaults are the campaign's (cap 5, IDDFS 2 rounds from 4 step 1, root budget 840 doubling) |
+| `--hop-pending-cap`, `--hop-petal-cache`, `--hop-boundary-cache`, `--hop-recognition-cache` | hosts.conf's per-host limits, which the hops use (defaults 20M, 12M, 1M, 1.5M) |
 | `--hop-mode process\|child` | hops in this process (default) or as `verifyslicegenus` children (`--verifyslicegenus` then required) |
+| `--witness-store <csv> --run-name <name>` | record every kept surface for the atlas ("Witnesses for the atlas" below); in-process hops only |
+| `--dedupe-against <csv>` (repeatable) | read-only witness files whose identities the store must not repeat (the master) |
+| `--sign-only` | the store step alone, over `--work`'s `hop_*/kept.csv` (a killed run) |
+| `--lower-report [--lower-sources <csv>]` | write `lower_report.jsonl`: what each tabulated node's lower bound carries to the target ("Lower bounds" below) |
 
 It writes `cascade.jsonl` (one line per hop, with its phase timers),
 `driver.log` and, when the goal is met, `certificate.json` for
-`tools/cascade_check.py`.
+`tools/cascade_check.py`. The driver log starts with a `[+] profile:` line
+(every setting that decides what the run covers, as `key=value`), gives each
+hop's accounting as `[+] hop <k> <subject>: accounting: ...` in
+`verifyslicegenus`'s shape, and ends with the line a campaign parses,
+`[+] <target>: <n> new witnesses, outcome <met|expansion-limit|cpu-budget|nothing-useful|contradiction>`
+(n: the witnesses the store gained).
+
+## Witnesses for the atlas (`keptstore.h`, since 2026-09-28)
+
+Every surface a hop keeps is a real cobordism, and one a later search's
+propagation may use even when this run's goal is not met. With
+`--witness-store`, each is recorded as `verifyslicegenus` would have
+recorded it (13 columns, `witnessstore.h`, the same code the sweep appends
+through):
+
+- **When.** Each hop appends its kept surfaces to `hop_<k>_n<node>/kept.csv`
+  at once: every witness column but the pair signature, then the faces, row
+  PD and layers. The run's end (every exit, a contradiction included) signs
+  the ones whose witness identity is new and appends them to the store.
+  Signing is almost all the row's ambient (one `PairSigContext` per hop row,
+  ~50 s for a 10-crossing row), so it is done once per row, rows in
+  parallel, after the search. A killed run keeps its `kept.csv`, and
+  `--sign-only` stores it later.
+- **Which.** One per `cobordismgraph::witnessIdentity()`, the sweep's rule:
+  identities already in the store or in a `--dedupe-against` file (the
+  master) are skipped, before signing. The append holds `flock` on
+  `<store>.lock` and re-reads the store's identities under it.
+- **Under what name.** A hop's subject is the target's own name, a node's
+  pinned table name (exact naming, a class up to mirror and global reversal,
+  which g₄ does not see), or `cascade:<run name>/<target>/n<node>`, the
+  store's scheme for untabulated nodes (`tools/cascade_record.py`). Node ids
+  restart in every run, so the old `cascade_n<node>` would have put
+  different links under one name. The `cascade:` subjects are listed in
+  `<work>/nodes.csv` (the store's `nodes.csv` columns).
+- **Other columns.** `other_candidates` comes from the name tables
+  (`NameTable::candidates()`), as the sweep fills it; `source_row` is the
+  subject; `thicken_layers` 2; `max_faces` the hop's cap.
+
+Checked (2026-09-28): `keptstore_test` (a real exhaustive 3_1 hop: kept.csv
+round-trips; one line per identity, each pair signature the one taken in the
+searched thickening; storing again, or against a store holding them, appends
+nothing). On a `10_27` run, all 24 stored witnesses were redrawn from their
+pair signatures by `farsidename`: 19 give exactly the in-search name, and 5
+a sharper one (raw isomorphism signatures that are `3_1#m5_2`, `3_1#4_1` and
+`3_1#m3_1`, the census name `L108014` = `8_14`, and a `diagram:` name that is
+the Hopf link), which is why the atlas names every merge exactly.
 
 ## Component maps
 
@@ -630,6 +680,35 @@ those invariants obey the same inequality.
 The payoff is concordance to knots proven non-slice by *other* means. That is
 DG §7's mechanism, which settled about 2,000 knots, 1,672 through the Conway
 knot.
+
+**Why, in general (2026-09-28).** An invariant f ≤ g₄ that changes by at
+most a witness's charge across it satisfies f(target) ≥ f(source) −
+charge. So a lower bound resting on such an f never beats f computed at the
+target itself. That covers |σ_ω|/2, |τ|, |s|/2 and ν⁺ for knots, and
+Murasugi–Tristram for links: its μ − 1 term is exactly the slack splitting
+bands add. The tables already record these. So a transported bound can
+close an interval only from a source whose bound is NOT of this kind, and
+then only across a charge-0, genus-0 witness. From KnotInfo/LinkInfo
+(database_knotinfo 2026.9.1), such sources are:
+- ≈2,228 knots whose lower bound exceeds max(|σ|/2, |τ|, |s|/2, Levine–
+  Tristram, ν): 2,106 non-slice with every such invariant 0, and 122 with
+  g₄ = 2 above a floor of at most 1;
+- 653 links above the Murasugi floor ⌈(|σ| − μ + 1)/2⌉ (e.g. the
+  Whitehead link, `L5a1`).
+
+The same argument is why σ or τ leaves on intermediate nodes could never
+raise a target's lower bound.
+
+**The lower report (`--lower-report`).** At a run's end, for each tabulated
+node Y, it seeds Y alone at a large M in a copy of the graph, relaxes, and
+reads M − lower(target): the least charge of carrying a bound from Y to the
+target over every path found. Each line of `lower_report.jsonl` gives Y's
+literature interval, whether it is a special source (from the atlas's
+`data/lower_bound_sources.csv` via `--lower-sources`), the charge,
+`carries` = lo(Y) − charge and `could_carry` = hi(Y) − charge. A carry
+above the target's own literature lower bound closes the entry from below.
+A special source at charge 1, or a `could_carry` above it, is a near miss
+worth a deeper search.
 
 ### Implemented (`ProofGraph::propagateLower()`, `lower()`)
 
