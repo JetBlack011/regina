@@ -229,6 +229,17 @@ def iso_with_map(a, b, comp_map):
     return rec(0)
 
 
+def iso_maps(a, b):
+    """Every component map of a diagram isomorphism a -> b (orientation kept,
+    no mirror): one per component permutation some isomorphism realises."""
+    m = len(a.comps)
+    if m > 7:
+        raise RuntimeError('too many components for an exhaustive map search')
+    for perm in permutations(range(m)):
+        if iso_with_map(a, b, list(perm)):
+            yield list(perm)
+
+
 def find_iso(a, b, allow_mirror, allow_reverse):
     """Some (map, mirrored, reversed) with iso_with_map, trying every map."""
     m = len(a.comps)
@@ -628,34 +639,42 @@ class Checker:
         # proved like a far-side piece.
         in_node = r['in']
         node_g = self.node_gauss(in_node)
+        # When the row's diagram has automorphisms there are several such
+        # maps. Each comes from a symmetry h of (S^3, L); h x id carries the
+        # witness to one whose incoming components are permuted by it, and
+        # since h is isotopic to the identity in S^3 the far-side curves go
+        # back to themselves: the same surface witnesses the shape under
+        # every one of them. So the certificate's shape stands if it is the
+        # redraw's under SOME map (the far side is compared exactly).
         if 'row_node_map' in r:
             row_g = Gauss.of_link(pd_to_link(r['row_pd']))
-            found = find_iso(d['row'], row_g, False, False)
-            if not found:
-                return self.fail(rid, 'the row does not redraw as its own PD (no isomorphism)')
-            drawn_to_row, _, _ = found
             rmap = r['row_node_map']
             ok, why = self.same_as_node(row_g, node_g, rmap, False, False)
             if not ok:
                 return self.fail(rid, f'the row diagram is not node {in_node} under its map: {why}')
-            row_to_node = [rmap[drawn_to_row[i]] for i in range(len(drawn_to_row))]
+            maps = [[rmap[m[i]] for i in range(len(m))] for m in iso_maps(d['row'], row_g)]
+            if not maps:
+                return self.fail(rid, 'the row does not redraw as its own PD (no isomorphism)')
         else:
-            found = find_iso(d['row'], node_g, False, False)
-            if not found:
+            maps = list(iso_maps(d['row'], node_g))
+            if not maps:
                 return self.fail(rid, 'the row does not redraw as its node (no isomorphism)')
-            row_to_node, _, _ = found
         n_in = len(d['row'].comps)
-        # the shape, from the redraw
+        # the shape, from the redraw, under each map
         sc_of_row = {}
         for sc, comps in d['incoming'].items():
             for rc in comps:
                 sc_of_row[rc] = sc
-        in_comp = [None] * n_in
-        for rc in range(n_in):
-            in_comp[row_to_node[rc]] = sc_of_row[rc]
-        mine = normalize(in_comp + d['surface'])
         cs = r['shape']
         theirs = normalize(cs['inComponent'] + cs['outComponent'])
+        mine = None
+        for row_to_node in maps:
+            in_comp = [None] * n_in
+            for rc in range(n_in):
+                in_comp[row_to_node[rc]] = sc_of_row[rc]
+            mine = normalize(in_comp + d['surface'])
+            if mine == theirs:
+                break
         # our in/out orders: in = node order; out = drawn curve order (outMap
         # composes them with the far node, checked below)
         if mine != theirs:
