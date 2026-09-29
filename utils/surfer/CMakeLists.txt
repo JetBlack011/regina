@@ -11,11 +11,15 @@ add_library(surfer_common STATIC
   cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
   embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
   linkcomplement.cpp linkingnumber.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
+  rowsearch.cpp
   rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
   cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp farsideredraw.cpp
   exactnaming/exacttables.cpp exactnaming/gaussdiagram.cpp exactnaming/exactnamer.cpp
   exactnaming/snappeaisometry.cpp
-  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp)
+  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp
+  cascade/partition.cpp cascade/profile.cpp cascade/proofgraph.cpp
+  cascade/diagramiso.cpp cascade/nodes.cpp cascade/hopedges.cpp cascade/leaves.cpp
+  cascade/hoprunner.cpp)
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
 
 # The SnapPea kernel's isometry sources, which Regina ships unbuilt
@@ -61,6 +65,7 @@ install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Ru
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(knotbuilder)
 add_subdirectory(exactnaming)
+add_subdirectory(cascade)
 add_subdirectory(tests)
 
 if (REGINA_BUILD_ENGINE_DOCS)

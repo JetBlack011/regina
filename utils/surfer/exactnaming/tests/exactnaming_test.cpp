@@ -13,12 +13,14 @@
 //    4. splits, split unknots, unlinks, knots summed into a link and links
 //       summed along components get the atlas syntax, exact only when the
 //       name is an identity;
-//    5. the Gauss-diagram cut finds exactly the visible summands.
+//    5. the Gauss-diagram cut finds exactly the visible summands;
+//    6. namers sharing table caches name as namers with their own do.
 //
 
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -295,6 +297,43 @@ void test_isometry(const ExactTables &t) {
               true, "a kinked 3_1 is not named by isometry");
 }
 
+// Namers over the same tables can share what they learn about them (a
+// cascade's node namer and every hop's far-side namer do): a second namer
+// names through the first's HOMFLY index and kernel complements exactly as a
+// namer with its own would. Caches built for other tables -- even loaded from
+// the same files -- are refused, since they are keyed by those tables'
+// entries.
+void test_shared_caches(const ExactTables &t) {
+    const std::vector<std::pair<std::string, std::string>> cases = {
+        {"k-LbSTpoqLnsCyc", "10_151"}, {"l3-aqR6Fa4qPEHyf", "11a_18"},
+        {"k-ygSLpCidvGDyc", "8_16"}};
+    NamerLimits on;
+    on.searchHeight = -1;
+    on.tableSideHeight = -1;
+    ExactNamer first(t, on), alone(t, on);
+    ExactNamer second(t, on, first.caches());
+    EXPECT_EQ(second.caches() == first.caches(), true, "the second namer holds the first's caches");
+    EXPECT_EQ(alone.caches() == first.caches(), false, "a namer given none makes its own");
+    for (const auto &[sig, knot] : cases) {
+        const regina::Link l = regina::Link::fromSig(sig);
+        const PieceName a = first.identify(gauss(l));
+        const PieceName b = second.identify(gauss(l));
+        const PieceName c = alone.identify(gauss(l));
+        EXPECT_EQ(a.display(), knot, knot + ": named by the first namer");
+        EXPECT_EQ(b.display(), a.display(), knot + ": the same name through shared caches");
+        EXPECT_EQ(b.by == PieceName::By::isometry, true, knot + ": by isometry through shared caches");
+        EXPECT_EQ(c.display(), a.display(), knot + ": the same name through its own caches");
+    }
+    const ExactTables other = ExactTables::load(KNOTS, LINKS, SYMMETRY);
+    bool refused = false;
+    try {
+        ExactNamer wrong(other, on, first.caches());
+    } catch (const std::invalid_argument &) {
+        refused = true;
+    }
+    EXPECT_EQ(refused, true, "caches built for other tables are refused");
+}
+
 void test_visible_sum(void) {
     GaussDiagram t = gauss(table("3_1")), f = gauss(table("4_1"));
     GaussDiagram s = sum(t, 0, f);
@@ -324,6 +363,7 @@ int main() {
     test_search_then_invariants(tables);
     test_table_side(tables);
     test_isometry(tables);
+    test_shared_caches(tables);
     test_visible_sum();
     std::cout << passed << " passed, " << failed_count << " failed\n";
     return failed_count == 0 ? 0 : 1;

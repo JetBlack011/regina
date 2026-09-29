@@ -587,10 +587,20 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
         return result;
     };
 
+    // The reporter reports once a second, and is woken the moment the
+    // workers finish (it used to sleep out its second, which a short search
+    // -- a cascade hop -- paid as idle wall time on every call).
+    std::mutex reporterMutex;
+    std::condition_variable reporterWake;
     std::thread reporter([&]() {
         using namespace std::chrono_literals;
         while (!workersFinished.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(1s);
+            {
+                std::unique_lock<std::mutex> lock(reporterMutex);
+                reporterWake.wait_for(lock, 1s, [&] {
+                    return workersFinished.load(std::memory_order_relaxed);
+                });
+            }
             if (!callbacks.onProgress)
                 continue;
             callbacks.onProgress(snapshotStats(
@@ -672,7 +682,11 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
             deepestExhausted.store(*hardFaceCap, std::memory_order_relaxed);
     }
 
-    workersFinished.store(true, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(reporterMutex);
+        workersFinished.store(true, std::memory_order_relaxed);
+    }
+    reporterWake.notify_all();
     reporter.join();
 
     if (stopRequested_.load(std::memory_order_relaxed) &&

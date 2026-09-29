@@ -106,6 +106,12 @@ struct SurfaceBoundaryInfo : SurfaceFoundInfo {
          surface each boundary edge (the same Edge<3> objects as
          captureOrientedBoundaryLinks) belongs to. Needed because
          orientedBoundaryLinks() orients each component independently. */
+    std::function<std::vector<int>()> captureFaces;
+    /**< Lazy, as capturePairSig above: the surface's triangles, as indices
+         into the ambient (EmbeddedSubmanifold::markedFaces()). With the
+         ambient, all a pair signature is computed from (pairSig() in
+         pairsig.h), so a caller can keep these and pay for signatures only
+         of the surfaces it ends up needing. */
 };
 
 /**

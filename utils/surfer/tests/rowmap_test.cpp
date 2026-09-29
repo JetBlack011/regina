@@ -15,8 +15,8 @@
 //       collar is one annulus per component, each oriented independently;
 //       comparing their signs globally (D2) rejected it for some variants.
 //
-//  Built from real PD codes through knotbuilder, CobordismBuilder and
-//  CollarBuilder, exactly as verifyslicegenus does. An optional argument
+//  Built from real PD codes by rowsearch::buildRow(), the build
+//  verifyslicegenus and cascadesearch both use. An optional argument
 //  -- a table CSV of Name,PD,... rows -- sweeps every row of it instead
 //  (slow; not part of ctest):
 //
@@ -38,10 +38,10 @@
 
 #include "../cobordismbuilder.h"
 #include "../cobordismgraph.h"
-#include "../collar.h"
 #include "../embeddedsubmanifold.h"
 #include "../knotbuilder/knotbuilder.h"
 #include "../linkcomplement.h"
+#include "../rowsearch.h"
 #include "../skeleton.h"
 #include "../surfacesearch.h"
 
@@ -67,8 +67,8 @@ static int divergedRows = 0; // isIsomorphicTo() would have mapped L differently
 namespace {
 
 // The seed's edges in boundary component `bcIndex`, as sorted indices of
-// that component's built triangulation -- the same computation as
-// verifyslicegenus's seedEdgesOn().
+// that component's built triangulation: computed here independently of
+// farside::boundaryEdgesOf(), which buildRow() uses, as a cross-check.
 std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
                                 const std::vector<int> &seedFaces,
                                 size_t bcIndex) {
@@ -87,41 +87,31 @@ std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
 }
 
 void checkRow(const std::string &name, const std::string &pd) {
-    auto link = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
-    auto &[t2, edges2, reversed2] = link;
-    const int components = Link(t2, edges2).countComponents();
-
-    std::vector<int> edgeIndices;
-    for (const regina::Edge<3> *e : edges2)
-        edgeIndices.push_back(static_cast<int>(e->index()));
-
-    CobordismBuilder<3> cob(t2);
-    CollarBuilder collar(edgeIndices);
-    for (int i = 0; i < 2; ++i) {
-        cob.thicken();
-        collar.addLayer(cob);
+    // The campaign shape: two layers, collared through both, no cone.
+    rowsearch::RowBuild rb;
+    try {
+        rowsearch::buildRow(pd, 2, 2, false, rb);
+    } catch (const regina::InvalidArgument &e) {
+        std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
+                  << "\n";
+        ++failed_count;
+        return;
     }
-    const size_t bc = cob.baseBoundaryComponent()->index();
-    regina::Triangulation<4> tri = cob.getCobordism();
-    std::vector<int> seedFaces;
-    for (regina::Triangle<4> *t : collar.resolve())
-        seedFaces.push_back(static_cast<int>(t->index()));
+    const auto &[t2, edges2, reversed2] = rb.link;
+    const int components = Link(t2, edges2).countComponents();
+    const size_t bc = rb.searchSideBC;
+    const regina::Triangulation<4> &tri = rb.tri;
+    const std::vector<int> &seedFaces = rb.seedFaces;
+    EXPECT_EQ(rb.componentCount, components,
+              name + ": the row's component count");
 
     const std::vector<size_t> rowEdges = seedEdgesOn(tri, seedFaces, bc);
     EXPECT_EQ(rowEdges.size(), edges2.size(),
               name + ": the seed holds every edge of L on the search side");
+    EXPECT_EQ(rb.searchEdges == rowEdges, true,
+              name + ": the row's search edges are the seed's own");
 
-    RowOrientation row;
-    try {
-        row = buildRowOrientation(edges2, reversed2,
-                                  tri.boundaryComponent(bc)->build(),
-                                  &rowEdges);
-    } catch (const regina::InvalidArgument &e) {
-        std::cout << "  FAIL: " << name << ": buildRowOrientation threw: "
-                  << e.what() << "\n";
-        ++failed_count;
-        return;
-    }
+    const RowOrientation &row = *rb.orientation;
     if (row.divergedFromDefaultIsomorphism) {
         ++divergedRows;
         std::cout << "  (" << name << ": the default isomorphism would have "

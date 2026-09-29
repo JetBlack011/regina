@@ -147,14 +147,30 @@ std::optional<std::map<size_t, int>> incomingFlips(
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
     const cobordismgraph::RowOrientation &row, size_t incomingBC) {
-    const auto oriented = surface.orientedBoundaryLinks();
-    const auto surfaceOf = surface.boundaryEdgeSurfaceComponent();
+    return orientedOutgoingLink(surface.orientedBoundaryLinks(),
+                                surface.boundaryEdgeSurfaceComponent(), map,
+                                row, incomingBC);
+}
+
+std::optional<OutgoingLink> orientedOutgoingLink(
+    const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+    const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
+    size_t incomingBC) {
     std::optional<std::map<size_t, int>> flips;
     for (const auto &[bc, curves] : oriented)
         if (bc == incomingBC) flips = incomingFlips(row, curves, surfaceOf);
     if (!flips) return std::nullopt;
 
     OutgoingLink out;
+    for (const auto &[bc, curves] : oriented) {
+        if (bc != incomingBC) continue;
+        for (const OrientedCurve &curve : curves) {
+            if (curve.empty()) continue;
+            out.incomingFirstEdge.push_back(curve.front().edge->index());
+            out.incomingSurfaceComponent.push_back(surfaceOf.at(curve.front().edge));
+        }
+    }
     for (const auto &[bc, curves] : oriented) {
         if (bc != map.boundaryComponent()) continue;
         for (const OrientedCurve &curve : curves) {

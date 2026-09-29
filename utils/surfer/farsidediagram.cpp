@@ -5,7 +5,24 @@
 //  signatures.
 //
 //  Usage:
-//    farsidediagram [--layers N] '<row PD code>' < pairsigs
+//    farsidediagram [--layers N] [--gauss] [--faces] '<row PD code>' < pairsigs
+//
+//  --gauss appends each diagram's signed Gauss data (signs=, gauss=) to the
+//  ROW line and to every W line: per component, in curve order, the
+//  crossings it passes. cascade_check.py reads it; without the flag the
+//  output is unchanged. The ROW line then also carries build=, the
+//  thickening's digest (WitnessRedrawer::buildChecksum()).
+//
+//  --faces reads "<id> <f1,f2,...>" lines instead: a surface given by its
+//  triangles in this row's thickening, as a cascade certificate records an
+//  in-process witness. It is rebuilt face by face with the search's own
+//  checks (WitnessRedrawer::rebuild()) before anything is read from it.
+//
+//  --pairsig (with --faces) appends each rebuilt surface's pair signature,
+//  as verifyslicegenus would record it (pairsig=, over the row's own
+//  thickening), whether it is connected (connected=) and its resolved
+//  vertices (resolved=): what turns a certificate's in-process witness into
+//  an ordinary cobordisms.csv row.
 //
 //  --layers is the witnesses' thicken_layers (cobordisms.csv): 2, the
 //  default, for everything since early September; 1 for the earliest runs.
@@ -58,6 +75,7 @@
 #include "knotbuilder/knotbuilder.h"
 #include "pairsig.h"
 #include "skeleton.h"
+#include "vertexlinks.h"
 
 namespace {
 
@@ -83,15 +101,59 @@ std::string list(const std::vector<T> &v) {
 
 } // namespace
 
+// Signed Gauss data (--gauss): the crossing signs, then per component the
+// crossings it passes in order (+(k+1) over crossing k, -(k+1) under), which
+// is the whole oriented diagram and names every curve by its index.
+std::string gaussFields(const knotbuilder::Diagram &d) {
+    std::ostringstream o;
+    o << " signs=[";
+    for (size_t k = 0; k < d.crossings.size(); ++k) o << (k ? "," : "") << d.crossings[k].sign;
+    o << "] gauss=[";
+    for (size_t c = 0; c < d.gauss.size(); ++c) o << (c ? "," : "") << list(d.gauss[c]);
+    return o.str() + "]";
+}
+
+// Each far-side curve's edges of T, sorted (--gauss): what identifies a curve
+// across two reads that list the curves in different orders.
+std::string curveEdges(const std::vector<knotbuilder::EdgeCycle> &curves) {
+    std::ostringstream o;
+    o << " edges=[";
+    for (size_t c = 0; c < curves.size(); ++c) {
+        std::vector<size_t> es;
+        for (const auto &de : curves[c]) es.push_back(de.edge);
+        std::sort(es.begin(), es.end());
+        o << (c ? "," : "") << list(es);
+    }
+    return o.str() + "]";
+}
+
 int main(int argc, char **argv) {
     int layers = 2;
+    bool gauss = false;
+    bool facesInput = false;
+    bool pairsigOut = false;
     int arg = 1;
-    if (argc == 4 && std::string(argv[1]) == "--layers") {
-        layers = std::stoi(argv[2]);
-        arg = 3;
+    while (arg < argc && std::string(argv[arg]).rfind("--", 0) == 0) {
+        const std::string flag = argv[arg];
+        if (flag == "--layers" && arg + 1 < argc) {
+            layers = std::stoi(argv[arg + 1]);
+            arg += 2;
+        } else if (flag == "--gauss") {
+            gauss = true;
+            ++arg;
+        } else if (flag == "--faces") {
+            facesInput = true;
+            ++arg;
+        } else if (flag == "--pairsig") {
+            pairsigOut = true;
+            ++arg;
+        } else {
+            break;
+        }
     }
-    if (argc != arg + 1 || layers < 1) {
-        std::cerr << "usage: farsidediagram [--layers N] '<row PD code>' < pairsigs\n";
+    if (argc != arg + 1 || layers < 1 || (pairsigOut && !facesInput)) {
+        std::cerr << "usage: farsidediagram [--layers N] [--gauss] [--faces [--pairsig]] "
+                     "'<row PD code>' < pairsigs (or faces)\n";
         return 2;
     }
     const farside::WitnessRedrawer redraw(argv[arg], layers);
@@ -108,26 +170,23 @@ int main(int argc, char **argv) {
             componentOfRowEdge[i] = compOfT.at(built.edges[i]->index());
     }
     const knotbuilder::Diagram rowDiagram = redraw.drawer().draw(rowCycles);
-    std::cout << "ROW components=" << rowCycles.size() << " lk=" << matrix(rowDiagram) << "\n";
+    std::cout << "ROW components=" << rowCycles.size() << " lk=" << matrix(rowDiagram)
+              << (gauss ? gaussFields(rowDiagram) + " build=" + redraw.buildChecksum()
+                        : std::string())
+              << "\n";
 
-    std::string line;
-    while (std::getline(std::cin, line)) {
-        std::istringstream in(line);
-        std::string id, sig;
-        if (!(in >> id >> sig)) continue;
-        try {
-            std::string why;
-            std::optional<std::vector<int>> carried = redraw.carry(sig, why);
-            if (!carried) {
-                std::cout << "W " << id << " FAILED " << why << "\n";
-                continue;
-            }
-            KnottedSurface surface(redraw.skeleton(), *carried);
+    // Pair signatures (--pairsig): the thickening's own part is computed once,
+    // at the first surface, as pairSigsOf() does.
+    std::optional<PairSigContext<4, 2>> sigContext;
+    std::vector<int> currentFaces;
+
+    // One witness's W line, from its surface in the thickening.
+    auto describe = [&](const std::string &id, KnottedSurface &surface) {
             auto link = farside::orientedOutgoingLink(surface, redraw.outgoing(), redraw.row(),
                                                       redraw.incomingBC());
             if (!link) {
                 std::cout << "W " << id << " FAILED incoming orientation is inconsistent\n";
-                continue;
+                return;
             }
             knotbuilder::Diagram d = redraw.drawer().draw(link->curves);
 
@@ -159,7 +218,52 @@ int main(int argc, char **argv) {
             std::cout << "W " << id << " ok components=" << d.components
                       << " crossingless=" << list(d.crossingless) << " pd=" << pdOut.str()
                       << " lk=" << matrix(d) << " surface=" << list(link->surfaceComponent)
-                      << " incoming=" << inc.str() << "\n";
+                      << " incoming=" << inc.str()
+                      << (gauss ? gaussFields(d) + curveEdges(link->curves) + " genus=" +
+                                      std::to_string(KnottedSurface::tubedSurfaceType(
+                                                         surface.triangulation())
+                                                         .genus)
+                                : std::string());
+            if (pairsigOut) {
+                if (!sigContext) sigContext.emplace(redraw.thickening());
+                std::cout << " resolved=" << surface.singularVertexCount()
+                          << " connected=" << (surface.triangulation().isConnected() ? 1 : 0)
+                          << " pairsig=" << sigContext->sig(currentFaces);
+            }
+            std::cout << "\n";
+    };
+
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        std::istringstream in(line);
+        std::string id, data;
+        if (!(in >> id >> data)) continue;
+        try {
+            std::string why;
+            if (facesInput) {
+                // Faces of thickening(), rebuilt with the search's own checks.
+                std::vector<int> faces;
+                std::istringstream fs(data);
+                for (std::string f; std::getline(fs, f, ',');) faces.push_back(std::stoi(f));
+                PetalCache cache;
+                KnottedSurface::SelfIntersectionOptions options;
+                options.resolveUnlinked = true;
+                KnottedSurface surface(options, redraw.skeleton(), cache);
+                if (!redraw.rebuild(faces, surface, why)) {
+                    std::cout << "W " << id << " FAILED " << why << "\n";
+                    continue;
+                }
+                currentFaces = faces;
+                describe(id, surface);
+            } else {
+                std::optional<std::vector<int>> carried = redraw.carry(data, why);
+                if (!carried) {
+                    std::cout << "W " << id << " FAILED " << why << "\n";
+                    continue;
+                }
+                KnottedSurface surface(redraw.skeleton(), *carried);
+                describe(id, surface);
+            }
         } catch (const std::exception &e) {
             std::cout << "W " << id << " FAILED " << e.what() << "\n";
         }

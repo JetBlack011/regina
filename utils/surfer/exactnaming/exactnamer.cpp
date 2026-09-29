@@ -5,11 +5,13 @@
 #include "exactnamer.h"
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 namespace exactnaming {
 
@@ -50,21 +52,32 @@ std::string FarSideName::proof() const {
     return o.str();
 }
 
+ExactNamer::ExactNamer(const ExactTables &tables, NamerLimits limits,
+                       std::shared_ptr<TableCaches> caches)
+    : tables_(tables), limits_(limits),
+      caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)) {
+    // Every cache is keyed by entries of one ExactTables.
+    if (caches_->tables != &tables_)
+        throw std::invalid_argument("ExactNamer: table caches built for other tables");
+}
+
 const regina::Laurent2<regina::Integer> &ExactNamer::homfly(const TableEntry &e, bool mirror) const {
-    std::lock_guard<std::mutex> lock(cacheMutex_);
-    auto it = homfly_.find({&e, mirror});
-    if (it == homfly_.end()) {
+    std::lock_guard<std::mutex> lock(caches_->cacheMutex);
+    auto &cache = caches_->homfly;
+    auto it = cache.find({&e, mirror});
+    if (it == cache.end()) {
         regina::Link l(e.diagram);
         if (mirror) l.reflect();
-        it = homfly_.emplace(std::make_pair(&e, mirror), l.homfly()).first;
+        it = cache.emplace(std::make_pair(&e, mirror), l.homfly()).first;
     }
     return it->second;
 }
 
 bool ExactNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) const {
+    TableCaches &c = *caches_;
     {
-        std::lock_guard<std::mutex> lock(cacheMutex_);
-        if (auto it = flypeOrbits_.find(&e); it != flypeOrbits_.end())
+        std::lock_guard<std::mutex> lock(c.cacheMutex);
+        if (auto it = c.flypeOrbits.find(&e); it != c.flypeOrbits.end())
             return it->second.contains(graph);
     }
     // Every graph reachable by flypes, compared up to relabelling and
@@ -88,24 +101,51 @@ bool ExactNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) con
                     todo.push_back(std::move(f));
             }
     }
-    std::lock_guard<std::mutex> lock(cacheMutex_);
-    return flypeOrbits_.emplace(&e, std::move(orbit)).first->second.contains(graph);
+    std::lock_guard<std::mutex> lock(c.cacheMutex);
+    return c.flypeOrbits.emplace(&e, std::move(orbit)).first->second.contains(graph);
 }
 
 std::vector<const TableEntry *> ExactNamer::homflyCandidates(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const {
-    std::call_once(homflyIndexOnce_, [this] {
-        for (const TableEntry &e : tables_.entries()) {
+    TableCaches &c = *caches_;
+    std::call_once(c.homflyIndexOnce, [this, &c] {
+        // Every entry's polynomial and its mirror's (~34,000 through 13
+        // crossings) cost ~3.8 s on one thread, paid at the first lookup by
+        // each set of table caches. They are independent, so they are found
+        // on a pool, cached, and then indexed in table order as before.
+        const std::vector<TableEntry> &entries = tables_.entries();
+        std::vector<regina::Laurent2<regina::Integer>> found(2 * entries.size());
+        std::atomic<size_t> next{0};
+        auto work = [&] {
+            for (size_t i; (i = next.fetch_add(1)) < found.size();) {
+                regina::Link l(entries[i / 2].diagram);
+                if (i % 2)
+                    l.reflect();
+                found[i] = l.homfly();
+            }
+        };
+        std::vector<std::thread> pool;
+        for (unsigned t = 1; t < std::max(1u, std::thread::hardware_concurrency()); ++t)
+            pool.emplace_back(work);
+        work();
+        for (std::thread &t : pool)
+            t.join();
+        {
+            std::lock_guard<std::mutex> lock(c.cacheMutex);
+            for (size_t i = 0; i < found.size(); ++i)
+                c.homfly.try_emplace({&entries[i / 2], i % 2 == 1}, std::move(found[i]));
+        }
+        for (const TableEntry &e : entries) {
             for (int mirror = 0; mirror < 2; ++mirror) {
-                auto &bases = homflyIndex_[homfly(e, mirror == 1).str()];
+                auto &bases = c.homflyIndex[homfly(e, mirror == 1).str()];
                 if (std::find(bases.begin(), bases.end(), e.base) == bases.end())
                     bases.push_back(e.base);
             }
         }
     });
     std::vector<const TableEntry *> candidates;
-    auto it = homflyIndex_.find(h.str());
-    if (it == homflyIndex_.end())
+    auto it = c.homflyIndex.find(h.str());
+    if (it == c.homflyIndex.end())
         return candidates;
     // A table diagram is minimal, so no bigger than any diagram of its link.
     for (const std::string &b : it->second) {
@@ -123,21 +163,23 @@ std::vector<const TableEntry *> ExactNamer::homflyCandidates(
 }
 
 const KernelLink &ExactNamer::kernelLinkOf(const TableEntry &e) const {
+    TableCaches &c = *caches_;
     {
-        std::lock_guard<std::mutex> lock(kernelCacheMutex_);
-        if (auto it = kernelLinks_.find(&e); it != kernelLinks_.end())
+        std::lock_guard<std::mutex> lock(c.kernelMutex);
+        if (auto it = c.kernelLinks.find(&e); it != c.kernelLinks.end())
             return *it->second;
     }
     auto k = std::make_unique<KernelLink>(e.diagram);
-    std::lock_guard<std::mutex> lock(kernelCacheMutex_);
+    std::lock_guard<std::mutex> lock(c.kernelMutex);
     // Another thread may have built it meanwhile; either copy will do.
-    return *kernelLinks_.try_emplace(&e, std::move(k)).first->second;
+    return *c.kernelLinks.try_emplace(&e, std::move(k)).first->second;
 }
 
 const std::string &ExactNamer::canonicalName(const TableEntry &e) const {
+    TableCaches &c = *caches_;
     {
-        std::lock_guard<std::mutex> lock(classMutex_);
-        if (auto it = canonicalOf_.find(&e); it != canonicalOf_.end())
+        std::lock_guard<std::mutex> lock(c.classMutex);
+        if (auto it = c.canonicalOf.find(&e); it != c.canonicalOf.end())
             return it->second;
     }
     // The whole base at once: a union-find over its variants, joined when
@@ -167,16 +209,16 @@ const std::string &ExactNamer::canonicalName(const TableEntry &e) const {
         }
     // Each class named as ExactTables names its first member, so that a
     // class of one keeps the name it always had.
-    std::lock_guard<std::mutex> lock(classMutex_);
+    std::lock_guard<std::mutex> lock(c.classMutex);
     for (size_t i = 0; i < vs.size(); ++i)
-        canonicalOf_.try_emplace(vs[i], tables_.canonical(vs[find(i)]->name));
-    classConflicts_.insert(classConflicts_.end(), conflicts.begin(), conflicts.end());
-    return canonicalOf_.at(&e);
+        c.canonicalOf.try_emplace(vs[i], tables_.canonical(vs[find(i)]->name));
+    c.classConflicts.insert(c.classConflicts.end(), conflicts.begin(), conflicts.end());
+    return c.canonicalOf.at(&e);
 }
 
 std::vector<std::string> ExactNamer::classConflicts() const {
-    std::lock_guard<std::mutex> lock(classMutex_);
-    return classConflicts_;
+    std::lock_guard<std::mutex> lock(caches_->classMutex);
+    return caches_->classConflicts;
 }
 
 std::set<std::string> ExactNamer::invariantSurvivors(const GaussDiagram &piece,

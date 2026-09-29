@@ -20,12 +20,10 @@
 
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "collar.h"
 #include "csvwriter.h"
 #include "embeddingsearch.h"
 #include "surfacesearch.h"
-#include "knotbuilder/knotbuilder.h"
+#include "rowsearch.h"
 #include "linkcomplement.h"
 #include "identifycomplement.h"
 
@@ -1036,49 +1034,20 @@ int main(int argc, char *argv[]) {
             << (censusLoaded ? "\n\n" : ", skipping\n\n");
 
   if (havePD) {
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdCode);
-
-    knotbuilder::TriangulationWithLink link;
+    // The same ambient verifyslicegenus searches a row in, without its row
+    // map: surfer reports what it finds and judges nothing against L.
+    rowsearch::RowBuild row;
     try {
-      link = knotbuilder::buildLink(pdcode);
+      rowsearch::buildAmbient(pdCode, thickenLayers, collarLayers, useCone,
+                              row);
     } catch (const regina::InvalidArgument &e) {
       usage(argv[0], std::string("Invalid PD code: ") + e.what());
     }
-    auto &[t2, edges2, reversed2] = link;
+    if (collarLayers > 0)
+      std::cerr << "[+] Collar seed faces = " << row.seedFaces.size() << "\n";
 
-    // Indices are preserved across CobordismBuilder's internal copy/reorder
-    // of t2 (see CobordismBuilder::baseTriangulation()'s doc comment), so
-    // edgeIndices (taken from t2) still identify the same edges in
-    // cob.baseTriangulation().
-    std::vector<int> edgeIndices;
-    edgeIndices.reserve(edges2.size());
-    for (const regina::Edge<3> *e : edges2)
-      edgeIndices.push_back(static_cast<int>(e->index()));
-
-    CobordismBuilder<3> cob(t2);
-    CollarBuilder collarBuilder(edgeIndices);
-    for (int i = 0; i < thickenLayers; ++i) {
-      cob.thicken();
-      // Must run every layer the collar is meant to cover, not just the
-      // first: CollarBuilder::addLayer only captures the most-recently-built
-      // thickening layer's prisms, so tracing the collar all the way from
-      // the link's original position up through --collar-layers layers
-      // requires calling it once per thicken() up to that point.
-      if (i < collarLayers)
-        collarBuilder.addLayer(cob);
-    }
-    if (useCone)
-      cob.cone();
-    regina::Triangulation<4> tri = cob.getCobordism();
-
-    std::vector<int> seedFaces;
-    if (collarLayers > 0) {
-      for (regina::Triangle<4> *t : collarBuilder.resolve())
-        seedFaces.push_back(static_cast<int>(t->index()));
-      std::cerr << "[+] Collar seed faces = " << seedFaces.size() << "\n";
-    }
-
-    runSearch(tri, seedFaces, cond, numThreads, outputPath, iddfsIterations,
+    runSearch(row.tri, row.seedFaces, cond, numThreads, outputPath,
+             iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
              orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth,
              resolveUnlinked);

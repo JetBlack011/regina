@@ -2,7 +2,9 @@
 
 #include "identifycomplement.h"
 
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 
 namespace {
 
@@ -488,10 +490,19 @@ void SurfaceSearch::processBatchParallel_(
     std::atomic<size_t> processedCount{0};
     std::atomic<bool> done{false};
 
+    // Once a second, and woken the moment the batch is done (see the
+    // enumeration's reporter in embeddingsearch.cpp).
+    std::mutex reporterMutex;
+    std::condition_variable reporterWake;
     std::thread reporter([&]() {
         using namespace std::chrono_literals;
         while (!done.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(1s);
+            {
+                std::unique_lock<std::mutex> lock(reporterMutex);
+                reporterWake.wait_for(lock, 1s, [&] {
+                    return done.load(std::memory_order_relaxed);
+                });
+            }
             if (!callbacks.onBoundaryProcessingProgress)
                 continue;
             callbacks.onBoundaryProcessingProgress(
@@ -523,7 +534,11 @@ void SurfaceSearch::processBatchParallel_(
     for (auto &th : threads)
         th.join();
 
-    done.store(true, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(reporterMutex);
+        done.store(true, std::memory_order_relaxed);
+    }
+    reporterWake.notify_all();
     reporter.join();
     if (callbacks.onBoundaryProcessingComplete)
         callbacks.onBoundaryProcessingComplete(
@@ -587,7 +602,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
                     static_cast<int>(embedding.singularVertexCount())},
             descriptor, boundaryComponents,
             [&embedding] { return embedding.orientedBoundaryLinks(); },
-            [&embedding] { return embedding.boundaryEdgeSurfaceComponent(); }});
+            [&embedding] { return embedding.boundaryEdgeSurfaceComponent(); },
+            [&embedding] { return embedding.markedFaces(); }});
     }
 
     // Reverse order, mirroring how the DFS itself would back out --
