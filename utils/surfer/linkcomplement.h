@@ -57,8 +57,17 @@ class EdgeComplement {
   private:
     const regina::Triangulation<3> *tri_; /**< The ambient triangulation. */
     std::vector<const regina::Edge<3> *> edges_; /**< The tracked edges. */
+
+    /**
+     * edges_, indexed by incident tetrahedron and local edge number: what
+     * drilling needs. Built when a complement is (buildComplement(),
+     * drillTrackingEdges_()), not on construction: the drain builds a Link
+     * and its Knots for every surface's boundary, and almost none is ever
+     * drilled (2026-09-29: 17 of 100k on a production row), so building
+     * it eagerly was ~6% of a row's CPU, mostly hash-map allocation.
+     */
     std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-        tetEdges_; /**< edges_, indexed by incident tetrahedron and local edge number. */
+    tetEdges_() const;
 
   public:
     /**

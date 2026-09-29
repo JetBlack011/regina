@@ -17,20 +17,23 @@ std::atomic<bool> simplifyComplements{true};
 EdgeComplement::EdgeComplement(
     const regina::Triangulation<3> &tri,
     const std::vector<const regina::Edge<3> *> &edges)
-    : tri_(&tri), edges_(edges) {
-    // Add the edge to the correct tetrahedra
-    for (const regina::Edge<3> *edge : edges) {
-        for (const regina::EdgeEmbedding<3> &emb : edge->embeddings()) {
-            tetEdges_[emb.tetrahedron()].insert(emb.face());
-        }
-    }
+    : tri_(&tri), edges_(edges) {}
+
+std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
+EdgeComplement::tetEdges_() const {
+    // Built in the order the constructor used to, so the drilling loops
+    // below pinch in exactly the order they always did.
+    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>> map;
+    for (const regina::Edge<3> *edge : edges_)
+        for (const regina::EdgeEmbedding<3> &emb : edge->embeddings())
+            map[emb.tetrahedron()].insert(emb.face());
+    return map;
 }
 
 EdgeComplement &EdgeComplement::operator=(const EdgeComplement &other) {
     if (this != &other) {
         tri_ = other.tri_;
         edges_ = other.edges_;
-        tetEdges_ = other.tetEdges_;
     }
     return *this;
 }
@@ -40,7 +43,7 @@ regina::Triangulation<3> EdgeComplement::buildComplement() const {
     std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
         complementTetEdges;
 
-    for (const auto &[tet, edges] : tetEdges_) {
+    for (const auto &[tet, edges] : tetEdges_()) {
         complementTetEdges.emplace(complement.tetrahedron(tet->index()),
                                    edges);
     }
@@ -88,7 +91,7 @@ EdgeComplement::drillTrackingEdges_(
     // through it intractable.
     std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
         complementTetEdges;
-    for (const auto &[tet, edges] : tetEdges_)
+    for (const auto &[tet, edges] : tetEdges_())
         complementTetEdges.emplace(complement.tetrahedron(tet->index()),
                                    edges);
 
