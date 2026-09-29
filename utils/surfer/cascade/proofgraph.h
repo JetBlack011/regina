@@ -168,6 +168,10 @@ public:
   long propagateLower();
   /// The lower bound for surfaces refining q (0 when nothing is known).
   int lower(NodeId n, const Partition &q) const;
+  /// Forgets every lower bound: the literature seeds and everything
+  /// propagated from them (the linking condition, read from the nodes, stays).
+  /// For what-ifs that seed one fact and read where it reaches.
+  void clearLowerBounds();
 
 private:
   RecordId insert(NodeId n, const Partition &p, int genus, RecordKind kind,

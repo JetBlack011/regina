@@ -501,6 +501,41 @@ void testLowerSplit() {
   CHECK(ph.contradictions().empty(), "no contradiction");
 }
 
+void testLowerWhatIf() {
+  // L6: the lower report's what-if (cascadesearch writeLowerReport()):
+  // forget every lower bound, seed one node, and read what reaches the
+  // target. A concordance carries the seed whole, a merging band loses 1,
+  // and the literature bound elsewhere no longer contributes.
+  ProofGraph pg;
+  NodeId T = pg.addNode(2, "T"), C = pg.addNode(2, "C"), K = pg.addNode(1, "K"),
+         O = pg.addNode(1, "O");
+  pg.addWitness(T, C, CobordismShape::product(2), {0, 1}, {0, 1}, "annuli");
+  CobordismShape merge;
+  merge.components = 1;
+  merge.genus = 0;
+  merge.inComponent = {0, 0};
+  merge.outComponent = {0};
+  pg.addWitness(T, K, merge, {0, 1}, {0}, "merge");
+  pg.setGenusLowerBound(O, 5, "literature, unconnected");
+  pg.setGenusLowerBound(T, 1, "the target's own literature");
+  pg.propagateLower();
+  auto reach = [&](NodeId n, int seed) {
+    ProofGraph what = pg;
+    what.clearLowerBounds();
+    what.setGenusLowerBound(n, seed, "what-if");
+    what.propagateLower();
+    return what.lower(T, Partition::coarsest(2));
+  };
+  CHECK_EQ(reach(C, 1), 1, "what-if: a concordance carries the seed whole");
+  CHECK_EQ(reach(K, 2), 1, "what-if: a merging band loses 1");
+  CHECK_EQ(reach(O, 5), 0, "what-if: an unconnected node carries nothing");
+  ProofGraph cleared = pg;
+  cleared.clearLowerBounds();
+  CHECK_EQ(cleared.lower(T, Partition::coarsest(2)), 0,
+           "cleared: the target's own literature bound is forgotten too");
+  CHECK_EQ(pg.lower(T, Partition::coarsest(2)), 1, "the original graph is untouched");
+}
+
 void testLowerSoundOnRandomWorlds() {
   // L5: take a random graph's upper-bound closure as the whole world, give
   // every node its true connected minimum as a literature lower bound, and
@@ -536,6 +571,7 @@ int main() {
   testLowerPaperCases();
   testLowerNoPenaltyForAnnuli();
   testLowerSplit();
+  testLowerWhatIf();
   testLowerSoundOnRandomWorlds();
   testBandToDisjointDiscs();
   testCycleImprovesAncestor();

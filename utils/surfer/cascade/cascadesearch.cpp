@@ -1176,7 +1176,6 @@ void Cascade::writeLowerReport() const {
   // bound is not Lipschitz (lower_bound_sources.csv, `special`) can beat the
   // target's own literature bound.
   if (!cfg_.lowerReport) return;
-  constexpr int M = 1000;
   std::map<std::string, bool> special;
   if (!cfg_.lowerSources.empty()) {
     std::ifstream in(cfg_.lowerSources);
@@ -1201,7 +1200,22 @@ void Cascade::writeLowerReport() const {
   std::ofstream out(cfg_.work + "/lower_report.jsonl");
   out << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g_.nodeCount() << "}\n";
-  int bestCarry = -M, bestCould = -M;
+  // What node n's lower bound `seed` alone carries to the target: every other
+  // lower bound forgotten (clearLowerBounds()), n seeded, relaxed. Only
+  // consistent facts are ever seeded -- a value the node could really have,
+  // at most its best proved genus -- or the split rules, which read proved
+  // surfaces, would pump bounds without limit. -1 when the what-if itself
+  // meets a contradiction (then nothing it says is used).
+  auto carried = [&](NodeId n, int seed) {
+    ProofGraph what = g_;
+    what.clearLowerBounds();
+    const size_t before = what.contradictions().size();
+    what.setGenusLowerBound(n, seed, "lower-report what-if");
+    what.propagateLower();
+    if (what.contradictions().size() != before) return -1;
+    return what.lower(target_, goal);
+  };
+  int bestCarry = 0, bestCould = 0;
   std::string bestName, bestCouldName;
   for (const auto &[n, name] : tableName_) {
     if (n == target_) continue;
@@ -1209,24 +1223,24 @@ void Cascade::writeLowerReport() const {
     if (!e) continue;
     auto g4 = parseTableG4(e->g4);
     if (!g4) continue;
-    ProofGraph what = g_;
-    what.setGenusLowerBound(n, M, "lower-report what-if");
-    what.propagateLower();
-    const int reached = what.lower(target_, goal);
-    if (reached < M / 2) continue; // no path carries anything from n
-    const int charge = M - reached;
+    // The most n could be: its literature upper end, or less if a surface
+    // for it is already proved.
+    int could = g4->second;
+    if (auto b = g_.bestConnected(n)) could = std::min(could, b->genus);
+    const int carries = g4->first > 0 ? carried(n, g4->first) : 0;
+    const int couldCarry = could > 0 ? (could == g4->first ? carries : carried(n, could)) : 0;
+    if (carries <= 0 && couldCarry <= 0) continue; // n reaches the target with nothing
     const auto sp = special.find(name);
     out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << "\",\"lit_lo\":"
-        << g4->first << ",\"lit_hi\":" << g4->second << ",\"special\":"
-        << (sp == special.end() ? "null" : sp->second ? "true" : "false")
-        << ",\"charge\":" << charge << ",\"carries\":" << g4->first - charge
-        << ",\"could_carry\":" << g4->second - charge << "}\n";
-    if (g4->first - charge > bestCarry) {
-      bestCarry = g4->first - charge;
+        << g4->first << ",\"lit_hi\":" << g4->second << ",\"could\":" << could
+        << ",\"special\":" << (sp == special.end() ? "null" : sp->second ? "true" : "false")
+        << ",\"carries\":" << carries << ",\"could_carry\":" << couldCarry << "}\n";
+    if (carries > bestCarry) {
+      bestCarry = carries;
       bestName = name;
     }
-    if (g4->second - charge > bestCould) {
-      bestCould = g4->second - charge;
+    if (couldCarry > bestCould) {
+      bestCould = couldCarry;
       bestCouldName = name;
     }
   }

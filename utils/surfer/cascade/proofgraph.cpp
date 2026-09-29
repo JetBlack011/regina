@@ -340,6 +340,14 @@ int ProofGraph::lower(NodeId n, const Partition &q) const {
   return v;
 }
 
+void ProofGraph::clearLowerBounds() {
+  for (Node &node : nodes_) {
+    node.genusLowerBound.reset();
+    node.lowerBoundSource.clear();
+  }
+  for (auto &m : lower_) m.clear();
+}
+
 bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value) {
   if (nodes_.at(n).components > kMaxLowerComponents)
     return false;
