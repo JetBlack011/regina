@@ -1070,6 +1070,24 @@ every lower bound with its reason's kind. Composites and links beyond the
 tables get bounds here that no table records (John, 2026-09-30: those are
 results to keep); the atlas folds runs into a table beyond the tables.
 
+**Master loads are lazy, and witnesses are filtered by genus before they
+are read (2026-09-30, John).** Campaign close1's rows took a median
+1,234 s against open2's ~250 s, a third of it hops: every table node the
+graph met had its stored rows read back at once (35–45 loads, ~2,500–3,000
+pair-signature read-backs per row, graphs of 1,000–2,200 nodes). Two
+hereditary checks, in the enumerator's spirit: a node's rows are loaded
+only when it is the one about to be expanded (the target's own rows still
+first), since a proof runs through a node only when the search picks it
+(`--master-loads eager` restores the old behaviour); and a stored witness
+is skipped unread when its genus exceeds what any proof could spend — the
+upper goal, or the largest special source's bound minus the lower goal
+(`glue()` never lowers a genus; a lower chain's charge is at least the
+witness's genus) — counted as `skipped_genus` per load. A/B on
+`L8a21{0;0;1}` (yoga, 8 threads, 600 CPU-s, open2's store as master
+witnesses): eager 1,368 s wall, 67 loads, 1,165 nodes; lazy **278 s**, 8
+loads, 479 nodes; both 10 hops, ~650 s search CPU, best 1, `cpu-budget`;
+0 witnesses skipped by genus (all have genus ≤ 3).
+
 **Not built, deliberately.** A charge ladder (charge-0 hops before any
 charged one, raised when nothing is useful): the slack ordering already
 puts charge-0 nodes first within a budget level; measure the A/B first.

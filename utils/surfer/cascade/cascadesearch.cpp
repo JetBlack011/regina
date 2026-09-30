@@ -134,6 +134,10 @@ struct Config {
   /// A node kept only for the lower goal is never expanded above this many
   /// crossings: the chain must come back to a table entry.
   size_t lowerMaxCrossings = 16;
+  /// --master-loads lazy|eager: a node's stored rows loaded when it is
+  /// about to be expanded (the default since 2026-09-30), or as soon as it
+  /// is met and useful (every table node the graph reaches).
+  bool lazyMasterLoads = true;
   /// Hub breadth (John, 2026-09-29): a node with at least hubDegree witness
   /// edges is expanded once at hubSurfaces or more, as verifyslicegenus's
   /// wide rows are, for many more first-level far sides. 0: off.
@@ -498,7 +502,7 @@ private:
   std::map<std::string, std::string> tablePD_;
   std::set<NodeId> masterDone_;
   bool masterRowsFor(NodeId n, std::vector<std::string> *rows = nullptr) const;
-  void loadMaster(NodeId n);
+  void loadMaster(NodeId n, bool countsAsExpansion = true);
   /// The class a table name stands for, as the namer names nodes: its base's
   /// variants that are one oriented link up to mirror and global reversal,
   /// by diagram OR by a meridian-carrying isometry (ExactNamer::
@@ -726,22 +730,36 @@ bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
   return any;
 }
 
-void Cascade::loadMaster(NodeId n) {
+void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   masterDone_.insert(n);
   std::vector<std::string> own;
   if (!masterRowsFor(n, &own)) return;
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0, refusedRows = 0;
+  // A witness can be on an upper proof only if its genus is at most the
+  // goal (glue() never lowers a genus), and on a lower proof only if the
+  // charge it costs, at least its genus, is affordable: at most the largest
+  // special source's bound minus the lower goal. Anything above both is
+  // skipped before it is read back (the genus is in the CSV line).
+  const int maxGenus = std::max(cfg_.goalGenus,
+                                cfg_.goalLower >= 0 ? lowerLMax_ - cfg_.goalLower : -1);
+  size_t skippedGenus = 0;
+  auto keep = [&](const Witness &w) {
+    if (w.genus <= maxGenus) return true;
+    ++skippedGenus;
+    return false;
+  };
   // Witnesses by subject row: this node's own rows (every witness), and
   // other rows whose recorded far side names this node's base (a hint: the
   // far side is redrawn and identified exactly like any other).
   std::map<std::string, std::vector<Witness>> bySubject;
   std::set<std::string> ownRows(own.begin(), own.end());
   for (const std::string &name : own)
-    for (auto &[subj, w] : master_->rows(name)) bySubject[subj].push_back(w);
+    for (auto &[subj, w] : master_->rows(name))
+      if (keep(w)) bySubject[subj].push_back(w);
   size_t reverse = 0;
   for (auto &[subj, w] : master_->byFarSide(MasterIndex::base(tableName_[n]), 300))
-    if (!ownRows.count(subj)) {
+    if (!ownRows.count(subj) && keep(w)) {
       bySubject[subj].push_back(w);
       ++reverse;
     }
@@ -910,7 +928,9 @@ void Cascade::loadMaster(NodeId n) {
       else edgeInfo_[he.edge] = info;
     }
   }
-  expansions_[n].push_back(0); // counts as this level's expansion
+  // The target's own rows stand in for its first hop at this budget level;
+  // a node loaded lazily is expanded right after, so its load counts nothing.
+  if (countsAsExpansion) expansions_[n].push_back(0);
   onNewNodes(nodesSince(nodesBefore), depth_.at(n) + 1);
   g_.propagate();
   g_.propagateLower();
@@ -919,14 +939,16 @@ void Cascade::loadMaster(NodeId n) {
   o << "{\"master\":\"" << jsonEscape(tableName_[n]) << "\",\"node\":" << n
     << ",\"own_rows\":" << own.size() << ",\"reverse_witnesses\":" << reverse
     << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedRows
+    << ",\"skipped_genus\":" << skippedGenus
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"read_back_cache_hits\":" << cacheHits
     << ",\"nodes\":" << g_.nodeCount() << ",\"target_best\":"
     << (best ? std::to_string(best->genus) : "null") << "}";
   log(o.str());
   std::cout << "[+] master rows of node " << n << " (" << tableName_[n] << "): "
-            << assembled << " witnesses assembled, " << failed << " failed; target best "
-            << (best ? std::to_string(best->genus) : "none") << "\n";
+            << assembled << " witnesses assembled, " << failed << " failed, " << skippedGenus
+            << " skipped by genus; target best " << (best ? std::to_string(best->genus) : "none")
+            << "\n";
 }
 
 bool Cascade::useful(NodeId n) const {
@@ -1966,8 +1988,12 @@ int Cascade::run() {
       loadMaster(target_);
       continue;
     }
-    // Then any useful node the atlas already searched: its rows are free.
-    if (master_)
+    // Any other node's stored rows are loaded only when that node is the
+    // one about to be expanded (below): a proof can run through a node only
+    // when the search picks it, and reading every table node's rows as it
+    // was met cost more than the hops (2026-09-30, close1: 35-45 loads and
+    // ~2,500 read-backs per row). --master-loads eager restores that.
+    if (master_ && !cfg_.lazyMasterLoads)
       if (auto f = choose(/*freeOnly=*/true)) {
         loadMaster(*f);
         continue;
@@ -1995,6 +2021,12 @@ int Cascade::run() {
       for (auto &[m, v] : expansions_) v.clear();
       std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
       continue;
+    }
+    if (master_ && cfg_.lazyMasterLoads && !masterDone_.count(*n) && masterRowsFor(*n)) {
+      // Its stored rows first: free edges, which may close the proof
+      // without the hop, and are in any case what the hop would refind.
+      loadMaster(*n, /*countsAsExpansion=*/false);
+      if (goalMet() || !g_.contradictions().empty()) continue;
     }
     long surfaces = budget;
     if (cfg_.hubDegree > 0 && !boosted_.count(*n) &&
@@ -2159,6 +2191,7 @@ void Cascade::printProfile() const {
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
             << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower
             << " lower_max_crossings=" << cfg_.lowerMaxCrossings
+            << " master_loads=" << (cfg_.lazyMasterLoads ? "lazy" : "eager")
             << " literature=" << (cfg_.literature ? 1 : 0)
             << " hop_mode=" << cfg_.hopMode << " hop_surfaces=" << cfg_.hopSurfaces
             << " max_hop_surfaces=" << cfg_.maxHopSurfaces
@@ -2234,6 +2267,11 @@ int main(int argc, char **argv) {
     else if (a == "--lower-report") c.lowerReport = true;
     else if (a == "--lower-sources") c.lowerSources = next();
     else if (a == "--goal-lower") c.goalLower = std::stoi(next());
+    else if (a == "--master-loads") {
+      const std::string v = next();
+      if (v != "lazy" && v != "eager") throw std::invalid_argument("--master-loads lazy|eager");
+      c.lazyMasterLoads = v == "lazy";
+    }
     else if (a == "--lower-max-crossings") c.lowerMaxCrossings = std::stoul(next());
     else {
       std::cerr << "unknown argument " << a << "\n";
