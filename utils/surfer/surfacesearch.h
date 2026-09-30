@@ -327,7 +327,11 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
         std::optional<KnottedSurface> helperEmbedding_;
         /**< Lazily constructed only if this thread ever has to help drain
-             pendingSurfaces_ under backpressure (see onFlush()). */
+             pendingSurfaces_ under backpressure (see onFlush(), onPaused()). */
+
+        /** Describes up to one batch of pendingSurfaces_ on this thread;
+         *  returns how many it took (0 once the queue is empty). */
+        size_t drainBatch_();
 
       public:
         ThreadHook(SurfaceSearch &owner, SurfaceTypeTally &tally,
@@ -339,6 +343,9 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
                      const std::vector<int> &U, long long faceCount) override;
 
         void onFlush() override;
+
+        /** While the queue's pause holds this worker, it drains too. */
+        bool onPaused() override;
     };
 
     /**

@@ -382,6 +382,35 @@ At 00, the enumerator's own code alone was 60% of a B1 row. The next
 targets are the pair-signature context (cache it per row, or build it off
 the critical path) and the drain's allocations.
 
+**Queue pauses (2026-09-28, `d824fca83`).** When more than
+`--pending-surface-cap` surfaces wait for the drain, the search pauses to
+empty the queue.
+- **Before:** only the worker that tripped the cap and the background drain
+  thread worked through it. The other workers slept in
+  `InterruptiblePredicate::tryAdd()`, so a 1M-surface row spent much of its
+  time on two threads.
+- **Now:** every paused worker drains too (`RunSearchThreadHook::onPaused()`).
+- **Who is affected:** a campaign row never pauses, since `hosts.conf` sets
+  the cap to 20M, as do `bench_search.sh` and `sweeplib.sh`. What pauses is
+  anything left at the binary's default of 500,000: an ad hoc run, `surfer`,
+  a test.
+
+Measured on halcyon, 14 threads, 1M surfaces, the campaign's shape otherwise,
+parent (`25142cf87`) and fix alternated:
+
+| row | pending cap | parent | fix | CPU |
+|---|---|---|---|---|
+| `8_8` | 500,000 | 82.6 s, 84.6 s | 45.6 s, 45.6 s (−45%) | 415–417 s → 439–448 s |
+| `6_1` | 500,000 | 56.7 s, 57.7 s | 30.7 s, 30.7 s (−46%) | 306–307 s → 321–323 s |
+| `8_8` | 20,000,000 | 40.0 s | 39.9 s | 457 s → 453 s |
+
+- A default-cap row now runs within 10–15% of one that never pauses.
+- The extra CPU is the draining itself, now done where before workers slept.
+- The accounting was identical in every pair.
+- `compare_surface_sets.sh` with `PENDING_CAP=500`, which forces a pause
+  every few hundred surfaces, found identical surface sets and accounting on
+  all nine canary rows. The canaries and all of ctest pass.
+
 ## Tests
 
 `ctest` from the build's `utils/surfer` directory; `embeddedsubmanifold_test`
