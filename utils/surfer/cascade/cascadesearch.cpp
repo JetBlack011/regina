@@ -435,6 +435,14 @@ private:
   /// node's lower bound carries to the target (README.md, "Lower bounds").
   void writeLowerReport() const;
   void writeCertificate() const;
+  /// <work>/lower_certificate.json when the lower goal is met: the proof
+  /// of lower(target, goal) as a tree of facts (README.md, "Lower-bound
+  /// mode"), for tools/cascade_check.py --lower.
+  void writeLowerCertificate() const;
+  void writeWitnessEdge(std::ostream &c, EdgeId e, std::set<NodeId> &nodes) const;
+  void writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
+                    std::set<NodeId> &nodes) const;
+  void writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const;
   void log(const std::string &line) {
     std::ofstream(cfg_.work + "/cascade.jsonl", std::ios::app) << line << "\n";
   }
@@ -1368,17 +1376,54 @@ void Cascade::writeSurface(std::ostream &c, const EdgeInfo &info) {
   }
 }
 
-void Cascade::writeCertificate() const {
-  auto best = g_.best(target_, goalPartition(target_));
-  if (!best) return;
-  std::ofstream c(cfg_.work + "/certificate.json");
-  c << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_pd\":\""
-    << jsonEscape(cfg_.targetPD) << "\",\"goal_genus\":" << cfg_.goalGenus
-    << ",\"goal\":\"" << (cfg_.goalDisjoint ? "disjoint" : "connected") << "\",\"genus\":"
-    << best->genus << ",\"records\":[\n";
+namespace {
+template <class V> std::string ints(const V &v) {
+  std::ostringstream o;
+  o << '[';
+  for (size_t i = 0; i < v.size(); ++i) o << (i ? "," : "") << v[i];
+  return o.str() + ']';
+}
+} // namespace
+
+void Cascade::writeWitnessEdge(std::ostream &c, EdgeId eid, std::set<NodeId> &nodes) const {
+  // A witness edge as a checker replays it: its key, ends, shape and maps,
+  // and (for an edge with a hop or master row) the row, the surface (faces
+  // and build digest, or pair signature) and each far-side piece's match.
+  const WitnessEdge &we = g_.witness(eid);
+  nodes.insert(we.in);
+  nodes.insert(we.out);
+  const auto it = edgeInfo_.find(eid);
+  c << ",\"witness\":\"" << jsonEscape(we.key) << "\"";
+  c << ",\"in\":" << we.in << ",\"out\":" << we.out
+    << ",\"shape\":{\"components\":" << we.shape.components << ",\"genus\":" << we.shape.genus
+    << ",\"inComponent\":" << ints(we.shape.inComponent)
+    << ",\"outComponent\":" << ints(we.shape.outComponent) << "},\"inMap\":" << ints(we.inMap)
+    << ",\"outMap\":" << ints(we.outMap);
+  if (it == edgeInfo_.end()) return;
+  const HopEdge &he = it->second.he;
+  c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
+    << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
+    << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
+  writeSurface(c, it->second);
+  c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
+  for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
+    c << (j ? "," : "") << ints(he.farCurveEdges[j]);
+  c << "],\"pieces\":[";
+  for (size_t k = 0; k < he.pieces.size(); ++k) {
+    const NodeMatch &m = he.pieces[k];
+    c << (k ? "," : "") << "{\"node\":" << m.node << ",\"method\":\"" << m.method
+      << "\",\"componentMap\":" << ints(m.componentMap) << ",\"mirrored\":"
+      << (m.mirrored ? "true" : "false") << ",\"reversed\":" << (m.reversed ? "true" : "false")
+      << ",\"origins\":" << ints(he.pieceOrigins[k]) << "}";
+    nodes.insert(m.node);
+  }
+  c << "]";
+}
+
+void Cascade::writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
+                           std::set<NodeId> &nodes) const {
   bool first = true;
-  std::set<NodeId> nodes;
-  for (RecordId r : g_.proof(best->record)) {
+  for (RecordId r : ids) {
     const Record &rec = g_.record(r);
     nodes.insert(rec.node);
     c << (first ? "" : ",\n") << "{\"id\":" << r << ",\"node\":" << rec.node
@@ -1388,45 +1433,8 @@ void Cascade::writeCertificate() const {
     for (size_t i = 0; i < rec.children.size(); ++i)
       c << (i ? "," : "") << rec.children[i];
     c << "]";
-    auto ints = [](const auto &v) {
-      std::ostringstream o;
-      o << '[';
-      for (size_t i = 0; i < v.size(); ++i) o << (i ? "," : "") << v[i];
-      return o.str() + ']';
-    };
-    if (rec.kind == RecordKind::witnessForward || rec.kind == RecordKind::witnessReverse) {
-      const WitnessEdge &we = g_.witness(rec.edge);
-      nodes.insert(we.in);
-      nodes.insert(we.out);
-      const auto it = edgeInfo_.find(rec.edge);
-      c << ",\"witness\":\"" << jsonEscape(we.key) << "\"";
-      c << ",\"in\":" << we.in
-        << ",\"out\":" << we.out << ",\"shape\":{\"components\":" << we.shape.components
-        << ",\"genus\":" << we.shape.genus << ",\"inComponent\":" << ints(we.shape.inComponent)
-        << ",\"outComponent\":" << ints(we.shape.outComponent) << "},\"inMap\":"
-        << ints(we.inMap) << ",\"outMap\":" << ints(we.outMap);
-      if (it != edgeInfo_.end()) {
-        const HopEdge &he = it->second.he;
-        c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
-          << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
-          << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
-        writeSurface(c, it->second);
-        c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
-        for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
-          c << (j ? "," : "") << ints(he.farCurveEdges[j]);
-        c << "],\"pieces\":[";
-        for (size_t k = 0; k < he.pieces.size(); ++k) {
-          const NodeMatch &m = he.pieces[k];
-          c << (k ? "," : "") << "{\"node\":" << m.node << ",\"method\":\"" << m.method
-            << "\",\"componentMap\":" << ints(m.componentMap) << ",\"mirrored\":"
-            << (m.mirrored ? "true" : "false") << ",\"reversed\":"
-            << (m.reversed ? "true" : "false") << ",\"origins\":" << ints(he.pieceOrigins[k])
-            << "}";
-          nodes.insert(m.node);
-        }
-        c << "]";
-      }
-    }
+    if (rec.kind == RecordKind::witnessForward || rec.kind == RecordKind::witnessReverse)
+      writeWitnessEdge(c, rec.edge, nodes);
     if (rec.kind == RecordKind::splitCombine || rec.kind == RecordKind::splitRestrict) {
       const SplitEdge &se = g_.split(rec.edge);
       nodes.insert(se.whole);
@@ -1448,8 +1456,159 @@ void Cascade::writeCertificate() const {
     c << "}";
     first = false;
   }
+}
+
+void Cascade::writeLowerCertificate() const {
+  // The proof of lower(target, goal) as a tree of facts, children before
+  // parents (README.md, "Lower-bound mode"): each fact is a node, a
+  // partition, the value the bound holds there, and its reason. A witness
+  // fact carries the edge exactly as an upper record does, so the checker
+  // replays the surface the same way, then recomputes the cap's addition
+  // and the other end's partition itself. Split facts carry the upper
+  // records they subtract, with those records' own proofs.
+  using Kind = ProofGraph::LowerReason::Kind;
+  struct Fact {
+    NodeId node;
+    Partition q;
+    ProofGraph::LowerFact f;
+    long from = -1;          ///< witness / split-piece: the fact read
+    std::vector<long> pieces; ///< split-whole: the pieces' facts
+  };
+  std::vector<Fact> facts;
+  std::map<std::pair<NodeId, std::vector<int>>, long> ids;
+  std::set<std::pair<NodeId, std::vector<int>>> onStack;
+  std::set<RecordId> records;
+  std::function<long(NodeId, const Partition &)> visit = [&](NodeId n, const Partition &q) -> long {
+    const ProofGraph::LowerFact f = g_.lowerWhy(n, q);
+    const auto key = std::make_pair(n, f.storedFor.labels());
+    if (auto it = ids.find(key); it != ids.end()) return it->second;
+    if (!onStack.insert(key).second)
+      throw std::logic_error("a lower bound's reasons cycle: node " + std::to_string(n));
+    Fact fact{n, f.storedFor, f};
+    switch (f.reason.kind) {
+    case Kind::witness: {
+      const WitnessEdge &e = g_.witness(f.reason.edge);
+      fact.from = visit(f.reason.toIsIn ? e.out : e.in,
+                        Partition::fromLabels(f.reason.fromPartition));
+      break;
+    }
+    case Kind::splitWhole:
+      for (EdgeId sid : g_.node(n).splitEdges) {
+        const SplitEdge &s = g_.split(sid);
+        if (s.whole != n) continue;
+        for (size_t k = 0; k < s.pieces.size() && k < f.reason.pieces.size(); ++k)
+          fact.pieces.push_back(visit(s.pieces[k], Partition::fromLabels(f.reason.pieces[k])));
+        break;
+      }
+      break;
+    case Kind::splitPiece:
+      for (EdgeId sid : g_.node(n).splitEdges) {
+        const SplitEdge &s = g_.split(sid);
+        if (s.whole == n || std::find(s.pieces.begin(), s.pieces.end(), n) == s.pieces.end())
+          continue;
+        fact.from = visit(s.whole, Partition::fromLabels(f.reason.fromPartition));
+        break;
+      }
+      for (RecordId r : f.reason.records)
+        for (RecordId p : g_.proof(r)) records.insert(p);
+      break;
+    default:
+      break;
+    }
+    onStack.erase(key);
+    facts.push_back(std::move(fact));
+    const long id = static_cast<long>(facts.size()) - 1;
+    ids[key] = id;
+    return id;
+  };
+  const Partition goal = goalPartition(target_);
+  const long top = visit(target_, goal);
+  std::ofstream c(cfg_.work + "/lower_certificate.json");
+  c << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_pd\":\""
+    << jsonEscape(cfg_.targetPD) << "\",\"goal_lower\":" << cfg_.goalLower << ",\"goal\":\""
+    << (cfg_.goalDisjoint ? "disjoint" : "connected") << "\",\"lower\":"
+    << g_.lower(target_, goal) << ",\"top\":" << top << ",\"facts\":[\n";
+  std::set<NodeId> nodes;
+  auto value = [](int v) {
+    return v >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(v);
+  };
+  for (size_t i = 0; i < facts.size(); ++i) {
+    const Fact &fact = facts[i];
+    nodes.insert(fact.node);
+    c << (i ? ",\n" : "") << "{\"id\":" << i << ",\"node\":" << fact.node << ",\"partition\":\""
+      << fact.q.str() << "\",\"value\":" << value(fact.f.value);
+    switch (fact.f.reason.kind) {
+    case Kind::literature:
+      c << ",\"kind\":\"literature\",\"source\":\"" << jsonEscape(g_.node(fact.node).lowerBoundSource)
+        << "\"";
+      break;
+    case Kind::linking:
+      c << ",\"kind\":\"linking\"";
+      break;
+    case Kind::witness: {
+      const WitnessEdge &e = g_.witness(fact.f.reason.edge);
+      c << ",\"kind\":\"witness\",\"to_is_in\":" << (fact.f.reason.toIsIn ? "true" : "false")
+        << ",\"from\":" << fact.from << ",\"from_partition\":\""
+        << Partition::fromLabels(fact.f.reason.fromPartition).str() << "\",\"from_value\":"
+        << value(fact.f.reason.from) << ",\"addition\":" << fact.f.reason.addition;
+      writeWitnessEdge(c, e.id, nodes);
+      break;
+    }
+    case Kind::splitWhole: {
+      c << ",\"kind\":\"split-whole\",\"pieces\":[";
+      for (size_t k = 0; k < fact.pieces.size(); ++k) c << (k ? "," : "") << fact.pieces[k];
+      c << "]";
+      for (EdgeId sid : g_.node(fact.node).splitEdges) {
+        const SplitEdge &se = g_.split(sid);
+        if (se.whole != fact.node) continue;
+        c << ",\"whole\":" << se.whole << ",\"piece_nodes\":" << ints(se.pieces)
+          << ",\"pieceMap\":[";
+        for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << ints(se.pieceMap[k]);
+        c << "]";
+        break;
+      }
+      break;
+    }
+    case Kind::splitPiece: {
+      c << ",\"kind\":\"split-piece\",\"from\":" << fact.from << ",\"from_partition\":\""
+        << Partition::fromLabels(fact.f.reason.fromPartition).str() << "\",\"from_value\":"
+        << value(fact.f.reason.from) << ",\"subtracted\":" << fact.f.reason.addition
+        << ",\"records\":[";
+      for (size_t k = 0; k < fact.f.reason.records.size(); ++k)
+        c << (k ? "," : "") << fact.f.reason.records[k];
+      c << "]";
+      break;
+    }
+    default:
+      c << ",\"kind\":\"none\"";
+      break;
+    }
+    c << "}";
+  }
+  c << "\n],\"records\":[\n";
+  writeRecords(c, std::vector<RecordId>(records.begin(), records.end()), nodes);
   c << "\n],\"nodes\":[\n";
-  first = true;
+  writeNodes(c, nodes);
+  c << "\n]}\n";
+}
+
+void Cascade::writeCertificate() const {
+  auto best = g_.best(target_, goalPartition(target_));
+  if (!best) return;
+  std::ofstream c(cfg_.work + "/certificate.json");
+  c << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_pd\":\""
+    << jsonEscape(cfg_.targetPD) << "\",\"goal_genus\":" << cfg_.goalGenus
+    << ",\"goal\":\"" << (cfg_.goalDisjoint ? "disjoint" : "connected") << "\",\"genus\":"
+    << best->genus << ",\"records\":[\n";
+  std::set<NodeId> nodes;
+  writeRecords(c, g_.proof(best->record), nodes);
+  c << "\n],\"nodes\":[\n";
+  writeNodes(c, nodes);
+  c << "\n]}\n";
+}
+
+void Cascade::writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const {
+  bool first = true;
   for (NodeId n : nodes) {
     c << (first ? "" : ",\n") << "{\"id\":" << n << ",\"label\":\""
       << jsonEscape(g_.node(n).label) << "\",\"components\":" << g_.node(n).components;
@@ -1472,7 +1631,6 @@ void Cascade::writeCertificate() const {
     c << "}";
     first = false;
   }
-  c << "\n]}\n";
 }
 
 int Cascade::run() {
@@ -1630,6 +1788,8 @@ int Cascade::run() {
     std::cout << "[+] LOWER GOAL MET: " << cfg_.targetName << " genus >= "
               << g_.lower(target_, goal) << " (literature-assisted); the proof:\n";
     describeLower(std::cout, target_, goal, 0);
+    writeLowerCertificate();
+    std::cout << "[+] lower certificate " << cfg_.work << "/lower_certificate.json\n";
     printOutcome("met");
     return 0;
   }

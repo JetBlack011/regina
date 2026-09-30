@@ -451,6 +451,15 @@ def normalize(labels):
     return [seen.setdefault(x, len(seen)) for x in labels]
 
 
+def refines(fine, coarse):
+    """Whether every block of `fine` lies inside a block of `coarse`."""
+    block_of = {}
+    for i, b in enumerate(fine):
+        if block_of.setdefault(b, coarse[i]) != coarse[i]:
+            return False
+    return True
+
+
 def partition_labels(text):
     """'{0,2}{1}' -> labels per element."""
     blocks = [b for b in text.strip('{}').split('}{')] if text != '{}' else []
@@ -642,6 +651,13 @@ class Checker:
 
     # -- witnesses
     def check_witness(self, r):
+        return self.check_witness_edge(r) and self.check_glue(r)
+
+    def check_witness_edge(self, r):
+        """The edge alone: the surface redrawn, the row -> node map, the
+        shape, the far side's pieces and their identities. Shared by an
+        upper record (which then glues) and a lower fact (which then
+        transports)."""
         d = dict(self.redraw(r['hop_dir'], r['row_pd'], r['witness'], r))
         rid = r['id']
         # Put our redraw's far-side curves in the CERTIFICATE's order: two
@@ -769,7 +785,7 @@ class Checker:
             if r['outMap'] != list(range(len(r['outMap']))):
                 return self.fail(rid, 'a split far side must map curves to itself')
             self.split_claims[r['out']] = cert_pieces
-        return self.check_glue(r)
+        return True
 
     def check_glue(self, r):
         child = self.records[r['children'][0]]
@@ -827,6 +843,121 @@ class Checker:
             return True
         return self.fail(r['id'], 'split-restrict: replay not implemented')
 
+    # -- lower bounds (lower_certificate.json: facts, children before parents)
+    #
+    # A fact says lower(node, partition) >= value: every surface for the
+    # node whose partition refines it has at least that genus. Its reason is
+    # replayed here with the same tools as an upper record, plus the
+    # transport: capping a surface of the fact's partition (genus 0, since
+    # only the addition matters) onto the witness must give the other end's
+    # recorded partition -- or one refining what its fact is stored for --
+    # and value <= from - addition. Bounds only ever rise, so `from` may be
+    # below the fact read today; both are checked. Values may be "inf"
+    # (no surface has that partition).
+    def value_of(self, v):
+        return float('inf') if v == 'inf' else int(v)
+
+    def check_lower_fact(self, f):
+        fid = f['id']
+        kind = f['kind']
+        value = self.value_of(f['value'])
+        node = self.nodes[f['node']]
+        labels = partition_labels(f['partition'])
+        if len(labels) != node['components']:
+            return self.fail(fid, 'partition size differs from the node')
+        if kind == 'literature':
+            _, name, g4 = f['source'].split(' ', 2)
+            t = self.tables['g4'].get(name)
+            if t is None:
+                return self.fail(fid, f'{name} not in the tables')
+            lo = int(t.strip('[]').split(';')[0])
+            if t != g4 or lo < value:
+                return self.fail(fid, f'table says {t}, fact says {g4} / >= {value}')
+            if name == self.cert['target']:
+                return self.fail(fid, "the target's own literature value")
+            own, why_own = self.is_target_link(name)
+            if own:
+                return self.fail(fid, f"{name} is the target's own link ({why_own})")
+            ok, why = prove_table_identity(self.node_gauss(f['node']), name, self.tables)
+            if not ok:
+                return self.fail(fid, f'node {f["node"]} not proved to be {name}: {why}')
+            self.notes.append(f'fact {fid}: literature {name} {t} lower {lo}; identity: {why}')
+            return True
+        if kind == 'linking':
+            if value != float('inf'):
+                return self.fail(fid, 'a linking fact must say no surface exists')
+            lk = self.node_gauss(f['node']).lk()
+            blocks = defaultdict(list)
+            for i, b in enumerate(labels):
+                blocks[b].append(i)
+            keys = sorted(blocks)
+            for a in range(len(keys)):
+                for b in range(a + 1, len(keys)):
+                    if sum(lk[i][j] for i in blocks[keys[a]] for j in blocks[keys[b]]) != 0:
+                        return True
+            return self.fail(fid, 'the linking numbers allow this partition')
+        if kind == 'witness':
+            if f['from'] >= fid:
+                return self.fail(fid, 'the fact read is not older')
+            if not self.check_witness_edge(f):
+                return False
+            src = self.facts[f['from']]
+            to_is_in = f['to_is_in']
+            to, other = (f['in'], f['out']) if to_is_in else (f['out'], f['in'])
+            if to != f['node'] or other != src['node']:
+                return self.fail(fid, 'the fact and the one it read are not the edge\'s ends')
+            to_map, other_map = (f['inMap'], f['outMap']) if to_is_in else (f['outMap'], f['inMap'])
+            glued = [labels[to_map[j]] for j in range(len(to_map))]
+            free, addition = glue(f['shape'], 'in' if to_is_in else 'out', glued, 0)
+            other_labels = [None] * len(other_map)
+            for i, v in enumerate(other_map):
+                other_labels[v] = free[i]
+            computed = normalize(other_labels)
+            if computed != normalize(partition_labels(f['from_partition'])):
+                return self.fail(fid, f'the cap gives partition {computed}, fact says '
+                                      f'{f["from_partition"]}')
+            stored = normalize(partition_labels(src['partition']))
+            if not refines(computed, stored):
+                return self.fail(fid, f'{computed} does not refine the partition read, {stored}')
+            if addition != f['addition']:
+                return self.fail(fid, f'the cap adds {addition}, fact says {f["addition"]}')
+            src_value = self.value_of(src['value'])
+            if src_value < self.value_of(f['from_value']):
+                return self.fail(fid, 'the fact read is below the value used')
+            if value > src_value - addition:
+                return self.fail(fid, f'{value} > {src_value} - {addition}')
+            return True
+        return self.fail(fid, f'{kind}: replay not implemented')
+
+    def run_lower(self):
+        self.facts = {f['id']: f for f in self.cert['facts']}
+        # The upper records a split fact subtracts, checked as in run().
+        for rid in sorted(self.records):
+            r = self.records[rid]
+            try:
+                ok = self.check_leaf(r) if r['kind'] == 'leaf' else \
+                    self.check_witness(r) if r['kind'].startswith('witness') else self.check_split(r)
+            except Exception as e:
+                ok = self.fail(rid, f'{type(e).__name__}: {e}')
+            print(f"  record {rid:>5} {r['kind']:<16} node {r['node']:>4} "
+                  f"{r['partition']:<14} g{r['genus']}  {'ok' if ok else 'FAILED'}")
+        for fid in sorted(self.facts):
+            f = self.facts[fid]
+            try:
+                ok = self.check_lower_fact(f)
+            except Exception as e:
+                ok = self.fail(fid, f'{type(e).__name__}: {e}')
+            print(f"  fact   {fid:>5} {f['kind']:<16} node {f['node']:>4} "
+                  f"{f['partition']:<14} >= {f['value']}  {'ok' if ok else 'FAILED'}")
+        top = self.facts[self.cert['top']]
+        tnode = [n['id'] for n in self.cert['nodes'] if n['label'].startswith('target')][0]
+        k = self.nodes[tnode]['components']
+        goal = list(range(k)) if self.cert['goal'] == 'disjoint' else [0] * k
+        if top['node'] != tnode or normalize(partition_labels(top['partition'])) != goal or \
+                self.value_of(top['value']) < self.cert['goal_lower']:
+            self.problems.append('the top fact is not the target meeting its lower goal')
+        return not self.problems
+
     def run(self):
         ids = sorted(self.records)
         for rid in ids:
@@ -881,9 +1012,15 @@ def main():
     a = ap.parse_args()
     cert = json.load(open(a.certificate))
     ch = Checker(cert, a.farsidediagram, load_tables(a.knot_table, a.link_table))
-    print(f"certificate: {cert['target']} genus <= {cert['genus']} "
-          f"(goal {cert['goal_genus']}, {cert['goal']}), {len(cert['records'])} records")
-    ok = ch.run()
+    if 'facts' in cert:
+        print(f"lower certificate: {cert['target']} genus >= {cert['lower']} "
+              f"(goal {cert['goal_lower']}, {cert['goal']}), {len(cert['facts'])} facts, "
+              f"{len(cert['records'])} records")
+        ok = ch.run_lower()
+    else:
+        print(f"certificate: {cert['target']} genus <= {cert['genus']} "
+              f"(goal {cert['goal_genus']}, {cert['goal']}), {len(cert['records'])} records")
+        ok = ch.run()
     for n in ch.notes:
         print('  note:', n)
     for p in ch.problems:
