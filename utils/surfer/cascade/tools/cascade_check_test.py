@@ -172,11 +172,31 @@ def test_elementary_slice():
     check(not cc.elementary_slice('3_1', sym)[0], 'a prime knot is no composite')
 
 
+def test_link_summands():
+    # A chain of two Hopf links summed along a component (3 components,
+    # component 1 shared): cut into two Hopf links whose origins name the
+    # shared component in both; a Hopf link alone is not cut; a trefoil
+    # summed into a component of a Hopf link cuts into the two.
+    hopf = G([1, 1], [[1, -2], [-1, 2]])
+    chain = G([1, 1, 1, 1], [[1, -2], [-1, 2, 3, -4], [-3, 4]])
+    parts = cc.link_summands(chain)
+    check(len(parts) == 2, f'chain: {len(parts)} summands')
+    check(sorted(sorted(o) for _, o in parts) == [[0, 1], [1, 2]], f'origins {[o for _, o in parts]}')
+    for p, _ in parts:
+        check(same_link(p, hopf) or same_link(p, hopf.mirror()), 'a summand is not a Hopf link')
+    check(len(cc.link_summands(hopf)) == 1, 'a Hopf link is not cut')
+    tref_hopf = G([1, 1, 1, 1, 1], [[1, -2, 3, -1, 2, -3, 4, -5], [-4, 5]])
+    parts = cc.link_summands(tref_hopf)
+    check(len(parts) == 2 and sorted(len(p.comps) for p, _ in parts) == [1, 2],
+          'trefoil #_c Hopf cuts into a knot and a 2-component link')
+    check(all(o[0] == 0 for _, o in parts), 'both summands hold component 0')
+
+
 for t in (test_lift_split, test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
           test_crossing_joined_through_another_component, test_reduced_untouched,
           test_same_as_node_through_a_twist,
           test_literature_leaf_of_the_target_under_another_name,
-          test_connected_summands, test_elementary_slice):
+          test_connected_summands, test_elementary_slice, test_link_summands):
     t()
 print(f'{"FAILED" if failures else "passed"}: {failures} failures')
 sys.exit(1 if failures else 0)

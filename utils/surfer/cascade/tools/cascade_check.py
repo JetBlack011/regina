@@ -394,6 +394,69 @@ def connected_summands(g):
     return [as_knot(seg)] + connected_summands(as_knot(rest))
 
 
+def link_summands(g, origins=None):
+    """A link diagram cut at its visible connected-sum spheres, recursively:
+    a sphere meets the diagram in two points of one component c, so one
+    side is a cyclic interval of c's Gauss word together with the
+    components whose crossings that interval reaches; it is a summand when
+    every crossing it touches has both passes on that side and no other
+    crossing lies on the interval. Returns [(Gauss, origins)], origins
+    being each summand component's component of the ORIGINAL diagram (the
+    interval's summand keeps c's origin); [(g, origins)] when no sphere
+    is visible."""
+    if origins is None:
+        origins = list(range(len(g.comps)))
+    comps = g.comps
+    n = len(comps)
+    where = defaultdict(set)  # crossing -> components it lies on
+    for c, w in enumerate(comps):
+        for x in w:
+            where[abs(x)].add(c)
+    for c in range(n):
+        w = comps[c]
+        L = len(w)
+        for length in range(2, L - 1):
+            for start in range(L):
+                seg = [w[(start + i) % L] for i in range(length)]
+                S = set(abs(x) for x in seg)
+                inside = set()
+                grew = True
+                while grew:
+                    grew = False
+                    for k in list(S):
+                        for cc in where[k]:
+                            if cc != c and cc not in inside:
+                                inside.add(cc)
+                                S |= set(abs(x) for x in comps[cc])
+                                grew = True
+                if len(S) == len(g.signs):
+                    continue
+                ok = True
+                for k in S:
+                    if sum(1 for x in seg if abs(x) == k) != sum(1 for x in w if abs(x) == k):
+                        ok = False
+                        break
+                if not ok:
+                    continue
+                rest = [w[(start + length + i) % L] for i in range(L - length)]
+                if len(rest) < 2:
+                    continue
+
+                def build(words, origs):
+                    labels = sorted(set(abs(x) for ww in words for x in ww))
+                    new = {k: i + 1 for i, k in enumerate(labels)}
+                    return (Gauss([g.signs[k - 1] for k in labels],
+                                  [[new[abs(x)] * (1 if x > 0 else -1) for x in ww] for ww in words]),
+                            origs)
+                side = build([seg] + [comps[cc] for cc in sorted(inside)],
+                             [origins[c]] + [origins[cc] for cc in sorted(inside)])
+                others = [cc for cc in range(n) if cc != c and cc not in inside]
+                other = build([rest] + [comps[cc] for cc in others],
+                              [origins[c]] + [origins[cc] for cc in others])
+                return link_summands(*side) + link_summands(*other)
+    return [(g, origins)]
+
+
 def composite_summands(name):
     """'3_1#m3_1' -> [('3_1', mirrored, reversed), ...]."""
     out = []
@@ -1078,7 +1141,8 @@ class Checker:
             r = self.records[rid]
             try:
                 ok = self.check_leaf(r) if r['kind'] == 'leaf' else \
-                    self.check_witness(r) if r['kind'].startswith('witness') else self.check_split(r)
+                    self.check_witness(r) if r['kind'].startswith('witness') else \
+                    self.check_sum(r) if r['kind'] == 'sum-combine' else self.check_split(r)
             except Exception as e:
                 ok = self.fail(rid, f'{type(e).__name__}: {e}')
             print(f"  record {rid:>5} {r['kind']:<16} node {r['node']:>4} "
@@ -1100,6 +1164,81 @@ class Checker:
             self.problems.append('the top fact is not the target meeting its lower goal')
         return not self.problems
 
+    # -- sums along components
+    def check_sum(self, r):
+        """A sum-combine record: the whole's diagram cut at its visible sum
+        spheres (its own code), each summand matched to its piece node under
+        a map that sends its components to the origins the certificate's
+        pieceMap claims, the sites checked to form a tree, then the merged
+        partition and summed genus recomputed (paper lem:sum-partitions)."""
+        rid = r['id']
+        whole = self.node_gauss(r['whole'])
+        n = len(whole.comps)
+        parts = link_summands(whole)
+        if len(parts) != len(r['pieces']):
+            return self.fail(rid, f'{len(parts)} visible summands, record has {len(r["pieces"])}')
+        pm = r['pieceMap']
+        edges = sum(len(m) for m in pm)
+        parent = list(range(len(pm) + n))
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+        for k, m in enumerate(pm):
+            for w in m:
+                parent[find(k)] = find(len(pm) + w)
+        if edges != len(pm) + n - 1 or len({find(v) for v in range(len(pm) + n)}) != 1:
+            return self.fail(rid, 'the sum sites do not form a tree')
+        unused = list(range(len(parts)))
+        for k, node_id in enumerate(r['pieces']):
+            node_g = self.node_gauss(node_id)
+            hit = None
+            for idx in unused:
+                sub, origins = parts[idx]
+                if len(sub.comps) != len(node_g.comps) or len(pm[k]) != len(sub.comps):
+                    continue
+                # component maps m with pieceMap[k][m[i]] == origins[i]
+                for m in permutations(range(len(sub.comps))):
+                    if any(pm[k][m[i]] != origins[i] for i in range(len(m))):
+                        continue
+                    for mirrored in (False, True):
+                        for reversed_ in (False, True):
+                            ok, why = self.same_as_node(sub, node_g, list(m), mirrored, reversed_)
+                            if ok:
+                                hit = idx
+                                break
+                        if hit is not None:
+                            break
+                    if hit is not None:
+                        break
+                if hit is not None:
+                    break
+            if hit is None:
+                return self.fail(rid, f'no summand is piece {k} (node {node_id}) under its map')
+            unused.remove(hit)
+        # the arithmetic
+        parent = list(range(n))
+        genus = 0
+        for k, cid in enumerate(r['children']):
+            c = self.records[cid]
+            if c['node'] != r['pieces'][k]:
+                return self.fail(rid, 'child on the wrong piece')
+            genus += c['genus']
+            labels = partition_labels(c['partition'])
+            blocks = defaultdict(list)
+            for i, b in enumerate(labels):
+                blocks[b].append(pm[k][i])
+            for ws in blocks.values():
+                for w in ws[1:]:
+                    parent[find(ws[0])] = find(w)
+        lab = [find(w) for w in range(n)]
+        if normalize(lab) != normalize(partition_labels(r['partition'])) or genus != r['genus']:
+            return self.fail(rid, f'sum gives {normalize(lab)} g{genus}, record {r["partition"]} g{r["genus"]}')
+        self.notes.append(f'record {rid}: sum of {len(parts)} summands, sites a tree')
+        return True
+
     def run(self):
         ids = sorted(self.records)
         for rid in ids:
@@ -1112,6 +1251,8 @@ class Checker:
                     ok = self.check_leaf(r)
                 elif r['kind'].startswith('witness'):
                     ok = self.check_witness(r)
+                elif r['kind'] == 'sum-combine':
+                    ok = self.check_sum(r)
                 else:
                     ok = self.check_split(r)
             except Exception as e:
