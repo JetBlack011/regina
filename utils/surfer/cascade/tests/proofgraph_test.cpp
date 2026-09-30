@@ -536,6 +536,91 @@ void testLowerWhatIf() {
   CHECK_EQ(pg.lower(T, Partition::coarsest(2)), 1, "the original graph is untouched");
 }
 
+void testLowerTransportMonotone() {
+  // L7 (lem:transport-monotone): what a witness transports for surfaces
+  // with EXACTLY partition p never falls when p is refined, so the bound for
+  // surfaces refining q is transportedLower() at q itself. lowerAcross()
+  // relies on this instead of minimising over refinements; if the claim
+  // ever broke (a shape or a map for which refining the cap raised the
+  // addition), this test fails. Checked at the fixed point of random worlds,
+  // both directions of every edge, every q, with the lower bounds relaxed
+  // from random literature values the world allows, not only true minima.
+  std::mt19937 rng(4242);
+  long checked = 0, strict = 0;
+  for (int t = 0; t < 400; ++t) {
+    RandomGraph rg = randomGraph(rng);
+    const int total = static_cast<int>(rg.witnesses.size() + rg.leaves.size());
+    std::vector<int> order(total);
+    std::iota(order.begin(), order.end(), 0);
+    ProofGraph g;
+    build(rg, order, false, &g);
+    std::uniform_int_distribution<int> lit(0, 3);
+    for (int n = 0; n < rg.nodes; ++n) {
+      int cap = 3;
+      if (auto b = g.bestConnected(n)) cap = std::min(cap, b->genus);
+      const int v = std::min(lit(rng), cap);
+      if (v > 0) g.setGenusLowerBound(n, v, "literature");
+    }
+    g.propagateLower();
+    if (!g.contradictions().empty()) continue;
+    for (EdgeId e = 0; e < static_cast<EdgeId>(rg.witnesses.size()); ++e)
+      for (bool toIsIn : {true, false}) {
+        const WitnessEdge &w = g.witness(e);
+        const NodeId to = toIsIn ? w.in : w.out;
+        const int k = g.node(to).components;
+        if (k > ProofGraph::kMaxLowerComponents) continue;
+        for (const Partition &q : allPartitions(k)) {
+          const int atQ = g.transportedLower(w, toIsIn, q);
+          int minOverRefinements = ProofGraph::kNoSurface;
+          for (const Partition &p : allPartitions(k))
+            if (p.refines(q)) {
+              const int v = g.transportedLower(w, toIsIn, p);
+              minOverRefinements = std::min(minOverRefinements, v);
+              if (v > atQ) ++strict;
+            }
+          CHECK_EQ(minOverRefinements, atQ,
+                   "transport is monotone: the min over refinements is at q");
+          ++checked;
+        }
+      }
+  }
+  CHECK(checked > 10000, "monotonicity was checked on many (edge, q) pairs");
+  CHECK(strict > 100, "refinements often transport strictly more, so the check bites");
+}
+
+void testLowerIf() {
+  // L8: lowerIf() seeds a copy that KEEPS the graph's own bounds (unlike the
+  // report's cleared what-if in L6): a seed on one route and a literature
+  // bound on another can complete a bound together; a seed above a proved
+  // surface is refused; the graph is untouched.
+  ProofGraph pg;
+  NodeId T = pg.addNode(2, "T"), C = pg.addNode(2, "C"), K = pg.addNode(1, "K");
+  pg.addWitness(T, C, CobordismShape::product(2), {0, 1}, {0, 1}, "annuli");
+  CobordismShape merge;
+  merge.components = 1;
+  merge.genus = 0;
+  merge.inComponent = {0, 0};
+  merge.outComponent = {0};
+  pg.addWitness(T, K, merge, {0, 1}, {0}, "merge");
+  pg.setGenusLowerBound(K, 2, "literature");
+  pg.propagate();
+  pg.propagateLower();
+  const Partition goal = Partition::coarsest(2);
+  CHECK_EQ(pg.lower(T, goal), 1, "K's bound loses 1 across the band");
+  auto r = pg.lowerIf({{C, goal, 3}}, T, goal);
+  CHECK(r && *r == 3, "a seed on C carries whole across the annuli, K's bound kept");
+  r = pg.lowerIf({{C, goal, 0}}, T, goal);
+  CHECK(r && *r == 1, "a seed below what is known changes nothing");
+  pg.addLeaf(C, goal, 1, "proved");
+  pg.propagate();
+  r = pg.lowerIf({{C, goal, 3}}, T, goal);
+  CHECK(!r, "a seed above a proved surface is refused");
+  r = pg.lowerIf({{C, goal, 1}}, T, goal);
+  CHECK(r && *r == 1, "a consistent seed is read");
+  CHECK_EQ(pg.lower(T, goal), 1, "the graph is untouched");
+  CHECK(pg.contradictions().empty(), "no contradiction leaks into the graph");
+}
+
 void testLowerSoundOnRandomWorlds() {
   // L5: take a random graph's upper-bound closure as the whole world, give
   // every node its true connected minimum as a literature lower bound, and
@@ -572,6 +657,8 @@ int main() {
   testLowerNoPenaltyForAnnuli();
   testLowerSplit();
   testLowerWhatIf();
+  testLowerTransportMonotone();
+  testLowerIf();
   testLowerSoundOnRandomWorlds();
   testBandToDisjointDiscs();
   testCycleImprovesAncestor();
