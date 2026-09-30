@@ -50,6 +50,7 @@ NodeId ProofGraph::addNode(int components, std::string label,
   n.profile = Profile(components);
   nodes_.push_back(std::move(n));
   lower_.emplace_back();
+  lowerReason_.emplace_back();
   return nodes_.back().id;
 }
 
@@ -346,19 +347,48 @@ void ProofGraph::clearLowerBounds() {
     node.lowerBoundSource.clear();
   }
   for (auto &m : lower_) m.clear();
+  for (auto &m : lowerReason_) m.clear();
+  ++lowerVersion_;
 }
 
-bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value) {
+bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value,
+                            const LowerReason &why) {
   if (nodes_.at(n).components > kMaxLowerComponents)
     return false;
   if (value <= lower(n, q))
     return false;
   lower_[n][q.labels()] = std::min(value, kNoSurface);
+  lowerReason_[n][q.labels()] = why;
+  ++lowerVersion_;
   return true;
 }
 
+ProofGraph::LowerFact ProofGraph::lowerWhy(NodeId n, const Partition &q) const {
+  // The same choice lower() makes, with its reason.
+  const Node &node = nodes_.at(n);
+  LowerFact f;
+  f.storedFor = q;
+  if (node.linking && !linkingAllows(q, *node.linking)) {
+    f.value = kNoSurface;
+    f.reason.kind = LowerReason::Kind::linking;
+    return f;
+  }
+  if (node.genusLowerBound && *node.genusLowerBound > 0) {
+    f.value = *node.genusLowerBound;
+    f.storedFor = Partition::coarsest(node.components);
+    f.reason.kind = LowerReason::Kind::literature;
+  }
+  for (const auto &[labels, val] : lower_.at(n))
+    if (val > f.value && q.refines(Partition::fromLabels(labels))) {
+      f.value = val;
+      f.storedFor = Partition::fromLabels(labels);
+      f.reason = lowerReason_.at(n).at(labels);
+    }
+  return f;
+}
+
 int ProofGraph::transportedLower(const WitnessEdge &e, bool toIsIn,
-                                 const Partition &p) const {
+                                 const Partition &p, Transport *detail) const {
   // A surface F for the `to` end with partition p, capped onto e, gives a
   // surface for the other end whose partition we compute, of genus at most
   // genus(F) + (what glue() adds with a genus-0 cap). So genus(F) is at
@@ -378,7 +408,13 @@ int ProofGraph::transportedLower(const WitnessEdge &e, bool toIsIn,
   std::vector<int> otherLabels(otherMap.size());
   for (size_t j = 0; j < otherMap.size(); ++j)
     otherLabels[otherMap[j]] = g->partition.blockOf(j);
-  const int lo = lower(other, Partition::fromLabels(otherLabels));
+  const Partition op = Partition::fromLabels(otherLabels);
+  const int lo = lower(other, op);
+  if (detail) {
+    detail->otherPartition = op;
+    detail->addition = g->genus;
+    detail->other = lo;
+  }
   return lo >= kNoSurface ? kNoSurface : lo - g->genus;
 }
 
@@ -397,8 +433,10 @@ std::optional<int> ProofGraph::lowerIf(const std::vector<LowerSeed> &seeds,
                                        const Partition &goal) const {
   ProofGraph what = *this;
   const size_t before = what.contradictions().size();
+  LowerReason seed;
+  seed.kind = LowerReason::Kind::seed;
   for (const LowerSeed &s : seeds)
-    what.raiseLower(s.node, s.partition, s.value);
+    what.raiseLower(s.node, s.partition, s.value, seed);
   what.propagateLower();
   if (what.contradictions().size() != before)
     return std::nullopt;
@@ -408,10 +446,13 @@ std::optional<int> ProofGraph::lowerIf(const std::vector<LowerSeed> &seeds,
 long ProofGraph::propagateLower() {
   long improved = 0;
   for (size_t n = 0; n < nodes_.size(); ++n)
-    if (nodes_[n].genusLowerBound)
+    if (nodes_[n].genusLowerBound) {
+      LowerReason why;
+      why.kind = LowerReason::Kind::literature;
       improved += raiseLower(static_cast<NodeId>(n),
                              Partition::coarsest(nodes_[n].components),
-                             *nodes_[n].genusLowerBound);
+                             *nodes_[n].genusLowerBound, why);
+    }
   const int maxPasses = 200;
   bool changed = true;
   int pass = 0;
@@ -423,8 +464,18 @@ long ProofGraph::propagateLower() {
         if (nodes_[to].components > kMaxLowerComponents)
           continue;
         for (const Partition &q : allPartitions(nodes_[to].components)) {
-          const int v = lowerAcross(e, toIsIn, q);
-          if (raiseLower(to, q, v)) {
+          Transport t;
+          const int v = transportedLower(e, toIsIn, q, &t);
+          if (v <= lower(to, q))
+            continue;
+          LowerReason why;
+          why.kind = LowerReason::Kind::witness;
+          why.edge = e.id;
+          why.toIsIn = toIsIn;
+          why.fromPartition = t.otherPartition.labels();
+          why.from = t.other;
+          why.addition = t.addition;
+          if (raiseLower(to, q, v, why)) {
             changed = true;
             ++improved;
           }
@@ -437,6 +488,8 @@ long ProofGraph::propagateLower() {
         for (const Partition &q : allPartitions(w.components)) {
           int sum = 0;
           bool mixes = false;
+          LowerReason why;
+          why.kind = LowerReason::Kind::splitWhole;
           for (size_t k = 0; k < s.pieces.size() && !mixes; ++k) {
             auto r = restrictSplit(s, k, q);
             if (!r) {
@@ -445,8 +498,9 @@ long ProofGraph::propagateLower() {
             }
             const int lo = lower(s.pieces[k], *r);
             sum = lo >= kNoSurface ? kNoSurface : std::min(kNoSurface, sum + lo);
+            why.pieces.push_back(r->labels());
           }
-          if (!mixes && raiseLower(s.whole, q, sum)) {
+          if (!mixes && raiseLower(s.whole, q, sum, why)) {
             changed = true;
             ++improved;
           }
@@ -471,6 +525,8 @@ long ProofGraph::propagateLower() {
         if (anyEmpty) continue;
         for (const Partition &q : allPartitions(pk.components)) {
           int bestV = 0;
+          LowerReason why;
+          why.kind = LowerReason::Kind::splitPiece;
           std::vector<const ProfileEntry *> pick(s.pieces.size(), nullptr);
           std::function<void(size_t)> rec = [&](size_t j) {
             if (j == s.pieces.size()) {
@@ -483,9 +539,18 @@ long ProofGraph::propagateLower() {
                 offset += pt.blocks();
                 if (t != k) genus += pick[t]->genus;
               }
-              const int lo = lower(s.whole, Partition::fromLabels(labels));
+              const Partition wp = Partition::fromLabels(labels);
+              const int lo = lower(s.whole, wp);
               const int v = lo >= kNoSurface ? kNoSurface : lo - genus;
-              bestV = std::max(bestV, v);
+              if (v > bestV) {
+                bestV = v;
+                why.fromPartition = wp.labels();
+                why.from = lo;
+                why.addition = genus;
+                why.records.clear();
+                for (size_t t = 0; t < s.pieces.size(); ++t)
+                  if (t != k) why.records.push_back(pick[t]->record);
+              }
               return;
             }
             if (j == k) {
@@ -498,7 +563,7 @@ long ProofGraph::propagateLower() {
             }
           };
           rec(0);
-          if (raiseLower(s.pieces[k], q, bestV)) {
+          if (raiseLower(s.pieces[k], q, bestV, why)) {
             changed = true;
             ++improved;
           }

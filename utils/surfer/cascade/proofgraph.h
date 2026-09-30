@@ -128,6 +128,7 @@ public:
   const SplitEdge &split(EdgeId e) const { return splits_.at(e); }
   size_t nodeCount() const { return nodes_.size(); }
   size_t recordCount() const { return records_.size(); }
+  size_t witnessCount() const { return witnesses_.size(); }
 
   /// The least genus known for node n with a partition refining `target`.
   std::optional<ProfileEntry> best(NodeId n, const Partition &target) const;
@@ -169,6 +170,41 @@ public:
   /// The lower bound for surfaces refining q (0 when nothing is known).
   int lower(NodeId n, const Partition &q) const;
 
+  /// Why a lower bound holds: the last fact that raised it. Every raise is a
+  /// strict increase and no rule increases what it reads (transport
+  /// subtracts, a piece's bound subtracts proved genera, a whole's is a sum
+  /// of its pieces'), so following reasons from any bound reaches literature
+  /// or linking leaves and never cycles: a lower bound's proof is a tree.
+  struct LowerReason {
+    enum class Kind { none, literature, linking, witness, splitWhole, splitPiece, seed };
+    Kind kind = Kind::none;
+    /// witness: the edge and which end this is; the other end's partition
+    /// (labels) whose bound `from` was read, and what the cap added.
+    EdgeId edge = -1;
+    bool toIsIn = false;
+    std::vector<int> fromPartition;
+    int from = 0, addition = 0;
+    /// splitWhole: each piece's partition (labels) whose bounds were summed;
+    /// splitPiece: the whole's partition (fromPartition) and the proved
+    /// surfaces (records) of the other pieces whose genera were subtracted.
+    std::vector<std::vector<int>> pieces;
+    std::vector<RecordId> records;
+  };
+  /// The bound lower(n, q) reads, the partition it is stored for (q or a
+  /// coarser one) and its reason. Kind none when nothing is known (value 0).
+  struct LowerFact {
+    int value = 0;
+    Partition storedFor;
+    LowerReason reason;
+  };
+  LowerFact lowerWhy(NodeId n, const Partition &q) const;
+
+  /// What a transport read: the other end's partition and what the cap added.
+  struct Transport {
+    Partition otherPartition;
+    int addition = 0;
+    int other = 0; ///< lower() at the other end
+  };
   /// What witness e transports to its `to` end (toIsIn: node e.in, else
   /// e.out) for surfaces with partition EXACTLY p: cap such a surface onto
   /// e, read the other end's partition and bound, and subtract what the cap
@@ -177,8 +213,11 @@ public:
   /// has no curves. Monotone under refinement of p (README.md, "Lower
   /// bounds": lem:transport-monotone), which is why lowerAcross() need not
   /// minimise over refinements; proofgraph_test checks that on random graphs.
-  int transportedLower(const WitnessEdge &e, bool toIsIn,
-                       const Partition &p) const;
+  int transportedLower(const WitnessEdge &e, bool toIsIn, const Partition &p,
+                       Transport *detail = nullptr) const;
+  /// Changes whenever a lower bound is raised or cleared: a cheap key for
+  /// caching what-ifs across calls.
+  long lowerVersion() const { return lowerVersion_; }
 
   /// A what-if: `seeds` raise the given nodes' bounds (each for surfaces
   /// refining its partition) in a copy that KEEPS every bound this graph
@@ -214,9 +253,12 @@ private:
   std::optional<Partition> restrictSplit(const SplitEdge &s, size_t piece,
                                          const Partition &whole) const;
 
-  // Lower bounds per node: partition labels -> bound (absent: 0).
+  // Lower bounds per node: partition labels -> bound (absent: 0), and why.
   std::vector<std::map<std::vector<int>, int>> lower_;
-  bool raiseLower(NodeId n, const Partition &q, int value);
+  std::vector<std::map<std::vector<int>, LowerReason>> lowerReason_;
+  long lowerVersion_ = 0;
+  bool raiseLower(NodeId n, const Partition &q, int value,
+                  const LowerReason &why);
   // The bound transported to `to` for surfaces refining q across witness e:
   // transportedLower() at q itself, since that is monotone under refinement.
   int lowerAcross(const WitnessEdge &e, bool toIsIn, const Partition &q) const;

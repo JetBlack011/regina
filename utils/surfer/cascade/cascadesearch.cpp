@@ -125,6 +125,15 @@ struct Config {
   /// literature bounds are not Lipschitz.
   bool lowerReport = false;
   std::string lowerSources;
+  /// --goal-lower G: also stop once lower(target, goal partition) >= G
+  /// (README.md, "Lower-bound mode"); -1 for no lower goal. Needs
+  /// --lower-sources: the special sources' largest literature lower bound
+  /// caps what any node could ever carry, which is what makes the lower
+  /// gate prune.
+  int goalLower = -1;
+  /// A node kept only for the lower goal is never expanded above this many
+  /// crossings: the chain must come back to a table entry.
+  size_t lowerMaxCrossings = 16;
   /// Hub breadth (John, 2026-09-29): a node with at least hubDegree witness
   /// edges is expanded once at hubSurfaces or more, as verifyslicegenus's
   /// wide rows are, for many more first-level far sides. 0: off.
@@ -170,6 +179,10 @@ GaussDiagram of(const regina::Link &l) {
 struct Witness {
   std::string other, pairsig;
   int genus = 0, otherComponents = 0, layers = 2;
+  /// The PD its row was searched on, when the file's `.rows.csv` sidecar
+  /// records it (a cascade hop's row is its node's simplified diagram, not
+  /// the table's); empty for the table's PD.
+  std::string rowPD;
 };
 
 // Splits one cobordisms.csv line (quoted fields may hold commas).
@@ -209,6 +222,16 @@ public:
     std::ifstream in(path);
     if (!in) throw std::runtime_error("cannot read " + path);
     std::string line;
+    // The row-PD sidecar (keptstore: witness,layers,row_pd), if any: a
+    // witness recorded by a cascade hop was searched on its node's
+    // simplified diagram, and can only be read back on that row.
+    if (std::ifstream side(path + ".rows.csv"); side) {
+      std::getline(side, line);
+      while (std::getline(side, line)) {
+        auto f = csvFields(line);
+        if (f.size() >= 3 && !f[2].empty()) rowPD_[f[0]] = f[2];
+      }
+    }
     std::getline(in, line);
     std::streamoff at = in.tellg();
     while (std::getline(in, line)) {
@@ -253,14 +276,19 @@ private:
       if (!std::getline(in, line)) continue;
       auto f = csvFields(line);
       if (f.size() < 11) continue;
-      out.push_back({f[1], {f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
-                            f[10].empty() ? 2 : std::stoi(f[10])}});
+      Witness w{f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
+                f[10].empty() ? 2 : std::stoi(f[10])};
+      if (!rowPD_.empty())
+        if (auto r = rowPD_.find(witnesskey::witnessKey(w.pairsig)); r != rowPD_.end())
+          w.rowPD = r->second;
+      out.push_back({f[1], std::move(w)});
     }
     return out;
   }
   std::string path_;
   std::unordered_map<std::string, std::vector<std::streamoff>> offsets_;
   std::unordered_map<std::string, std::vector<std::streamoff>> byOther_;
+  std::unordered_map<std::string, std::string> rowPD_; ///< witness key -> row PD
 };
 
 std::vector<Witness> readWitnesses(const std::string &path) {
@@ -358,9 +386,14 @@ private:
     auto b = g.best(t, p);
     return b && b->genus <= genus;
   }
-  bool goalMet() const {
+  bool upperMet() const {
     return goalMetIn(g_, target_, goalPartition(target_), cfg_.goalGenus);
   }
+  bool lowerMet() const {
+    return cfg_.goalLower >= 0 &&
+           g_.lower(target_, goalPartition(target_)) >= cfg_.goalLower;
+  }
+  bool goalMet() const { return upperMet() || lowerMet(); }
 
   void onNewNode(NodeId n, int depth);
   /// Names every node in `ns` (in parallel), then records each at `depth`
@@ -373,6 +406,21 @@ private:
     return ns;
   }
   bool useful(NodeId n) const;
+  /// The lower gate (README.md, "Lower-bound mode"): whether n, given the
+  /// best lower bounds it could ever have, would carry the lower goal to
+  /// the target over the edges found so far. `slack` gets how much more
+  /// than the goal it would carry (charge still affordable).
+  bool usefulLower(NodeId n, int *slack = nullptr) const;
+  /// What n could carry to the target at best, cached per graph version;
+  /// computed for every node of `ns` on the run's threads.
+  void lowerSlacks(const std::vector<NodeId> &ns) const;
+  std::optional<int> lowerSlack(NodeId n) const;
+  /// --lower-sources: which table names are special sources (their lower
+  /// bound is not a Lipschitz invariant's), and the largest such bound.
+  void loadLowerSources();
+  /// Prints the proof of lower(n, q): its reason, then the reasons of what
+  /// it read, indented, down to literature and linking leaves.
+  void describeLower(std::ostream &o, NodeId n, const Partition &q, int indent) const;
   std::optional<NodeId> choose(bool freeOnly = false);
   void expand(NodeId n, long surfaces);
   /// The name node n's hop records its witnesses under: the target's own
@@ -448,6 +496,15 @@ private:
   size_t storedAppended_ = 0;             ///< witnesses the store gained
   std::set<NodeId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
+  std::map<std::string, bool> special_;   ///< --lower-sources: name -> special
+  int lowerLMax_ = 0;                     ///< the largest special lower bound
+  /// Lower what-ifs by node, valid for one (witnesses, records, lower
+  /// version) of the graph: nullopt when the what-if was inconsistent.
+  struct LowerCache {
+    std::tuple<size_t, size_t, long> version;
+    std::map<NodeId, std::optional<int>> carried;
+  };
+  mutable LowerCache lowerCache_;
   /// Each searched node's latest usable frontier (searchfrontier.h): its next
   /// hop carries on from there instead of searching the prefix again.
   std::map<NodeId, SearchFrontier> frontiers_;
@@ -611,13 +668,16 @@ void Cascade::loadMaster(NodeId n) {
     const exactnaming::TableEntry *e = tables_.entry(name);
     auto pdIt = tablePD_.find(name);
     if (!e || pdIt == tablePD_.end()) continue;
-    std::map<int, std::vector<const Witness *>> byLayers;
-    for (const Witness &w : ws) byLayers[w.layers].push_back(&w);
-    for (const auto &[layers, group] : byLayers) {
+    // One read per (row PD, layers): the table's PD unless the sidecar
+    // recorded the row the witness was really searched on.
+    std::map<std::pair<std::string, int>, std::vector<const Witness *>> byRow;
+    for (const Witness &w : ws)
+      byRow[{w.rowPD.empty() ? pdIt->second : w.rowPD, w.layers}].push_back(&w);
+    for (const auto &[key, group] : byRow) {
       RowRead r;
       r.name = name;
-      r.pd = pdIt->second;
-      r.layers = layers;
+      r.pd = key.first;
+      r.layers = key.second;
       r.ws = group;
       reads.push_back(std::move(r));
     }
@@ -676,30 +736,42 @@ void Cascade::loadMaster(NodeId n) {
     for (auto &t : pool) t.join();
   };
   size_t cacheHits = 0;
-  std::map<std::string, NodeMatch> interned; // a subject row, interned once
+  // A row is interned once per PD it was searched on: the table's own
+  // diagram (simplified, then the registry's exact tests), or the recorded
+  // diagram of a cascade hop, which is a node's diagram of another run:
+  // already reduced, so interned as it is. An own row must be THIS node.
+  struct RowNode {
+    NodeMatch match;
+    GaussDiagram diagram; ///< the row's diagram, in the row PD's component order
+  };
+  std::map<std::string, RowNode> interned; // by row PD
   const size_t batch = 2 * static_cast<size_t>(std::max(cfg_.threads, 1));
   for (size_t i = 0; i < reads.size(); ++i) {
     if (i % batch == 0) readBatch(i, std::min(reads.size(), i + batch));
     RowRead &r = reads[i];
     cacheHits += r.cacheHits;
-    auto seen = interned.find(r.name);
+    auto seen = interned.find(r.pd);
     if (seen == interned.end()) {
-      // The row as the atlas searched it: the table's own diagram and PD, a
-      // node by the registry's exact tests. An own row must be THIS node.
-      GaussDiagram d = of(tables_.entry(r.name)->diagram);
-      seen = interned.emplace(r.name, reg_.intern(simplifyKeepingComponents(d), "row " + r.name))
-                 .first;
-      if (ownRows.count(r.name) && seen->second.node != n) {
+      RowNode rn;
+      if (r.pd == tablePD_.at(r.name)) {
+        rn.diagram = of(tables_.entry(r.name)->diagram);
+        rn.match = reg_.intern(simplifyKeepingComponents(rn.diagram), "row " + r.name);
+      } else {
+        rn.diagram = of(linkFromRowPD(r.pd));
+        rn.match = reg_.intern(rn.diagram, "row " + r.name + " (recorded diagram)");
+      }
+      seen = interned.emplace(r.pd, std::move(rn)).first;
+      if (ownRows.count(r.name) && seen->second.match.node != n) {
         ++refusedRows;
         std::cout << "[!] master row " << r.name << " did not intern as node " << n
-                  << " (got " << seen->second.node << "); not used\n";
+                  << " (got " << seen->second.match.node << "); not used\n";
       }
     }
-    const NodeMatch &m = seen->second;
+    const NodeMatch &m = seen->second.match;
     if (ownRows.count(r.name) && m.node != n) continue;
     HopRow row;
     row.node = m.node;
-    row.diagram = of(tables_.entry(r.name)->diagram);
+    row.diagram = seen->second.diagram;
     row.nodeMap = m.componentMap;
     row.pd = r.pd;
     row.layers = r.layers;
@@ -774,13 +846,175 @@ bool Cascade::useful(NodeId n) const {
   return goalMetIn(what, target_, goalPartition(target_), cfg_.goalGenus);
 }
 
+void Cascade::loadLowerSources() {
+  special_.clear();
+  lowerLMax_ = 0;
+  if (cfg_.lowerSources.empty()) return;
+  std::ifstream in(cfg_.lowerSources);
+  if (!in) throw std::runtime_error("cannot read --lower-sources " + cfg_.lowerSources);
+  std::string line;
+  std::getline(in, line);
+  std::vector<std::string> head = parseCsvLine(line);
+  const auto col = [&](const std::string &c) {
+    return static_cast<size_t>(std::find(head.begin(), head.end(), c) - head.begin());
+  };
+  const size_t nameCol = col("name"), specialCol = col("special"), loCol = col("lit_lo");
+  while (std::getline(in, line)) {
+    const std::vector<std::string> f = parseCsvLine(line);
+    if (nameCol >= f.size() || specialCol >= f.size()) continue;
+    const bool sp = f[specialCol] == "1";
+    special_[f[nameCol]] = sp;
+    if (sp && loCol < f.size())
+      if (auto lo = parseTableG4(f[loCol])) lowerLMax_ = std::max(lowerLMax_, lo->first);
+  }
+}
+
+void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
+  // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
+  // it, so they are independent), on the run's threads, cached until the
+  // graph changes.
+  const std::tuple<size_t, size_t, long> version{g_.witnessCount(), g_.recordCount(),
+                                                 g_.lowerVersion()};
+  if (lowerCache_.version != version) {
+    lowerCache_.version = version;
+    lowerCache_.carried.clear();
+  }
+  std::vector<NodeId> todo;
+  for (NodeId n : ns)
+    if (!lowerCache_.carried.count(n)) todo.push_back(n);
+  if (todo.empty()) return;
+  const Partition goal = goalPartition(target_);
+  std::vector<std::optional<int>> out(todo.size());
+  std::atomic<size_t> next{0};
+  auto work = [&] {
+    for (size_t i; (i = next.fetch_add(1)) < todo.size();) {
+      const NodeId n = todo[i];
+      const Node &node = g_.node(n);
+      // The most n could ever have, per partition: any transported bound
+      // is a literature seed minus charges, so at most the largest special
+      // source's (lowerLMax_); a proved surface refining P caps P; the
+      // literature upper bound is a connected surface, capping the
+      // coarsest partition only. Below what is known already a seed is a
+      // no-op, and above a proved surface it is refused (nullopt).
+      int litHi = std::numeric_limits<int>::max();
+      if (auto t = tableName_.find(n); t != tableName_.end())
+        if (const exactnaming::TableEntry *e = tables_.entry(t->second))
+          if (auto g4 = parseTableG4(e->g4)) litHi = g4->second;
+      std::vector<ProofGraph::LowerSeed> seeds;
+      for (const Partition &p : allPartitions(node.components)) {
+        int cap = lowerLMax_;
+        if (p.blocks() == 1) cap = std::min(cap, litHi);
+        if (auto b = g_.best(n, p)) cap = std::min(cap, b->genus);
+        seeds.push_back({n, p, cap});
+      }
+      out[i] = g_.lowerIf(seeds, target_, goal);
+    }
+  };
+  std::vector<std::thread> pool;
+  const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), todo.size());
+  for (size_t t = 1; t < k; ++t) pool.emplace_back(work);
+  work();
+  for (auto &t : pool) t.join();
+  for (size_t i = 0; i < todo.size(); ++i) lowerCache_.carried[todo[i]] = out[i];
+}
+
+std::optional<int> Cascade::lowerSlack(NodeId n) const {
+  lowerSlacks({n});
+  const auto &c = lowerCache_.carried.at(n);
+  if (!c) return std::nullopt;
+  return *c - cfg_.goalLower;
+}
+
+bool Cascade::usefulLower(NodeId n, int *slack) const {
+  if (cfg_.goalLower < 0 || n == target_) return false;
+  if (g_.node(n).components > ProofGraph::kMaxLowerComponents) return false;
+  if (reg_.info(n).diagram.crossings() > cfg_.lowerMaxCrossings) return false;
+  auto s = lowerSlack(n);
+  if (!s || *s < 0) return false;
+  if (slack) *slack = *s;
+  return true;
+}
+
+void Cascade::describeLower(std::ostream &o, NodeId n, const Partition &q,
+                            int indent) const {
+  using Kind = ProofGraph::LowerReason::Kind;
+  const auto fact = g_.lowerWhy(n, q);
+  const std::string pad(static_cast<size_t>(2 * indent + 4), ' ');
+  auto name = [&](NodeId m) {
+    auto t = tableName_.find(m);
+    return "node " + std::to_string(m) +
+           (t == tableName_.end() ? std::string(" (untabulated)") : " (" + t->second + ")");
+  };
+  o << pad << name(n) << " " << q.str() << " >= "
+    << (fact.value >= ProofGraph::kNoSurface ? std::string("(no such surface)")
+                                             : std::to_string(fact.value));
+  if (!(fact.storedFor == q)) o << ", stored for " << fact.storedFor.str();
+  if (indent > 40) {
+    o << " ...\n";
+    return;
+  }
+  switch (fact.reason.kind) {
+  case Kind::none:
+    o << ": nothing known\n";
+    return;
+  case Kind::literature:
+    o << ": " << g_.node(n).lowerBoundSource << "\n";
+    return;
+  case Kind::linking:
+    o << ": the linking numbers forbid this partition\n";
+    return;
+  case Kind::seed:
+    o << ": what-if seed\n";
+    return;
+  case Kind::witness: {
+    const WitnessEdge &e = g_.witness(fact.reason.edge);
+    const NodeId other = fact.reason.toIsIn ? e.out : e.in;
+    const Partition op = Partition::fromLabels(fact.reason.fromPartition);
+    o << ": across witness " << e.key << " (genus " << e.shape.genus << ", "
+      << e.shape.components << " pieces) from " << name(other) << " " << op.str() << " >= "
+      << fact.reason.from << ", the cap adding " << fact.reason.addition << "\n";
+    describeLower(o, other, op, indent + 1);
+    return;
+  }
+  case Kind::splitWhole: {
+    o << ": the split link's pieces, summed\n";
+    for (EdgeId sid : g_.node(n).splitEdges) {
+      const SplitEdge &s = g_.split(sid);
+      if (s.whole != n) continue;
+      for (size_t k = 0; k < s.pieces.size() && k < fact.reason.pieces.size(); ++k)
+        describeLower(o, s.pieces[k], Partition::fromLabels(fact.reason.pieces[k]),
+                      indent + 1);
+      return;
+    }
+    return;
+  }
+  case Kind::splitPiece: {
+    o << ": a piece of a split link whose whole is bounded, minus the proved genera ("
+      << fact.reason.addition << ") of the other pieces (records";
+    for (RecordId r : fact.reason.records) o << " " << r;
+    o << ")\n";
+    for (EdgeId sid : g_.node(n).splitEdges) {
+      const SplitEdge &s = g_.split(sid);
+      if (s.whole == n) continue;
+      if (std::find(s.pieces.begin(), s.pieces.end(), n) == s.pieces.end()) continue;
+      describeLower(o, s.whole, Partition::fromLabels(fact.reason.fromPartition), indent + 1);
+      return;
+    }
+    return;
+  }
+  }
+}
+
 // freeOnly: only nodes whose master rows are not yet loaded (no search).
 std::optional<NodeId> Cascade::choose(bool freeOnly) {
   struct Cand {
     NodeId n;
-    std::tuple<int, double, int, size_t> key;
+    bool lowerOnly = false; ///< kept by the lower gate alone
+    int slack = 0;          ///< lower gate: charge still affordable
+    std::tuple<int, int, int, size_t> key;
   };
   std::vector<Cand> cands;
+  std::vector<NodeId> eligible;
   for (const auto &[n, dep] : depth_) {
     if (!reg_.known(n) || n == reg_.unknot() || refused_.count(n)) continue;
     const NodeInfo &ni = reg_.info(n);
@@ -791,31 +1025,52 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
     } else if (!expansions_[n].empty()) {
       continue; // one expansion per budget level
     }
-    const bool use = n == target_ || useful(n);
+    eligible.push_back(n);
+  }
+  // The upper gate first; the lower what-ifs for every node it rejects run
+  // as one parallel batch (each is a graph copy relaxed to a fixed point).
+  std::map<NodeId, bool> upper;
+  std::vector<NodeId> needLower;
+  for (NodeId n : eligible) {
+    upper[n] = n == target_ || useful(n);
+    if (!upper[n] && cfg_.goalLower >= 0 && n != target_ &&
+        g_.node(n).components <= ProofGraph::kMaxLowerComponents &&
+        reg_.info(n).diagram.crossings() <= cfg_.lowerMaxCrossings)
+      needLower.push_back(n);
+  }
+  if (!needLower.empty()) lowerSlacks(needLower);
+  for (NodeId n : eligible) {
+    const NodeInfo &ni = reg_.info(n);
+    const int dep = depth_.at(n);
+    int slack = 0;
+    const bool lowerOnly = !upper[n] && usefulLower(n, &slack);
+    const bool use = upper[n] || lowerOnly;
     if (cfg_.verbose && !freeOnly) {
       auto t = tableName_.find(n);
       std::cout << "    candidate " << n << " (" << ni.diagram.crossings() << "x, "
                 << ni.diagram.components() << "c, "
                 << (t == tableName_.end() ? "untabulated" : t->second) << ", depth " << dep
-                << "): " << (use ? "useful" : "not useful")
-                << (masterRowsFor(n) && !masterDone_.count(n) ? ", master rows" : "") << "\n";
+                << "): "
+                << (upper[n] ? "useful" : lowerOnly ? "useful for the lower goal" : "not useful");
+      if (lowerOnly) std::cout << " (slack " << slack << ")";
+      std::cout << (masterRowsFor(n) && !masterDone_.count(n) ? ", master rows" : "") << "\n";
     }
     if (!use) continue;
     const int crossings = static_cast<int>(ni.diagram.crossings());
-    const double vol = ni.hyperbolic ? ni.volume : 1e9;
     int order = 0;
     if (cfg_.strategy == "dfs") order = -dep;
     else if (cfg_.strategy == "bfs") order = dep;
-    cands.push_back({n, {order, crossings + 0.0 * vol, dep, static_cast<size_t>(n)}});
-    (void)vol;
+    cands.push_back({n, lowerOnly, slack, {order, crossings, dep, static_cast<size_t>(n)}});
   }
   if (cands.empty()) return std::nullopt;
-  // best: fewest crossings, then lower volume, then shallower, then the
-  // older node; dfs/bfs: by depth first. Volumes are compared to 1e-6: SnapPea
-  // computes them on randomly retriangulated complements, so two nodes of one
-  // volume (a link and its mirror, say) differed in the last bits from run to
-  // run, and the order they were chosen in -- and so the whole run -- was not
-  // reproducible (2026-09-30).
+  // best: fewest crossings; among equals a node the upper gate keeps before
+  // one only the lower gate keeps, and among those the most slack (the
+  // charge it can still spend reaches more sources); then lower volume,
+  // then shallower, then the older node; dfs/bfs: by depth first. Volumes
+  // are compared to 1e-6: SnapPea computes them on randomly retriangulated
+  // complements, so two nodes of one volume (a link and its mirror, say)
+  // differed in the last bits from run to run, and the order they were
+  // chosen in -- and so the whole run -- was not reproducible (2026-09-30).
   auto roundedVolume = [&](NodeId n) {
     const NodeInfo &i = reg_.info(n);
     return i.hyperbolic ? std::llround(i.volume * 1e6) : std::numeric_limits<long long>::max();
@@ -825,6 +1080,8 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
       const NodeInfo &ia = reg_.info(a.n), &ib = reg_.info(b.n);
       if (ia.diagram.crossings() != ib.diagram.crossings())
         return ia.diagram.crossings() < ib.diagram.crossings();
+      if (a.lowerOnly != b.lowerOnly) return !a.lowerOnly;
+      if (a.lowerOnly && a.slack != b.slack) return a.slack > b.slack;
       const long long va = roundedVolume(a.n), vb = roundedVolume(b.n);
       if (va != vb) return va < vb;
       if (depth_.at(a.n) != depth_.at(b.n)) return depth_.at(a.n) < depth_.at(b.n);
@@ -1248,6 +1505,14 @@ int Cascade::run() {
               << s.rootBudgetStart << " x" << s.rootBudgetGrowth << "\n";
   }
   printProfile();
+  loadLowerSources();
+  if (cfg_.goalLower >= 0)
+    std::cout << "[+] lower goal " << cfg_.goalLower << ": " << special_.size()
+              << " table names in --lower-sources, "
+              << std::count_if(special_.begin(), special_.end(),
+                               [](const auto &kv) { return kv.second; })
+              << " special, largest special lower bound " << lowerLMax_
+              << " (caps what any node could carry)\n";
   if (!cfg_.masterWitnesses.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
     master_ = std::make_unique<MasterIndex>(cfg_.masterWitnesses);
@@ -1359,6 +1624,15 @@ int Cascade::run() {
             << (best ? std::to_string(best->genus) : "none") << "\n";
   storeWitnesses();
   writeLowerReport();
+  if (lowerMet() && !upperMet()) {
+    // The bound's proof: the reasons from the target down to their leaves.
+    const Partition goal = goalPartition(target_);
+    std::cout << "[+] LOWER GOAL MET: " << cfg_.targetName << " genus >= "
+              << g_.lower(target_, goal) << " (literature-assisted); the proof:\n";
+    describeLower(std::cout, target_, goal, 0);
+    printOutcome("met");
+    return 0;
+  }
   if (goalMet()) {
     writeCertificate();
     bool constructive = true;
@@ -1387,22 +1661,7 @@ void Cascade::writeLowerReport() const {
   // bound is not Lipschitz (lower_bound_sources.csv, `special`) can beat the
   // target's own literature bound.
   if (!cfg_.lowerReport) return;
-  std::map<std::string, bool> special;
-  if (!cfg_.lowerSources.empty()) {
-    std::ifstream in(cfg_.lowerSources);
-    std::string line;
-    std::getline(in, line);
-    std::vector<std::string> head = parseCsvLine(line);
-    const auto col = [&](const std::string &c) {
-      return static_cast<size_t>(std::find(head.begin(), head.end(), c) - head.begin());
-    };
-    const size_t nameCol = col("name"), specialCol = col("special");
-    while (std::getline(in, line)) {
-      const std::vector<std::string> f = parseCsvLine(line);
-      if (nameCol < f.size() && specialCol < f.size())
-        special[f[nameCol]] = f[specialCol] == "1";
-    }
-  }
+  const std::map<std::string, bool> &special = special_;
   const Partition goal = goalPartition(target_);
   const int targetLower = g_.lower(target_, goal);
   int litLo = -1;
@@ -1503,7 +1762,9 @@ void Cascade::printProfile() const {
   // records what actually ran rather than what its configuration asked for.
   const HopShape &s = cfg_.hopShape;
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
-            << " goal_genus=" << cfg_.goalGenus << " literature=" << (cfg_.literature ? 1 : 0)
+            << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower
+            << " lower_max_crossings=" << cfg_.lowerMaxCrossings
+            << " literature=" << (cfg_.literature ? 1 : 0)
             << " hop_mode=" << cfg_.hopMode << " hop_surfaces=" << cfg_.hopSurfaces
             << " max_hop_surfaces=" << cfg_.maxHopSurfaces
             << " max_expansions=" << cfg_.maxExpansions << " cpu_budget=" << cfg_.cpuBudget
@@ -1577,6 +1838,8 @@ int main(int argc, char **argv) {
     else if (a == "--hub-surfaces") c.hubSurfaces = std::stol(next());
     else if (a == "--lower-report") c.lowerReport = true;
     else if (a == "--lower-sources") c.lowerSources = next();
+    else if (a == "--goal-lower") c.goalLower = std::stoi(next());
+    else if (a == "--lower-max-crossings") c.lowerMaxCrossings = std::stoul(next());
     else {
       std::cerr << "unknown argument " << a << "\n";
       return 2;
@@ -1610,6 +1873,11 @@ int main(int argc, char **argv) {
     // A child hop writes its own witnesses (hop dir cob.csv), under its own
     // row name; only in-process hops are recorded through keptstore.h.
     std::cerr << "cascadesearch: --witness-store needs --run-name, and in-process hops\n";
+    return 2;
+  }
+  if (c.goalLower >= 0 && c.lowerSources.empty()) {
+    std::cerr << "cascadesearch: --goal-lower needs --lower-sources (the special sources' "
+                 "largest bound is what makes the lower gate prune)\n";
     return 2;
   }
   if (c.targetPD.empty() || c.work.empty() || c.knotTable.empty() ||

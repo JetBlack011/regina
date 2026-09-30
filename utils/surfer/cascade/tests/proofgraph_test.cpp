@@ -621,6 +621,41 @@ void testLowerIf() {
   CHECK(pg.contradictions().empty(), "no contradiction leaks into the graph");
 }
 
+void testLowerWhy() {
+  // L9: every raised lower bound remembers the fact that raised it, and
+  // following those facts from the target reaches a literature leaf: T's
+  // bound came across the merging band from K's literature value, with the
+  // band's addition of 1 recorded; lowerVersion() changes on every raise.
+  ProofGraph pg;
+  NodeId T = pg.addNode(2, "T"), K = pg.addNode(1, "K");
+  CobordismShape merge;
+  merge.components = 1;
+  merge.genus = 0;
+  merge.inComponent = {0, 0};
+  merge.outComponent = {0};
+  const EdgeId e = pg.addWitness(T, K, merge, {0, 1}, {0}, "merge");
+  const long v0 = pg.lowerVersion();
+  pg.setGenusLowerBound(K, 2, "literature");
+  pg.propagateLower();
+  CHECK(pg.lowerVersion() > v0, "raising a bound changes the version");
+  auto why = pg.lowerWhy(T, Partition::coarsest(2));
+  CHECK_EQ(why.value, 1, "T's bound is 1");
+  CHECK(why.reason.kind == ProofGraph::LowerReason::Kind::witness, "it came across a witness");
+  CHECK(why.reason.edge == e && why.reason.toIsIn, "the merging band, read at its incoming end");
+  CHECK_EQ(why.reason.from, 2, "from K's bound 2");
+  CHECK_EQ(why.reason.addition, 1, "the cap added 1");
+  auto leaf = pg.lowerWhy(K, Partition::fromLabels(why.reason.fromPartition));
+  CHECK(leaf.reason.kind == ProofGraph::LowerReason::Kind::literature, "K's is a literature leaf");
+  CHECK_EQ(leaf.value, 2, "with value 2");
+  auto none = pg.lowerWhy(T, Partition::singletons(2));
+  CHECK_EQ(none.value, 2, "the singleton partition transports 2 (no addition)");
+  ProofGraph empty;
+  NodeId X = empty.addNode(1, "X");
+  CHECK(empty.lowerWhy(X, Partition::coarsest(1)).reason.kind ==
+            ProofGraph::LowerReason::Kind::none,
+        "nothing known: kind none");
+}
+
 void testLowerSoundOnRandomWorlds() {
   // L5: take a random graph's upper-bound closure as the whole world, give
   // every node its true connected minimum as a literature lower bound, and
@@ -659,6 +694,7 @@ int main() {
   testLowerWhatIf();
   testLowerTransportMonotone();
   testLowerIf();
+  testLowerWhy();
   testLowerSoundOnRandomWorlds();
   testBandToDisjointDiscs();
   testCycleImprovesAncestor();
