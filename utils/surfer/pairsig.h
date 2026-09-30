@@ -138,9 +138,13 @@ class PairSigContext {
      * \pre `ambient` is non-empty and connected (as isoSigDetail() requires).
      * \exception regina::FailedPrecondition `ambient` is empty or
      * disconnected.
+     *
+     * `threads` computes the ambient's isoSig on that many threads
+     * (parallelIsoSigDetail(), byte for byte isoSigDetail()'s answer).
      */
-    explicit PairSigContext(const regina::Triangulation<dim> &ambient)
-        : PairSigContext(ambient, detailFor(ambient)) {}
+    explicit PairSigContext(const regina::Triangulation<dim> &ambient,
+                            unsigned threads = 1)
+        : PairSigContext(ambient, detailFor(ambient, threads)) {}
 
     PairSigContext(const PairSigContext &) = delete;
     PairSigContext &operator=(const PairSigContext &) = delete;
@@ -169,10 +173,12 @@ class PairSigContext {
      * file is written only by this function, from findAllIsomorphisms().)
      *
      * \param loaded if given, set to whether the context came from the cache.
+     * \param threads what a context built here computes its isoSig on.
      */
     static std::unique_ptr<PairSigContext>
     cached(const regina::Triangulation<dim> &ambient,
-           const std::string &cacheDir, bool *loaded = nullptr);
+           const std::string &cacheDir, bool *loaded = nullptr,
+           unsigned threads = 1);
 
     /**
      * sha1 over `ambient`'s gluings (every simplex's adjacent simplex and
@@ -183,7 +189,8 @@ class PairSigContext {
   private:
     using Detail = std::pair<std::string, regina::Isomorphism<dim>>;
 
-    static Detail detailFor(const regina::Triangulation<dim> &ambient);
+    static Detail detailFor(const regina::Triangulation<dim> &ambient,
+                            unsigned threads);
 
     PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail);
 

@@ -19,6 +19,7 @@
 #include <utilities/exception.h>
 #include <utilities/sigutils.h>
 
+#include "parallelisosig.h"
 #include "witnesskey.h"
 
 namespace {
@@ -120,11 +121,11 @@ decodePairSigParts(const std::string &sigStr) {
 template <int dim, int subdim>
 typename PairSigContext<dim, subdim>::Detail
 PairSigContext<dim, subdim>::detailFor(
-        const regina::Triangulation<dim> &ambient) {
+        const regina::Triangulation<dim> &ambient, unsigned threads) {
     if (ambient.isEmpty() || !ambient.isConnected())
         throw regina::FailedPrecondition(
             "pairSig(): ambient must be non-empty and connected");
-    return ambient.isoSigDetail();
+    return parallelIsoSigDetail(ambient, threads);
 }
 
 template <int dim, int subdim>
@@ -350,7 +351,7 @@ template <int dim, int subdim>
 std::unique_ptr<PairSigContext<dim, subdim>>
 PairSigContext<dim, subdim>::cached(const regina::Triangulation<dim> &ambient,
                                     const std::string &cacheDir,
-                                    bool *loaded) {
+                                    bool *loaded, unsigned threads) {
     if (loaded)
         *loaded = false;
     const std::string key = ambientKey(ambient);
@@ -395,7 +396,7 @@ PairSigContext<dim, subdim>::cached(const regina::Triangulation<dim> &ambient,
             // Unreadable or not this ambient's: rebuilt and replaced below.
         }
     }
-    auto ctx = std::make_unique<PairSigContext>(ambient);
+    auto ctx = std::make_unique<PairSigContext>(ambient, threads);
     try {
         std::filesystem::create_directories(cacheDir);
         ctx->save_(path);

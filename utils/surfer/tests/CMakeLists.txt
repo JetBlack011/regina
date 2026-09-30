@@ -5,6 +5,7 @@ set(TESTS
   rollbackunionfind_test
   vertexlinks_test
   pairsig_test
+  parallelisosig_test
   linkcomplement_test
   linkingnumber_test
   identifycomplement_test
@@ -73,6 +74,11 @@ target_compile_options(profile_boundarylinks PRIVATE -g)
 add_executable(profile_pairsig profile_pairsig.cpp)
 target_link_libraries(profile_pairsig surfer_common)
 target_compile_options(profile_pairsig PRIVATE -g)
+
+# How parallelIsoSigDetail() scales with threads on a row's thickening.
+# Not a CTest test.
+add_executable(profile_parallelisosig profile_parallelisosig.cpp)
+target_link_libraries(profile_parallelisosig surfer_common)
 
 # Replays the pair signatures recorded in results/cobordisms.csv (all written
 # by the pre-context code path) through PairSigContext, requiring
