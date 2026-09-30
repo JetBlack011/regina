@@ -192,11 +192,44 @@ def test_link_summands():
     check(all(o[0] == 0 for _, o in parts), 'both summands hold component 0')
 
 
+def test_check_sum_record():
+    # A certificate whose whole (node 2) is the chain of two Hopf links,
+    # each a node (0 and 1) with a literature leaf (L2a1{0}, genus 0), and
+    # a sum-combine record claiming the chain bounds a connected genus-0
+    # surface ({0,1,2}); then the same record with the wrong genus, the
+    # wrong partition, and a cyclic map, each refused.
+    atlas = cc.ATLAS + '/data/'
+    tables = cc.load_tables(atlas + '4d_smooth_slice_genus_13_crossings_pd_codes.csv',
+                            atlas + 'links_4d_smooth_slice_genus_11_crossings_pd_codes.csv')
+    hopf = {'signs': [1, 1], 'gauss': [[1, -2], [-1, 2]]}
+    chain = {'signs': [1, 1, 1, 1], 'gauss': [[1, -2], [-1, 2, 3, -4], [-3, 4]]}
+    def cert(genus=0, partition='{0,1,2}', pmap=None):
+        return {'target': 'T', 'goal_genus': 0, 'goal': 'connected', 'genus': genus,
+                'nodes': [{'id': 0, 'label': 'a', 'components': 2, **hopf},
+                          {'id': 1, 'label': 'b', 'components': 2, **hopf},
+                          {'id': 2, 'label': 'target T', 'components': 3, **chain}],
+                'records': [
+                    {'id': 0, 'node': 0, 'kind': 'leaf', 'genus': 0, 'partition': '{0,1}',
+                     'source': 'literature L2a1{0} 0', 'children': []},
+                    {'id': 1, 'node': 1, 'kind': 'leaf', 'genus': 0, 'partition': '{0,1}',
+                     'source': 'literature L2a1{0} 0', 'children': []},
+                    {'id': 2, 'node': 2, 'kind': 'sum-combine', 'genus': genus,
+                     'partition': partition, 'edge': 0, 'children': [0, 1], 'whole': 2,
+                     'pieces': [0, 1], 'pieceMap': pmap or [[0, 1], [1, 2]]}]}
+    ch = cc.Checker(cert(), None, tables)
+    check(ch.check_sum(ch.records[2]), f'the chain record checks ({ch.problems})')
+    for label, c in (('genus', cert(genus=1)), ('partition', cert(partition='{0,1}{2}')),
+                     ('cycle', cert(pmap=[[0, 1], [0, 1]]))):
+        ch = cc.Checker(c, None, tables)
+        check(not ch.check_sum(ch.records[2]), f'{label}: a wrong sum record was accepted')
+
+
 for t in (test_lift_split, test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
           test_crossing_joined_through_another_component, test_reduced_untouched,
           test_same_as_node_through_a_twist,
           test_literature_leaf_of_the_target_under_another_name,
-          test_connected_summands, test_elementary_slice, test_link_summands):
+          test_connected_summands, test_elementary_slice, test_link_summands,
+          test_check_sum_record):
     t()
 print(f'{"FAILED" if failures else "passed"}: {failures} failures')
 sys.exit(1 if failures else 0)

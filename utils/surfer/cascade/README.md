@@ -278,6 +278,45 @@ Lower bounds have their own leaves: literature lower bounds (every node's,
 the target's included, as contradiction gates) and the linking condition;
 see "Lower bounds".
 
+## Sums along components (since 2026-09-30)
+
+The hub runs of 2026-09-30 showed why so few far sides got names: of
+1,411 prime far-side pieces, 1,143 were untabulated, and 1,128 of those
+had at most 11 crossings — they were not beyond the tables but *composite*:
+507 with a visible knot summand, 610 chains of small links (Hopf links
+summed along components), which the tables never list and which the
+prime-piece namer (`ExactNamer::identify`) cannot describe. John: the
+cascade must name and reason about these as the atlas solver does.
+
+Now every untabulated node is cut at its visible sum spheres
+(`ExactNamer::decompose`, exposed for this) into prime summands, each
+interned as a node, and joined to it by a **sum edge** (`SumEdge`,
+`ProofGraph::addSum`): `pieceMap[k][c]` is the component of the whole that
+component c of summand k becomes part of, a surjection whose sites must
+form a tree (a sphere decomposition always does; a cycle is refused). The
+summand nodes are named like any other, so table pieces bring their
+literature leaves. Rules:
+- **Combine** (upper; paper `lem:sum-partitions`): surfaces for the
+  summands, one each, give a surface for the whole whose genus is their
+  sum and whose blocks are their blocks' images merged wherever two piece
+  components were summed together (a boundary connected sum at each site).
+  A chain of Hopf links therefore realizes a connected genus-0 surface, a
+  knot summed into a link realizes the link's partition at the genera's sum.
+- **Lower** (paper `cor:sum-pieces`, connected bounds only): `lower(whole)
+  ≥ lower(piece_i) − Σ_{j≠i} (h_j + n_j − 1)` over proved connected surfaces
+  `h_j` of the other summands.
+`proofgraph_test` `testSumEdges` pins the Hopf chain, the paper's (i) as a
+special case, the lower rule and both refusals. Certificates carry
+`sum-combine` records with the edge's maps; the checker cuts the whole's
+diagram at its visible spheres itself (`link_summands`), matches each
+summand to its piece node under a map sending its components to the
+recorded origins, checks the sites form a tree, and redoes the arithmetic
+(`cascade_check_test.py`: the chain, and the record with a wrong genus,
+partition or a cyclic map refused). Measured on `L8n7{0;0;1}` (yoga, 8
+threads, 600 CPU-s): 7 far sides decomposed into sums of `L2a1{0}`, each
+given a genus-0 profile; the target's bound unchanged (its witnesses to the
+chains are not annuli), no contradiction.
+
 ## The proof graph
 
 The cascade's graph has cycles:
