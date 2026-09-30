@@ -519,6 +519,73 @@ lower report on):**
   `$READ_BACK_CACHE` and `$PAIR_SIG_CACHE`. Each master line in
   `cascade.jsonl` now has `read_back_cache_hits`.
 
+## Where a run's time goes, and signing on every thread (2026-09-30)
+
+**Every phase is timed now** (`ec57fa959`):
+- **Hop records** carry the driver's time since the previous hop:
+  `choose_s` (of which `useful_s` and `lower_slack_s`), `master_s` and
+  `kept_s`.
+- **Master records** carry `wall`, `readback_s` (the pool),
+  `assemble_s` (serial), `name_s` and `propagate_s`.
+- **The run record.** A `{"run":...}` line at the end has the run's `wall`,
+  `cpu`, `cores`, `startup_s` and `loop_s`, the hops' wall and CPU, those
+  driver totals, and `store_s` (split into `store_dedupe_s` and
+  `store_sign_s`), `lower_report_s` and `node_bounds_s`.
+
+**What it showed.** Campaigns before `8d2226455` ran at 9.3 of halcyon's 14
+cores on close1, and yoga's knots12 rows at about 2.6 of 12:
+- **close1 (eager master loads).** Half of a row's wall time fell between
+  hops: `choose()`'s graph copies and eager loads, a steady 7–8 s before
+  every hop.
+- **knots12.** Signing took three quarters of every row, on one thread. A
+  knot row keeps surfaces from one row, and `pairSigsOf` gave each row one
+  thread, nearly all of it in the ambient's `isoSigDetail()` (`pairsig.h`).
+  Next came the dedupe parse of the 3 GB master, also serial.
+
+`8d2226455` (lazy loads) fixed close1: 11.2 of 14 cores, and ~12 while the
+loop runs. The two commits below fixed knots12.
+
+| commit | change |
+|---|---|
+| `b89858f43` | `parallelIsoSigDetail()` (`../parallelisosig.h`): start *i* of `IsoSigClassic`'s order on thread *i* mod *T*, each keeping its least (encoding, *i*), using the engine's own `fillFrom()` and `IsoSigPrintable::encode()`. The least over threads is the serial loop's first least, so it returns the same signature *and* isomorphism. `pairSigsOf` gives each row's context `threads / rows` threads. |
+| `7cb7db640` | `witnessstore::witnessIdentities()`: the dedupe's identities read in byte ranges cut at line starts, on the run's threads, with `loadWitnesses()`'s own line parser (header, empty, malformed and torn lines alike) |
+
+**A/B.** On yoga, with the campaign paused, cold pair-signature caches,
+and the benchmark rows as the campaigns run them:
+
+| run | base `ec57fa959` | `b89858f43` | `7cb7db640` |
+|---|---|---|---|
+| `12a_227`, 12 threads: wall / cores | 133 s / 2.6 | 57 s / 7.5 | **51 s / 9.8** |
+| of which signing / dedupe | 87.5 / 11.1 s | 22.9 / 7.8 s | 24.1 / 3.1 s |
+| `12a_227`, 8 threads: wall | 123 s | 57 s | **54 s** |
+| `L10a174{0;0;1;1}`, 12 threads: wall / signing | 160 s / 19.3 s | **140 s / 5.5 s** | |
+
+- **Equivalence.**
+  - `parallelisosig_test`: the same signature and isomorphism at 1–16
+    threads, on row thickenings, their T and Regina examples, each also
+    randomly relabelled.
+  - `witnessstore_test`: `witnessIdentities()` equals `loadWitnesses()`'s
+    identities at every range split.
+  - `--sign-only`: each base run's own `kept.csv`, re-signed by the new
+    binary against the same master, gives a store and sidecar
+    **byte-identical** to the base's (four runs, 108 witnesses; `L10a174`'s
+    dedupe drops 8 of 19). Two searches of one row keep different surfaces
+    (a multithreaded hop's first 50k), so only the same surfaces compare.
+- **Scaling.** `profile_parallelisosig` on `12a_227`'s thickening (2,304
+  pentachora), on yoga:
+
+  | threads | 1 | 2 | 4 | 6 | 8 | 12 |
+  |---|---|---|---|---|---|---|
+  | seconds | 76.3 | 50.6 | 34.7 | 30.1 | 27.2 | 22.8 |
+
+  yoga is a 15 W laptop part (i7-10710U: 6 cores, 12 threads), whose clock
+  falls as cores load, so everything parallel scales poorly there.
+  halcyon (Ryzen 7 7800X3D, 8 cores) should do better; not yet measured.
+- **Not done.** Building the target's context in the background from the
+  start of the run. One thread would have to finish the whole ambient
+  isoSig while the loop runs, and the store would wait on it, which is
+  slower than building it on every thread at the end.
+
 ## In-process hops (`hoprunner.h`, since 2026-09-28)
 
 A hop is one row searched on a node's diagram. By default it runs in the
