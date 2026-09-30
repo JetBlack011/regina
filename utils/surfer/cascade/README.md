@@ -433,8 +433,10 @@ lower report on):**
   digest is refused, a torn line is cut, and cached equals fresh on real
   witnesses. The other cascade tests and the cascade canaries are
   unchanged.
-- **Measurement.** `tools/phase_times.py`-style breakdowns came from each
-  hop's `cascade.jsonl` timers plus file modification times.
+- **Measurement.** `tools/phase_times.py ROOT [--since ISO]` breaks a
+  campaign root's wall time down by phase from each hop's `cascade.jsonl`
+  timers (inside hops against the run's whole wall); the split of the rest
+  came from `perf record --call-graph dwarf -t <main thread>`.
 - **In campaigns:** profile keys `read_back_cache` and `pair_sig_cache`,
   passed by `cascade_worker.py` and written by `cascade_ladder.sh` from
   `$READ_BACK_CACHE` and `$PAIR_SIG_CACHE`. Each master line in
