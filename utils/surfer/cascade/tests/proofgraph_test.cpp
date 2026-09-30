@@ -656,6 +656,70 @@ void testLowerWhy() {
         "nothing known: kind none");
 }
 
+void testSumEdges() {
+  // S1 (paper lem:sum-partitions): a sum along components. Two Hopf links
+  // H1, H2 (each realizes {0,1} at genus 0: an annulus; singletons are
+  // forbidden by lk = 1) summed along a component form a 3-component chain
+  // W: W's components 0,1 from H1, 1,2 from H2 (component 1 shared). The
+  // annuli boundary-sum to a pair of pants: W realizes {0,1,2} at genus 0.
+  // A knot K of genus 1 summed into a component of H1 (K #_c H1) realizes
+  // {0,1} at genus 1: the paper's lem:sum-along-components(i). The lower
+  // rule (cor:sum-pieces): lower(K) = 1 and H1's annulus (genus 0, 2
+  // components) give lower(K #_c H1) >= 1 - (0 + 2 - 1) = 0, nothing; with
+  // lower(K) = 3 it gives 2. Every record rechecks.
+  ProofGraph pg;
+  NodeId H1 = pg.addNode(2, "H1", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  NodeId H2 = pg.addNode(2, "H2", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  NodeId W = pg.addNode(3, "W");
+  pg.addLeaf(H1, Partition::coarsest(2), 0, "annulus");
+  pg.addLeaf(H2, Partition::coarsest(2), 0, "annulus");
+  pg.addSum(W, {H1, H2}, {{0, 1}, {1, 2}});
+  pg.propagate();
+  auto b = pg.best(W, Partition::coarsest(3));
+  CHECK(b && b->genus == 0, "a chain of two Hopf links bounds a planar surface");
+  CHECK(pg.record(b->record).kind == RecordKind::sumCombine, "by the sum rule");
+  NodeId K = pg.addNode(1, "K"), KH = pg.addNode(2, "K#H1");
+  pg.addLeaf(K, Partition::coarsest(1), 1, "genus 1");
+  pg.addSum(KH, {K, H1}, {{0}, {0, 1}});
+  pg.propagate();
+  auto c = pg.best(KH, Partition::coarsest(2));
+  CHECK(c && c->genus == 1, "K #_c H1 realizes genus 1 with one piece");
+  pg.setGenusLowerBound(K, 1, "literature");
+  pg.propagateLower();
+  CHECK_EQ(pg.lower(KH, Partition::coarsest(2)), 0, "lower 1 - (0 + 2 - 1) = 0");
+  // A knot K2 with literature lower bound 3 and no proved surface, summed
+  // into H1: lower(K2 #_c H1) >= 3 - (0 + 2 - 1) = 2.
+  NodeId K2 = pg.addNode(1, "K2"), K2H = pg.addNode(2, "K2#H1");
+  pg.addSum(K2H, {K2, H1}, {{0}, {0, 1}});
+  pg.setGenusLowerBound(K2, 3, "literature");
+  pg.propagate();
+  pg.propagateLower();
+  CHECK_EQ(pg.lower(K2H, Partition::coarsest(2)), 2, "lower 3 - 1 = 2");
+  auto why = pg.lowerWhy(K2H, Partition::coarsest(2));
+  CHECK(why.reason.kind == ProofGraph::LowerReason::Kind::sumPiece && why.reason.piece == 0,
+        "reason: the sum rule from piece 0");
+  checkAllRecords(pg, "sum edges");
+  CHECK(pg.contradictions().empty(), "no contradiction");
+  // Pieces that are not summed at all (a map missing a whole component) are refused.
+  bool refused = false;
+  try {
+    pg.addSum(W, {H1, H2}, {{0, 1}, {0, 1}});
+  } catch (const std::invalid_argument &) {
+    refused = true;
+  }
+  CHECK(refused, "a sum whose pieces miss a component of the whole is refused");
+  // Two Hopf links summed along BOTH pairs of components would be a cycle
+  // of sum sites, which no sphere decomposition gives: refused.
+  NodeId W2 = pg.addNode(2, "W2");
+  refused = false;
+  try {
+    pg.addSum(W2, {H1, H2}, {{0, 1}, {0, 1}});
+  } catch (const std::invalid_argument &) {
+    refused = true;
+  }
+  CHECK(refused, "sum sites forming a cycle are refused");
+}
+
 void testLowerSoundOnRandomWorlds() {
   // L5: take a random graph's upper-bound closure as the whole world, give
   // every node its true connected minimum as a literature lower bound, and
@@ -695,6 +759,7 @@ int main() {
   testLowerTransportMonotone();
   testLowerIf();
   testLowerWhy();
+  testSumEdges();
   testLowerSoundOnRandomWorlds();
   testBandToDisjointDiscs();
   testCycleImprovesAncestor();

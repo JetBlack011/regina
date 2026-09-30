@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -17,6 +18,7 @@ const char *kindName(RecordKind k) {
   case RecordKind::witnessReverse: return "witness-reverse";
   case RecordKind::splitCombine: return "split-combine";
   case RecordKind::splitRestrict: return "split-restrict";
+  case RecordKind::sumCombine: return "sum-combine";
   }
   return "?";
 }
@@ -134,6 +136,60 @@ EdgeId ProofGraph::addSplit(NodeId whole, std::vector<NodeId> pieces,
   return s.id;
 }
 
+EdgeId ProofGraph::addSum(NodeId whole, std::vector<NodeId> pieces,
+                          std::vector<std::vector<int>> pieceMap) {
+  if (pieces.size() != pieceMap.size() || pieces.size() < 2)
+    throw std::invalid_argument("addSum: at least two pieces, one map each");
+  const int n = nodes_.at(whole).components;
+  std::vector<int> hits(n, 0);
+  for (size_t k = 0; k < pieces.size(); ++k) {
+    if (static_cast<int>(pieceMap[k].size()) != nodes_.at(pieces[k]).components)
+      throw std::invalid_argument("addSum: piece map size");
+    if (pieces[k] == whole)
+      throw std::invalid_argument("addSum: a piece is the whole");
+    for (int w : pieceMap[k]) {
+      if (w < 0 || w >= n)
+        throw std::invalid_argument("addSum: piece map out of range");
+      ++hits[w];
+    }
+  }
+  for (int h : hits)
+    if (h == 0)
+      throw std::invalid_argument("addSum: a component of the whole is no piece's");
+  // The sum sites must form a tree (a sphere decomposition always does):
+  // the graph with a vertex per piece and per whole component, and an edge
+  // per piece component, is connected with pieces + n - 1 edges. Otherwise
+  // two pieces would be summed twice and the genus formula would be wrong.
+  size_t edges = 0;
+  std::vector<int> parent(pieces.size() + static_cast<size_t>(n));
+  std::iota(parent.begin(), parent.end(), 0);
+  std::function<int(int)> find = [&](int x) { return parent[x] == x ? x : parent[x] = find(parent[x]); };
+  for (size_t k = 0; k < pieces.size(); ++k)
+    for (int w : pieceMap[k]) {
+      ++edges;
+      parent[find(static_cast<int>(k))] = find(static_cast<int>(pieces.size()) + w);
+    }
+  int roots = 0;
+  for (size_t v = 0; v < parent.size(); ++v) roots += find(static_cast<int>(v)) == static_cast<int>(v);
+  if (roots != 1 || edges != pieces.size() + static_cast<size_t>(n) - 1)
+    throw std::invalid_argument("addSum: the sum sites do not form a tree");
+  SumEdge s;
+  s.id = static_cast<EdgeId>(sums_.size());
+  s.whole = whole;
+  s.pieces = std::move(pieces);
+  s.pieceMap = std::move(pieceMap);
+  sums_.push_back(s);
+  nodes_[whole].sumEdges.push_back(s.id);
+  std::set<NodeId> seen;
+  for (NodeId p : s.pieces)
+    if (seen.insert(p).second)
+      nodes_[p].sumEdges.push_back(s.id);
+  for (NodeId x : seen)
+    for (const ProfileEntry &pe : nodes_[x].profile.entries())
+      pending_.push_back(pe.record);
+  return s.id;
+}
+
 RecordId ProofGraph::insert(NodeId n, const Partition &p, int genus,
                             RecordKind kind, EdgeId edge,
                             std::vector<RecordId> children,
@@ -211,6 +267,38 @@ ProofGraph::combineSplit(const SplitEdge &s,
   return std::make_pair(Partition::fromLabels(labels), genus);
 }
 
+std::pair<Partition, int> ProofGraph::combineSum(
+    const SumEdge &s, const std::vector<const Record *> &perPiece) const {
+  // Boundary-connected-sum the surfaces at each sum site: the two pieces
+  // containing the summed components become one, their genera add and no
+  // genus is created (paper lem:sum-partitions). So the whole's blocks are
+  // the unions, over the summands' blocks, of their images, merged wherever
+  // two piece components share an image.
+  const int n = nodes_[s.whole].components;
+  std::vector<int> parent(n);
+  std::iota(parent.begin(), parent.end(), 0);
+  std::function<int(int)> find = [&](int x) {
+    return parent[x] == x ? x : parent[x] = find(parent[x]);
+  };
+  int genus = 0;
+  for (size_t k = 0; k < s.pieces.size(); ++k) {
+    const Record &r = *perPiece[k];
+    genus += r.genus;
+    for (int b = 0; b < r.partition.blocks(); ++b) {
+      int first = -1;
+      for (size_t c = 0; c < s.pieceMap[k].size(); ++c) {
+        if (r.partition.blockOf(static_cast<int>(c)) != b) continue;
+        const int w = s.pieceMap[k][c];
+        if (first < 0) first = w;
+        else parent[find(w)] = find(first);
+      }
+    }
+  }
+  std::vector<int> labels(n);
+  for (int w = 0; w < n; ++w) labels[w] = find(w);
+  return {Partition::fromLabels(labels), genus};
+}
+
 std::optional<Partition> ProofGraph::restrictSplit(const SplitEdge &s,
                                                    size_t piece,
                                                    const Partition &whole) const {
@@ -241,6 +329,46 @@ void ProofGraph::deriveFrom(RecordId rid) {
   const Node &n = nodes_[r.node];
   const std::vector<EdgeId> wEdges = n.witnessEdges;
   const std::vector<EdgeId> sEdges = n.splitEdges;
+  const std::vector<EdgeId> mEdges = n.sumEdges;
+
+  // As a summand: combine with every current entry of the other summands.
+  for (EdgeId mid : mEdges) {
+    const SumEdge s = sums_[mid];
+    for (size_t k = 0; k < s.pieces.size(); ++k) {
+      if (s.pieces[k] != r.node) continue;
+      std::vector<std::vector<RecordId>> options(s.pieces.size());
+      bool anyEmpty = false;
+      for (size_t j = 0; j < s.pieces.size(); ++j) {
+        if (j == k) {
+          options[j] = {rid};
+          continue;
+        }
+        for (const ProfileEntry &pe : nodes_[s.pieces[j]].profile.entries())
+          options[j].push_back(pe.record);
+        if (options[j].empty()) anyEmpty = true;
+      }
+      if (anyEmpty) continue;
+      std::vector<std::vector<RecordId>> combos;
+      std::vector<RecordId> pick(s.pieces.size());
+      std::function<void(size_t)> rec = [&](size_t j) {
+        if (j == s.pieces.size()) {
+          combos.push_back(pick);
+          return;
+        }
+        for (RecordId o : options[j]) {
+          pick[j] = o;
+          rec(j + 1);
+        }
+      };
+      rec(0);
+      for (const auto &ids : combos) {
+        std::vector<const Record *> recs;
+        for (RecordId id : ids) recs.push_back(&records_[id]);
+        auto d = combineSum(s, recs);
+        insert(s.whole, d.first, d.second, RecordKind::sumCombine, mid, ids, "");
+      }
+    }
+  }
 
   for (EdgeId eid : wEdges) {
     const WitnessEdge e = witnesses_[eid];
@@ -571,6 +699,39 @@ long ProofGraph::propagateLower() {
       }
     }
   }
+  // Sums along components: the whole's CONNECTED bound from one summand's
+  // (paper cor:sum-pieces): every surface for the whole gives, with the
+  // other summands capped by proved connected surfaces, a surface for piece
+  // i of genus at most g + sum_j (h_j + n_j - 1). Kept outside the pass
+  // loop since it reads only literature-seeded and transported bounds of
+  // the pieces; one extra relaxation round suffices for what it adds.
+  for (int round = 0; round < 2; ++round)
+    for (const SumEdge &s : sums_) {
+      const Node &w = nodes_[s.whole];
+      if (w.components > kMaxLowerComponents) continue;
+      for (size_t i = 0; i < s.pieces.size(); ++i) {
+        const int lo = lower(s.pieces[i], Partition::coarsest(nodes_[s.pieces[i]].components));
+        if (lo <= 0 || lo >= kNoSurface) continue;
+        int subtract = 0;
+        bool known = true;
+        LowerReason why;
+        why.kind = LowerReason::Kind::sumPiece;
+        why.edge = s.id;
+        why.piece = static_cast<int>(i);
+        why.from = lo;
+        for (size_t j = 0; j < s.pieces.size(); ++j) {
+          if (j == i) continue;
+          auto b = bestConnected(s.pieces[j]);
+          if (!b) { known = false; break; }
+          subtract += b->genus + nodes_[s.pieces[j]].components - 1;
+          why.records.push_back(b->record);
+        }
+        if (!known) continue;
+        why.addition = subtract;
+        if (raiseLower(s.whole, Partition::coarsest(w.components), lo - subtract, why))
+          ++improved;
+      }
+    }
   if (changed)
     contradictions_.push_back(
         "lower bounds did not converge in " + std::to_string(maxPasses) +
@@ -648,6 +809,19 @@ std::string ProofGraph::recheck(RecordId rid) const {
         return "split-combine child on the wrong piece";
     }
     d = combineSplit(s, recs);
+    break;
+  }
+  case RecordKind::sumCombine: {
+    const SumEdge &s = sums_.at(r.edge);
+    if (r.children.size() != s.pieces.size() || r.node != s.whole)
+      return "sum-combine children/endpoint mismatch";
+    std::vector<const Record *> recs;
+    for (size_t k = 0; k < s.pieces.size(); ++k) {
+      recs.push_back(&records_.at(r.children[k]));
+      if (recs.back()->node != s.pieces[k])
+        return "sum-combine child on the wrong piece";
+    }
+    d = combineSum(s, recs);
     break;
   }
   case RecordKind::splitRestrict: {

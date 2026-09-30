@@ -38,6 +38,7 @@ enum class RecordKind {
   witnessReverse,  ///< A witness's outgoing link, from its incoming link.
   splitCombine,    ///< A split link, from surfaces for its pieces.
   splitRestrict,   ///< A piece of a split link, from a surface for the whole.
+  sumCombine,      ///< A sum along components, from surfaces for its summands.
 };
 
 const char *kindName(RecordKind k);
@@ -81,6 +82,22 @@ struct SplitEdge {
   std::vector<std::vector<int>> pieceMap;
 };
 
+/**
+ * A link that is a connected sum of its `pieces` along components (paper
+ * lem:sum-along-components; README.md "Sums along components"): node
+ * `whole` is obtained from the pieces by successive sums, and
+ * `pieceMap[k][c]` is the component of `whole` that component c of
+ * pieces[k] becomes part of. Every component of `whole` is the image of at
+ * least one piece component; two piece components with one image were
+ * summed together. Unlike a split, the map is not injective.
+ */
+struct SumEdge {
+  EdgeId id = -1;
+  NodeId whole = -1;
+  std::vector<NodeId> pieces;
+  std::vector<std::vector<int>> pieceMap;
+};
+
 struct Node {
   NodeId id = -1;
   int components = 0;
@@ -95,6 +112,7 @@ struct Node {
   Profile profile;
   std::vector<EdgeId> witnessEdges; ///< Edges with this node at either end.
   std::vector<EdgeId> splitEdges;   ///< As whole or as a piece.
+  std::vector<EdgeId> sumEdges;     ///< As whole or as a summand.
 };
 
 class ProofGraph {
@@ -114,6 +132,10 @@ public:
   /// Adds a split edge (validated); call propagate() afterwards.
   EdgeId addSplit(NodeId whole, std::vector<NodeId> pieces,
                   std::vector<std::vector<int>> pieceMap);
+  /// Adds a sum-along-components edge (validated: every whole component
+  /// is hit, at least two pieces); call propagate() afterwards.
+  EdgeId addSum(NodeId whole, std::vector<NodeId> pieces,
+                std::vector<std::vector<int>> pieceMap);
 
   /// Derives every bound that follows, to a fixed point. Returns the number
   /// of records created.
@@ -126,6 +148,7 @@ public:
   const Record &record(RecordId r) const { return records_.at(r); }
   const WitnessEdge &witness(EdgeId e) const { return witnesses_.at(e); }
   const SplitEdge &split(EdgeId e) const { return splits_.at(e); }
+  const SumEdge &sum(EdgeId e) const { return sums_.at(e); }
   size_t nodeCount() const { return nodes_.size(); }
   size_t recordCount() const { return records_.size(); }
   size_t witnessCount() const { return witnesses_.size(); }
@@ -176,7 +199,7 @@ public:
   /// of its pieces'), so following reasons from any bound reaches literature
   /// or linking leaves and never cycles: a lower bound's proof is a tree.
   struct LowerReason {
-    enum class Kind { none, literature, linking, witness, splitWhole, splitPiece, seed };
+    enum class Kind { none, literature, linking, witness, splitWhole, splitPiece, seed, sumPiece };
     Kind kind = Kind::none;
     /// witness: the edge and which end this is; the other end's partition
     /// (labels) whose bound `from` was read, and what the cap added.
@@ -186,9 +209,14 @@ public:
     int from = 0, addition = 0;
     /// splitWhole: each piece's partition (labels) whose bounds were summed;
     /// splitPiece: the whole's partition (fromPartition) and the proved
-    /// surfaces (records) of the other pieces whose genera were subtracted.
+    /// surfaces (records) of the other pieces whose genera were subtracted;
+    /// sumPiece: the sum edge (edge), the summand (from = its connected
+    /// bound; `piece` its index) and the records of the other summands'
+    /// connected surfaces, whose genera plus components minus one were
+    /// subtracted (addition).
     std::vector<std::vector<int>> pieces;
     std::vector<RecordId> records;
+    int piece = -1;
   };
   /// The bound lower(n, q) reads, the partition it is stored for (q or a
   /// coarser one) and its reason. Kind none when nothing is known (value 0).
@@ -252,6 +280,10 @@ private:
                const std::vector<const Record *> &perPiece) const;
   std::optional<Partition> restrictSplit(const SplitEdge &s, size_t piece,
                                          const Partition &whole) const;
+  // The whole's (partition, genus) from one surface per summand: genera add
+  // and blocks merge where components were summed (paper lem:sum-partitions).
+  std::pair<Partition, int> combineSum(const SumEdge &s,
+                                       const std::vector<const Record *> &perPiece) const;
 
   // Lower bounds per node: partition labels -> bound (absent: 0), and why.
   std::vector<std::map<std::vector<int>, int>> lower_;
@@ -267,6 +299,7 @@ private:
   std::vector<Record> records_;
   std::vector<WitnessEdge> witnesses_;
   std::vector<SplitEdge> splits_;
+  std::vector<SumEdge> sums_;
   std::vector<RecordId> pending_;
   std::vector<std::string> contradictions_;
 };

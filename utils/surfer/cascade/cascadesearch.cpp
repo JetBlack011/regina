@@ -404,6 +404,10 @@ private:
   /// knots, chirality pinned: named, and anchored (a genus-0 leaf) when its
   /// summands cancel in concordance.
   void applyComposite(NodeId n, const exactnaming::FarSideName &fs);
+  /// An untabulated node cut at its visible sum spheres into prime
+  /// summands: each interned as a node, joined to n by a sum edge.
+  void applySum(NodeId n, const std::vector<GaussDiagram> &primes, int depth);
+  std::map<NodeId, std::vector<NodeId>> sumOf_; ///< each sum node's summands
   cobordismgraph::NameTable names_; ///< table names and symmetry types
   int anchors_ = 0;
   std::vector<NodeId> nodesSince(size_t first) const {
@@ -588,6 +592,11 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
   // hold only summand by summand: the whole-diagram namer cuts it at its
   // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
   std::vector<std::optional<exactnaming::FarSideName>> composites(ns.size());
+  // Any untabulated node (knot or link) with visible sum spheres is cut into
+  // its prime summands, which become nodes joined to it by a sum edge
+  // (applySum; paper lem:sum-partitions): the tables list prime links only,
+  // and most far sides of small links are sums of smaller ones.
+  std::vector<std::vector<GaussDiagram>> summands(ns.size());
   std::atomic<size_t> next{0};
   auto work = [&] {
     for (size_t i; (i = next.fetch_add(1)) < ns.size();) {
@@ -596,12 +605,19 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
       try {
         const GaussDiagram &d = reg_.info(n).diagram;
         names[i] = namer_.identify(d);
-        if (names[i]->by == exactnaming::PieceName::By::untabulated &&
-            d.components() == 1 && d.crossings() > 0) {
-          exactnaming::FarSideName fs = namer_.name(d.link());
-          if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
-              fs.name.find('#') != std::string::npos)
-            composites[i] = std::move(fs);
+        if (names[i]->by == exactnaming::PieceName::By::untabulated && d.crossings() > 0) {
+          if (d.components() == 1) {
+            exactnaming::FarSideName fs = namer_.name(d.link());
+            if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+                fs.name.find('#') != std::string::npos)
+              composites[i] = std::move(fs);
+          }
+          GaussDiagram own = d;
+          own.origin.resize(own.components());
+          std::iota(own.origin.begin(), own.origin.end(), 0);
+          std::vector<GaussDiagram> primes;
+          namer_.decompose(own, primes);
+          if (primes.size() >= 2) summands[i] = std::move(primes);
         }
       } catch (const std::exception &) {
       }
@@ -617,6 +633,43 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
     if (composites[i]) applyComposite(ns[i], *composites[i]);
     else if (names[i]) applyName(ns[i], *names[i]);
   }
+  for (size_t i = 0; i < ns.size(); ++i)
+    if (!summands[i].empty()) applySum(ns[i], summands[i], depth);
+}
+
+void Cascade::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int depth) {
+  // Each prime is interned as a node (a duplicate costs search, never
+  // soundness), and its components are mapped to the whole's through the
+  // registry's component map and the prime's origins. The new summand
+  // nodes are then named like any other (literature leaves included), so
+  // the sum rule can combine their bounds.
+  const size_t before = g_.nodeCount();
+  std::vector<NodeId> pieces;
+  std::vector<std::vector<int>> maps;
+  for (size_t k = 0; k < primes.size(); ++k) {
+    const GaussDiagram &p = primes[k];
+    NodeMatch m = reg_.intern(p, "summand " + std::to_string(k) + " of node " + std::to_string(n));
+    std::vector<int> map(p.components(), -1);
+    for (size_t c = 0; c < p.components(); ++c)
+      map[static_cast<size_t>(m.componentMap[c])] = static_cast<int>(p.origin[c]);
+    pieces.push_back(m.node);
+    maps.push_back(std::move(map));
+  }
+  try {
+    g_.addSum(n, pieces, maps);
+  } catch (const std::exception &e) {
+    std::cout << "[!] node " << n << ": summands not recorded: " << e.what() << "\n";
+    return;
+  }
+  sumOf_[n] = pieces;
+  onNewNodes(nodesSince(before), depth + 1);
+  std::ostringstream o;
+  o << "[+] node " << n << " is a sum along components of";
+  for (NodeId p : pieces) {
+    auto t = tableName_.find(p);
+    o << " node " << p << (t == tableName_.end() ? "" : " (" + t->second + ")");
+  }
+  std::cout << o.str() << "\n";
 }
 
 void Cascade::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
@@ -1013,6 +1066,17 @@ void Cascade::describeLower(std::ostream &o, NodeId n, const Partition &q,
   case Kind::seed:
     o << ": what-if seed\n";
     return;
+  case Kind::sumPiece: {
+    const SumEdge &s = g_.sum(fact.reason.edge);
+    const NodeId piece = s.pieces[static_cast<size_t>(fact.reason.piece)];
+    o << ": a sum along components: summand " << name(piece) << " >= " << fact.reason.from
+      << ", minus the other summands' connected genera plus components minus one ("
+      << fact.reason.addition << "; records";
+    for (RecordId r : fact.reason.records) o << " " << r;
+    o << ")\n";
+    describeLower(o, piece, Partition::coarsest(g_.node(piece).components), indent + 1);
+    return;
+  }
   case Kind::witness: {
     const WitnessEdge &e = g_.witness(fact.reason.edge);
     const NodeId other = fact.reason.toIsIn ? e.out : e.in;
@@ -1483,6 +1547,15 @@ void Cascade::writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
         c << (k ? "," : "") << ints(se.pieceMap[k]);
       c << "]";
     }
+    if (rec.kind == RecordKind::sumCombine) {
+      const SumEdge &se = g_.sum(rec.edge);
+      nodes.insert(se.whole);
+      nodes.insert(se.pieces.begin(), se.pieces.end());
+      c << ",\"whole\":" << se.whole << ",\"pieces\":" << ints(se.pieces) << ",\"pieceMap\":[";
+      for (size_t k = 0; k < se.pieceMap.size(); ++k)
+        c << (k ? "," : "") << ints(se.pieceMap[k]);
+      c << "]";
+    }
     if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
       const std::string key = rec.source.substr(15);
       if (auto it = directInfo_.find(key); it != directInfo_.end()) {
@@ -1551,6 +1624,14 @@ void Cascade::writeLowerCertificate() const {
       for (RecordId r : f.reason.records)
         for (RecordId p : g_.proof(r)) records.insert(p);
       break;
+    case Kind::sumPiece: {
+      const SumEdge &s = g_.sum(f.reason.edge);
+      const NodeId piece = s.pieces[static_cast<size_t>(f.reason.piece)];
+      fact.from = visit(piece, Partition::coarsest(g_.node(piece).components));
+      for (RecordId r : f.reason.records)
+        for (RecordId p : g_.proof(r)) records.insert(p);
+      break;
+    }
     default:
       break;
     }
@@ -1618,6 +1699,19 @@ void Cascade::writeLowerCertificate() const {
       c << "]";
       break;
     }
+    case Kind::sumPiece: {
+      const SumEdge &se = g_.sum(fact.f.reason.edge);
+      c << ",\"kind\":\"sum-piece\",\"from\":" << fact.from << ",\"piece\":" << fact.f.reason.piece
+        << ",\"from_value\":" << value(fact.f.reason.from) << ",\"subtracted\":"
+        << fact.f.reason.addition << ",\"records\":[";
+      for (size_t k = 0; k < fact.f.reason.records.size(); ++k)
+        c << (k ? "," : "") << fact.f.reason.records[k];
+      c << "],\"whole\":" << se.whole << ",\"piece_nodes\":" << ints(se.pieces) << ",\"pieceMap\":[";
+      for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << ints(se.pieceMap[k]);
+      c << "]";
+      for (NodeId p : se.pieces) nodes.insert(p);
+      break;
+    }
     default:
       c << ",\"kind\":\"none\"";
       break;
@@ -1642,6 +1736,7 @@ void Cascade::writeNodeBounds() const {
     case Kind::splitWhole: return "split-whole";
     case Kind::splitPiece: return "split-piece";
     case Kind::seed: return "seed";
+    case Kind::sumPiece: return "sum-piece";
     default: return "none";
     }
   };

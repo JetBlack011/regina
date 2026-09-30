@@ -211,8 +211,13 @@ class ExactNamer {
      *  sign. Built per base on first use. */
     const std::string &canonicalName(const TableEntry &e) const;
 
-  private:
+    /** Cuts a diagram at its visible connected-sum spheres (after
+     *  simplifying it) into prime pieces, each keeping its components'
+     *  origins; a diagram with no visible sphere gives itself. Exposed for
+     *  the cascade, which turns the pieces into summand nodes. */
     void decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const;
+
+  private:
     const regina::Laurent2<regina::Integer> &homfly(const TableEntry &e, bool mirror) const;
     /** Table entries whose HOMFLY polynomial (either mirror) is `h` and whose
      *  table diagram (minimal) is no bigger than `l`, smallest first; the
