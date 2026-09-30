@@ -546,6 +546,52 @@ int ProofGraph::transportedLower(const WitnessEdge &e, bool toIsIn,
   return lo >= kNoSurface ? kNoSurface : lo - g->genus;
 }
 
+std::string ProofGraph::profileFields(NodeId n) const {
+  const Node &node = nodes_.at(n);
+  std::ostringstream o;
+  o << "\"components\":" << node.components;
+  if (node.linking) {
+    o << ",\"linking\":[";
+    for (size_t i = 0; i < node.linking->size(); ++i) {
+      o << (i ? ",[" : "[");
+      for (size_t j = 0; j < (*node.linking)[i].size(); ++j)
+        o << (j ? "," : "") << (*node.linking)[i][j];
+      o << ']';
+    }
+    o << ']';
+  }
+  if (node.genusLowerBound)
+    o << ",\"genus_lower\":" << *node.genusLowerBound;
+  std::vector<ProfileEntry> es = node.profile.entries();
+  std::sort(es.begin(), es.end(), [](const ProfileEntry &a, const ProfileEntry &b) {
+    return a.partition == b.partition ? a.genus < b.genus : a.partition < b.partition;
+  });
+  o << ",\"entries\":[";
+  for (size_t i = 0; i < es.size(); ++i)
+    o << (i ? "," : "") << "{\"p\":\"" << es[i].partition.str() << "\",\"g\":" << es[i].genus
+      << ",\"r\":" << es[i].record << '}';
+  o << ']';
+  if (node.components <= kMaxLowerComponents) {
+    std::vector<Partition> all = allPartitions(node.components);
+    std::sort(all.begin(), all.end());
+    o << ",\"lower\":[";
+    bool first = true;
+    for (const Partition &q : all) {
+      const int lo = lower(n, q);
+      if (lo <= 0)
+        continue;
+      o << (first ? "" : ",") << "{\"p\":\"" << q.str() << "\",";
+      if (lo >= kNoSurface)
+        o << "\"forbidden\":true}";
+      else
+        o << "\"lo\":" << lo << '}';
+      first = false;
+    }
+    o << ']';
+  }
+  return o.str();
+}
+
 int ProofGraph::lowerAcross(const WitnessEdge &e, bool toIsIn,
                             const Partition &q) const {
   // Every surface refining q is bounded by the minimum of transportedLower

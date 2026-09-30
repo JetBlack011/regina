@@ -460,6 +460,11 @@ private:
   /// With --lower-report: <work>/lower_report.jsonl, what each tabulated
   /// node's lower bound carries to the target (README.md, "Lower bounds").
   void writeLowerReport() const;
+  /// <work>/profiles.jsonl: every node's Pareto (partition, genus) entries
+  /// and per-partition lower bounds (ProofGraph::profileFields()), with its
+  /// name, depth, crossings and whether it was searched. Written at every
+  /// exit that writes the run's other files, for the atlas page.
+  void writeProfiles() const;
   void writeCertificate() const;
   /// <work>/lower_certificate.json when the lower goal is met: the proof
   /// of lower(target, goal) as a tree of facts (README.md, "Lower-bound
@@ -2068,6 +2073,7 @@ int Cascade::run() {
       // or solver bug), so they are kept, as verifyslicegenus writes its
       // witnesses before its fatal-bug halt.
       storeWitnesses();
+      writeProfiles();
       printOutcome("contradiction");
       return 3;
     }
@@ -2143,6 +2149,7 @@ int Cascade::run() {
   const double reportSeconds = secondsSince(tReport);
   const auto tBounds = Clock::now();
   writeNodeBounds();
+  writeProfiles();
   logRun(secondsSince(tRun), processCpu() - cpuRun, startupSeconds, wall, storeSeconds,
          reportSeconds, secondsSince(tBounds));
   if (lowerMet() && !upperMet()) {
@@ -2171,6 +2178,31 @@ int Cascade::run() {
   }
   printOutcome(stopReason_);
   return 1;
+}
+
+void Cascade::writeProfiles() const {
+  std::ofstream out(cfg_.work + "/profiles.jsonl");
+  for (NodeId n = 0; n < static_cast<NodeId>(g_.nodeCount()); ++n) {
+    // A crossingless node is named as the store names it (cascade_record.py):
+    // it is never a hop's subject, so subjectName() has no better name.
+    std::string name = subjectName(n);
+    if (reg_.known(n) && reg_.info(n).diagram.signs.empty() && n != target_) {
+      const int k = g_.node(n).components;
+      name = k == 1 ? "Unknot" : std::to_string(k) + "-component unlink";
+    }
+    out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << '"';
+    if (auto it = tableName_.find(n); it != tableName_.end())
+      out << ",\"table\":\"" << jsonEscape(it->second) << '"';
+    out << ",\"label\":\"" << jsonEscape(g_.node(n).label) << '"';
+    if (auto it = depth_.find(n); it != depth_.end())
+      out << ",\"depth\":" << it->second;
+    // A split far side's whole is added to the graph, not the registry,
+    // and has no diagram of its own.
+    if (reg_.known(n))
+      out << ",\"crossings\":" << reg_.info(n).diagram.signs.size();
+    out << ",\"searched\":" << (hopSubject_.count(n) ? "true" : "false") << ','
+        << g_.profileFields(n) << "}\n";
+  }
 }
 
 void Cascade::writeLowerReport() const {

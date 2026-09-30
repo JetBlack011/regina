@@ -748,9 +748,49 @@ void testLowerSoundOnRandomWorlds() {
   CHECK(raised > 100, "lower bounds were actually transported");
 }
 
+void testProfileFields() {
+  // P1: profiles.jsonl's fields. B1's graph: the band's Pareto sets (L's
+  // disjoint discs dominate its annulus, K's disc its genus-1 surface), a
+  // Hopf-linked node whose split partition the linking numbers forbid, and a
+  // literature bound read back per partition.
+  ProofGraph g;
+  NodeId K = g.addNode(1, "K");
+  NodeId L = g.addNode(2, "L", std::vector<std::vector<int>>{{0, 0}, {0, 0}});
+  g.addWitness(K, L, pants(), {0}, {0, 1}, "w");
+  g.addLeaf(L, Partition::coarsest(2), 0, "annulus");
+  g.propagate();
+  g.addLeaf(L, Partition::singletons(2), 0, "disjoint discs");
+  g.propagate();
+  NodeId H = g.addNode(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  g.setGenusLowerBound(H, 0, "table");
+  NodeId X = g.addNode(1, "X");
+  g.setGenusLowerBound(X, 2, "table");
+  g.propagateLower();
+  const long rK = g.bestConnected(K)->record;
+  const long rL = g.best(L, Partition::singletons(2))->record;
+  CHECK_EQ(g.profileFields(K),
+           std::string("\"components\":1,\"entries\":[{\"p\":\"{0}\",\"g\":0,\"r\":") +
+               std::to_string(rK) + "}],\"lower\":[]",
+           "a slice knot: its disc alone, no lower bound");
+  CHECK_EQ(g.profileFields(L),
+           std::string("\"components\":2,\"linking\":[[0,0],[0,0]],\"entries\":[{\"p\":"
+                       "\"{0}{1}\",\"g\":0,\"r\":") +
+               std::to_string(rL) + "}],\"lower\":[]",
+           "disjoint discs dominate the annulus");
+  CHECK_EQ(g.profileFields(H),
+           std::string("\"components\":2,\"linking\":[[0,1],[1,0]],\"genus_lower\":0,"
+                       "\"entries\":[],\"lower\":[{\"p\":\"{0}{1}\",\"forbidden\":true}]"),
+           "the Hopf link's components cannot bound disjoint surfaces");
+  CHECK_EQ(g.profileFields(X),
+           std::string("\"components\":1,\"genus_lower\":2,\"entries\":[],"
+                       "\"lower\":[{\"p\":\"{0}\",\"lo\":2}]"),
+           "a literature bound, per partition");
+}
+
 } // namespace
 
 int main() {
+  testProfileFields();
   testLowerConcordance();
   testLowerPaperCases();
   testLowerNoPenaltyForAnnuli();

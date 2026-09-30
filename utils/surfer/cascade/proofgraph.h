@@ -264,6 +264,16 @@ public:
   /// For what-ifs that seed one fact and read where it reaches.
   void clearLowerBounds();
 
+  /// Node n's profile as JSON object fields, without the enclosing braces,
+  /// for the driver's profiles.jsonl (README.md, "Profiles"):
+  ///   "components", "linking" (when known), "genus_lower" (when seeded),
+  ///   "entries": its Pareto set, [{"p": partition, "g": genus, "r": record}]
+  ///   sorted by partition then genus, and, for at most kMaxLowerComponents
+  ///   components, "lower": [{"p": Q, "lo": lower(n, Q)}] for every
+  ///   partition Q with a positive bound, or {"p": Q, "forbidden": true}
+  ///   where no surface can have partition Q (kNoSurface).
+  std::string profileFields(NodeId n) const;
+
 private:
   RecordId insert(NodeId n, const Partition &p, int genus, RecordKind kind,
                   EdgeId edge, std::vector<RecordId> children,
