@@ -142,12 +142,15 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   if (pending.empty()) return r;
 
   // Fresh against the read-only stores (once) and the store as it stands.
+  const auto tDedupe = std::chrono::steady_clock::now();
   std::unordered_set<std::string> seen;
   for (const std::string &path : dedupeAgainst) identitiesOf(path, seen);
   {
     StoreLock lock(store);
     identitiesOf(store, seen);
   }
+  r.dedupeSeconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - tDedupe).count();
   std::vector<PendingWitness> fresh;
   for (PendingWitness &p : pending)
     if (seen.insert(cobordismgraph::witnessIdentity(p.witness)).second)

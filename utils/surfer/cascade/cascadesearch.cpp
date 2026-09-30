@@ -87,6 +87,18 @@ namespace fs = std::filesystem;
 
 namespace {
 
+using Clock = std::chrono::steady_clock;
+double secondsSince(Clock::time_point t) {
+  return std::chrono::duration<double>(Clock::now() - t).count();
+}
+/// This process's CPU seconds so far, every thread.
+double processCpu() {
+  rusage u{};
+  getrusage(RUSAGE_SELF, &u);
+  return u.ru_utime.tv_sec + u.ru_stime.tv_sec +
+         1e-6 * (u.ru_utime.tv_usec + u.ru_stime.tv_usec);
+}
+
 struct Config {
   std::string targetPD, targetName, work, verify, knotTable, linkTable,
       knotSymmetry, censusDb;
@@ -536,6 +548,22 @@ private:
   std::map<NodeId, SearchFrontier> frontiers_;
   /// Nodes whose search ran to the end at the hop shape: nothing is left.
   std::set<NodeId> searchedOut_;
+  /// The driver's own time, outside what a hop record's timers cover
+  /// (README.md, "Where a run's time goes"): wall seconds, summed over the
+  /// run. Each hop record carries what accrued since the previous one.
+  struct DriverTimes {
+    double choose = 0;     ///< choose(), whole
+    double useful = 0;     ///< of which the upper gate's what-ifs
+    double lowerSlack = 0; ///< of which the lower gate's what-ifs
+    double master = 0;     ///< loadMaster(), whole
+    double kept = 0;       ///< kept.csv (fsynced) and frontier.txt per hop
+  };
+  DriverTimes driver_, driverAtLastHop_;
+  StoreResult storeResult_; ///< storeWitnesses()'s counts and times
+  /// Writes the run's own record to cascade.jsonl: its whole wall and CPU,
+  /// and where the time outside the hops went.
+  void logRun(double wall, double cpu, double startup, double loop, double store,
+              double lowerReport, double nodeBounds);
 };
 
 std::string Cascade::subjectName(NodeId n) const {
@@ -579,6 +607,7 @@ void Cascade::storeWitnesses() {
                                   names, static_cast<unsigned>(cfg_.threads),
                                   cfg_.pairSigCache);
   storedAppended_ = s.appended;
+  storeResult_ = s;
   std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
             << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
@@ -731,9 +760,14 @@ bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
 }
 
 void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
+  const auto tLoad = Clock::now();
   masterDone_.insert(n);
   std::vector<std::string> own;
-  if (!masterRowsFor(n, &own)) return;
+  if (!masterRowsFor(n, &own)) {
+    driver_.master += secondsSince(tLoad);
+    return;
+  }
+  double readSeconds = 0; // phase A, the pool's read-backs
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0, refusedRows = 0;
   // A witness can be on an upper proof only if its genus is at most the
@@ -804,6 +838,7 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   // before the next is read, so at most a batch of rows' thickenings are held
   // at once (reading every row first held them all: 5.5 GB on L10a174).
   auto readBatch = [&](size_t from, size_t to) {
+    const auto tRead = Clock::now();
     std::atomic<size_t> next{from};
     auto work = [&] {
       for (size_t i; (i = next.fetch_add(1)) < to;) {
@@ -852,7 +887,9 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
     const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), to - from);
     for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
     for (auto &t : pool) t.join();
+    readSeconds += secondsSince(tRead);
   };
+  const auto tRows = Clock::now();
   size_t cacheHits = 0;
   // A row is interned once per PD it was searched on: the table's own
   // diagram (simplified, then the registry's exact tests), or the recorded
@@ -931,12 +968,24 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   // The target's own rows stand in for its first hop at this budget level;
   // a node loaded lazily is expanded right after, so its load counts nothing.
   if (countsAsExpansion) expansions_[n].push_back(0);
+  // Phase B, the serial assembly: the row loop less its read-backs.
+  const double assembleSeconds = secondsSince(tRows) - readSeconds;
+  const auto tName = Clock::now();
   onNewNodes(nodesSince(nodesBefore), depth_.at(n) + 1);
+  const double nameSeconds = secondsSince(tName);
+  const auto tProp = Clock::now();
   g_.propagate();
   g_.propagateLower();
+  const double propagateSeconds = secondsSince(tProp);
+  const double loadSeconds = secondsSince(tLoad);
+  driver_.master += loadSeconds;
   auto best = g_.best(target_, goalPartition(target_));
   std::ostringstream o;
+  o << std::fixed << std::setprecision(1);
   o << "{\"master\":\"" << jsonEscape(tableName_[n]) << "\",\"node\":" << n
+    << ",\"wall\":" << loadSeconds << ",\"readback_s\":" << readSeconds
+    << ",\"assemble_s\":" << assembleSeconds << ",\"name_s\":" << nameSeconds
+    << ",\"propagate_s\":" << propagateSeconds
     << ",\"own_rows\":" << own.size() << ",\"reverse_witnesses\":" << reverse
     << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedRows
     << ",\"skipped_genus\":" << skippedGenus
@@ -1140,6 +1189,12 @@ void Cascade::describeLower(std::ostream &o, NodeId n, const Partition &q,
 
 // freeOnly: only nodes whose master rows are not yet loaded (no search).
 std::optional<NodeId> Cascade::choose(bool freeOnly) {
+  const auto tChoose = Clock::now();
+  struct ChooseTimer {
+    DriverTimes &d;
+    Clock::time_point t;
+    ~ChooseTimer() { d.choose += secondsSince(t); }
+  } chooseTimer{driver_, tChoose};
   struct Cand {
     NodeId n;
     bool lowerOnly = false; ///< kept by the lower gate alone
@@ -1164,6 +1219,7 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
   // as one parallel batch (each is a graph copy relaxed to a fixed point).
   std::map<NodeId, bool> upper;
   std::vector<NodeId> needLower;
+  const auto tUseful = Clock::now();
   for (NodeId n : eligible) {
     upper[n] = n == target_ || useful(n);
     if (!upper[n] && cfg_.goalLower >= 0 && n != target_ &&
@@ -1171,7 +1227,10 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
         reg_.info(n).diagram.crossings() <= cfg_.lowerMaxCrossings)
       needLower.push_back(n);
   }
+  driver_.useful += secondsSince(tUseful);
+  const auto tLower = Clock::now();
   if (!needLower.empty()) lowerSlacks(needLower);
+  driver_.lowerSlack += secondsSince(tLower);
   for (NodeId n : eligible) {
     const NodeInfo &ni = reg_.info(n);
     const int dep = depth_.at(n);
@@ -1380,6 +1439,7 @@ void Cascade::expand(NodeId n, long surfaces) {
                   : run.resumed ? std::string("yes")
                                 : "no: " + run.resumeRefusal)
               << "\n";
+    const auto tKept = Clock::now();
     if (run.frontier) {
       if (run.frontier->complete) searchedOut_.insert(n);
       try {
@@ -1404,6 +1464,7 @@ void Cascade::expand(NodeId n, long surfaces) {
       }
       appendKept(dir, pending);
     }
+    driver_.kept += secondsSince(tKept);
     t0 = std::chrono::steady_clock::now();
     witnesses = run.kept.size();
     for (size_t i = 0; i < run.kept.size(); ++i) {
@@ -1478,7 +1539,15 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"target_best\":" << (best ? std::to_string(best->genus) : "null")
     << ",\"target_lower\":" << targetLower
     << ",\"contradictions\":" << g_.contradictions().size()
-    << ",\"invariant_failures\":" << invariantFailures_ << "}";
+    << ",\"invariant_failures\":" << invariantFailures_
+    // The driver's time since the previous hop record: choosing this node
+    // (and the loads before it), and this hop's kept.csv and frontier.
+    << ",\"choose_s\":" << driver_.choose - driverAtLastHop_.choose
+    << ",\"useful_s\":" << driver_.useful - driverAtLastHop_.useful
+    << ",\"lower_slack_s\":" << driver_.lowerSlack - driverAtLastHop_.lowerSlack
+    << ",\"master_s\":" << driver_.master - driverAtLastHop_.master
+    << ",\"kept_s\":" << driver_.kept - driverAtLastHop_.kept << "}";
+  driverAtLastHop_ = driver_;
   log(o.str());
   std::cout << "[+] hop " << k << ": node " << n << " (" << d.crossings() << " crossings, "
             << d.components() << " components): " << witnesses << " witnesses, "
@@ -1853,7 +1922,26 @@ void Cascade::writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const {
   }
 }
 
+void Cascade::logRun(double wall, double cpu, double startup, double loop, double store,
+                     double lowerReport, double nodeBounds) {
+  std::ostringstream o;
+  o << std::fixed << std::setprecision(1) << "{\"run\":\"" << jsonEscape(cfg_.targetName)
+    << "\",\"threads\":" << cfg_.threads << ",\"wall\":" << wall << ",\"cpu\":" << cpu
+    << ",\"cores\":" << (wall > 0 ? cpu / wall : 0.0) << ",\"startup_s\":" << startup
+    << ",\"loop_s\":" << loop << ",\"hop_wall_s\":" << wallSpent_
+    << ",\"hop_cpu_s\":" << cpuSpent_ << ",\"choose_s\":" << driver_.choose
+    << ",\"useful_s\":" << driver_.useful << ",\"lower_slack_s\":" << driver_.lowerSlack
+    << ",\"master_s\":" << driver_.master << ",\"kept_s\":" << driver_.kept
+    << ",\"store_s\":" << store << ",\"store_dedupe_s\":" << storeResult_.dedupeSeconds
+    << ",\"store_sign_s\":" << storeResult_.signSeconds
+    << ",\"lower_report_s\":" << lowerReport << ",\"node_bounds_s\":" << nodeBounds
+    << ",\"hops\":" << hops_ << ",\"nodes\":" << g_.nodeCount() << "}";
+  log(o.str());
+}
+
 int Cascade::run() {
+  const auto tRun = Clock::now();
+  const double cpuRun = processCpu();
   fs::create_directories(cfg_.work);
   if (cfg_.hopMode == "process") {
     // As a child hop runs verifyslicegenus: a private census copy, never
@@ -1971,6 +2059,7 @@ int Cascade::run() {
             << cfg_.goalGenus << (cfg_.goalDisjoint ? " (disjoint pieces)" : " (connected)")
             << "\n";
   const auto start = std::chrono::steady_clock::now();
+  const double startupSeconds = secondsSince(tRun);
   long budget = cfg_.hopSurfaces;
   while (!goalMet()) {
     if (!g_.contradictions().empty()) {
@@ -2046,9 +2135,16 @@ int Cascade::run() {
             << g_.recordCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
+  const auto tStore = Clock::now();
   storeWitnesses();
+  const double storeSeconds = secondsSince(tStore);
+  const auto tReport = Clock::now();
   writeLowerReport();
+  const double reportSeconds = secondsSince(tReport);
+  const auto tBounds = Clock::now();
   writeNodeBounds();
+  logRun(secondsSince(tRun), processCpu() - cpuRun, startupSeconds, wall, storeSeconds,
+         reportSeconds, secondsSince(tBounds));
   if (lowerMet() && !upperMet()) {
     // The bound's proof: the reasons from the target down to their leaves.
     const Partition goal = goalPartition(target_);

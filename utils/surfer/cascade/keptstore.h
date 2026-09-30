@@ -40,6 +40,7 @@ struct StoreResult {
   size_t kept = 0;     ///< surfaces offered
   size_t fresh = 0;    ///< of those, witness identities new to the store
   size_t appended = 0; ///< written
+  double dedupeSeconds = 0; ///< reading the stores' identities (--dedupe-against too)
   double signSeconds = 0;
 };
 
