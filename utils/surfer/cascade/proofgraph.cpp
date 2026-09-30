@@ -357,38 +357,52 @@ bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value) {
   return true;
 }
 
-int ProofGraph::lowerAcross(const WitnessEdge &e, bool toIsIn,
-                            const Partition &q) const {
-  // Every surface F for the `to` end refining q, capped onto e, gives a
+int ProofGraph::transportedLower(const WitnessEdge &e, bool toIsIn,
+                                 const Partition &p) const {
+  // A surface F for the `to` end with partition p, capped onto e, gives a
   // surface for the other end whose partition we compute, of genus at most
   // genus(F) + (what glue() adds with a genus-0 cap). So genus(F) is at
-  // least the other end's bound for that partition minus that addition;
-  // minimise over every refinement P of q.
+  // least the other end's bound for that partition minus that addition.
   const NodeId to = toIsIn ? e.in : e.out, other = toIsIn ? e.out : e.in;
   const std::vector<int> &toMap = toIsIn ? e.inMap : e.outMap;
   const std::vector<int> &otherMap = toIsIn ? e.outMap : e.inMap;
-  const int nTo = nodes_[to].components;
-  int best = kNoSurface;
-  for (const Partition &p : allPartitions(nTo)) {
-    if (!p.refines(q))
-      continue;
-    if (nodes_[to].linking && !linkingAllows(p, *nodes_[to].linking))
-      continue; // no surface has partition p
-    std::vector<int> curveLabels(toMap.size());
-    for (size_t i = 0; i < toMap.size(); ++i)
-      curveLabels[i] = p.blockOf(toMap[i]);
-    auto g = glue(e.shape, toIsIn ? Side::incoming : Side::outgoing,
-                  Partition::fromLabels(curveLabels), 0);
-    if (!g)
-      return 0; // the other end has no curves: nothing transported
-    std::vector<int> otherLabels(otherMap.size());
-    for (size_t j = 0; j < otherMap.size(); ++j)
-      otherLabels[otherMap[j]] = g->partition.blockOf(j);
-    const int lo = lower(other, Partition::fromLabels(otherLabels));
-    const int v = lo >= kNoSurface ? kNoSurface : lo - g->genus;
-    best = std::min(best, v);
-  }
-  return best;
+  if (nodes_[to].linking && !linkingAllows(p, *nodes_[to].linking))
+    return kNoSurface; // no surface has partition p
+  std::vector<int> curveLabels(toMap.size());
+  for (size_t i = 0; i < toMap.size(); ++i)
+    curveLabels[i] = p.blockOf(toMap[i]);
+  auto g = glue(e.shape, toIsIn ? Side::incoming : Side::outgoing,
+                Partition::fromLabels(curveLabels), 0);
+  if (!g)
+    return 0; // the other end has no curves: nothing transported
+  std::vector<int> otherLabels(otherMap.size());
+  for (size_t j = 0; j < otherMap.size(); ++j)
+    otherLabels[otherMap[j]] = g->partition.blockOf(j);
+  const int lo = lower(other, Partition::fromLabels(otherLabels));
+  return lo >= kNoSurface ? kNoSurface : lo - g->genus;
+}
+
+int ProofGraph::lowerAcross(const WitnessEdge &e, bool toIsIn,
+                            const Partition &q) const {
+  // Every surface refining q is bounded by the minimum of transportedLower
+  // over the refinements of q, and that minimum is at q itself
+  // (lem:transport-monotone): refining the cap adds vertices to the gluing
+  // graph, so add = E - V + #components can only fall, the other end's
+  // partition only refines, and lower() is monotone under refinement.
+  return transportedLower(e, toIsIn, q);
+}
+
+std::optional<int> ProofGraph::lowerIf(const std::vector<LowerSeed> &seeds,
+                                       NodeId target,
+                                       const Partition &goal) const {
+  ProofGraph what = *this;
+  const size_t before = what.contradictions().size();
+  for (const LowerSeed &s : seeds)
+    what.raiseLower(s.node, s.partition, s.value);
+  what.propagateLower();
+  if (what.contradictions().size() != before)
+    return std::nullopt;
+  return what.lower(target, goal);
 }
 
 long ProofGraph::propagateLower() {

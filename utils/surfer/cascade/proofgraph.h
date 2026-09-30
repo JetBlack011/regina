@@ -168,6 +168,30 @@ public:
   long propagateLower();
   /// The lower bound for surfaces refining q (0 when nothing is known).
   int lower(NodeId n, const Partition &q) const;
+
+  /// What witness e transports to its `to` end (toIsIn: node e.in, else
+  /// e.out) for surfaces with partition EXACTLY p: cap such a surface onto
+  /// e, read the other end's partition and bound, and subtract what the cap
+  /// added (glue() with a genus-0 cap). kNoSurface if p is forbidden or the
+  /// other end has no surface of the capped partition; 0 if the other end
+  /// has no curves. Monotone under refinement of p (README.md, "Lower
+  /// bounds": lem:transport-monotone), which is why lowerAcross() need not
+  /// minimise over refinements; proofgraph_test checks that on random graphs.
+  int transportedLower(const WitnessEdge &e, bool toIsIn,
+                       const Partition &p) const;
+
+  /// A what-if: `seeds` raise the given nodes' bounds (each for surfaces
+  /// refining its partition) in a copy that KEEPS every bound this graph
+  /// already has, relax, and read lower(target, goal). nullopt if the copy
+  /// meets a contradiction (a seed above a proved surface), in which case
+  /// nothing it says is used. This graph is untouched.
+  struct LowerSeed {
+    NodeId node = -1;
+    Partition partition;
+    int value = 0;
+  };
+  std::optional<int> lowerIf(const std::vector<LowerSeed> &seeds, NodeId target,
+                             const Partition &goal) const;
   /// Forgets every lower bound: the literature seeds and everything
   /// propagated from them (the linking condition, read from the nodes, stays).
   /// For what-ifs that seed one fact and read where it reaches.
@@ -193,8 +217,8 @@ private:
   // Lower bounds per node: partition labels -> bound (absent: 0).
   std::vector<std::map<std::vector<int>, int>> lower_;
   bool raiseLower(NodeId n, const Partition &q, int value);
-  // The bound transported to `to` (partition q) across witness e from the
-  // other end; minimum over refinements of q.
+  // The bound transported to `to` for surfaces refining q across witness e:
+  // transportedLower() at q itself, since that is monotone under refinement.
   int lowerAcross(const WitnessEdge &e, bool toIsIn, const Partition &q) const;
 
   std::vector<Node> nodes_;
