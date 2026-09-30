@@ -60,6 +60,17 @@ HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                            Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
   redraw_ = std::make_unique<farside::WitnessRedrawer>(row_.pd, row_.layers);
+  certifyRow_();
+}
+
+HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+                           std::unique_ptr<farside::WitnessRedrawer> built, Read read)
+    : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)), redraw_(std::move(built)) {
+  if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
+  certifyRow_();
+}
+
+void HopAssembler::certifyRow_() {
   const auto &cycles = redraw_->rowCycles();
   // Certify the row: knotbuilder's link, drawn back, is row.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));

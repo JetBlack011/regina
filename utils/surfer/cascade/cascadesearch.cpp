@@ -67,6 +67,7 @@
 #include "exactnaming/exacttables.h"
 #include "farsidenaming.h"
 #include "hopedges.h"
+#include "readbackcache.h"
 #include "hoprunner.h"
 #include "identifycomplement.h"
 #include "keptstore.h"
@@ -112,6 +113,9 @@ struct Config {
   /// (the master, say), and the run's name for cascade: subjects.
   std::string witnessStore, runName;
   std::string pairSigCache; ///< --pair-sig-cache: stored pair-signature contexts
+  /// --read-back-cache: master witnesses' read-backs kept across runs
+  /// (readbackcache.h); empty for none.
+  std::string readBackCache;
   std::vector<std::string> dedupeAgainst;
   bool signOnly = false;
   /// Write lower_report.jsonl at the end (writeLowerReport()); the sources
@@ -582,54 +586,148 @@ void Cascade::loadMaster(NodeId n) {
       bySubject[subj].push_back(w);
       ++reverse;
     }
+  // Two phases. First every subject row's witnesses are read back, rows in
+  // parallel: a read-back needs only the row's redrawer (no graph, no
+  // registry), it was most of a run's single-threaded time, and reading one
+  // enumerates isomorphisms onto the row's thickening -- kept across runs in
+  // --read-back-cache. Then, serially and in the same order as before, each
+  // row is interned, certified and its read-backs added: the graph is
+  // exactly what the one-phase loop built.
+  struct RowRead {
+    std::string name, pd;
+    int layers = 2;
+    std::vector<const Witness *> ws;
+    std::unique_ptr<farside::WitnessRedrawer> redraw;
+    std::string buildError; // the redrawer could not be built
+    std::vector<std::optional<farside::OutgoingLink>> links;
+    std::vector<std::string> why;
+    std::vector<char> invariant; // the read-back broke an invariant (logic_error)
+    size_t cacheHits = 0;
+  };
+  std::vector<RowRead> reads;
   for (const auto &[name, ws] : bySubject) {
     const exactnaming::TableEntry *e = tables_.entry(name);
     auto pdIt = tablePD_.find(name);
     if (!e || pdIt == tablePD_.end()) continue;
-    // The row as the atlas searched it: the table's own diagram and PD, a
-    // node by the registry's exact tests. An own row must be THIS node.
-    GaussDiagram d = of(e->diagram);
-    NodeMatch m = reg_.intern(simplifyKeepingComponents(d), "row " + name);
-    if (ownRows.count(name) && m.node != n) {
-      ++refusedRows;
-      std::cout << "[!] master row " << name << " did not intern as node " << n
-                << " (got " << m.node << "); not used\n";
-      continue;
-    }
     std::map<int, std::vector<const Witness *>> byLayers;
     for (const Witness &w : ws) byLayers[w.layers].push_back(&w);
     for (const auto &[layers, group] : byLayers) {
-      HopRow row;
-      row.node = m.node;
-      row.diagram = d;
-      row.nodeMap = m.componentMap;
-      row.pd = pdIt->second;
-      row.layers = layers;
-      std::unique_ptr<HopAssembler> hop;
-      try {
-        hop = std::make_unique<HopAssembler>(g_, reg_, row);
-      } catch (const std::exception &ex) {
-        ++refusedRows;
-        std::cout << "[!] master row " << name << " refused: " << ex.what() << "\n";
-        continue;
-      }
-      for (const Witness *w : group) {
-        const std::string key = witnesskey::witnessKey(w->pairsig);
-        HopEdge he;
+      RowRead r;
+      r.name = name;
+      r.pd = pdIt->second;
+      r.layers = layers;
+      r.ws = group;
+      reads.push_back(std::move(r));
+    }
+  }
+  {
+    std::atomic<size_t> next{0};
+    auto work = [&] {
+      for (size_t i; (i = next.fetch_add(1)) < reads.size();) {
+        RowRead &r = reads[i];
         try {
-          he = hop->add({w->pairsig, w->genus, "master:" + key});
+          r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
+        } catch (const std::exception &ex) {
+          r.buildError = ex.what();
+          continue;
+        }
+        RowReadBacks cache(cfg_.readBackCache, r.pd, r.layers,
+                           cfg_.readBackCache.empty() ? std::string()
+                                                      : r.redraw->buildChecksum());
+        r.links.resize(r.ws.size());
+        r.why.resize(r.ws.size());
+        r.invariant.assign(r.ws.size(), 0);
+        for (size_t k = 0; k < r.ws.size(); ++k) {
+          const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
+          if (const CachedReadBack *c = cache.get(key)) {
+            r.links[k] = c->link;
+            r.why[k] = c->why;
+            continue;
+          }
+          std::string why;
+          try {
+            r.links[k] = r.redraw->outgoingLinkFast(r.ws[k]->pairsig, why);
+            r.why[k] = why;
+            cache.put(key, {r.links[k], why});
+          } catch (const std::logic_error &ex) {
+            r.invariant[k] = 1; // reported, never cached
+            r.why[k] = ex.what();
+          } catch (const std::exception &ex) {
+            r.why[k] = ex.what(); // not cached either: it may be transient
+          }
+        }
+        r.cacheHits = cache.hits();
+        try {
+          cache.flush();
+        } catch (const std::exception &ex) {
+          std::cerr << "[!] read-back cache not written for " << r.name << ": " << ex.what()
+                    << "\n";
+        }
+      }
+    };
+    std::vector<std::thread> pool;
+    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), reads.size());
+    for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
+    for (auto &t : pool) t.join();
+  }
+  size_t cacheHits = 0;
+  std::map<std::string, NodeMatch> interned; // a subject row, interned once
+  for (RowRead &r : reads) {
+    cacheHits += r.cacheHits;
+    auto seen = interned.find(r.name);
+    if (seen == interned.end()) {
+      // The row as the atlas searched it: the table's own diagram and PD, a
+      // node by the registry's exact tests. An own row must be THIS node.
+      GaussDiagram d = of(tables_.entry(r.name)->diagram);
+      seen = interned.emplace(r.name, reg_.intern(simplifyKeepingComponents(d), "row " + r.name))
+                 .first;
+      if (ownRows.count(r.name) && seen->second.node != n) {
+        ++refusedRows;
+        std::cout << "[!] master row " << r.name << " did not intern as node " << n
+                  << " (got " << seen->second.node << "); not used\n";
+      }
+    }
+    const NodeMatch &m = seen->second;
+    if (ownRows.count(r.name) && m.node != n) continue;
+    HopRow row;
+    row.node = m.node;
+    row.diagram = of(tables_.entry(r.name)->diagram);
+    row.nodeMap = m.componentMap;
+    row.pd = r.pd;
+    row.layers = r.layers;
+    std::unique_ptr<HopAssembler> hop;
+    try {
+      if (!r.buildError.empty()) throw std::runtime_error(r.buildError);
+      hop = std::make_unique<HopAssembler>(g_, reg_, row, std::move(r.redraw));
+    } catch (const std::exception &ex) {
+      ++refusedRows;
+      std::cout << "[!] master row " << r.name << " refused: " << ex.what() << "\n";
+      continue;
+    }
+    for (size_t k = 0; k < r.ws.size(); ++k) {
+      const Witness *w = r.ws[k];
+      const std::string key = witnesskey::witnessKey(w->pairsig);
+      HopEdge he;
+      if (r.invariant[k]) {
+        ++invariantFailures_;
+        std::cout << "[!!] master witness " << key << ": INVARIANT: " << r.why[k] << "\n";
+      } else if (!r.links[k]) {
+        he.why = r.why[k];
+      } else {
+        try {
+          he = hop->addRead(*r.links[k], w->genus, "master:" + key);
         } catch (const std::logic_error &ex) {
           ++invariantFailures_;
           std::cout << "[!!] master witness " << key << ": INVARIANT: " << ex.what() << "\n";
         } catch (const std::exception &ex) {
           he.why = ex.what();
         }
-        if (!he.ok) { ++failed; continue; }
-        ++assembled;
-        EdgeInfo info{"master", row.pd, key, he, layers, w->pairsig, row.nodeMap};
-        if (he.direct) directInfo_["master:" + key] = info;
-        else edgeInfo_[he.edge] = info;
       }
+      if (!he.ok) { ++failed; continue; }
+      ++assembled;
+      EdgeInfo info{"master", row.pd, key, he, r.layers, w->pairsig, row.nodeMap};
+      if (he.direct) directInfo_["master:" + key] = info;
+      else edgeInfo_[he.edge] = info;
     }
   }
   expansions_[n].push_back(0); // counts as this level's expansion
@@ -1452,6 +1550,7 @@ int main(int argc, char **argv) {
     else if (a == "--verbose") c.verbose = true;
     else if (a == "--witness-store") c.witnessStore = next();
     else if (a == "--pair-sig-cache") c.pairSigCache = next();
+    else if (a == "--read-back-cache") c.readBackCache = next();
     else if (a == "--run-name") c.runName = next();
     else if (a == "--dedupe-against") c.dedupeAgainst.push_back(next());
     else if (a == "--sign-only") c.signOnly = true;

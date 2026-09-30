@@ -72,6 +72,10 @@ public:
 
   HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                Read read = Read::fast);
+  /// As above, with the row's redrawer already built (for row.pd and
+  /// row.layers): master rows are built on worker threads, then assembled.
+  HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+               std::unique_ptr<farside::WitnessRedrawer> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
   HopEdge add(const HopWitness &w);
@@ -94,6 +98,7 @@ private:
   /// Per knotbuilder row component, the surface component it lies on.
   std::optional<std::vector<size_t>>
   surfaceOfRowComponents(const farside::OutgoingLink &link, std::string &why) const;
+  void certifyRow_();
   Read read_;
   ProofGraph &g_;
   NodeRegistry &nodes_;
