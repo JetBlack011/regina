@@ -45,6 +45,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <limits>
+#include <cmath>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -620,10 +622,13 @@ void Cascade::loadMaster(NodeId n) {
       reads.push_back(std::move(r));
     }
   }
-  {
-    std::atomic<size_t> next{0};
+  // In batches: every batch is read (in parallel) then assembled (in order)
+  // before the next is read, so at most a batch of rows' thickenings are held
+  // at once (reading every row first held them all: 5.5 GB on L10a174).
+  auto readBatch = [&](size_t from, size_t to) {
+    std::atomic<size_t> next{from};
     auto work = [&] {
-      for (size_t i; (i = next.fetch_add(1)) < reads.size();) {
+      for (size_t i; (i = next.fetch_add(1)) < to;) {
         RowRead &r = reads[i];
         try {
           r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
@@ -666,13 +671,16 @@ void Cascade::loadMaster(NodeId n) {
       }
     };
     std::vector<std::thread> pool;
-    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), reads.size());
+    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), to - from);
     for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
     for (auto &t : pool) t.join();
-  }
+  };
   size_t cacheHits = 0;
   std::map<std::string, NodeMatch> interned; // a subject row, interned once
-  for (RowRead &r : reads) {
+  const size_t batch = 2 * static_cast<size_t>(std::max(cfg_.threads, 1));
+  for (size_t i = 0; i < reads.size(); ++i) {
+    if (i % batch == 0) readBatch(i, std::min(reads.size(), i + batch));
+    RowRead &r = reads[i];
     cacheHits += r.cacheHits;
     auto seen = interned.find(r.name);
     if (seen == interned.end()) {
@@ -740,6 +748,7 @@ void Cascade::loadMaster(NodeId n) {
     << ",\"own_rows\":" << own.size() << ",\"reverse_witnesses\":" << reverse
     << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedRows
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
+    << ",\"read_back_cache_hits\":" << cacheHits
     << ",\"nodes\":" << g_.nodeCount() << ",\"target_best\":"
     << (best ? std::to_string(best->genus) : "null") << "}";
   log(o.str());
@@ -801,15 +810,25 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
     (void)vol;
   }
   if (cands.empty()) return std::nullopt;
-  // best: fewest crossings, then lower volume, then shallower; dfs/bfs: by depth first.
+  // best: fewest crossings, then lower volume, then shallower, then the
+  // older node; dfs/bfs: by depth first. Volumes are compared to 1e-6: SnapPea
+  // computes them on randomly retriangulated complements, so two nodes of one
+  // volume (a link and its mirror, say) differed in the last bits from run to
+  // run, and the order they were chosen in -- and so the whole run -- was not
+  // reproducible (2026-09-30).
+  auto roundedVolume = [&](NodeId n) {
+    const NodeInfo &i = reg_.info(n);
+    return i.hyperbolic ? std::llround(i.volume * 1e6) : std::numeric_limits<long long>::max();
+  };
   std::sort(cands.begin(), cands.end(), [&](const Cand &a, const Cand &b) {
     if (cfg_.strategy == "best") {
       const NodeInfo &ia = reg_.info(a.n), &ib = reg_.info(b.n);
       if (ia.diagram.crossings() != ib.diagram.crossings())
         return ia.diagram.crossings() < ib.diagram.crossings();
-      const double va = ia.hyperbolic ? ia.volume : 1e9, vb = ib.hyperbolic ? ib.volume : 1e9;
+      const long long va = roundedVolume(a.n), vb = roundedVolume(b.n);
       if (va != vb) return va < vb;
-      return depth_.at(a.n) < depth_.at(b.n);
+      if (depth_.at(a.n) != depth_.at(b.n)) return depth_.at(a.n) < depth_.at(b.n);
+      return a.n < b.n;
     }
     return a.key < b.key;
   });
