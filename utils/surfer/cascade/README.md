@@ -241,6 +241,43 @@ per-pair condition: blocks {0} and {1,2} with lk(0,1) = 1 and lk(0,2) = −1
 are fine. The proof graph uses it only as a contradiction gate: a derived
 partition that violates it means a component map is wrong somewhere.
 
+## Leaf facts
+
+What a proof may rest on besides witnesses (`RecordKind::leaf`):
+- the unknot's disc (the registry's unknot node);
+- a table entry's literature upper bound (`leaves.h`), with `--literature`
+  and never the target's own class, so its own value cannot prove it;
+- a direct witness: a surface bounding the row alone;
+- **a slice composite** (since 2026-09-30, John's observation on 10_99's
+  node 68, which was `3_1#m3_1` and got a 335 CPU-s hop instead of a disc):
+  a knot the prime-piece namer leaves untabulated is handed to the
+  whole-diagram namer (`ExactNamer::name`: cut at the visible sum spheres,
+  each summand named with its chirality pinned); an exact, pinned composite
+  name is recorded, and when its summands cancel in concordance —
+  `cobordismgraph::isElementarySlice`, the atlas solver's rule: the
+  allowlist `3_1#m3_1`, `4_1#4_1`, or `K # m(Kʳ)` pairs by the summands'
+  symmetry types from `--knot-symmetry` — the node gets a genus-0 leaf
+  `anchor <name>`, constructive like the unknot's (the ribbon disc is
+  explicit). Never the target itself. The checker replays it: cuts the
+  diagram at its visible spheres (`connected_summands`), proves each
+  summand to be its named knot with that chirality (fsid), and redoes the
+  cancellation from the symmetry table (`elementary_slice`);
+  `cascade_check_test.py` pins the cut on the square and granny knots and
+  the rule on `8_17#m8_17` (not slice: `8_17` is not invertible) against
+  `8_17#mr8_17`. Measured (yoga, 8 threads, 2026-09-30): `10_99`
+  constructive at 2M-surface hops met its goal in **one hop** (224 s,
+  1,926 CPU-s), node 18 = `3_1#m3_1` anchored as it was interned, against
+  the 2026-09-28 retry's four hops (2M, 2M, 4M, 4M surfaces; ~3,880
+  CPU-s), whose last hop proved the square knot slice by search; the
+  certificate CERTIFIED, and renaming the anchor to `3_1#3_1`, `4_1#4_1`
+  or `m3_1#m3_1` is refused (a summand's chirality is pinned by its Jones
+  polynomial against the table diagram's, since an exterior isometry sees
+  a knot only up to mirror).
+
+Lower bounds have their own leaves: literature lower bounds (every node's,
+the target's included, as contradiction gates) and the linking condition;
+see "Lower bounds".
+
 ## The proof graph
 
 The cascade's graph has cycles:

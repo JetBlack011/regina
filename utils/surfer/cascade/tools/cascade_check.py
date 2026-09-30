@@ -358,6 +358,95 @@ def same_link_by_isometry(piece, node, comp_map, mirrored, reversed_):
     return False, f'no meridian-preserving isometry realising the map ({len(isos)} isometries)'
 
 
+def connected_summands(g):
+    """A knot diagram cut at its visible connected-sum spheres: every proper
+    cyclic interval of the Gauss word that holds both passes of each of its
+    crossings and no pass of any other is a summand (the sphere meets the
+    diagram in the interval's two ends). Cut the shortest such interval off,
+    recursively. Returns the summands as knot diagrams (crossings
+    relabelled, signs kept); [g] when there is no visible sphere."""
+    if len(g.comps) != 1:
+        return [g]
+    w = g.comps[0]
+    n = len(w)
+    best = None
+    for length in range(2, n - 1, 2):
+        for start in range(n):
+            seg = [w[(start + i) % n] for i in range(length)]
+            labels = [abs(x) for x in seg]
+            if all(labels.count(k) == 2 for k in set(labels)) and \
+                    len(set(labels)) * 2 == length:
+                best = (start, length)
+                break
+        if best:
+            break
+    if not best:
+        return [g]
+    start, length = best
+    seg = [w[(start + i) % n] for i in range(length)]
+    rest = [w[(start + length + i) % n] for i in range(n - length)]
+
+    def as_knot(word):
+        labels = sorted(set(abs(x) for x in word))
+        new = {k: i + 1 for i, k in enumerate(labels)}
+        return Gauss([g.signs[k - 1] for k in labels],
+                     [[new[abs(x)] * (1 if x > 0 else -1) for x in word]])
+    return [as_knot(seg)] + connected_summands(as_knot(rest))
+
+
+def composite_summands(name):
+    """'3_1#m3_1' -> [('3_1', mirrored, reversed), ...]."""
+    out = []
+    for p in name.split('#'):
+        m = p.startswith('m')
+        p = p[1:] if m else p
+        r = p.startswith('r')
+        p = p[1:] if r else p
+        out.append((p, m, r))
+    return out
+
+
+SYMMETRY = {'fully amphicheiral': 'full', 'reversible': 'rev', 'negative amphicheiral': 'neg',
+            'positive amphicheiral': 'pos', 'chiral': 'chiral'}
+
+
+def elementary_slice(name, symmetry):
+    """The atlas solver's isElementarySlice, rewritten: the summands, each
+    reduced to the marks its symmetry type leaves meaningful, pair off with
+    their concordance inverses (-K = m(K^r))."""
+    if name in ('3_1#m3_1', '4_1#4_1'):
+        return True, 'allowlisted'
+    parts = composite_summands(name)
+    if len(parts) < 2:
+        return False, 'not a composite'
+
+    def reduce(knot, m, r):
+        t = symmetry.get(knot, 'chiral')
+        if t == 'full':
+            return (knot, False, False)
+        if t == 'rev':
+            return (knot, m, False)
+        if t == 'neg':
+            return (knot, m != r, False)
+        if t == 'pos':
+            return (knot, False, r)
+        return (knot, m, r)
+    count = {}
+    for knot, m, r in parts:
+        if knot not in symmetry:
+            return False, f'{knot}: symmetry type unknown'
+        k = reduce(knot, m, r)
+        count[k] = count.get(k, 0) + 1
+    for (knot, m, r), c in list(count.items()):
+        inv = reduce(knot, not m, not r)
+        if inv == (knot, m, r):
+            if c % 2:
+                return False, f'{knot}: an odd number of self-inverse copies'
+        elif count.get(inv, 0) != c:
+            return False, f'{knot}: {c} copies, {count.get(inv, 0)} inverses'
+    return True, 'summands cancel in concordance'
+
+
 def prove_table_identity(g, name, tables):
     """Re-prove that diagram g IS the table entry `name` (as an oriented link
     up to mirror and global reversal), with the atlas's code. Knots: fsid's
@@ -641,6 +730,59 @@ class Checker:
             if not ok:
                 return self.fail(r['id'], f'node {r["node"]} not proved to be {name}: {why}')
             self.notes.append(f'record {r["id"]}: literature {name} {t}; identity: {why}')
+            return True
+        if src.startswith('anchor '):
+            # A slice composite: the node's diagram cut at its visible sum
+            # spheres, each summand proved to be its named table knot WITH
+            # its chirality (fsid names the mirror), and the summands shown to
+            # cancel in concordance with the symmetry table.
+            name = src.split(' ', 1)[1]
+            g = self.node_gauss(r['node'])
+            if node['components'] != 1 or r['genus'] != 0 or r['partition'] != '{0}':
+                return self.fail(r['id'], 'an anchor bounds a knot by a disc')
+            parts = composite_summands(name)
+            pieces = connected_summands(g)
+            if len(pieces) != len(parts) or len(parts) < 2:
+                return self.fail(r['id'], f'{len(pieces)} visible summands, name has {len(parts)}')
+            # Each summand: its base by fsid (an exterior isometry, so up to
+            # mirror: Gordon-Luecke), and its chirality against the TABLE's
+            # own diagram by the Jones polynomial, which tells a chiral knot
+            # from its mirror (the namer's marks are relative to the table
+            # entry too). An amphichiral summand matches either mark.
+            fsid = atlas_module('fsid')
+            unused = list(range(len(pieces)))
+            for knot, m, rev in parts:
+                want = ('m' if m else '') + knot
+                pd = self.tables['pd'].get(knot)
+                if pd is None:
+                    return self.fail(r['id'], f'{knot} has no table PD')
+                table = Gauss.of_link(pd_to_link(pd))
+                jones_as_is = table.link().jones()
+                # (Regina's Link.reflect() keeps its cached polynomial, so
+                # the mirror is rebuilt from the Gauss data.)
+                jones_mirror = table.mirror().link().jones()
+                hit = None
+                for i in unused:
+                    got, proof, _ = fsid.identify_knot(snappy_link(pieces[i]))
+                    if got is None or got.lstrip('m') != knot:
+                        continue
+                    j = pieces[i].link().jones()
+                    marks = set()
+                    if j == jones_as_is:
+                        marks.add(knot)
+                    if j == jones_mirror:
+                        marks.add('m' + knot)
+                    if want in marks:
+                        hit = i
+                        self.notes.append(f'record {r["id"]}: summand {want}: {proof}, chirality by Jones')
+                        break
+                if hit is None:
+                    return self.fail(r['id'], f'no summand proved to be {want}')
+                unused.remove(hit)
+            ok, why = elementary_slice(name, self.tables.get('symmetry', {}))
+            if not ok:
+                return self.fail(r['id'], f'{name} not shown slice: {why}')
+            self.notes.append(f'record {r["id"]}: anchor {name}: {why}')
             return True
         if src.startswith('direct witness '):
             d = self.redraw(r['hop_dir'], r['row_pd'], r['witness'], r)
@@ -1000,6 +1142,15 @@ def load_tables(knots, links, classes=None):
         with open(classes) as fh:
             for r in csv.DictReader(fh):
                 t['classes'][r['name']] = r['canonical']
+    # Knot symmetry types (data/knot_symmetry.csv: name,symmetry_type), for
+    # the slice-composite anchors.
+    sym = os.path.join(os.path.dirname(knots), 'knot_symmetry.csv')
+    t['symmetry'] = {}
+    if os.path.exists(sym):
+        with open(sym) as fh:
+            for r in csv.reader(fh):
+                if len(r) >= 2 and r[1].strip().lower() in SYMMETRY:
+                    t['symmetry'][r[0]] = SYMMETRY[r[1].strip().lower()]
     return t
 
 

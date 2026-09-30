@@ -400,6 +400,12 @@ private:
   /// with its table name, literature leaf and lower bound (in order).
   void onNewNodes(const std::vector<NodeId> &ns, int depth);
   void applyName(NodeId n, const exactnaming::PieceName &pn);
+  /// A knot the whole-diagram namer proved to be a connected sum of table
+  /// knots, chirality pinned: named, and anchored (a genus-0 leaf) when its
+  /// summands cancel in concordance.
+  void applyComposite(NodeId n, const exactnaming::FarSideName &fs);
+  cobordismgraph::NameTable names_; ///< table names and symmetry types
+  int anchors_ = 0;
   std::vector<NodeId> nodesSince(size_t first) const {
     std::vector<NodeId> ns;
     for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
@@ -578,13 +584,25 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
   // (ExactNamer is safe to share: its caches are locked, and its SnapPea
   // calls serialised) and applied here in node order, as one at a time would.
   std::vector<std::optional<exactnaming::PieceName>> names(ns.size());
+  // A knot identify() leaves untabulated may be a connected sum the tables
+  // hold only summand by summand: the whole-diagram namer cuts it at its
+  // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
+  std::vector<std::optional<exactnaming::FarSideName>> composites(ns.size());
   std::atomic<size_t> next{0};
   auto work = [&] {
     for (size_t i; (i = next.fetch_add(1)) < ns.size();) {
       const NodeId n = ns[i];
       if (!reg_.known(n) || n == reg_.unknot()) continue;
       try {
-        names[i] = namer_.identify(reg_.info(n).diagram);
+        const GaussDiagram &d = reg_.info(n).diagram;
+        names[i] = namer_.identify(d);
+        if (names[i]->by == exactnaming::PieceName::By::untabulated &&
+            d.components() == 1 && d.crossings() > 0) {
+          exactnaming::FarSideName fs = namer_.name(d.link());
+          if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+              fs.name.find('#') != std::string::npos)
+            composites[i] = std::move(fs);
+        }
       } catch (const std::exception &) {
       }
     }
@@ -596,8 +614,25 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
   for (auto &t : pool) t.join();
   for (size_t i = 0; i < ns.size(); ++i) {
     depth_.emplace(ns[i], depth);
-    if (names[i]) applyName(ns[i], *names[i]);
+    if (composites[i]) applyComposite(ns[i], *composites[i]);
+    else if (names[i]) applyName(ns[i], *names[i]);
   }
+}
+
+void Cascade::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
+  // The composite's name is recorded (certificates, node bounds, the
+  // subject name stays cascade:, since no table row holds it). It is an
+  // ANCHOR when its summands cancel in concordance (cobordismgraph.h
+  // isElementarySlice: the explicit allowlist, or symmetry types from
+  // --knot-symmetry): K # m(K^r) bounds a ribbon disc, so the node gets the
+  // unknot's leaf, constructive like the unknot's, never for the target.
+  tableName_[n] = fs.name;
+  if (n == target_) return;
+  if (!cobordismgraph::isElementarySlice(fs.name, names_)) return;
+  g_.addLeaf(n, Partition::coarsest(1), 0, "anchor " + fs.name);
+  ++anchors_;
+  std::cout << "[+] node " << n << " is " << fs.name << " (" << fs.proof()
+            << "): a slice composite, anchored\n";
 }
 
 void Cascade::applyName(NodeId n, const exactnaming::PieceName &pn) {
@@ -1732,6 +1767,26 @@ int Cascade::run() {
   }
   printProfile();
   loadLowerSources();
+  // Table names and symmetry types, for the slice-composite anchors
+  // (applyComposite): as verifyslicegenus loads them.
+  witnessstore::loadNameTable(cfg_.knotTable, names_);
+  witnessstore::loadNameTable(cfg_.linkTable, names_);
+  if (!cfg_.knotSymmetry.empty()) {
+    std::ifstream in(cfg_.knotSymmetry);
+    std::string line;
+    std::getline(in, line);
+    size_t loaded = 0;
+    while (std::getline(in, line)) {
+      auto f = parseCsvLine(line);
+      if (f.size() >= 2)
+        if (auto t = cobordismgraph::parseSymmetryType(f[1])) {
+          names_.setSymmetry(f[0], *t);
+          ++loaded;
+        }
+    }
+    std::cout << "[+] knot symmetry: " << loaded << " types (slice composites beyond "
+                 "3_1#m3_1 and 4_1#4_1 need them)\n";
+  }
   if (cfg_.goalLower >= 0)
     std::cout << "[+] lower goal " << cfg_.goalLower << ": " << special_.size()
               << " table names in --lower-sources, "
@@ -1754,11 +1809,19 @@ int Cascade::run() {
     throw std::runtime_error("the target is a split diagram; give one piece");
   // The target's own table name, so its literature value never proves it.
   bool named = false;
+  std::string composite;
   try {
     auto pn = namer_.identify(simp);
     if (pn.names.size() == 1 && pn.by != exactnaming::PieceName::By::untabulated) {
       targetCanonical_ = classOf(pn.names.front());
       named = true;
+    } else if (simp.components() == 1) {
+      // A composite target: its whole-diagram name (never an anchor for
+      // itself, applyComposite skips the target), reported and recorded.
+      exactnaming::FarSideName fs = namer_.name(simp.link());
+      if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+          fs.name.find('#') != std::string::npos)
+        composite = fs.name;
     }
   } catch (...) {
   }
@@ -1777,6 +1840,14 @@ int Cascade::run() {
   NodeMatch t = reg_.intern(simp, "target " + cfg_.targetName);
   target_ = t.node;
   onNewNode(target_, 0);
+  if (!composite.empty()) {
+    tableName_[target_] = composite;
+    std::cout << "[+] target is the composite " << composite
+              << (cobordismgraph::isElementarySlice(composite, names_)
+                      ? " (a slice composite: its summands cancel in concordance)"
+                      : "")
+              << "\n";
+  }
   std::cout << "[+] target " << cfg_.targetName << " = node " << target_ << " ("
             << simp.crossings() << " crossings, " << simp.components()
             << " components; table class '" << targetCanonical_ << "'); goal genus "

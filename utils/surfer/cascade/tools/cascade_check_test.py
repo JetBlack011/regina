@@ -135,10 +135,48 @@ def test_literature_leaf_of_the_target_under_another_name():
               f'{label}: refused for another reason: {ch.problems}')
 
 
+def test_connected_summands():
+    # The square knot as the cascade drew it (10_99's node 68, 2026-09-28):
+    # a right trefoil and a left one joined at a visible sphere. Cut into two
+    # trefoils of opposite sign; each is a trefoil (Jones); a prime diagram
+    # is left whole; a granny (same signs) cuts the same way.
+    square = G([1, 1, 1, -1, -1, -1], [[6, -5, 4, -6, -3, 2, -1, 3, -2, 1, 5, -4]])
+    parts = cc.connected_summands(square)
+    check(len(parts) == 2, f'square knot: {len(parts)} summands')
+    trefoil = G([1, 1, 1], [[1, -2, 3, -1, 2, -3]])
+    for p in parts:
+        check(len(p.signs) == 3 and abs(sum(p.signs)) == 3, f'summand signs {p.signs}')
+        check(p.link().jones() in (trefoil.link().jones(), trefoil.mirror().link().jones()),
+              'a summand is not a trefoil')
+    check(sorted(sum(p.signs) for p in parts) == [-3, 3], 'the two trefoils are mirrors')
+    check(len(cc.connected_summands(trefoil)) == 1, 'a prime diagram is left whole')
+    granny = G([1, 1, 1, 1, 1, 1], [[6, -5, 4, -6, -3, 2, -1, 3, -2, 1, 5, -4]])
+    check(sorted(sum(p.signs) for p in cc.connected_summands(granny)) == [3, 3], 'granny')
+
+
+def test_elementary_slice():
+    sym = {'3_1': 'rev', '4_1': 'full', '8_17': 'chiral', '9_32': 'chiral', '5_1': 'rev'}
+    check(cc.composite_summands('3_1#m3_1') == [('3_1', False, False), ('3_1', True, False)],
+          'summand parsing')
+    check(cc.composite_summands('mr8_17#8_17')[0] == ('8_17', True, True), 'mr parsing')
+    check(cc.elementary_slice('3_1#m3_1', sym)[0], 'square knot is slice')
+    check(not cc.elementary_slice('3_1#3_1', sym)[0], 'granny is not')
+    check(cc.elementary_slice('4_1#4_1', sym)[0], '4_1#4_1 is slice')
+    check(cc.elementary_slice('m3_1#3_1#5_1#m5_1', sym)[0], 'two cancelling pairs')
+    check(not cc.elementary_slice('m3_1#3_1#5_1', sym)[0], 'an unpaired summand')
+    check(not cc.elementary_slice('8_17#m8_17', sym)[0],
+          'a non-invertible knot with its plain mirror is NOT the pattern')
+    check(cc.elementary_slice('8_17#mr8_17', sym)[0], 'with its reversed mirror it is')
+    check(not cc.elementary_slice('3_1#m3_1#9_32#m9_32', {'3_1': 'rev'})[0],
+          'an unknown symmetry type refuses')
+    check(not cc.elementary_slice('3_1', sym)[0], 'a prime knot is no composite')
+
+
 for t in (test_lift_split, test_kinks, test_sums_through_a_twist, test_side_holding_a_component,
           test_crossing_joined_through_another_component, test_reduced_untouched,
           test_same_as_node_through_a_twist,
-          test_literature_leaf_of_the_target_under_another_name):
+          test_literature_leaf_of_the_target_under_another_name,
+          test_connected_summands, test_elementary_slice):
     t()
 print(f'{"FAILED" if failures else "passed"}: {failures} failures')
 sys.exit(1 if failures else 0)
