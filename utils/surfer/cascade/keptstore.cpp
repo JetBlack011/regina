@@ -51,10 +51,12 @@ private:
   int fd_ = -1;
 };
 
-void identitiesOf(const std::string &path, std::unordered_set<std::string> &into) {
+void identitiesOf(const std::string &path, std::unordered_set<std::string> &into,
+                  unsigned threads = 1) {
   if (!fs::exists(path)) return;
-  for (const cobordismgraph::Witness &w : witnessstore::loadWitnesses(path, false))
-    into.insert(cobordismgraph::witnessIdentity(w));
+  std::unordered_set<std::string> ids = witnessstore::witnessIdentities(path, threads);
+  if (into.empty()) into.swap(ids);
+  else into.merge(ids);
 }
 
 int hopNumber(const fs::path &dir) {
@@ -144,7 +146,7 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   // Fresh against the read-only stores (once) and the store as it stands.
   const auto tDedupe = std::chrono::steady_clock::now();
   std::unordered_set<std::string> seen;
-  for (const std::string &path : dedupeAgainst) identitiesOf(path, seen);
+  for (const std::string &path : dedupeAgainst) identitiesOf(path, seen, threads);
   {
     StoreLock lock(store);
     identitiesOf(store, seen);

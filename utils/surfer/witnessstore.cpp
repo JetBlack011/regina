@@ -11,6 +11,8 @@
 #include <cerrno>
 #include <cstring>
 #include <fstream>
+#include <algorithm>
+#include <thread>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -231,6 +233,89 @@ loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
   }
   if (malformed > 0)
     std::cerr << "[!] " << path.string() << ": skipped " << malformed
+              << " malformed witness lines\n";
+  return result;
+}
+
+std::unordered_set<std::string>
+witnessIdentities(const std::filesystem::path &path, unsigned threads,
+                  std::streamoff minRangeBytes) {
+  std::unordered_set<std::string> result;
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    return result;
+  std::string line;
+  std::getline(in, line); // header
+  if (line != COBORDISMS_HEADER && line != COBORDISMS_HEADER_12)
+    std::cerr << "[!] " << path.string()
+              << ": unexpected witness-file header; reading it anyway\n";
+  const std::streamoff first = in.tellg();
+  if (first < 0)
+    return result; // the header alone, or not even that
+  const std::streamoff size =
+      static_cast<std::streamoff>(std::filesystem::file_size(path));
+  // A range per thread, each starting at a line start: a cut falls just
+  // after the first newline at or past its even share. Small files: one.
+  const size_t n = std::clamp<size_t>(
+      static_cast<size_t>((size - first) / std::max<std::streamoff>(minRangeBytes, 1)), 1,
+      std::max(threads, 1u));
+  std::vector<std::streamoff> cut(n + 1, size);
+  cut[0] = first;
+  for (size_t k = 1; k < n; ++k) {
+    std::streamoff pos = first + (size - first) * static_cast<std::streamoff>(k) /
+                                     static_cast<std::streamoff>(n);
+    pos = std::max(pos, cut[k - 1]);
+    in.clear();
+    in.seekg(pos - 1);
+    char c = 0;
+    while (in.get(c) && c != '\n') {
+    }
+    cut[k] = in ? static_cast<std::streamoff>(in.tellg()) : size;
+  }
+  std::vector<std::unordered_set<std::string>> sets(n);
+  std::vector<size_t> malformed(n, 0);
+  auto work = [&](size_t k) {
+    std::ifstream r(path, std::ios::binary);
+    r.seekg(cut[k]);
+    std::string l;
+    std::streamoff at = cut[k];
+    while (at < cut[k + 1]) {
+      if (!std::getline(r, l))
+        break;
+      at += static_cast<std::streamoff>(l.size()) + 1;
+      if (r.eof()) {
+        // As loadWitnesses(): a last line with no newline is torn.
+        if (!l.empty())
+          std::cerr << "[!] " << path.string() << ": ignoring a torn last line ("
+                    << l.size() << " bytes, no newline)\n";
+        break;
+      }
+      if (l.empty())
+        continue;
+      cobordismgraph::Witness w;
+      if (!parseWitnessLine(l, w, /*keepPairSig=*/false, /*wantPairSigKey=*/false, path)) {
+        ++malformed[k];
+        continue;
+      }
+      sets[k].insert(cobordismgraph::witnessIdentity(w));
+    }
+  };
+  std::vector<std::thread> pool;
+  for (size_t k = 1; k < n; ++k)
+    pool.emplace_back(work, k);
+  work(0);
+  for (auto &t : pool)
+    t.join();
+  size_t bad = 0;
+  for (size_t k = 0; k < n; ++k) {
+    bad += malformed[k];
+    if (result.empty())
+      result.swap(sets[k]);
+    else
+      result.merge(sets[k]);
+  }
+  if (bad > 0)
+    std::cerr << "[!] " << path.string() << ": skipped " << bad
               << " malformed witness lines\n";
   return result;
 }

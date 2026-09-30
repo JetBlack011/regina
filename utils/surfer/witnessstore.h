@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "cobordismgraph.h"
@@ -55,6 +56,15 @@ bool witnessFromFields(std::vector<std::string> fields,
 /// ignored. A missing file is an empty store.
 std::vector<cobordismgraph::Witness>
 loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys);
+
+/// cobordismgraph::witnessIdentity() of every witness loadWitnesses() would
+/// load from `path` -- the same lines, torn last line and malformed lines
+/// skipped alike -- parsed in `threads` byte ranges cut at line starts. A
+/// store's dedupe needs only this, and the atlas's master is ~3 GB, so a
+/// run's store step spent 8-12 s of one thread here (2026-09-30).
+std::unordered_set<std::string>
+witnessIdentities(const std::filesystem::path &path, unsigned threads,
+                  std::streamoff minRangeBytes = 64 << 20);
 
 /// Appends witnesses[from..] to `path` and fsyncs; creates it with the
 /// header if absent, truncates a torn last line first, and refuses a file

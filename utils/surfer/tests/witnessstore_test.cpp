@@ -156,6 +156,34 @@ int main() {
           "--rewrite-witnesses migrates a 12-column line by one empty field");
   }
 
+  // 5. witnessIdentities(): loadWitnesses()'s identities, in byte ranges.
+  {
+    const fs::path big = dir / "identities.csv";
+    std::vector<Witness> ws;
+    for (int i = 0; i < 400; ++i)
+      ws.push_back(sample("row" + std::to_string(i % 97), i % 5, i % 3));
+    witnessstore::appendWitnesses(big, ws, 0);
+    {
+      std::ofstream out(big, std::ios::app | std::ios::binary);
+      out << "\n"                            // an empty line
+          << "cobordism,not,a,witness\n"     // a malformed line
+          << witnessstore::formatWitness(sample("late", 4, 0)) << "\n"
+          << "cobordism,torn,1,Unknot";      // a torn last line
+    }
+    std::unordered_set<std::string> serial;
+    for (const Witness &w : witnessstore::loadWitnesses(big, false))
+      serial.insert(cobordismgraph::witnessIdentity(w));
+    bool allSame = true;
+    for (unsigned threads : {1u, 2u, 3u, 7u, 16u})
+      for (std::streamoff range : {1, 100, 4096, 64 << 20})
+        allSame = allSame && witnessstore::witnessIdentities(big, threads, range) == serial;
+    check(allSame && serial.size() > 100 && serial.count(cobordismgraph::witnessIdentity(
+                                               sample("late", 4, 0))),
+          "witnessIdentities() equals loadWitnesses()'s identities at every range split");
+    check(witnessstore::witnessIdentities(dir / "absent.csv", 4).empty(),
+          "a missing file has no identities");
+  }
+
   fs::remove_all(dir);
   std::cout << (failures ? "witnessstore_test: FAILED\n" : "witnessstore_test: all passed\n");
   return failures ? 1 : 0;
