@@ -186,14 +186,27 @@ class PairSigContext {
      */
     static std::string ambientKey(const regina::Triangulation<dim> &ambient);
 
-  private:
+    /**
+     * The ambient part itself: its isoSig, and an isomorphism carrying the
+     * ambient onto the triangulation that sig decodes to. It is 99.8% of the
+     * cost (above) and depends on the ambient alone, so a caller that meets
+     * the same ambient again -- another run over the same row -- may keep it
+     * (farsidediagram --sig-cache) and build a context from it.
+     *
+     * Any such isomorphism gives byte-identical signatures, since sig()
+     * minimises over every automorphism of the canonical ambient. So a kept
+     * detail is sound exactly when its isomorphism carries THIS ambient onto
+     * Triangulation::fromSig(detail.first); check that before using one.
+     */
     using Detail = std::pair<std::string, regina::Isomorphism<dim>>;
 
     static Detail detailFor(const regina::Triangulation<dim> &ambient,
-                            unsigned threads);
+                            unsigned threads = 1);
 
+    /** A context from a detail computed (and checked) elsewhere; see Detail. */
     PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail);
 
+  private:
     /** A context restored from a file; see cached(). */
     PairSigContext(const regina::Triangulation<dim> &ambient, Detail detail,
                    std::vector<regina::Isomorphism<dim>> autos);
