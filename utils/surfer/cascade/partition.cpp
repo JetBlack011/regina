@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 
@@ -68,7 +69,8 @@ std::string Partition::str() const {
   return o.str();
 }
 
-std::vector<Partition> allPartitions(int n) {
+namespace {
+std::vector<Partition> buildAllPartitions(int n) {
   // Restricted growth strings: a[0] = 0, a[i] <= 1 + max(a[0..i-1]).
   std::vector<Partition> ans;
   std::vector<int> a(n, 0);
@@ -89,6 +91,26 @@ std::vector<Partition> allPartitions(int n) {
     rec(1, 0);
   }
   return ans;
+}
+} // namespace
+
+const std::vector<Partition> &allPartitions(int n) {
+  // Fixed for each n, so built once and shared: propagateLower() and the
+  // lower report ask for the same small n millions of times, and rebuilding
+  // them was half of a run's single-threaded time (2026-09-30 profile).
+  // call_once keeps it lock-free after the first build, for callers on many
+  // threads at once.
+  constexpr int kShared = 16;
+  static std::once_flag once[kShared];
+  static std::vector<Partition> built[kShared];
+  if (n >= 0 && n < kShared) {
+    std::call_once(once[n], [n] { built[n] = buildAllPartitions(n); });
+    return built[n];
+  }
+  thread_local std::map<int, std::vector<Partition>> large;
+  auto it = large.find(n);
+  if (it == large.end()) it = large.emplace(n, buildAllPartitions(n)).first;
+  return it->second;
 }
 
 } // namespace cascade

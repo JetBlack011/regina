@@ -1309,8 +1309,16 @@ void Cascade::writeLowerReport() const {
     if (what.contradictions().size() != before) return -1;
     return what.lower(target_, goal);
   };
-  int bestCarry = 0, bestCould = 0;
-  std::string bestName, bestCouldName;
+  // Each what-if copies the graph and relaxes it alone, so they run on the
+  // run's threads (serially they were a third of a run's driver time,
+  // 2026-09-30); the lines are then written in the same order as before.
+  struct Job {
+    NodeId n;
+    std::string name;
+    int lo, hi, could;
+    int carries = 0, couldCarry = 0;
+  };
+  std::vector<Job> jobs;
   for (const auto &[n, name] : tableName_) {
     if (n == target_) continue;
     const exactnaming::TableEntry *e = tables_.entry(name);
@@ -1321,12 +1329,31 @@ void Cascade::writeLowerReport() const {
     // for it is already proved.
     int could = g4->second;
     if (auto b = g_.bestConnected(n)) could = std::min(could, b->genus);
-    const int carries = g4->first > 0 ? carried(n, g4->first) : 0;
-    const int couldCarry = could > 0 ? (could == g4->first ? carries : carried(n, could)) : 0;
+    jobs.push_back({n, name, g4->first, g4->second, could});
+  }
+  std::atomic<size_t> next{0};
+  auto work = [&] {
+    for (size_t i; (i = next.fetch_add(1)) < jobs.size();) {
+      Job &j = jobs[i];
+      j.carries = j.lo > 0 ? carried(j.n, j.lo) : 0;
+      j.couldCarry = j.could > 0 ? (j.could == j.lo ? j.carries : carried(j.n, j.could)) : 0;
+    }
+  };
+  {
+    std::vector<std::thread> pool;
+    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), jobs.size());
+    for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
+    for (auto &t : pool) t.join();
+  }
+  int bestCarry = 0, bestCould = 0;
+  std::string bestName, bestCouldName;
+  for (const Job &j : jobs) {
+    const std::string &name = j.name;
+    const int carries = j.carries, couldCarry = j.couldCarry;
     if (carries <= 0 && couldCarry <= 0) continue; // n reaches the target with nothing
     const auto sp = special.find(name);
-    out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << "\",\"lit_lo\":"
-        << g4->first << ",\"lit_hi\":" << g4->second << ",\"could\":" << could
+    out << "{\"node\":" << j.n << ",\"name\":\"" << jsonEscape(name) << "\",\"lit_lo\":"
+        << j.lo << ",\"lit_hi\":" << j.hi << ",\"could\":" << j.could
         << ",\"special\":" << (sp == special.end() ? "null" : sp->second ? "true" : "false")
         << ",\"carries\":" << carries << ",\"could_carry\":" << couldCarry << "}\n";
     if (carries > bestCarry) {

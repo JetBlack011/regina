@@ -55,8 +55,8 @@ private:
 };
 
 /// Every partition of {0, ..., n-1}, in no particular order (Bell(n) of
-/// them). Only for small n: tests and exhaustive checks.
-std::vector<Partition> allPartitions(int n);
+/// them), built once per n and shared (safe from many threads).
+const std::vector<Partition> &allPartitions(int n);
 
 } // namespace cascade
 
