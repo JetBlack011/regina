@@ -247,6 +247,12 @@ void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables,
     fast.exhaustiveHeight = 0;
     fast.searchHeight = -1; // no Reidemeister search in the search
     fast.deepHeight = -1;
+    // Nor from the table's side: rewrite() outward from every HOMFLY
+    // candidate's diagram, up to 3M diagrams per candidate and height. On a
+    // far side that is none of them it runs to the end, a minute or more per
+    // name (a 50k-surface hop spent 57,000 thread-seconds there, 2026-09-29).
+    // farsidename refines such names offline from the pair signature.
+    fast.tableSideHeight = -1;
     exact_ = std::make_unique<exactnaming::ExactNamer>(tables, fast, std::move(caches));
 }
 
