@@ -388,6 +388,58 @@ Frontiers live in the process: a new cascade run starts every node afresh.
 Carrying them across runs needs the node's row to be the same row. The
 fingerprint would check that, but runs do not yet share a node registry.
 
+## The driver's own time (2026-09-30)
+
+On rung 2 of `2026-09-open2` (28 runs on `a7e6a39ac`, master witnesses on),
+hops were only 46% of each run's wall time. The rest ran on the driver
+thread alone while the hop threads sat idle:
+- **~26%: loading master rows.** Profiled over a whole run with DWARF call
+  graphs of the main thread:
+  - 56% of its time was in `loadMaster`;
+  - 37% was reading witnesses back: `outgoingLinkFast`'s isomorphism
+    enumeration from each witness's ambient onto its subject row's
+    thickening;
+  - 7.5% was building those rows.
+- **~16%: the lower report**, one what-if `propagateLower()` per tabulated
+  node, half of it rebuilding `allPartitions()` on every call.
+- **~12%: signing the kept surfaces** at the end (`--pair-sig-cache`, which
+  the campaigns did not pass).
+
+Three changes, in order:
+
+| commit | change | effect |
+|---|---|---|
+| `b73a49f90` | `allPartitions(n)` built once per n and shared (`std::call_once`); the lower report's what-ifs on the run's threads, written in the same order | lower report ~4x faster |
+| `9c12b2112` | master rows read back on the run's threads, then assembled serially in the same order; each read-back kept across runs in `--read-back-cache DIR` (`readbackcache.h`: one file per row, keyed by the row's PD and layers, validated by the thickening's build digest; failures kept; flock-guarded appends; a torn line is cut) | master loading ~10x faster cold, the isomorphism search gone when warm |
+| `41695488e` | read-back in batches of 2 x threads rows (only a batch's thickenings held at once: 5.5 GB became 1.9 GB); node choice among equal-volume nodes made reproducible (volumes compared to 1e-6, then depth, then node id) | the same graph every run |
+
+**A/B (halcyon, 14 threads, the campaign paused, master witnesses only,
+lower report on):**
+
+| target | base `a7e6a39ac` | `b73a49f90` | `41695488e` cold | `41695488e` warm |
+|---|---|---|---|---|
+| `L10n112{0;1;0;1}` (12 master loads) | 90.3 s | 73.0 s | 17.1 s | 7.8 s |
+| `L10a174{0;0;1;1}` (20 master loads) | 193.8 s | 99.5 s | 29.0 s | 17.5 s |
+| `L11n449{1;1;1}` (1 master load) | 1.0 s | 1.1 s | 1.1 s | 0.8 s |
+
+- **Equivalence.** `cascade.jsonl`'s master lines and `lower_report.jsonl`
+  are byte-identical to the base on `L10n112` and `L11n449`, and between
+  cold and warm cache everywhere. On `L10a174`, the base chose between
+  `L10a123{0;1}` and `L10a123{1;0}` (one volume) by SnapPea's rounding
+  noise, so it was not reproducible. The new rule loads the same 20 rows and
+  assembles the same 5,854 witnesses, with the same target bounds and lower
+  report; two cold runs are identical.
+- **Tests.** `readbackcache_test`: the serialisation round-trips, a stale
+  digest is refused, a torn line is cut, and cached equals fresh on real
+  witnesses. The other cascade tests and the cascade canaries are
+  unchanged.
+- **Measurement.** `tools/phase_times.py`-style breakdowns came from each
+  hop's `cascade.jsonl` timers plus file modification times.
+- **In campaigns:** profile keys `read_back_cache` and `pair_sig_cache`,
+  passed by `cascade_worker.py` and written by `cascade_ladder.sh` from
+  `$READ_BACK_CACHE` and `$PAIR_SIG_CACHE`. Each master line in
+  `cascade.jsonl` now has `read_back_cache_hits`.
+
 ## In-process hops (`hoprunner.h`, since 2026-09-28)
 
 A hop is one row searched on a node's diagram. By default it runs in the
