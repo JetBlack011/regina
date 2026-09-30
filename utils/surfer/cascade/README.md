@@ -46,6 +46,7 @@ cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
 | option | what |
 |---|---|
 | `--goal-genus g`, `--goal connected\|disjoint` | the bound to prove: connected g₄ ≤ g (the coarsest partition), or disjoint surfaces (singletons) |
+| `--goal-lower G`, `--lower-sources CSV`, `--lower-max-crossings n` | also stop once lower(target, goal partition) ≥ G ("Lower-bound mode" below); the sources file (the atlas's `data/lower_bound_sources.csv`) is required, and a node kept only for the lower goal is never expanded above n crossings (default 16) |
 | `--constructive` / `--literature` | whether table values may be leaves (never the target's own) |
 | `--master-witnesses <cobordisms.csv>` | the atlas's witnesses as free edges for table nodes (read only) |
 | `--hop-surfaces`, `--max-hop-surfaces` | a hop's surface target, and the most a revisit may raise it to |
@@ -728,6 +729,24 @@ The checker replays the certificate without calling any cascade code:
 It exits 0 only if every record checks. A replay it cannot do (split
 restrictions, direct witnesses, for now) counts as a failure, never a pass.
 
+**Lower certificates** (`lower_certificate.json`, since 2026-09-30) are
+recognised by their `facts`. A fact says `lower(node, partition) ≥ value`
+and carries its reason; the checker replays a witness fact's edge exactly
+as an upper record's (`check_witness_edge`: redraw, row map, shape, pieces
+and identities), then caps a surface of the fact's partition onto it with
+its own `glue()` and requires the other end's partition to be the one
+recorded (refining what that fact is stored for), the addition to match,
+and `value ≤ from − addition`; a literature fact's node must be proved to
+be its table entry and its value at most the table's lower end (never the
+target's own entry); a linking fact's partition must really be forbidden by
+the node's linking matrix. Split facts are refused as "not implemented".
+The upper records a split-piece fact subtracts are checked as in an upper
+certificate. Mutation check (L10n74's certificate, 2026-09-30): the
+addition zeroed, the value raised by one, the other end's partition
+refined, the leaf's value above the table's, the leaf renamed to another
+entry, the target's partition refined, and the goal raised — all seven
+refused, each with its reason.
+
 ## First runs (2026-09-28, yoga, 10 threads, 50k surfaces per hop, constructive)
 
 | target | result | hops | search CPU | checker |
@@ -862,7 +881,13 @@ optimism is capped at each partition's proved lower bound.
 - L4: split rules;
 - L5: 600 random "worlds" (the upper closure taken as the truth, true minima
   as literature) never produce a bound above an achieved surface, and never a
-  contradiction.
+  contradiction;
+- L6: the lower report's cleared what-if;
+- L7: transport is monotone under refinement (lem:transport-monotone,
+  below), on 400 random worlds with random literature bounds, every edge,
+  both directions, every partition (>10,000 pairs, >100 of them strict);
+- L8: `lowerIf()`, the what-if that keeps the graph's bounds;
+- L9: every raised bound remembers its reason, down to a literature leaf.
 
 **Mutation check.** Each break is caught:
 
@@ -871,3 +896,108 @@ optimism is capped at each partition's proved lower bound.
 | drop the genus subtraction | 1,339 |
 | split sum off by one | 3 |
 | piece ignores the other genus | 1 |
+
+**Lemma (transport is monotone under refinement; `lem:transport-monotone`,
+2026-09-30).** For a witness e and its end X, let `t_e(P)` be what e
+transports to X for surfaces with partition exactly P: the other end's
+bound at the partition P′(P) the cap induces, minus what the cap adds. If P
+refines Q then `t_e(P) ≥ t_e(Q)`. *Proof.* Cap a surface of partition P
+(genus 0) onto e. Refining the cap's partition adds vertices to the gluing
+graph and no edges, so its components can only split and the addition
+`Σ_K b₁(K) = E − V + #components` can only fall; the induced partition P′
+of the other end only refines; and `lower(Y, ·)` is monotone under
+refinement (a bound stored for a partition applies to its refinements) and
+the linking condition is upward-closed (a refinement of a forbidden
+partition is forbidden). ∎ So the bound for surfaces refining Q is `t_e(Q)`
+itself: `lowerAcross()` evaluates the one partition instead of minimising
+over its refinements (Bell² → Bell per edge), and the AND over the target's
+partitions that a lower proof needs is met by any single edge. L7 checks
+the equality on random graphs, so a future shape or map for which it fails
+is caught. (The plan first read the per-edge minimum as a gap that a
+"cover rule" over edges would fix; the lemma says the rule is vacuous.)
+
+## Lower-bound mode (2026-09-30)
+
+Until now the cascade only *sought* upper bounds: `useful(n)` kept a node
+only if its best conceivable profile could complete the target's upper
+goal, and a run stopped when nothing was useful for that goal. Lower bounds
+were propagated after every hop and reported at the end, never aimed at.
+The one open entry closed from below, `L10n74{1;0}`, came from the
+target's own ninth hop. John's idea: keep a node if its best case could
+give a new upper **or** lower bound, let the search rise in complexity (a
+larger far side can carry a higher lower bound back), and bound it.
+`--goal-lower G` does that (plan: `~/.claude/plans/immutable-cooking-puffin.md`).
+
+**What the data said** (open2's 238 `lower_report.jsonl`): of 37,492 nodes,
+only 2 ever carried a bound above a target's literature floor (L10n74's);
+203 near-misses over 122 targets all pass through 26 open `[0;1]` links of
+8–11 crossings, hubs among them (`L8a21{0;0;1}` under 31 targets,
+`L8n7{0;0;1}` 22, `L10a174{0;0;1;1}` 18, `L10n112{0;0;1;0}` 16). Lower
+bounds flow hub → target at charge 0, so one non-slice hub closes dozens
+of entries. Special sources (`data/lower_bound_sources.csv`): 3,013;
+`lit_lo` 1 for 2,827, ≥ 2 for 186, ≥ 3 for 33, 4 for 7.
+
+**The gate** (`usefulLower()`). A node n is kept for the lower goal if,
+given the best lower bounds it could ever have, it would carry the goal to
+the target over the edges found so far: `ProofGraph::lowerIf()` seeds n in
+a copy that keeps every bound the graph has, relaxes, and reads
+`lower(target, goal)`. The seeds are admissible: any transported bound is
+a literature seed minus non-negative charges, so at most the largest
+special source's (`L_max`, 4 in the tables; a Lipschitz-floor source
+cannot beat the target's own floor across the exact charge, see "Lower
+bounds"); a proved surface refining a partition caps it; the literature
+upper bound, a connected surface, caps the coarsest. A seed above a proved
+surface is refused, and nothing is seeded above what is known. The gate is
+what makes the search terminate: a chain from a `[0;1]` target can spend
+at most `L_max − 1` charge, and only charge-0 hops are unbounded in
+number — bounded by `--lower-max-crossings` (16: the chain must come back
+to a table entry), the expansion and CPU limits and the budget ladder.
+What-ifs run for every candidate the upper gate rejects, in one parallel
+batch per `choose()`, cached per graph version.
+
+**Ordering.** Among nodes of one crossing count, the upper gate's nodes
+first, then the lower gate's by slack (what they would carry beyond the
+goal: the charge still affordable, which decides how many sources are in
+reach); then volume, depth, id as before.
+
+**Reasons.** Every raised lower bound remembers the fact that raised it
+(`ProofGraph::lowerWhy()`): a literature or linking leaf, a witness with
+the other end's partition and the cap's addition, or a split rule with the
+records it subtracted. Raises are strict and no rule increases what it
+reads, so reasons never cycle: a lower bound's proof is a tree. A met
+lower goal prints it (`[+] LOWER GOAL MET`, then the chain) and writes
+`lower_certificate.json` for the checker.
+
+**Master rows on their recorded diagrams.** Found on the way: `loadMaster`
+read every stored row on the table's PD, but a cascade hop's row is its
+node's *simplified* diagram, so cascade-recorded witnesses under a table
+name never read back (50 of L10n74's 52 failed). Now the store's
+`.rows.csv` sidecar gives each witness its row PD, and such a row is
+interned from its recorded diagram with that match's component map. Lines
+stored before the sidecar existed (open2's first 6,559) still have no row;
+`tools/farside/exact/cascade_row_candidates.py` recovers those from hop
+logs.
+
+**Reproduction (2026-09-30, yoga).** `L10n74{1;0}` with `--goal-genus 0
+--goal-lower 1`, open2's store as master witnesses (its 20 target rows
+given their recorded diagram from the packed `hop_kept_lines.csv`) and no
+search: 24 witnesses assembled, `LOWER GOAL MET` in 2 s, the chain
+`L10n74{0;1} {0,1,2} ≥ 1` across `cb72899e102e` (genus 0, 2 pieces) from
+`L11n48{0} {0,1} ≥ 2` with the cap adding 1, leaf `literature L11n48{0}
+2`; the certificate CERTIFIED by `cascade_check.py` (identity by isometry
+with uniform meridian signs) and all seven mutations refused.
+
+**Every node's bounds** go to `<work>/node_bounds.jsonl` at a run's end:
+identity (table name or untabulated), diagram, linking matrix, every proved
+profile entry with its record and whether its proof is constructive, and
+every lower bound with its reason's kind. Composites and links beyond the
+tables get bounds here that no table records (John, 2026-09-30: those are
+results to keep); the atlas folds runs into a table beyond the tables.
+
+**Not built, deliberately.** A charge ladder (charge-0 hops before any
+charged one, raised when nothing is useful): the slack ordering already
+puts charge-0 nodes first within a budget level; measure the A/B first.
+Split facts in the checker. The A*-style ordering for the upper side.
+
+**Still to measure:** the 26 hub nodes as targets with `--goal-lower 1`
+at a small rung, against the upper-only run on the same targets.

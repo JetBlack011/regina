@@ -439,6 +439,10 @@ private:
   /// of lower(target, goal) as a tree of facts (README.md, "Lower-bound
   /// mode"), for tools/cascade_check.py --lower.
   void writeLowerCertificate() const;
+  /// <work>/node_bounds.jsonl at a run's end: every node's identity,
+  /// diagram, proved profile entries and lower bounds (README.md,
+  /// "Lower-bound mode"), for the atlas's table beyond the tables.
+  void writeNodeBounds() const;
   void writeWitnessEdge(std::ostream &c, EdgeId e, std::set<NodeId> &nodes) const;
   void writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
                     std::set<NodeId> &nodes) const;
@@ -1592,6 +1596,70 @@ void Cascade::writeLowerCertificate() const {
   c << "\n]}\n";
 }
 
+void Cascade::writeNodeBounds() const {
+  using Kind = ProofGraph::LowerReason::Kind;
+  std::ofstream o(cfg_.work + "/node_bounds.jsonl");
+  auto kindName = [](Kind k) {
+    switch (k) {
+    case Kind::literature: return "literature";
+    case Kind::linking: return "linking";
+    case Kind::witness: return "witness";
+    case Kind::splitWhole: return "split-whole";
+    case Kind::splitPiece: return "split-piece";
+    case Kind::seed: return "seed";
+    default: return "none";
+    }
+  };
+  for (size_t i = 0; i < g_.nodeCount(); ++i) {
+    const NodeId n = static_cast<NodeId>(i);
+    const Node &node = g_.node(n);
+    o << "{\"node\":" << n << ",\"label\":\"" << jsonEscape(node.label) << "\",\"components\":"
+      << node.components << ",\"target\":" << (n == target_ ? "true" : "false");
+    if (auto t = tableName_.find(n); t != tableName_.end())
+      o << ",\"table\":\"" << jsonEscape(t->second) << "\"";
+    if (reg_.known(n)) {
+      const NodeInfo &ni = reg_.info(n);
+      const GaussDiagram &d = ni.diagram;
+      o << ",\"crossings\":" << d.crossings() << ",\"hyperbolic\":"
+        << (ni.hyperbolic ? "true" : "false");
+      if (ni.hyperbolic) o << ",\"volume\":" << std::setprecision(12) << ni.volume;
+      o << ",\"pd\":\"" << jsonEscape(rowPD(d)) << "\",\"signs\":" << ints(d.signs) << ",\"gauss\":[";
+      for (size_t c = 0; c < d.comps.size(); ++c) o << (c ? "," : "") << ints(d.comps[c]);
+      o << "],\"linking\":[";
+      for (size_t a = 0; a < ni.linking.size(); ++a) o << (a ? "," : "") << ints(ni.linking[a]);
+      o << "]";
+    }
+    o << ",\"upper\":[";
+    bool first = true;
+    for (const ProfileEntry &e : node.profile.entries()) {
+      bool constructive = true;
+      for (RecordId r : g_.proof(e.record))
+        if (g_.record(r).kind == RecordKind::leaf &&
+            g_.record(r).source.rfind("literature", 0) == 0)
+          constructive = false;
+      o << (first ? "" : ",") << "{\"partition\":\"" << e.partition.str() << "\",\"genus\":"
+        << e.genus << ",\"record\":" << e.record << ",\"constructive\":"
+        << (constructive ? "true" : "false") << "}";
+      first = false;
+    }
+    o << "],\"lower\":[";
+    first = true;
+    if (node.components <= ProofGraph::kMaxLowerComponents)
+      for (const Partition &p : allPartitions(node.components)) {
+        const auto f = g_.lowerWhy(n, p);
+        if (f.value <= 0 || !(f.storedFor == p)) continue; // stored bounds only, once each
+        o << (first ? "" : ",") << "{\"partition\":\"" << p.str() << "\",\"value\":"
+          << (f.value >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(f.value))
+          << ",\"kind\":\"" << kindName(f.reason.kind) << "\"";
+        if (f.reason.kind == Kind::literature)
+          o << ",\"source\":\"" << jsonEscape(node.lowerBoundSource) << "\"";
+        o << "}";
+        first = false;
+      }
+    o << "]}\n";
+  }
+}
+
 void Cascade::writeCertificate() const {
   auto best = g_.best(target_, goalPartition(target_));
   if (!best) return;
@@ -1782,6 +1850,7 @@ int Cascade::run() {
             << (best ? std::to_string(best->genus) : "none") << "\n";
   storeWitnesses();
   writeLowerReport();
+  writeNodeBounds();
   if (lowerMet() && !upperMet()) {
     // The bound's proof: the reasons from the target down to their leaves.
     const Partition goal = goalPartition(target_);
