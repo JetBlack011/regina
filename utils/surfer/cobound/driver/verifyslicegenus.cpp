@@ -37,6 +37,7 @@
 #include "cobound/solver/solver.h"
 #include "linknaming/names.h"
 #include "surfer/report/atomicwrite.h"
+#include "surfer/report/progress.h"
 #include "surfer/report/csvwriter.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
@@ -57,23 +58,12 @@ using namespace cobordismgraph;
 
 namespace {
 
-// Redraws a small status block in place (ANSI cursor-rewind, same erase
-// trick as surfer.cpp's RollingReport). Kept file-local and minimal (a
-// plain function, not a class) since this driver only ever needs one
-// concurrent rolling block -- the live-DFS progress (callbacks.onProgress)
-// and the post-search boundary-processing progress
-// (callbacks.onBoundaryProcessing*) never run at the same time (the
-// latter only starts once the former's DFS phase has fully joined), so
-// both can safely share the same redraw region.
-size_t progressPrevLines_ = 0;
-
-void redrawProgressBlock(const std::string &text) {
-  if (progressPrevLines_ > 0)
-    std::cerr << "\x1b[" << progressPrevLines_ << "F\x1b[0J";
-  std::cerr << text;
-  progressPrevLines_ =
-      static_cast<size_t>(std::count(text.begin(), text.end(), '\n'));
-}
+// The status block redrawn in place (surfer/report/progress). One is
+// enough: the live-DFS progress (callbacks.onProgress) and the post-search
+// boundary-processing progress (callbacks.onBoundaryProcessing*) never run
+// at the same time (the latter only starts once the former's DFS phase has
+// fully joined), so both share the same redraw region.
+report::RollingReport progressBlock;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Fatal-bug detection: a found surface implying a genus BELOW an already-
@@ -324,7 +314,7 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e) {
          << stats.rootsPerPass << " (visits " << stats.rootsCompleted << ")\n";
   report << "[+] surface homeomorphism types found so far: "
          << e.surfaceTypeTally().summary() << "\n";
-  redrawProgressBlock(report.str());
+  progressBlock.draw(report.str());
 }
 
 // Fired from callbacks.onBoundaryProcessingProgress once per second during
@@ -357,7 +347,7 @@ void printBoundaryProgress(size_t processed, size_t total,
          << (resolvedGenus ? std::to_string(*resolvedGenus) : "?") << "/"
          << target << " (literature target)"
          << (resolvedGenus ? " -- ACHIEVED" : "") << "\n";
-  redrawProgressBlock(report.str());
+  progressBlock.draw(report.str());
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -2750,7 +2740,7 @@ int main(int argc, char *argv[]) {
     callbacks.onBoundaryProcessingStarted = [&](size_t total,
                                                 unsigned threads) {
       drainTailQueued = total;
-      progressPrevLines_ = 0;
+      progressBlock.forget();
       std::cerr << "[+] boundary processing: " << total
                 << " queued surfaces, " << threads << " threads\n";
     };
@@ -2769,7 +2759,7 @@ int main(int argc, char *argv[]) {
     callbacks.onBoundaryProcessingComplete =
         [&](size_t total, std::chrono::steady_clock::duration elapsed) {
           drainTailTime = elapsed;
-          progressPrevLines_ = 0;
+          progressBlock.forget();
           std::cerr << "[+] boundary processing: done (" << total
                     << " processed in " << formatElapsed(elapsed) << ")\n";
         };
@@ -3100,7 +3090,7 @@ int main(int argc, char *argv[]) {
       appendSelfIntersectionCensus(*selfIntersectionCensusPath, row.name,
                                    maxFaces.value_or(0), resolveUnlinked,
                                    finalStats, *selfIntersectionCensus);
-    progressPrevLines_ = 0;
+    progressBlock.forget();
     ++searchedThisRun;
 
     // A row that cannot account for its surfaces vouches for no negative.

@@ -21,6 +21,7 @@
 #include <triangulation/dim4.h>
 
 #include "surfer/report/csvwriter.h"
+#include "surfer/report/progress.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
 #include "diagramtriangulation/thickening/thickening.h"
@@ -28,43 +29,6 @@
 #include "linknaming/complement/complementcache.h"
 
 namespace {
-
-// Redraws a block of text in place, using the same ANSI cursor-rewind
-// sequence the old inline reporters used, so each call's output overwrites
-// the previous one instead of scrolling the terminal.
-//
-// Thread-safe: draw() is normally called once a second from a single
-// dedicated reporter thread, but commitLine() (see below) can also fire
-// from an arbitrary worker thread at an arbitrary time relative to that
-// (e.g. SurfaceSearch's queue-drain-pause callbacks) -- both take the same
-// mutex, so two threads never interleave writes to std::cerr or race on
-// prevLines_.
-class RollingReport {
-  std::mutex mutex_;
-  size_t prevLines_ = 0;
-
-public:
-  void draw(const std::string &text) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (prevLines_ > 0)
-      std::cerr << "\x1b[" << prevLines_ << "F\x1b[0J";
-    std::cerr << text;
-    prevLines_ =
-        static_cast<size_t>(std::count(text.begin(), text.end(), '\n'));
-  }
-
-  // Prints `text` as permanent output, then resets this report's own
-  // erase-tracking so its *next* draw() call redraws fresh underneath
-  // `text` instead of erasing it -- for messages that need to survive
-  // independently of this report's own periodic redraw cycle (e.g. a
-  // queue-drain-pause/resume notice fired from a worker thread), rather
-  // than being silently overwritten by the next draw().
-  void commitLine(const std::string &text) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::cerr << text;
-    prevLines_ = 0;
-  }
-};
 
 // The columns every CSV row shares regardless of BoundaryCondition.
 std::string csvRow(bool orientable, int genus, int punctures,
@@ -482,8 +446,8 @@ void runSearch(const regina::Triangulation<4> &tri,
     return out.str();
   };
 
-  RollingReport searchReport;
-  RollingReport boundaryReport;
+  report::RollingReport searchReport;
+  report::RollingReport boundaryReport;
   SurfaceSearchCallbacks callbacks;
 
   // Rate-tracking for the isEmbedded()-true counter: the embeddedCount and

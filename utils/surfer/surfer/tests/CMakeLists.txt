@@ -11,6 +11,7 @@ set(TESTS
   sha1_test
   namecache_test
   atomicwrite_test
+  progress_test
 )
 
 # Every test links the surfer library (../CMakeLists.txt), and
