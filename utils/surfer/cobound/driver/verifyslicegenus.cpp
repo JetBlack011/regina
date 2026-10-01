@@ -502,29 +502,24 @@ void printBoundaryProgress(size_t processed, size_t total,
 using witnessstore::appendWitnesses;
 using witnessstore::loadNameTable;
 using witnessstore::loadWitnesses;
-using witnessstore::parseGenusField;
 using witnessstore::rewriteWitnessFile;
-using witnessstore::splitInputLine;
 
 
 std::vector<InputRow> loadInputCsv(const std::filesystem::path &path) {
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open input CSV: " + path.string());
-
   std::vector<InputRow> rows;
-  std::string line;
-  std::getline(in, line); // header
-  while (std::getline(in, line)) {
-    if (line.empty())
-      continue;
-    std::string name, pd, genusField;
-    if (!splitInputLine(line, name, pd, genusField))
-      continue;
+  for (const exactnaming::TableRow &table : exactnaming::readTableRows(path)) {
+    // A row to search must state its literature bounds: a malformed field
+    // stops the run (it always did), never becomes a bound.
+    const auto g4 = exactnaming::parseTableG4(table.g4);
+    if (!g4)
+      throw std::runtime_error("malformed 4-genus field '" + table.g4 + "' for " +
+                               table.name + " in " + path.string());
     InputRow row;
-    row.name = name;
-    row.pdNotation = pd;
-    parseGenusField(genusField, row.lo, row.hi);
+    row.name = table.name;
+    row.pdNotation = table.pd;
+    row.lo = g4->first;
+    row.hi = g4->second;
+    const std::string &pd = row.pdNotation;
     // Crossing count is derived from the PD code itself (works uniformly
     // for both knot names like "13n_1109" and link names like "L10a1{0}",
     // which have no leading digit run to parse) rather than from `name`.
@@ -2254,25 +2249,17 @@ int main(int argc, char *argv[]) {
   // `witnesses` as it goes; the copy costs a few MB against a search measured
   // in minutes.
   if (!knotSymmetryPath.empty()) {
-    std::ifstream in(knotSymmetryPath);
-    if (!in) {
+    exactnaming::SymmetryTable types;
+    try {
+      types = exactnaming::readSymmetryTable(knotSymmetryPath);
+    } catch (const std::exception &) {
       std::cerr << "[!] could not open knot symmetry table " << knotSymmetryPath
                 << "\n";
       return 1;
     }
-    std::string line;
-    std::getline(in, line); // header
-    size_t loaded = 0;
-    while (std::getline(in, line)) {
-      auto f = parseCsvLine(line);
-      if (f.size() < 2)
-        continue;
-      if (auto t = cobordismgraph::parseSymmetryType(f[1])) {
-        names.setSymmetry(f[0], *t);
-        ++loaded;
-      }
-    }
-    std::cout << "[+] Knot symmetry: " << loaded << " types from "
+    for (const auto &[knot, type] : types)
+      names.setSymmetry(knot, type);
+    std::cout << "[+] Knot symmetry: " << types.size() << " types from "
               << knotSymmetryPath << "\n";
   }
 

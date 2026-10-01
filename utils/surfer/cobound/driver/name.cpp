@@ -49,15 +49,8 @@ namespace {
 
 std::unordered_map<std::string, std::string> pdCodes(const std::string &path) {
     std::unordered_map<std::string, std::string> out;
-    std::ifstream in(path);
-    if (!in) throw regina::InvalidArgument("cannot open " + path);
-    std::string line;
-    std::getline(in, line);
-    while (std::getline(in, line)) {
-        size_t a = line.find(','), b = line.rfind(',');
-        if (a == std::string::npos || b <= a) continue;
-        out.emplace(line.substr(0, a), line.substr(a + 1, b - a - 1));
-    }
+    for (const exactnaming::TableRow &row : exactnaming::readTableRows(path))
+        out.emplace(row.name, row.pd);
     return out;
 }
 

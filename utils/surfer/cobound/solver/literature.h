@@ -13,11 +13,14 @@
 #include <unordered_map>
 #include <vector>
 
+#include "linknaming/tables.h"
+
 /*! \file utils/surfer/cobound/solver/literature.h
  *  \brief What the knot and link tables say about a name, independently of
  *  any surface found: its component count, its literature 4-genus bounds,
- *  its oriented variants, a knot's symmetry type, and the composites that
- *  are slice by elementary concordance (the anchors).
+ *  its oriented variants and a knot's symmetry type. The tables are read by
+ *  linknaming/tables.h, which also holds the symmetry types and the anchors
+ *  (exactnaming::isElementarySlice()).
  */
 
 namespace cobordismgraph {
@@ -32,26 +35,8 @@ struct InputRow {
     int crossings = 0;
 };
 
-/**
- * A prime knot's symmetry type, as data/knot_symmetry.csv records it
- * (KnotInfo, cross-checked against SnapPy through 10 crossings). It fixes the
- * concordance inverse -K = m(K^r):
- *   reversible            -K = mK
- *   fullyAmphicheiral     -K = K = mK
- *   negativeAmphicheiral  -K = K   (and K^r = mK, so mK is its own inverse too)
- *   positiveAmphicheiral  -K = K^r    } not expressible without a reversal
- *   chiral                -K = m(K^r) } marker, which our names lack
- */
-enum class SymmetryType {
-    chiral,
-    reversible,
-    positiveAmphicheiral,
-    negativeAmphicheiral,
-    fullyAmphicheiral
-};
-
-/** Parses KnotInfo's spelling ("negative amphicheiral"), or nullopt. */
-std::optional<SymmetryType> parseSymmetryType(const std::string &text);
+/** A prime knot's symmetry type: the one enum, linknaming/tables.h's. */
+using exactnaming::SymmetryType;
 
 /** What we know about one name independently of any surface we have found. */
 struct NameInfo {
@@ -112,6 +97,9 @@ class NameTable {
         return it == symmetry_.end() ? nullptr : &it->second;
     }
 
+    /** Every recorded symmetry type, for exactnaming::isElementarySlice(). */
+    const exactnaming::SymmetryTable &symmetries() const { return symmetry_; }
+
     /**
      * Whether upperOf()/lowerOf() bound sums along components and splits
      * with link factors from their pieces (--sum-rules): the additive upper
@@ -124,29 +112,11 @@ class NameTable {
 
   private:
     bool sumRules_ = false;
-    std::unordered_map<std::string, SymmetryType> symmetry_;
+    exactnaming::SymmetryTable symmetry_;
     std::unordered_map<std::string, NameInfo> info_;
     std::unordered_map<std::string, std::vector<std::string>> byBase_;
 };
 
-/**
- * Whether the knot `name` is slice by ELEMENTARY concordance-group reasoning,
- * making it an anchor exactly like the unknot.
- *
- * `K # -K` bounds a ribbon disc for every K, where `-K = m(K^r)` is the
- * concordance inverse, and a sum of slice knots is slice. So a composite knot
- * is elementarily slice when its summands pair off into inverse pairs. The
- * inverse depends on the summand's symmetry: for an invertible K, `-K = mK`;
- * if K is also amphicheiral, `-K = K`. Summands without a certified symmetry
- * (NameTable::symmetry), and every NON-invertible summand, are refused: our
- * names record chirality but not reversal, so for a non-invertible K the name
- * cannot say whether its neighbour is -K or its reverse (8_17 is the trap).
- *
- * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
- * with no symmetry data loaded, so a run without --knot-symmetry loses
- * nothing it had before.
- */
-bool isElementarySlice(const std::string &name, const NameTable &names);
 } // namespace cobordismgraph
 
 namespace witnessstore {

@@ -1,5 +1,6 @@
 set(LINKNAMING_TESTS
   names_test
+  tables_test
   linkcomplement_test
   censusnaming_test
   unlinknaming_test
@@ -14,6 +15,8 @@ foreach(TEST ${LINKNAMING_TESTS})
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES LABELS "surfer" TIMEOUT 60)
 endforeach()
+# The round trip over every table PD code (when the atlas tables are there).
+set_tests_properties(tables_test PROPERTIES TIMEOUT 300)
 
 add_executable(isometry_test isometry_test.cpp)
 target_link_libraries(isometry_test linknaming_lib diagramtriangulation_lib surfer_mimalloc)

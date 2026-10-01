@@ -6,12 +6,8 @@
 using namespace cascade;
 
 int main() {
-  // F1: table values parse exactly; malformed ones never become bounds.
-  CHECK(parseTableG4("2") == std::make_pair(2, 2), "plain value");
-  CHECK(parseTableG4("[0;1]") == std::make_pair(0, 1), "interval");
-  CHECK(parseTableG4("[1;2]") == std::make_pair(1, 2), "interval 1..2");
-  for (const char *bad : {"", "x", "[1;0]", "[;1]", "[0;]", "[0,1]", "-1", "1.5", "[0;1"})
-    CHECK(!parseTableG4(bad).has_value(), std::string("malformed refused: ") + bad);
+  // F1 (table values parse exactly; malformed ones never become bounds) is
+  // tables_test's now, with the parser (linknaming/tables.h).
   // F2: never the target's own class (circular), otherwise when allowed.
   CHECK(!mayUseLiteratureUpperBound("13n_65", "13n_65", true),
         "the target's own literature never proves it");

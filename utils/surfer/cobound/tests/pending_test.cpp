@@ -27,6 +27,7 @@
 #include "cobound/search/search.h"
 #include "cobound/cobordisms/pending.h"
 #include "cobound/bounds/links.h"
+#include "linknaming/tables.h"
 #include "linknaming/tests/check.h"
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/database.h"
@@ -42,24 +43,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-regina::Link linkFromRowPD(const std::string &pd) {
-  std::vector<std::array<int, 4>> xs;
-  std::vector<int> nums;
-  std::string cur;
-  for (char c : pd) {
-    if (std::isdigit(static_cast<unsigned char>(c))) cur += c;
-    else if (!cur.empty()) { nums.push_back(std::stoi(cur)); cur.clear(); }
-  }
-  if (!cur.empty()) nums.push_back(std::stoi(cur));
-  const int shift = *std::min_element(nums.begin(), nums.end()) == 0 ? 1 : 0;
-  for (size_t i = 0; i + 3 < nums.size(); i += 4)
-    xs.push_back({nums[i] + shift, nums[i + 1] + shift, nums[i + 2] + shift,
-                  nums[i + 3] + shift});
-  return regina::Link::fromPD(xs.begin(), xs.end());
-}
-
 HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
-  const regina::Link l = linkFromRowPD(pd);
+  const regina::Link l = exactnaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);

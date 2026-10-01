@@ -5,15 +5,12 @@
 
 #pragma once
 
-#include <optional>
 #include <string>
-#include <utility>
 
 namespace cascade {
 
-/// A table's literature 4-genus, "2" or "[0;1]", as (lo, hi); nullopt if the
-/// field is malformed (a malformed value must never become a bound).
-std::optional<std::pair<int, int>> parseTableG4(const std::string &s);
+// A table's literature 4-genus is parsed by exactnaming::parseTableG4()
+// (linknaming/tables.h), the one parser of that field.
 
 /**
  * Whether a node whose exact table class is `nodeClass` may receive that

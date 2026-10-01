@@ -554,7 +554,7 @@ void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
     for (const Witness &w : witnesses)
         for (const std::string &side : {w.other, w.subject})
             if (identify::isMultiComponentUnlinkName(side) ||
-                isElementarySlice(side, names))
+                exactnaming::isElementarySlice(side, names.symmetries()))
                 axiom(side);
 }
 

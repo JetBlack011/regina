@@ -502,12 +502,12 @@ namespace {
 // written as every alternative. Returns the alternatives, sorted.
 std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &summands,
                                           const ExactTables &tables) {
-    struct Bits { std::string name; Symmetry sym; bool m, r; };
+    struct Bits { std::string name; std::optional<SymmetryType> sym; bool m, r; };
     // Every assignment of the unpinned bits.
     std::vector<std::vector<Bits>> assignments{{}};
     for (const PieceName *p : summands) {
         const std::string &k = p->names.front();
-        const Symmetry sym = tables.symmetry(k);
+        const std::optional<SymmetryType> sym = tables.symmetry(k);
         std::vector<std::vector<Bits>> next;
         for (const auto &a : assignments)
             for (int m = 0; m < 2; ++m) {
@@ -522,11 +522,11 @@ std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &
         assignments = std::move(next);
     }
     auto token = [](Bits b) {
-        switch (b.sym) {
-            case Symmetry::fullyAmphicheiral: b.m = b.r = false; break;
-            case Symmetry::reversible: b.r = false; break;
-            case Symmetry::positiveAmphicheiral: b.m = false; break;
-            case Symmetry::negativeAmphicheiral: b.m = (b.m != b.r); b.r = false; break;
+        switch (b.sym.value_or(SymmetryType::chiral)) {
+            case SymmetryType::fullyAmphicheiral: b.m = b.r = false; break;
+            case SymmetryType::reversible: b.r = false; break;
+            case SymmetryType::positiveAmphicheiral: b.m = false; break;
+            case SymmetryType::negativeAmphicheiral: b.m = (b.m != b.r); b.r = false; break;
             default: break; // chiral or unknown: both matter
         }
         return std::string(b.m ? "m" : "") + (b.r ? "r" : "") + b.name;

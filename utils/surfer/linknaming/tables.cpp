@@ -6,41 +6,170 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <fstream>
+#include <map>
 #include <stdexcept>
+#include <tuple>
 
 #include "linknaming/names.h"
 
 namespace exactnaming {
 
-namespace {
-
-// Rows of a "Name,PD,Genus-4D" table: the name (before the first comma), the
-// PD field (between the first and the last) and the 4-genus (after the last).
-template <typename Fn>
-void eachRow(const std::string &path, Fn &&fn) {
+std::vector<TableRow> readTableRows(const std::filesystem::path &path) {
     std::ifstream in(path);
-    if (!in) throw regina::InvalidArgument("cannot open " + path);
+    if (!in) throw regina::InvalidArgument("cannot open " + path.string());
+    std::vector<TableRow> rows;
     std::string line;
     std::getline(in, line); // header
     while (std::getline(in, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
-        size_t a = line.find(','), b = line.rfind(',');
-        if (a == std::string::npos || b <= a) continue;
-        fn(line.substr(0, a), line.substr(a + 1, b - a - 1), line.substr(b + 1));
+        if (line.empty()) continue;
+        const size_t a = line.find(',');
+        if (a == std::string::npos) continue;
+        const size_t b = line.find(',', a + 1);
+        if (b == std::string::npos) continue;
+        rows.push_back({line.substr(0, a), line.substr(a + 1, b - a - 1), line.substr(b + 1)});
     }
+    return rows;
 }
 
-Symmetry parseSymmetry(const std::string &s) {
-    if (s == "chiral") return Symmetry::chiral;
-    if (s == "reversible") return Symmetry::reversible;
-    if (s == "positive amphicheiral") return Symmetry::positiveAmphicheiral;
-    if (s == "negative amphicheiral") return Symmetry::negativeAmphicheiral;
-    if (s == "fully amphicheiral") return Symmetry::fullyAmphicheiral;
-    return Symmetry::unknown;
+namespace {
+std::optional<int> parseDigits(const std::string &s) {
+    if (s.empty()) return std::nullopt;
+    for (char c : s)
+        if (!std::isdigit(static_cast<unsigned char>(c))) return std::nullopt;
+    return std::stoi(s);
+}
+} // namespace
+
+std::optional<std::pair<int, int>> parseTableG4(const std::string &s) {
+    if (s.size() >= 5 && s.front() == '[' && s.back() == ']') {
+        const auto semi = s.find(';');
+        if (semi == std::string::npos) return std::nullopt;
+        auto lo = parseDigits(s.substr(1, semi - 1));
+        auto hi = parseDigits(s.substr(semi + 1, s.size() - semi - 2));
+        if (!lo || !hi || *lo > *hi) return std::nullopt;
+        return std::make_pair(*lo, *hi);
+    }
+    if (auto v = parseDigits(s)) return std::make_pair(*v, *v);
+    return std::nullopt;
+}
+
+std::optional<SymmetryType> parseSymmetryType(const std::string &text) {
+    if (text == "chiral")
+        return SymmetryType::chiral;
+    if (text == "reversible")
+        return SymmetryType::reversible;
+    if (text == "positive amphicheiral")
+        return SymmetryType::positiveAmphicheiral;
+    if (text == "negative amphicheiral")
+        return SymmetryType::negativeAmphicheiral;
+    if (text == "fully amphicheiral")
+        return SymmetryType::fullyAmphicheiral;
+    return std::nullopt;
+}
+
+SymmetryTable readSymmetryTable(const std::filesystem::path &path) {
+    std::ifstream in(path);
+    if (!in) throw regina::InvalidArgument("cannot open " + path.string());
+    SymmetryTable table;
+    std::string line;
+    std::getline(in, line); // header
+    while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        const size_t a = line.find(',');
+        if (a == std::string::npos) continue;
+        const size_t b = line.find(',', a + 1);
+        if (auto t = parseSymmetryType(
+                line.substr(a + 1, b == std::string::npos ? std::string::npos : b - a - 1)))
+            table[line.substr(0, a)] = *t;
+    }
+    return table;
+}
+
+namespace {
+
+/**
+ * Composite knots that bound a smooth disk, and so ground a chain exactly as
+ * the unknot does.
+ *
+ * `K # m(K^r)` -- K summed with the reverse of its mirror -- is the identity
+ * of the concordance group and bounds an explicit ribbon disk, for every K.
+ * Which *spelling* of that qualifies depends on the symmetry of K, so this is
+ * an explicit allowlist and not a pattern:
+ *
+ *   - "3_1#m3_1": 3_1 is invertible, so 3_1^r = 3_1 and m(3_1^r) = m3_1.
+ *   - "4_1#4_1":  4_1 is invertible AND amphichiral, so m(4_1^r) = 4_1 and
+ *                 the sum of 4_1 with *itself* is already the ribbon case.
+ *
+ * DO NOT generalize this to the string pattern "A#mA". That is wrong as soon
+ * as A is non-invertible (the first such knot is 8_17), where A # mA and
+ * A # m(A^r) are different knots and only the latter is slice. Adding an
+ * entry means checking the symmetry of the summand first.
+ *
+ * Names are matched exactly, in the canonical spelling that
+ * tools/identify_by_retriangulation.py emits: summands sorted, and the
+ * lexicographically smaller of the name and its overall mirror.
+ */
+bool isSliceComposite(const std::string &name) {
+    return name == "3_1#m3_1" || name == "4_1#4_1";
 }
 
 } // namespace
+
+bool isElementarySlice(const std::string &name, const SymmetryTable &symmetry) {
+    if (isSliceComposite(name))
+        return true;
+    std::vector<std::string> parts = cobordismgraph::knotSummands(name);
+    if (parts.empty())
+        return false;
+    // Each summand reduced to what its symmetry type leaves meaningful of its
+    // marks (m: mirrored, r: reversed), as (knot, m, r) with the meaningless
+    // marks cleared; its concordance inverse -K = mrK reduced the same way.
+    // Slice when every reduced summand pairs off with its inverse (a
+    // self-inverse one with another copy of itself).
+    using Key = std::tuple<std::string, bool, bool>;
+    auto reduce = [](const std::string &knot, SymmetryType type, bool m, bool r) -> Key {
+        switch (type) {
+        case SymmetryType::fullyAmphicheiral: return {knot, false, false};
+        case SymmetryType::reversible: return {knot, m, false};         // K^r = K
+        case SymmetryType::negativeAmphicheiral: return {knot, m != r, false}; // K^r = mK
+        case SymmetryType::positiveAmphicheiral: return {knot, false, r};      // mK = K
+        default: return {knot, m, r};                                   // chiral
+        }
+    };
+    std::map<Key, int> count;
+    std::map<Key, Key> inverse;
+    for (const std::string &p : parts) {
+        if (p == "Unknot" || p == "mUnknot")
+            continue;
+        size_t k = 0;
+        const bool m = k < p.size() && p[k] == 'm';
+        if (m) ++k;
+        const bool r = k < p.size() && p[k] == 'r';
+        if (r) ++k;
+        const std::string knot = p.substr(k);
+        auto type = symmetry.find(knot);
+        if (type == symmetry.end())
+            return false;
+        const Key key = reduce(knot, type->second, m, r);
+        ++count[key];
+        inverse[key] = reduce(knot, type->second, !m, !r);
+    }
+    for (const auto &[key, n] : count) {
+        const Key &inv = inverse.at(key);
+        if (inv == key) {
+            if (n % 2 != 0)
+                return false;
+        } else {
+            auto it = count.find(inv);
+            if (it == count.end() || it->second != n)
+                return false;
+        }
+    }
+    return true;
+}
 
 regina::Link linkFromTablePD(const std::string &pd) {
     std::vector<std::array<long, 4>> code;
@@ -56,8 +185,11 @@ regina::Link linkFromTablePD(const std::string &pd) {
     }
     if (n.empty() || n.size() % 4 != 0)
         throw regina::InvalidArgument("not a PD code: " + pd);
+    // Regina numbers strands from 1; a code holding a 0 is 0-based (a literal
+    // 0 can appear in no other), as parsePDCode() also reads it.
+    const long shift = std::ranges::find(n, 0L) != n.end() ? 1 : 0;
     for (size_t i = 0; i < n.size(); i += 4)
-        code.push_back({n[i], n[i + 1], n[i + 2], n[i + 3]});
+        code.push_back({n[i] + shift, n[i + 1] + shift, n[i + 2] + shift, n[i + 3] + shift});
     return regina::Link::fromPD(code.begin(), code.end());
 }
 
@@ -74,8 +206,8 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
         t.byName_.emplace(name, t.entries_.size());
         t.entries_.push_back(std::move(e));
     };
-    eachRow(knotTable, add);
-    eachRow(linkTable, add);
+    for (const std::string &table : {knotTable, linkTable})
+        for (const TableRow &row : readTableRows(table)) add(row.name, row.pd, row.g4);
     if (t.entries_.empty()) throw regina::InvalidArgument("the tables yielded no entries");
 
     // Indices, only once entries_ no longer moves.
@@ -124,18 +256,7 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
             }
         }
     }
-    if (!knotSymmetry.empty()) {
-        std::ifstream in(knotSymmetry);
-        if (!in) throw regina::InvalidArgument("cannot open " + knotSymmetry);
-        std::string line;
-        std::getline(in, line);
-        while (std::getline(in, line)) {
-            size_t a = line.find(','), b = line.find(',', a + 1);
-            if (a == std::string::npos) continue;
-            t.symmetry_[line.substr(0, a)] =
-                parseSymmetry(line.substr(a + 1, b == std::string::npos ? std::string::npos : b - a - 1));
-        }
-    }
+    if (!knotSymmetry.empty()) t.symmetry_ = readSymmetryTable(knotSymmetry);
     return t;
 }
 
@@ -165,115 +286,15 @@ const std::string &ExactTables::canonical(const std::string &name) const {
     return it == canonical_.end() ? name : it->second;
 }
 
-Symmetry ExactTables::symmetry(const std::string &knot) const {
+std::optional<SymmetryType> ExactTables::symmetry(const std::string &knot) const {
     auto it = symmetry_.find(knot);
-    return it == symmetry_.end() ? Symmetry::unknown : it->second;
+    if (it == symmetry_.end()) return std::nullopt;
+    return it->second;
 }
 
 } // namespace exactnaming
 
-namespace witnessstore {
-
-// One row of the input knot table (Name,PD Notation,Genus-4D). No RFC-4180
-// quoting appears in that file (PD Notation uses ';' internally, never a
-// literal comma), so a naive two-comma split suffices -- see the input
-// table's own format, confirmed during design.
-bool splitInputLine(const std::string &line, std::string &name,
-                    std::string &pd, std::string &genusField) {
-  size_t c1 = line.find(',');
-  if (c1 == std::string::npos)
-    return false;
-  size_t c2 = line.find(',', c1 + 1);
-  if (c2 == std::string::npos)
-    return false;
-  name = line.substr(0, c1);
-  pd = line.substr(c1 + 1, c2 - c1 - 1);
-  genusField = line.substr(c2 + 1);
-  if (!genusField.empty() && genusField.back() == '\r')
-    genusField.pop_back();
-  return true;
-}
-
-// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
-void parseGenusField(const std::string &field, int &lo, int &hi) {
-  if (!field.empty() && field.front() == '[') {
-    size_t semi = field.find(';');
-    lo = std::stoi(field.substr(1, semi - 1));
-    hi = std::stoi(field.substr(semi + 1, field.size() - semi - 2));
-  } else {
-    lo = hi = std::stoi(field);
-  }
-}
-
-std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path) {
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open name table: " + path.string());
-
-  std::vector<LiteratureRow> rows;
-  std::string line;
-  std::getline(in, line); // header
-  while (std::getline(in, line)) {
-    if (line.empty())
-      continue;
-    LiteratureRow row;
-    std::string genusField;
-    if (!splitInputLine(line, row.name, row.pd, genusField))
-      continue;
-    try {
-      parseGenusField(genusField, row.lo, row.hi);
-    } catch (const std::exception &) {
-      continue;
-    }
-    rows.push_back(std::move(row));
-  }
-  return rows;
-}
-
-} // namespace witnessstore
-
 namespace farside {
-
-namespace {
-
-// Rows of a "Name,PD,..." table: the name, and the PD field (everything
-// between the first comma and the last).
-template <typename Fn>
-void eachRow(const std::string &path, Fn &&fn) {
-    if (path.empty()) return;
-    std::ifstream in(path);
-    if (!in) throw regina::InvalidArgument("cannot open " + path);
-    std::string line;
-    std::getline(in, line); // header
-    while (std::getline(in, line)) {
-        size_t a = line.find(','), b = line.rfind(',');
-        if (a == std::string::npos || b <= a) continue;
-        fn(line.substr(0, a), line.substr(a + 1, b - a - 1));
-    }
-}
-
-// A table PD code as Regina reads it: the integers in fours, labels as
-// written (1..2n). Not knotbuilder::parsePDCode(), which renumbers from 0.
-regina::Link linkOf(const std::string &pd) {
-    std::vector<std::array<long, 4>> code;
-    std::vector<long> n;
-    long cur = -1;
-    for (char ch : pd + ' ') {
-        if (ch >= '0' && ch <= '9') {
-            cur = (cur < 0 ? 0 : cur * 10) + (ch - '0');
-        } else if (cur >= 0) {
-            n.push_back(cur);
-            cur = -1;
-        }
-    }
-    if (n.empty() || n.size() % 4 != 0)
-        throw regina::InvalidArgument("not a PD code: " + pd);
-    for (size_t i = 0; i < n.size(); i += 4)
-        code.push_back({n[i], n[i + 1], n[i + 2], n[i + 3]});
-    return regina::Link::fromPD(code.begin(), code.end());
-}
-
-} // namespace
 
 SignatureTable SignatureTable::fromTables(const std::string &knotTable,
                                           const std::string &linkTable) {
@@ -281,15 +302,20 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
     // partial table would quietly send every far side back to the
     // complement route (it did, once, when the PD codes were read with
     // 0-based labels).
+    // The PD codes as Regina reads them (exactnaming::linkFromTablePD()):
+    // labels as written, 1..2n. Not knotbuilder::parsePDCode(), which
+    // renumbers from 0.
     SignatureTable t;
-    eachRow(knotTable, [&](const std::string &name, const std::string &pd) {
-        t.knots_.try_emplace(linkOf(pd).knotSig(true, true), name);
-        t.knotNames_.insert(name);
-    });
-    eachRow(linkTable, [&](const std::string &name, const std::string &pd) {
-        t.links_.try_emplace(linkOf(pd).sig<2>(true, true, true),
-                             cobordismgraph::stripOrientationTag(name));
-    });
+    if (!knotTable.empty())
+        for (const exactnaming::TableRow &row : exactnaming::readTableRows(knotTable)) {
+            t.knots_.try_emplace(exactnaming::linkFromTablePD(row.pd).knotSig(true, true),
+                                 row.name);
+            t.knotNames_.insert(row.name);
+        }
+    if (!linkTable.empty())
+        for (const exactnaming::TableRow &row : exactnaming::readTableRows(linkTable))
+            t.links_.try_emplace(exactnaming::linkFromTablePD(row.pd).sig<2>(true, true, true),
+                                 cobordismgraph::stripOrientationTag(row.name));
     if ((!knotTable.empty() && t.knots_.empty()) ||
         (!linkTable.empty() && t.links_.empty()))
         throw regina::InvalidArgument("a table yielded no signatures");

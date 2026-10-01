@@ -1257,21 +1257,6 @@ void test_unproved_split_far_side_bounds_nothing() {
 // Composite far-side names: "K #_c L"
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_elementary_slice_with_marks() {
-    NameTable names;
-    names.setSymmetry("3_1", SymmetryType::reversible);
-    names.setSymmetry("9_32", SymmetryType::chiral);
-    names.setSymmetry("8_17", SymmetryType::negativeAmphicheiral);
-    names.setSymmetry("12a_1", SymmetryType::positiveAmphicheiral);
-    EXPECT_EQ(isElementarySlice("9_32#mr9_32", names), true, "chiral: K # mrK = K # -K");
-    EXPECT_EQ(isElementarySlice("9_32#m9_32", names), false, "chiral: K # mK is not");
-    EXPECT_EQ(isElementarySlice("3_1#mr3_1", names), true, "reversible: the r is meaningless");
-    EXPECT_EQ(isElementarySlice("8_17#8_17", names), true, "negative amphicheiral: -K = K");
-    EXPECT_EQ(isElementarySlice("8_17#r8_17", names), false, "8_17 # r8_17 = 8_17 # m8_17 is not");
-    EXPECT_EQ(isElementarySlice("12a_1#r12a_1", names), true, "positive amphicheiral: -K = rK");
-    EXPECT_EQ(isElementarySlice("12a_1#12a_1", names), false, "and K # K is not");
-}
-
 // An exact far side bounds by ITS variant, not the worst of its base's, and
 // receives a bound from the subject whatever its component count.
 void test_exact_far_side() {
@@ -1384,35 +1369,6 @@ NameTable symmetryTable() {
 }
 } // namespace
 
-void test_elementary_slice() {
-    NameTable none;
-    EXPECT_EQ(isElementarySlice("3_1#m3_1", none), true,
-              "the long-standing anchors survive with no symmetry data");
-    EXPECT_EQ(isElementarySlice("4_1#4_1", none), true, "both of them");
-    EXPECT_EQ(isElementarySlice("5_2#m5_2", none), false,
-              "anything else needs the summand's symmetry type");
-
-    NameTable n = symmetryTable();
-    EXPECT_EQ(isElementarySlice("m3_1#3_1", n), true,
-              "reversible: -3_1 = m3_1, in either spelling");
-    EXPECT_EQ(isElementarySlice("3_1#3_1", n), false,
-              "the granny knot is not slice");
-    EXPECT_EQ(isElementarySlice("4_1#m4_1", n), true,
-              "fully amphicheiral: m4_1 = 4_1 = -4_1");
-    EXPECT_EQ(isElementarySlice("5_2#m5_2#4_1#4_1", n), true,
-              "a sum of inverse pairs is slice");
-    EXPECT_EQ(isElementarySlice("3_1#m3_1#4_1", n), false,
-              "an unpaired summand spoils it");
-    EXPECT_EQ(isElementarySlice("8_17#8_17", n), true,
-              "negative amphicheiral: -8_17 = 8_17, so 8_17 # 8_17 is slice");
-    EXPECT_EQ(isElementarySlice("8_17#m8_17", n), false,
-              "but 8_17 # m8_17 = 8_17 # 8_17^r is not -- the classic trap");
-    EXPECT_EQ(isElementarySlice("9_32#m9_32", n), false,
-              "chiral non-invertible: -K = m(K^r) is not what the name says");
-    EXPECT_EQ(isElementarySlice("6_1#m6_1", n), false,
-              "unknown symmetry type: refused, never guessed");
-}
-
 void test_elementary_slice_is_a_constructive_anchor() {
     NameTable names = symmetryTable();
     names.addLiterature("K", 0, 9);
@@ -1497,7 +1453,6 @@ int main() {
         test_composite_takes_the_worst_orientation);
     run("unproved_composite_bounds_nothing",
         test_unproved_composite_bounds_nothing);
-    run("elementary_slice", test_elementary_slice);
     run("elementary_slice_is_a_constructive_anchor",
         test_elementary_slice_is_a_constructive_anchor);
     run("composite_knot_bounds", test_composite_knot_bounds);
@@ -1579,7 +1534,6 @@ int main() {
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
     run("witness_identity", test_witness_identity);
-    run("elementary_slice_with_marks", test_elementary_slice_with_marks);
     run("exact_far_side", test_exact_far_side);
     run("sum_rules", test_sum_rules);
 

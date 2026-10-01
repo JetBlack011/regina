@@ -8,6 +8,7 @@
 
 #include <link/link.h>
 
+#include "diagramtriangulation/pdcode.h"
 #include "linknaming/diagrams/diagramiso.h"
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoinglink.h"
@@ -45,15 +46,7 @@ std::string rowPD(const GaussDiagram &d) {
           throw std::runtime_error("rowPD: an over-everywhere component is linked");
     }
   }
-  std::ostringstream o;
-  o << '[';
-  bool first = true;
-  for (const auto &x : l.pdData()) {
-    o << (first ? "" : ";") << '[' << x[0] << ';' << x[1] << ';' << x[2] << ';' << x[3] << ']';
-    first = false;
-  }
-  o << ']';
-  return o.str();
+  return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
 }
 
 HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,

@@ -79,6 +79,7 @@
 #include "cobound/outgoing/farsideredraw.h"
 #include "diagramtriangulation/todiagram.h"
 #include "diagramtriangulation/fromdiagram.h"
+#include "diagramtriangulation/pdcode.h"
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/submanifold/vertexlinks.h"
@@ -261,14 +262,9 @@ int main(int argc, char **argv) {
                 first = false;
             }
             inc << '}';
-            std::ostringstream pdOut;
-            pdOut << '[';
-            for (size_t i = 0; i < d.pd.size(); ++i)
-                pdOut << (i ? "," : "") << '[' << d.pd[i][0] << ',' << d.pd[i][1] << ','
-                      << d.pd[i][2] << ',' << d.pd[i][3] << ']';
-            pdOut << ']';
             std::cout << "W " << id << " ok components=" << d.components
-                      << " crossingless=" << list(d.crossingless) << " pd=" << pdOut.str()
+                      << " crossingless=" << list(d.crossingless) << " pd="
+                      << knotbuilder::formatPDCode(d.pd, knotbuilder::PDSpelling::commas)
                       << " lk=" << matrix(d) << " surface=" << list(link->surfaceComponent)
                       << " incoming=" << inc.str()
                       << (gauss ? gaussFields(d) + curveEdges(link->curves) + " genus=" +

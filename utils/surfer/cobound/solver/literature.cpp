@@ -4,9 +4,6 @@
 
 #include "cobound/solver/literature.h"
 
-#include <map>
-#include <tuple>
-
 #include "linknaming/names.h"
 #include "linknaming/tables.h"
 
@@ -55,102 +52,6 @@ NameTable::candidates(const std::string &name,
     return filtered.empty() ? std::vector<std::string>{name} : filtered;
 }
 
-namespace {
-
-/**
- * Composite knots that bound a smooth disk, and so ground a chain exactly as
- * the unknot does.
- *
- * `K # m(K^r)` -- K summed with the reverse of its mirror -- is the identity
- * of the concordance group and bounds an explicit ribbon disk, for every K.
- * Which *spelling* of that qualifies depends on the symmetry of K, so this is
- * an explicit allowlist and not a pattern:
- *
- *   - "3_1#m3_1": 3_1 is invertible, so 3_1^r = 3_1 and m(3_1^r) = m3_1.
- *   - "4_1#4_1":  4_1 is invertible AND amphichiral, so m(4_1^r) = 4_1 and
- *                 the sum of 4_1 with *itself* is already the ribbon case.
- *
- * DO NOT generalize this to the string pattern "A#mA". That is wrong as soon
- * as A is non-invertible (the first such knot is 8_17), where A # mA and
- * A # m(A^r) are different knots and only the latter is slice. Adding an
- * entry means checking the symmetry of the summand first.
- *
- * Names are matched exactly, in the canonical spelling that
- * tools/identify_by_retriangulation.py emits: summands sorted, and the
- * lexicographically smaller of the name and its overall mirror.
- */
-bool isSliceComposite(const std::string &name) {
-    return name == "3_1#m3_1" || name == "4_1#4_1";
-}
-} // namespace
-
-bool isElementarySlice(const std::string &name, const NameTable &names) {
-    if (isSliceComposite(name))
-        return true;
-    std::vector<std::string> parts = knotSummands(name);
-    if (parts.empty())
-        return false;
-    // Each summand reduced to what its symmetry type leaves meaningful of its
-    // marks (m: mirrored, r: reversed), as (knot, m, r) with the meaningless
-    // marks cleared; its concordance inverse -K = mrK reduced the same way.
-    // Slice when every reduced summand pairs off with its inverse (a
-    // self-inverse one with another copy of itself).
-    using Key = std::tuple<std::string, bool, bool>;
-    auto reduce = [](const std::string &knot, SymmetryType type, bool m, bool r) -> Key {
-        switch (type) {
-        case SymmetryType::fullyAmphicheiral: return {knot, false, false};
-        case SymmetryType::reversible: return {knot, m, false};         // K^r = K
-        case SymmetryType::negativeAmphicheiral: return {knot, m != r, false}; // K^r = mK
-        case SymmetryType::positiveAmphicheiral: return {knot, false, r};      // mK = K
-        default: return {knot, m, r};                                   // chiral
-        }
-    };
-    std::map<Key, int> count;
-    std::map<Key, Key> inverse;
-    for (const std::string &p : parts) {
-        if (p == "Unknot" || p == "mUnknot")
-            continue;
-        size_t k = 0;
-        const bool m = k < p.size() && p[k] == 'm';
-        if (m) ++k;
-        const bool r = k < p.size() && p[k] == 'r';
-        if (r) ++k;
-        const std::string knot = p.substr(k);
-        const SymmetryType *type = names.symmetry(knot);
-        if (!type)
-            return false;
-        const Key key = reduce(knot, *type, m, r);
-        ++count[key];
-        inverse[key] = reduce(knot, *type, !m, !r);
-    }
-    for (const auto &[key, n] : count) {
-        const Key &inv = inverse.at(key);
-        if (inv == key) {
-            if (n % 2 != 0)
-                return false;
-        } else {
-            auto it = count.find(inv);
-            if (it == count.end() || it->second != n)
-                return false;
-        }
-    }
-    return true;
-}
-
-std::optional<SymmetryType> parseSymmetryType(const std::string &text) {
-    if (text == "chiral")
-        return SymmetryType::chiral;
-    if (text == "reversible")
-        return SymmetryType::reversible;
-    if (text == "positive amphicheiral")
-        return SymmetryType::positiveAmphicheiral;
-    if (text == "negative amphicheiral")
-        return SymmetryType::negativeAmphicheiral;
-    if (text == "fully amphicheiral")
-        return SymmetryType::fullyAmphicheiral;
-    return std::nullopt;
-}
-
 } // namespace cobordismgraph
 
 namespace witnessstore {
@@ -163,10 +64,11 @@ namespace witnessstore {
 size_t loadNameTable(const std::filesystem::path &path,
                      cobordismgraph::NameTable &names) {
   size_t loaded = 0;
-  for (const LiteratureRow &row : readLiteratureRows(path)) {
-    names.addLiterature(row.name, row.lo, row.hi);
-    ++loaded;
-  }
+  for (const exactnaming::TableRow &row : exactnaming::readTableRows(path))
+    if (auto g4 = exactnaming::parseTableG4(row.g4)) {
+      names.addLiterature(row.name, g4->first, g4->second);
+      ++loaded;
+    }
   return loaded;
 }
 

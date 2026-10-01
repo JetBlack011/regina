@@ -16,6 +16,7 @@
 
 #include "cobound/bounds/searchcobordisms.h"
 #include "cobound/bounds/links.h"
+#include "linknaming/tables.h"
 #include "linknaming/tests/check.h"
 
 #ifndef CASCADE_TEST_DATA
@@ -54,23 +55,6 @@ std::vector<Row> readWitnesses(const std::string &path) {
   return rows;
 }
 
-// A row PD as knotbuilder reads it: labels from 0 or 1.
-regina::Link linkFromRowPD(const std::string &pd) {
-  std::vector<std::array<int, 4>> xs;
-  std::vector<int> nums;
-  std::string cur;
-  for (char c : pd) {
-    if (std::isdigit(static_cast<unsigned char>(c))) cur += c;
-    else if (!cur.empty()) { nums.push_back(std::stoi(cur)); cur.clear(); }
-  }
-  if (!cur.empty()) nums.push_back(std::stoi(cur));
-  const int shift = *std::min_element(nums.begin(), nums.end()) == 0 ? 1 : 0;
-  for (size_t i = 0; i + 3 < nums.size(); i += 4)
-    xs.push_back({nums[i] + shift, nums[i + 1] + shift, nums[i + 2] + shift,
-                  nums[i + 3] + shift});
-  return regina::Link::fromPD(xs.begin(), xs.end());
-}
-
 GaussDiagram of(const regina::Link &l) {
   std::vector<size_t> origin(l.countComponents());
   std::iota(origin.begin(), origin.end(), 0);
@@ -80,7 +64,7 @@ GaussDiagram of(const regina::Link &l) {
 // The row as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
 HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
-  GaussDiagram d = of(linkFromRowPD(pd));
+  GaussDiagram d = of(exactnaming::linkFromTablePD(pd));
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
   HopRow row;
   row.node = nm.node;

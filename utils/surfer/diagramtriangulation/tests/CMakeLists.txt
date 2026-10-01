@@ -1,4 +1,5 @@
 set(DIAGRAMTRIANGULATION_TESTS
+  pdcode_test
   fromdiagram_test
   todiagram_test
   thickening_test

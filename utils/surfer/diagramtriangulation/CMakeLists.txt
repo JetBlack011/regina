@@ -4,7 +4,7 @@
 # Its library (see ../CMakeLists.txt for the dependency rule), then its own
 # tool and tests.
 add_library(diagramtriangulation_lib STATIC
-  fromdiagram.cpp block.cpp todiagram.cpp
+  pdcode.cpp fromdiagram.cpp block.cpp todiagram.cpp
   thickening/thickening.cpp thickening/prism.cpp thickening/collar.cpp)
 target_link_libraries(diagramtriangulation_lib PUBLIC ${ENGINE_LIBRARY}
                       linknaming_complement)

@@ -28,14 +28,97 @@
 #define SURFER_EXACTNAMING_EXACTTABLES_H
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <link/link.h>
 
 namespace exactnaming {
+
+// ---- the table files ----
+
+/** One row of a knot or link table ("Name,PD,Genus-4D"), as written. */
+struct TableRow {
+    std::string name; /**< "3_1", "L7n1{1}" */
+    std::string pd;   /**< the PD field, as written */
+    std::string g4;   /**< the 4-genus field, as written: "1", "[0;1]" */
+};
+
+/**
+ * Every row of a knot or link table, in file order: the name before the
+ * first comma, the PD code between the first and the second, the 4-genus
+ * after the second (no quoting appears in these files: a PD code uses ';'
+ * internally, never a comma). The header line, empty lines and lines without
+ * two commas are skipped; a trailing '\r' is dropped. The one reader of the
+ * tables: the solver's literature, the search's input rows, the namer's
+ * indices and the cascade's PD lookups all read through it.
+ * \exception regina::InvalidArgument the file cannot be opened.
+ */
+std::vector<TableRow> readTableRows(const std::filesystem::path &path);
+
+/**
+ * A table's literature 4-genus, "2" or "[0;1]", as (lo, hi); nullopt if the
+ * field is malformed (anything but digits, or a "[lo;hi]" with lo > hi), so
+ * that a malformed value never becomes a bound.
+ */
+std::optional<std::pair<int, int>> parseTableG4(const std::string &field);
+
+/**
+ * A prime knot's symmetry type, as data/knot_symmetry.csv records it
+ * (KnotInfo, cross-checked against SnapPy through 10 crossings). It fixes the
+ * concordance inverse -K = m(K^r):
+ *   reversible            -K = mK
+ *   fullyAmphicheiral     -K = K = mK
+ *   negativeAmphicheiral  -K = K   (and K^r = mK, so mK is its own inverse too)
+ *   positiveAmphicheiral  -K = K^r    } not expressible without a reversal
+ *   chiral                -K = m(K^r) } marker, which our names lack
+ */
+enum class SymmetryType {
+    chiral,
+    reversible,
+    positiveAmphicheiral,
+    negativeAmphicheiral,
+    fullyAmphicheiral
+};
+
+/** Parses KnotInfo's spelling ("negative amphicheiral"), or nullopt. */
+std::optional<SymmetryType> parseSymmetryType(const std::string &text);
+
+/** Knot name -> symmetry type. */
+using SymmetryTable = std::unordered_map<std::string, SymmetryType>;
+
+/**
+ * data/knot_symmetry.csv ("name,symmetry_type,..."; header skipped): every
+ * row whose type parses. The one reader of that file.
+ * \exception regina::InvalidArgument the file cannot be opened.
+ */
+SymmetryTable readSymmetryTable(const std::filesystem::path &path);
+
+/**
+ * Whether the knot `name` is slice by ELEMENTARY concordance-group reasoning,
+ * making it an anchor exactly like the unknot.
+ *
+ * `K # -K` bounds a ribbon disc for every K, where `-K = m(K^r)` is the
+ * concordance inverse, and a sum of slice knots is slice. So a composite knot
+ * is elementarily slice when its summands pair off into inverse pairs. The
+ * inverse depends on the summand's symmetry: for an invertible K, `-K = mK`;
+ * if K is also amphicheiral, `-K = K`. Summands without a certified symmetry
+ * (absent from `symmetry`), and every NON-invertible summand, are refused:
+ * our names record chirality but not reversal, so for a non-invertible K the
+ * name cannot say whether its neighbour is -K or its reverse (8_17 is the
+ * trap).
+ *
+ * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
+ * with no symmetry data loaded, so a run without --knot-symmetry loses
+ * nothing it had before. Consumed by both the atlas solver and the cascade.
+ */
+bool isElementarySlice(const std::string &name, const SymmetryTable &symmetry);
+
+// ---- the tables, indexed for naming ----
 
 /** One table entry. */
 struct TableEntry {
@@ -52,10 +135,6 @@ struct VersionMatch {
     bool mirror = false;   /**< the entry reflected */
     bool reverse = false;  /**< every component of the entry reversed */
 };
-
-/** KnotInfo symmetry types (data/knot_symmetry.csv). */
-enum class Symmetry { unknown, chiral, reversible, positiveAmphicheiral,
-                      negativeAmphicheiral, fullyAmphicheiral };
 
 class ExactTables {
   public:
@@ -82,7 +161,8 @@ class ExactTables {
     /** Every entry of a base: a knot's one entry, or a link's oriented variants. */
     const std::vector<const TableEntry *> &variants(const std::string &base) const;
     const TableEntry *entry(const std::string &name) const;
-    Symmetry symmetry(const std::string &knot) const;
+    /** A knot's symmetry type, or nullopt when knot_symmetry.csv has none. */
+    std::optional<SymmetryType> symmetry(const std::string &knot) const;
     size_t size() const { return entries_.size(); }
     /** Every entry, in load order. */
     const std::vector<TableEntry> &entries() const { return entries_; }
@@ -107,41 +187,20 @@ class ExactTables {
     std::unordered_map<std::string, std::vector<VersionMatch>> exact_;
     std::unordered_map<std::string, std::string> unoriented_;
     std::unordered_map<std::string, std::vector<const TableEntry *>> byBase_;
-    std::unordered_map<std::string, Symmetry> symmetry_;
+    SymmetryTable symmetry_;
 };
 
-/** A table PD code ("[[1;5;2;4];...]" or "PD[X[4; 1; 3; 2]; ...]") as Regina reads it. */
+/**
+ * A PD code as text ("[[1;5;2;4];...]", "PD[X[4; 1; 3; 2]; ...]", or any
+ * other punctuation: the integers in fours) as Regina reads it, labels as
+ * written. The one parser of PD text into a regina::Link: the tables', and a
+ * cascade row's. A code holding a 0 is taken as 0-based and shifted up by
+ * one, as diagramtriangulation's parsePDCode() reads it.
+ * \exception regina::InvalidArgument no labels, or a count not divisible by 4.
+ */
 regina::Link linkFromTablePD(const std::string &pd);
 
 } // namespace exactnaming
-
-namespace witnessstore {
-
-// ---- literature tables (Name,PD Notation,Genus-4D) ----
-
-/// One row of a literature table, as written: its name, its PD code and its
-/// 4-genus interval (lo == hi but for a few "[lo;hi]" rows).
-struct LiteratureRow {
-    std::string name;
-    std::string pd;
-    int lo = 0, hi = 0;
-};
-
-/// Splits one table row into its name, PD and genus field (no quoting
-/// appears in these files). False for a row without two commas.
-bool splitInputLine(const std::string &line, std::string &name,
-                    std::string &pd, std::string &genusField);
-
-/// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
-void parseGenusField(const std::string &field, int &lo, int &hi);
-
-/// Every row of a literature table, in file order: the header line, empty
-/// lines, rows without two commas and rows whose genus field does not parse
-/// are skipped. PD codes are kept as text, never parsed.
-/// \throws std::runtime_error if the file cannot be opened.
-std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path);
-
-} // namespace witnessstore
 
 namespace farside {
 

@@ -330,16 +330,28 @@ std::vector<Witness> readWitnesses(const std::string &path) {
 // name -> the table's PD string, as the atlas's rows were searched from it.
 std::map<std::string, std::string> tablePDs(const std::vector<std::string> &files) {
   std::map<std::string, std::string> out;
-  for (const std::string &file : files) {
-    std::ifstream in(file);
-    std::string line;
-    std::getline(in, line);
-    while (std::getline(in, line)) {
-      auto f = csvFields(line);
-      if (f.size() >= 2) out[f[0]] = f[1];
-    }
-  }
+  for (const std::string &file : files)
+    for (const exactnaming::TableRow &row : exactnaming::readTableRows(file))
+      out[row.name] = row.pd;
   return out;
+}
+
+// The tables' names and literature bounds (the store step's candidate sets)
+// and, with --knot-symmetry, the knots' symmetry types (the slice-composite
+// anchors): one NameTable per process, as verifyslicegenus loads it.
+cobordismgraph::NameTable loadTableNames(const std::string &knotTable,
+                                         const std::string &linkTable,
+                                         const std::string &knotSymmetry,
+                                         size_t *symmetryTypes = nullptr) {
+  cobordismgraph::NameTable names;
+  witnessstore::loadNameTable(knotTable, names);
+  witnessstore::loadNameTable(linkTable, names);
+  if (!knotSymmetry.empty()) {
+    const exactnaming::SymmetryTable types = exactnaming::readSymmetryTable(knotSymmetry);
+    for (const auto &[knot, type] : types) names.setSymmetry(knot, type);
+    if (symmetryTypes) *symmetryTypes = types.size();
+  }
+  return names;
 }
 
 struct ChildRun {
@@ -610,11 +622,8 @@ void Cascade::storeWitnesses() {
             << csvField(gauss.str()) << ",node " << n << '\n';
     }
   }
-  cobordismgraph::NameTable names;
-  witnessstore::loadNameTable(cfg_.knotTable, names);
-  witnessstore::loadNameTable(cfg_.linkTable, names);
   const StoreResult s = storeKept(readKept(cfg_.work), cfg_.witnessStore, cfg_.dedupeAgainst,
-                                  names, static_cast<unsigned>(cfg_.threads),
+                                  names_, static_cast<unsigned>(cfg_.threads),
                                   cfg_.pairSigCache);
   storedAppended_ = s.appended;
   storeResult_ = s;
@@ -724,7 +733,7 @@ void Cascade::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
   // unknot's leaf, constructive like the unknot's, never for the target.
   tableName_[n] = fs.name;
   if (n == target_) return;
-  if (!cobordismgraph::isElementarySlice(fs.name, names_)) return;
+  if (!exactnaming::isElementarySlice(fs.name, names_.symmetries())) return;
   g_.addLeaf(n, Partition::coarsest(1), 0, "anchor " + fs.name);
   ++anchors_;
   std::cout << "[+] node " << n << " is " << fs.name << " (" << fs.proof()
@@ -738,7 +747,7 @@ void Cascade::applyName(NodeId n, const exactnaming::PieceName &pn) {
   tableName_[n] = name;
   const exactnaming::TableEntry *e = tables_.entry(name);
   if (!e) return;
-  auto g4 = parseTableG4(e->g4);
+  auto g4 = exactnaming::parseTableG4(e->g4);
   if (!g4) return;
   const auto [lo, hi] = *g4;
   g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
@@ -1046,7 +1055,7 @@ void Cascade::loadLowerSources() {
     const bool sp = f[specialCol] == "1";
     special_[f[nameCol]] = sp;
     if (sp && loCol < f.size())
-      if (auto lo = parseTableG4(f[loCol])) lowerLMax_ = std::max(lowerLMax_, lo->first);
+      if (auto lo = exactnaming::parseTableG4(f[loCol])) lowerLMax_ = std::max(lowerLMax_, lo->first);
   }
 }
 
@@ -1080,7 +1089,7 @@ void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
       int litHi = std::numeric_limits<int>::max();
       if (auto t = tableName_.find(n); t != tableName_.end())
         if (const exactnaming::TableEntry *e = tables_.entry(t->second))
-          if (auto g4 = parseTableG4(e->g4)) litHi = g4->second;
+          if (auto g4 = exactnaming::parseTableG4(e->g4)) litHi = g4->second;
       std::vector<ProofGraph::LowerSeed> seeds;
       for (const Partition &p : allPartitions(node.components)) {
         int cap = lowerLMax_;
@@ -1983,25 +1992,12 @@ int Cascade::run() {
   printProfile();
   loadLowerSources();
   // Table names and symmetry types, for the slice-composite anchors
-  // (applyComposite): as verifyslicegenus loads them.
-  witnessstore::loadNameTable(cfg_.knotTable, names_);
-  witnessstore::loadNameTable(cfg_.linkTable, names_);
-  if (!cfg_.knotSymmetry.empty()) {
-    std::ifstream in(cfg_.knotSymmetry);
-    std::string line;
-    std::getline(in, line);
-    size_t loaded = 0;
-    while (std::getline(in, line)) {
-      auto f = parseCsvLine(line);
-      if (f.size() >= 2)
-        if (auto t = cobordismgraph::parseSymmetryType(f[1])) {
-          names_.setSymmetry(f[0], *t);
-          ++loaded;
-        }
-    }
-    std::cout << "[+] knot symmetry: " << loaded << " types (slice composites beyond "
+  // (applyComposite) and the store step: as verifyslicegenus loads them.
+  size_t symmetryTypes = 0;
+  names_ = loadTableNames(cfg_.knotTable, cfg_.linkTable, cfg_.knotSymmetry, &symmetryTypes);
+  if (!cfg_.knotSymmetry.empty())
+    std::cout << "[+] knot symmetry: " << symmetryTypes << " types (slice composites beyond "
                  "3_1#m3_1 and 4_1#4_1 need them)\n";
-  }
   if (cfg_.goalLower >= 0)
     std::cout << "[+] lower goal " << cfg_.goalLower << ": " << special_.size()
               << " table names in --lower-sources, "
@@ -2058,7 +2054,7 @@ int Cascade::run() {
   if (!composite.empty()) {
     tableName_[target_] = composite;
     std::cout << "[+] target is the composite " << composite
-              << (cobordismgraph::isElementarySlice(composite, names_)
+              << (exactnaming::isElementarySlice(composite, names_.symmetries())
                       ? " (a slice composite: its summands cancel in concordance)"
                       : "")
               << "\n";
@@ -2226,7 +2222,7 @@ void Cascade::writeLowerReport() const {
   const int targetLower = g_.lower(target_, goal);
   int litLo = -1;
   if (const exactnaming::TableEntry *e = tables_.entry(cfg_.targetName))
-    if (auto g4 = parseTableG4(e->g4)) litLo = g4->first;
+    if (auto g4 = exactnaming::parseTableG4(e->g4)) litLo = g4->first;
   std::ofstream out(cfg_.work + "/lower_report.jsonl");
   out << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g_.nodeCount() << "}\n";
@@ -2259,7 +2255,7 @@ void Cascade::writeLowerReport() const {
     if (n == target_) continue;
     const exactnaming::TableEntry *e = tables_.entry(name);
     if (!e) continue;
-    auto g4 = parseTableG4(e->g4);
+    auto g4 = exactnaming::parseTableG4(e->g4);
     if (!g4) continue;
     // The most n could be: its literature upper end, or less if a surface
     // for it is already proved.
@@ -2421,9 +2417,7 @@ int main(int argc, char **argv) {
       return 2;
     }
     try {
-      cobordismgraph::NameTable names;
-      witnessstore::loadNameTable(c.knotTable, names);
-      witnessstore::loadNameTable(c.linkTable, names);
+      const cobordismgraph::NameTable names = loadTableNames(c.knotTable, c.linkTable, "");
       const StoreResult s = storeKept(readKept(c.work), c.witnessStore, c.dedupeAgainst,
                                       names, static_cast<unsigned>(c.threads),
                                       c.pairSigCache);

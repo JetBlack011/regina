@@ -13,17 +13,15 @@
 
 #include <triangulation/dim3.h>
 
+#include "diagramtriangulation/pdcode.h"
+
 /*! \file utils/surfer/diagramtriangulation/fromdiagram.h
  *  \brief Builds a triangulation of S^3 containing a knot/link diagram
  *  from PD code.
  */
 
 namespace knotbuilder {
-/** A planar diagram code: one 4-tuple of strand labels per crossing. */
-using PDCode = std::vector<std::array<int, 4>>;
-
-/** Parses a PD (planar diagram) code string into a PDCode. */
-PDCode parsePDCode(std::string pdcode_str);
+// PDCode and parsePDCode(): diagramtriangulation/pdcode.h.
 
 /**
  * One crossing's tetrahedral gadget, glued into the ambient triangulation
