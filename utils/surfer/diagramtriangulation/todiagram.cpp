@@ -6,6 +6,8 @@
 
 #include "diagramtriangulation/todiagram.h"
 
+#include "linknaming/complement/edgecycles.h"
+
 #include <algorithm>
 #include <map>
 #include <numeric>
@@ -644,21 +646,21 @@ Diagram DiagramDrawer::draw(const std::vector<EdgeCycle> &curves, int attempts) 
 std::vector<EdgeCycle>
 DiagramDrawer::cyclesOf(const std::vector<const regina::Edge<3> *> &edges,
                  const std::vector<bool> &reversed) {
-    std::unordered_map<size_t, size_t> fromTail; // tail vertex -> position in edges
+    std::vector<edgecycles::EdgeEnds> ends;
+    ends.reserve(edges.size());
     for (size_t i = 0; i < edges.size(); ++i)
-        fromTail[edges[i]->vertex(reversed[i] ? 1 : 0)->index()] = i;
-    std::vector<bool> used(edges.size(), false);
+        ends.push_back({edges[i]->index(), edges[i]->vertex(reversed[i] ? 1 : 0)->index(),
+                        edges[i]->vertex(reversed[i] ? 0 : 1)->index()});
+    auto chained = edgecycles::chainDirected(ends, edgecycles::OpenChain::refuse);
+    if (!chained)
+        throw regina::InvalidArgument("cyclesOf(): the edges do not chain into closed curves");
     std::vector<EdgeCycle> out;
-    for (size_t s = 0; s < edges.size(); ++s) {
-        if (used[s]) continue;
+    out.reserve(chained->size());
+    for (const std::vector<size_t> &positions : *chained) {
         EdgeCycle cyc;
-        size_t i = s;
-        while (!used[i]) {
-            used[i] = true;
-            cyc.push_back({edges[i]->index(), static_cast<bool>(reversed[i])});
-            size_t head = edges[i]->vertex(reversed[i] ? 0 : 1)->index();
-            i = fromTail.at(head);
-        }
+        cyc.reserve(positions.size());
+        for (size_t p : positions)
+            cyc.push_back({edges[p]->index(), static_cast<bool>(reversed[p])});
         out.push_back(std::move(cyc));
     }
     return out;

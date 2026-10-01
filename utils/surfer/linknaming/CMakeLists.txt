@@ -6,7 +6,7 @@
 # 1-skeleton -- drilling, meridians, the unknot and unlinks, and the one
 # cache of complement answers. Regina only.
 add_library(linknaming_complement STATIC
-  complement/linkcomplement.cpp complement/meridians.cpp
+  complement/edgecycles.cpp complement/linkcomplement.cpp complement/meridians.cpp
   complement/complementcache.cpp complement/unlinknaming.cpp)
 target_link_libraries(linknaming_complement PUBLIC ${ENGINE_LIBRARY})
 surfer_include_view(linknaming_complement linknaming/complement)

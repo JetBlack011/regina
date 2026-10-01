@@ -7,6 +7,7 @@
 #ifndef SURFER_LINKNAMING_UNLINKNAMING_H
 #define SURFER_LINKNAMING_UNLINKNAMING_H
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,10 +38,19 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
                     const std::string &sig);
 
 /**
+ * The rank of `t`'s fundamental group when the presentation group() reaches
+ * has no relations -- a free group, of rank countGenerators(), however the
+ * simplification got there -- else nullopt, which is only ever inconclusive.
+ * The one group test behind groupProvesUnlink(), the unknot's fast path in
+ * cachedGenus() (rank 1) and certifiesUnlink() (rank m).
+ */
+std::optional<size_t> freeGroupRank(const regina::Triangulation<3> &t);
+
+/**
  * Fast, sound, one-sided proof that `t` (a link complement, possibly of
  * several components) is the complement of a split unlink: its fundamental
- * group simplifies to a presentation with no relations, i.e. it is free. A
- * \c false is only ever inconclusive.
+ * group simplifies to a presentation with no relations, i.e. it is free
+ * (freeGroupRank()). A \c false is only ever inconclusive.
  */
 bool groupProvesUnlink(const regina::Triangulation<3> &t);
 

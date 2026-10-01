@@ -1177,51 +1177,34 @@ std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
     return result;
 }
 
-namespace {
 // Chains a flat set of directed edges head-to-tail into cyclic sequences --
 // the directed analogue of Link::Link()'s own arbitrary-direction
 // shared-vertex walk (linkcomplement.cpp), used here instead since that
-// walk doesn't track direction at all. Assumes (not re-checked here) that
-// every vertex touched has exactly one outgoing and one incoming directed
-// edge -- true for a genuine embedded surface's own boundary, since each
-// boundary curve is a simple closed curve; see the "shouldn't happen"
-// break below.
-std::vector<OrientedCurve>
-chainIntoCurves(const std::vector<OrientedEdge> &directed) {
-    std::unordered_map<const regina::Vertex<3> *, OrientedEdge> outFrom;
-    for (const auto &oe : directed) {
-        const regina::Vertex<3> *tail =
-            oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-        outFrom[tail] = oe;
-    }
-
+// walk doesn't track direction at all. A genuine embedded surface's own
+// boundary chains completely, since each boundary curve is a simple closed
+// curve; orientedBoundaryLinks() asks to stop at a dead end regardless.
+std::optional<std::vector<OrientedCurve>>
+chainIntoCurves(const std::vector<OrientedEdge> &directed, edgecycles::OpenChain open) {
+    std::vector<edgecycles::EdgeEnds> ends;
+    ends.reserve(directed.size());
+    for (const OrientedEdge &oe : directed)
+        ends.push_back({oe.edge->index(),
+                        (oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0))->index(),
+                        (oe.reversed ? oe.edge->vertex(0) : oe.edge->vertex(1))->index()});
+    auto chained = edgecycles::chainDirected(ends, open);
+    if (!chained)
+        return std::nullopt;
     std::vector<OrientedCurve> curves;
-    std::unordered_set<const regina::Edge<3> *> visited;
-    for (const auto &oe : directed) {
-        if (visited.contains(oe.edge))
-            continue;
-
+    curves.reserve(chained->size());
+    for (const std::vector<size_t> &positions : *chained) {
         OrientedCurve curve;
-        const regina::Vertex<3> *start =
-            oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-        const regina::Vertex<3> *curr = start;
-        for (size_t step = 0; step <= directed.size(); ++step) {
-            auto it = outFrom.find(curr);
-            if (it == outFrom.end())
-                break; // shouldn't happen -- see this function's own doc
-                       // comment
-            const OrientedEdge &next = it->second;
-            visited.insert(next.edge);
-            curve.push_back(next);
-            curr = next.reversed ? next.edge->vertex(0) : next.edge->vertex(1);
-            if (curr == start)
-                break;
-        }
+        curve.reserve(positions.size());
+        for (size_t p : positions)
+            curve.push_back(directed[p]);
         curves.push_back(std::move(curve));
     }
     return curves;
 }
-} // namespace
 
 std::map<const regina::Edge<3> *, size_t>
 KnottedSurface::boundaryEdgeSurfaceComponent() const {
@@ -1316,7 +1299,8 @@ KnottedSurface::orientedBoundaryLinks() const {
     for (size_t c = 0; c < directedByComponent.size(); ++c) {
         if (directedByComponent[c].empty())
             continue;
-        result.emplace_back(c, chainIntoCurves(directedByComponent[c]));
+        result.emplace_back(c, *chainIntoCurves(directedByComponent[c],
+                                                edgecycles::OpenChain::stop));
     }
     return result;
 }

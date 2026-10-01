@@ -12,6 +12,7 @@
 #include <snappea/snappeatriangulation.h>
 
 #include "linknaming/complement/complementcache.h"
+#include "linknaming/complement/edgecycles.h"
 
 namespace {
 
@@ -25,8 +26,7 @@ namespace {
 // never a wrong answer: this can only shorten the path to genus == 1, so
 // it's always safe to fall back to recogniseHandlebody() when it fails.
 bool groupProvesUnknot(const regina::Triangulation<3> &t) {
-    const regina::GroupPresentation &g = t.group();
-    return g.countGenerators() == 1 && g.countRelations() == 0;
+    return identify::freeGroupRank(t) == std::optional<size_t>(1);
 }
 
 // Fast, sound, one-sided proof that `t`'s genus is -1 (not any
@@ -115,7 +115,14 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
 // far), never wrong -- always safe to fall through to the normal
 // resolveRecognition() path when it fails.
 bool groupProvesUnlink(const regina::Triangulation<3> &t) {
-    return t.group().countRelations() == 0;
+    return freeGroupRank(t).has_value();
+}
+
+std::optional<size_t> freeGroupRank(const regina::Triangulation<3> &t) {
+    const regina::GroupPresentation &g = t.group();
+    if (g.countRelations() != 0)
+        return std::nullopt;
+    return g.countGenerators();
 }
 
 std::string unlinkName(size_t components) {
@@ -152,37 +159,10 @@ std::string unlinkNameOrIsoSig(const Link &l) {
 
 namespace {
 // How many cycles `edges` forms, or nullopt unless it is a disjoint union of
-// cycles: no repeated edge, and every vertex it touches has degree exactly 2
-// (a loop edge contributes 2 to its one vertex). A connected 2-regular
-// multigraph is a cycle, so the component count is then the cycle count.
+// cycles (edgecycles::countClosedCurves()).
 std::optional<size_t>
 countCycles(const std::vector<const regina::Edge<3> *> &edges) {
-    std::unordered_set<const regina::Edge<3> *> seen;
-    std::unordered_map<size_t, int> degree;
-    std::unordered_map<size_t, size_t> parent;
-    std::function<size_t(size_t)> find = [&](size_t x) {
-        while (parent[x] != x)
-            x = parent[x] = parent[parent[x]];
-        return x;
-    };
-    for (const auto *e : edges) {
-        if (!seen.insert(e).second)
-            return std::nullopt;
-        size_t a = e->vertex(0)->index(), b = e->vertex(1)->index();
-        ++degree[a];
-        ++degree[b];
-        parent.try_emplace(a, a);
-        parent.try_emplace(b, b);
-        parent[find(a)] = find(b);
-    }
-    size_t roots = 0;
-    for (const auto &[v, d] : degree) {
-        if (d != 2)
-            return std::nullopt;
-        if (find(v) == v)
-            ++roots;
-    }
-    return roots;
+    return edgecycles::countClosedCurves(edgecycles::endsOf(edges));
 }
 } // namespace
 
@@ -206,8 +186,7 @@ bool certifiesUnlink(const regina::Triangulation<3> &tri,
         // so this is pi_1 of the link exterior. A presentation with no
         // relations IS free, of rank countGenerators(), however simplify()
         // reached it -- which is what makes this one-sided but sound.
-        const regina::GroupPresentation &g = complement.group();
-        return g.countRelations() == 0 && g.countGenerators() == m;
+        return freeGroupRank(complement) == std::optional<size_t>(m);
     } catch (const std::exception &) {
         return false;
     }

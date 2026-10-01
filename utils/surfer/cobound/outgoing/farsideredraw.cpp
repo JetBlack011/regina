@@ -112,31 +112,12 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
 namespace {
 
 // Directed boundary edges chained head to tail into closed curves (as
-// embeddedsubmanifold.cpp's chainIntoCurves()).
+// KnottedSurface::orientedBoundaryLinks() chains them), refusing a dead end.
 std::vector<OrientedCurve> chain(const std::vector<OrientedEdge> &directed) {
-    std::unordered_map<const regina::Vertex<3> *, OrientedEdge> outFrom;
-    for (const OrientedEdge &oe : directed)
-        outFrom[oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0)] = oe;
-    std::vector<OrientedCurve> curves;
-    std::unordered_map<const regina::Edge<3> *, bool> visited;
-    for (const OrientedEdge &oe : directed) {
-        if (visited.contains(oe.edge)) continue;
-        OrientedCurve curve;
-        const regina::Vertex<3> *start = oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-        const regina::Vertex<3> *curr = start;
-        for (size_t step = 0; step <= directed.size(); ++step) {
-            auto it = outFrom.find(curr);
-            if (it == outFrom.end())
-                throw regina::InvalidArgument("the surface's boundary is not closed curves");
-            const OrientedEdge &next = it->second;
-            visited[next.edge] = true;
-            curve.push_back(next);
-            curr = next.reversed ? next.edge->vertex(0) : next.edge->vertex(1);
-            if (curr == start) break;
-        }
-        curves.push_back(std::move(curve));
-    }
-    return curves;
+    auto curves = chainIntoCurves(directed, edgecycles::OpenChain::refuse);
+    if (!curves)
+        throw regina::InvalidArgument("the surface's boundary is not closed curves");
+    return std::move(*curves);
 }
 
 } // namespace

@@ -6,6 +6,8 @@
 
 #include "linknaming/complement/linkcomplement.h"
 
+#include "linknaming/complement/edgecycles.h"
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -149,45 +151,23 @@ long EdgeComplement::linkingNumberWith(const EdgeComplement &other) const {
                 "the drilled ideal vertex, so the two curves are not "
                 "disjoint");
 
-    // Walk trackedOther's edges into an oriented cycle (the same
-    // shared-vertex walk Link::Link() uses to split a multi-component edge
-    // set into per-component knots), then read off its class in H_1. Only
+    // Walk trackedOther's edges into an oriented cycle
+    // (edgecycles::walkClosedCurve(), the walk Link::Link() also splits a
+    // multi-component edge set with), then read off its class in H_1. Only
     // the magnitude is meaningful, so no canonical orientation needs to be
     // imposed: any consistent walk direction works. The walk must be
     // *oriented*: an unsigned sum of B's edges is not a cycle in these
     // coordinates and snfRep() would reject it.
     regina::Vector<regina::Integer> cycle(hd.countStandardCells(1));
     if (!trackedOther.empty()) {
-        std::vector<const regina::Edge<3> *> remaining(trackedOther.begin(),
-                                                        trackedOther.end());
-        const regina::Edge<3> *first = remaining.front();
-        const regina::Vertex<3> *currVert = first->vertex(1);
-        cycle[first->index()] += 1;
-        remaining.erase(remaining.begin());
-
-        while (!remaining.empty()) {
-            bool found = false;
-            for (size_t i = 0; i < remaining.size(); ++i) {
-                const regina::Edge<3> *e = remaining[i];
-                if (e->vertex(0) == currVert) {
-                    cycle[e->index()] += 1;
-                    currVert = e->vertex(1);
-                } else if (e->vertex(1) == currVert) {
-                    cycle[e->index()] -= 1;
-                    currVert = e->vertex(0);
-                } else {
-                    continue;
-                }
-                remaining.erase(remaining.begin() +
-                                static_cast<ptrdiff_t>(i));
-                found = true;
-                break;
-            }
-            if (!found)
-                throw regina::InvalidArgument(
-                    "EdgeComplement::linkingNumberWith(): other's edges do "
-                    "not form a single closed curve");
-        }
+        const auto steps =
+            edgecycles::walkClosedCurve(edgecycles::endsOf(trackedOther));
+        if (!steps)
+            throw regina::InvalidArgument(
+                "EdgeComplement::linkingNumberWith(): other's edges do "
+                "not form a single closed curve");
+        for (const edgecycles::Step &s : *steps)
+            cycle[trackedOther[s.pos]->index()] += s.reversed ? -1 : 1;
     }
 
     return h1.snfRep(cycle)[0].abs().safeValue<long>();
@@ -220,47 +200,26 @@ std::ostream &operator<<(std::ostream &os, const EdgeComplement &e) {
 Link::Link(const regina::Triangulation<3> &tri,
           const std::vector<const regina::Edge<3> *> &edges)
     : EdgeComplement(tri, edges) {
-    // Add the edge to the correct component. The walk takes its edges in
-    // index order, never in address order: each component starts from its
-    // lowest-index edge, towards that edge's vertex(1), and the components
-    // come out in the order of their lowest edges. So the components and
-    // their edge sequences are a function of the edge set alone.
-    std::vector<std::vector<const regina::Edge<3> *>> edgesByComp;
-    std::vector<const regina::Edge<3> *> remaining(edges.begin(), edges.end());
-    std::ranges::sort(remaining, {}, [](const regina::Edge<3> *e) {
+    // Add the edge to the correct component (edgecycles::walkCurves()). The
+    // walk takes its edges in index order, never in address order: each
+    // component starts from its lowest-index edge, towards that edge's
+    // vertex(1), and the components come out in the order of their lowest
+    // edges. So the components and their edge sequences are a function of
+    // the edge set alone.
+    std::vector<const regina::Edge<3> *> sorted(edges.begin(), edges.end());
+    std::ranges::sort(sorted, {}, [](const regina::Edge<3> *e) {
         return e->index();
     });
-    if (std::ranges::adjacent_find(remaining) != remaining.end()) {
+    if (std::ranges::adjacent_find(sorted) != sorted.end()) {
         throw regina::InvalidArgument(
             "Link::Link: Duplicate edges in link");
     }
 
-    const regina::Vertex<3> *currVert;
-    bool newComponent = true;
-    while (!remaining.empty()) {
-        if (newComponent) {
-            const auto edge = remaining.front();
-            edgesByComp.push_back({edge});
-            currVert = edge->vertex(1);
-            remaining.erase(remaining.begin());
-        }
-
-        newComponent = true;
-        for (auto it = remaining.begin(); it != remaining.end(); ++it) {
-            const regina::Edge<3> *edge = *it;
-            if (edge->vertex(0) == currVert ||
-                edge->vertex(1) == currVert) {
-                edgesByComp.back().push_back(edge);
-                currVert = edge->vertex(0) == currVert ? edge->vertex(1)
-                                                       : edge->vertex(0);
-                remaining.erase(it);
-                newComponent = false;
-                break;
-            }
-        }
-    }
-
-    for (const auto &compEdges : edgesByComp) {
+    for (const auto &curve : edgecycles::walkCurves(edgecycles::endsOf(sorted))) {
+        std::vector<const regina::Edge<3> *> compEdges;
+        compEdges.reserve(curve.size());
+        for (const edgecycles::Step &s : curve)
+            compEdges.push_back(sorted[s.pos]);
         comps_.emplace_back(tri, compEdges);
     }
 }

@@ -4,6 +4,8 @@
 
 #include "cobound/search/incoming.h"
 
+#include "linknaming/complement/edgecycles.h"
+
 #include <algorithm>
 #include <optional>
 #include <tuple>
@@ -110,33 +112,21 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
     }
 
     RowOrientation result;
-    std::unordered_map<size_t, size_t> outOf, inCount;
+    std::vector<edgecycles::EdgeEnds> directed;
+    directed.reserve(chosen->size());
     for (const auto &[e, ends] : *chosen) {
         const auto &[tail, head, rowIndex] = ends;
         result.tailOf[e] = tail;
         result.rowIndexOf[e] = rowIndex;
-        if (!outOf.emplace(tail, head).second)
-            throw regina::InvalidArgument(
-                "buildRowOrientation(): two link edges leave one vertex");
-        ++inCount[head];
+        directed.push_back({e, tail, head});
     }
-    for (const auto &[v, n] : inCount)
-        if (n != 1 || !outOf.contains(v))
-            throw regina::InvalidArgument(
-                "buildRowOrientation(): the link's edges do not chain into "
-                "closed directed curves");
-    if (outOf.size() != inCount.size())
+    const std::optional<size_t> cycles = edgecycles::countDirectedCycles(directed);
+    if (!cycles)
         throw regina::InvalidArgument(
             "buildRowOrientation(): the link's edges do not chain into "
-            "closed directed curves");
-    std::unordered_map<size_t, bool> seen;
-    for (const auto &[start, next] : outOf) {
-        if (seen[start])
-            continue;
-        ++result.components;
-        for (size_t v = start; !seen[v]; v = outOf.at(v))
-            seen[v] = true;
-    }
+            "closed directed curves (one edge leaving and one arriving at "
+            "every vertex)");
+    result.components = *cycles;
     result.edges = sortedKeys(*chosen);
     result.divergedFromDefaultIsomorphism = (*chosen != legacyImage);
     return result;

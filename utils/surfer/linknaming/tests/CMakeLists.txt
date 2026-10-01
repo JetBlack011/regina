@@ -1,6 +1,7 @@
 set(LINKNAMING_TESTS
   names_test
   tables_test
+  edgecycles_test
   linkcomplement_test
   censusnaming_test
   unlinknaming_test

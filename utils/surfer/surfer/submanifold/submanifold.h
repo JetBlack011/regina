@@ -21,6 +21,7 @@
 #include <triangulation/dim4.h>
 #include <utilities/typeutils.h>
 
+#include "linknaming/complement/edgecycles.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/rollbackunionfind.h"
 
@@ -400,6 +401,14 @@ struct OrientedEdge {
 
 /** One boundary curve, as a cyclic sequence of OrientedEdge, head-to-tail. */
 using OrientedCurve = std::vector<OrientedEdge>;
+
+/**
+ * Chains directed edges of one triangulation head to tail into curves
+ * (edgecycles::chainDirected(), which says how). nullopt only with
+ * edgecycles::OpenChain::refuse, when a curve cannot be continued.
+ */
+std::optional<std::vector<OrientedCurve>>
+chainIntoCurves(const std::vector<OrientedEdge> &directed, edgecycles::OpenChain open);
 
 /**
  * A surface embedded in a 4-manifold.

@@ -27,7 +27,7 @@ set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 # The cascade's tests: seconds each. See ../README.md, "Assumptions and their
 # tests", for what each pins.
 foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordisms_test
-             search_test axioms_test pending_test fromdatabase_test)
+             search_test axioms_test pending_test fromdatabase_test thickening_rows_test)
   add_executable(${TEST} ${TEST}.cpp)
   target_link_libraries(${TEST} cobound_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
@@ -35,7 +35,8 @@ foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordism
 endforeach()
 # Real witnesses from the Phase 0 hops, and small tables to name far sides by
 # (data/), for the end-to-end tests.
-foreach(TEST searchcobordisms_test search_test pending_test fromdatabase_test)
+foreach(TEST searchcobordisms_test search_test pending_test fromdatabase_test
+             thickening_rows_test)
   target_compile_definitions(${TEST} PRIVATE
     CASCADE_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
 endforeach()

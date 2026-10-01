@@ -4,6 +4,8 @@
 
 #include "surfer/submanifold/linkingnumber.h"
 
+#include "linknaming/complement/edgecycles.h"
+
 #include <algorithm>
 #include <deque>
 #include <map>
@@ -62,45 +64,21 @@ orient(const regina::Triangulation<3> &tri,
        const std::vector<const regina::Edge<3> *> &curve) {
     if (curve.empty())
         return std::nullopt;
-    std::unordered_map<int, std::vector<int>> at; // vertex -> slots in curve
-    for (size_t i = 0; i < curve.size(); ++i) {
-        if (&curve[i]->triangulation() != &tri)
+    for (const regina::Edge<3> *e : curve)
+        if (&e->triangulation() != &tri)
             return std::nullopt;
-        at[static_cast<int>(curve[i]->vertex(0)->index())].push_back(
-            static_cast<int>(i));
-        at[static_cast<int>(curve[i]->vertex(1)->index())].push_back(
-            static_cast<int>(i));
-    }
-    for (const auto &[v, slots] : at)
-        if (slots.size() != 2)
-            return std::nullopt; // not a simple closed curve
+    const auto walk = edgecycles::walkClosedCurve(edgecycles::endsOf(curve));
+    if (!walk)
+        return std::nullopt; // not a simple closed curve
     std::vector<Step> steps;
-    std::vector<char> used(curve.size(), 0);
-    int slot = 0;
-    int from = static_cast<int>(curve[0]->vertex(0)->index());
-    const int start = from;
-    for (size_t n = 0; n < curve.size(); ++n) {
-        used[slot] = 1;
-        const regina::Edge<3> *e = curve[slot];
+    steps.reserve(walk->size());
+    for (const edgecycles::Step &s : *walk) {
+        const regina::Edge<3> *e = curve[s.pos];
         const int v0 = static_cast<int>(e->vertex(0)->index());
         const int v1 = static_cast<int>(e->vertex(1)->index());
-        const int dir = (v0 == from) ? 1 : -1;
-        const int to = dir == 1 ? v1 : v0;
-        steps.push_back({static_cast<int>(e->index()), dir, from, to});
-        from = to;
-        if (n + 1 == curve.size())
-            break;
-        slot = -1;
-        for (int s : at[from])
-            if (!used[s]) {
-                slot = s;
-                break;
-            }
-        if (slot < 0)
-            return std::nullopt;
+        steps.push_back({static_cast<int>(e->index()), s.reversed ? -1 : 1,
+                         s.reversed ? v1 : v0, s.reversed ? v0 : v1});
     }
-    if (from != start)
-        return std::nullopt;
     return steps;
 }
 

@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 #include "diagramtriangulation/thickening/collar.h"
+#include "linknaming/complement/edgecycles.h"
 
 template <int dim>
 CobordismBuilder<dim>::CobordismBuilder(const regina::Triangulation<dim> &tri)
@@ -321,74 +322,31 @@ knotbuilder::EdgeCycle OutgoingMap::carry(const OutgoingCurve &curve) const {
 
 knotbuilder::EdgeCycle OutgoingMap::carryCycle(
     const std::vector<const regina::Edge<3> *> &edges) const {
-    // Chain the edges by shared vertices: each vertex of a closed curve
-    // meets exactly two of them.
-    std::unordered_map<size_t, std::vector<size_t>> at; // vertex -> edge positions
-    for (size_t i = 0; i < edges.size(); ++i) {
-        at[edges[i]->vertex(0)->index()].push_back(i);
-        at[edges[i]->vertex(1)->index()].push_back(i);
-    }
-    for (const auto &[v, es] : at)
-        if (es.size() != 2)
-            throw regina::InvalidArgument("carryCycle: not a single closed curve");
+    // One simple closed curve, run from the first edge's vertex(0).
+    const auto steps = edgecycles::walkClosedCurve(edgecycles::endsOf(edges));
+    if (!steps)
+        throw regina::InvalidArgument("carryCycle: not a single closed curve");
     OutgoingCurve curve;
-    curve.reserve(edges.size());
-    std::vector<bool> used(edges.size(), false);
-    size_t i = 0;
-    size_t tail = edges[0]->vertex(0)->index();
-    for (size_t k = 0; k < edges.size(); ++k) {
-        used[i] = true;
-        bool reversed = edges[i]->vertex(0)->index() != tail;
-        curve.push_back({edges[i], reversed});
-        size_t head = edges[i]->vertex(reversed ? 0 : 1)->index();
-        const auto &next = at.at(head);
-        size_t j = next[0] == i ? next[1] : next[0];
-        if (k + 1 < edges.size() && used[j])
-            throw regina::InvalidArgument("carryCycle: not a single closed curve");
-        i = j;
-        tail = head;
-    }
+    curve.reserve(steps->size());
+    for (const edgecycles::Step &s : *steps)
+        curve.push_back({edges[s.pos], s.reversed});
     return carry(curve);
 }
 
 namespace {
 
-// How many closed curves a link's edges form: the connected components of
-// the graph they span, found by walking from edge to edge through shared
-// vertices. Every vertex of a link meets exactly two of its edges, so each
-// component is one closed curve -- the count Link::countComponents()
-// (linkcomplement.h) gives, without building the edge-set Link. A repeated
-// edge is refused, as that Link refuses it.
+// How many closed curves a link's edges form (edgecycles::countClosedCurves):
+// the count Link::countComponents() (linkcomplement.h) gives, without
+// building the edge-set Link. Edges that are not disjoint closed curves --
+// a repeated edge, as that Link refuses, or a vertex meeting other than two
+// -- are refused.
 int countLinkComponents(const std::vector<const regina::Edge<3> *> &edges) {
-    std::unordered_map<const regina::Vertex<3> *, std::vector<size_t>> at;
-    std::unordered_set<const regina::Edge<3> *> seen;
-    for (size_t i = 0; i < edges.size(); ++i) {
-        if (!seen.insert(edges[i]).second)
-            throw regina::InvalidArgument(
-                "buildAmbient(): a repeated edge in the link");
-        at[edges[i]->vertex(0)].push_back(i);
-        at[edges[i]->vertex(1)].push_back(i);
-    }
-    std::vector<bool> walked(edges.size(), false);
-    int components = 0;
-    for (size_t start = 0; start < edges.size(); ++start) {
-        if (walked[start])
-            continue;
-        ++components;
-        walked[start] = true;
-        std::vector<size_t> todo{start};
-        while (!todo.empty()) {
-            const regina::Edge<3> *e = edges[todo.back()];
-            todo.pop_back();
-            for (int end = 0; end < 2; ++end)
-                for (size_t j : at[e->vertex(end)])
-                    if (!walked[j]) {
-                        walked[j] = true;
-                        todo.push_back(j);
-                    }
-        }
-    }
-    return components;
+    const std::optional<size_t> curves =
+        edgecycles::countClosedCurves(edgecycles::endsOf(edges));
+    if (!curves)
+        throw regina::InvalidArgument(
+            "buildAmbient(): the link's edges are not disjoint closed curves");
+    return static_cast<int>(*curves);
 }
 
 } // namespace
