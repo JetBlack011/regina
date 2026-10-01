@@ -76,7 +76,7 @@
 #include "linknaming/complement/complementcache.h"
 #include "cobound/cobordisms/pending.h"
 #include "cobound/bounds/axioms.h"
-#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/links.h"
 #include "cobound/bounds/cobordismgraph.h"
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/database.h"

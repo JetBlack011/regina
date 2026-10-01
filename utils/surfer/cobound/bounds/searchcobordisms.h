@@ -12,7 +12,7 @@
 
 #include "linknaming/diagrams/gaussdiagram.h"
 #include "cobound/outgoing/farsideredraw.h"
-#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/links.h"
 #include "cobound/bounds/cobordismgraph.h"
 
 namespace cascade {

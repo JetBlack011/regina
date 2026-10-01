@@ -15,7 +15,7 @@
 #include <link/link.h>
 
 #include "cobound/bounds/searchcobordisms.h"
-#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/links.h"
 #include "linknaming/tests/check.h"
 
 #ifndef CASCADE_TEST_DATA

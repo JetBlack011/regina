@@ -26,7 +26,7 @@
 #include "cobound/cobordisms/pairsigner.h"
 #include "cobound/search/search.h"
 #include "cobound/cobordisms/pending.h"
-#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/links.h"
 #include "linknaming/tests/check.h"
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/database.h"

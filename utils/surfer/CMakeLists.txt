@@ -36,7 +36,7 @@ add_library(surfer_common STATIC
   linknaming/isometry/isometry.cpp
   linknaming/isometry/snappeakernel_isometry.cpp linknaming/isometry/snappeakernel_isometry_cusped.cpp
   cobound/bounds/partition.cpp cobound/bounds/partitiongenera.cpp cobound/bounds/cobordismgraph.cpp
-  linknaming/diagrams/diagramiso.cpp cobound/bounds/nodes.cpp cobound/bounds/searchcobordisms.cpp
+  linknaming/diagrams/diagramiso.cpp linknaming/diagrams/simplification.cpp cobound/bounds/links.cpp cobound/bounds/searchcobordisms.cpp
   cobound/bounds/axioms.cpp
   cobound/cobordisms/pairsigner.cpp cobound/cobordisms/pending.cpp cobound/outgoing/fromdatabase.cpp)
 target_include_directories(surfer_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
