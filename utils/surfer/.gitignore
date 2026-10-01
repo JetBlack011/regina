@@ -1,0 +1,15 @@
+# Untracked inputs and outputs that live in this tree: the local census
+# (linknaming/census/census.sqlite, with its WAL sidecars), the census-name
+# generator's inputs (linknaming/*_census_names.csv), stray table copies and
+# Python caches. Moved by hand, never committed.
+*.csv
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+__pycache__/
+
+# The cascade tests' fixtures are tracked and must stay sendable.
+!cobound/tests/data/hop_10_3_witnesses.csv
+!cobound/tests/data/hop_L11n33_witnesses.csv
+!cobound/tests/data/knots_to_6.csv
+!cobound/tests/data/links_to_6.csv
