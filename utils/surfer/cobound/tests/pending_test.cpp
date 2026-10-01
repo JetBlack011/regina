@@ -27,7 +27,7 @@
 #include "cobound/search/search.h"
 #include "cobound/cobordisms/pending.h"
 #include "cobound/bounds/nodes.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"

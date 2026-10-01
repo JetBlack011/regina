@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "cobound/bounds/cobordismgraph.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 
 using namespace cascade;
 

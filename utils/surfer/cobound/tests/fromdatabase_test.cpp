@@ -23,7 +23,7 @@
 #include "cobound/outgoing/farsideredraw.h"
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/outgoing/fromdatabase.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 
 using namespace cascade;
 namespace fs = std::filesystem;

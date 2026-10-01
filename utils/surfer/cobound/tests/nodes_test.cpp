@@ -15,7 +15,7 @@
 #include "linknaming/diagrams/diagramiso.h"
 #include "cobound/bounds/searchcobordisms.h"
 #include "cobound/bounds/nodes.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 #include "linknaming/tables.h"
 
 using exactnaming::GaussDiagram;

@@ -1,4 +1,5 @@
-// check.h: the minimal assertion helpers the cascade tests share.
+// check.h: the minimal assertion helpers the cascade tests share -- the
+// tests of cobound and of linknaming (the lowest part using them).
 
 #pragma once
 

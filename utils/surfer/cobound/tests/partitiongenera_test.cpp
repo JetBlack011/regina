@@ -10,7 +10,7 @@
 
 #include "cobound/bounds/partition.h"
 #include "cobound/bounds/partitiongenera.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 
 using namespace cascade;
 

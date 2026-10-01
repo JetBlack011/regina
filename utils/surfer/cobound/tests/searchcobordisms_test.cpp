@@ -16,7 +16,7 @@
 
 #include "cobound/bounds/searchcobordisms.h"
 #include "cobound/bounds/nodes.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 
 #ifndef CASCADE_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"

@@ -14,7 +14,7 @@
 #include <link/link.h>
 
 #include "linknaming/diagrams/diagramiso.h"
-#include "cobound/tests/check.h"
+#include "linknaming/tests/check.h"
 
 using exactnaming::GaussDiagram;
 using namespace cascade;
