@@ -34,6 +34,7 @@
 #include "cobound/search/preconditions.h"
 #include "cobound/search/search.h"
 #include "surfer/enumeration/surfacesearch.h"
+#include "linknaming/census/censusnaming.h"
 
 using namespace rowsearch;
 
@@ -218,8 +219,14 @@ void test_watchdog() {
 class FarNamer : public BoundaryNamer {
   public:
     explicit FarNamer(size_t searchSide) : searchSide_(searchSide) {}
-    bool handles(size_t bc) const override { return bc != searchSide_; }
-    std::string name(const Link &) const override { return "far"; }
+    std::string nameLink(size_t bc, const Link &curves) const override {
+        if (bc != searchSide_) return "far";
+        return curves.comps_.size() == 1 ? identify::identify(curves.comps_.front())
+                                         : identify::identify(curves);
+    }
+    std::string nameCurve(size_t, const Knot &curve) const override {
+        return identify::identify(curve);
+    }
 
   private:
     size_t searchSide_;
@@ -247,7 +254,7 @@ void gateRun(const std::string &pd, const std::string &name, GateRun &out,
     SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
     e.configureLimits(limits);
     FarNamer namer(rb.searchSideBC);
-    e.setBoundaryNamer(&namer);
+    e.setBoundaryNamer(namer);
     e.primeBoundaryName(rb.searchSideBC, rb.searchEdges, name);
 
     std::mutex m;

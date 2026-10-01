@@ -30,13 +30,13 @@ struct BoundarySignatureCacheStats {
 };
 
 /**
- * Memoizes identify()'s results for marked edge sets in one fixed ambient
+ * Memoizes a BoundaryNamer's names for marked edge sets in one fixed ambient
  * boundary-component triangulation, canonicalized against that
  * triangulation's own automorphism group -- so a boundary curve already
  * seen (exactly, or up to a symmetry of the boundary component)
  * short-circuits before buildComplement()/simplify()/isoSig() ever runs,
  * rather than only being caught by the isoSig-keyed recognitionCache
- * *after* paying for that triangulation (see identifycomplement.cpp).
+ * *after* paying for that triangulation (see complementcache.h).
  *
  * recognitionCache is still needed on top of this: two curves can be the
  * same knot/link type without being combinatorially related by any
@@ -78,11 +78,11 @@ class BoundarySignatureCache {
         size_t clearThreshold = DEFAULT_CLEAR_THRESHOLD);
 
     /**
-     * Returns the identify() result for `edgeIndices` -- this boundary
+     * Returns the name of `edgeIndices` -- this boundary
      * component's marked edges, sorted, e.g. from
      * EdgeComplement::edgeIndices() -- computing it via `compute` on a
      * cache miss and memoizing the result. `compute` is only invoked on a
-     * miss; typically `[&]{ return identify::identify(curve); }`.
+     * miss; typically a call to the search's BoundaryNamer.
      */
     std::string identifyCached(const std::vector<size_t> &edgeIndices,
                                 const std::function<std::string()> &compute);

@@ -92,7 +92,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   limits.nameLinkCurves = false;
   limits.capturePairSig = false;
   e.configureLimits(limits);
-  e.setBoundaryNamer(&namer);
+  e.setBoundaryNamer(namer);
   // Always recorded (it costs one fingerprint): a later hop from this node
   // carries on from it instead of searching this prefix again.
   e.setRecordFrontier(true);

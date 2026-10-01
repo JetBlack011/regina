@@ -127,6 +127,20 @@ bool isUnknot(const EdgeComplement &e) {
     return cachedGenus(complement, complement.isoSig()) == 1;
 }
 
+std::string unlinkNameOrIsoSig(const EdgeComplement &e) {
+    auto complement = e.buildComplement();
+    std::string sig = complement.isoSig();
+    return cachedGenus(complement, sig) == 1 ? "Unknot" : sig;
+}
+
+std::string unlinkNameOrIsoSig(const Link &l) {
+    auto complement = l.buildComplement();
+    if (l.countComponents() > 1 && groupProvesUnlink(complement))
+        return std::to_string(l.countComponents()) + "-component unlink";
+    std::string sig = complement.isoSig();
+    return cachedGenus(complement, sig) == 1 ? "Unknot" : sig;
+}
+
 namespace {
 // How many cycles `edges` forms, or nullopt unless it is a disjoint union of
 // cycles: no repeated edge, and every vertex it touches has degree exactly 2

@@ -1,6 +1,6 @@
 #include "surfer/enumeration/surfacesearch.h"
 
-#include "linknaming/census/censusnaming.h"
+#include "linknaming/complement/unlinknaming.h"
 
 #include <condition_variable>
 #include <iostream>
@@ -27,6 +27,16 @@ TubedFields tubedFieldsFor(const regina::Triangulation<2> &surface, int genus,
 }
 
 } // namespace
+
+std::string UnlinkBoundaryNamer::nameLink(size_t, const Link &curves) const {
+    return curves.comps_.size() == 1
+               ? identify::unlinkNameOrIsoSig(curves.comps_.front())
+               : identify::unlinkNameOrIsoSig(curves);
+}
+
+std::string UnlinkBoundaryNamer::nameCurve(size_t, const Knot &curve) const {
+    return identify::unlinkNameOrIsoSig(curve);
+}
 
 SurfaceSearch::SurfaceSearch(
     const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,
@@ -230,11 +240,9 @@ SurfaceSearch::describeBoundary_(
         // counted downstream, so identifying each one is optional work.
         const bool nameEachCurve =
             link.comps_.size() == 1 || limits_.nameLinkCurves;
-        // A namer, where one handles this component, names a lone curve (the
-        // whole link) and a multi-curve component's link; per-curve names of
-        // a multi-curve component, if wanted, still come from identify().
-        const BoundaryNamer *namer =
-            namer_ && namer_->handles(component) ? namer_ : nullptr;
+        // A lone curve is named as the whole component's link; the curves of
+        // a multi-curve component, if wanted, one by one.
+        const BoundaryNamer *namer = namer_;
         bool firstCurve = true;
         for (const Knot &curve : link.comps_) {
             if (!firstCurve)
@@ -244,10 +252,10 @@ SurfaceSearch::describeBoundary_(
                 nameEachCurve
                     ? cache.identifyCached(
                           curve.edgeIndices(),
-                          [&curve, &link, namer] {
-                              return namer && link.comps_.size() == 1
-                                         ? namer->name(link)
-                                         : identify::identify(curve);
+                          [&curve, &link, namer, component] {
+                              return link.comps_.size() == 1
+                                         ? namer->nameLink(component, link)
+                                         : namer->nameCurve(component, curve);
                           })
                     : std::string("?");
             out << name;
@@ -256,8 +264,8 @@ SurfaceSearch::describeBoundary_(
         std::vector<size_t> edgeIndices = link.edgeIndices();
         std::optional<std::string> linkName;
         if (link.comps_.size() > 1) {
-            linkName = cache.identifyCached(edgeIndices, [&link, namer] {
-                return namer ? namer->name(link) : identify::identify(link);
+            linkName = cache.identifyCached(edgeIndices, [&link, namer, component] {
+                return namer->nameLink(component, link);
             });
             out << " (" << *linkName << ")";
         }
@@ -477,6 +485,10 @@ const std::vector<int> &SurfaceSearch::residentFaces_() const {
 
 void SurfaceSearch::processRemainingSurfaceBoundaries(
     unsigned numThreads, const SurfaceSearchCallbacks &callbacks) {
+    if (!namer_ && (pendingSeed_ || pendingSurfaces_.size() > 0))
+        throw regina::InvalidArgument(
+            "SurfaceSearch::processRemainingSurfaceBoundaries(): no "
+            "BoundaryNamer was set (setBoundaryNamer())");
     std::vector<std::vector<int>> batch = pendingSurfaces_.drain();
     // backgroundDrainLoop_ describes the seed before anything else, so this
     // only catches a seed that no aux thread was ever spawned to take.
@@ -650,6 +662,10 @@ SearchStats SurfaceSearch::search(unsigned numThreads, BoundaryCondition cond,
                                   long long rootBudgetGrowth) {
     const bool wantLinks = cond == BoundaryCondition::proper ||
                            cond == BoundaryCondition::connected;
+    if (wantLinks && !namer_)
+        throw regina::InvalidArgument(
+            "SurfaceSearch::search(): this condition tracks boundary links, "
+            "but no BoundaryNamer was set (setBoundaryNamer())");
     // What this search accepts beyond EmbeddingSearch's view, for a
     // frontier's fingerprint (see SearchFrontier).
     frontierContext_ = std::string("resolve_unlinked ") +

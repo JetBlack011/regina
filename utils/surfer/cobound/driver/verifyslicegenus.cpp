@@ -2736,6 +2736,7 @@ int main(int argc, char *argv[]) {
 
     // Declared before namer and eOpt, which hold pointers into it.
     rowsearch::RowBuild rb;
+    const farside::ComplementNamer complementNamer{};
     std::optional<farside::DiagramNamer> namer;
     std::optional<SurfaceSearch> eOpt;
     bool buildFailed = false;
@@ -2796,11 +2797,13 @@ int main(int argc, char *argv[]) {
     e.setRecordFrontier(frontierDir.has_value());
     if (pairSigCacheDir)
       e.setPairSigCacheDir(*pairSigCacheDir);
+    // Every boundary by its complement, unless the row draws its far sides.
+    e.setBoundaryNamer(complementNamer);
     if (signatureTable && !useCone) {
       try {
         namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatureTable);
         if (exactTables) namer->enableExactNames(*exactTables);
-        e.setBoundaryNamer(&*namer);
+        e.setBoundaryNamer(*namer);
       } catch (const std::exception &ex) {
         std::cerr << "[!] " << row.name
                   << ": diagram naming off for this row (" << ex.what()

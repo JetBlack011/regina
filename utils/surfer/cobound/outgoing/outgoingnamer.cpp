@@ -10,6 +10,7 @@
 #include <link/link.h>
 
 #include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/census/censusnaming.h"
 
 namespace farside {
 
@@ -21,7 +22,23 @@ long long microsSince(std::chrono::steady_clock::time_point t) {
         .count();
 }
 
+// The complement route, as SurfaceSearch called it before a namer was
+// required: a lone curve on its own (identify(const EdgeComplement&)),
+// several curves together (identify(const Link&)).
+std::string byComplement(const Link &curves) {
+    return curves.comps_.size() == 1 ? identify::identify(curves.comps_.front())
+                                     : identify::identify(curves);
+}
+
 } // namespace
+
+std::string ComplementNamer::nameLink(size_t, const Link &curves) const {
+    return byComplement(curves);
+}
+
+std::string ComplementNamer::nameCurve(size_t, const Knot &curve) const {
+    return identify::identify(curve);
+}
 
 DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                            const CobordismBuilder<3> &cob, const SignatureTable &table)
@@ -29,6 +46,14 @@ DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossin
 
 std::string DiagramNamer::name(const Link &curves) const {
     return namer_.name(curves, [this, &curves] { return draw(curves); });
+}
+
+std::string DiagramNamer::nameLink(size_t bc, const Link &curves) const {
+    return handles(bc) ? name(curves) : byComplement(curves);
+}
+
+std::string DiagramNamer::nameCurve(size_t, const Knot &curve) const {
+    return identify::identify(curve);
 }
 
 DrawnCurves DiagramNamer::draw(const Link &curves) const {

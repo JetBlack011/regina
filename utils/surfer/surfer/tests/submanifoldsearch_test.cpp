@@ -345,6 +345,8 @@ void test_boundary_link_batch_recognizes_unknot() {
               "single pentachoron has one boundary component (S^3)");
 
     SurfaceSearch e(fourBall);
+    const UnlinkBoundaryNamer namer{};
+    e.setBoundaryNamer(namer);
     e.search(1, BoundaryCondition::connected);
 
     std::string summary = e.linkTally().summary();
@@ -378,12 +380,15 @@ void test_backpressure_does_not_drop_or_double_count_surfaces() {
     };
 
     regina::Triangulation<4> triLarge = buildFourBall();
+    const UnlinkBoundaryNamer namer{};
     SurfaceSearch large(triLarge);
+    large.setBoundaryNamer(namer);
     large.configureLimits(SurfaceSearchLimits{}); // defaults (cap 20000)
     SearchStats largeStats = large.search(1, BoundaryCondition::connected);
 
     regina::Triangulation<4> triTiny = buildFourBall();
     SurfaceSearch tiny(triTiny);
+    tiny.setBoundaryNamer(namer);
     SurfaceSearchLimits tinyLimits;
     tinyLimits.pendingSurfaceCap = 1; // forces backpressure on nearly every find
     tiny.configureLimits(tinyLimits);
@@ -1059,6 +1064,8 @@ void test_resolve_unlinked_seeded_search() {
     };
     auto search = [&](bool resolve) {
         SurfaceSearch e(coned, seed);
+        const UnlinkBoundaryNamer namer{};
+        e.setBoundaryNamer(namer);
         e.configureSelfIntersections({.resolveUnlinked = resolve});
         Run r;
         SurfaceSearchCallbacks callbacks;

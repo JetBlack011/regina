@@ -78,11 +78,11 @@ struct SurfaceFoundInfo {
 struct BoundaryComponentNames {
     size_t component; /**< Ambient boundary component index. */
     std::vector<std::string> curveNames;
-    /**< The identify()'d name of each of this component's curves,
+    /**< The BoundaryNamer's name of each of this component's curves,
          individually, in describeBoundary_'s order. */
     std::optional<std::string> linkName;
-    /**< identify()'d name of all of this component's curves drilled
-         together (identify::identify() on the whole Link) */
+    /**< The BoundaryNamer's name of all of this component's curves
+         together (BoundaryNamer::nameLink() on the whole Link) */
     std::vector<size_t> edgeIndices;
     /**< The component's boundary edges, sorted, as indices into that ambient
          boundary component's built triangulation -- the geometry the names
@@ -189,24 +189,39 @@ struct SurfaceSearchLimits {
 };
 
 /**
- * Names the curves on one ambient boundary component in place of
- * identify::identify() -- farside::DiagramNamer does it from a drawn
- * diagram. Consulted only on a BoundarySignatureCache miss (the cache still
- * memoises the result per edge set), from drain threads concurrently, so it
- * must be thread-safe.
+ * Names the curves a search finds on its ambient boundary components. The
+ * library has no naming route of its own: a search that tracks boundary
+ * links (BoundaryCondition::proper or connected) must be given one
+ * (SurfaceSearch::setBoundaryNamer()). UnlinkBoundaryNamer below names
+ * without any census; cobound supplies the slice-genus search's own
+ * (cobound/outgoing/outgoingnamer.h). Consulted only on a
+ * BoundarySignatureCache miss (the cache still memoises the result per edge
+ * set), from drain threads concurrently, so it must be thread-safe.
  *
- * A namer must return what identify::identify() would, or something at
- * least as definite and equally proven: "Unknot", "<n>-component unlink", a
- * table name. Anything else it cannot prove, it may still name however it
- * likes provided the name bears no bound -- or fall back to identify().
+ * A name must be proved: "Unknot" and "<n>-component unlink" only for an
+ * unknot and an unlink. Anything a namer cannot prove, it may still name
+ * however it likes provided the name bears no bound.
  */
 class BoundaryNamer {
   public:
     virtual ~BoundaryNamer() = default;
-    /** Whether this namer names the curves on boundary component `bc`. */
-    virtual bool handles(size_t bc) const = 0;
-    /** All the curves of that boundary component, named together. */
-    virtual std::string name(const Link &curves) const = 0;
+    /** All the curves on boundary component `bc`, named together; a lone
+     *  curve is a one-component link. */
+    virtual std::string nameLink(size_t bc, const Link &curves) const = 0;
+    /** One curve of a multi-curve boundary component `bc`, named on its own
+     *  (wanted only with SurfaceSearchLimits::nameLinkCurves). */
+    virtual std::string nameCurve(size_t bc, const Knot &curve) const = 0;
+};
+
+/**
+ * Names boundary curves without any census, from their complements:
+ * "Unknot", "<n>-component unlink", or else the complement's isoSig
+ * (identify::unlinkNameOrIsoSig(), linknaming/complement/unlinknaming.h).
+ */
+class UnlinkBoundaryNamer : public BoundaryNamer {
+  public:
+    std::string nameLink(size_t bc, const Link &curves) const override;
+    std::string nameCurve(size_t bc, const Knot &curve) const override;
 };
 
 class SurfaceSearch : public EmbeddingSearch<4, 2> {
@@ -572,11 +587,12 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
                            const std::string &name);
 
     /**
-     * Names the boundary components `namer` handles through it rather than
-     * identify::identify(). `namer` must outlive the search; nullptr
-     * restores the default.
+     * Names every boundary curve the search describes through `namer`,
+     * which must outlive the search. Required before a search that tracks
+     * boundary links (BoundaryCondition::proper or connected): there is no
+     * default namer, and search() refuses to start without one.
      */
-    void setBoundaryNamer(const BoundaryNamer *namer) { namer_ = namer; }
+    void setBoundaryNamer(const BoundaryNamer &namer) { namer_ = &namer; }
 
     /**
      * Processes whatever boundary-link work is left after every DFS

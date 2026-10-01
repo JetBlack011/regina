@@ -25,7 +25,6 @@
 #include "surfer/enumeration/surfacesearch.h"
 #include "diagramtriangulation/thickening/thickening.h"
 #include "linknaming/complement/linkcomplement.h"
-#include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/complementcache.h"
 
 namespace {
@@ -218,7 +217,13 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     orientable,genus,punctures,triangles,"
          "condition, plus a\n"
          "                     boundary column when condition is --proper "
-         "or --connected.\n\n";
+         "or --connected.\n"
+         "                     Boundary curves are named without any "
+         "census: \"Unknot\",\n"
+         "                     \"<n>-component unlink\", or else the isoSig "
+         "of their\n"
+         "                     complement "
+         "(linknaming/complement/unlinknaming.h).\n\n";
   std::cerr
       << "    --no-simplify  : Skip Triangulation<3>::simplify() when "
          "building a\n"
@@ -226,9 +231,9 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "Yields\n"
          "                     much larger triangulations whose isomorphism "
          "signatures\n"
-         "                     rarely recur, so the recognition cache and "
-         "census\n"
-         "                     lookups become far less effective -- a "
+         "                     rarely recur, so the recognition cache "
+         "becomes far\n"
+         "                     less effective -- a "
          "profiling/\n"
          "                     diagnostic option, trading recognition "
          "quality for a\n"
@@ -267,7 +272,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "threshold\n"
          "                     past which the boundary-complement "
          "recognition cache\n"
-         "                     (see identifycomplement.h) clears itself "
+         "                     (see complementcache.h) clears itself "
          "entirely\n"
          "                     (default: 200000).\n";
   std::cerr
@@ -288,55 +293,6 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     reporting structure only, so nothing else "
          "depends on\n"
          "                     it.\n\n";
-  std::cerr
-      << "    --census-db <path> : Local SQLite census to check before "
-         "falling\n"
-         "                     back to the real (mutex-guarded) "
-         "Census::lookup()\n"
-         "                     (see identifycomplement.h and "
-         "tools/gen_census.py).\n"
-         "                     Default: utils/surfer/data/census."
-         "sqlite\n"
-         "                     alongside the source tree. A missing file is "
-         "not an\n"
-         "                     error -- the census is an optional "
-         "accelerator.\n\n";
-  std::cerr
-      << "    --retriangulate-on-miss : When a boundary complement's "
-         "identification\n"
-         "                     misses both the local census and the real "
-         "Census::lookup(),\n"
-         "                     search a bounded neighborhood of alternate "
-         "triangulations\n"
-         "                     of the same manifold for a census match "
-         "(see\n"
-         "                     identifycomplement.h's "
-         "retriangulateAndLookup()). More\n"
-         "                     complete but materially more expensive on a "
-         "miss;\n"
-         "                     off by default.\n\n";
-  std::cerr
-      << "    --retriangulate-height N : Pachner-move search depth per "
-         "identification\n"
-         "                     attempt when --retriangulate-on-miss is set "
-         "(default: 2).\n"
-         "                     retriangulate()'s candidate count grows "
-         "roughly\n"
-         "                     exponentially in this -- the main lever if "
-         "boundary/link\n"
-         "                     identification throughput matters more than "
-         "catching\n"
-         "                     every non-canonically-triangulated match.\n";
-  std::cerr
-      << "    --retriangulate-candidate-budget N : Max candidate "
-         "triangulations tried\n"
-         "                     per identification attempt before giving up "
-         "(default:\n"
-         "                     8000).\n";
-  std::cerr
-      << "    --retriangulate-time-budget S : Wall-clock cap (seconds) per "
-         "identification\n"
-         "                     attempt before giving up (default: 20).\n\n";
   std::cerr
       << "    <isosig>       : Isomorphism signature of a 4-manifold\n"
          "                     triangulation to search directly (default "
@@ -411,6 +367,9 @@ void runSearch(const regina::Triangulation<4> &tri,
   SurfaceSearch &e = *eOpt;
   e.configureLimits(limits);
   e.configureSelfIntersections({.resolveUnlinked = resolveUnlinked});
+  // Boundary curves are named without any census (unlinknaming.h).
+  UnlinkBoundaryNamer namer;
+  e.setBoundaryNamer(namer);
 
   const bool wantLinks = cond == BoundaryCondition::proper ||
                          cond == BoundaryCondition::connected;
@@ -460,8 +419,9 @@ void runSearch(const regina::Triangulation<4> &tri,
   };
 
   // How much recomputation the isoSig-keyed recognition cache (see
-  // identifycomplement.h/.cpp) is actually avoiding -- shared process-wide,
-  // so this is already the full aggregate across every search thread.
+  // complementcache.h) is actually avoiding -- shared process-wide, so this
+  // is already the full aggregate across every search thread. Boundaries are
+  // named without a census, so only the genus answers are cached.
   auto recognitionCacheText = [] {
     identify::RecognitionCacheStats s = identify::recognitionCacheStats();
     auto hitRate = [](long long hits, long long checks) {
@@ -473,10 +433,7 @@ void runSearch(const regina::Triangulation<4> &tri,
     out << "[+] recognition cache: genus checks=" << s.genusChecks
         << " hits=" << s.genusCacheHits << " (" << std::fixed
         << std::setprecision(1) << hitRate(s.genusCacheHits, s.genusChecks)
-        << "% hit rate), census checks=" << s.censusChecks
-        << " hits=" << s.censusCacheHits << " (" << std::fixed
-        << std::setprecision(1)
-        << hitRate(s.censusCacheHits, s.censusChecks) << "% hit rate)\n";
+        << "% hit rate)\n";
     out << "[+] recognition cache entries (distinct isoSigs seen): "
         << identify::recognitionCacheSize() << " | full resets: "
         << s.cacheResets << "\n";
@@ -486,21 +443,15 @@ void runSearch(const regina::Triangulation<4> &tri,
         << s.snapPeaFastPathHits << ", recogniseHandlebody() fallback="
         << s.recogniseHandlebodyFallbacks << " (of " << misses
         << " misses)\n";
-    out << "[+] local census: checks=" << s.localCensusChecks << " hits="
-        << s.localCensusHits << " (" << std::fixed << std::setprecision(1)
-        << hitRate(s.localCensusHits, s.localCensusChecks)
-        << "% hit rate) -- misses fall through to the real, "
-           "mutex-guarded Census::lookup()\n";
     return out.str();
   };
 
   // How much recomputation the pre-triangulation boundary-signature cache
-  // (see identify::BoundarySignatureCache in identifycomplement.h/.cpp) is
-  // actually avoiding -- one cache per ambient boundary component, shared
-  // across every search thread, so this is already the full aggregate. A
-  // high hit rate here means most boundary curves never reach
-  // identify::identify()'s buildComplement()/simplify()/isoSig() at all,
-  // let alone the recognition cache or Census::lookup() above.
+  // (see identify::BoundarySignatureCache in namecache.h) is actually
+  // avoiding -- one cache per ambient boundary component, shared across
+  // every search thread, so this is already the full aggregate. A high hit
+  // rate here means most boundary curves are never named again at all, let
+  // alone drilled for the recognition cache above.
   auto boundarySignatureCacheText = [&] {
     identify::BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
     double hitRate = s.checks > 0 ? 100.0 * static_cast<double>(s.hits) /
@@ -762,12 +713,6 @@ int main(int argc, char *argv[]) {
 
   SurfaceSearchLimits limits;
   size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
-  std::string censusPath = SURFER_CENSUS_PATH;
-  int retriangulateHeightArg = census::retriangulateHeight.load();
-  size_t retriangulateCandidateBudgetArg =
-      census::retriangulateCandidateBudget.load();
-  long long retriangulateTimeBudgetArg =
-      census::retriangulateTimeBudgetSeconds.load();
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -933,40 +878,6 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &) {
         usage(argv[0], "--boundary-tally-cap requires an integer value.");
       }
-    } else if (arg == "--census-db") {
-      if (i + 1 >= argc)
-        usage(argv[0], "--census-db requires a value.");
-      censusPath = argv[++i];
-    } else if (arg == "--retriangulate-on-miss") {
-      census::retriangulateOnMiss.store(true, std::memory_order_relaxed);
-    } else if (arg == "--retriangulate-height") {
-      if (i + 1 >= argc)
-        usage(argv[0], "--retriangulate-height requires a value.");
-      try {
-        retriangulateHeightArg = std::stoi(argv[++i]);
-      } catch (const std::exception &) {
-        usage(argv[0], "--retriangulate-height requires an integer value.");
-      }
-    } else if (arg == "--retriangulate-candidate-budget") {
-      if (i + 1 >= argc)
-        usage(argv[0], "--retriangulate-candidate-budget requires a value.");
-      try {
-        retriangulateCandidateBudgetArg =
-            static_cast<size_t>(std::stoul(argv[++i]));
-      } catch (const std::exception &) {
-        usage(argv[0],
-              "--retriangulate-candidate-budget requires an integer value.");
-      }
-    } else if (arg == "--retriangulate-time-budget") {
-      if (i + 1 >= argc)
-        usage(argv[0], "--retriangulate-time-budget requires a value.");
-      try {
-        retriangulateTimeBudgetArg = std::stoll(argv[++i]);
-      } catch (const std::exception &) {
-        usage(argv[0],
-              "--retriangulate-time-budget requires an integer (seconds) "
-              "value.");
-      }
     } else if (!arg.empty() && arg[0] == '-') {
       usage(argv[0], "Unknown option: " + arg);
     } else if (haveIsoSig) {
@@ -1004,21 +915,8 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
-  if (retriangulateHeightArg < 0)
-    usage(argv[0], "--retriangulate-height requires a value >= 0.");
-  if (retriangulateCandidateBudgetArg == 0)
-    usage(argv[0], "--retriangulate-candidate-budget requires a value > 0.");
-  if (retriangulateTimeBudgetArg <= 0)
-    usage(argv[0], "--retriangulate-time-budget requires a value > 0.");
   identify::recognitionCacheLimit.store(recognitionCacheLimitArg,
                                         std::memory_order_relaxed);
-  census::retriangulateHeight.store(retriangulateHeightArg,
-                                    std::memory_order_relaxed);
-  census::retriangulateCandidateBudget.store(retriangulateCandidateBudgetArg,
-                                             std::memory_order_relaxed);
-  census::retriangulateTimeBudgetSeconds.store(retriangulateTimeBudgetArg,
-                                               std::memory_order_relaxed);
-  bool censusLoaded = census::setCensusPath(censusPath);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than
     // discovering an unwritable path only once results are ready to flush.
@@ -1028,11 +926,6 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "------ SurFer (Surface Finder) \U0001F30A ------\n\n";
-
-  std::cout << (censusLoaded ? "[+] census: loaded from "
-                            : "[+] census: not found at ")
-            << censusPath
-            << (censusLoaded ? "\n\n" : ", skipping\n\n");
 
   if (havePD) {
     // The same ambient verifyslicegenus searches a row in, without its row

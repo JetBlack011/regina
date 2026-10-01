@@ -40,8 +40,20 @@
 namespace farside {
 
 /**
- * The search's BoundaryNamer for the outgoing boundary. One per row; name()
- * is thread-safe.
+ * Names every boundary curve by its complement (identify::identify(), the
+ * census route) -- the search's namer where a row has no DiagramNamer.
+ */
+class ComplementNamer : public BoundaryNamer {
+  public:
+    std::string nameLink(size_t bc, const Link &curves) const override;
+    std::string nameCurve(size_t bc, const Knot &curve) const override;
+};
+
+/**
+ * The search's BoundaryNamer: the outgoing boundary's curves by their
+ * drawing (name()), every other boundary component's, and each curve of a
+ * multi-curve component on its own, by the complement route as
+ * ComplementNamer names them. One per row; thread-safe.
  */
 class DiagramNamer : public BoundaryNamer {
   public:
@@ -54,8 +66,15 @@ class DiagramNamer : public BoundaryNamer {
     DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                  const CobordismBuilder<3> &cob, const SignatureTable &table);
 
-    bool handles(size_t bc) const override { return bc == map_.boundaryComponent(); }
-    std::string name(const Link &curves) const override;
+    /** Whether boundary component `bc` is the outgoing one, which this
+     *  namer draws. */
+    bool handles(size_t bc) const { return bc == map_.boundaryComponent(); }
+    /** All the curves of the outgoing boundary component, named together
+     *  from their drawing (LinkNamer). */
+    std::string name(const Link &curves) const;
+
+    std::string nameLink(size_t bc, const Link &curves) const override;
+    std::string nameCurve(size_t bc, const Knot &curve) const override;
     const NamingStats &stats() const { return namer_.stats(); }
 
     /**

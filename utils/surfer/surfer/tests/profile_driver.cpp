@@ -630,6 +630,9 @@ void run(const regina::Triangulation<4> &tri, long long budgetPerVertex) {
 
 } // namespace vertexstats
 
+// Boundary curves are named without any census (unlinknaming.h).
+const UnlinkBoundaryNamer kNamer{};
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -686,6 +689,7 @@ int main(int argc, char *argv[]) {
               << ", triangles = " << tri.countTriangles() << "\n";
 
     SurfaceSearch search(tri);
+    search.setBoundaryNamer(kNamer);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
     runTimed(search, threads, cond);
@@ -699,6 +703,7 @@ int main(int argc, char *argv[]) {
               << ", triangles = " << tri.countTriangles() << "\n";
 
     SurfaceSearch search(tri);
+    search.setBoundaryNamer(kNamer);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
     runTimed(search, threads, cond);
@@ -720,6 +725,7 @@ int main(int argc, char *argv[]) {
               << ", triangles = " << tri.countTriangles() << "\n";
 
     SurfaceSearch search(tri);
+    search.setBoundaryNamer(kNamer);
     std::cerr << "[driver] embeddable faces = " << search.numEmbeddableFaces()
               << "\n";
     if (mode == "pipeline-loud") {

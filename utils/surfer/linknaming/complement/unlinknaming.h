@@ -77,6 +77,21 @@ bool isOrientationSafeName(const std::string &name);
 bool isUnknot(const EdgeComplement &e);
 
 /**
+ * `e`'s name without any census: `"Unknot"` if its complement is a solid
+ * torus, else the complement's isoSig -- what identify() names it when the
+ * census has no name for it.
+ */
+std::string unlinkNameOrIsoSig(const EdgeComplement &e);
+
+/**
+ * `l`'s name without any census: `"<n>-component unlink"` for n > 1
+ * components whose complement's group is free (groupProvesUnlink()),
+ * `"Unknot"` for a solid-torus complement, else the complement's isoSig --
+ * what identify(const Link&) names it when the census has no name for it.
+ */
+std::string unlinkNameOrIsoSig(const Link &l);
+
+/**
  * Sound, one-sided certificate that `edges` is the `m`-component unlink in
  * `tri`: returns \c true only if the edges form exactly `m` pairwise
  * disjoint cycles and the fundamental group of their complement simplifies
