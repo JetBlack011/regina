@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <unordered_map>
 
 #include "cobound/outgoing/outgoingnamer.h"
 #include "cobound/outgoing/outgoinglink.h"
@@ -48,10 +47,14 @@ splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
     return result;
 }
 
-OrientationVerdict classifyRowOrientation(
+RowOrientationJudgement judgeRowOrientation(
     const RowOrientation &row, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    std::unordered_map<size_t, bool> componentMatch;
+    RowOrientationJudgement out;
+    auto verdict = [&out](OrientationVerdict v) {
+        out.verdict = v;
+        return out;
+    };
     for (const OrientedCurve &curve : curves) {
         if (curve.empty())
             continue;
@@ -60,25 +63,33 @@ OrientationVerdict classifyRowOrientation(
         for (const OrientedEdge &oe : curve) {
             auto it = row.tailOf.find(oe.edge->index());
             if (it == row.tailOf.end())
-                return OrientationVerdict::foreignEdge;
+                return verdict(OrientationVerdict::foreignEdge);
             const regina::Vertex<3> *tail =
                 oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
             bool edgeMatches = tail->index() == it->second;
             if (!curveMatch)
                 curveMatch = edgeMatches;
             else if (*curveMatch != edgeMatches)
-                return OrientationVerdict::incoherentCurve;
+                return verdict(OrientationVerdict::incoherentCurve);
         }
 
         auto comp = surfaceComponentOf.find(curve.front().edge);
         if (comp == surfaceComponentOf.end())
-            return OrientationVerdict::incoherentCurve;
-        auto [slot, inserted] = componentMatch.emplace(comp->second, *curveMatch);
-        if (!inserted && slot->second != *curveMatch)
-            return OrientationVerdict::mismatch;
+            return verdict(OrientationVerdict::incoherentCurve);
+        const int flip = *curveMatch ? 1 : -1;
+        auto [slot, inserted] = out.flips.emplace(comp->second, flip);
+        if (!inserted && slot->second != flip)
+            return verdict(OrientationVerdict::mismatch);
     }
-    return componentMatch.empty() ? OrientationVerdict::mismatch
-                                  : OrientationVerdict::match;
+    out.noCurves = out.flips.empty();
+    return verdict(out.noCurves ? OrientationVerdict::mismatch
+                                : OrientationVerdict::match);
+}
+
+OrientationVerdict classifyRowOrientation(
+    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
+    return judgeRowOrientation(row, curves, surfaceComponentOf).verdict;
 }
 
 } // namespace cobordismgraph
@@ -140,10 +151,15 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
             break;
         }
     }
-    const cobordismgraph::OrientationVerdict verdict =
-        foundSearchSide ? cobordismgraph::classifyRowOrientation(
-                              *row.orientation, g.searchSideCurves, g.surfaceOf)
-                        : cobordismgraph::OrientationVerdict::incoherentCurve;
+    cobordismgraph::OrientationVerdict verdict =
+        cobordismgraph::OrientationVerdict::incoherentCurve;
+    if (foundSearchSide) {
+        cobordismgraph::RowOrientationJudgement judged =
+            cobordismgraph::judgeRowOrientation(*row.orientation, g.searchSideCurves,
+                                                g.surfaceOf);
+        verdict = judged.verdict;
+        g.flips = std::move(judged.flips);
+    }
     if (verdict == cobordismgraph::OrientationVerdict::mismatch) {
         g.gate = Gate::orientation;
         return g;
@@ -158,18 +174,16 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     return g;
 }
 
-std::string farSideName(const GatedSurface &g, const RowBuild &row,
-                        const farside::DiagramNamer *namer) {
+std::string farSideName(const GatedSurface &g, const farside::DiagramNamer *namer) {
     const cobordismgraph::BoundarySide &far = g.split.otherSides.front();
     std::string name = cobordismgraph::normalizeIdentifiedName(far.name);
+    // An accepted surface's flips are the gate's (g.flips, its incoming
+    // curves judged once).
     if (far.components > 1 && namer && namer->exactNamesOn()) {
-        if (auto flips = farside::incomingFlips(
-                *row.orientation, g.searchSideCurves, g.surfaceOf)) {
-            for (const auto &[bc, curves] : g.orientedLinks)
-                if (namer->handles(bc))
-                    if (auto n = namer->orientedName(curves, g.surfaceOf, *flips))
-                        name = *n;
-        }
+        for (const auto &[bc, curves] : g.orientedLinks)
+            if (namer->handles(bc))
+                if (auto n = namer->orientedName(curves, g.surfaceOf, g.flips))
+                    name = *n;
     }
     return name;
 }

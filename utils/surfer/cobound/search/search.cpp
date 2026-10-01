@@ -176,12 +176,14 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
       acct.reject(g.gate);
       return;
     }
+    // Oriented by the gate's own judgement of the incoming curves (g.flips:
+    // the row is rb's, row.row() is *rb.orientation).
     auto link = farside::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
-                                              row.outgoing(), row.row(),
+                                              row.outgoing(), g.flips,
                                               rb.searchSideBC);
     if (!link) {
-      // incomingFlips() fails exactly where classifyRowOrientation() does,
-      // which the gate has just passed: impossible.
+      // Only a surface component off the row, which the gate's flips (one
+      // per component meeting the row) rule out: impossible.
       acct.reject(rowsearch::Gate::orientationBroken);
       return;
     }
@@ -196,7 +198,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
       w.kind = cobordismgraph::WitnessKind::direct;
     } else {
       w.kind = cobordismgraph::WitnessKind::cobordism;
-      farName = rowsearch::farSideName(g, rb, &namer);
+      farName = rowsearch::farSideName(g, &namer);
       w.other = farName;
       w.otherComponents = g.split.otherSides.front().components;
     }

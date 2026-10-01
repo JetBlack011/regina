@@ -49,7 +49,8 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve);
  * so that its incoming curves run as the row's link does. nullopt when some
  * component's incoming curves disagree among themselves, a curve has an
  * edge off the row's link, or a curve's component is unknown -- exactly the
- * surfaces classifyRowOrientation() rejects.
+ * surfaces classifyRowOrientation() rejects; an empty map for no curves.
+ * (cobordismgraph::judgeRowOrientation()'s consistentFlips(): one walk.)
  */
 std::optional<std::map<size_t, int>> incomingFlips(
     const cobordismgraph::RowOrientation &row,
@@ -86,6 +87,17 @@ std::optional<OutgoingLink> orientedOutgoingLink(
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
     const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
     size_t incomingBC, std::string *why = nullptr);
+
+/**
+ * As above, with the incoming curves' flips already judged (incomingFlips(),
+ * or a search's gate, rowsearch::GatedSurface::flips). nullopt ("a surface
+ * component misses the row") when an outgoing curve's component has none.
+ */
+std::optional<OutgoingLink> orientedOutgoingLink(
+    const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+    const OutgoingMap &map, const std::map<size_t, int> &flips, size_t incomingBC,
+    std::string *why = nullptr);
 
 } // namespace farside
 

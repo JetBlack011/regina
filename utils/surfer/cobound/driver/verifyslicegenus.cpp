@@ -2851,7 +2851,7 @@ int main(int argc, char *argv[]) {
         // Normalized, so a census hit and the table name are one graph node,
         // and oriented where exact names are on (rowsearch::farSideName()).
         const std::string farName =
-            rowsearch::farSideName(gated, rb, namer ? &*namer : nullptr);
+            rowsearch::farSideName(gated, namer ? &*namer : nullptr);
         w.kind = cobordismgraph::WitnessKind::cobordism;
         w.other = farName;
         w.otherComponents = far.components;

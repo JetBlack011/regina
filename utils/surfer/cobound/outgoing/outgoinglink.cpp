@@ -4,6 +4,8 @@
 
 #include "cobound/outgoing/outgoinglink.h"
 
+#include "cobound/search/preconditions.h"
+
 #include <algorithm>
 
 namespace farside {
@@ -20,26 +22,8 @@ std::optional<std::map<size_t, int>> incomingFlips(
     const cobordismgraph::RowOrientation &row,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    std::map<size_t, int> flips;
-    for (const OrientedCurve &curve : incomingCurves) {
-        if (curve.empty()) continue;
-        std::optional<bool> match;
-        for (const OrientedEdge &oe : curve) {
-            auto it = row.tailOf.find(oe.edge->index());
-            if (it == row.tailOf.end()) return std::nullopt;
-            const regina::Vertex<3> *tail =
-                oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
-            bool m = tail->index() == it->second;
-            if (match && *match != m) return std::nullopt;
-            match = m;
-        }
-        auto comp = surfaceComponentOf.find(curve.front().edge);
-        if (comp == surfaceComponentOf.end()) return std::nullopt;
-        int flip = *match ? 1 : -1;
-        auto [slot, fresh] = flips.emplace(comp->second, flip);
-        if (!fresh && slot->second != flip) return std::nullopt;
-    }
-    return flips;
+    return cobordismgraph::judgeRowOrientation(row, incomingCurves, surfaceComponentOf)
+        .consistentFlips();
 }
 
 std::optional<OutgoingLink> orientedOutgoingLink(
@@ -62,7 +46,14 @@ std::optional<OutgoingLink> orientedOutgoingLink(
         if (why) *why = "incoming orientation is inconsistent";
         return std::nullopt;
     }
+    return orientedOutgoingLink(oriented, surfaceOf, map, *flips, incomingBC, why);
+}
 
+std::optional<OutgoingLink> orientedOutgoingLink(
+    const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
+    const OutgoingMap &map, const std::map<size_t, int> &flips, size_t incomingBC,
+    std::string *why) {
     OutgoingLink out;
     for (const auto &[bc, curves] : oriented) {
         if (bc != incomingBC) continue;
@@ -77,8 +68,8 @@ std::optional<OutgoingLink> orientedOutgoingLink(
         for (const OrientedCurve &curve : curves) {
             if (curve.empty()) continue;
             size_t comp = surfaceOf.at(curve.front().edge);
-            auto f = flips->find(comp);
-            if (f == flips->end()) { // cannot happen: every component meets the row
+            auto f = flips.find(comp);
+            if (f == flips.end()) { // cannot happen: every component meets the row
                 if (why) *why = "a surface component misses the row";
                 return std::nullopt;
             }

@@ -1043,6 +1043,29 @@ void test_classify_row_orientation() {
     std::vector<OrientedCurve> single = {{{e0, false}}};
     EXPECT_EQ(classifyRowOrientation(row, single, {}) == V::incoherentCurve,
               true, "a curve with no known surface component is not guessed");
+
+    // The judgement's flips (phase 3: the one walk behind both
+    // classifyRowOrientation() and farside::incomingFlips()).
+    using Flips = std::map<size_t, int>;
+    const Flips keep = {{0, 1}}, reverse = {{0, -1}}, each = {{0, 1}, {1, -1}};
+    EXPECT_EQ(judgeRowOrientation(row, allMatch, oneComponent).flips == keep, true,
+              "matching curves keep their component (+1)");
+    EXPECT_EQ(judgeRowOrientation(row, allFlipped, oneComponent).flips == reverse, true,
+              "uniformly reversed curves reverse it (-1)");
+    EXPECT_EQ(judgeRowOrientation(row, mixed, twoComponents).flips == each, true,
+              "two components, each its own flip");
+    const RowOrientationJudgement none = judgeRowOrientation(row, {}, oneComponent);
+    EXPECT_EQ(none.verdict == V::mismatch && none.noCurves, true,
+              "no curves: a mismatch (nothing witnesses the row)");
+    EXPECT_EQ(none.consistentFlips() == std::optional<Flips>(Flips()), true,
+              "...whose flips are the empty map, as incomingFlips() always gave");
+    EXPECT_EQ(!judgeRowOrientation(row, mixed, oneComponent).consistentFlips(), true,
+              "a mismatch has no flips");
+    EXPECT_EQ(!judgeRowOrientation(row, foreign, foreignComponent).consistentFlips(), true,
+              "nor has a foreign edge");
+    EXPECT_EQ(judgeRowOrientation(row, mixed, twoComponents).consistentFlips() ==
+                  std::optional<Flips>(each),
+              true, "a match's flips are the judgement's");
 }
 
 void test_witness_identity() {

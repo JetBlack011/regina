@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <map>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -89,9 +90,30 @@ enum class OrientationVerdict {
                           curve's surface component is unknown. */
 };
 
+/** judgeRowOrientation()'s answer: the verdict, and the flips it implies. */
+struct RowOrientationJudgement {
+    OrientationVerdict verdict = OrientationVerdict::mismatch;
+    /** Per surface component met by a curve, +1 when its curves run as the
+     *  row's link does, -1 when against: every component's, when the
+     *  verdict is match. */
+    std::map<size_t, int> flips;
+    /** No non-empty curve at all (the verdict is then mismatch). */
+    bool noCurves = false;
+
+    /** The flips when every component is consistently oriented: with
+     *  verdict match, or (an empty map) with no curves at all; else
+     *  nullopt. farside::incomingFlips() is this. */
+    std::optional<std::map<size_t, int>> consistentFlips() const {
+        if (verdict == OrientationVerdict::match || noCurves)
+            return flips;
+        return std::nullopt;
+    }
+};
+
 /**
  * Compares one found surface's induced boundary orientation on the
- * search side with `row`.
+ * search side with `row`: the one walk behind classifyRowOrientation() and
+ * farside::incomingFlips().
  *
  * `curves` come from KnottedSurface::orientedBoundaryLinks(), which orients
  * each CONNECTED COMPONENT of the surface independently and arbitrarily;
@@ -106,6 +128,11 @@ enum class OrientationVerdict {
  * `foreignEdge` and `incoherentCurve` cannot happen for a correctly built
  * row in a seeded search; the caller treats them as bugs.
  */
+RowOrientationJudgement judgeRowOrientation(
+    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+    const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
+
+/** judgeRowOrientation()'s verdict. */
 OrientationVerdict classifyRowOrientation(
     const RowOrientation &row, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
@@ -144,6 +171,9 @@ struct GatedSurface {
     /** Which surface component each boundary edge lies on. */
     std::map<const regina::Edge<3> *, size_t> surfaceOf;
     std::vector<OrientedCurve> searchSideCurves;
+    /** Each surface component's flip against the row (its incoming curves'
+     *  judgeRowOrientation()): complete for an accepted surface. */
+    std::map<size_t, int> flips;
 
     bool accepted() const { return gate == Gate::accepted; }
 };
@@ -166,8 +196,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
  *
  * \pre `g` is accepted with exactly one far side.
  */
-std::string farSideName(const GatedSurface &g, const RowBuild &row,
-                        const farside::DiagramNamer *namer);
+std::string farSideName(const GatedSurface &g, const farside::DiagramNamer *namer);
 
 /**
  * Every surface the drain describes lands in exactly one of these, and at
