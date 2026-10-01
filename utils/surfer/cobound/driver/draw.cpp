@@ -81,6 +81,7 @@
 #include "diagramtriangulation/fromdiagram.h"
 #include "diagramtriangulation/pdcode.h"
 #include "cobound/json.h"
+#include "surfer/report/atomicwrite.h"
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/submanifold/vertexlinks.h"
@@ -214,13 +215,14 @@ int main(int argc, char **argv) {
         }
         Ctx::Detail d = Ctx::detailFor(t);
         if (!path.empty()) {
-            // Written aside and renamed: a reader never sees half an entry.
-            const std::string tmp = path + ".tmp." + std::to_string(::getpid());
-            {
-                std::ofstream out(tmp);
-                out << d.first << "\n" << d.second.tightEncoding() << "\n";
+            // Written whole (report::atomicWrite): a reader never sees half
+            // an entry. Best effort, as a cache: a failure only costs a rebuild.
+            try {
+                report::atomicWrite(path, [&](std::ostream &out) {
+                    out << d.first << "\n" << d.second.tightEncoding() << "\n";
+                });
+            } catch (const std::exception &) {
             }
-            std::rename(tmp.c_str(), path.c_str());
             std::cerr << "sig-cache miss " << redraw.buildChecksum() << "\n";
         }
         sigContext.emplace(t, std::move(d));

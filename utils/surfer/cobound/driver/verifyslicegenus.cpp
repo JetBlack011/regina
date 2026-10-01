@@ -36,6 +36,7 @@
 #include "cobound/solver/literature.h"
 #include "cobound/solver/solver.h"
 #include "linknaming/names.h"
+#include "surfer/report/atomicwrite.h"
 #include "surfer/report/csvwriter.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
@@ -1055,13 +1056,7 @@ void writeOutputCsv(const std::filesystem::path &path,
                     const std::vector<InputRow> &rows,
                     const std::unordered_map<std::string, OutputRow>
                         &outputRows) {
-  std::filesystem::path tmp = path;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::trunc);
-    if (!out)
-      throw std::runtime_error("Cannot open " + tmp.string() +
-                               " for writing");
+  report::atomicWrite(path, [&](std::ostream &out) {
     out << OUTPUT_HEADER << "\n";
 
     std::unordered_set<std::string> written;
@@ -1082,8 +1077,7 @@ void writeOutputCsv(const std::filesystem::path &path,
     std::sort(others.begin(), others.end());
     for (const auto &name : others)
       out << formatOutputRow(outputRows.at(name)) << "\n";
-  }
-  std::filesystem::rename(tmp, path);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────

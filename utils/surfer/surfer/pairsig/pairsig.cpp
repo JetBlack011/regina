@@ -6,6 +6,8 @@
 
 #include "surfer/pairsig/pairsig.h"
 
+#include "surfer/report/atomicwrite.h"
+
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
@@ -328,9 +330,7 @@ regina::Isomorphism<dim> readIso(std::istream &in, size_t n) {
 
 template <int dim, int subdim>
 void PairSigContext<dim, subdim>::save_(const std::string &path) const {
-    const std::string tmp = path + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::trunc);
+    report::atomicWrite(path, [&](std::ostream &out) {
         out << "surfer-pairsig-context 1\n"
             << "dim " << dim << " subdim " << subdim << " key "
             << ambientKey(*ambient_) << " size " << ambient_->size()
@@ -340,11 +340,7 @@ void PairSigContext<dim, subdim>::save_(const std::string &path) const {
         for (const auto &alpha : autos_)
             writeIso<dim>(out, alpha);
         out << "end\n";
-        out.flush();
-        if (!out)
-            throw std::runtime_error("cannot write " + tmp);
-    }
-    std::filesystem::rename(tmp, path);
+    });
 }
 
 template <int dim, int subdim>

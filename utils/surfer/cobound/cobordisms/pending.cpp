@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "surfer/report/csvwriter.h"
+#include "cobound/cobordisms/appendonly.h"
 #include "cobound/cobordisms/pairsigner.h"
 #include "cobound/cobordisms/database.h"
 
@@ -26,29 +27,10 @@ namespace cascade {
 
 namespace {
 
-// An exclusive flock(2) on a sidecar lock file, released on destruction.
-class StoreLock {
-public:
-  explicit StoreLock(const std::string &store) {
-    const std::string path = store + ".lock";
-    fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
-    if (fd_ < 0)
-      throw std::runtime_error("cannot open " + path + ": " + std::strerror(errno));
-    while (::flock(fd_, LOCK_EX) != 0)
-      if (errno != EINTR)
-        throw std::runtime_error("cannot lock " + path + ": " + std::strerror(errno));
-  }
-  ~StoreLock() {
-    if (fd_ >= 0) {
-      ::flock(fd_, LOCK_UN);
-      ::close(fd_);
-    }
-  }
-  StoreLock(const StoreLock &) = delete;
-  StoreLock &operator=(const StoreLock &) = delete;
-
-private:
-  int fd_ = -1;
+// An exclusive flock(2) on the store's sidecar lock file, released on
+// destruction.
+struct StoreLock : appendonly::FileLock {
+  explicit StoreLock(const std::string &store) : appendonly::FileLock(store + ".lock") {}
 };
 
 void identitiesOf(const std::string &path, std::unordered_set<std::string> &into,
@@ -80,24 +62,7 @@ void appendKept(const std::string &hopDir, const std::vector<PendingWitness> &ke
     buffer += witnessstore::formatWitness(p.witness) + ',' + csvField(faces.str()) + ',' +
               csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
   }
-  const std::string path = hopDir + "/kept.csv";
-  const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
-  if (fd < 0) throw std::runtime_error("cannot open " + path + ": " + std::strerror(errno));
-  const char *p = buffer.data();
-  size_t left = buffer.size();
-  while (left > 0) {
-    const ssize_t n = ::write(fd, p, left);
-    if (n < 0) {
-      if (errno == EINTR) continue;
-      ::close(fd);
-      throw std::runtime_error("write to " + path + " failed: " + std::strerror(errno));
-    }
-    p += n;
-    left -= static_cast<size_t>(n);
-  }
-  const int synced = ::fsync(fd);
-  ::close(fd);
-  if (synced != 0) throw std::runtime_error("fsync of " + path + " failed");
+  appendonly::append(hopDir + "/kept.csv", buffer, appendonly::Sync::yes);
 }
 
 std::vector<PendingWitness> readKept(const std::string &work) {
@@ -208,7 +173,8 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
     for (size_t i = 0; i < append.size(); ++i)
       buffer += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
                 csvField(appendRows[i].first) + '\n';
-    std::ofstream(sidecar, std::ios::app) << buffer;
+    // fsynced like the store it describes (it was not, before phase 3).
+    appendonly::append(sidecar, buffer, appendonly::Sync::yes);
   }
   return r;
 }

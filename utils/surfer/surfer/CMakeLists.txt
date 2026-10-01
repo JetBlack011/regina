@@ -7,7 +7,7 @@ add_library(surfer_lib STATIC
   submanifold/linkingnumber.cpp enumeration/namecache.cpp
   enumeration/inducedsubgraphs.cpp
   submanifold/rollbackunionfind.cpp submanifold/vertexlinks.cpp
-  pairsig/pairsig.cpp pairsig/sha1.cpp report/csvwriter.cpp
+  pairsig/pairsig.cpp pairsig/sha1.cpp report/csvwriter.cpp report/atomicwrite.cpp
   enumeration/searchstrategy.cpp)
 target_link_libraries(surfer_lib PUBLIC ${ENGINE_LIBRARY} linknaming_complement
                       PRIVATE OpenSSL::Crypto)

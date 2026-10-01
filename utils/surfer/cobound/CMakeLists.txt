@@ -9,7 +9,8 @@ add_library(cobound_lib STATIC
   outgoing/outgoinglink.cpp outgoing/outgoingnamer.cpp outgoing/farsideredraw.cpp
   bounds/partition.cpp bounds/partitiongenera.cpp bounds/cobordismgraph.cpp
   bounds/links.cpp bounds/searchcobordisms.cpp bounds/axioms.cpp
-  cobordisms/pairsigner.cpp cobordisms/pending.cpp outgoing/fromdatabase.cpp)
+  cobordisms/pairsigner.cpp cobordisms/pending.cpp outgoing/fromdatabase.cpp
+  cobordisms/appendonly.cpp)
 target_link_libraries(cobound_lib PUBLIC ${ENGINE_LIBRARY} surfer_lib
                       diagramtriangulation_lib linknaming_lib linknaming_complement)
 surfer_include_view(cobound_lib cobound)

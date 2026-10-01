@@ -8,7 +8,9 @@
 
 #include "cobound/cobordisms/database.h"
 
+#include "cobound/cobordisms/appendonly.h"
 #include "cobound/parallelfor.h"
+#include "surfer/report/atomicwrite.h"
 
 
 #include <cerrno>
@@ -256,22 +258,7 @@ witnessIdentities(const std::filesystem::path &path, unsigned threads,
 }
 
 namespace {
-// write(2) until done, or throw.
-void writeAll(int fd, const std::string &data, const std::string &what) {
-  const char *p = data.data();
-  size_t left = data.size();
-  while (left > 0) {
-    ssize_t n = ::write(fd, p, left);
-    if (n < 0) {
-      if (errno == EINTR)
-        continue;
-      throw std::runtime_error("write to " + what + " failed: " +
-                               std::strerror(errno));
-    }
-    p += n;
-    left -= static_cast<size_t>(n);
-  }
-}
+using appendonly::writeAll;
 
 // The first line of the open file `fd` (without its newline).
 std::string readHeader(int fd) {
@@ -335,20 +322,7 @@ void appendWitnesses(const std::filesystem::path &path,
                              "--rewrite-witnesses once to migrate it)")
                : std::string()) +
           "; refusing to append to it");
-    char last = 0;
-    if (::pread(fd, &last, 1, size - 1) != 1)
-      throw std::runtime_error("cannot read " + what);
-    if (last != '\n') {
-      // A torn append: find the last complete line and cut back to it.
-      off_t cut = size;
-      char c = 0;
-      while (cut > 0 && ::pread(fd, &c, 1, cut - 1) == 1 && c != '\n')
-        --cut;
-      std::cerr << "[!] " << what << ": truncating a torn last line ("
-                << (size - cut) << " bytes)\n";
-      if (::ftruncate(fd, cut) != 0)
-        throw std::runtime_error("cannot truncate " + what);
-    }
+    appendonly::cutTornLine(fd, what);
   }
 
   off_t pos = ::lseek(fd, 0, SEEK_END);
@@ -362,9 +336,7 @@ void appendWitnesses(const std::filesystem::path &path,
     buffer += '\n';
   }
   writeAll(fd, buffer, what);
-  if (::fsync(fd) != 0)
-    throw std::runtime_error("fsync of " + what + " failed: " +
-                             std::strerror(errno));
+  appendonly::sync(fd, what);
 
   for (size_t i = from; i < witnesses.size(); ++i) {
     cobordismgraph::Witness &w = witnesses[i];
@@ -387,49 +359,40 @@ size_t rewriteWitnessFile(const std::filesystem::path &path) {
   std::ifstream in(path, std::ios::binary);
   if (!in)
     throw std::runtime_error("cannot open " + path.string());
-  std::filesystem::path tmp = path;
-  tmp += ".rewrite.tmp";
-  std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-  if (!out)
-    throw std::runtime_error("cannot open " + tmp.string() + " for writing");
-
-  std::string line;
-  std::getline(in, line); // old header
-  out << COBORDISMS_HEADER << "\n";
   size_t written = 0, migrated = 0;
-  while (std::getline(in, line)) {
-    if (in.eof()) {
-      if (!line.empty())
-        std::cerr << "[!] " << path.string()
-                  << ": dropping a torn last line (" << line.size()
-                  << " bytes)\n";
-      break;
+  report::atomicWrite(path, [&](std::ostream &out) {
+    std::string line;
+    std::getline(in, line); // old header
+    out << COBORDISMS_HEADER << "\n";
+    while (std::getline(in, line)) {
+      if (in.eof()) {
+        if (!line.empty())
+          std::cerr << "[!] " << path.string()
+                    << ": dropping a torn last line (" << line.size()
+                    << " bytes)\n";
+        break;
+      }
+      if (line.empty())
+        continue;
+      cobordismgraph::Witness w;
+      if (!parseWitnessLine(line, w, /*keepPairSig=*/true,
+                            /*wantPairSigKey=*/false, path))
+        throw std::runtime_error("malformed witness line " +
+                                 std::to_string(written + 2) + " of " +
+                                 path.string() + "; nothing rewritten");
+      std::string again = formatWitness(w);
+      const size_t fields = parseCsvLine(line).size();
+      const bool faithful =
+          fields == 12 ? again == line + "," : again == line;
+      if (!faithful)
+        throw std::runtime_error(
+            "line " + std::to_string(written + 2) + " of " + path.string() +
+            " does not round-trip through formatWitness(); nothing rewritten");
+      migrated += fields == 12;
+      out << again << '\n';
+      ++written;
     }
-    if (line.empty())
-      continue;
-    cobordismgraph::Witness w;
-    if (!parseWitnessLine(line, w, /*keepPairSig=*/true,
-                          /*wantPairSigKey=*/false, path))
-      throw std::runtime_error("malformed witness line " +
-                               std::to_string(written + 2) + " of " +
-                               path.string() + "; nothing rewritten");
-    std::string again = formatWitness(w);
-    const size_t fields = parseCsvLine(line).size();
-    const bool faithful =
-        fields == 12 ? again == line + "," : again == line;
-    if (!faithful)
-      throw std::runtime_error(
-          "line " + std::to_string(written + 2) + " of " + path.string() +
-          " does not round-trip through formatWitness(); nothing rewritten");
-    migrated += fields == 12;
-    out << again << '\n';
-    ++written;
-  }
-  out.flush();
-  if (!out)
-    throw std::runtime_error("writing " + tmp.string() + " failed");
-  out.close();
-  std::filesystem::rename(tmp, path);
+  });
   std::cout << "[+] --rewrite-witnesses: " << written << " witnesses, "
             << migrated << " migrated from 12 to 13 columns, every line "
             << "round-tripped\n";

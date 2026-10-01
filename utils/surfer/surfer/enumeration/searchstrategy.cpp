@@ -1,5 +1,7 @@
 #include "surfer/enumeration/searchstrategy.h"
 
+#include "surfer/report/atomicwrite.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
@@ -190,18 +192,11 @@ SearchFrontier SearchFrontier::read(std::istream &in) {
 }
 
 void SearchFrontier::save(const std::string &path) const {
-    const std::string tmp = path + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::trunc);
-        if (!out)
-            bad("cannot write " + tmp);
-        write(out);
-        out.flush();
-        if (!out)
-            bad("error writing " + tmp);
+    try {
+        report::atomicWrite(path, [this](std::ostream &out) { write(out); });
+    } catch (const std::runtime_error &e) {
+        bad(e.what());
     }
-    if (std::rename(tmp.c_str(), path.c_str()) != 0)
-        bad("cannot rename " + tmp + " to " + path);
 }
 
 std::optional<SearchFrontier> SearchFrontier::load(const std::string &path) {

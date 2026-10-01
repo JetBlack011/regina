@@ -12,7 +12,9 @@
 #include <sys/file.h>
 #include <unistd.h>
 
+#include "cobound/cobordisms/appendonly.h"
 #include "cobound/cobordisms/cobordismkey.h"
+#include "surfer/report/atomicwrite.h"
 
 namespace fs = std::filesystem;
 
@@ -40,23 +42,6 @@ bool splitSizes(const std::string &s, std::vector<size_t> &out) {
   }
   return true;
 }
-
-// Held for as long as it lives: an exclusive flock(2) on an open file.
-struct FileLock {
-  int fd = -1;
-  explicit FileLock(const std::string &path) {
-    fd = ::open(path.c_str(), O_RDWR | O_CREAT, 0644);
-    if (fd < 0) throw std::runtime_error("cannot open " + path + ": " + std::strerror(errno));
-    while (::flock(fd, LOCK_EX) != 0)
-      if (errno != EINTR) throw std::runtime_error("cannot lock " + path);
-  }
-  ~FileLock() {
-    if (fd >= 0) {
-      ::flock(fd, LOCK_UN);
-      ::close(fd);
-    }
-  }
-};
 
 } // namespace
 
@@ -168,7 +153,7 @@ void RowReadBacks::put(const std::string &witnessKey, const CachedReadBack &r) {
 
 void RowReadBacks::flush() {
   if (path_.empty() || (pending_.empty() && !rewrite_)) return;
-  FileLock lock(path_ + ".lock");
+  appendonly::FileLock lock(path_ + ".lock");
   std::string out;
   if (rewrite_) {
     // Start the file afresh with this build's digest and everything known now.
@@ -179,36 +164,13 @@ void RowReadBacks::flush() {
         if (ch == '\n' || ch == '\t') ch = ' ';
       out += key + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
     }
-    const std::string tmp = path_ + ".tmp";
-    {
-      std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-      f << out;
-      if (!f) throw std::runtime_error("cannot write " + tmp);
-    }
-    fs::rename(tmp, path_);
+    report::atomicWrite(path_, [&](std::ostream &f) { f << out; });
     rewrite_ = false;
   } else {
     // Another run may have appended meanwhile; a duplicate key is harmless
     // (the loader keeps one). A torn last line from a killed run is cut first.
-    std::fstream f(path_, std::ios::in | std::ios::out | std::ios::binary | std::ios::ate);
-    const auto size = static_cast<std::streamoff>(f.tellg());
-    if (size > 0) {
-      f.seekg(size - 1);
-      char last = 0;
-      f.get(last);
-      if (last != '\n') {
-        f.close();
-        std::ifstream in(path_, std::ios::binary);
-        std::string whole((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        in.close();
-        const size_t keep = whole.rfind('\n') == std::string::npos ? 0 : whole.rfind('\n') + 1;
-        fs::resize_file(path_, keep);
-        f.open(path_, std::ios::in | std::ios::out | std::ios::binary | std::ios::ate);
-      }
-    }
-    f.seekp(0, std::ios::end);
-    f << pending_;
-    if (!f) throw std::runtime_error("cannot append to " + path_);
+    // A cache: not fsynced.
+    appendonly::append(path_, pending_, appendonly::Sync::no);
   }
   pending_.clear();
 }
