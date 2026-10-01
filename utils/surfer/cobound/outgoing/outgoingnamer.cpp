@@ -15,25 +15,12 @@
 
 namespace farside {
 
-namespace {
-
 // The complement route, as SurfaceSearch called it before a namer was
 // required: a lone curve on its own (identify(const EdgeComplement&)),
 // several curves together (identify(const Link&)).
-std::string byComplement(const Link &curves) {
-    return curves.comps_.size() == 1 ? identify::identify(curves.comps_.front())
-                                     : identify::identify(curves);
-}
-
-} // namespace
-
-std::string ComplementNamer::nameLink(size_t, const Link &curves) const {
-    return byComplement(curves);
-}
-
-std::string ComplementNamer::nameCurve(size_t, const Knot &curve) const {
-    return identify::identify(curve);
-}
+ComplementNamer::ComplementNamer()
+    : ComplementBoundaryNamer(static_cast<KnotRoute>(&identify::identify),
+                              static_cast<LinkRoute>(&identify::identify)) {}
 
 DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                            const CobordismBuilder<3> &cob, const SignatureTable &table)
@@ -44,11 +31,11 @@ std::string DiagramNamer::name(const Link &curves) const {
 }
 
 std::string DiagramNamer::nameLink(size_t bc, const Link &curves) const {
-    return handles(bc) ? name(curves) : byComplement(curves);
+    return handles(bc) ? name(curves) : complement_.nameLink(bc, curves);
 }
 
-std::string DiagramNamer::nameCurve(size_t, const Knot &curve) const {
-    return identify::identify(curve);
+std::string DiagramNamer::nameCurve(size_t bc, const Knot &curve) const {
+    return complement_.nameCurve(bc, curve);
 }
 
 DrawnCurves DiagramNamer::draw(const Link &curves) const {

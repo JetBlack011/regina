@@ -41,12 +41,12 @@ namespace farside {
 
 /**
  * Names every boundary curve by its complement (identify::identify(), the
- * census route) -- the search's namer where a row has no DiagramNamer.
+ * census route) -- the search's namer where a row has no DiagramNamer, and
+ * DiagramNamer's own fallback.
  */
-class ComplementNamer : public BoundaryNamer {
+class ComplementNamer : public ComplementBoundaryNamer {
   public:
-    std::string nameLink(size_t bc, const Link &curves) const override;
-    std::string nameCurve(size_t bc, const Knot &curve) const override;
+    ComplementNamer();
 };
 
 /**
@@ -111,6 +111,7 @@ class DiagramNamer : public BoundaryNamer {
     /** This namer's drawing of `curves`, as namer_ asks for it. */
     DrawnCurves draw(const Link &curves) const;
 
+    ComplementNamer complement_; ///< everything name() does not draw
     OutgoingMap map_;
     knotbuilder::DiagramDrawer drawer_;
     LinkNamer namer_;

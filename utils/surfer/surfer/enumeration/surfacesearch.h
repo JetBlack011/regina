@@ -214,14 +214,34 @@ class BoundaryNamer {
 };
 
 /**
+ * Names boundary curves by their complements, through one pair of routes: a
+ * lone curve (and each curve named on its own) by `knot`, several curves
+ * together by `link`. UnlinkBoundaryNamer below is the census-free pair;
+ * cobound's farside::ComplementNamer the census pair (identify::identify()).
+ */
+class ComplementBoundaryNamer : public BoundaryNamer {
+  public:
+    using KnotRoute = std::string (*)(const EdgeComplement &);
+    using LinkRoute = std::string (*)(const Link &);
+
+    ComplementBoundaryNamer(KnotRoute knot, LinkRoute link) : knot_(knot), link_(link) {}
+
+    std::string nameLink(size_t bc, const Link &curves) const override;
+    std::string nameCurve(size_t bc, const Knot &curve) const override;
+
+  private:
+    KnotRoute knot_;
+    LinkRoute link_;
+};
+
+/**
  * Names boundary curves without any census, from their complements:
  * "Unknot", "<n>-component unlink", or else the complement's isoSig
  * (identify::unlinkNameOrIsoSig(), linknaming/complement/unlinknaming.h).
  */
-class UnlinkBoundaryNamer : public BoundaryNamer {
+class UnlinkBoundaryNamer : public ComplementBoundaryNamer {
   public:
-    std::string nameLink(size_t bc, const Link &curves) const override;
-    std::string nameCurve(size_t bc, const Knot &curve) const override;
+    UnlinkBoundaryNamer();
 };
 
 class SurfaceSearch : public EmbeddingSearch<4, 2> {

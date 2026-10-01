@@ -10,12 +10,15 @@
 //       complement drilled (the fallback counter stays at zero).
 //    2. A curve around one triangle of the outgoing boundary is an unknot.
 //    3. The signature tables refuse to come back empty.
+//    4. The complement namers share one dispatch, and name an unlink's
+//       curves alike with or without the census.
 //
 
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <triangulation/dim3.h>
@@ -140,6 +143,43 @@ void test_tables_refuse_to_be_empty() {
     std::remove(empty);
 }
 
+// The one complement dispatch (ComplementBoundaryNamer, phase 3): a lone
+// curve by the knot route, several together by the link route, a curve on
+// its own by the knot route. Then the two route pairs built on it, census-free
+// (UnlinkBoundaryNamer) and census (ComplementNamer), on an unlink's curves:
+// the genus and group checks name these before any census is consulted.
+std::string knotRoute(const EdgeComplement &) { return "knot"; }
+std::string linkRoute(const Link &) { return "link"; }
+
+void test_complement_namers() {
+    // The 2-component unlink, as unlinknaming_test's kUnlink2PD.
+    const knotbuilder::TriangulationWithLink built =
+        knotbuilder::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
+    const Link both(built.tri, built.edges);
+    EXPECT_EQ(both.countComponents(), 2, "fixture: two components");
+    const Link one(built.tri, both.comps_[0].edges());
+    EXPECT_EQ(one.countComponents(), 1, "fixture: one of them alone");
+
+    const ComplementBoundaryNamer routes(knotRoute, linkRoute);
+    EXPECT_EQ(routes.nameLink(0, one), std::string("knot"), "a lone curve goes by the knot route");
+    EXPECT_EQ(routes.nameLink(0, both), std::string("link"),
+              "two curves go together by the link route");
+    EXPECT_EQ(routes.nameCurve(0, both.comps_[1]), std::string("knot"),
+              "a curve named on its own goes by the knot route");
+
+    const UnlinkBoundaryNamer censusFree{};
+    const farside::ComplementNamer census{};
+    const std::vector<std::pair<std::string, const BoundaryNamer *>> namers = {
+        {"census-free", &censusFree}, {"census", &census}};
+    for (const auto &[label, namer] : namers) {
+        EXPECT_EQ(namer->nameLink(0, both), std::string("2-component unlink"),
+                  label + ": the unlink's two curves together");
+        EXPECT_EQ(namer->nameLink(0, one), std::string("Unknot"), label + ": one curve alone");
+        EXPECT_EQ(namer->nameCurve(0, both.comps_[1]), std::string("Unknot"),
+                  label + ": one curve on its own");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -159,6 +199,7 @@ int main() {
         "L6a3", table);
     test_small_curve_is_unknot(table);
     test_tables_refuse_to_be_empty();
+    test_complement_namers();
 
     std::remove(KNOTS);
     std::remove(LINKS);

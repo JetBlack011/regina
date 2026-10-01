@@ -28,15 +28,18 @@ TubedFields tubedFieldsFor(const regina::Triangulation<2> &surface, int genus,
 
 } // namespace
 
-std::string UnlinkBoundaryNamer::nameLink(size_t, const Link &curves) const {
-    return curves.comps_.size() == 1
-               ? identify::unlinkNameOrIsoSig(curves.comps_.front())
-               : identify::unlinkNameOrIsoSig(curves);
+std::string ComplementBoundaryNamer::nameLink(size_t, const Link &curves) const {
+    return curves.comps_.size() == 1 ? knot_(curves.comps_.front()) : link_(curves);
 }
 
-std::string UnlinkBoundaryNamer::nameCurve(size_t, const Knot &curve) const {
-    return identify::unlinkNameOrIsoSig(curve);
+std::string ComplementBoundaryNamer::nameCurve(size_t, const Knot &curve) const {
+    return knot_(curve);
 }
+
+UnlinkBoundaryNamer::UnlinkBoundaryNamer()
+    : ComplementBoundaryNamer(
+          static_cast<KnotRoute>(&identify::unlinkNameOrIsoSig),
+          static_cast<LinkRoute>(&identify::unlinkNameOrIsoSig)) {}
 
 SurfaceSearch::SurfaceSearch(
     const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,

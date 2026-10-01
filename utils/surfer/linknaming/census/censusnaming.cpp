@@ -206,7 +206,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
 std::string nameFromRecognition(const identify::RecognitionResult &result,
                                 const std::string &sig) {
     if (result.genus == 1)
-        return "Unknot";
+        return identify::unlinkName(1);
     if (result.censusName)
         return *result.censusName;
     return sig;
@@ -232,11 +232,18 @@ std::atomic<bool> perturbNamesForTesting{false};
 
 std::string perturbedForTesting(std::string name) { return perturbed(std::move(name)); }
 
-std::string identify(const EdgeComplement &e) {
-    auto complement = e.buildComplement();
+namespace {
+// identify()'s answer for a built complement: the genus check, the census,
+// else the isoSig.
+std::string nameComplement(const regina::Triangulation<3> &complement) {
     std::string sig = complement.isoSig();
     RecognitionResult result = resolveRecognition(complement, sig);
     return perturbed(nameFromRecognition(result, sig));
+}
+} // namespace
+
+std::string identify(const EdgeComplement &e) {
+    return nameComplement(e.buildComplement());
 }
 
 std::string identify(const Link &l) {
@@ -245,9 +252,7 @@ std::string identify(const Link &l) {
     if (l.countComponents() > 1 && groupProvesUnlink(complement))
         return perturbed(unlinkName(l.countComponents()));
 
-    std::string sig = complement.isoSig();
-    RecognitionResult result = resolveRecognition(complement, sig);
-    return perturbed(nameFromRecognition(result, sig));
+    return nameComplement(complement);
 }
 
 bool recognizeComplement(const EdgeComplement &e) {

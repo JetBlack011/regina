@@ -143,18 +143,24 @@ bool isUnknot(const EdgeComplement &e) {
     return cachedGenus(complement, complement.isoSig()) == 1;
 }
 
-std::string unlinkNameOrIsoSig(const EdgeComplement &e) {
-    auto complement = e.buildComplement();
+namespace {
+// unlinkNameOrIsoSig()'s answer for a built complement: "Unknot" for a
+// solid torus, else its isoSig.
+std::string unknotOrIsoSig(const regina::Triangulation<3> &complement) {
     std::string sig = complement.isoSig();
     return cachedGenus(complement, sig) == 1 ? unlinkName(1) : sig;
+}
+} // namespace
+
+std::string unlinkNameOrIsoSig(const EdgeComplement &e) {
+    return unknotOrIsoSig(e.buildComplement());
 }
 
 std::string unlinkNameOrIsoSig(const Link &l) {
     auto complement = l.buildComplement();
     if (l.countComponents() > 1 && groupProvesUnlink(complement))
         return unlinkName(l.countComponents());
-    std::string sig = complement.isoSig();
-    return cachedGenus(complement, sig) == 1 ? unlinkName(1) : sig;
+    return unknotOrIsoSig(complement);
 }
 
 namespace {
