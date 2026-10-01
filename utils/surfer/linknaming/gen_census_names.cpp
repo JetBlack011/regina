@@ -6,8 +6,8 @@
 //  up to a given crossing number, and (with --links) every link in a
 //  Thistlethwaite-Link-Table-style PD code CSV ("Name,PD Notation,
 //  Genus-4D" rows, deduped to one row per base name -- see
-//  stripOrientationSuffix() below, since component orientation doesn't
-//  change the complement), builds the complement the same way
+//  cobordismgraph::stripOrientationTag()'s use below, since component
+//  orientation doesn't change the complement), builds the complement the same way
 //  surfer.cpp/verifyslicegenus.cpp does at runtime (knotbuilder::buildLink()
 //  -> Knot/Link -> buildComplement()) and records every
 //  regina::Census::lookup() hit against it.
@@ -47,6 +47,7 @@
 #include <triangulation/dim3.h>
 
 #include "linknaming/census/censusnaming.h"
+#include "linknaming/names.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 
@@ -149,18 +150,13 @@ int crossingsFromPDCode(const knotbuilder::PDCode &pdcode) {
     return static_cast<int>(pdcode.size());
 }
 
-// Strips a trailing "{...}" orientation-variant suffix from a Thistlethwaite
-// link name (e.g. "L11n459{0;1;0}" -> "L11n459"). Component orientation
-// doesn't change the complement, so every row sharing a base name builds
-// the exact same manifold -- processing only one representative per base
-// name is both correct and (for names with many orientation variants)
-// significantly cheaper.
-std::string stripOrientationSuffix(const std::string &name) {
-    size_t brace = name.find('{');
-    if (brace == std::string::npos)
-        return name;
-    return name.substr(0, brace);
-}
+// A trailing "{...}" orientation-variant suffix is stripped from a
+// Thistlethwaite link name (e.g. "L11n459{0;1;0}" -> "L11n459",
+// cobordismgraph::stripOrientationTag()). Component orientation doesn't
+// change the complement, so every row sharing a base name builds the exact
+// same manifold -- processing only one representative per base name is both
+// correct and (for names with many orientation variants) significantly
+// cheaper.
 
 // Builds `pdcode`'s complement (as a Knot for a single-component diagram,
 // a Link otherwise -- both just forward to EdgeComplement::buildComplement()
@@ -316,7 +312,7 @@ void runLinks(std::istream &file, int maxCrossings) {
         const std::string &pdStr = fields[1];
         ++c.total;
 
-        std::string baseName = stripOrientationSuffix(rawName);
+        std::string baseName = cobordismgraph::stripOrientationTag(rawName);
         if (!seenBaseNames.insert(baseName).second)
             continue; // already processed this base link under another
                        // orientation variant

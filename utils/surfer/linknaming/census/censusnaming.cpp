@@ -243,8 +243,7 @@ std::string identify(const Link &l) {
     auto complement = l.buildComplement();
 
     if (l.countComponents() > 1 && groupProvesUnlink(complement))
-        return perturbed(std::to_string(l.countComponents()) +
-                         "-component unlink");
+        return perturbed(unlinkName(l.countComponents()));
 
     std::string sig = complement.isoSig();
     RecognitionResult result = resolveRecognition(complement, sig);

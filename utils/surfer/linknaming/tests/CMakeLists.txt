@@ -1,4 +1,5 @@
 set(LINKNAMING_TESTS
+  names_test
   linkcomplement_test
   censusnaming_test
   unlinknaming_test

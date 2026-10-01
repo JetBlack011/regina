@@ -17,6 +17,7 @@
 
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/linkcomplement.h"
+#include "linknaming/complement/unlinknaming.h"
 
 namespace exactnaming {
 
@@ -588,7 +589,7 @@ FarSideName ExactNamer::name(const regina::Link &drawn) const {
     out.pinned = std::all_of(out.pieces.begin(), out.pieces.end(),
                              [](const PieceName &p) { return p.pinned(); });
     if (primes.empty()) {
-        out.name = n == 1 ? "Unknot" : std::to_string(n) + "-component unlink";
+        out.name = identify::unlinkName(n);
         out.exact = out.pinned = true;
         out.factors = n;
         return out;
@@ -770,9 +771,9 @@ std::string LinkNamer::nameOnce(const Link &curves,
             simplified.simplify();
             if (simplified.size() == 0) {
                 stats_.microsDiagram += microsSince(start);
-                if (n == 1) { ++stats_.unknots; return "Unknot"; }
+                if (n == 1) { ++stats_.unknots; return identify::unlinkName(1); }
                 ++stats_.unlinks;
-                return std::to_string(n) + "-component unlink";
+                return identify::unlinkName(n);
             }
             if (n == 1) {
                 std::string sig = simplified.knotSig(true, true);

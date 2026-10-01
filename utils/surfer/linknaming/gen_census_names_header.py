@@ -206,6 +206,8 @@ def write_header(table):
     lines.append("#include <string>")
     lines.append("#include <unordered_map>")
     lines.append("")
+    lines.append("#include \"linknaming/names.h\"")
+    lines.append("")
     lines.append("/*! \\file utils/surfer/linknaming/census/censusnames.h")
     lines.append(" *  \\brief Translates Regina census hit names (e.g. \"m004 : "
                   "#1\", \"L104001\")")
@@ -262,8 +264,8 @@ def write_header(table):
     lines.append(" */")
     lines.append("inline std::optional<std::string> "
                   "name(const std::string &censusName) {")
-    lines.append("    std::string base = censusName.substr(0, "
-                  "censusName.find(\" : \"));")
+    lines.append("    std::string base = "
+                  "cobordismgraph::stripCensusSuffix(censusName);")
     lines.append("    auto it = table.find(base);")
     lines.append("    if (it == table.end())")
     lines.append("        return std::nullopt;")

@@ -74,6 +74,8 @@
 #include "cobound/search/search.h"
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/complementcache.h"
+#include "linknaming/complement/unlinknaming.h"
+#include "linknaming/names.h"
 #include "cobound/cobordisms/pending.h"
 #include "cobound/bounds/axioms.h"
 #include "cobound/bounds/links.h"
@@ -231,7 +233,7 @@ public:
   /// dropped. Used only to FIND candidate witnesses; every one found is
   /// redrawn and identified exactly before it means anything.
   static std::string base(std::string name) {
-    if (auto b = name.find('{'); b != std::string::npos) name.resize(b);
+    name = cobordismgraph::stripOrientationTag(name);
     if (name.size() > 1 && name[0] == 'm' && std::isdigit(static_cast<unsigned char>(name[1])))
       name.erase(0, 1);
     return name;
@@ -2191,7 +2193,7 @@ void Cascade::writeProfiles() const {
     std::string name = subjectName(n);
     if (reg_.known(n) && reg_.info(n).diagram.signs.empty() && n != target_) {
       const int k = g_.node(n).components;
-      name = k == 1 ? "Unknot" : std::to_string(k) + "-component unlink";
+      name = identify::unlinkName(static_cast<size_t>(k));
     }
     out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << '"';
     if (auto it = tableName_.find(n); it != tableName_.end())

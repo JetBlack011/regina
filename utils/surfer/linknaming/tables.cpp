@@ -9,6 +9,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "linknaming/names.h"
+
 namespace exactnaming {
 
 namespace {
@@ -65,7 +67,7 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
     auto add = [&](const std::string &name, const std::string &pd, const std::string &g4) {
         TableEntry e;
         e.name = name;
-        e.base = name.substr(0, name.find('{'));
+        e.base = cobordismgraph::stripOrientationTag(name);
         e.diagram = linkFromTablePD(pd);
         e.components = e.diagram.countComponents();
         e.g4 = g4;
@@ -286,7 +288,7 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
     });
     eachRow(linkTable, [&](const std::string &name, const std::string &pd) {
         t.links_.try_emplace(linkOf(pd).sig<2>(true, true, true),
-                             name.substr(0, name.find('{')));
+                             cobordismgraph::stripOrientationTag(name));
     });
     if ((!knotTable.empty() && t.knots_.empty()) ||
         (!linkTable.empty() && t.links_.empty()))

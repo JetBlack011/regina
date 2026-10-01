@@ -23,7 +23,7 @@ bool farSideBearsBound(const Witness &w) {
     // split -- is the one case where a multi-component name is a complete
     // candidate set; see Witness::farSideProved.
     return w.otherComponents == 1 || w.farSideProved ||
-           identify::isOrientationSafeName(w.other);
+           identify::isUnlinkName(w.other);
 }
 
 namespace {
@@ -553,7 +553,7 @@ void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
     // Likewise every slice composite mentioned anywhere: it bounds a disk.
     for (const Witness &w : witnesses)
         for (const std::string &side : {w.other, w.subject})
-            if (side.ends_with("-component unlink") ||
+            if (identify::isMultiComponentUnlinkName(side) ||
                 isElementarySlice(side, names))
                 axiom(side);
 }
@@ -623,7 +623,7 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
             // an axiom).
             if ((w.otherComponents == 1 || w.farSideExact) &&
                 w.otherCandidates.size() == 1 &&
-                !w.otherCandidates.front().ends_with("-component unlink"))
+                !identify::isMultiComponentUnlinkName(w.otherCandidates.front()))
                 directions.push_back({w.otherCandidates.front(),
                                       w.otherComponents,
                                       {w.subject},
@@ -655,9 +655,7 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
                 const bool unlinkFar =
                     !d.far.empty() &&
                     std::all_of(d.far.begin(), d.far.end(),
-                                [](const std::string &c) {
-                                    return c.ends_with("-component unlink");
-                                });
+                                identify::isMultiComponentUnlinkName);
                 const int penalty = unlinkFar ? 0 : d.farComponents - 1;
                 if (haveAll && relaxUpper(bounds, names, d.near,
                                           addUpper(worst, w.genus + penalty),
@@ -767,7 +765,7 @@ buildDependsOn(const std::string &via,
     std::string cur = via;
     while (!cur.empty() && seen.insert(cur).second) {
         chain.push_back(cur);
-        if (cur == "Unknot" || cur.ends_with("-component unlink"))
+        if (identify::isUnlinkName(cur))
             break;
         auto it = bounds.find(cur);
         if (it == bounds.end() || it->second.viaName.empty())

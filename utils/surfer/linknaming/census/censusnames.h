@@ -15,6 +15,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "linknaming/names.h"
+
 /*! \file utils/surfer/linknaming/census/censusnames.h
  *  \brief Translates Regina census hit names (e.g. "m004 : #1", "L104001")
  *  into classical names: Rolfsen knot table names (e.g. "4_1") for knots up
@@ -336,7 +338,7 @@ inline const std::unordered_map<std::string, std::string> table = {
  * comment above), so callers can pass CensusHit::name() unmodified.
  */
 inline std::optional<std::string> name(const std::string &censusName) {
-    std::string base = censusName.substr(0, censusName.find(" : "));
+    std::string base = cobordismgraph::stripCensusSuffix(censusName);
     auto it = table.find(base);
     if (it == table.end())
         return std::nullopt;

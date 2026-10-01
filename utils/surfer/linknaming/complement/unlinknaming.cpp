@@ -118,8 +118,17 @@ bool groupProvesUnlink(const regina::Triangulation<3> &t) {
     return t.group().countRelations() == 0;
 }
 
-bool isOrientationSafeName(const std::string &name) {
-    return name == "Unknot" || name.ends_with("-component unlink");
+std::string unlinkName(size_t components) {
+    return components == 1 ? "Unknot"
+                           : std::to_string(components) + "-component unlink";
+}
+
+bool isMultiComponentUnlinkName(const std::string &name) {
+    return name.ends_with("-component unlink");
+}
+
+bool isUnlinkName(const std::string &name) {
+    return name == "Unknot" || isMultiComponentUnlinkName(name);
 }
 
 bool isUnknot(const EdgeComplement &e) {
@@ -130,15 +139,15 @@ bool isUnknot(const EdgeComplement &e) {
 std::string unlinkNameOrIsoSig(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();
-    return cachedGenus(complement, sig) == 1 ? "Unknot" : sig;
+    return cachedGenus(complement, sig) == 1 ? unlinkName(1) : sig;
 }
 
 std::string unlinkNameOrIsoSig(const Link &l) {
     auto complement = l.buildComplement();
     if (l.countComponents() > 1 && groupProvesUnlink(complement))
-        return std::to_string(l.countComponents()) + "-component unlink";
+        return unlinkName(l.countComponents());
     std::string sig = complement.isoSig();
-    return cachedGenus(complement, sig) == 1 ? "Unknot" : sig;
+    return cachedGenus(complement, sig) == 1 ? unlinkName(1) : sig;
 }
 
 namespace {

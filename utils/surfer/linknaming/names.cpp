@@ -24,8 +24,15 @@ std::string baseName(const std::string &name) {
     // lowerOf() take them from there.
     if (name.find(kSplitSeparator) != std::string::npos)
         return name;
-    size_t brace = name.find('{');
-    return brace == std::string::npos ? name : name.substr(0, brace);
+    return stripOrientationTag(name);
+}
+
+std::string stripOrientationTag(const std::string &name) {
+    return name.substr(0, name.find('{'));
+}
+
+std::string stripCensusSuffix(const std::string &name) {
+    return name.substr(0, name.find(" : "));
 }
 
 std::string normalizeIdentifiedName(const std::string &name) {

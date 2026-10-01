@@ -257,6 +257,26 @@ void test_cap_in_cone_detects_knotted_arc() {
     }
 }
 
+// The one spelling of an unlink's name, and the predicates the solver and
+// the alias loader read it back with (phase 3: written out by hand at ~10
+// sites before).
+void test_unlink_names() {
+    EXPECT_EQ(identify::unlinkName(1), std::string("Unknot"), "one component");
+    EXPECT_EQ(identify::unlinkName(2), std::string("2-component unlink"), "two");
+    EXPECT_EQ(identify::unlinkName(12), std::string("12-component unlink"), "twelve");
+    EXPECT_EQ(identify::isUnlinkName("Unknot"), true, "the unknot is an unlink");
+    EXPECT_EQ(identify::isUnlinkName("3-component unlink"), true, "so is this");
+    EXPECT_EQ(identify::isUnlinkName("3_1"), false, "a knot is not");
+    EXPECT_EQ(identify::isUnlinkName("L2a1{0}"), false, "a link is not");
+    EXPECT_EQ(identify::isMultiComponentUnlinkName("Unknot"), false,
+              "the multi-component test leaves the unknot out");
+    EXPECT_EQ(identify::isMultiComponentUnlinkName("2-component unlink"), true,
+              "and takes every <n>-component unlink");
+    for (size_t n = 1; n < 6; ++n)
+        EXPECT_EQ(identify::isUnlinkName(identify::unlinkName(n)), true,
+                  "unlinkName(" + std::to_string(n) + ") reads back as an unlink");
+}
+
 } // namespace
 
 void run(const std::string &name, void (*fn)()) {
@@ -271,6 +291,7 @@ int main() {
     run("cap_in_cone_single_tetrahedron", test_cap_in_cone_single_tetrahedron);
     run("cap_in_cone_detects_knotted_arc",
         test_cap_in_cone_detects_knotted_arc);
+    run("unlink_names", test_unlink_names);
 
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "

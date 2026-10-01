@@ -45,9 +45,20 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
 bool groupProvesUnlink(const regina::Triangulation<3> &t);
 
 /**
- * Whether `name` (as returned by identify(const Link&)) is safe to use for
- * a genus deduction on a MULTI-component far side: true for `"Unknot"` and
- * any `"<n>-component unlink"`, false for everything else.
+ * The name of the `components`-component unlink: `"Unknot"` for one
+ * component, else `"<n>-component unlink"`. The one spelling of both; every
+ * namer writes it through here.
+ */
+std::string unlinkName(size_t components);
+
+/** Whether `name` is `"<n>-component unlink"` (an unlink of two or more
+ *  components; not `"Unknot"`). */
+bool isMultiComponentUnlinkName(const std::string &name);
+
+/**
+ * Whether `name` is an unlink's name, `"Unknot"` or `"<n>-component unlink"`
+ * -- and so (as returned by identify(const Link&)) safe to use for a genus
+ * deduction on a MULTI-component far side; false for everything else.
  *
  * Those two are the only multi-curve names identify() produces from a
  * structural proof of the link itself (free pi_1 => split unlink), rather
@@ -65,7 +76,7 @@ bool groupProvesUnlink(const regina::Triangulation<3> &t);
  * pattern-matched elsewhere, so the two stay in sync if the format ever
  * changes.
  */
-bool isOrientationSafeName(const std::string &name);
+bool isUnlinkName(const std::string &name);
 
 /**
  * Cheap test for whether `e`'s complement is a genus-1 handlebody (a solid

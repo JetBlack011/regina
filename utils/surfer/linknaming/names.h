@@ -34,8 +34,19 @@ namespace cobordismgraph {
  */
 int componentsFromName(const std::string &name);
 
-/** `name` with any trailing orientation tag removed: `L6a3{0}` -> `L6a3`. */
+/** `name` with any trailing orientation tag removed: `L6a3{0}` -> `L6a3`.
+ *  A split name (`A u B`) has no base and is returned unchanged; see
+ *  stripOrientationTag() for the plain cut. */
 std::string baseName(const std::string &name);
+
+/** `name` cut at its first `{`, whatever it is: `L6a3{0}` -> `L6a3`, and
+ *  `L2a1{0} u Unknot` -> `L2a1` (unlike baseName()). For table names, which
+ *  are never splits. */
+std::string stripOrientationTag(const std::string &name);
+
+/** A Regina census hit's name without its `" : #N"` suffix, which varies
+ *  between identifications of one manifold: `m004 : #1` -> `m004`. */
+std::string stripCensusSuffix(const std::string &name);
 
 /**
  * A COMPOSITE far-side name, "K #_c L": the knot K connect-summed into

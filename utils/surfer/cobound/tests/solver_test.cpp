@@ -103,32 +103,6 @@ Witness direct(const std::string &subject, int nA, int g, bool tubed = false) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Component counts read off a name
-// ─────────────────────────────────────────────────────────────────────────
-
-void test_components_from_name() {
-    EXPECT_EQ(componentsFromName("3_1"), 1, "a knot name is one component");
-    EXPECT_EQ(componentsFromName("Unknot"), 1, "the unknot is one component");
-    EXPECT_EQ(componentsFromName("cPcbbbadu"), 1,
-              "a bare isoSig fallback is treated as one component");
-    // LinkInfo's tag carries an orientation choice per component AFTER the
-    // first, so the count is one more than the number of entries.
-    EXPECT_EQ(componentsFromName("L2a1{0}"), 2, "L2a1 is the Hopf link");
-    EXPECT_EQ(componentsFromName("L6a5{0;1}"), 3,
-              "L6a5 (Borromean) is three components");
-    EXPECT_EQ(componentsFromName("L11n459{1;0;0}"), 4, "four components");
-    EXPECT_EQ(componentsFromName("2-component unlink"), 2,
-              "an unlink states its own component count");
-    EXPECT_EQ(componentsFromName("5-component unlink"), 5, "");
-}
-
-void test_base_name() {
-    EXPECT_EQ(baseName("L6a3{0}"), std::string("L6a3"), "tag stripped");
-    EXPECT_EQ(baseName("L6a5{0;1}"), std::string("L6a5"), "multi-entry tag");
-    EXPECT_EQ(baseName("10_132"), std::string("10_132"), "no tag, unchanged");
-}
-
-// ─────────────────────────────────────────────────────────────────────────
 // NameTable: turning an orientation-blind name into candidates
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -755,23 +729,6 @@ void test_unlink_far_side_still_chains_and_is_penalty_free() {
               "and rests on nothing from the literature");
 }
 
-void test_normalize_identified_name() {
-    // identify() decorates a translated census hit; the --input tables do
-    // not. Left undecorated, "4_1 (m004 : #1)" would be a DIFFERENT graph
-    // node from the "4_1" row for the very same knot, and nothing would
-    // ever chain through it.
-    EXPECT_EQ(normalizeIdentifiedName("4_1 (m004 : #1)"), std::string("4_1"),
-              "the census annotation is stripped for node identity");
-    EXPECT_EQ(normalizeIdentifiedName("L6a1 (s780 : #6)"),
-              std::string("L6a1"), "same for links");
-    EXPECT_EQ(normalizeIdentifiedName("Unknot"), std::string("Unknot"),
-              "an undecorated name is untouched");
-    EXPECT_EQ(normalizeIdentifiedName("3-component unlink"),
-              std::string("3-component unlink"), "unlinks are untouched");
-    EXPECT_EQ(normalizeIdentifiedName("cPcbbbadu"), std::string("cPcbbbadu"),
-              "a bare isoSig is untouched");
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // judge()
 // ─────────────────────────────────────────────────────────────────────────
@@ -1141,19 +1098,6 @@ void test_proved_link_far_side_bears_bound() {
 // Split (disjoint-union) far-side names: "A u B"
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_split_names() {
-    EXPECT_EQ(componentsFromName("3_1 u Unknot"), 2, "knot u knot: 1 + 1");
-    EXPECT_EQ(componentsFromName("Unknot u L2a1{0}"), 3,
-              "a tagged link factor states its own count: 1 + 2");
-    EXPECT_EQ(componentsFromName("3_1|m3_1 u Unknot"), 2,
-              "a mirror alternation is still one component");
-    EXPECT_EQ(baseName("L2a1{0} u Unknot"),
-              std::string("L2a1{0} u Unknot"),
-              "a split name has no base: stripping at '{' would read it as "
-              "the 2-component link L2a1 and hand back that link's "
-              "orientation variants");
-}
-
 void test_split_far_side_upper_bound() {
     // g_4(A u B) <= g_4(A) + g_4(B): tube the factors' minimal surfaces
     // together (constructive). With 3_1 at 1 and the Unknot axiom at 0, a
@@ -1313,43 +1257,6 @@ void test_unproved_split_far_side_bounds_nothing() {
 // Composite far-side names: "K #_c L"
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_composite_parts() {
-    auto a = compositeParts("m3_1 #_0 L2a1");
-    EXPECT_EQ(a.has_value(), true, "parses");
-    EXPECT_EQ(a->knot, std::string("m3_1"), "knot keeps its chirality");
-    EXPECT_EQ(a->component, 0, "component");
-    EXPECT_EQ(a->link, std::string("L2a1"), "link base name");
-    EXPECT_EQ(compositeParts("3_1 #_1 L10n77")->component, 1, "component 1");
-    EXPECT_EQ(compositeParts("3_1 u Unknot").has_value(), false,
-              "a split name is not composite");
-    EXPECT_EQ(compositeParts("3_1#m3_1").has_value(), false,
-              "the slice composite (a KNOT sum) is not a knot-into-link sum");
-    EXPECT_EQ(compositeParts("3_1 #_ L2a1").has_value(), false,
-              "no component index: refused, since K # L is not well defined "
-              "without one");
-    // An exact name writes L with its orientation tag, and the component as
-    // "?" when the namer does not compute it.
-    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}").has_value(), true,
-              "a TAGGED link part (exact names) is accepted");
-    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}")->link, std::string("L2a1{0}"),
-              "and kept with its tag");
-    EXPECT_EQ(compositeParts("3_1 #_? L2a1{0}")->component, -1,
-              "an unindexed component is -1");
-    EXPECT_EQ(compositeParts("mr8_17 #_? L2a1{0}")->knot, std::string("mr8_17"),
-              "a marked knot keeps its marks");
-    EXPECT_EQ(compositeParts("3_1 #_0 L2a1{x}").has_value(), false,
-              "a malformed tag is refused");
-}
-
-void test_knot_marks() {
-    EXPECT_EQ(stripKnotMarks("mr8_17"), std::string("8_17"), "m and r stripped");
-    EXPECT_EQ(stripKnotMarks("r8_17"), std::string("8_17"), "r stripped");
-    EXPECT_EQ(stripKnotMarks("m3_1"), std::string("3_1"), "m stripped");
-    EXPECT_EQ(stripKnotMarks("11n_34"), std::string("11n_34"), "no marks, unchanged");
-    EXPECT_EQ(stripKnotMarks("mL2a1{0}"), std::string("mL2a1{0}"), "not a knot: unchanged");
-    EXPECT_EQ(knotSummands("3_1#mr8_17").size(), size_t(2), "a marked summand is a summand");
-}
-
 void test_elementary_slice_with_marks() {
     NameTable names;
     names.setSymmetry("3_1", SymmetryType::reversible);
@@ -1363,20 +1270,6 @@ void test_elementary_slice_with_marks() {
     EXPECT_EQ(isElementarySlice("8_17#r8_17", names), false, "8_17 # r8_17 = 8_17 # m8_17 is not");
     EXPECT_EQ(isElementarySlice("12a_1#r12a_1", names), true, "positive amphicheiral: -K = rK");
     EXPECT_EQ(isElementarySlice("12a_1#12a_1", names), false, "and K # K is not");
-}
-
-void test_sum_pieces() {
-    auto p = sumPieces("5_1 #_? 3_1 #_? L4a1{1}");
-    EXPECT_EQ(p.has_value() && p->size() == 3, true, "knots summed into a link: three pieces");
-    EXPECT_EQ(p && (*p)[2] == std::make_pair(std::string("L4a1{1}"), 2), true, "the link, 2 components");
-    auto q = sumPieces("#{L2a1{0}[?] # L2a1{0}[?] ; L2a1{0}[?] # L6a3{0}[?]}");
-    EXPECT_EQ(q.has_value() && q->size() == 4, true,
-              "every written occurrence is a piece (over-counts, which only weakens)");
-    EXPECT_EQ(sumPieces("L2a1{0}#3_1").has_value(), false, "not a sum along components");
-    EXPECT_EQ(sumPieces("3_1 #_? L2a1").has_value(), false, "an untagged link states no count");
-    EXPECT_EQ(exactCandidates("L8n2{0}|L8n2{1}").size(), size_t(2), "proved alternatives");
-    EXPECT_EQ(exactCandidates("3_1#3_1|3_1#m3_1 u Unknot").size(), size_t(1),
-              "a split is one candidate");
 }
 
 // An exact far side bounds by ITS variant, not the worst of its base's, and
@@ -1479,19 +1372,6 @@ void test_unproved_composite_bounds_nothing() {
 // Composite knots, and sliceness from the concordance group
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_knot_summands() {
-    EXPECT_EQ(knotSummands("3_1#m5_2").size(), size_t(2), "two summands");
-    EXPECT_EQ(knotSummands("3_1#m5_2")[1], std::string("m5_2"), "chirality kept");
-    EXPECT_EQ(knotSummands("11a_367#m11a_367").size(), size_t(2),
-              "11+ crossing names (with a/n) parse");
-    EXPECT_EQ(knotSummands("5_2").size(), size_t(0), "a prime is not composite");
-    EXPECT_EQ(knotSummands("m129 : #2").size(), size_t(0),
-              "a census hit suffix is not a connected sum");
-    EXPECT_EQ(knotSummands("3_1 #_0 L2a1").size(), size_t(0),
-              "a knot-into-link sum is not a composite KNOT");
-    EXPECT_EQ(knotSummands("L2a1{0}#3_1").size(), size_t(0), "links refused");
-}
-
 namespace {
 NameTable symmetryTable() {
     NameTable names;
@@ -1590,7 +1470,6 @@ void run(const std::string &name, void (*fn)()) {
 }
 
 int main() {
-    run("components_from_name", test_components_from_name);
     run("external_proofs", test_external_proofs);
     run("derived_lower_above_derived_upper_is_a_contradiction",
         test_derived_lower_above_derived_upper_is_a_contradiction);
@@ -1598,7 +1477,6 @@ int main() {
         test_knot_far_side_named_as_a_link_bounds_nothing);
     run("proved_link_far_side_bears_bound",
         test_proved_link_far_side_bears_bound);
-    run("split_names", test_split_names);
     run("split_far_side_upper_bound", test_split_far_side_upper_bound);
     run("split_unknot_factor_changes_nothing",
         test_split_unknot_factor_changes_nothing);
@@ -1614,19 +1492,16 @@ int main() {
         test_split_with_a_link_factor_has_no_lower_bound);
     run("unproved_split_far_side_bounds_nothing",
         test_unproved_split_far_side_bounds_nothing);
-    run("composite_parts", test_composite_parts);
     run("composite_far_side_upper_bound", test_composite_far_side_upper_bound);
     run("composite_takes_the_worst_orientation",
         test_composite_takes_the_worst_orientation);
     run("unproved_composite_bounds_nothing",
         test_unproved_composite_bounds_nothing);
-    run("knot_summands", test_knot_summands);
     run("elementary_slice", test_elementary_slice);
     run("elementary_slice_is_a_constructive_anchor",
         test_elementary_slice_is_a_constructive_anchor);
     run("composite_knot_bounds", test_composite_knot_bounds);
     run("composite_link_lower_bound", test_composite_link_lower_bound);
-    run("base_name", test_base_name);
     run("candidates_expand_orientation_variants",
         test_candidates_expand_orientation_variants);
     run("candidates_filtered_by_observed_component_count",
@@ -1677,7 +1552,6 @@ int main() {
         test_two_component_isosig_node_does_not_chain);
     run("unlink_far_side_still_chains_and_is_penalty_free",
         test_unlink_far_side_still_chains_and_is_penalty_free);
-    run("normalize_identified_name", test_normalize_identified_name);
     run("judge_verified", test_judge_verified);
     run("judge_distinguishes_assisted_verification",
         test_judge_distinguishes_assisted_verification);
@@ -1705,9 +1579,7 @@ int main() {
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
     run("witness_identity", test_witness_identity);
-    run("knot_marks", test_knot_marks);
     run("elementary_slice_with_marks", test_elementary_slice_with_marks);
-    run("sum_pieces", test_sum_pieces);
     run("exact_far_side", test_exact_far_side);
     run("sum_rules", test_sum_rules);
 

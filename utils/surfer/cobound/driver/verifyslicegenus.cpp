@@ -718,7 +718,7 @@ loadNameAliases(const std::filesystem::path &path) {
     // An anchor name is an AXIOM to the solver (seedAxioms matches on the
     // string), and identify() only ever emits one from a structural proof.
     // An alias must not be able to manufacture that proof by spelling.
-    if (identify::isOrientationSafeName(f[1]))
+    if (identify::isUnlinkName(f[1]))
       throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" +
                                f[1] +
                                "': an unknot/unlink can only be established "
@@ -731,7 +731,7 @@ loadNameAliases(const std::filesystem::path &path) {
 // `name` as loadNameAliases() keys it: any " : #N" census-hit suffix
 // stripped, matching linknames::name()'s own convention.
 std::string aliasKey(const std::string &name) {
-  return name.substr(0, name.find(" : "));
+  return cobordismgraph::stripCensusSuffix(name);
 }
 
 // Resolves every witness's far side through the alias table, returning a
@@ -960,8 +960,8 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
     const size_t idx = static_cast<size_t>(&w - resolved.data());
     const bool aliasFired =
         idx < observed.size() && observed[idx].other != w.other;
-    const std::string aliasedBase = w.other.substr(0, w.other.find('{'));
-    const std::string resolvedBase = match->substr(0, match->find('{'));
+    const std::string aliasedBase = cobordismgraph::stripOrientationTag(w.other);
+    const std::string resolvedBase = cobordismgraph::stripOrientationTag(*match);
     if (aliasFired && !aliasedBase.empty() && aliasedBase != resolvedBase) {
       if (w.otherComponents == 1)
         conflicts.push_back(w.other + " -> " + *match);
@@ -3097,9 +3097,7 @@ int main(int argc, char *argv[]) {
         // components are joined by one connected surface).
         const bool unlinkFar =
             std::all_of(w.otherCandidates.begin(), w.otherCandidates.end(),
-                        [](const std::string &c) {
-                          return c.ends_with("-component unlink");
-                        });
+                        identify::isMultiComponentUnlinkName);
         if (haveAll)
           implied = worst + w.genus + (unlinkFar ? 0 : w.otherComponents - 1);
       }
