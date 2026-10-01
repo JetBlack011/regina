@@ -40,7 +40,9 @@
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/linkingnumber.h"
-#include "linknaming/census/identifycomplement.h"
+#include "linknaming/census/censusnaming.h"
+#include "linknaming/complement/complementcache.h"
+#include "linknaming/complement/unlinknaming.h"
 #include "cobound/search/rowsearch.h"
 
 using namespace cobordismgraph;

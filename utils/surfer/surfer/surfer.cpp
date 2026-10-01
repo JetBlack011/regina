@@ -25,7 +25,8 @@
 #include "surfer/enumeration/surfacesearch.h"
 #include "cobound/search/rowsearch.h"
 #include "linknaming/complement/linkcomplement.h"
-#include "linknaming/census/identifycomplement.h"
+#include "linknaming/census/censusnaming.h"
+#include "linknaming/complement/complementcache.h"
 
 namespace {
 

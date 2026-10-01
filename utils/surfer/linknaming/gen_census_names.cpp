@@ -46,7 +46,7 @@
 #include <census/census.h>
 #include <triangulation/dim3.h>
 
-#include "linknaming/census/identifycomplement.h"
+#include "linknaming/census/censusnaming.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 

@@ -6,6 +6,8 @@
 
 #include "cobound/solver/cobordismgraph.h"
 
+#include "linknaming/complement/unlinknaming.h"
+
 #include <algorithm>
 #include <cctype>
 #include <map>

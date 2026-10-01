@@ -41,7 +41,7 @@
 #include <triangulation/example4.h>
 
 #include "surfer/submanifold/submanifold.h"
-#include "linknaming/census/identifycomplement.h"
+#include "linknaming/complement/unlinknaming.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/skeleton.h"
 

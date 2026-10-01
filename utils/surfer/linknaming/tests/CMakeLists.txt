@@ -1,6 +1,7 @@
 set(LINKNAMING_TESTS
   linkcomplement_test
-  identifycomplement_test
+  censusnaming_test
+  unlinknaming_test
   census_test
   meridians_test
   linknamer_test

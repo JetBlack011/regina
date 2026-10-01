@@ -16,7 +16,7 @@
 
 #include "surfer/submanifold/submanifold.h"
 #include "surfer/enumeration/submanifoldsearch.h"
-#include "linknaming/census/identifycomplement.h"
+#include "surfer/enumeration/namecache.h"
 #include "surfer/pairsig/pairsig.h"
 
 /**

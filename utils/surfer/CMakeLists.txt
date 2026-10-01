@@ -20,7 +20,9 @@ add_library(surfer_common STATIC
   surfer/submanifold/submanifold.cpp surfer/enumeration/submanifoldsearch.cpp
   surfer/enumeration/surfacesearch.cpp
   linknaming/complement/linkcomplement.cpp surfer/submanifold/linkingnumber.cpp
-  linknaming/complement/meridians.cpp linknaming/census/identifycomplement.cpp
+  linknaming/complement/meridians.cpp linknaming/census/censusnaming.cpp
+  linknaming/complement/complementcache.cpp linknaming/complement/unlinknaming.cpp
+  surfer/enumeration/namecache.cpp
   surfer/enumeration/inducedsubgraphs.cpp diagramtriangulation/thickening/collar.cpp
   cobound/search/rowsearch.cpp
   surfer/submanifold/rollbackunionfind.cpp surfer/submanifold/vertexlinks.cpp
@@ -50,7 +52,7 @@ set_source_files_properties(
   linknaming/isometry/snappeakernel_isometry.cpp linknaming/isometry/snappeakernel_isometry_cusped.cpp
   PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/engine/snappea/kernel")
 
-# Local census SQLite lookup (identifycomplement.cpp's
+# Local census SQLite lookup (censusnaming.cpp's
 # census::localCensusLookup()): not used anywhere else in the engine, so
 # this dependency is scoped to surfer_common alone rather than added at the
 # top level.

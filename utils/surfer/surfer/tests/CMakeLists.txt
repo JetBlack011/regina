@@ -9,6 +9,7 @@ set(TESTS
   inducedsubgraphs_test
   predicate_order_test
   sha1_test
+  namecache_test
 )
 
 # Every test just links surfer_common (defined in ../../CMakeLists.txt) rather

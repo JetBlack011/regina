@@ -14,7 +14,7 @@
 #include <link/link.h>
 
 #include "cobound/solver/cobordismgraph.h"
-#include "linknaming/census/identifycomplement.h"
+#include "linknaming/census/censusnaming.h"
 #include "diagramtriangulation/fromdiagram.h"
 
 namespace farside {
