@@ -15,6 +15,9 @@
 
 #include <triangulation/dim3.h>
 
+#include "cobound/cobordisms/cobordism.h"
+#include "cobound/outgoing/fromdatabase.h"
+#include "cobound/outgoing/outgoinglink.h"
 #include "cobound/search/incoming.h"
 #include "surfer/enumeration/surfacesearch.h"
 
@@ -215,6 +218,16 @@ struct RowAccounting {
      *  parses (RE_ACCOUNTING): "accepted N, described N, ..., ok". */
     std::string summary(long long accepted, bool drainSkipped) const;
 };
+
+/**
+ * What a search keeps one cobordism per: the cobordism's identity
+ * (cobordismgraph::witnessIdentity(), the one identity every dedupe uses),
+ * then -- the grouping a goal run's graph needs -- which row components and
+ * how many outgoing curves each surface component carries, as a canonical
+ * string (surface components are unlabelled, so the entries are sorted).
+ */
+std::string keptKey(const cobordismgraph::Witness &w, const farside::OutgoingLink &link,
+                    const farside::WitnessRedrawer &row);
 } // namespace rowsearch
 
 #endif // SURFER_COBOUND_PRECONDITIONS_H

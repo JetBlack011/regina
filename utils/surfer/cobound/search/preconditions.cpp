@@ -4,6 +4,7 @@
 
 #include "cobound/search/preconditions.h"
 
+#include <algorithm>
 #include <optional>
 #include <unordered_map>
 
@@ -233,6 +234,38 @@ std::string RowAccounting::summary(long long accepted, bool drainSkipped) const 
            std::to_string(impossible()) + ", drain " +
            (drainSkipped ? "skipped" : "complete") + ", " +
            (nothingExamined() ? "WARNING" : "ok");
+}
+
+namespace {
+
+// Which row components and how many far-side curves each surface component
+// carries, as a canonical string: surface components are unlabelled, so the
+// per-component entries are sorted.
+std::string groupingOf(const farside::OutgoingLink &link,
+                       const farside::WitnessRedrawer &row) {
+  std::map<size_t, std::pair<std::vector<size_t>, int>> bySurface;
+  for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i)
+    bySurface[link.incomingSurfaceComponent[i]].first.push_back(
+        row.rowComponentOf(link.incomingFirstEdge[i]));
+  for (size_t sc : link.surfaceComponent) ++bySurface[sc].second;
+  std::vector<std::string> parts;
+  for (auto &[sc, entry] : bySurface) {
+    std::sort(entry.first.begin(), entry.first.end());
+    std::string s;
+    for (size_t rc : entry.first) s += std::to_string(rc) + '.';
+    parts.push_back(s + ':' + std::to_string(entry.second));
+  }
+  std::sort(parts.begin(), parts.end());
+  std::string out;
+  for (const std::string &p : parts) out += p + '|';
+  return out;
+}
+
+} // namespace
+
+std::string keptKey(const cobordismgraph::Witness &w, const farside::OutgoingLink &link,
+                    const farside::WitnessRedrawer &row) {
+    return cobordismgraph::witnessIdentity(w) + '\x1f' + groupingOf(link, row);
 }
 
 } // namespace rowsearch
