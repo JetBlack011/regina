@@ -228,7 +228,7 @@ void testDiagram(const std::string &label, const std::string &pd,
 
     const size_t before = built.tri.size();
     peripheral::DrilledWithMeridians drilled =
-        link.buildComplementWithPeripheral();
+        peripheral::buildComplementWithPeripheral(link);
 
     EXPECT_EQ(drilled.tri.size(), before + 2 * built.edges.size(),
               "two tetrahedra inserted per drilled edge");

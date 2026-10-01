@@ -15,6 +15,8 @@
 
 #include <triangulation/dim3.h>
 
+#include "linknaming/complement/linkcomplement.h"
+
 /*! \file utils/surfer/linknaming/complement/meridians.h
  *  \brief Drills a link out of a triangulated 3-manifold while retaining its
  *  meridians, and expresses them as slopes in SnapPea's peripheral basis.
@@ -304,6 +306,68 @@ std::pair<long, long> slope(const SnapPeaFile &file, int cusp,
  * \pre gcd(a, b) == 1, which holds for any meridian (it is primitive).
  */
 std::pair<long, long> completeBasis(long a, long b);
+
+/**
+ * `link`'s complement, drilled but **not** simplified, together with one
+ * meridian per component.
+ *
+ * Unlike Link::buildComplement(), which hands Census::lookup() a bare
+ * triangulation and so cannot tell a link from any of its Rolfsen
+ * twists, this retains the peripheral data that pins the link down. See
+ * peripheral.h for why the result must not be fed to
+ * regina::SnapPeaTriangulation.
+ *
+ * The components carry no direction, so the meridians are signed only up
+ * to an independent `+-` per component -- enough to recognise an
+ * unoriented link, not enough to recognise an oriented one. Prefer the
+ * directed overload below wherever the direction is known.
+ *
+ * \exception regina::InvalidArgument the ambient triangulation is not
+ * orientable.
+ */
+DrilledWithMeridians buildComplementWithPeripheral(const Link &link);
+
+/**
+ * As above, with each component traversed in a given direction, so the
+ * meridians come back mutually consistently SIGNED.
+ *
+ * \a directions is indexed by `link`'s own component order, and each
+ * entry lists that component's edges head-to-tail. A surface's
+ * KnottedSurface::orientedBoundaryLinks() and a diagram's PD-tagged edges
+ * both hand over exactly this, so the direction never has to be guessed.
+ *
+ * \pre \a directions has one entry per component, covering the same edges
+ * as `link`'s components (in any starting position).
+ *
+ * \exception regina::InvalidArgument the sizes disagree, or the ambient
+ * triangulation is not orientable.
+ */
+DrilledWithMeridians buildComplementWithPeripheral(
+    const Link &link,
+    const std::vector<std::vector<DirectedEdge>> &directions);
+
+/**
+ * The complement of just the listed components, with their meridians.
+ *
+ * Naming a SPLIT far side means naming each of its split factors, and a
+ * factor is a sublink of the whole -- so it has to be drilled out of the
+ * ambient triangulation on its own, rather than recovered from a cut piece
+ * of the whole link's exterior. Cutting works for the exterior but not for
+ * the peripheral data: cutAlong relabels, simplify() renumbers, and coning
+ * adds tetrahedra, so a cut piece no longer knows which cusp came from
+ * which component. That correspondence *is* the meridian labelling, and
+ * without it a multi-component factor cannot be identified at all.
+ *
+ * \param components indices into `link`'s own component order.
+ * \param directions per listed component, as in the overload above, or
+ *        empty to take every edge undirected.
+ *
+ * \exception regina::InvalidArgument \a components is empty, repeats an
+ * index, or names one out of range.
+ */
+DrilledWithMeridians buildComplementWithPeripheral(
+    const Link &link, const std::vector<int> &components,
+    const std::vector<std::vector<DirectedEdge>> &directions = {});
 
 } // namespace peripheral
 

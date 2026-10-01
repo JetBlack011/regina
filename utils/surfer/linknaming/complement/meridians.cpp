@@ -376,4 +376,62 @@ std::pair<long, long> completeBasis(long a, long b) {
     return {-oldY, oldX};
 }
 
+DrilledWithMeridians buildComplementWithPeripheral(const Link &link) {
+    std::vector<int> all(link.comps_.size());
+    for (size_t i = 0; i < link.comps_.size(); ++i)
+        all[i] = static_cast<int>(i);
+    return buildComplementWithPeripheral(link, all, {});
+}
+
+DrilledWithMeridians buildComplementWithPeripheral(
+    const Link &link,
+    const std::vector<std::vector<DirectedEdge>> &directions) {
+    std::vector<int> all(link.comps_.size());
+    for (size_t i = 0; i < link.comps_.size(); ++i)
+        all[i] = static_cast<int>(i);
+    return buildComplementWithPeripheral(link, all, directions);
+}
+
+DrilledWithMeridians buildComplementWithPeripheral(
+    const Link &link, const std::vector<int> &components,
+    const std::vector<std::vector<DirectedEdge>> &directions) {
+    if (components.empty())
+        throw regina::InvalidArgument(
+            "Link::buildComplementWithPeripheral(): no components given");
+    if (!directions.empty() && directions.size() != components.size())
+        throw regina::InvalidArgument(
+            "Link::buildComplementWithPeripheral(): one direction list is "
+            "needed per listed component");
+
+    std::set<int> seen;
+    std::vector<std::vector<peripheral::DirectedEdge>> selected;
+    selected.reserve(components.size());
+    for (size_t i = 0; i < components.size(); ++i) {
+        const int c = components[i];
+        if (c < 0 || static_cast<size_t>(c) >= link.comps_.size())
+            throw regina::InvalidArgument(
+                "Link::buildComplementWithPeripheral(): component index out "
+                "of range");
+        if (!seen.insert(c).second)
+            throw regina::InvalidArgument(
+                "Link::buildComplementWithPeripheral(): component index "
+                "repeated");
+
+        if (directions.empty()) {
+            std::vector<peripheral::DirectedEdge> forward;
+            forward.reserve(link.comps_[c].edges().size());
+            for (const regina::Edge<3> *e : link.comps_[c].edges())
+                forward.push_back({e, false});
+            selected.push_back(std::move(forward));
+        } else {
+            if (directions[i].size() != link.comps_[c].edges().size())
+                throw regina::InvalidArgument(
+                    "Link::buildComplementWithPeripheral(): direction list "
+                    "does not cover the component's edges");
+            selected.push_back(directions[i]);
+        }
+    }
+
+    return peripheral::drillWithMeridians(link.triangulation(), selected);
+}
 } // namespace peripheral

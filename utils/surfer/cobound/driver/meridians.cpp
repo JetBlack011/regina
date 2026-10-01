@@ -276,8 +276,8 @@ int runDump() {
                 // back silently to a *signed-looking* result would be the
                 // unsound thing.
                 peripheral::DrilledWithMeridians drilled =
-                    directed ? link.buildComplementWithPeripheral(directions)
-                             : link.buildComplementWithPeripheral();
+                    directed ? peripheral::buildComplementWithPeripheral(link, directions)
+                             : peripheral::buildComplementWithPeripheral(link);
                 if (!directed)
                     surfaceComponent.assign(link.countComponents(), -1);
 
@@ -302,7 +302,7 @@ int runDump() {
  * adds tetrahedra, so a cut piece no longer knows which cusp came from which
  * curve -- and that correspondence IS the meridian labelling, without which a
  * multi-component factor cannot be identified at all. See
- * Link::buildComplementWithPeripheral(components, directions).
+ * peripheral::buildComplementWithPeripheral(link, components, directions).
  *
  * stdin:  "<id> <boundary component> <comma-separated component indices>
  *          <pairsig>"
@@ -402,9 +402,9 @@ int runDumpSubset() {
                 }
 
                 peripheral::DrilledWithMeridians drilled =
-                    directed ? link.buildComplementWithPeripheral(wanted,
-                                                                  subset)
-                             : link.buildComplementWithPeripheral(wanted);
+                    directed ? peripheral::buildComplementWithPeripheral(
+                                   link, wanted, subset)
+                             : peripheral::buildComplementWithPeripheral(link, wanted);
                 if (!directed)
                     subsetComponent.assign(wanted.size(), -1);
 
@@ -465,7 +465,7 @@ int runDumpLink() {
                     directions[c].push_back({e, reversedOf[e]});
 
             peripheral::DrilledWithMeridians drilled =
-                link.buildComplementWithPeripheral(directions);
+                peripheral::buildComplementWithPeripheral(link, directions);
             std::vector<long> surfaceComponent(link.countComponents(), 0);
             writeRecord(id, 0, drilled, surfaceComponent);
         } catch (const std::exception &e) {
