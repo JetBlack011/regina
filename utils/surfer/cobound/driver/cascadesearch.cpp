@@ -171,124 +171,18 @@ struct Witness {
   std::string rowPD;
 };
 
-// Splits one cobordisms.csv line (quoted fields may hold commas).
-std::vector<std::string> csvFields(const std::string &line) {
-  std::vector<std::string> f;
-  std::string cur;
-  bool q = false;
-  for (char c : line) {
-    if (c == '"') q = !q;
-    else if (c == ',' && !q) { f.push_back(cur); cur.clear(); }
-    else cur += c;
-  }
-  f.push_back(cur);
-  return f;
+// A database line as the cascade carries it (cobordisms/database's reader
+// parses it): the outgoing name, the pair signature, genus, outgoing
+// components, layers and the searched row's PD.
+Witness carried(const witnessstore::StoredCobordism &s) {
+  return {s.witness.other, s.witness.pairSig, s.witness.genus, s.witness.otherComponents,
+          s.witness.thickenLayers, s.rowPD};
 }
-
-/**
- * The atlas's master witness file, read only: one scan records where each
- * subject's lines start; a subject's witnesses are read on demand. Columns
- * as in cobordisms.csv: kind,subject,subject_components,other,
- * other_candidates,other_components,genus,tubed,pairsig,source_row,
- * thicken_layers,max_faces[,resolved_vertices].
- */
-class MasterIndex {
-public:
-  /// A table name's base: orientation tag and a knot's mirror prefix
-  /// dropped. Used only to FIND candidate witnesses; every one found is
-  /// redrawn and identified exactly before it means anything.
-  static std::string base(std::string name) {
-    name = cobordismgraph::stripOrientationTag(name);
-    if (name.size() > 1 && name[0] == 'm' && std::isdigit(static_cast<unsigned char>(name[1])))
-      name.erase(0, 1);
-    return name;
-  }
-
-  explicit MasterIndex(const std::string &path) : path_(path) {
-    std::ifstream in(path);
-    if (!in) throw std::runtime_error("cannot read " + path);
-    std::string line;
-    // The row-PD sidecar (keptstore: witness,layers,row_pd), if any: a
-    // witness recorded by a cascade hop was searched on its node's
-    // simplified diagram, and can only be read back on that row.
-    if (std::ifstream side(path + ".rows.csv"); side) {
-      std::getline(side, line);
-      while (std::getline(side, line)) {
-        auto f = csvFields(line);
-        if (f.size() >= 3 && !f[2].empty()) rowPD_[f[0]] = f[2];
-      }
-    }
-    std::getline(in, line);
-    std::streamoff at = in.tellg();
-    while (std::getline(in, line)) {
-      const auto a = line.find(','), b = line.find(',', a + 1);
-      if (a != std::string::npos && b != std::string::npos) {
-        offsets_[line.substr(a + 1, b - a - 1)].push_back(at);
-        // field 3 (other) follows subject_components
-        const auto c = line.find(',', b + 1), d = c == std::string::npos
-                                                      ? std::string::npos
-                                                      : line.find(',', c + 1);
-        if (d != std::string::npos)
-          byOther_[base(line.substr(c + 1, d - c - 1))].push_back(at);
-      }
-      at = in.tellg();
-    }
-  }
-  bool has(const std::string &subject) const { return offsets_.count(subject) > 0; }
-  /// Witnesses of the row `subject`.
-  std::vector<std::pair<std::string, Witness>> rows(const std::string &subject) const {
-    auto it = offsets_.find(subject);
-    return it == offsets_.end() ? std::vector<std::pair<std::string, Witness>>{}
-                                : read(it->second, 1u << 30);
-  }
-  /// Witnesses of OTHER rows whose recorded far side has this base name (a
-  /// hint only), with their subjects; at most `cap`.
-  std::vector<std::pair<std::string, Witness>> byFarSide(const std::string &b, size_t cap) const {
-    auto it = byOther_.find(b);
-    return it == byOther_.end() ? std::vector<std::pair<std::string, Witness>>{}
-                                : read(it->second, cap);
-  }
-  size_t subjects() const { return offsets_.size(); }
-
-private:
-  std::vector<std::pair<std::string, Witness>> read(const std::vector<std::streamoff> &offs,
-                                                    size_t cap) const {
-    std::vector<std::pair<std::string, Witness>> out;
-    std::ifstream in(path_);
-    std::string line;
-    for (std::streamoff off : offs) {
-      if (out.size() >= cap) break;
-      in.seekg(off);
-      if (!std::getline(in, line)) continue;
-      auto f = csvFields(line);
-      if (f.size() < 11) continue;
-      Witness w{f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
-                f[10].empty() ? 2 : std::stoi(f[10])};
-      if (!rowPD_.empty())
-        if (auto r = rowPD_.find(witnesskey::witnessKey(w.pairsig)); r != rowPD_.end())
-          w.rowPD = r->second;
-      out.push_back({f[1], std::move(w)});
-    }
-    return out;
-  }
-  std::string path_;
-  std::unordered_map<std::string, std::vector<std::streamoff>> offsets_;
-  std::unordered_map<std::string, std::vector<std::streamoff>> byOther_;
-  std::unordered_map<std::string, std::string> rowPD_; ///< witness key -> row PD
-};
 
 std::vector<Witness> readWitnesses(const std::string &path) {
   std::vector<Witness> out;
-  std::ifstream in(path);
-  if (!in) return out;
-  std::string line;
-  std::getline(in, line);
-  while (std::getline(in, line)) {
-    auto f = csvFields(line);
-    if (f.size() < 11) continue; // torn last line
-    out.push_back({f[3], f[8], std::stoi(f[6]), f[5].empty() ? 0 : std::stoi(f[5]),
-                   f[10].empty() ? 2 : std::stoi(f[10])});
-  }
+  for (cobordismgraph::Witness &w : witnessstore::readWitnesses(path))
+    out.push_back({w.other, std::move(w.pairSig), w.genus, w.otherComponents, w.thickenLayers});
   return out;
 }
 
@@ -497,7 +391,7 @@ private:
   static void writeSurface(std::ostream &c, const EdgeInfo &info);
   std::optional<farside::SignatureTable> signatures_;
   std::unique_ptr<HopSearcher> searcher_;
-  std::unique_ptr<MasterIndex> master_;
+  std::unique_ptr<witnessstore::DatabaseIndex> master_;
   std::map<std::string, std::string> tablePD_;
   std::set<NodeId> masterDone_;
   bool masterRowsFor(NodeId n, std::vector<std::string> *rows = nullptr) const;
@@ -726,7 +620,7 @@ bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
   const std::string canon = classOf(it->second);
   const exactnaming::TableEntry *e = tables_.entry(it->second);
   if (!e) return false;
-  bool any = !master_->byFarSide(MasterIndex::base(it->second), 1).empty();
+  bool any = !master_->byOutgoing(witnessstore::DatabaseIndex::base(it->second), 1).empty();
   for (const exactnaming::TableEntry *v : tables_.variants(e->base))
     if (classOf(v->name) == canon && master_->has(v->name)) {
       any = true;
@@ -765,12 +659,13 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   std::map<std::string, std::vector<Witness>> bySubject;
   std::set<std::string> ownRows(own.begin(), own.end());
   for (const std::string &name : own)
-    for (auto &[subj, w] : master_->rows(name))
-      if (keep(w)) bySubject[subj].push_back(w);
+    for (const witnessstore::StoredCobordism &s : master_->rows(name))
+      if (const Witness w = carried(s); keep(w)) bySubject[s.witness.subject].push_back(w);
   size_t reverse = 0;
-  for (auto &[subj, w] : master_->byFarSide(MasterIndex::base(tableName_[n]), 300))
-    if (!ownRows.count(subj) && keep(w)) {
-      bySubject[subj].push_back(w);
+  for (const witnessstore::StoredCobordism &s :
+       master_->byOutgoing(witnessstore::DatabaseIndex::base(tableName_[n]), 300))
+    if (const Witness w = carried(s); !ownRows.count(s.witness.subject) && keep(w)) {
+      bySubject[s.witness.subject].push_back(w);
       ++reverse;
     }
   // Two phases. First every subject row's witnesses are read back, rows in
@@ -1943,7 +1838,7 @@ int Cascade::run() {
               << " (caps what any node could carry)\n";
   if (!cfg_.masterWitnesses.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
-    master_ = std::make_unique<MasterIndex>(cfg_.masterWitnesses);
+    master_ = std::make_unique<witnessstore::DatabaseIndex>(cfg_.masterWitnesses);
     tablePD_ = tablePDs({cfg_.knotTable, cfg_.linkTable});
     std::cout << "[+] master witnesses: " << master_->subjects() << " subjects indexed in "
               << std::fixed << std::setprecision(0)

@@ -994,44 +994,11 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
 
 
 // Reads a witness's pair signature back from its line in the witness file
-// (Witness::fileOffset), for the few places that print one. Memoized: the
-// same few bounding witnesses are asked for after every row.
-class PairSigReader {
-public:
-  void setPath(std::filesystem::path path) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    path_ = std::move(path);
-    cache_.clear();
-  }
-
-  std::string at(long long offset) {
-    if (offset < 0)
-      return {};
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (auto it = cache_.find(offset); it != cache_.end())
-      return it->second;
-    std::ifstream in(path_, std::ios::binary);
-    std::string line;
-    if (!in || !in.seekg(offset) || !std::getline(in, line))
-      throw std::runtime_error("cannot read the witness at byte " +
-                               std::to_string(offset) + " of " +
-                               path_.string());
-    auto f = parseCsvLine(line);
-    if (f.size() < 12)
-      throw std::runtime_error("no witness line at byte " +
-                               std::to_string(offset) + " of " +
-                               path_.string());
-    return cache_.emplace(offset, std::move(f[8])).first->second;
-  }
-
-private:
-  std::mutex mutex_;
-  std::filesystem::path path_;
-  std::unordered_map<long long, std::string> cache_;
-};
-
-PairSigReader &pairSigReader() {
-  static PairSigReader reader;
+// (Witness::fileOffset), for the few places that print one: the database's
+// memoized reader (the same few bounding witnesses are asked for after
+// every row).
+witnessstore::PairSigReader &pairSigReader() {
+  static witnessstore::PairSigReader reader;
   return reader;
 }
 

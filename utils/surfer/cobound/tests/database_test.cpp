@@ -184,6 +184,55 @@ int main() {
           "a missing file has no identities");
   }
 
+  // 6. other_candidates splits at ';' outside a tag only (phase 3's fix).
+  {
+    using witnessstore::splitCandidates;
+    check(splitCandidates("L8a4{0;1};L8a4{1;0}") ==
+              std::vector<std::string>{"L8a4{0;1}", "L8a4{1;0}"},
+          "a tag's ';' does not split a candidate");
+    check(splitCandidates("3_1;m3_1") == std::vector<std::string>{"3_1", "m3_1"},
+          "untagged names split at ';'");
+    check(splitCandidates("") .empty(), "an empty field has no candidates");
+    check(splitCandidates(";L2a1{0};;") == std::vector<std::string>{"L2a1{0}"},
+          "empty pieces are dropped, as before");
+    Witness w = sample("tagged", 1, 0);
+    w.otherCandidates = {"L8a4{0;1}", "L8a4{1;0}"};
+    Witness back;
+    check(witnessstore::parseWitnessLine(witnessstore::formatWitness(w), back, false, false,
+                                         "x") &&
+              back.otherCandidates == w.otherCandidates,
+          "a three-component candidate list round-trips");
+  }
+
+  // 7. The other readers: readWitnesses() keeps pair signatures, the index
+  //    finds lines by subject and outgoing base, PairSigReader reads one back;
+  //    all leave a torn last line out.
+  {
+    const fs::path db = dir / "indexed.csv";
+    std::vector<Witness> ws = {sample("K", 1, 0), sample("L", 2, 0), sample("K", 3, 0)};
+    ws[1].other = "m3_1";
+    ws[1].otherCandidates = {"m3_1"};
+    witnessstore::appendWitnesses(db, ws, 0);
+    std::ofstream(db, std::ios::app | std::ios::binary) << "cobordism,K,2,torn";
+    const std::vector<Witness> all = witnessstore::readWitnesses(db);
+    check(all.size() == 3 && all[0].pairSig == "-cabcdef1" && all[2].pairSig == "-cabcdef3",
+          "readWitnesses(): every complete line, pair signatures kept, the torn one left out");
+    const witnessstore::DatabaseIndex index(db.string());
+    check(index.subjects() == 2 && index.has("K") && !index.has("torn"),
+          "the index: two subjects, the torn line left out");
+    const auto k = index.rows("K");
+    check(k.size() == 2 && k[0].witness.genus == 1 && k[1].witness.genus == 3 &&
+              k[1].witness.pairSig == "-cabcdef3" && k[0].rowPD.empty(),
+          "rows(): a subject's lines, in file order, pair signatures kept");
+    const auto byBase = index.byOutgoing(witnessstore::DatabaseIndex::base("3_1"), 10);
+    check(byBase.size() == 1 && byBase[0].witness.subject == "L",
+          "byOutgoing(): the outgoing base, mirror mark dropped");
+    witnessstore::PairSigReader reader;
+    reader.setPath(db);
+    check(reader.at(k[1].witness.fileOffset) == "-cabcdef3" && reader.at(-1).empty(),
+          "PairSigReader reads a line's pair signature back by offset");
+  }
+
   fs::remove_all(dir);
   std::cout << (failures ? "witnessstore_test: FAILED\n" : "witnessstore_test: all passed\n");
   return failures ? 1 : 0;

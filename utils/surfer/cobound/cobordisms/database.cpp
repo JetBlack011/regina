@@ -13,6 +13,7 @@
 #include "surfer/report/atomicwrite.h"
 
 
+#include <cctype>
 #include <cerrno>
 #include <cstring>
 #include <fstream>
@@ -27,6 +28,7 @@
 
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/cobordismkey.h"
+#include "linknaming/names.h"
 
 namespace witnessstore {
 // ─────────────────────────────────────────────────────────────────────────
@@ -91,13 +93,7 @@ bool witnessFromFields(std::vector<std::string> f, cobordismgraph::Witness &w,
     return false;
   }
   w.other = f[3];
-  if (!f[4].empty()) {
-    std::istringstream candidates(f[4]);
-    std::string one;
-    while (std::getline(candidates, one, ';'))
-      if (!one.empty())
-        w.otherCandidates.push_back(one);
-  }
+  w.otherCandidates = splitCandidates(f[4]);
   w.tubed = f[7] == "true";
   if (wantPairSigKey && !f[8].empty())
     w.pairSigKey = witnesskey::witnessKey(f[8]);
@@ -119,7 +115,27 @@ bool witnessFromFields(std::vector<std::string> f, cobordismgraph::Witness &w,
   return true;
 }
 
-namespace {
+std::vector<std::string> splitCandidates(const std::string &field) {
+  // Only at depth 0: "L8a4{0;1};L8a4{1;0}" is two names, not four (before
+  // phase 3 every ';' split, which was inert: no recorded candidate list
+  // held a tagged link of three or more components).
+  std::vector<std::string> out;
+  std::string cur;
+  int depth = 0;
+  for (char c : field) {
+    if (c == '{') ++depth;
+    else if (c == '}' && depth > 0) --depth;
+    if (c == ';' && depth == 0) {
+      if (!cur.empty()) out.push_back(std::move(cur));
+      cur.clear();
+    } else {
+      cur += c;
+    }
+  }
+  if (!cur.empty()) out.push_back(std::move(cur));
+  return out;
+}
+
 // Parses one witness line (12 or 13 fields) into `w`, keeping the pair
 // signature only if `keepPairSig`. Returns false for a malformed line.
 bool parseWitnessLine(const std::string &line, cobordismgraph::Witness &w,
@@ -128,19 +144,13 @@ bool parseWitnessLine(const std::string &line, cobordismgraph::Witness &w,
   return witnessFromFields(parseCsvLine(line), w, keepPairSig, wantPairSigKey,
                            path);
 }
-} // namespace
 
-// Loads every complete witness line, WITHOUT its pair signature: each
-// witness keeps only the byte offset of its line (Witness::fileOffset), and
-// anything that needs the signature reads it back from there. That is what
-// keeps a solve's memory proportional to the number of witnesses rather
-// than to the ~11 KB signature each one carries.
-//
-// A final line with no terminating newline is a torn append (the process
-// died mid-write) and is ignored here; appendWitnesses() truncates it away
-// before it next appends.
+namespace {
+
+// Every complete witness line of `path` (a torn last line ignored, malformed
+// lines counted and skipped), each with its line's byte offset.
 std::vector<cobordismgraph::Witness>
-loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
+readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSigKeys) {
   std::vector<cobordismgraph::Witness> result;
   std::ifstream in(path, std::ios::binary);
   if (!in)
@@ -165,8 +175,7 @@ loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
     if (line.empty())
       continue;
     cobordismgraph::Witness w;
-    if (!parseWitnessLine(line, w, /*keepPairSig=*/false, wantPairSigKeys,
-                          path)) {
+    if (!parseWitnessLine(line, w, keepPairSigs, wantPairSigKeys, path)) {
       ++malformed;
       continue;
     }
@@ -177,6 +186,125 @@ loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
     std::cerr << "[!] " << path.string() << ": skipped " << malformed
               << " malformed witness lines\n";
   return result;
+}
+
+} // namespace
+
+// Loads every complete witness line, WITHOUT its pair signature: each
+// witness keeps only the byte offset of its line (Witness::fileOffset), and
+// anything that needs the signature reads it back from there. That is what
+// keeps a solve's memory proportional to the number of witnesses rather
+// than to the ~11 KB signature each one carries.
+//
+// A final line with no terminating newline is a torn append (the process
+// died mid-write) and is ignored here; appendWitnesses() truncates it away
+// before it next appends.
+std::vector<cobordismgraph::Witness>
+loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
+  return readLines(path, /*keepPairSigs=*/false, wantPairSigKeys);
+}
+
+std::vector<cobordismgraph::Witness> readWitnesses(const std::filesystem::path &path) {
+  return readLines(path, /*keepPairSigs=*/true, /*wantPairSigKeys=*/false);
+}
+
+void PairSigReader::setPath(std::filesystem::path path) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  path_ = std::move(path);
+  cache_.clear();
+}
+
+std::string PairSigReader::at(long long offset) {
+  if (offset < 0)
+    return {};
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (auto it = cache_.find(offset); it != cache_.end())
+    return it->second;
+  std::ifstream in(path_, std::ios::binary);
+  std::string line;
+  if (!in || !in.seekg(offset) || !std::getline(in, line))
+    throw std::runtime_error("cannot read the witness at byte " +
+                             std::to_string(offset) + " of " + path_.string());
+  auto f = parseCsvLine(line);
+  if (f.size() < 12)
+    throw std::runtime_error("no witness line at byte " + std::to_string(offset) +
+                             " of " + path_.string());
+  return cache_.emplace(offset, std::move(f[8])).first->second;
+}
+
+std::string DatabaseIndex::base(std::string name) {
+  name = cobordismgraph::stripOrientationTag(name);
+  if (name.size() > 1 && name[0] == 'm' && std::isdigit(static_cast<unsigned char>(name[1])))
+    name.erase(0, 1);
+  return name;
+}
+
+DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    throw std::runtime_error("cannot read " + path);
+  std::string line;
+  // The row-PD sidecar (pending.cpp: witness,layers,row_pd), if any: a
+  // cobordism recorded by a cascade hop was searched on its node's
+  // simplified diagram, and can only be read back on that row.
+  if (std::ifstream side(path + ".rows.csv"); side) {
+    std::getline(side, line);
+    while (std::getline(side, line)) {
+      auto f = parseCsvLine(line);
+      if (f.size() >= 3 && !f[2].empty())
+        rowPD_[f[0]] = f[2];
+    }
+  }
+  std::getline(in, line);
+  std::streamoff at = in.tellg();
+  while (std::getline(in, line)) {
+    if (in.eof())
+      break; // a torn last line, as loadWitnesses() leaves it out
+    const auto a = line.find(','), b = line.find(',', a + 1);
+    if (a != std::string::npos && b != std::string::npos) {
+      offsets_[line.substr(a + 1, b - a - 1)].push_back(at);
+      // field 3 (other) follows subject_components
+      const auto c = line.find(',', b + 1),
+                 d = c == std::string::npos ? std::string::npos : line.find(',', c + 1);
+      if (d != std::string::npos)
+        byOther_[base(line.substr(c + 1, d - c - 1))].push_back(at);
+    }
+    at = in.tellg();
+  }
+}
+
+std::vector<StoredCobordism> DatabaseIndex::rows(const std::string &subject) const {
+  auto it = offsets_.find(subject);
+  return it == offsets_.end() ? std::vector<StoredCobordism>{} : read(it->second, 1u << 30);
+}
+
+std::vector<StoredCobordism> DatabaseIndex::byOutgoing(const std::string &b, size_t cap) const {
+  auto it = byOther_.find(b);
+  return it == byOther_.end() ? std::vector<StoredCobordism>{} : read(it->second, cap);
+}
+
+std::vector<StoredCobordism> DatabaseIndex::read(const std::vector<std::streamoff> &offsets,
+                                                 size_t cap) const {
+  std::vector<StoredCobordism> out;
+  std::ifstream in(path_, std::ios::binary);
+  std::string line;
+  for (std::streamoff off : offsets) {
+    if (out.size() >= cap)
+      break;
+    in.seekg(off);
+    if (!std::getline(in, line))
+      continue;
+    StoredCobordism s;
+    if (!parseWitnessLine(line, s.witness, /*keepPairSig=*/true, /*wantPairSigKey=*/false,
+                          path_))
+      continue;
+    s.witness.fileOffset = static_cast<long long>(off);
+    if (!rowPD_.empty())
+      if (auto r = rowPD_.find(witnesskey::witnessKey(s.witness.pairSig)); r != rowPD_.end())
+        s.rowPD = r->second;
+    out.push_back(std::move(s));
+  }
+  return out;
 }
 
 std::unordered_set<std::string>
