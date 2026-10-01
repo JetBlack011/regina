@@ -4,7 +4,7 @@ set(TESTS
   database_test
   rowmap_test
   preconditions_test
-  farsidenaming_test
+  outgoingnamer_test
 )
 
 # Every test just links surfer_common (defined in ../../CMakeLists.txt) rather

@@ -67,7 +67,7 @@
 #include "surfer/report/csvwriter.h"
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
-#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/outgoing/outgoingnamer.h"
 #include "cobound/bounds/searchcobordisms.h"
 #include "cobound/outgoing/fromdatabase.h"
 #include "cobound/search/hoprunner.h"

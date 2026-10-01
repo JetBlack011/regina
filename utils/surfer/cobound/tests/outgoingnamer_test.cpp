@@ -24,7 +24,7 @@
 #include "diagramtriangulation/thickening/thickening.h"
 #include "diagramtriangulation/thickening/collar.h"
 #include "surfer/submanifold/submanifold.h"
-#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/outgoing/outgoingnamer.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/skeleton.h"

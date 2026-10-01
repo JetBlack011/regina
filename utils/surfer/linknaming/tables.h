@@ -30,6 +30,7 @@
 #include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <link/link.h>
@@ -141,5 +142,34 @@ void parseGenusField(const std::string &field, int &lo, int &hi);
 std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path);
 
 } // namespace witnessstore
+
+namespace farside {
+
+/**
+ * Diagram signatures of the knot and link tables: exact diagrams, so a hit
+ * is a proof. Built once per process from the tables' PD codes.
+ */
+class SignatureTable {
+  public:
+    /**
+     * \param knotTable, linkTable CSV files of "Name,PD,..." rows (either
+     *        may be empty to skip it). Link names are oriented
+     *        ("L6a3{1}"); the table maps every variant to its base name.
+     */
+    static SignatureTable fromTables(const std::string &knotTable,
+                                     const std::string &linkTable);
+
+    const std::string *knot(const std::string &knotSig) const;
+    const std::string *link(const std::string &linkSig) const;
+    bool isKnotName(const std::string &name) const { return knotNames_.contains(name); }
+    size_t knots() const { return knots_.size(); }
+    size_t links() const { return links_.size(); }
+
+  private:
+    std::unordered_map<std::string, std::string> knots_, links_;
+    std::unordered_set<std::string> knotNames_;
+};
+
+} // namespace farside
 
 #endif

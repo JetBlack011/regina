@@ -67,6 +67,8 @@
 #ifndef SURFER_EXACTNAMING_EXACTNAMER_H
 #define SURFER_EXACTNAMING_EXACTNAMER_H
 
+#include <atomic>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -267,5 +269,118 @@ class ExactNamer {
 std::vector<long> linkingNumbers(const GaussDiagram &g);
 
 } // namespace exactnaming
+
+/** The curves of one boundary component, as linkcomplement.h holds them
+ *  (edges of a triangulation), for the complement route. */
+class Link;
+
+namespace farside {
+
+/** How LinkNamer (and DiagramNamer's exact names) named what it was asked
+ *  to (cumulative). */
+struct NamingStats {
+    std::atomic<long long> calls{0}, unknots{0}, unlinks{0}, tableKnots{0},
+        learnedKnots{0}, tableLinks{0}, diagramLinks{0}, jonesLinks{0},
+        learnedLinks{0}, fallbacks{0}, learned{0}, microsDiagram{0},
+        microsFallback{0};
+    std::atomic<long long> nonPlanar{0};
+    /**< Drawings the drawer refused as not planar (knotbuilder::NonPlanar):
+         each is a drawer defect, named by the complement route instead. */
+    std::atomic<long long> exactNamed{0}, exactCacheHits{0}, exactFailed{0};
+    /**< orientedName(): names computed, answered from the cache, and
+         drawings that failed (the witness then keeps its unoriented name). */
+    std::atomic<long long> microsExact{0};
+    /**< Time in the exact namer itself (computed names only, not cache hits). */
+
+    /** The slowest single naming so far: which route, what it named, how
+        long. One slow name can hold a whole drain's last thread. */
+    void noteDuration(long long micros, const char *route, const std::string &name);
+    long long slowestMicros() const { return slowestMicros_.load(); }
+    std::string slowest() const; ///< "<route> <name>", or empty
+
+    /** The `diagram naming:` body, as verifyslicegenus and each cascade hop
+        print it: counts by outcome, times by route, and the slowest name. */
+    std::string summary() const;
+
+  private:
+    std::atomic<long long> slowestMicros_{0};
+    mutable std::mutex slowestMutex_;
+    std::string slowest_;
+};
+
+/** A drawing of one boundary component's curves, as LinkNamer::name()
+ *  asks for it. */
+struct DrawnCurves {
+    enum class Outcome {
+        drawn,     /**< `diagram` is the drawing. */
+        nonPlanar, /**< The drawer refused it as not planar: a drawer defect. */
+        failed     /**< Degenerate, or not a drawable set of curves. */
+    };
+    Outcome outcome = Outcome::failed;
+    regina::Link diagram; /**< When drawn: component i is the i-th curve. */
+    bool someLinking = false;
+    /**< When drawn: whether some pair of curves has a nonzero linking number. */
+};
+
+/**
+ * Names the curves of one boundary component from their drawing, with
+ * proof: lets Regina's Link::simplify() reduce the diagram, and then
+ *
+ *   - no crossings left: "Unknot", or "<n>-component unlink" (a diagram
+ *     without crossings is the unlink);
+ *   - a knot whose simplified diagram is exactly a table knot's diagram
+ *     (knotSig, mirror and reversal allowed -- a slice genus sees neither):
+ *     that table name;
+ *   - a knot seen before under this diagram: the name proved then;
+ *   - a link whose diagram is exactly one of the link table's (any of its
+ *     orientation variants, so up to orientation): that link's base name.
+ *     A link name bears no bound in the solvers;
+ *   - any other link that is provably not an unlink -- a nonzero linking
+ *     number, or a Jones polynomial other than the unlink's:
+ *     "diagram:<signature>", a name that bears nothing but tells distinct
+ *     links apart exactly (the unlink is the one link name that would bear
+ *     a bound, so that is what must be ruled out first).
+ *
+ * Everything else -- a knot the table does not know, a link the Jones
+ * polynomial cannot tell from an unlink, a drawing that failed or that the
+ * drawer refused as not planar (counted in NamingStats::nonPlanar) -- falls
+ * back to identify::identify(), the complement route. Whatever it returns is
+ * remembered against the diagram's signature (a diagram determines its
+ * link), so each distinct diagram costs at most one fallback, and repeats
+ * of it get the same name. Names are perturbed as identify()'s are under
+ * identify::perturbNamesForTesting.
+ */
+class LinkNamer {
+  public:
+    /** \param table outlives this namer. */
+    explicit LinkNamer(const SignatureTable &table);
+
+    /**
+     * The name of `curves` -- all the curves of one boundary component --
+     * from the drawing `draw` makes of them. `draw` reports a drawing that
+     * failed rather than throwing. Thread-safe.
+     */
+    std::string name(const Link &curves,
+                     const std::function<DrawnCurves()> &draw) const;
+
+    /** What this namer has named (cumulative). A caller naming by other
+     *  routes too (DiagramNamer::orientedName()) adds its counts here. */
+    NamingStats &stats() const { return stats_; }
+
+  private:
+    std::string nameOnce(const Link &curves,
+                         const std::function<DrawnCurves()> &draw) const;
+
+    const SignatureTable &table_;
+    mutable std::mutex learnedMutex_;
+    mutable std::unordered_map<std::string, std::string> learned_;
+    /**< "K" + knotSig or "L" + unoriented link signature -> the name the
+         complement route gave that diagram. */
+    mutable std::unordered_map<size_t, regina::Laurent<regina::Integer>> unlinkJones_;
+    /**< n -> the Jones polynomial of the n-component unlink. */
+    mutable NamingStats stats_;
+};
+
+} // namespace farside
 
 #endif

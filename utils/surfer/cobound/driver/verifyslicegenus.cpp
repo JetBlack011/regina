@@ -42,7 +42,7 @@
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/database.h"
 #include "linknaming/tables.h"
-#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/outgoing/outgoingnamer.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/linkingnumber.h"

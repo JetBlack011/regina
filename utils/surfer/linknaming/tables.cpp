@@ -229,3 +229,79 @@ std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path)
 }
 
 } // namespace witnessstore
+
+namespace farside {
+
+namespace {
+
+// Rows of a "Name,PD,..." table: the name, and the PD field (everything
+// between the first comma and the last).
+template <typename Fn>
+void eachRow(const std::string &path, Fn &&fn) {
+    if (path.empty()) return;
+    std::ifstream in(path);
+    if (!in) throw regina::InvalidArgument("cannot open " + path);
+    std::string line;
+    std::getline(in, line); // header
+    while (std::getline(in, line)) {
+        size_t a = line.find(','), b = line.rfind(',');
+        if (a == std::string::npos || b <= a) continue;
+        fn(line.substr(0, a), line.substr(a + 1, b - a - 1));
+    }
+}
+
+// A table PD code as Regina reads it: the integers in fours, labels as
+// written (1..2n). Not knotbuilder::parsePDCode(), which renumbers from 0.
+regina::Link linkOf(const std::string &pd) {
+    std::vector<std::array<long, 4>> code;
+    std::vector<long> n;
+    long cur = -1;
+    for (char ch : pd + ' ') {
+        if (ch >= '0' && ch <= '9') {
+            cur = (cur < 0 ? 0 : cur * 10) + (ch - '0');
+        } else if (cur >= 0) {
+            n.push_back(cur);
+            cur = -1;
+        }
+    }
+    if (n.empty() || n.size() % 4 != 0)
+        throw regina::InvalidArgument("not a PD code: " + pd);
+    for (size_t i = 0; i < n.size(); i += 4)
+        code.push_back({n[i], n[i + 1], n[i + 2], n[i + 3]});
+    return regina::Link::fromPD(code.begin(), code.end());
+}
+
+} // namespace
+
+SignatureTable SignatureTable::fromTables(const std::string &knotTable,
+                                          const std::string &linkTable) {
+    // A row that does not parse is an error, not a silent gap: an empty or
+    // partial table would quietly send every far side back to the
+    // complement route (it did, once, when the PD codes were read with
+    // 0-based labels).
+    SignatureTable t;
+    eachRow(knotTable, [&](const std::string &name, const std::string &pd) {
+        t.knots_.try_emplace(linkOf(pd).knotSig(true, true), name);
+        t.knotNames_.insert(name);
+    });
+    eachRow(linkTable, [&](const std::string &name, const std::string &pd) {
+        t.links_.try_emplace(linkOf(pd).sig<2>(true, true, true),
+                             name.substr(0, name.find('{')));
+    });
+    if ((!knotTable.empty() && t.knots_.empty()) ||
+        (!linkTable.empty() && t.links_.empty()))
+        throw regina::InvalidArgument("a table yielded no signatures");
+    return t;
+}
+
+const std::string *SignatureTable::knot(const std::string &sig) const {
+    auto it = knots_.find(sig);
+    return it == knots_.end() ? nullptr : &it->second;
+}
+
+const std::string *SignatureTable::link(const std::string &sig) const {
+    auto it = links_.find(sig);
+    return it == links_.end() ? nullptr : &it->second;
+}
+
+} // namespace farside

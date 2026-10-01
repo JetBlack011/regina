@@ -7,7 +7,7 @@
 #include <optional>
 #include <unordered_map>
 
-#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/outgoing/outgoingnamer.h"
 #include "cobound/outgoing/outgoinglink.h"
 #include "linknaming/names.h"
 

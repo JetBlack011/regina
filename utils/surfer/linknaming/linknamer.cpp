@@ -6,12 +6,17 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <functional>
+#include <iomanip>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+
+#include "linknaming/census/censusnaming.h"
+#include "linknaming/complement/linkcomplement.h"
 
 namespace exactnaming {
 
@@ -688,3 +693,151 @@ FarSideName ExactNamer::name(const regina::Link &drawn) const {
 }
 
 } // namespace exactnaming
+
+namespace farside {
+
+namespace {
+
+long long microsSince(std::chrono::steady_clock::time_point t) {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::steady_clock::now() - t)
+        .count();
+}
+
+} // namespace
+
+void NamingStats::noteDuration(long long micros, const char *route,
+                               const std::string &name) {
+    long long seen = slowestMicros_.load(std::memory_order_relaxed);
+    if (micros <= seen) return;
+    std::lock_guard<std::mutex> lock(slowestMutex_);
+    if (micros <= slowestMicros_.load()) return;
+    slowestMicros_.store(micros);
+    slowest_ = std::string(route) + ' ' + name;
+}
+
+std::string NamingStats::slowest() const {
+    std::lock_guard<std::mutex> lock(slowestMutex_);
+    return slowest_;
+}
+
+std::string NamingStats::summary() const {
+    auto secs = [](long long micros) {
+        std::ostringstream o;
+        o << std::fixed << std::setprecision(1) << micros / 1e6;
+        return o.str();
+    };
+    std::ostringstream o;
+    o << calls << " far sides drawn: unknot " << unknots << ", unlink " << unlinks
+      << ", table knot " << tableKnots << ", learned knot " << learnedKnots
+      << ", table link " << tableLinks << ", other link " << diagramLinks << " (+"
+      << jonesLinks << " by Jones), learned link " << learnedLinks
+      << "; complement fallbacks " << fallbacks << " (" << learned << " learned, "
+      << nonPlanar << " non-planar drawings); exact oriented names " << exactNamed
+      << " (+" << exactCacheHits << " cached, " << exactFailed << " failed); diagrams "
+      << secs(microsDiagram) << "s, fallbacks " << secs(microsFallback) << "s, exact "
+      << secs(microsExact) << "s; slowest " << secs(slowestMicros()) << "s";
+    if (const std::string s = slowest(); !s.empty()) o << " (" << s << ")";
+    return o.str();
+}
+
+LinkNamer::LinkNamer(const SignatureTable &table) : table_(table) {}
+
+std::string LinkNamer::name(const Link &curves,
+                            const std::function<DrawnCurves()> &draw) const {
+    ++stats_.calls;
+    const auto start = std::chrono::steady_clock::now();
+    const long long fallbacksBefore = stats_.fallbacks.load();
+    std::string out = nameOnce(curves, draw);
+    stats_.noteDuration(microsSince(start),
+                        stats_.fallbacks.load() != fallbacksBefore ? "complement" : "diagram",
+                        out);
+    return identify::perturbedForTesting(std::move(out));
+}
+
+std::string LinkNamer::nameOnce(const Link &curves,
+                                const std::function<DrawnCurves()> &draw) const {
+    const auto start = std::chrono::steady_clock::now();
+    const size_t n = curves.comps_.size();
+    std::string key; // what a fallback's answer is remembered under
+    try {
+        DrawnCurves drawn = draw();
+        if (drawn.outcome == DrawnCurves::Outcome::nonPlanar) {
+            ++stats_.nonPlanar; // a drawer defect: never name from it, and never learn
+        } else if (drawn.outcome == DrawnCurves::Outcome::drawn) {
+            const bool someLinking = drawn.someLinking;
+            regina::Link simplified = std::move(drawn.diagram);
+            simplified.simplify();
+            if (simplified.size() == 0) {
+                stats_.microsDiagram += microsSince(start);
+                if (n == 1) { ++stats_.unknots; return "Unknot"; }
+                ++stats_.unlinks;
+                return std::to_string(n) + "-component unlink";
+            }
+            if (n == 1) {
+                std::string sig = simplified.knotSig(true, true);
+                if (const std::string *hit = table_.knot(sig)) {
+                    ++stats_.tableKnots;
+                    stats_.microsDiagram += microsSince(start);
+                    return *hit;
+                }
+                key = "K" + sig;
+            } else {
+                std::string sig = simplified.sig<2>(true, true, true);
+                if (const std::string *hit = table_.link(sig)) {
+                    ++stats_.tableLinks;
+                    stats_.microsDiagram += microsSince(start);
+                    return *hit;
+                }
+                key = "L" + sig;
+                if (someLinking) {
+                    ++stats_.diagramLinks;
+                    stats_.microsDiagram += microsSince(start);
+                    return "diagram:" + sig;
+                }
+            }
+            {
+                std::lock_guard<std::mutex> lock(learnedMutex_);
+                if (auto it = learned_.find(key); it != learned_.end()) {
+                    ++(n == 1 ? stats_.learnedKnots : stats_.learnedLinks);
+                    stats_.microsDiagram += microsSince(start);
+                    return it->second;
+                }
+            }
+            if (n > 1) {
+                // Every linking number is zero. A Jones polynomial other than the
+                // unlink's still proves this is not an unlink.
+                regina::Laurent<regina::Integer> unlink;
+                {
+                    std::lock_guard<std::mutex> lock(learnedMutex_);
+                    auto it = unlinkJones_.find(n);
+                    if (it == unlinkJones_.end())
+                        it = unlinkJones_.emplace(n, regina::Link(n).jones()).first;
+                    unlink = it->second;
+                }
+                if (simplified.jones() != unlink) {
+                    ++stats_.jonesLinks;
+                    stats_.microsDiagram += microsSince(start);
+                    return "diagram:" + key.substr(1);
+                }
+            }
+        }
+    } catch (const regina::InvalidArgument &) {
+        key.clear();
+    }
+    stats_.microsDiagram += microsSince(start);
+
+    // The complement route, as before this namer existed; its answer is
+    // remembered against the diagram.
+    const auto fb = std::chrono::steady_clock::now();
+    ++stats_.fallbacks;
+    std::string name = identify::identify(curves);
+    stats_.microsFallback += microsSince(fb);
+    if (!key.empty()) {
+        std::lock_guard<std::mutex> lock(learnedMutex_);
+        if (learned_.try_emplace(key, name).second) ++stats_.learned;
+    }
+    return name;
+}
+
+} // namespace farside
