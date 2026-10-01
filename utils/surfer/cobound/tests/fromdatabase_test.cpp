@@ -20,7 +20,6 @@
 
 #include <unistd.h>
 
-#include "cobound/outgoing/farsideredraw.h"
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/outgoing/fromdatabase.h"
 #include "linknaming/tests/check.h"

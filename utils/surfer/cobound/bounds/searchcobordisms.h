@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "linknaming/diagrams/gaussdiagram.h"
-#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/outgoing/fromdatabase.h"
 #include "cobound/bounds/links.h"
 #include "cobound/bounds/cobordismgraph.h"
 

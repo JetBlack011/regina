@@ -6,7 +6,7 @@ add_library(cobound_lib STATIC
   cobordisms/cobordismkey.cpp cobordisms/database.cpp
   solver/literature.cpp solver/solver.cpp
   cobordisms/cobordism.cpp search/incoming.cpp search/preconditions.cpp
-  outgoing/outgoinglink.cpp outgoing/outgoingnamer.cpp outgoing/farsideredraw.cpp
+  outgoing/outgoinglink.cpp outgoing/outgoingnamer.cpp
   bounds/partition.cpp bounds/partitiongenera.cpp bounds/cobordismgraph.cpp
   bounds/links.cpp bounds/searchcobordisms.cpp bounds/axioms.cpp
   cobordisms/pairsigner.cpp cobordisms/pending.cpp outgoing/fromdatabase.cpp

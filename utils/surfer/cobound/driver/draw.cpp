@@ -76,7 +76,7 @@
 #include "diagramtriangulation/thickening/collar.h"
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoinglink.h"
-#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/outgoing/fromdatabase.h"
 #include "diagramtriangulation/todiagram.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "diagramtriangulation/pdcode.h"

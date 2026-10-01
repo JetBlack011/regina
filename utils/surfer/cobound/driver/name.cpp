@@ -43,7 +43,7 @@
 
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
-#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/outgoing/fromdatabase.h"
 
 namespace {
 

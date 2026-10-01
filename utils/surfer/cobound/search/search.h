@@ -23,7 +23,7 @@
 #include "linknaming/tables.h"
 #include "cobound/outgoing/outgoinglink.h"
 #include "cobound/outgoing/outgoingnamer.h"
-#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/outgoing/fromdatabase.h"
 #include "surfer/enumeration/searchstrategy.h"
 
 /*! \file utils/surfer/cobound/search/search.h
