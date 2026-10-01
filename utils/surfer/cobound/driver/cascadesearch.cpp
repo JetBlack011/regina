@@ -65,6 +65,9 @@
 #include <link/link.h>
 
 #include "surfer/report/csvwriter.h"
+#include "cobound/driver/timers.h"
+#include "cobound/json.h"
+#include "cobound/parallelfor.h"
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
 #include "cobound/outgoing/outgoingnamer.h"
@@ -92,17 +95,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using Clock = std::chrono::steady_clock;
-double secondsSince(Clock::time_point t) {
-  return std::chrono::duration<double>(Clock::now() - t).count();
-}
-/// This process's CPU seconds so far, every thread.
-double processCpu() {
-  rusage u{};
-  getrusage(RUSAGE_SELF, &u);
-  return u.ru_utime.tv_sec + u.ru_stime.tv_sec +
-         1e-6 * (u.ru_utime.tv_usec + u.ru_stime.tv_usec);
-}
+using timers::Clock;
+using timers::secondsSince;
 
 struct Config {
   std::string targetPD, targetName, work, verify, knotTable, linkTable,
@@ -161,16 +155,6 @@ struct Config {
   size_t hubDegree = 0;
   long hubSurfaces = 0;
 };
-
-std::string jsonEscape(const std::string &s) {
-  std::string o;
-  for (char c : s) {
-    if (c == '"' || c == '\\') o += '\\';
-    if (c == '\n') { o += "\\n"; continue; }
-    o += c;
-  }
-  return o;
-}
 
 GaussDiagram of(const regina::Link &l) {
   std::vector<size_t> origin(l.countComponents());
@@ -630,37 +614,29 @@ void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
   // (applySum; paper lem:sum-partitions): the tables list prime links only,
   // and most far sides of small links are sums of smaller ones.
   std::vector<std::vector<GaussDiagram>> summands(ns.size());
-  std::atomic<size_t> next{0};
-  auto work = [&] {
-    for (size_t i; (i = next.fetch_add(1)) < ns.size();) {
-      const NodeId n = ns[i];
-      if (!reg_.known(n) || n == reg_.unknot()) continue;
-      try {
-        const GaussDiagram &d = reg_.info(n).diagram;
-        names[i] = namer_.identify(d);
-        if (names[i]->by == exactnaming::PieceName::By::untabulated && d.crossings() > 0) {
-          if (d.components() == 1) {
-            exactnaming::FarSideName fs = namer_.name(d.link());
-            if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
-                fs.name.find('#') != std::string::npos)
-              composites[i] = std::move(fs);
-          }
-          GaussDiagram own = d;
-          own.origin.resize(own.components());
-          std::iota(own.origin.begin(), own.origin.end(), 0);
-          std::vector<GaussDiagram> primes;
-          namer_.decompose(own, primes);
-          if (primes.size() >= 2) summands[i] = std::move(primes);
+  parallelFor(ns.size(), static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t i) {
+    const NodeId n = ns[i];
+    if (!reg_.known(n) || n == reg_.unknot()) return;
+    try {
+      const GaussDiagram &d = reg_.info(n).diagram;
+      names[i] = namer_.identify(d);
+      if (names[i]->by == exactnaming::PieceName::By::untabulated && d.crossings() > 0) {
+        if (d.components() == 1) {
+          exactnaming::FarSideName fs = namer_.name(d.link());
+          if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+              fs.name.find('#') != std::string::npos)
+            composites[i] = std::move(fs);
         }
-      } catch (const std::exception &) {
+        GaussDiagram own = d;
+        own.origin.resize(own.components());
+        std::iota(own.origin.begin(), own.origin.end(), 0);
+        std::vector<GaussDiagram> primes;
+        namer_.decompose(own, primes);
+        if (primes.size() >= 2) summands[i] = std::move(primes);
       }
+    } catch (const std::exception &) {
     }
-  };
-  std::vector<std::thread> pool;
-  const size_t threads = std::min<size_t>(std::max(cfg_.threads, 1), ns.size());
-  for (size_t t = 1; t < threads; ++t) pool.emplace_back(work);
-  work();
-  for (auto &t : pool) t.join();
+  });
   for (size_t i = 0; i < ns.size(); ++i) {
     depth_.emplace(ns[i], depth);
     if (composites[i]) applyComposite(ns[i], *composites[i]);
@@ -839,54 +815,47 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   // at once (reading every row first held them all: 5.5 GB on L10a174).
   auto readBatch = [&](size_t from, size_t to) {
     const auto tRead = Clock::now();
-    std::atomic<size_t> next{from};
-    auto work = [&] {
-      for (size_t i; (i = next.fetch_add(1)) < to;) {
-        RowRead &r = reads[i];
-        try {
-          r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
-        } catch (const std::exception &ex) {
-          r.buildError = ex.what();
+    parallelFor(to - from, static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t j) {
+      RowRead &r = reads[from + j];
+      try {
+        r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
+      } catch (const std::exception &ex) {
+        r.buildError = ex.what();
+        return;
+      }
+      RowReadBacks cache(cfg_.readBackCache, r.pd, r.layers,
+                         cfg_.readBackCache.empty() ? std::string()
+                                                    : r.redraw->buildChecksum());
+      r.links.resize(r.ws.size());
+      r.why.resize(r.ws.size());
+      r.invariant.assign(r.ws.size(), 0);
+      for (size_t k = 0; k < r.ws.size(); ++k) {
+        const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
+        if (const CachedReadBack *c = cache.get(key)) {
+          r.links[k] = c->link;
+          r.why[k] = c->why;
           continue;
         }
-        RowReadBacks cache(cfg_.readBackCache, r.pd, r.layers,
-                           cfg_.readBackCache.empty() ? std::string()
-                                                      : r.redraw->buildChecksum());
-        r.links.resize(r.ws.size());
-        r.why.resize(r.ws.size());
-        r.invariant.assign(r.ws.size(), 0);
-        for (size_t k = 0; k < r.ws.size(); ++k) {
-          const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
-          if (const CachedReadBack *c = cache.get(key)) {
-            r.links[k] = c->link;
-            r.why[k] = c->why;
-            continue;
-          }
-          std::string why;
-          try {
-            r.links[k] = r.redraw->outgoingLinkFast(r.ws[k]->pairsig, why);
-            r.why[k] = why;
-            cache.put(key, {r.links[k], why});
-          } catch (const std::logic_error &ex) {
-            r.invariant[k] = 1; // reported, never cached
-            r.why[k] = ex.what();
-          } catch (const std::exception &ex) {
-            r.why[k] = ex.what(); // not cached either: it may be transient
-          }
-        }
-        r.cacheHits = cache.hits();
+        std::string why;
         try {
-          cache.flush();
+          r.links[k] = r.redraw->outgoingLinkFast(r.ws[k]->pairsig, why);
+          r.why[k] = why;
+          cache.put(key, {r.links[k], why});
+        } catch (const std::logic_error &ex) {
+          r.invariant[k] = 1; // reported, never cached
+          r.why[k] = ex.what();
         } catch (const std::exception &ex) {
-          std::cerr << "[!] read-back cache not written for " << r.name << ": " << ex.what()
-                    << "\n";
+          r.why[k] = ex.what(); // not cached either: it may be transient
         }
       }
-    };
-    std::vector<std::thread> pool;
-    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), to - from);
-    for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
-    for (auto &t : pool) t.join();
+      r.cacheHits = cache.hits();
+      try {
+        cache.flush();
+      } catch (const std::exception &ex) {
+        std::cerr << "[!] read-back cache not written for " << r.name << ": " << ex.what()
+                  << "\n";
+      }
+    });
     readSeconds += secondsSince(tRead);
   };
   const auto tRows = Clock::now();
@@ -982,7 +951,7 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   auto best = g_.best(target_, goalPartition(target_));
   std::ostringstream o;
   o << std::fixed << std::setprecision(1);
-  o << "{\"master\":\"" << jsonEscape(tableName_[n]) << "\",\"node\":" << n
+  o << "{\"master\":\"" << json::escape(tableName_[n]) << "\",\"node\":" << n
     << ",\"wall\":" << loadSeconds << ",\"readback_s\":" << readSeconds
     << ",\"assemble_s\":" << assembleSeconds << ",\"name_s\":" << nameSeconds
     << ",\"propagate_s\":" << propagateSeconds
@@ -1056,36 +1025,28 @@ void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
   if (todo.empty()) return;
   const Partition goal = goalPartition(target_);
   std::vector<std::optional<int>> out(todo.size());
-  std::atomic<size_t> next{0};
-  auto work = [&] {
-    for (size_t i; (i = next.fetch_add(1)) < todo.size();) {
-      const NodeId n = todo[i];
-      const Node &node = g_.node(n);
-      // The most n could ever have, per partition: any transported bound
-      // is a literature seed minus charges, so at most the largest special
-      // source's (lowerLMax_); a proved surface refining P caps P; the
-      // literature upper bound is a connected surface, capping the
-      // coarsest partition only. Below what is known already a seed is a
-      // no-op, and above a proved surface it is refused (nullopt).
-      int litHi = std::numeric_limits<int>::max();
-      if (auto t = tableName_.find(n); t != tableName_.end())
-        if (const exactnaming::TableEntry *e = tables_.entry(t->second))
-          if (auto g4 = exactnaming::parseTableG4(e->g4)) litHi = g4->second;
-      std::vector<ProofGraph::LowerSeed> seeds;
-      for (const Partition &p : allPartitions(node.components)) {
-        int cap = lowerLMax_;
-        if (p.blocks() == 1) cap = std::min(cap, litHi);
-        if (auto b = g_.best(n, p)) cap = std::min(cap, b->genus);
-        seeds.push_back({n, p, cap});
-      }
-      out[i] = g_.lowerIf(seeds, target_, goal);
+  parallelFor(todo.size(), static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t i) {
+    const NodeId n = todo[i];
+    const Node &node = g_.node(n);
+    // The most n could ever have, per partition: any transported bound
+    // is a literature seed minus charges, so at most the largest special
+    // source's (lowerLMax_); a proved surface refining P caps P; the
+    // literature upper bound is a connected surface, capping the
+    // coarsest partition only. Below what is known already a seed is a
+    // no-op, and above a proved surface it is refused (nullopt).
+    int litHi = std::numeric_limits<int>::max();
+    if (auto t = tableName_.find(n); t != tableName_.end())
+      if (const exactnaming::TableEntry *e = tables_.entry(t->second))
+        if (auto g4 = exactnaming::parseTableG4(e->g4)) litHi = g4->second;
+    std::vector<ProofGraph::LowerSeed> seeds;
+    for (const Partition &p : allPartitions(node.components)) {
+      int cap = lowerLMax_;
+      if (p.blocks() == 1) cap = std::min(cap, litHi);
+      if (auto b = g_.best(n, p)) cap = std::min(cap, b->genus);
+      seeds.push_back({n, p, cap});
     }
-  };
-  std::vector<std::thread> pool;
-  const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), todo.size());
-  for (size_t t = 1; t < k; ++t) pool.emplace_back(work);
-  work();
-  for (auto &t : pool) t.join();
+    out[i] = g_.lowerIf(seeds, target_, goal);
+  });
   for (size_t i = 0; i < todo.size(); ++i) lowerCache_.carried[todo[i]] = out[i];
 }
 
@@ -1332,7 +1293,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     }
     gauss << "]}";
     log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
-        ",\"refused\":\"" + jsonEscape(e.what()) + "\",\"pd\":\"" + jsonEscape(row.pd) +
+        ",\"refused\":\"" + json::escape(e.what()) + "\",\"pd\":\"" + json::escape(row.pd) +
         "\",\"pd_ambiguous\":" + (d.link().pdAmbiguous() ? "true" : "false") +
         ",\"diagram\":" + gauss.str() + "}");
     std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
@@ -1393,7 +1354,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     } catch (const std::exception &e) {
       refused_.insert(n);
       log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
-          ",\"refused\":\"" + jsonEscape(e.what()) + "\"}");
+          ",\"refused\":\"" + json::escape(e.what()) + "\"}");
       std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
       return;
     }
@@ -1562,7 +1523,7 @@ void Cascade::expand(NodeId n, long surfaces) {
 // that thickening's digest; a child hop's by its key in the hop directory's
 // witness file (nothing here).
 void Cascade::writeSurface(std::ostream &c, const EdgeInfo &info) {
-  if (!info.pairsig.empty()) c << ",\"pairsig\":\"" << jsonEscape(info.pairsig) << "\"";
+  if (!info.pairsig.empty()) c << ",\"pairsig\":\"" << json::escape(info.pairsig) << "\"";
   if (!info.faces.empty()) {
     c << ",\"faces\":[";
     for (size_t i = 0; i < info.faces.size(); ++i) c << (i ? "," : "") << info.faces[i];
@@ -1571,12 +1532,6 @@ void Cascade::writeSurface(std::ostream &c, const EdgeInfo &info) {
 }
 
 namespace {
-template <class V> std::string ints(const V &v) {
-  std::ostringstream o;
-  o << '[';
-  for (size_t i = 0; i < v.size(); ++i) o << (i ? "," : "") << v[i];
-  return o.str() + ']';
-}
 } // namespace
 
 void Cascade::writeWitnessEdge(std::ostream &c, EdgeId eid, std::set<NodeId> &nodes) const {
@@ -1587,28 +1542,28 @@ void Cascade::writeWitnessEdge(std::ostream &c, EdgeId eid, std::set<NodeId> &no
   nodes.insert(we.in);
   nodes.insert(we.out);
   const auto it = edgeInfo_.find(eid);
-  c << ",\"witness\":\"" << jsonEscape(we.key) << "\"";
+  c << ",\"witness\":\"" << json::escape(we.key) << "\"";
   c << ",\"in\":" << we.in << ",\"out\":" << we.out
     << ",\"shape\":{\"components\":" << we.shape.components << ",\"genus\":" << we.shape.genus
-    << ",\"inComponent\":" << ints(we.shape.inComponent)
-    << ",\"outComponent\":" << ints(we.shape.outComponent) << "},\"inMap\":" << ints(we.inMap)
-    << ",\"outMap\":" << ints(we.outMap);
+    << ",\"inComponent\":" << json::array(we.shape.inComponent)
+    << ",\"outComponent\":" << json::array(we.shape.outComponent) << "},\"inMap\":" << json::array(we.inMap)
+    << ",\"outMap\":" << json::array(we.outMap);
   if (it == edgeInfo_.end()) return;
   const HopEdge &he = it->second.he;
-  c << ",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
-    << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
-    << ",\"row_node_map\":" << ints(it->second.rowNodeMap);
+  c << ",\"hop_dir\":\"" << json::escape(it->second.hopDir) << "\",\"row_pd\":\""
+    << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
+    << ",\"row_node_map\":" << json::array(it->second.rowNodeMap);
   writeSurface(c, it->second);
   c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
   for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
-    c << (j ? "," : "") << ints(he.farCurveEdges[j]);
+    c << (j ? "," : "") << json::array(he.farCurveEdges[j]);
   c << "],\"pieces\":[";
   for (size_t k = 0; k < he.pieces.size(); ++k) {
     const NodeMatch &m = he.pieces[k];
     c << (k ? "," : "") << "{\"node\":" << m.node << ",\"method\":\"" << m.method
-      << "\",\"componentMap\":" << ints(m.componentMap) << ",\"mirrored\":"
+      << "\",\"componentMap\":" << json::array(m.componentMap) << ",\"mirrored\":"
       << (m.mirrored ? "true" : "false") << ",\"reversed\":" << (m.reversed ? "true" : "false")
-      << ",\"origins\":" << ints(he.pieceOrigins[k]) << "}";
+      << ",\"origins\":" << json::array(he.pieceOrigins[k]) << "}";
     nodes.insert(m.node);
   }
   c << "]";
@@ -1623,7 +1578,7 @@ void Cascade::writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
     c << (first ? "" : ",\n") << "{\"id\":" << r << ",\"node\":" << rec.node
       << ",\"partition\":\"" << rec.partition.str() << "\",\"genus\":" << rec.genus
       << ",\"kind\":\"" << kindName(rec.kind) << "\",\"edge\":" << rec.edge
-      << ",\"source\":\"" << jsonEscape(rec.source) << "\",\"children\":[";
+      << ",\"source\":\"" << json::escape(rec.source) << "\",\"children\":[";
     for (size_t i = 0; i < rec.children.size(); ++i)
       c << (i ? "," : "") << rec.children[i];
     c << "]";
@@ -1633,26 +1588,26 @@ void Cascade::writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
       const SplitEdge &se = g_.split(rec.edge);
       nodes.insert(se.whole);
       nodes.insert(se.pieces.begin(), se.pieces.end());
-      c << ",\"whole\":" << se.whole << ",\"pieces\":" << ints(se.pieces) << ",\"pieceMap\":[";
+      c << ",\"whole\":" << se.whole << ",\"pieces\":" << json::array(se.pieces) << ",\"pieceMap\":[";
       for (size_t k = 0; k < se.pieceMap.size(); ++k)
-        c << (k ? "," : "") << ints(se.pieceMap[k]);
+        c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
     }
     if (rec.kind == RecordKind::sumCombine) {
       const SumEdge &se = g_.sum(rec.edge);
       nodes.insert(se.whole);
       nodes.insert(se.pieces.begin(), se.pieces.end());
-      c << ",\"whole\":" << se.whole << ",\"pieces\":" << ints(se.pieces) << ",\"pieceMap\":[";
+      c << ",\"whole\":" << se.whole << ",\"pieces\":" << json::array(se.pieces) << ",\"pieceMap\":[";
       for (size_t k = 0; k < se.pieceMap.size(); ++k)
-        c << (k ? "," : "") << ints(se.pieceMap[k]);
+        c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
     }
     if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
       const std::string key = rec.source.substr(15);
       if (auto it = directInfo_.find(key); it != directInfo_.end()) {
-        c << ",\"witness\":\"" << jsonEscape(it->second.key)
-          << "\",\"hop_dir\":\"" << jsonEscape(it->second.hopDir) << "\",\"row_pd\":\""
-          << jsonEscape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
+        c << ",\"witness\":\"" << json::escape(it->second.key)
+          << "\",\"hop_dir\":\"" << json::escape(it->second.hopDir) << "\",\"row_pd\":\""
+          << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
         writeSurface(c, it->second);
       }
     }
@@ -1735,8 +1690,8 @@ void Cascade::writeLowerCertificate() const {
   const Partition goal = goalPartition(target_);
   const long top = visit(target_, goal);
   std::ofstream c(cfg_.work + "/lower_certificate.json");
-  c << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_pd\":\""
-    << jsonEscape(cfg_.targetPD) << "\",\"goal_lower\":" << cfg_.goalLower << ",\"goal\":\""
+  c << "{\"target\":\"" << json::escape(cfg_.targetName) << "\",\"target_pd\":\""
+    << json::escape(cfg_.targetPD) << "\",\"goal_lower\":" << cfg_.goalLower << ",\"goal\":\""
     << (cfg_.goalDisjoint ? "disjoint" : "connected") << "\",\"lower\":"
     << g_.lower(target_, goal) << ",\"top\":" << top << ",\"facts\":[\n";
   std::set<NodeId> nodes;
@@ -1750,7 +1705,7 @@ void Cascade::writeLowerCertificate() const {
       << fact.q.str() << "\",\"value\":" << value(fact.f.value);
     switch (fact.f.reason.kind) {
     case Kind::literature:
-      c << ",\"kind\":\"literature\",\"source\":\"" << jsonEscape(g_.node(fact.node).lowerBoundSource)
+      c << ",\"kind\":\"literature\",\"source\":\"" << json::escape(g_.node(fact.node).lowerBoundSource)
         << "\"";
       break;
     case Kind::linking:
@@ -1772,9 +1727,9 @@ void Cascade::writeLowerCertificate() const {
       for (EdgeId sid : g_.node(fact.node).splitEdges) {
         const SplitEdge &se = g_.split(sid);
         if (se.whole != fact.node) continue;
-        c << ",\"whole\":" << se.whole << ",\"piece_nodes\":" << ints(se.pieces)
+        c << ",\"whole\":" << se.whole << ",\"piece_nodes\":" << json::array(se.pieces)
           << ",\"pieceMap\":[";
-        for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << ints(se.pieceMap[k]);
+        for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << json::array(se.pieceMap[k]);
         c << "]";
         break;
       }
@@ -1797,8 +1752,8 @@ void Cascade::writeLowerCertificate() const {
         << fact.f.reason.addition << ",\"records\":[";
       for (size_t k = 0; k < fact.f.reason.records.size(); ++k)
         c << (k ? "," : "") << fact.f.reason.records[k];
-      c << "],\"whole\":" << se.whole << ",\"piece_nodes\":" << ints(se.pieces) << ",\"pieceMap\":[";
-      for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << ints(se.pieceMap[k]);
+      c << "],\"whole\":" << se.whole << ",\"piece_nodes\":" << json::array(se.pieces) << ",\"pieceMap\":[";
+      for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
       for (NodeId p : se.pieces) nodes.insert(p);
       break;
@@ -1834,20 +1789,20 @@ void Cascade::writeNodeBounds() const {
   for (size_t i = 0; i < g_.nodeCount(); ++i) {
     const NodeId n = static_cast<NodeId>(i);
     const Node &node = g_.node(n);
-    o << "{\"node\":" << n << ",\"label\":\"" << jsonEscape(node.label) << "\",\"components\":"
+    o << "{\"node\":" << n << ",\"label\":\"" << json::escape(node.label) << "\",\"components\":"
       << node.components << ",\"target\":" << (n == target_ ? "true" : "false");
     if (auto t = tableName_.find(n); t != tableName_.end())
-      o << ",\"table\":\"" << jsonEscape(t->second) << "\"";
+      o << ",\"table\":\"" << json::escape(t->second) << "\"";
     if (reg_.known(n)) {
       const NodeInfo &ni = reg_.info(n);
       const GaussDiagram &d = ni.diagram;
       o << ",\"crossings\":" << d.crossings() << ",\"hyperbolic\":"
         << (ni.hyperbolic ? "true" : "false");
       if (ni.hyperbolic) o << ",\"volume\":" << std::setprecision(12) << ni.volume;
-      o << ",\"pd\":\"" << jsonEscape(rowPD(d)) << "\",\"signs\":" << ints(d.signs) << ",\"gauss\":[";
-      for (size_t c = 0; c < d.comps.size(); ++c) o << (c ? "," : "") << ints(d.comps[c]);
+      o << ",\"pd\":\"" << json::escape(rowPD(d)) << "\",\"signs\":" << json::array(d.signs) << ",\"gauss\":[";
+      for (size_t c = 0; c < d.comps.size(); ++c) o << (c ? "," : "") << json::array(d.comps[c]);
       o << "],\"linking\":[";
-      for (size_t a = 0; a < ni.linking.size(); ++a) o << (a ? "," : "") << ints(ni.linking[a]);
+      for (size_t a = 0; a < ni.linking.size(); ++a) o << (a ? "," : "") << json::array(ni.linking[a]);
       o << "]";
     }
     o << ",\"upper\":[";
@@ -1873,7 +1828,7 @@ void Cascade::writeNodeBounds() const {
           << (f.value >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(f.value))
           << ",\"kind\":\"" << kindName(f.reason.kind) << "\"";
         if (f.reason.kind == Kind::literature)
-          o << ",\"source\":\"" << jsonEscape(node.lowerBoundSource) << "\"";
+          o << ",\"source\":\"" << json::escape(node.lowerBoundSource) << "\"";
         o << "}";
         first = false;
       }
@@ -1885,8 +1840,8 @@ void Cascade::writeCertificate() const {
   auto best = g_.best(target_, goalPartition(target_));
   if (!best) return;
   std::ofstream c(cfg_.work + "/certificate.json");
-  c << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_pd\":\""
-    << jsonEscape(cfg_.targetPD) << "\",\"goal_genus\":" << cfg_.goalGenus
+  c << "{\"target\":\"" << json::escape(cfg_.targetName) << "\",\"target_pd\":\""
+    << json::escape(cfg_.targetPD) << "\",\"goal_genus\":" << cfg_.goalGenus
     << ",\"goal\":\"" << (cfg_.goalDisjoint ? "disjoint" : "connected") << "\",\"genus\":"
     << best->genus << ",\"records\":[\n";
   std::set<NodeId> nodes;
@@ -1900,12 +1855,12 @@ void Cascade::writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const {
   bool first = true;
   for (NodeId n : nodes) {
     c << (first ? "" : ",\n") << "{\"id\":" << n << ",\"label\":\""
-      << jsonEscape(g_.node(n).label) << "\",\"components\":" << g_.node(n).components;
+      << json::escape(g_.node(n).label) << "\",\"components\":" << g_.node(n).components;
     if (reg_.known(n) && reg_.info(n).diagram.crossings() > 0) {
       // The node's own diagram, as signed Gauss data: component maps refer
       // to ITS component order, which a PD round trip need not keep.
       const GaussDiagram &d = reg_.info(n).diagram;
-      c << ",\"pd\":\"" << jsonEscape(rowPD(d)) << "\",\"signs\":[";
+      c << ",\"pd\":\"" << json::escape(rowPD(d)) << "\",\"signs\":[";
       for (size_t k = 0; k < d.signs.size(); ++k) c << (k ? "," : "") << d.signs[k];
       c << "],\"gauss\":[";
       for (size_t i = 0; i < d.comps.size(); ++i) {
@@ -1916,7 +1871,7 @@ void Cascade::writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const {
       c << "]";
     }
     if (auto it = tableName_.find(n); it != tableName_.end())
-      c << ",\"table\":\"" << jsonEscape(it->second) << "\"";
+      c << ",\"table\":\"" << json::escape(it->second) << "\"";
     c << "}";
     first = false;
   }
@@ -1925,7 +1880,7 @@ void Cascade::writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const {
 void Cascade::logRun(double wall, double cpu, double startup, double loop, double store,
                      double lowerReport, double nodeBounds) {
   std::ostringstream o;
-  o << std::fixed << std::setprecision(1) << "{\"run\":\"" << jsonEscape(cfg_.targetName)
+  o << std::fixed << std::setprecision(1) << "{\"run\":\"" << json::escape(cfg_.targetName)
     << "\",\"threads\":" << cfg_.threads << ",\"wall\":" << wall << ",\"cpu\":" << cpu
     << ",\"cores\":" << (wall > 0 ? cpu / wall : 0.0) << ",\"startup_s\":" << startup
     << ",\"loop_s\":" << loop << ",\"hop_wall_s\":" << wallSpent_
@@ -1941,7 +1896,7 @@ void Cascade::logRun(double wall, double cpu, double startup, double loop, doubl
 
 int Cascade::run() {
   const auto tRun = Clock::now();
-  const double cpuRun = processCpu();
+  const double cpuRun = timers::processCpuSeconds();
   fs::create_directories(cfg_.work);
   if (cfg_.hopMode == "process") {
     // As a child hop runs verifyslicegenus: a private census copy, never
@@ -2132,7 +2087,7 @@ int Cascade::run() {
   const auto tBounds = Clock::now();
   writeNodeBounds();
   writeProfiles();
-  logRun(secondsSince(tRun), processCpu() - cpuRun, startupSeconds, wall, storeSeconds,
+  logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, storeSeconds,
          reportSeconds, secondsSince(tBounds));
   if (lowerMet() && !upperMet()) {
     // The bound's proof: the reasons from the target down to their leaves.
@@ -2172,10 +2127,10 @@ void Cascade::writeProfiles() const {
       const int k = g_.node(n).components;
       name = identify::unlinkName(static_cast<size_t>(k));
     }
-    out << "{\"node\":" << n << ",\"name\":\"" << jsonEscape(name) << '"';
+    out << "{\"node\":" << n << ",\"name\":\"" << json::escape(name) << '"';
     if (auto it = tableName_.find(n); it != tableName_.end())
-      out << ",\"table\":\"" << jsonEscape(it->second) << '"';
-    out << ",\"label\":\"" << jsonEscape(g_.node(n).label) << '"';
+      out << ",\"table\":\"" << json::escape(it->second) << '"';
+    out << ",\"label\":\"" << json::escape(g_.node(n).label) << '"';
     if (auto it = depth_.find(n); it != depth_.end())
       out << ",\"depth\":" << it->second;
     // A split far side's whole is added to the graph, not the registry,
@@ -2205,7 +2160,7 @@ void Cascade::writeLowerReport() const {
   if (const exactnaming::TableEntry *e = tables_.entry(cfg_.targetName))
     if (auto g4 = exactnaming::parseTableG4(e->g4)) litLo = g4->first;
   std::ofstream out(cfg_.work + "/lower_report.jsonl");
-  out << "{\"target\":\"" << jsonEscape(cfg_.targetName) << "\",\"target_lower\":" << targetLower
+  out << "{\"target\":\"" << json::escape(cfg_.targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g_.nodeCount() << "}\n";
   // What node n's lower bound `seed` alone carries to the target: every other
   // lower bound forgotten (clearLowerBounds()), n seeded, relaxed. Only
@@ -2244,20 +2199,11 @@ void Cascade::writeLowerReport() const {
     if (auto b = g_.bestConnected(n)) could = std::min(could, b->genus);
     jobs.push_back({n, name, g4->first, g4->second, could});
   }
-  std::atomic<size_t> next{0};
-  auto work = [&] {
-    for (size_t i; (i = next.fetch_add(1)) < jobs.size();) {
-      Job &j = jobs[i];
-      j.carries = j.lo > 0 ? carried(j.n, j.lo) : 0;
-      j.couldCarry = j.could > 0 ? (j.could == j.lo ? j.carries : carried(j.n, j.could)) : 0;
-    }
-  };
-  {
-    std::vector<std::thread> pool;
-    const size_t k = std::min<size_t>(std::max(cfg_.threads, 1), jobs.size());
-    for (size_t t = 0; t < k; ++t) pool.emplace_back(work);
-    for (auto &t : pool) t.join();
-  }
+  parallelFor(jobs.size(), static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t i) {
+    Job &j = jobs[i];
+    j.carries = j.lo > 0 ? carried(j.n, j.lo) : 0;
+    j.couldCarry = j.could > 0 ? (j.could == j.lo ? j.carries : carried(j.n, j.could)) : 0;
+  });
   int bestCarry = 0, bestCould = 0;
   std::string bestName, bestCouldName;
   for (const Job &j : jobs) {
@@ -2265,7 +2211,7 @@ void Cascade::writeLowerReport() const {
     const int carries = j.carries, couldCarry = j.couldCarry;
     if (carries <= 0 && couldCarry <= 0) continue; // n reaches the target with nothing
     const auto sp = special.find(name);
-    out << "{\"node\":" << j.n << ",\"name\":\"" << jsonEscape(name) << "\",\"lit_lo\":"
+    out << "{\"node\":" << j.n << ",\"name\":\"" << json::escape(name) << "\",\"lit_lo\":"
         << j.lo << ",\"lit_hi\":" << j.hi << ",\"could\":" << j.could
         << ",\"special\":" << (sp == special.end() ? "null" : sp->second ? "true" : "false")
         << ",\"carries\":" << carries << ",\"could_carry\":" << couldCarry << "}\n";

@@ -11,6 +11,7 @@
 
 #include <sys/resource.h>
 
+#include "cobound/driver/timers.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
 #include "surfer/enumeration/surfacesearch.h"
@@ -96,13 +97,6 @@ namespace cascade {
 
 namespace {
 
-double cpuSeconds() {
-  rusage u{};
-  getrusage(RUSAGE_SELF, &u);
-  return static_cast<double>(u.ru_utime.tv_sec + u.ru_stime.tv_sec) +
-         static_cast<double>(u.ru_utime.tv_usec + u.ru_stime.tv_usec) / 1e6;
-}
-
 // Which row components and how many far-side curves each surface component
 // carries, as a canonical string: surface components are unlabelled, so the
 // per-component entries are sorted.
@@ -144,7 +138,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                         const std::function<bool(const KeptSurface &)> &stop,
                         const SearchFrontier *resume) const {
   const auto wall0 = std::chrono::steady_clock::now();
-  const double cpu0 = cpuSeconds();
+  const double cpu0 = timers::processCpuSeconds();
   const rowsearch::RowBuild &rb = row.rowBuild();
   if (rb.seedFaces.empty())
     throw std::runtime_error("hop: the row has no collar seed");
@@ -295,7 +289,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   if (out.accountingFailure.empty() && !drainSkipped)
     out.frontier = e.frontier();
   out.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
-  out.cpu = cpuSeconds() - cpu0;
+  out.cpu = timers::processCpuSeconds() - cpu0;
   return out;
 }
 

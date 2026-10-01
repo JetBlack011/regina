@@ -80,6 +80,7 @@
 #include "diagramtriangulation/todiagram.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "diagramtriangulation/pdcode.h"
+#include "cobound/json.h"
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/submanifold/vertexlinks.h"
@@ -87,23 +88,16 @@
 namespace {
 
 std::string matrix(const knotbuilder::Diagram &d) {
-    std::ostringstream o;
-    o << '[';
-    for (size_t i = 0; i < d.components; ++i) {
-        o << (i ? ",[" : "[");
+    std::vector<std::vector<long>> lk(d.components, std::vector<long>(d.components, 0));
+    for (size_t i = 0; i < d.components; ++i)
         for (size_t j = 0; j < d.components; ++j)
-            o << (j ? "," : "") << (i == j ? 0 : d.linkingNumber(i, j));
-        o << ']';
-    }
-    return o.str() + ']';
+            if (i != j) lk[i][j] = d.linkingNumber(i, j);
+    return json::matrix(lk);
 }
 
 template <typename T>
 std::string list(const std::vector<T> &v) {
-    std::ostringstream o;
-    o << '[';
-    for (size_t i = 0; i < v.size(); ++i) o << (i ? "," : "") << v[i];
-    return o.str() + ']';
+    return json::array(v);
 }
 
 } // namespace

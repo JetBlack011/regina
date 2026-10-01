@@ -9,18 +9,13 @@
 
 #include <link/link.h>
 
+#include "cobound/driver/timers.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/census/censusnaming.h"
 
 namespace farside {
 
 namespace {
-
-long long microsSince(std::chrono::steady_clock::time_point t) {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-               std::chrono::steady_clock::now() - t)
-        .count();
-}
 
 // The complement route, as SurfaceSearch called it before a namer was
 // required: a lone curve on its own (identify(const EdgeComplement&)),
@@ -130,7 +125,7 @@ std::optional<std::string> DiagramNamer::orientedName(
         }
         const auto start = std::chrono::steady_clock::now();
         std::string name = exact_->name(drawn).name;
-        const long long micros = microsSince(start);
+        const long long micros = timers::microsSince(start);
         namer_.stats().microsExact += micros;
         namer_.stats().noteDuration(micros, "exact", name);
         ++namer_.stats().exactNamed;

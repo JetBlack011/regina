@@ -8,6 +8,8 @@
 
 #include "cobound/cobordisms/database.h"
 
+#include "cobound/parallelfor.h"
+
 
 #include <cerrno>
 #include <cstring>
@@ -238,12 +240,7 @@ witnessIdentities(const std::filesystem::path &path, unsigned threads,
       sets[k].insert(cobordismgraph::witnessIdentity(w));
     }
   };
-  std::vector<std::thread> pool;
-  for (size_t k = 1; k < n; ++k)
-    pool.emplace_back(work, k);
-  work(0);
-  for (auto &t : pool)
-    t.join();
+  parallelFor(n, static_cast<unsigned>(n), work);
   size_t bad = 0;
   for (size_t k = 0; k < n; ++k) {
     bad += malformed[k];

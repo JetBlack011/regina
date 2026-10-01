@@ -2,6 +2,8 @@
 
 #include "cobound/bounds/cobordismgraph.h"
 
+#include "cobound/json.h"
+
 #include <algorithm>
 #include <functional>
 #include <numeric>
@@ -550,16 +552,7 @@ std::string ProofGraph::profileFields(NodeId n) const {
   const Node &node = nodes_.at(n);
   std::ostringstream o;
   o << "\"components\":" << node.components;
-  if (node.linking) {
-    o << ",\"linking\":[";
-    for (size_t i = 0; i < node.linking->size(); ++i) {
-      o << (i ? ",[" : "[");
-      for (size_t j = 0; j < (*node.linking)[i].size(); ++j)
-        o << (j ? "," : "") << (*node.linking)[i][j];
-      o << ']';
-    }
-    o << ']';
-  }
+  if (node.linking) o << ",\"linking\":" << json::matrix(*node.linking);
   if (node.genusLowerBound)
     o << ",\"genus_lower\":" << *node.genusLowerBound;
   std::vector<ProfileEntry> es = node.profile.entries();

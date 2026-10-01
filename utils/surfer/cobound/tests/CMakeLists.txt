@@ -27,7 +27,8 @@ set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 # The cascade's tests: seconds each. See ../README.md, "Assumptions and their
 # tests", for what each pins.
 foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordisms_test
-             search_test axioms_test pending_test fromdatabase_test thickening_rows_test)
+             search_test axioms_test pending_test fromdatabase_test thickening_rows_test
+             json_test parallelfor_test)
   add_executable(${TEST} ${TEST}.cpp)
   target_link_libraries(${TEST} cobound_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
