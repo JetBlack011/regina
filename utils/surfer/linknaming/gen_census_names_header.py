@@ -58,9 +58,9 @@ import sys
 import snappy
 
 HERE = pathlib.Path(__file__).resolve().parent
-KNOT_CSV_PATH = HERE.parent / "knot_census_names.csv"
-LINK_CSV_PATH = HERE.parent / "link_census_names.csv"
-HEADER_PATH = HERE.parent / "linknames.h"
+KNOT_CSV_PATH = HERE / "knot_census_names.csv"
+LINK_CSV_PATH = HERE / "link_census_names.csv"
+HEADER_PATH = HERE / "census" / "censusnames.h"
 
 HYPERBOLIC_DB_PREFIX = "Cusped hyperbolic census"
 
@@ -206,7 +206,7 @@ def write_header(table):
     lines.append("#include <string>")
     lines.append("#include <unordered_map>")
     lines.append("")
-    lines.append("/*! \\file utils/surfer/linknames.h")
+    lines.append("/*! \\file utils/surfer/linknaming/census/censusnames.h")
     lines.append(" *  \\brief Translates Regina census hit names (e.g. \"m004 : "
                   "#1\", \"L104001\")")
     lines.append(" *  into classical names: Rolfsen knot table names (e.g. "

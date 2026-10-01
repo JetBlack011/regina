@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-/*! \file utils/surfer/csvwriter.h
+/*! \file utils/surfer/surfer/report/csvwriter.h
  *  \brief A sharded, multi-threaded CSV writer.
  */
 

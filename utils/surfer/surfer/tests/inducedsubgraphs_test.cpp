@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "../enumerate_cis.h"
+#include "surfer/enumeration/inducedsubgraphs.h"
 
 namespace {
 

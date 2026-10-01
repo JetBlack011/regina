@@ -2,7 +2,7 @@
 //  gaussdiagram.cpp
 //
 
-#include "gaussdiagram.h"
+#include "linknaming/diagrams/gaussdiagram.h"
 
 #include <algorithm>
 #include <array>

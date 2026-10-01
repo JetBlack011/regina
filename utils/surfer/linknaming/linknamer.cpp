@@ -2,7 +2,7 @@
 //  exactnamer.cpp
 //
 
-#include "exactnamer.h"
+#include "linknaming/linknamer.h"
 
 #include <algorithm>
 #include <atomic>

@@ -13,7 +13,7 @@
 
 #include <triangulation/dim3.h>
 
-/*! \file utils/surfer/knotbuilder/knotbuilder.h
+/*! \file utils/surfer/diagramtriangulation/fromdiagram.h
  *  \brief Builds a triangulation of S^3 containing a knot/link diagram
  *  from PD code.
  */

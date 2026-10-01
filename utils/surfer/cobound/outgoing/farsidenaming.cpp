@@ -2,7 +2,7 @@
 //  farsidenaming.cpp
 //
 
-#include "farsidenaming.h"
+#include "cobound/outgoing/farsidenaming.h"
 
 #include <algorithm>
 #include <array>
@@ -13,9 +13,9 @@
 
 #include <link/link.h>
 
-#include "cobordismgraph.h"
-#include "identifycomplement.h"
-#include "knotbuilder/knotbuilder.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "linknaming/census/identifycomplement.h"
+#include "diagramtriangulation/fromdiagram.h"
 
 namespace farside {
 

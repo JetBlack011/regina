@@ -27,7 +27,7 @@
 
 #include <triangulation/dim3.h>
 
-#include "../cobordismgraph.h"
+#include "cobound/solver/cobordismgraph.h"
 
 using namespace cobordismgraph;
 

@@ -18,9 +18,9 @@
 #include <algebra/markedabeliangroup.h>
 #include <triangulation/dim3.h>
 
-#include "peripheral.h"
+#include "linknaming/complement/meridians.h"
 
-/*! \file utils/surfer/linkcomplement.h
+/*! \file utils/surfer/linknaming/complement/linkcomplement.h
  *  \brief Tracks a set of edges inside a triangulation and builds their
  *  complement.
  *

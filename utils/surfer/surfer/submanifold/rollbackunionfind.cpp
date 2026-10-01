@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/23/2026.
 //
 
-#include "rollbackunionfind.h"
+#include "surfer/submanifold/rollbackunionfind.h"
 
 #include <utility>
 

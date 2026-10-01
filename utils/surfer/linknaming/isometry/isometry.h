@@ -5,7 +5,7 @@
 //  SnapPy's Manifold.is_isometric_to() compares them.
 //
 
-/*! \file utils/surfer/exactnaming/snappeaisometry.h
+/*! \file utils/surfer/linknaming/isometry/isometry.h
  *  \brief Whether two link diagrams are the same link, by an isometry of
  *  their complements that carries meridians to meridians.
  *

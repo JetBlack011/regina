@@ -21,13 +21,13 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "collar.h"
-#include "embeddedsubmanifold.h"
-#include "farsidenaming.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
-#include "skeleton.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "surfer/submanifold/submanifold.h"
+#include "cobound/outgoing/farsidenaming.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/skeleton.h"
 
 static int passed = 0;
 static int failed_count = 0;

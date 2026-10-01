@@ -14,9 +14,9 @@
 
 #include <link/link.h>
 
-#include "../hopedges.h"
-#include "../nodes.h"
-#include "check.h"
+#include "cobound/bounds/searchcobordisms.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/tests/check.h"
 
 #ifndef CASCADE_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"

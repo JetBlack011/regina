@@ -13,8 +13,8 @@
 
 #include <link/link.h>
 
-#include "exactnaming/exacttables.h"
-#include "exactnaming/snappeaisometry.h"
+#include "linknaming/tables.h"
+#include "linknaming/isometry/isometry.h"
 
 using exactnaming::KernelLink;
 using exactnaming::linkFromTablePD;

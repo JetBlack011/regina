@@ -1,6 +1,6 @@
 // profile.cpp
 
-#include "profile.h"
+#include "cobound/bounds/partitiongenera.h"
 
 #include <numeric>
 #include <stdexcept>

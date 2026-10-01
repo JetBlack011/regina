@@ -10,7 +10,7 @@
 
 #include <string>
 
-/*! \file utils/surfer/witnesskey.h
+/*! \file utils/surfer/cobound/cobordisms/witnesskey.h
  *  \brief The per-witness key a far-side resolution is stored under.
  *
  *  \section wk_why Why a witness key rather than a name

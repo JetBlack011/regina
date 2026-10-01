@@ -5,7 +5,7 @@
 //  visible connected summands without losing orientation or chirality.
 //
 
-/*! \file utils/surfer/exactnaming/gaussdiagram.h
+/*! \file utils/surfer/linknaming/diagrams/gaussdiagram.h
  *  \brief An oriented diagram as its signed crossings plus, per component,
  *  the crossings it passes in order; and the two decompositions a diagram can
  *  show directly.

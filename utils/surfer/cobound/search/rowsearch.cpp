@@ -1,9 +1,9 @@
-#include "rowsearch.h"
+#include "cobound/search/rowsearch.h"
 
-#include "collar.h"
-#include "farsidecurves.h"
-#include "farsidenaming.h"
-#include "linkcomplement.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/farsidenaming.h"
+#include "linknaming/complement/linkcomplement.h"
 
 namespace rowsearch {
 

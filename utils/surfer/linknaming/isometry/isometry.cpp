@@ -2,7 +2,7 @@
 //  snappeaisometry.cpp
 //
 
-#include "snappeaisometry.h"
+#include "linknaming/isometry/isometry.h"
 
 #include <mutex>
 #include <string>

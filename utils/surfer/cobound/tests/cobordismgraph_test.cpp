@@ -11,8 +11,8 @@
 #include <set>
 #include <vector>
 
-#include "../proofgraph.h"
-#include "check.h"
+#include "cobound/bounds/cobordismgraph.h"
+#include "cobound/tests/check.h"
 
 using namespace cascade;
 

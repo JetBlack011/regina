@@ -1,6 +1,6 @@
 // hopedges.cpp
 
-#include "hopedges.h"
+#include "cobound/bounds/searchcobordisms.h"
 
 #include <map>
 #include <sstream>
@@ -8,9 +8,9 @@
 
 #include <link/link.h>
 
-#include "diagramiso.h"
-#include "embeddedsubmanifold.h"
-#include "farsidecurves.h"
+#include "linknaming/diagrams/diagramiso.h"
+#include "surfer/submanifold/submanifold.h"
+#include "cobound/outgoing/farsidecurves.h"
 
 using exactnaming::GaussDiagram;
 

@@ -15,7 +15,7 @@
 
 #include <triangulation/dim3.h>
 
-/*! \file utils/surfer/peripheral.h
+/*! \file utils/surfer/linknaming/complement/meridians.h
  *  \brief Drills a link out of a triangulated 3-manifold while retaining its
  *  meridians, and expresses them as slopes in SnapPea's peripheral basis.
  *

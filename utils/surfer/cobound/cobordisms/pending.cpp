@@ -1,6 +1,6 @@
 // keptstore.cpp
 
-#include "keptstore.h"
+#include "cobound/cobordisms/pending.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -16,9 +16,9 @@
 #include <sys/file.h>
 #include <unistd.h>
 
-#include "csvwriter.h"
-#include "hoprunner.h"
-#include "witnessstore.h"
+#include "surfer/report/csvwriter.h"
+#include "cobound/search/hoprunner.h"
+#include "cobound/cobordisms/witnessstore.h"
 
 namespace fs = std::filesystem;
 

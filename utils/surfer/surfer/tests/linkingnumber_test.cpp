@@ -39,9 +39,9 @@
 #include <link/link.h>
 #include <triangulation/dim3.h>
 
-#include "../knotbuilder/knotbuilder.h"
-#include "../linkcomplement.h"
-#include "../linkingnumber.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/linkingnumber.h"
 
 static int passed = 0, failed_count = 0;
 

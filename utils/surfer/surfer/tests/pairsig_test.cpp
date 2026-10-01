@@ -41,7 +41,7 @@
 #include <utilities/sigutils.h>
 #include <triangulation/dim4.h>
 
-#include "../pairsig.h"
+#include "surfer/pairsig/pairsig.h"
 
 static int passed = 0, failed_count = 0;
 

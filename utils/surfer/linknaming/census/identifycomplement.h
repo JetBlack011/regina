@@ -20,9 +20,9 @@
 
 #include <triangulation/dim3.h>
 
-#include "linkcomplement.h"
+#include "linknaming/complement/linkcomplement.h"
 
-/*! \file utils/surfer/identifycomplement.h
+/*! \file utils/surfer/linknaming/census/identifycomplement.h
  *  \brief Recognizes and names an EdgeComplement/Link's complement: genus
  *  checks, the local census, and regina::Census::lookup().
  *

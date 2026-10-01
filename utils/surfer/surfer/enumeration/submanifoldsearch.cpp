@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/15/2026.
 //
 
-#include "embeddingsearch.h"
+#include "surfer/enumeration/submanifoldsearch.h"
 
 #include <algorithm>
 #include <atomic>
@@ -27,7 +27,7 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "witnesskey.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 #define FLUSH_EVERY_BDRY 1
 #define FLUSH_EVERY_EMBEDDED 1

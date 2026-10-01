@@ -41,9 +41,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "exactnaming/exactnamer.h"
-#include "exactnaming/exacttables.h"
-#include "farsideredraw.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
+#include "cobound/outgoing/farsideredraw.h"
 
 namespace {
 

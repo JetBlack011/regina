@@ -14,7 +14,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "cobordismgraph.h"
+#include "cobound/solver/cobordismgraph.h"
 
 namespace witnessstore {
 

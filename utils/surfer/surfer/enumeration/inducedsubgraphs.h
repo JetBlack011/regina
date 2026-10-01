@@ -20,7 +20,7 @@
 #include <thread>
 #include <vector>
 
-/*! \file utils/surfer/enumerate_cis.h
+/*! \file utils/surfer/surfer/enumeration/inducedsubgraphs.h
  *  \brief Enumerates connected induced subgraphs of a graph, with optional
  *  filtering and seeding.
  */

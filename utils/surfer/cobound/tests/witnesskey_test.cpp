@@ -11,7 +11,7 @@
 #include <iostream>
 #include <string>
 
-#include "witnesskey.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 namespace {
 

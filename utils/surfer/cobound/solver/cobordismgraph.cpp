@@ -4,7 +4,7 @@
 //  Created by John Teague on 08/02/2026.
 //
 
-#include "cobordismgraph.h"
+#include "cobound/solver/cobordismgraph.h"
 
 #include <algorithm>
 #include <cctype>

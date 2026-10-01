@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "collar.h"
+#include "diagramtriangulation/thickening/collar.h"
 
 void CollarBuilder::addLayer(const CobordismBuilder<3> &cob) {
     const regina::Triangulation<3> &baseTri = cob.baseTriangulation();

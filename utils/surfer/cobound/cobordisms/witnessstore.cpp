@@ -6,7 +6,7 @@
 //  from verifyslicegenus.cpp (2026-09-28).
 //
 
-#include "witnessstore.h"
+#include "cobound/cobordisms/witnessstore.h"
 
 #include <cerrno>
 #include <cstring>
@@ -20,8 +20,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "csvwriter.h"
-#include "witnesskey.h"
+#include "surfer/report/csvwriter.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 namespace witnessstore {
 // One row of the input knot table (Name,PD Notation,Genus-4D). No RFC-4180

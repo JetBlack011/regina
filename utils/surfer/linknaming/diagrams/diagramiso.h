@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 
-#include "exactnaming/gaussdiagram.h"
+#include "linknaming/diagrams/gaussdiagram.h"
 
 namespace cascade {
 

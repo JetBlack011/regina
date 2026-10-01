@@ -1,6 +1,6 @@
 // diagramiso.cpp
 
-#include "diagramiso.h"
+#include "linknaming/diagrams/diagramiso.h"
 
 #include <algorithm>
 #include <cstdlib>

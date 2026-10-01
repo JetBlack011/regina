@@ -12,7 +12,7 @@
 #include <triangulation/example4.h>
 #include <unistd.h>
 
-#include "cobordismbuilder.h"
+#include "diagramtriangulation/thickening/thickening.h"
 
 static int passed = 0, failed_count = 0;
 

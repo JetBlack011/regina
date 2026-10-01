@@ -20,10 +20,10 @@
 
 #include <unistd.h>
 
-#include "../../farsideredraw.h"
-#include "../../witnesskey.h"
-#include "../readbackcache.h"
-#include "check.h"
+#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/outgoing/fromdatabase.h"
+#include "cobound/tests/check.h"
 
 using namespace cascade;
 namespace fs = std::filesystem;

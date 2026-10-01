@@ -11,7 +11,7 @@
 #include <maths/perm.h>
 #include <triangulation/forward.h>
 
-/*! \file utils/surfer/skeleton.h
+/*! \file utils/surfer/surfer/submanifold/skeleton.h
  *  \brief Builds an adjacency graph over the subdim-faces of a triangulation.
  */
 

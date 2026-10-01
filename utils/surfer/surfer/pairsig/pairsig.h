@@ -15,10 +15,10 @@
 
 #include <triangulation/isomorphism.h>
 
-#include "embeddedsubmanifold.h"
-#include "skeleton.h"
+#include "surfer/submanifold/submanifold.h"
+#include "surfer/submanifold/skeleton.h"
 
-/*! \file utils/surfer/pairsig.h
+/*! \file utils/surfer/surfer/pairsig/pairsig.h
  *  \brief Isomorphism signatures of (ambient triangulation, embedded
  *  subcomplex) pairs.
  *

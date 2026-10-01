@@ -1,6 +1,6 @@
-#include "surfacesearch.h"
+#include "surfer/enumeration/surfacesearch.h"
 
-#include "identifycomplement.h"
+#include "linknaming/census/identifycomplement.h"
 
 #include <condition_variable>
 #include <iostream>

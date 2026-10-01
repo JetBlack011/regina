@@ -30,10 +30,10 @@
 #include <triangulation/dim4.h>
 #include <triangulation/example4.h>
 
-#include "cobordismbuilder.h"
-#include "embeddingsearch.h"
-#include "surfacesearch.h"
-#include "knotbuilder/knotbuilder.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "surfer/enumeration/submanifoldsearch.h"
+#include "surfer/enumeration/surfacesearch.h"
+#include "diagramtriangulation/fromdiagram.h"
 
 namespace {
 

@@ -46,9 +46,9 @@
 #include <census/census.h>
 #include <triangulation/dim3.h>
 
-#include "../identifycomplement.h"
-#include "../knotbuilder/knotbuilder.h"
-#include "../linkcomplement.h"
+#include "linknaming/census/identifycomplement.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {

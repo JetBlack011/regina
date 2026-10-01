@@ -20,12 +20,12 @@
 
 #include <triangulation/dim4.h>
 
-#include "csvwriter.h"
-#include "embeddingsearch.h"
-#include "surfacesearch.h"
-#include "rowsearch.h"
-#include "linkcomplement.h"
-#include "identifycomplement.h"
+#include "surfer/report/csvwriter.h"
+#include "surfer/enumeration/submanifoldsearch.h"
+#include "surfer/enumeration/surfacesearch.h"
+#include "cobound/search/rowsearch.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "linknaming/census/identifycomplement.h"
 
 namespace {
 

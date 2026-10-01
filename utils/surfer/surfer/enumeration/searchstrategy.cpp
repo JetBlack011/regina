@@ -1,4 +1,4 @@
-#include "searchfrontier.h"
+#include "surfer/enumeration/searchstrategy.h"
 
 #include <algorithm>
 #include <cstdio>

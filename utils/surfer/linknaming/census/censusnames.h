@@ -15,7 +15,7 @@
 #include <string>
 #include <unordered_map>
 
-/*! \file utils/surfer/linknames.h
+/*! \file utils/surfer/linknaming/census/censusnames.h
  *  \brief Translates Regina census hit names (e.g. "m004 : #1", "L104001")
  *  into classical names: Rolfsen knot table names (e.g. "4_1") for knots up
  *  to 10 crossings -- the largest crossing number Rolfsen's table covers --

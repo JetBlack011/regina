@@ -17,9 +17,9 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "simplicialprism.h"
+#include "diagramtriangulation/thickening/prism.h"
 
-/*! \file utils/surfer/cobordismbuilder.h
+/*! \file utils/surfer/diagramtriangulation/thickening/thickening.h
  *  \brief Incrementally builds a cobordism triangulation one dimension up
  *  from a base triangulation.
  */

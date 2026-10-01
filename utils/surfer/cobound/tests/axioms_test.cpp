@@ -1,7 +1,7 @@
 // leaves_test.cpp: the literature leaf policy (README.md, "Leaf facts").
 
-#include "../leaves.h"
-#include "check.h"
+#include "cobound/bounds/axioms.h"
+#include "cobound/tests/check.h"
 
 using namespace cascade;
 

@@ -9,7 +9,7 @@
 #include <iostream>
 #include <unistd.h>
 
-#include "../rollbackunionfind.h"
+#include "surfer/submanifold/rollbackunionfind.h"
 
 static int passed = 0, failed_count = 0;
 

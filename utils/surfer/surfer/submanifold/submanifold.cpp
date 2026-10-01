@@ -4,11 +4,11 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "embeddedsubmanifold.h"
+#include "surfer/submanifold/submanifold.h"
 
-#include "identifycomplement.h"
-#include "linkingnumber.h"
-#include "pairsig.h"
+#include "linknaming/census/identifycomplement.h"
+#include "surfer/submanifold/linkingnumber.h"
+#include "surfer/pairsig/pairsig.h"
 
 #include <algorithm>
 #include <array>

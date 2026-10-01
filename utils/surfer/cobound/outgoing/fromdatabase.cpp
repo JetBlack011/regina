@@ -1,6 +1,6 @@
 // readbackcache.cpp
 
-#include "readbackcache.h"
+#include "cobound/outgoing/fromdatabase.h"
 
 #include <cerrno>
 #include <cstring>
@@ -12,7 +12,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 
-#include "witnesskey.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 namespace fs = std::filesystem;
 

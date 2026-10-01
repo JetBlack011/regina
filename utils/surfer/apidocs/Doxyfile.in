@@ -48,7 +48,10 @@ INPUT = "@PROJECT_SOURCE_DIR@/utils/surfer"
 FILE_PATTERNS        = *.h
 RECURSIVE            = YES
 EXCLUDE = \
-    "@PROJECT_SOURCE_DIR@/utils/surfer/tests"
+    "@PROJECT_SOURCE_DIR@/utils/surfer/surfer/tests" \
+    "@PROJECT_SOURCE_DIR@/utils/surfer/diagramtriangulation/tests" \
+    "@PROJECT_SOURCE_DIR@/utils/surfer/linknaming/tests" \
+    "@PROJECT_SOURCE_DIR@/utils/surfer/cobound/tests"
 
 # Alphabetical index options:
 

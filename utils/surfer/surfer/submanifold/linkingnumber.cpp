@@ -2,7 +2,7 @@
 //  linkingnumber.cpp
 //
 
-#include "linkingnumber.h"
+#include "surfer/submanifold/linkingnumber.h"
 
 #include <algorithm>
 #include <deque>

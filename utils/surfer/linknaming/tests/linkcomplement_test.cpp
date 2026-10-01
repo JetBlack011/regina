@@ -16,7 +16,7 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "../linkcomplement.h"
+#include "linknaming/complement/linkcomplement.h"
 
 static int passed = 0, failed_count = 0;
 

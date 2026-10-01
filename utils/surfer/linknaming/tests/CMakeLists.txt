@@ -1,14 +1,29 @@
-add_executable(exactnaming_test exactnaming_test.cpp)
-target_link_libraries(exactnaming_test surfer_common)
-add_test(NAME exactnaming_test COMMAND exactnaming_test)
-set_tests_properties(exactnaming_test PROPERTIES LABELS "surfer" TIMEOUT 60)
+set(LINKNAMING_TESTS
+  linkcomplement_test
+  identifycomplement_test
+  census_test
+  meridians_test
+  linknamer_test
+)
 
-add_executable(snappeaisometry_test snappeaisometry_test.cpp)
-target_link_libraries(snappeaisometry_test surfer_common)
-add_test(NAME snappeaisometry_test COMMAND snappeaisometry_test)
-set_tests_properties(snappeaisometry_test PROPERTIES LABELS "surfer" TIMEOUT 120)
+foreach(TEST ${LINKNAMING_TESTS})
+  add_executable(${TEST} ${TEST}.cpp)
+  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  add_test(NAME ${TEST} COMMAND ${TEST})
+  set_tests_properties(${TEST} PROPERTIES LABELS "surfer" TIMEOUT 60)
+endforeach()
+
+add_executable(isometry_test isometry_test.cpp)
+target_link_libraries(isometry_test surfer_common surfer_mimalloc)
+add_test(NAME isometry_test COMMAND isometry_test)
+set_tests_properties(isometry_test PROPERTIES LABELS "surfer" TIMEOUT 120)
+
+add_executable(diagramiso_test diagramiso_test.cpp)
+target_link_libraries(diagramiso_test surfer_common surfer_mimalloc)
+add_test(NAME diagramiso_test COMMAND diagramiso_test)
+set_tests_properties(diagramiso_test PROPERTIES LABELS "surfer" TIMEOUT 300)
 
 # Whole-table validation of the isometry step; minutes on the full tables, so
 # not a ctest target. See the file's header for what it checks.
 add_executable(isometry_validation isometry_validation.cpp)
-target_link_libraries(isometry_validation surfer_common)
+target_link_libraries(isometry_validation surfer_common surfer_mimalloc)

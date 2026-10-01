@@ -51,12 +51,12 @@
 #include <triangulation/example2.h>
 #include <triangulation/example4.h>
 
-#include "cobordismbuilder.h"
-#include "embeddedsubmanifold.h"
-#include "enumerate_cis.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
-#include "skeleton.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "surfer/submanifold/submanifold.h"
+#include "surfer/enumeration/inducedsubgraphs.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/skeleton.h"
 
 static int passed = 0, failed_count = 0;
 

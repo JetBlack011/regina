@@ -1,15 +1,65 @@
-# Seconds each. See ../README.md, "Assumptions and their tests", for what
-# each pins.
-foreach(TEST profile_test proofgraph_test diagramiso_test nodes_test hopedges_test
-             hoprunner_test leaves_test keptstore_test readbackcache_test)
-  add_executable(cascade_${TEST} ${TEST}.cpp)
-  target_link_libraries(cascade_${TEST} surfer_common)
-  add_test(NAME cascade_${TEST} COMMAND cascade_${TEST})
-  set_tests_properties(cascade_${TEST} PROPERTIES LABELS "surfer" TIMEOUT 300)
+set(TESTS
+  solver_test
+  witnesskey_test
+  witnessstore_test
+  rowmap_test
+  rowsearch_test
+  farsidenaming_test
+)
+
+# Every test just links surfer_common (defined in ../../CMakeLists.txt) rather
+# than relisting its own subset of implementation files -- see that file's
+# comment on surfer_common for why.
+foreach(TEST ${TESTS})
+  add_executable(${TEST} ${TEST}.cpp)
+  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  add_test(NAME ${TEST} COMMAND ${TEST})
+  set_tests_properties(${TEST} PROPERTIES
+    LABELS "surfer"
+    TIMEOUT 60)
+endforeach()
+
+# Two exhaustive cap-3 searches (the canaries' 3_1 and L2a1{0}) and a few
+# pair signatures; ~25 s on an idle machine.
+set_tests_properties(rowsearch_test PROPERTIES TIMEOUT 120)
+
+# The cascade's tests: seconds each. See ../README.md, "Assumptions and their
+# tests", for what each pins.
+foreach(TEST partitiongenera_test cobordismgraph_test nodes_test searchcobordisms_test
+             hoprunner_test axioms_test pending_test fromdatabase_test)
+  add_executable(${TEST} ${TEST}.cpp)
+  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  add_test(NAME ${TEST} COMMAND ${TEST})
+  set_tests_properties(${TEST} PROPERTIES LABELS "surfer" TIMEOUT 300)
 endforeach()
 # Real witnesses from the Phase 0 hops, and small tables to name far sides by
 # (data/), for the end-to-end tests.
-foreach(TEST hopedges_test hoprunner_test keptstore_test readbackcache_test)
-  target_compile_definitions(cascade_${TEST} PRIVATE
+foreach(TEST searchcobordisms_test hoprunner_test pending_test fromdatabase_test)
+  target_compile_definitions(${TEST} PRIVATE
     CASCADE_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
 endforeach()
+
+# No gate may depend on an identified name: the same exhaustive search, with
+# every name perturbed, must accept exactly the same surfaces. See the
+# script's header.
+add_test(NAME name_independence_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/name_independence_test.sh
+                 $<TARGET_FILE:verifyslicegenus>)
+set_tests_properties(name_independence_test PROPERTIES
+  LABELS "surfer" TIMEOUT 600)
+
+# A search stopped by SIGINT must not be recorded as having run out of
+# candidates. See the script's header.
+add_test(NAME interrupted_outcome_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/interrupted_outcome_test.sh
+                 $<TARGET_FILE:verifyslicegenus>)
+set_tests_properties(interrupted_outcome_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300 SKIP_RETURN_CODE 77)
+
+# --surface-log over two rows on one thread must not reuse the previous
+# row's (destroyed) CsvWriter shard. See the script's header.
+add_test(NAME surface_log_rows_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/surface_log_rows_test.sh
+                 $<TARGET_FILE:verifyslicegenus>)
+set_tests_properties(surface_log_rows_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)

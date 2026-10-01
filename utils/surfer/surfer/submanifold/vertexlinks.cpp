@@ -4,8 +4,8 @@
 //  Created by John Teague on 07/26/2026.
 //
 
-#include "vertexlinks.h"
-#include "linkingnumber.h"
+#include "surfer/submanifold/vertexlinks.h"
+#include "surfer/submanifold/linkingnumber.h"
 
 #include <algorithm>
 

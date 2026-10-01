@@ -15,9 +15,9 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
+#include "diagramtriangulation/thickening/thickening.h"
 
-/*! \file utils/surfer/collar.h
+/*! \file utils/surfer/diagramtriangulation/thickening/collar.h
  *  \brief Traces a knot/link through a cobordism's thickening layers.
  */
 

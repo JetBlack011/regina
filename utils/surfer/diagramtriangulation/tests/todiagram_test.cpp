@@ -35,9 +35,9 @@
 #include <link/link.h>
 #include <triangulation/dim3.h>
 
-#include "knotbuilder/diagramdrawer.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
+#include "diagramtriangulation/todiagram.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
 
 using namespace knotbuilder;
 

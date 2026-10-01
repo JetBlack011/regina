@@ -1,6 +1,6 @@
 // proofgraph.cpp
 
-#include "proofgraph.h"
+#include "cobound/bounds/cobordismgraph.h"
 
 #include <algorithm>
 #include <functional>

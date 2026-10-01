@@ -2,11 +2,11 @@
 //  farsidecurves.cpp
 //
 
-#include "farsidecurves.h"
+#include "cobound/outgoing/farsidecurves.h"
 
 #include <algorithm>
 
-#include "simplicialprism.h"
+#include "diagramtriangulation/thickening/prism.h"
 
 namespace farside {
 

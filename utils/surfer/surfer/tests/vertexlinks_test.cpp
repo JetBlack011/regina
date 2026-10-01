@@ -10,7 +10,7 @@
 #include <string>
 #include <unistd.h>
 
-#include "../vertexlinks.h"
+#include "surfer/submanifold/vertexlinks.h"
 
 static int passed = 0, failed_count = 0;
 

@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/26/2026.
 //
 
-#include "pairsig.h"
+#include "surfer/pairsig/pairsig.h"
 
 #include <algorithm>
 #include <cassert>
@@ -19,8 +19,8 @@
 #include <utilities/exception.h>
 #include <utilities/sigutils.h>
 
-#include "parallelisosig.h"
-#include "witnesskey.h"
+#include "surfer/pairsig/parallelisosig.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 namespace {
 

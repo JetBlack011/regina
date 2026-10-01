@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
-#include "../parallelisosig.h"
-#include "../rowsearch.h"
+#include "surfer/pairsig/parallelisosig.h"
+#include "cobound/search/rowsearch.h"
 
 int main(int argc, char **argv) {
     if (argc < 2) {

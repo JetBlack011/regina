@@ -4,7 +4,7 @@
 //  A stored witness's outgoing link, recovered from its pair signature.
 //
 
-/*! \file utils/surfer/farsideredraw.h
+/*! \file utils/surfer/cobound/outgoing/farsideredraw.h
  *  \brief Redraws witnesses of one row from their pair signatures, exactly
  *  as the search itself would have seen them.
  *
@@ -32,13 +32,13 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "cobordismgraph.h"
-#include "farsidecurves.h"
-#include "knotbuilder/diagramdrawer.h"
-#include "knotbuilder/knotbuilder.h"
-#include "rowsearch.h"
-#include "skeleton.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "cobound/outgoing/farsidecurves.h"
+#include "diagramtriangulation/todiagram.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "cobound/search/rowsearch.h"
+#include "surfer/submanifold/skeleton.h"
 
 namespace farside {
 

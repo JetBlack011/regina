@@ -2,7 +2,7 @@
 //  farsideredraw.cpp
 //
 
-#include "farsideredraw.h"
+#include "cobound/outgoing/farsideredraw.h"
 
 #include <algorithm>
 #include <chrono>
@@ -12,10 +12,10 @@
 #include <triangulation/dim2.h>
 #include <utilities/sigutils.h>
 
-#include "embeddedsubmanifold.h"
-#include "pairsig.h"
-#include "vertexlinks.h"
-#include "witnesskey.h"
+#include "surfer/submanifold/submanifold.h"
+#include "surfer/pairsig/pairsig.h"
+#include "surfer/submanifold/vertexlinks.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 namespace farside {
 

@@ -1,6 +1,6 @@
 // nodes.cpp
 
-#include "nodes.h"
+#include "cobound/bounds/nodes.h"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +10,7 @@
 
 #include <link/link.h>
 
-#include "diagramiso.h"
+#include "linknaming/diagrams/diagramiso.h"
 
 using exactnaming::GaussDiagram;
 using exactnaming::KernelLink;

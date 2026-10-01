@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/16/2026.
 //
 
-#include "identifycomplement.h"
+#include "linknaming/census/identifycomplement.h"
 
 #include <chrono>
 #include <cstdint>
@@ -19,8 +19,8 @@
 #include <census/census.h>
 #include <snappea/snappeatriangulation.h>
 
-#include "pairsig.h"
-#include "linknames.h"
+#include "surfer/pairsig/pairsig.h"
+#include "linknaming/census/censusnames.h"
 
 std::mutex identify::censusLookupMutex;
 std::atomic<size_t> identify::recognitionCacheLimit{200'000};

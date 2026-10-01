@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-/*! \file utils/surfer/rollbackunionfind.h
+/*! \file utils/surfer/surfer/submanifold/rollbackunionfind.h
  *  \brief A union-find data structure supporting rollback of recent merges.
  */
 

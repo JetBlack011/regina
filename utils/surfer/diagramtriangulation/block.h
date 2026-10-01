@@ -4,7 +4,7 @@
 //  The linear geometry of knotbuilder's crossing block.
 //
 
-/*! \file utils/surfer/knotbuilder/blockgeometry.h
+/*! \file utils/surfer/diagramtriangulation/block.h
  *  \brief knotbuilder's 14-tetrahedron crossing block, as the box
  *  [-1,1]^2 x [0,1].
  *

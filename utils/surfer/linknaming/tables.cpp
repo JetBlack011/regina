@@ -2,7 +2,7 @@
 //  exacttables.cpp
 //
 
-#include "exacttables.h"
+#include "linknaming/tables.h"
 
 #include <algorithm>
 #include <array>

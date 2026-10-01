@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "linkcomplement.h"
+#include "linknaming/complement/linkcomplement.h"
 
 #include <algorithm>
 #include <set>

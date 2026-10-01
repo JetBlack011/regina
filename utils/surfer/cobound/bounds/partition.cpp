@@ -1,6 +1,6 @@
 // partition.cpp
 
-#include "partition.h"
+#include "cobound/bounds/partition.h"
 
 #include <functional>
 #include <map>

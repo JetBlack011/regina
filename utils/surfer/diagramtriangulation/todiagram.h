@@ -4,7 +4,7 @@
 //  Draws curves in knotbuilder's triangulation of S^3 as link diagrams.
 //
 
-/*! \file utils/surfer/knotbuilder/diagramdrawer.h
+/*! \file utils/surfer/diagramtriangulation/todiagram.h
  *  \brief Draws edge curves of knotbuilder's triangulation of S^3 as oriented
  *  link diagrams, directly from the triangulation's own geometry.
  *
@@ -58,7 +58,7 @@
 #include <link/link.h>
 #include <triangulation/dim3.h>
 
-#include "blockgeometry.h"
+#include "diagramtriangulation/block.h"
 
 namespace knotbuilder {
 

@@ -10,10 +10,10 @@
 #include <string>
 #include <vector>
 
-#include "exactnaming/gaussdiagram.h"
-#include "farsideredraw.h"
-#include "nodes.h"
-#include "proofgraph.h"
+#include "linknaming/diagrams/gaussdiagram.h"
+#include "cobound/outgoing/farsideredraw.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/cobordismgraph.h"
 
 namespace cascade {
 

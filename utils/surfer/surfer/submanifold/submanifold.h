@@ -21,8 +21,8 @@
 #include <triangulation/dim4.h>
 #include <utilities/typeutils.h>
 
-#include "linkcomplement.h"
-#include "rollbackunionfind.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/rollbackunionfind.h"
 
 // Forward-declared rather than included: pairsig.h includes THIS header (for
 // its Skeleton/EmbeddedSubmanifold convenience overload), so including it
@@ -31,10 +31,10 @@
 // needs nothing more than this declaration.
 template <int dim, int subdim>
 class LazyPairSigContext;
-#include "skeleton.h"
-#include "vertexlinks.h"
+#include "surfer/submanifold/skeleton.h"
+#include "surfer/submanifold/vertexlinks.h"
 
-/*! \file utils/surfer/embeddedsubmanifold.h
+/*! \file utils/surfer/surfer/submanifold/submanifold.h
  *  \brief Incrementally tracks an embedded subcomplex of a triangulation.
  */
 

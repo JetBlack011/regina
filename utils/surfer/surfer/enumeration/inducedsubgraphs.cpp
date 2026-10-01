@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "enumerate_cis.h"
+#include "surfer/enumeration/inducedsubgraphs.h"
 
 #include <algorithm>
 #include <cassert>

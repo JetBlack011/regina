@@ -5,7 +5,7 @@
 //  triangulation of the row.
 //
 
-/*! \file utils/surfer/farsidecurves.h
+/*! \file utils/surfer/cobound/outgoing/farsidecurves.h
  *  \brief Carries a surface's outgoing boundary curves onto knotbuilder's
  *  triangulation T of the row, oriented as a cobordism from the row's own
  *  oriented link -- ready for knotbuilder::DiagramDrawer.
@@ -43,10 +43,10 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "cobordismgraph.h"
-#include "embeddedsubmanifold.h"
-#include "knotbuilder/diagramdrawer.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "surfer/submanifold/submanifold.h"
+#include "diagramtriangulation/todiagram.h"
 
 namespace farside {
 

@@ -26,9 +26,9 @@
 
 #include <link/link.h>
 
-#include "exactnaming/exactnamer.h"
-#include "exactnaming/exacttables.h"
-#include "exactnaming/gaussdiagram.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
+#include "linknaming/diagrams/gaussdiagram.h"
 
 using namespace exactnaming;
 

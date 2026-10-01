@@ -4,9 +4,9 @@
 //  Created by John Teague on 11/09/2025.
 //
 
-#include "cobordismbuilder.h"
-#include "knotbuilder.h"
-#include "linkcomplement.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
 
 namespace {
 void usage(const char *progName, const std::string &error = std::string()) {

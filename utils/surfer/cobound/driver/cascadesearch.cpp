@@ -64,20 +64,20 @@
 
 #include <link/link.h>
 
-#include "csvwriter.h"
-#include "exactnaming/exactnamer.h"
-#include "exactnaming/exacttables.h"
-#include "farsidenaming.h"
-#include "hopedges.h"
-#include "readbackcache.h"
-#include "hoprunner.h"
-#include "identifycomplement.h"
-#include "keptstore.h"
-#include "leaves.h"
-#include "nodes.h"
-#include "proofgraph.h"
-#include "witnesskey.h"
-#include "witnessstore.h"
+#include "surfer/report/csvwriter.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
+#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/bounds/searchcobordisms.h"
+#include "cobound/outgoing/fromdatabase.h"
+#include "cobound/search/hoprunner.h"
+#include "linknaming/census/identifycomplement.h"
+#include "cobound/cobordisms/pending.h"
+#include "cobound/bounds/axioms.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/bounds/cobordismgraph.h"
+#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/witnessstore.h"
 
 extern char **environ;
 

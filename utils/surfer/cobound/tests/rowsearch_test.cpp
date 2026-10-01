@@ -29,9 +29,9 @@
 #include <thread>
 #include <vector>
 
-#include "../pairsig.h"
-#include "../rowsearch.h"
-#include "../surfacesearch.h"
+#include "surfer/pairsig/pairsig.h"
+#include "cobound/search/rowsearch.h"
+#include "surfer/enumeration/surfacesearch.h"
 
 using namespace rowsearch;
 

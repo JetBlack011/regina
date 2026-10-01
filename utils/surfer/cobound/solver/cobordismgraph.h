@@ -16,9 +16,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "surfacesearch.h"
+#include "surfer/enumeration/surfacesearch.h"
 
-/*! \file utils/surfer/cobordismgraph.h
+/*! \file utils/surfer/cobound/solver/cobordismgraph.h
  *  \brief The name/genus resolution graph verifyslicegenus.cpp builds up
  *  across its --input rows: given a set of witnessed surfaces and cobordisms
  *  between named knots/links, works out what each row's slice genus must be.

@@ -4,7 +4,7 @@
 //  Created by John Teague on 04/12/2025.
 //
 
-#include "cobordismbuilder.h"
+#include "diagramtriangulation/thickening/thickening.h"
 
 #include <cassert>
 

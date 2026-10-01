@@ -77,11 +77,11 @@
 
 #include <map>
 
-#include "embeddedsubmanifold.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
-#include "pairsig.h"
-#include "peripheral.h"
+#include "surfer/submanifold/submanifold.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/pairsig/pairsig.h"
+#include "linknaming/complement/meridians.h"
 
 namespace {
 

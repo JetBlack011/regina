@@ -22,12 +22,12 @@
 #include <triangulation/example3.h>
 #include <unistd.h>
 
-#include "cobordismbuilder.h"
-#include "collar.h"
-#include "embeddingsearch.h"
-#include "knotbuilder/knotbuilder.h"
-#include "surfacesearch.h"
-#include "witnesskey.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "surfer/enumeration/submanifoldsearch.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "surfer/enumeration/surfacesearch.h"
+#include "cobound/cobordisms/witnesskey.h"
 
 static int passed = 0, failed_count = 0;
 

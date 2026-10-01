@@ -2,7 +2,7 @@
 //  blockgeometry.cpp
 //
 
-#include "blockgeometry.h"
+#include "diagramtriangulation/block.h"
 
 #include <map>
 #include <optional>
@@ -11,7 +11,7 @@
 
 #include <triangulation/dim3.h>
 
-#include "knotbuilder.h"
+#include "diagramtriangulation/fromdiagram.h"
 
 namespace knotbuilder {
 

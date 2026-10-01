@@ -25,7 +25,7 @@ namespace linkingnumber {
 class Complex;
 }
 
-/*! \file utils/surfer/vertexlinks.h
+/*! \file utils/surfer/surfer/submanifold/vertexlinks.h
  *  \brief Memoizes KnottedSurface::addFace()'s local-flatness and
  *  transverse-self-intersection checks.
  */

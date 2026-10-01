@@ -72,17 +72,17 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "cobordismgraph.h"
-#include "collar.h"
-#include "embeddedsubmanifold.h"
-#include "farsidecurves.h"
-#include "farsideredraw.h"
-#include "knotbuilder/diagramdrawer.h"
-#include "knotbuilder/knotbuilder.h"
-#include "pairsig.h"
-#include "skeleton.h"
-#include "vertexlinks.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "surfer/submanifold/submanifold.h"
+#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/farsideredraw.h"
+#include "diagramtriangulation/todiagram.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "surfer/pairsig/pairsig.h"
+#include "surfer/submanifold/skeleton.h"
+#include "surfer/submanifold/vertexlinks.h"
 
 namespace {
 

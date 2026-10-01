@@ -29,7 +29,7 @@
 
 #include <triangulation/dim4.h>
 
-#include "../pairsig.h"
+#include "surfer/pairsig/pairsig.h"
 
 namespace {
 

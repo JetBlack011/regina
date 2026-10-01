@@ -5,7 +5,7 @@
 //  exactly.
 //
 
-/*! \file utils/surfer/exactnaming/exacttables.h
+/*! \file utils/surfer/linknaming/tables.h
  *  \brief The knot and link tables indexed so that a diagram can be named
  *  with its orientation and chirality pinned.
  *

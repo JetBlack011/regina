@@ -22,13 +22,13 @@
 
 #include <link/link.h>
 
-#include "../hopedges.h"
-#include "../hoprunner.h"
-#include "../keptstore.h"
-#include "../nodes.h"
-#include "check.h"
-#include "csvwriter.h"
-#include "witnessstore.h"
+#include "cobound/bounds/searchcobordisms.h"
+#include "cobound/search/hoprunner.h"
+#include "cobound/cobordisms/pending.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/tests/check.h"
+#include "surfer/report/csvwriter.h"
+#include "cobound/cobordisms/witnessstore.h"
 
 #ifndef CASCADE_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"

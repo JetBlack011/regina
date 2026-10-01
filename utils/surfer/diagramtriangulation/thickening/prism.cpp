@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "simplicialprism.h"
+#include "diagramtriangulation/thickening/prism.h"
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>

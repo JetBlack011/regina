@@ -30,18 +30,18 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismgraph.h"
-#include "csvwriter.h"
-#include "embeddingsearch.h"
-#include "surfacesearch.h"
-#include "witnesskey.h"
-#include "witnessstore.h"
-#include "farsidenaming.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
-#include "linkingnumber.h"
-#include "identifycomplement.h"
-#include "rowsearch.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "surfer/report/csvwriter.h"
+#include "surfer/enumeration/submanifoldsearch.h"
+#include "surfer/enumeration/surfacesearch.h"
+#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/witnessstore.h"
+#include "cobound/outgoing/farsidenaming.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/linkingnumber.h"
+#include "linknaming/census/identifycomplement.h"
+#include "cobound/search/rowsearch.h"
 
 using namespace cobordismgraph;
 

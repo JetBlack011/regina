@@ -32,7 +32,7 @@
 #ifndef SEARCHFRONTIER_H
 #define SEARCHFRONTIER_H
 
-#include "enumerate_cis.h"
+#include "surfer/enumeration/inducedsubgraphs.h"
 
 #include <iosfwd>
 #include <optional>

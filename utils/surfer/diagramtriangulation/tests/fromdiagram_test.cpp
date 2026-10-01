@@ -12,9 +12,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "cobordismbuilder.h"
-#include "knotbuilder/knotbuilder.h"
-#include "linkcomplement.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
 
 static int passed = 0, failed_count = 0;
 

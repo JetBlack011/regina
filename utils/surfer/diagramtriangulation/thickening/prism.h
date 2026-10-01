@@ -13,7 +13,7 @@
 #include <maths/perm.h>
 #include <triangulation/forward.h>
 
-/*! \file utils/surfer/simplicialprism.h
+/*! \file utils/surfer/diagramtriangulation/thickening/prism.h
  *  \brief Triangulates the product of a simplex with an interval.
  */
 

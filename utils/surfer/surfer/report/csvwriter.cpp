@@ -4,7 +4,7 @@
 //  Created by John Teague on 06/19/2024.
 //
 
-#include "csvwriter.h"
+#include "surfer/report/csvwriter.h"
 
 #include <algorithm>
 #include <atomic>

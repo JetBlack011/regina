@@ -4,7 +4,7 @@
 //  Created by John Teague on 07/21/2026.
 //
 
-#include "skeleton.h"
+#include "surfer/submanifold/skeleton.h"
 
 #include <array>
 #include <utility>

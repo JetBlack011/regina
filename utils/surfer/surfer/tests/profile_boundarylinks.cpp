@@ -35,12 +35,12 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "../cobordismbuilder.h"
-#include "../collar.h"
-#include "../embeddedsubmanifold.h"
-#include "../identifycomplement.h"
-#include "../knotbuilder/knotbuilder.h"
-#include "../skeleton.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "surfer/submanifold/submanifold.h"
+#include "linknaming/census/identifycomplement.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "surfer/submanifold/skeleton.h"
 
 namespace {
 

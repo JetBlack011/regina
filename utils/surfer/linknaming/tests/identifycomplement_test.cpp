@@ -34,9 +34,9 @@
 #include <triangulation/dim4.h>
 #include <triangulation/example3.h>
 
-#include "../identifycomplement.h"
-#include "../knotbuilder/knotbuilder.h"
-#include "../linkcomplement.h"
+#include "linknaming/census/identifycomplement.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
 
 static int passed = 0, failed_count = 0;
 

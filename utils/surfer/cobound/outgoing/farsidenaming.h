@@ -4,7 +4,7 @@
 //  Naming far sides from their diagrams, in the search.
 //
 
-/*! \file utils/surfer/farsidenaming.h
+/*! \file utils/surfer/cobound/outgoing/farsidenaming.h
  *  \brief Names a surface's outgoing curves by drawing them
  *  (knotbuilder::DiagramDrawer) instead of drilling their complement.
  *
@@ -55,12 +55,12 @@
 
 #include <triangulation/dim3.h>
 
-#include "cobordismbuilder.h"
-#include "exactnaming/exactnamer.h"
-#include "farsidecurves.h"
-#include "knotbuilder/diagramdrawer.h"
-#include "linkcomplement.h"
-#include "surfacesearch.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "linknaming/linknamer.h"
+#include "cobound/outgoing/farsidecurves.h"
+#include "diagramtriangulation/todiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/enumeration/surfacesearch.h"
 
 namespace farside {
 

@@ -23,11 +23,11 @@
 
 #include <link/link.h>
 
-#include "../diagramiso.h"
-#include "../hopedges.h"
-#include "../hoprunner.h"
-#include "../nodes.h"
-#include "check.h"
+#include "linknaming/diagrams/diagramiso.h"
+#include "cobound/bounds/searchcobordisms.h"
+#include "cobound/search/hoprunner.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/tests/check.h"
 
 #ifndef CASCADE_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"

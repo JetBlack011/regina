@@ -18,12 +18,12 @@
 
 #include <triangulation/dim2.h>
 
-#include "embeddedsubmanifold.h"
-#include "enumerate_cis.h"
-#include "searchfrontier.h"
-#include "skeleton.h"
+#include "surfer/submanifold/submanifold.h"
+#include "surfer/enumeration/inducedsubgraphs.h"
+#include "surfer/enumeration/searchstrategy.h"
+#include "surfer/submanifold/skeleton.h"
 
-/*! \file utils/surfer/embeddingsearch.h
+/*! \file utils/surfer/surfer/enumeration/submanifoldsearch.h
  *  \brief Parallel search over embedded subcomplexes of a triangulation.
  */
 

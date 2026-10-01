@@ -14,10 +14,10 @@
 #include <thread>
 #include <vector>
 
-#include "embeddedsubmanifold.h"
-#include "embeddingsearch.h"
-#include "identifycomplement.h"
-#include "pairsig.h"
+#include "surfer/submanifold/submanifold.h"
+#include "surfer/enumeration/submanifoldsearch.h"
+#include "linknaming/census/identifycomplement.h"
+#include "surfer/pairsig/pairsig.h"
 
 /**
  * Everything needed to describe one found surface when no boundary-link

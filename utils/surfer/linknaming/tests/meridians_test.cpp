@@ -27,9 +27,9 @@
 #include <triangulation/dim3.h>
 #include <triangulation/example3.h>
 
-#include "../knotbuilder/knotbuilder.h"
-#include "../linkcomplement.h"
-#include "../peripheral.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "linknaming/complement/meridians.h"
 
 static int passed = 0, failed_count = 0;
 

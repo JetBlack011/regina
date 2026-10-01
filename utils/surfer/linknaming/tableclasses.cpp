@@ -22,8 +22,8 @@
 #include <iostream>
 #include <string>
 
-#include "exactnaming/exactnamer.h"
-#include "exactnaming/exacttables.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
 
 int main(int argc, char **argv) {
     std::string knots, links, symmetry;

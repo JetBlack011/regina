@@ -27,9 +27,9 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "collar.h"
-#include "knotbuilder/knotbuilder.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/thickening/collar.h"
+#include "diagramtriangulation/fromdiagram.h"
 
 namespace {
 struct Counts {

@@ -35,11 +35,11 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobordismbuilder.h"
-#include "cobordismgraph.h"
-#include "embeddedsubmanifold.h"
-#include "knotbuilder/knotbuilder.h"
-#include "surfacesearch.h"
+#include "diagramtriangulation/thickening/thickening.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "surfer/submanifold/submanifold.h"
+#include "diagramtriangulation/fromdiagram.h"
+#include "surfer/enumeration/surfacesearch.h"
 
 namespace farside {
 class DiagramNamer;

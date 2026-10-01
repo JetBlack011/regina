@@ -12,11 +12,11 @@
 #include <link/examplelink.h>
 #include <link/link.h>
 
-#include "../diagramiso.h"
-#include "../hopedges.h"
-#include "../nodes.h"
-#include "check.h"
-#include "exactnaming/exacttables.h"
+#include "linknaming/diagrams/diagramiso.h"
+#include "cobound/bounds/searchcobordisms.h"
+#include "cobound/bounds/nodes.h"
+#include "cobound/tests/check.h"
+#include "linknaming/tables.h"
 
 using exactnaming::GaussDiagram;
 using namespace cascade;

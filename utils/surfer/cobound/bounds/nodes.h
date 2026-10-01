@@ -12,9 +12,9 @@
 #include <string>
 #include <vector>
 
-#include "exactnaming/gaussdiagram.h"
-#include "exactnaming/snappeaisometry.h"
-#include "proofgraph.h"
+#include "linknaming/diagrams/gaussdiagram.h"
+#include "linknaming/isometry/isometry.h"
+#include "cobound/bounds/cobordismgraph.h"
 
 namespace cascade {
 

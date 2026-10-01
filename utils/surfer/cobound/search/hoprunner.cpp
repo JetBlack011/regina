@@ -1,6 +1,6 @@
 // hoprunner.cpp
 
-#include "hoprunner.h"
+#include "cobound/search/hoprunner.h"
 
 #include <algorithm>
 #include <atomic>
@@ -14,10 +14,10 @@
 
 #include <sys/resource.h>
 
-#include "cobordismgraph.h"
-#include "pairsig.h"
-#include "rowsearch.h"
-#include "surfacesearch.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "surfer/pairsig/pairsig.h"
+#include "cobound/search/rowsearch.h"
+#include "surfer/enumeration/surfacesearch.h"
 
 namespace cascade {
 

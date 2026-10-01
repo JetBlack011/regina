@@ -4,7 +4,7 @@
 //  See diagramdrawer.h for the construction and why it is an isotopy.
 //
 
-#include "diagramdrawer.h"
+#include "diagramtriangulation/todiagram.h"
 
 #include <algorithm>
 #include <map>

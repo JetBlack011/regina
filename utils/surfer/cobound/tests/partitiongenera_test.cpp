@@ -8,9 +8,9 @@
 #include <set>
 #include <vector>
 
-#include "../partition.h"
-#include "../profile.h"
-#include "check.h"
+#include "cobound/bounds/partition.h"
+#include "cobound/bounds/partitiongenera.h"
+#include "cobound/tests/check.h"
 
 using namespace cascade;
 

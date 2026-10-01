@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include "partition.h"
+#include "cobound/bounds/partition.h"
 
 namespace cascade {
 

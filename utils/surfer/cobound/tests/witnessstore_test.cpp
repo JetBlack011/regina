@@ -24,8 +24,8 @@
 
 #include <unistd.h>
 
-#include "csvwriter.h"
-#include "witnessstore.h"
+#include "surfer/report/csvwriter.h"
+#include "cobound/cobordisms/witnessstore.h"
 
 namespace fs = std::filesystem;
 using cobordismgraph::Witness;

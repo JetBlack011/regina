@@ -6,7 +6,7 @@
 //  Algorithm adapted from work of Srinivas Vadhiraj, Samantha Ward, Angela
 //  Yuan, and Jingyuan Zhang in the Texas Experimental Geometry Lab.
 
-#include "knotbuilder.h"
+#include "diagramtriangulation/fromdiagram.h"
 
 #include <unordered_map>
 #include <unordered_set>

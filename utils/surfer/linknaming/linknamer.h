@@ -4,7 +4,7 @@
 //  Exact names for oriented far-side diagrams.
 //
 
-/*! \file utils/surfer/exactnaming/exactnamer.h
+/*! \file utils/surfer/linknaming/linknamer.h
  *  \brief Names an oriented link diagram -- a far side drawn with the
  *  orientation its surface induces -- with a proof, as a table entry or a
  *  split union / connected sum of table entries, in the atlas's syntax.
@@ -77,9 +77,9 @@
 
 #include <link/link.h>
 
-#include "exacttables.h"
-#include "gaussdiagram.h"
-#include "snappeaisometry.h"
+#include "linknaming/tables.h"
+#include "linknaming/diagrams/gaussdiagram.h"
+#include "linknaming/isometry/isometry.h"
 
 namespace exactnaming {
 

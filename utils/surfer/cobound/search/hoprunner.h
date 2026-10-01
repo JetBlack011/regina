@@ -20,12 +20,12 @@
 #include <string>
 #include <vector>
 
-#include "cobordismgraph.h"
-#include "exactnaming/exacttables.h"
-#include "farsidecurves.h"
-#include "farsidenaming.h"
-#include "farsideredraw.h"
-#include "searchfrontier.h"
+#include "cobound/solver/cobordismgraph.h"
+#include "linknaming/tables.h"
+#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/farsidenaming.h"
+#include "cobound/outgoing/farsideredraw.h"
+#include "surfer/enumeration/searchstrategy.h"
 
 namespace cascade {
 

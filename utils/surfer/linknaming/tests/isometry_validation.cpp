@@ -53,10 +53,10 @@
 
 #include <link/link.h>
 
-#include "exactnaming/exactnamer.h"
-#include "exactnaming/exacttables.h"
-#include "exactnaming/gaussdiagram.h"
-#include "exactnaming/snappeaisometry.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
+#include "linknaming/diagrams/gaussdiagram.h"
+#include "linknaming/isometry/isometry.h"
 
 using namespace exactnaming;
 

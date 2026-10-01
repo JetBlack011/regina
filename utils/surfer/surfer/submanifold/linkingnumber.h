@@ -14,7 +14,7 @@
 
 #include <triangulation/dim3.h>
 
-/*! \file utils/surfer/linkingnumber.h
+/*! \file utils/surfer/surfer/submanifold/linkingnumber.h
  *  \brief The linking number of two disjoint edge cycles in a triangulated
  *  3-sphere, by a sparse cochain computation.
  *

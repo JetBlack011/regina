@@ -40,10 +40,10 @@
 #include <triangulation/dim4.h>
 #include <triangulation/example4.h>
 
-#include "embeddedsubmanifold.h"
-#include "identifycomplement.h"
-#include "linkcomplement.h"
-#include "skeleton.h"
+#include "surfer/submanifold/submanifold.h"
+#include "linknaming/census/identifycomplement.h"
+#include "linknaming/complement/linkcomplement.h"
+#include "surfer/submanifold/skeleton.h"
 
 namespace {
 

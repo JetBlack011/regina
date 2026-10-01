@@ -1,34 +1,53 @@
-# Every utils/surfer executable (and test/utility under tests/) links
-# against some subset of these implementation files. Rather than each
-# target relisting its own subset by hand (which silently goes stale --
-# see surfacesearch.cpp needing to be added in three places at once), they
-# all just link this one static library: a traditional archive only pulls
-# in the .o members a given target's unresolved symbols actually need, so
-# e.g. a test that only exercises rollbackunionfind.cpp still ends up
-# linking just that, with no per-target bookkeeping required.
+# The project root, in four parts:
+#   surfer/                a knot-agnostic library: PL surfaces in triangulated 4-manifolds
+#   diagramtriangulation/  the triangulations a search runs in, built from a diagram
+#   linknaming/            naming a link, with proof
+#   cobound/               bounding g4 by cobordisms
+#
+# Every part's implementation files are compiled into ONE static library,
+# surfer_common, and every project include is written relative to ONE include
+# root, this directory (e.g. #include "surfer/enumeration/surfacesearch.h").
+# Each part's own CMakeLists.txt adds its executables and tests, which all just
+# link surfer_common rather than relisting their own subset of implementation
+# files (which silently goes stale): a traditional archive only pulls in the
+# .o members a given target's unresolved symbols actually need, so e.g. a test
+# that only exercises rollbackunionfind.cpp still ends up linking just that,
+# with no per-target bookkeeping required.
 add_library(surfer_common STATIC
-  knotbuilder/knotbuilder.cpp knotbuilder/blockgeometry.cpp knotbuilder/diagramdrawer.cpp
-  cobordismbuilder.cpp simplicialprism.cpp skeleton.cpp
-  embeddedsubmanifold.cpp embeddingsearch.cpp surfacesearch.cpp
-  linkcomplement.cpp linkingnumber.cpp peripheral.cpp identifycomplement.cpp enumerate_cis.cpp collar.cpp
-  rowsearch.cpp
-  rollbackunionfind.cpp vertexlinks.cpp pairsig.cpp csvwriter.cpp witnesskey.cpp
-  witnessstore.cpp searchfrontier.cpp
-  cobordismgraph.cpp farsidecurves.cpp farsidenaming.cpp farsideredraw.cpp
-  exactnaming/exacttables.cpp exactnaming/gaussdiagram.cpp exactnaming/exactnamer.cpp
-  exactnaming/snappeaisometry.cpp
-  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp
-  cascade/partition.cpp cascade/profile.cpp cascade/proofgraph.cpp
-  cascade/diagramiso.cpp cascade/nodes.cpp cascade/hopedges.cpp cascade/leaves.cpp
-  cascade/hoprunner.cpp cascade/keptstore.cpp cascade/readbackcache.cpp)
+  diagramtriangulation/fromdiagram.cpp diagramtriangulation/block.cpp diagramtriangulation/todiagram.cpp
+  diagramtriangulation/thickening/thickening.cpp diagramtriangulation/thickening/prism.cpp
+  surfer/submanifold/skeleton.cpp
+  surfer/submanifold/submanifold.cpp surfer/enumeration/submanifoldsearch.cpp
+  surfer/enumeration/surfacesearch.cpp
+  linknaming/complement/linkcomplement.cpp surfer/submanifold/linkingnumber.cpp
+  linknaming/complement/meridians.cpp linknaming/census/identifycomplement.cpp
+  surfer/enumeration/inducedsubgraphs.cpp diagramtriangulation/thickening/collar.cpp
+  cobound/search/rowsearch.cpp
+  surfer/submanifold/rollbackunionfind.cpp surfer/submanifold/vertexlinks.cpp
+  surfer/pairsig/pairsig.cpp surfer/report/csvwriter.cpp cobound/cobordisms/witnesskey.cpp
+  cobound/cobordisms/witnessstore.cpp surfer/enumeration/searchstrategy.cpp
+  cobound/solver/cobordismgraph.cpp cobound/outgoing/farsidecurves.cpp
+  cobound/outgoing/farsidenaming.cpp cobound/outgoing/farsideredraw.cpp
+  linknaming/tables.cpp linknaming/diagrams/gaussdiagram.cpp linknaming/linknamer.cpp
+  linknaming/isometry/isometry.cpp
+  linknaming/isometry/snappeakernel_isometry.cpp linknaming/isometry/snappeakernel_isometry_cusped.cpp
+  cobound/bounds/partition.cpp cobound/bounds/partitiongenera.cpp cobound/bounds/cobordismgraph.cpp
+  linknaming/diagrams/diagramiso.cpp cobound/bounds/nodes.cpp cobound/bounds/searchcobordisms.cpp
+  cobound/bounds/axioms.cpp
+  cobound/search/hoprunner.cpp cobound/cobordisms/pending.cpp cobound/outgoing/fromdatabase.cpp)
+target_include_directories(surfer_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
+
+# Where every part puts the executables that scripts and campaigns expect in
+# build/utils/surfer/ (see each part's CMakeLists.txt).
+set(SURFER_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 # The SnapPea kernel's isometry sources, which Regina ships unbuilt
 # (engine/snappea/kernel/unused/), include their kernel headers by bare name.
 # Only these two files see the kernel directory: its headers (homology.h,
 # tables.h, ...) would shadow others anywhere else.
 set_source_files_properties(
-  exactnaming/snappeakernel_isometry.cpp exactnaming/snappeakernel_isometry_cusped.cpp
+  linknaming/isometry/snappeakernel_isometry.cpp linknaming/isometry/snappeakernel_isometry_cusped.cpp
   PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/engine/snappea/kernel")
 
 # Local census SQLite lookup (identifycomplement.cpp's
@@ -45,7 +64,10 @@ target_link_libraries(surfer_common PUBLIC SQLite::SQLite3)
 # executable itself defines malloc and interposes it for the engine library
 # too, and a host without the package can use a copied archive
 # (-DSURFER_MIMALLOC=<path>, or ~/.local/lib/libmimalloc.a). Results cannot
-# depend on the allocator; only speed does.
+# depend on the allocator; only speed does. It is one INTERFACE target,
+# surfer_mimalloc, which every executable links once: the whole-archive item
+# must reach each executable exactly once, whatever libraries it links.
+add_library(surfer_mimalloc INTERFACE)
 find_library(SURFER_MIMALLOC NAMES libmimalloc.a
              HINTS "$ENV{HOME}/.local/lib" DOC "static mimalloc archive (optional)")
 # The archive must define malloc as real machine code. Arch's packaged one is
@@ -63,7 +85,7 @@ if(SURFER_MIMALLOC)
 endif()
 if(SURFER_MIMALLOC)
   message(STATUS "surfer: linking mimalloc from ${SURFER_MIMALLOC}")
-  target_link_libraries(surfer_common PUBLIC
+  target_link_libraries(surfer_mimalloc INTERFACE
     "$<LINK_LIBRARY:WHOLE_ARCHIVE,${SURFER_MIMALLOC}>")
 else()
   message(WARNING "surfer: no libmimalloc.a found; using glibc malloc, which "
@@ -71,35 +93,16 @@ else()
 endif()
 
 # Default path census::localCensusLookup() opens, overridable at runtime
-# via --census-db. Generated by tools/gen_census.py (run by hand -- see
-# that script) and/or extended live by verifyslicegenus's
-# census::insertCensusEntry(), not part of the default build.
+# via --census-db. Untracked: extended live by verifyslicegenus's
+# census::insertCensusEntry(), and moved by hand with the tree; not part of
+# the default build.
 target_compile_definitions(surfer_common PUBLIC
-  SURFER_CENSUS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data/census.sqlite")
+  SURFER_CENSUS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/linknaming/census/census.sqlite")
 
-set(UTILS
-  surfer
-  verifyslicegenus
-  peripheral_slopes
-  farsidediagram
-  farsidename
-  tableclasses
-)
-
-foreach(EXE ${UTILS})
-  add_executable(${EXE} ${EXE}.cpp)
-  target_link_libraries(${EXE} surfer_common)
-endforeach()
-
-install(TARGETS ${UTILS} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Runtime)
-
-# Let files under tests/ resolve bare quoted includes (e.g.
-# #include "cobordismbuilder.h") against this directory.
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_subdirectory(knotbuilder)
-add_subdirectory(exactnaming)
-add_subdirectory(cascade)
-add_subdirectory(tests)
+add_subdirectory(surfer)
+add_subdirectory(diagramtriangulation)
+add_subdirectory(linknaming)
+add_subdirectory(cobound)
 
 if (REGINA_BUILD_ENGINE_DOCS)
   add_subdirectory(apidocs)

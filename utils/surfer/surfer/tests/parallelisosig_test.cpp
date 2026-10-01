@@ -21,8 +21,8 @@
 #include <triangulation/example3.h>
 #include <triangulation/example4.h>
 
-#include "../parallelisosig.h"
-#include "../rowsearch.h"
+#include "surfer/pairsig/parallelisosig.h"
+#include "cobound/search/rowsearch.h"
 
 static int passed = 0, failed_count = 0;
 
