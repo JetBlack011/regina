@@ -1,7 +1,7 @@
 set(TESTS
   solver_test
   cobordismkey_test
-  witnessstore_test
+  database_test
   rowmap_test
   rowsearch_test
   farsidenaming_test

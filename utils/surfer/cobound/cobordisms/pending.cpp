@@ -18,7 +18,7 @@
 
 #include "surfer/report/csvwriter.h"
 #include "cobound/search/hoprunner.h"
-#include "cobound/cobordisms/witnessstore.h"
+#include "cobound/cobordisms/database.h"
 
 namespace fs = std::filesystem;
 

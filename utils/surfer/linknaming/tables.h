@@ -27,6 +27,7 @@
 #ifndef SURFER_EXACTNAMING_EXACTTABLES_H
 #define SURFER_EXACTNAMING_EXACTTABLES_H
 
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -112,5 +113,33 @@ class ExactTables {
 regina::Link linkFromTablePD(const std::string &pd);
 
 } // namespace exactnaming
+
+namespace witnessstore {
+
+// ---- literature tables (Name,PD Notation,Genus-4D) ----
+
+/// One row of a literature table, as written: its name, its PD code and its
+/// 4-genus interval (lo == hi but for a few "[lo;hi]" rows).
+struct LiteratureRow {
+    std::string name;
+    std::string pd;
+    int lo = 0, hi = 0;
+};
+
+/// Splits one table row into its name, PD and genus field (no quoting
+/// appears in these files). False for a row without two commas.
+bool splitInputLine(const std::string &line, std::string &name,
+                    std::string &pd, std::string &genusField);
+
+/// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
+void parseGenusField(const std::string &field, int &lo, int &hi);
+
+/// Every row of a literature table, in file order: the header line, empty
+/// lines, rows without two commas and rows whose genus field does not parse
+/// are skipped. PD codes are kept as text, never parsed.
+/// \throws std::runtime_error if the file cannot be opened.
+std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path);
+
+} // namespace witnessstore
 
 #endif

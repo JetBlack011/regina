@@ -1,9 +1,9 @@
 //
-//  witnessstore.h
+//  database.h
 //
-//  The append-only witness file (cobordisms.csv) and the literature tables'
-//  CSV rows, shared by verifyslicegenus and cascadesearch. Moved from
-//  verifyslicegenus.cpp on 2026-09-28 so that every program that finds
+//  The append-only cobordism database (cobordisms.csv), shared by
+//  verifyslicegenus and cascadesearch. Moved from verifyslicegenus.cpp on
+//  2026-09-28 (as witnessstore.h) so that every program that finds
 //  witnesses writes them in one format, through one append path.
 //
 
@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "cobound/cobordisms/cobordism.h"
-#include "cobound/solver/literature.h"
 
 namespace witnessstore {
 
@@ -24,21 +23,6 @@ inline constexpr const char *COBORDISMS_HEADER =
     "kind,subject,subject_components,other,other_candidates,other_components,"
     "genus,tubed,pairsig,source_row,thicken_layers,max_faces,"
     "resolved_vertices";
-
-// ---- literature tables (Name,PD Notation,Genus-4D) ----
-
-/// Splits one table row into its name, PD and genus field (no quoting
-/// appears in these files). False for a row without two commas.
-bool splitInputLine(const std::string &line, std::string &name,
-                    std::string &pd, std::string &genusField);
-
-/// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
-void parseGenusField(const std::string &field, int &lo, int &hi);
-
-/// Registers every row of a literature table in `names` (names and bounds
-/// only; PD codes are skipped). Returns the number loaded.
-size_t loadNameTable(const std::filesystem::path &path,
-                     cobordismgraph::NameTable &names);
 
 // ---- the witness file ----
 

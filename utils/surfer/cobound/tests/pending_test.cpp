@@ -28,7 +28,8 @@
 #include "cobound/bounds/nodes.h"
 #include "cobound/tests/check.h"
 #include "surfer/report/csvwriter.h"
-#include "cobound/cobordisms/witnessstore.h"
+#include "cobound/cobordisms/database.h"
+#include "cobound/solver/literature.h"
 
 #ifndef CASCADE_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <stdexcept>
 
 namespace exactnaming {
 
@@ -168,3 +169,63 @@ Symmetry ExactTables::symmetry(const std::string &knot) const {
 }
 
 } // namespace exactnaming
+
+namespace witnessstore {
+
+// One row of the input knot table (Name,PD Notation,Genus-4D). No RFC-4180
+// quoting appears in that file (PD Notation uses ';' internally, never a
+// literal comma), so a naive two-comma split suffices -- see the input
+// table's own format, confirmed during design.
+bool splitInputLine(const std::string &line, std::string &name,
+                    std::string &pd, std::string &genusField) {
+  size_t c1 = line.find(',');
+  if (c1 == std::string::npos)
+    return false;
+  size_t c2 = line.find(',', c1 + 1);
+  if (c2 == std::string::npos)
+    return false;
+  name = line.substr(0, c1);
+  pd = line.substr(c1 + 1, c2 - c1 - 1);
+  genusField = line.substr(c2 + 1);
+  if (!genusField.empty() && genusField.back() == '\r')
+    genusField.pop_back();
+  return true;
+}
+
+// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
+void parseGenusField(const std::string &field, int &lo, int &hi) {
+  if (!field.empty() && field.front() == '[') {
+    size_t semi = field.find(';');
+    lo = std::stoi(field.substr(1, semi - 1));
+    hi = std::stoi(field.substr(semi + 1, field.size() - semi - 2));
+  } else {
+    lo = hi = std::stoi(field);
+  }
+}
+
+std::vector<LiteratureRow> readLiteratureRows(const std::filesystem::path &path) {
+  std::ifstream in(path);
+  if (!in)
+    throw std::runtime_error("Cannot open name table: " + path.string());
+
+  std::vector<LiteratureRow> rows;
+  std::string line;
+  std::getline(in, line); // header
+  while (std::getline(in, line)) {
+    if (line.empty())
+      continue;
+    LiteratureRow row;
+    std::string genusField;
+    if (!splitInputLine(line, row.name, row.pd, genusField))
+      continue;
+    try {
+      parseGenusField(genusField, row.lo, row.hi);
+    } catch (const std::exception &) {
+      continue;
+    }
+    rows.push_back(std::move(row));
+  }
+  return rows;
+}
+
+} // namespace witnessstore

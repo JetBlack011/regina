@@ -7,6 +7,7 @@
 #ifndef SURFER_COBOUND_LITERATURE_H
 #define SURFER_COBOUND_LITERATURE_H
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -147,5 +148,14 @@ class NameTable {
  */
 bool isElementarySlice(const std::string &name, const NameTable &names);
 } // namespace cobordismgraph
+
+namespace witnessstore {
+
+/// Registers every row of a literature table in `names` (names and bounds
+/// only; PD codes are skipped). Returns the number loaded.
+size_t loadNameTable(const std::filesystem::path &path,
+                     cobordismgraph::NameTable &names);
+
+} // namespace witnessstore
 
 #endif // SURFER_COBOUND_LITERATURE_H

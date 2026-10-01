@@ -27,7 +27,7 @@ add_library(surfer_common STATIC
   cobound/search/rowsearch.cpp
   surfer/submanifold/rollbackunionfind.cpp surfer/submanifold/vertexlinks.cpp
   surfer/pairsig/pairsig.cpp surfer/pairsig/sha1.cpp surfer/report/csvwriter.cpp cobound/cobordisms/cobordismkey.cpp
-  cobound/cobordisms/witnessstore.cpp surfer/enumeration/searchstrategy.cpp
+  cobound/cobordisms/database.cpp surfer/enumeration/searchstrategy.cpp
   cobound/solver/literature.cpp cobound/solver/solver.cpp
   cobound/cobordisms/cobordism.cpp cobound/search/incoming.cpp cobound/search/preconditions.cpp
   linknaming/names.cpp cobound/outgoing/farsidecurves.cpp

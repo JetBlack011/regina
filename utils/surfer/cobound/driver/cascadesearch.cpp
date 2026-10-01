@@ -78,7 +78,8 @@
 #include "cobound/bounds/nodes.h"
 #include "cobound/bounds/cobordismgraph.h"
 #include "cobound/cobordisms/cobordismkey.h"
-#include "cobound/cobordisms/witnessstore.h"
+#include "cobound/cobordisms/database.h"
+#include "cobound/solver/literature.h"
 
 extern char **environ;
 

@@ -1,12 +1,13 @@
 //
-//  witnessstore.cpp
+//  database.cpp
 //
-//  The append-only witness file (cobordisms.csv) and the literature tables'
-//  CSV rows, shared by verifyslicegenus and cascadesearch. Moved verbatim
-//  from verifyslicegenus.cpp (2026-09-28).
+//  The append-only cobordism database (cobordisms.csv), shared by
+//  verifyslicegenus and cascadesearch. Moved verbatim from
+//  verifyslicegenus.cpp (2026-09-28), as witnessstore.cpp.
 //
 
-#include "cobound/cobordisms/witnessstore.h"
+#include "cobound/cobordisms/database.h"
+
 
 #include <cerrno>
 #include <cstring>
@@ -24,69 +25,6 @@
 #include "cobound/cobordisms/cobordismkey.h"
 
 namespace witnessstore {
-// One row of the input knot table (Name,PD Notation,Genus-4D). No RFC-4180
-// quoting appears in that file (PD Notation uses ';' internally, never a
-// literal comma), so a naive two-comma split suffices -- see the input
-// table's own format, confirmed during design.
-bool splitInputLine(const std::string &line, std::string &name,
-                    std::string &pd, std::string &genusField) {
-  size_t c1 = line.find(',');
-  if (c1 == std::string::npos)
-    return false;
-  size_t c2 = line.find(',', c1 + 1);
-  if (c2 == std::string::npos)
-    return false;
-  name = line.substr(0, c1);
-  pd = line.substr(c1 + 1, c2 - c1 - 1);
-  genusField = line.substr(c2 + 1);
-  if (!genusField.empty() && genusField.back() == '\r')
-    genusField.pop_back();
-  return true;
-}
-
-// Parses "N" or "[lo;hi]" into lo/hi (lo == hi in the plain-integer case).
-void parseGenusField(const std::string &field, int &lo, int &hi) {
-  if (!field.empty() && field.front() == '[') {
-    size_t semi = field.find(';');
-    lo = std::stoi(field.substr(1, semi - 1));
-    hi = std::stoi(field.substr(semi + 1, field.size() - semi - 2));
-  } else {
-    lo = hi = std::stoi(field);
-  }
-}
-
-// Loads a literature table for its names and bounds only, skipping the PD
-// code entirely. Used for tables that aren't this run's --input: we need
-// their names (to expand orientation-blind identifications into candidate
-// sets) and their bounds, but never build a triangulation from them, so
-// there is no reason to pay parsePDCode()'s cost across 12k+ rows.
-size_t loadNameTable(const std::filesystem::path &path,
-                     cobordismgraph::NameTable &names) {
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open name table: " + path.string());
-
-  size_t loaded = 0;
-  std::string line;
-  std::getline(in, line); // header
-  while (std::getline(in, line)) {
-    if (line.empty())
-      continue;
-    std::string name, pd, genusField;
-    if (!splitInputLine(line, name, pd, genusField))
-      continue;
-    int lo = 0, hi = 0;
-    try {
-      parseGenusField(genusField, lo, hi);
-    } catch (const std::exception &) {
-      continue;
-    }
-    names.addLiterature(name, lo, hi);
-    ++loaded;
-  }
-  return loaded;
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // Witness file (--cobordisms) I/O
 // ─────────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "linknaming/names.h"
+#include "linknaming/tables.h"
 
 namespace cobordismgraph {
 
@@ -149,4 +150,24 @@ std::optional<SymmetryType> parseSymmetryType(const std::string &text) {
         return SymmetryType::fullyAmphicheiral;
     return std::nullopt;
 }
+
 } // namespace cobordismgraph
+
+namespace witnessstore {
+
+// Loads a literature table for its names and bounds only, skipping the PD
+// code entirely. Used for tables that aren't this run's --input: we need
+// their names (to expand orientation-blind identifications into candidate
+// sets) and their bounds, but never build a triangulation from them, so
+// there is no reason to pay parsePDCode()'s cost across 12k+ rows.
+size_t loadNameTable(const std::filesystem::path &path,
+                     cobordismgraph::NameTable &names) {
+  size_t loaded = 0;
+  for (const LiteratureRow &row : readLiteratureRows(path)) {
+    names.addLiterature(row.name, row.lo, row.hi);
+    ++loaded;
+  }
+  return loaded;
+}
+
+} // namespace witnessstore
