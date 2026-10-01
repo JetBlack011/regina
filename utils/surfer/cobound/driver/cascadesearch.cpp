@@ -1164,7 +1164,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   row.nodeMap.resize(d.components());
   std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
   row.pd = rowPD(d);
-  row.layers = 2;
+  row.layers = cfg_.hopShape.layers;
   using clock = std::chrono::steady_clock;
   auto seconds = [](clock::time_point a, clock::time_point b) {
     return std::chrono::duration<double>(b - a).count();
@@ -1337,8 +1337,9 @@ void Cascade::expand(NodeId n, long surfaces) {
         cfg_.verify, "--input", dir + "/input.csv", "--output", dir + "/out.csv",
         "--cobordisms", dir + "/cob.csv", "--census-db", cfg_.censusDb,
         "--no-census-updates", "--knot-table", cfg_.knotTable, "--link-table",
-        cfg_.linkTable, "--max-crossings", "999", "--thicken-layers", "2",
-        "--collar-layers", "2", "--max-faces", std::to_string(shape.maxFaces),
+        cfg_.linkTable, "--max-crossings", "999", "--thicken-layers",
+        std::to_string(shape.layers), "--collar-layers", std::to_string(shape.layers),
+        "--max-faces", std::to_string(shape.maxFaces),
         "--iddfs-iterations", std::to_string(shape.iddfsIterations), "--iddfs-start",
         std::to_string(shape.iddfsStart), "--iddfs-step", std::to_string(shape.iddfsStep),
         "--root-budget-start", std::to_string(shape.rootBudgetStart),
@@ -2152,7 +2153,7 @@ void Cascade::printProfile() const {
             << " threads=" << cfg_.threads << " max_faces=" << s.maxFaces
             << " iddfs_iterations=" << s.iddfsIterations << " iddfs_start=" << s.iddfsStart
             << " iddfs_step=" << s.iddfsStep << " root_budget_start=" << s.rootBudgetStart
-            << " root_budget_growth=" << s.rootBudgetGrowth << " layers=2"
+            << " root_budget_growth=" << s.rootBudgetGrowth << " layers=" << s.layers
             << " resolve_unlinked=" << (s.resolveUnlinked ? 1 : 0)
             << " exact_far_side_names=1 pending_surface_cap=" << s.pendingSurfaceCap
             << " petal_cache_limit=" << s.petalCacheLimit

@@ -116,8 +116,13 @@ private:
 namespace cascade {
 
 /// The campaign's search shape (atlas tools/orchestrate/hosts.conf
-/// [campaign], root budget 840 from c5 on). The layers are the row's.
+/// [campaign], root budget 840 from c5 on): the one place the cascade's
+/// hops take it from, in either hop mode, and what its profile line prints.
 struct HopShape {
+  /// Thicken and collar layers of a hop's row (both): the in-process row,
+  /// a child's --thicken-layers/--collar-layers, and the profile's layers=.
+  /// A master row's layers are its witnesses' own.
+  int layers = 2;
   long long maxFaces = 5;
   unsigned iddfsIterations = 2;
   long long iddfsStart = 4;
