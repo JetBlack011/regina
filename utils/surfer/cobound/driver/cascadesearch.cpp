@@ -172,25 +172,6 @@ std::string jsonEscape(const std::string &s) {
   return o;
 }
 
-// A row PD as knotbuilder reads it (labels from 0 or 1) as a Regina link.
-regina::Link linkFromRowPD(const std::string &pd) {
-  std::vector<int> nums;
-  std::string cur;
-  for (char c : pd) {
-    if (std::isdigit(static_cast<unsigned char>(c))) cur += c;
-    else if (!cur.empty()) { nums.push_back(std::stoi(cur)); cur.clear(); }
-  }
-  if (!cur.empty()) nums.push_back(std::stoi(cur));
-  if (nums.empty() || nums.size() % 4)
-    throw std::invalid_argument("target PD: not a list of 4-tuples");
-  const int shift = *std::min_element(nums.begin(), nums.end()) == 0 ? 1 : 0;
-  std::vector<std::array<int, 4>> xs;
-  for (size_t i = 0; i < nums.size(); i += 4)
-    xs.push_back({nums[i] + shift, nums[i + 1] + shift, nums[i + 2] + shift,
-                  nums[i + 3] + shift});
-  return regina::Link::fromPD(xs.begin(), xs.end());
-}
-
 GaussDiagram of(const regina::Link &l) {
   std::vector<size_t> origin(l.countComponents());
   std::iota(origin.begin(), origin.end(), 0);
@@ -931,7 +912,7 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
         rn.diagram = of(tables_.entry(r.name)->diagram);
         rn.match = reg_.intern(simplifyKeepingComponents(rn.diagram), "row " + r.name);
       } else {
-        rn.diagram = of(linkFromRowPD(r.pd));
+        rn.diagram = of(exactnaming::linkFromTablePD(r.pd));
         rn.match = reg_.intern(rn.diagram, "row " + r.name + " (recorded diagram)");
       }
       seen = interned.emplace(r.pd, std::move(rn)).first;
@@ -2014,7 +1995,7 @@ int Cascade::run() {
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
               << " s (read only)\n";
   }
-  GaussDiagram raw = of(linkFromRowPD(cfg_.targetPD));
+  GaussDiagram raw = of(exactnaming::linkFromTablePD(cfg_.targetPD));
   GaussDiagram simp = simplifyKeepingComponents(raw);
   if (exactnaming::splitPieces(simp).size() != 1)
     throw std::runtime_error("the target is a split diagram; give one piece");
