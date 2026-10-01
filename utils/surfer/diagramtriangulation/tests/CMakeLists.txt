@@ -6,7 +6,7 @@ set(DIAGRAMTRIANGULATION_TESTS
 
 foreach(TEST ${DIAGRAMTRIANGULATION_TESTS})
   add_executable(${TEST} ${TEST}.cpp)
-  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  target_link_libraries(${TEST} diagramtriangulation_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES
     LABELS "surfer"
@@ -26,4 +26,4 @@ endforeach()
 #
 #   ./todiagram_test pd_codes.csv [max crossings]
 add_executable(triangulate_knot_table triangulate_knot_table.cpp)
-target_link_libraries(triangulate_knot_table surfer_common surfer_mimalloc)
+target_link_libraries(triangulate_knot_table diagramtriangulation_lib surfer_mimalloc)

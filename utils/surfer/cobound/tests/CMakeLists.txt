@@ -7,12 +7,13 @@ set(TESTS
   outgoingnamer_test
 )
 
-# Every test just links surfer_common (defined in ../../CMakeLists.txt) rather
-# than relisting its own subset of implementation files -- see that file's
-# comment on surfer_common for why.
+# Every test links the cobound library (../CMakeLists.txt), and through it
+# every part's, rather than relisting its own subset of implementation files
+# (which silently goes stale): a static archive only pulls in the members a
+# target's unresolved symbols need.
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp)
-  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  target_link_libraries(${TEST} cobound_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES
     LABELS "surfer"
@@ -28,7 +29,7 @@ set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordisms_test
              search_test axioms_test pending_test fromdatabase_test)
   add_executable(${TEST} ${TEST}.cpp)
-  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  target_link_libraries(${TEST} cobound_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES LABELS "surfer" TIMEOUT 300)
 endforeach()

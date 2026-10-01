@@ -12,12 +12,13 @@ set(TESTS
   namecache_test
 )
 
-# Every test just links surfer_common (defined in ../../CMakeLists.txt) rather
-# than relisting its own subset of implementation files -- see that file's
-# comment on surfer_common for why.
+# Every test links the surfer library (../CMakeLists.txt), and
+# diagramtriangulation's for the ambients it builds, rather than relisting its
+# own subset of implementation files (which silently goes stale): a static
+# archive only pulls in the members a target's unresolved symbols need.
 foreach(TEST ${TESTS})
   add_executable(${TEST} ${TEST}.cpp)
-  target_link_libraries(${TEST} surfer_common surfer_mimalloc)
+  target_link_libraries(${TEST} surfer_lib diagramtriangulation_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES
     LABELS "surfer"
@@ -38,26 +39,26 @@ set_tests_properties(linkingnumber_test PROPERTIES TIMEOUT 300)
 
 # Standalone profiling driver (see profile_driver.cpp) -- not a CTest test.
 add_executable(profile_driver profile_driver.cpp)
-target_link_libraries(profile_driver surfer_common surfer_mimalloc)
+target_link_libraries(profile_driver surfer_lib diagramtriangulation_lib surfer_mimalloc)
 target_compile_options(profile_driver PRIVATE -g)
 
 # Measures where the boundary-identification drain spends its time; see
 # profile_boundarylinks.cpp. Not a CTest test.
 add_executable(profile_boundarylinks profile_boundarylinks.cpp)
-target_link_libraries(profile_boundarylinks surfer_common surfer_mimalloc)
+target_link_libraries(profile_boundarylinks surfer_lib diagramtriangulation_lib surfer_mimalloc)
 target_compile_options(profile_boundarylinks PRIVATE -g)
 
 # Decomposes pairSig<4,2>() into its ambient-only and surface-dependent
 # parts, which is what justifies PairSigContext; see profile_pairsig.cpp.
 # Not a CTest test.
 add_executable(profile_pairsig profile_pairsig.cpp)
-target_link_libraries(profile_pairsig surfer_common surfer_mimalloc)
+target_link_libraries(profile_pairsig surfer_lib diagramtriangulation_lib surfer_mimalloc)
 target_compile_options(profile_pairsig PRIVATE -g)
 
 # How parallelIsoSigDetail() scales with threads on a row's thickening.
 # Not a CTest test.
 add_executable(profile_parallelisosig profile_parallelisosig.cpp)
-target_link_libraries(profile_parallelisosig surfer_common surfer_mimalloc)
+target_link_libraries(profile_parallelisosig surfer_lib diagramtriangulation_lib surfer_mimalloc)
 
 # Replays the pair signatures recorded in results/cobordisms.csv (all written
 # by the pre-context code path) through PairSigContext, requiring
@@ -65,11 +66,11 @@ target_link_libraries(profile_parallelisosig surfer_common surfer_mimalloc)
 #
 #   replay_pairsigs group0.txt group1.txt ...
 add_executable(replay_pairsigs replay_pairsigs.cpp)
-target_link_libraries(replay_pairsigs surfer_common surfer_mimalloc)
+target_link_libraries(replay_pairsigs surfer_lib diagramtriangulation_lib surfer_mimalloc)
 
 # Review utility: counts triangles with a repeated vertex in each table row's
 # thickening, built as verifyslicegenus builds it. Not a CTest test:
 #
 #   review_repeated_vertices knots.csv links.csv
 add_executable(review_repeated_vertices review_repeated_vertices.cpp)
-target_link_libraries(review_repeated_vertices surfer_common surfer_mimalloc)
+target_link_libraries(review_repeated_vertices surfer_lib diagramtriangulation_lib surfer_mimalloc)
