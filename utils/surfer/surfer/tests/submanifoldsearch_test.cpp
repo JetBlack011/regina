@@ -540,32 +540,18 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
                  "edge-level, and exempts its own seed ---\n";
 
     const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3";
-    auto pdcode = knotbuilder::parsePDCode(TREFOIL_PD);
-    auto built = knotbuilder::buildLink(pdcode);
+    ThickenedLink row; // two layers, the collar through both, no cone
+    buildAmbient(TREFOIL_PD, 2, 2, /*useCone=*/false, row);
 
-    std::vector<int> edgeIndices;
-    for (const regina::Edge<3> *e : built.edges)
-        edgeIndices.push_back(static_cast<int>(e->index()));
-
-    CobordismBuilder<3> cob(built.tri);
-    CollarBuilder collarBuilder(edgeIndices);
-    const int thickenLayers = 2;
-    for (int i = 0; i < thickenLayers; ++i) {
-        cob.thicken();
-        collarBuilder.addLayer(cob);
-    }
-
-    size_t searchSideBC = cob.baseBoundaryComponent()->index();
-    regina::Triangulation<4> tri = cob.getCobordism();
+    size_t searchSideBC = row.searchSideBC;
+    const regina::Triangulation<4> &tri = row.tri;
     EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
               "no cone() -- search side and far side are both still open, "
               "genuinely distinct ambient boundary components");
 
     size_t farSideBC = (searchSideBC == 0) ? 1 : 0;
 
-    std::vector<int> seedFaces;
-    for (regina::Triangle<4> *t : collarBuilder.resolve())
-        seedFaces.push_back(static_cast<int>(t->index()));
+    const std::vector<int> &seedFaces = row.seedFaces;
     EXPECT_EQ(seedFaces.empty(), false, "the collar produced a non-empty seed");
 
     // At least one seed triangle is NOT itself a boundary triangle of

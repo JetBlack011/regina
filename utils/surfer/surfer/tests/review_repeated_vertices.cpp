@@ -3,8 +3,7 @@
 //
 //  Review utility (not a CTest test): for every row of one or more PD-code
 //  tables, builds the ambient triangulation exactly as verifyslicegenus does
-//  (knotbuilder::buildLink, then CobordismBuilder::thicken() with the collar,
-//  no cone) and counts
+//  (buildAmbient(): the collar through every layer, no cone) and counts
 //    - loop edges of T (an edge whose two ends are the same vertex);
 //    - loop edges of the thickening;
 //    - triangles of the thickening with a repeated vertex, and among them
@@ -28,7 +27,6 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
-#include "diagramtriangulation/thickening/collar.h"
 #include "diagramtriangulation/fromdiagram.h"
 
 namespace {
@@ -73,24 +71,16 @@ int main(int argc, char *argv[]) {
             const std::string pd = line.substr(c1 + 1, c2 - c1 - 1);
             ++c.rows;
             try {
-                auto link = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
-                auto &[t, edges, reversed] = link;
+                ThickenedLink row;
+                buildAmbient(pd, layers, layers, /*useCone=*/false, row);
+                const regina::Triangulation<3> &t = row.link.tri;
 
                 long loopT = 0;
                 for (const regina::Edge<3> *e : t.edges())
                     if (e->vertex(0) == e->vertex(1))
                         ++loopT;
 
-                std::vector<int> edgeIndices;
-                for (const regina::Edge<3> *e : edges)
-                    edgeIndices.push_back(static_cast<int>(e->index()));
-                CobordismBuilder<3> cob(t);
-                CollarBuilder collar(edgeIndices);
-                for (int i = 0; i < layers; ++i) {
-                    cob.thicken();
-                    collar.addLayer(cob);
-                }
-                const regina::Triangulation<4> &tri = cob.getCobordism();
+                const regina::Triangulation<4> &tri = row.tri;
 
                 long loop4 = 0;
                 for (const regina::Edge<4> *e : tri.edges())

@@ -36,7 +36,6 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
-#include "diagramtriangulation/thickening/collar.h"
 #include "surfer/submanifold/submanifold.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -61,26 +60,11 @@ int main(int argc, char *argv[]) {
     const int layers = argc > 2 ? std::stoi(argv[2]) : 2;
     const int samples = argc > 3 ? std::stoi(argv[3]) : 2000;
 
-    auto link = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
-    auto &[base, edges, reversed] = link;
-
-    std::vector<int> edgeIndices;
-    edgeIndices.reserve(edges.size());
-    for (const regina::Edge<3> *e : edges)
-        edgeIndices.push_back(static_cast<int>(e->index()));
-
-    CobordismBuilder<3> cob(base);
-    CollarBuilder collar(edgeIndices);
-    for (int i = 0; i < layers; ++i) {
-        cob.thicken();
-        collar.addLayer(cob);
-    }
-    const size_t searchSideBC = cob.baseBoundaryComponent()->index();
-    regina::Triangulation<4> tri = cob.getCobordism();
-
-    std::vector<int> seed;
-    for (regina::Triangle<4> *t : collar.resolve())
-        seed.push_back(static_cast<int>(t->index()));
+    ThickenedLink row; // as the search builds it: the collar through every layer
+    buildAmbient(pd, layers, layers, /*useCone=*/false, row);
+    const size_t searchSideBC = row.searchSideBC;
+    const regina::Triangulation<4> &tri = row.tri;
+    const std::vector<int> &seed = row.seedFaces;
 
     std::cout << "cobordism: " << tri.size() << " pentachora, "
               << tri.countTriangles() << " triangles\n"

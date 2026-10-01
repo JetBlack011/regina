@@ -173,14 +173,11 @@ void test_row_map_battery() {
 }
 
 void test_row_map_refuses_foreign_edges() {
-    auto link = knotbuilder::buildLink(
-        knotbuilder::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
-    auto &[t2, edges2, reversed2] = link;
-    CobordismBuilder<3> cob(t2);
-    cob.thicken();
-    cob.thicken();
-    regina::Triangulation<4> tri = cob.getCobordism();
-    const size_t bc = cob.baseBoundaryComponent()->index();
+    ThickenedLink built; // two layers, no collar
+    buildAmbient("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 0, /*useCone=*/false, built);
+    auto &[t2, edges2, reversed2] = built.link;
+    const regina::Triangulation<4> &tri = built.tri;
+    const size_t bc = built.searchSideBC;
     const std::vector<size_t> nonsense = {0};
     bool threw = false;
     try {

@@ -25,7 +25,6 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
-#include "diagramtriangulation/thickening/collar.h"
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoingnamer.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -67,28 +66,10 @@ void writeTables() {
          "X[12; 6; 7; 5]; X[6; 12; 1; 11]; X[4; 8; 5; 7]],0\n";
 }
 
-// The row thickened as verifyslicegenus does it, its collar, and the namer.
-struct Row {
-    knotbuilder::TriangulationWithLink link;
-    CobordismBuilder<3> cob;
-    std::vector<int> seed;
-    regina::Triangulation<4> tri;
-
-    explicit Row(const std::string &pd)
-        : link(knotbuilder::buildLink(knotbuilder::parsePDCode(pd))),
-          cob(link.tri) {
-        std::vector<int> edgeIndices;
-        for (const regina::Edge<3> *e : link.edges)
-            edgeIndices.push_back(static_cast<int>(e->index()));
-        CollarBuilder collar(edgeIndices);
-        for (int i = 0; i < 2; ++i) {
-            cob.thicken();
-            collar.addLayer(cob);
-        }
-        tri = cob.getCobordism();
-        for (regina::Triangle<4> *t : collar.resolve())
-            seed.push_back(static_cast<int>(t->index()));
-    }
+// The row thickened as verifyslicegenus does it (buildAmbient(): two
+// layers, the collar through both).
+struct Row : ThickenedLink {
+    explicit Row(const std::string &pd) { buildAmbient(pd, 2, 2, /*useCone=*/false, *this); }
 };
 
 void test_collar_far_side_is_the_row(const std::string &name, const std::string &pd,
@@ -96,9 +77,9 @@ void test_collar_far_side_is_the_row(const std::string &name, const std::string 
                                      const farside::SignatureTable &table) {
     Row row(pd);
     farside::DiagramNamer namer(row.link.tri, knotbuilder::parsePDCode(pd).size(),
-                                row.cob, table);
+                                *row.cob, table);
     Skeleton<4, 2> skeleton(row.tri);
-    KnottedSurface collar(skeleton, row.seed);
+    KnottedSurface collar(skeleton, row.seedFaces);
     std::string got = "<no far side>";
     for (const auto &[bc, link] : collar.boundaryLinks())
         if (namer.handles(bc)) got = namer.name(link);
@@ -109,8 +90,8 @@ void test_collar_far_side_is_the_row(const std::string &name, const std::string 
 
 void test_small_curve_is_unknot(const farside::SignatureTable &table) {
     Row row("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-    farside::DiagramNamer namer(row.link.tri, 3, row.cob, table);
-    size_t bc = row.tri.boundaryComponent(0)->index() == row.cob.baseBoundaryComponent()->index()
+    farside::DiagramNamer namer(row.link.tri, 3, *row.cob, table);
+    size_t bc = row.tri.boundaryComponent(0)->index() == row.cob->baseBoundaryComponent()->index()
                     ? 1
                     : 0;
     regina::Triangulation<3> boundary = row.tri.boundaryComponent(bc)->build();
