@@ -15,7 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/cobordisms/cobordism.h"
+#include "cobound/solver/literature.h"
 
 namespace cascade {
 

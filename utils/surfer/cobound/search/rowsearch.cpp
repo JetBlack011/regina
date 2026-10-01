@@ -4,6 +4,7 @@
 #include "cobound/outgoing/farsidecurves.h"
 #include "cobound/outgoing/farsidenaming.h"
 #include "linknaming/complement/linkcomplement.h"
+#include "linknaming/names.h"
 
 namespace rowsearch {
 

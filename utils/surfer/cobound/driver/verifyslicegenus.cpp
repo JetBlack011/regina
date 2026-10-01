@@ -30,7 +30,12 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/cobordisms/cobordism.h"
+#include "cobound/search/incoming.h"
+#include "cobound/search/preconditions.h"
+#include "cobound/solver/literature.h"
+#include "cobound/solver/solver.h"
+#include "linknaming/names.h"
 #include "surfer/report/csvwriter.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"

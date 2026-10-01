@@ -27,7 +27,12 @@
 
 #include <triangulation/dim3.h>
 
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/cobordisms/cobordism.h"
+#include "cobound/search/incoming.h"
+#include "cobound/search/preconditions.h"
+#include "cobound/solver/literature.h"
+#include "cobound/solver/solver.h"
+#include "linknaming/names.h"
 
 using namespace cobordismgraph;
 

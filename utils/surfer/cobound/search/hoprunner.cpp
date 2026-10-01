@@ -14,7 +14,7 @@
 
 #include <sys/resource.h>
 
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/cobordisms/cobordism.h"
 #include "surfer/pairsig/pairsig.h"
 #include "cobound/search/rowsearch.h"
 #include "surfer/enumeration/surfacesearch.h"

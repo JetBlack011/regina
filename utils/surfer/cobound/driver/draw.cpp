@@ -73,7 +73,6 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
-#include "cobound/solver/cobordismgraph.h"
 #include "diagramtriangulation/thickening/collar.h"
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/farsidecurves.h"

@@ -37,7 +37,8 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/search/incoming.h"
+#include "cobound/search/preconditions.h"
 #include "surfer/submanifold/submanifold.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"

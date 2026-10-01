@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "cobound/solver/cobordismgraph.h"
+#include "cobound/cobordisms/cobordism.h"
 #include "linknaming/tables.h"
 #include "cobound/outgoing/farsidecurves.h"
 #include "cobound/outgoing/farsidenaming.h"
