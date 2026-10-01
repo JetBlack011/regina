@@ -77,6 +77,7 @@
 #include <utilities/randutils.h>
 
 #include <map>
+#include <optional>
 
 #include "surfer/submanifold/submanifold.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -122,6 +123,53 @@ void writeTri(std::ostream &out, const std::string &text) {
 // Unlike dump, this simplifies: the caller wants the same canonical form
 // Census::lookup() and the reference table use, not the drilled
 // triangulation with its peripheral curves intact.
+/**
+ * Decodes one input line's pair signature, or reports
+ * "FAILED <id> - decode:<why>" and gives nothing.
+ */
+std::optional<DecodedKnottedSurfaceSig> decodeOrFail(const std::string &id,
+                                                     const std::string &sig) {
+    try {
+        return fromKnottedSurfaceSig(sig);
+    } catch (const std::exception &e) {
+        std::cout << "FAILED " << id << " - decode:" << e.what() << "\n";
+        return std::nullopt;
+    }
+}
+
+/**
+ * A decoded surface's oriented boundary, read once for every boundary
+ * component a record is written for.
+ *
+ * The surface's own orientation is what signs the meridians. It is only
+ * defined up to a flip per connected component of the surface, which is why
+ * the component index is reported alongside rather than quietly dropped.
+ */
+struct StoredBoundary {
+    std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented;
+    std::map<const regina::Edge<3> *, size_t> surfaceOf;
+    bool haveDirections = false;
+
+    /** Reads it, or reports "FAILED <id> - orient:<why>" and keeps none. */
+    static StoredBoundary of(const DecodedKnottedSurfaceSig &decoded, const std::string &id) {
+        StoredBoundary b;
+        try {
+            b.oriented = decoded.surface->orientedBoundaryLinks();
+            b.surfaceOf = decoded.surface->boundaryEdgeSurfaceComponent();
+            b.haveDirections = true;
+        } catch (const std::exception &e) {
+            std::cout << "FAILED " << id << " - orient:" << e.what() << "\n";
+        }
+        return b;
+    }
+
+    /** directComponents() for boundary component `bc`'s Link; false when
+     *  the directions are unknown. */
+    bool direct(size_t bc, const Link &link,
+                std::vector<std::vector<peripheral::DirectedEdge>> &directions,
+                std::vector<long> &surfaceComponent) const;
+};
+
 int runSig() {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -134,13 +182,10 @@ int runSig() {
             continue;
         }
 
-        DecodedKnottedSurfaceSig decoded;
-        try {
-            decoded = fromKnottedSurfaceSig(sig);
-        } catch (const std::exception &e) {
-            std::cout << "FAILED " << id << " - decode:" << e.what() << "\n";
+        std::optional<DecodedKnottedSurfaceSig> stored = decodeOrFail(id, sig);
+        if (!stored)
             continue;
-        }
+        DecodedKnottedSurfaceSig &decoded = *stored;
 
         for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
             try {
@@ -225,6 +270,17 @@ bool directComponents(
     return true;
 }
 
+bool StoredBoundary::direct(size_t bc, const Link &link,
+                            std::vector<std::vector<peripheral::DirectedEdge>> &directions,
+                            std::vector<long> &surfaceComponent) const {
+    if (!haveDirections)
+        return false;
+    for (const auto &[obc, curves] : oriented)
+        if (obc == bc)
+            return directComponents(link, curves, surfaceOf, directions, surfaceComponent);
+    return false;
+}
+
 int runDump() {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -237,44 +293,19 @@ int runDump() {
             continue;
         }
 
-        DecodedKnottedSurfaceSig decoded;
-        try {
-            decoded = fromKnottedSurfaceSig(sig);
-        } catch (const std::exception &e) {
-            std::cout << "FAILED " << id << " - decode:" << e.what() << "\n";
+        std::optional<DecodedKnottedSurfaceSig> stored = decodeOrFail(id, sig);
+        if (!stored)
             continue;
-        }
+        DecodedKnottedSurfaceSig &decoded = *stored;
 
-        // The surface's own orientation is what signs the meridians. It is
-        // only defined up to a flip per connected component of the surface,
-        // which is why the component index is reported alongside rather than
-        // quietly dropped.
-        std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented;
-        std::map<const regina::Edge<3> *, size_t> surfaceOf;
-        bool haveDirections = false;
-        try {
-            oriented = decoded.surface->orientedBoundaryLinks();
-            surfaceOf = decoded.surface->boundaryEdgeSurfaceComponent();
-            haveDirections = true;
-        } catch (const std::exception &e) {
-            std::cout << "FAILED " << id << " - orient:" << e.what() << "\n";
-        }
+        const StoredBoundary boundary = StoredBoundary::of(decoded, id);
 
         for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
             try {
                 std::vector<std::vector<peripheral::DirectedEdge>> directions;
                 std::vector<long> surfaceComponent;
-                bool directed = false;
-                if (haveDirections) {
-                    for (const auto &[obc, curves] : oriented) {
-                        if (obc != bc)
-                            continue;
-                        directed = directComponents(link, curves, surfaceOf,
-                                                    directions,
-                                                    surfaceComponent);
-                        break;
-                    }
-                }
+                const bool directed =
+                    boundary.direct(bc, link, directions, surfaceComponent);
 
                 // Undirected is a strictly weaker answer, not a wrong one:
                 // the meridians come back signed only up to an independent
@@ -350,24 +381,12 @@ int runDumpSubset() {
             continue;
         }
 
-        DecodedKnottedSurfaceSig decoded;
-        try {
-            decoded = fromKnottedSurfaceSig(sig);
-        } catch (const std::exception &e) {
-            std::cout << "FAILED " << id << " - decode:" << e.what() << "\n";
+        std::optional<DecodedKnottedSurfaceSig> stored = decodeOrFail(id, sig);
+        if (!stored)
             continue;
-        }
+        DecodedKnottedSurfaceSig &decoded = *stored;
 
-        std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented;
-        std::map<const regina::Edge<3> *, size_t> surfaceOf;
-        bool haveDirections = false;
-        try {
-            oriented = decoded.surface->orientedBoundaryLinks();
-            surfaceOf = decoded.surface->boundaryEdgeSurfaceComponent();
-            haveDirections = true;
-        } catch (const std::exception &e) {
-            std::cout << "FAILED " << id << " - orient:" << e.what() << "\n";
-        }
+        const StoredBoundary boundary = StoredBoundary::of(decoded, id);
 
         bool found = false;
         for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
@@ -377,17 +396,8 @@ int runDumpSubset() {
             try {
                 std::vector<std::vector<peripheral::DirectedEdge>> directions;
                 std::vector<long> surfaceComponent;
-                bool directed = false;
-                if (haveDirections) {
-                    for (const auto &[obc, curves] : oriented) {
-                        if (obc != bc)
-                            continue;
-                        directed = directComponents(link, curves, surfaceOf,
-                                                    directions,
-                                                    surfaceComponent);
-                        break;
-                    }
-                }
+                const bool directed =
+                    boundary.direct(bc, link, directions, surfaceComponent);
 
                 // Narrow the per-component data to the chosen sublink, in the
                 // order the caller listed it, so the record's component
