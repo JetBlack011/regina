@@ -30,7 +30,7 @@ add_library(surfer_common STATIC
   cobound/cobordisms/database.cpp surfer/enumeration/searchstrategy.cpp
   cobound/solver/literature.cpp cobound/solver/solver.cpp
   cobound/cobordisms/cobordism.cpp cobound/search/incoming.cpp cobound/search/preconditions.cpp
-  linknaming/names.cpp cobound/outgoing/farsidecurves.cpp
+  linknaming/names.cpp cobound/outgoing/outgoinglink.cpp
   cobound/outgoing/farsidenaming.cpp cobound/outgoing/farsideredraw.cpp
   linknaming/tables.cpp linknaming/diagrams/gaussdiagram.cpp linknaming/linknamer.cpp
   linknaming/isometry/isometry.cpp

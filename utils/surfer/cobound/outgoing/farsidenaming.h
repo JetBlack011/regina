@@ -9,7 +9,7 @@
  *  (knotbuilder::DiagramDrawer) instead of drilling their complement.
  *
  *  The outgoing boundary of the search's thickening is a copy of
- *  knotbuilder's triangulation T of the row (farsidecurves.h), so its curves
+ *  knotbuilder's triangulation T of the row (OutgoingMap, thickening.h), so its curves
  *  draw straight into a diagram: microseconds, where drilling, simplifying
  *  and recognising a complement -- with a Pachner search behind a census
  *  miss -- took tens of milliseconds and was nearly all of the drain.
@@ -57,7 +57,7 @@
 
 #include "diagramtriangulation/thickening/thickening.h"
 #include "linknaming/linknamer.h"
-#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/outgoinglink.h"
 #include "diagramtriangulation/todiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/enumeration/surfacesearch.h"

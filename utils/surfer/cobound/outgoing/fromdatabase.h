@@ -25,7 +25,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/outgoinglink.h"
 
 namespace cascade {
 

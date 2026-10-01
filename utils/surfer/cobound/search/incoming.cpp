@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <optional>
 #include <tuple>
+#include <unordered_map>
 
 namespace cobordismgraph {
 
@@ -140,4 +141,27 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
     result.divergedFromDefaultIsomorphism = (*chosen != legacyImage);
     return result;
 }
+
 } // namespace cobordismgraph
+
+namespace farside {
+
+std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
+                                    const std::vector<int> &faces,
+                                    size_t bcIndex) {
+    const regina::BoundaryComponent<4> *bc = tri.boundaryComponent(bcIndex);
+    std::unordered_map<const regina::Edge<4> *, size_t> local;
+    for (size_t k = 0; k < bc->countEdges(); ++k) local.emplace(bc->edge(k), k);
+    std::vector<size_t> edges;
+    for (int f : faces) {
+        const regina::Triangle<4> *t = tri.triangle(f);
+        for (int i = 0; i < 3; ++i)
+            if (auto it = local.find(t->edge(i)); it != local.end())
+                edges.push_back(it->second);
+    }
+    std::ranges::sort(edges);
+    edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+    return edges;
+}
+
+} // namespace farside

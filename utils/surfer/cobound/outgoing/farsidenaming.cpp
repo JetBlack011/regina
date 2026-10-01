@@ -268,7 +268,7 @@ std::optional<std::string> DiagramNamer::orientedName(
             if (comp == surfaceOf.end()) return std::nullopt;
             auto flip = flips.find(comp->second);
             if (flip == flips.end()) return std::nullopt;
-            knotbuilder::EdgeCycle cyc = map_.carry(curve);
+            knotbuilder::EdgeCycle cyc = map_.carry(outgoingCurve(curve));
             if (flip->second < 0) {
                 std::reverse(cyc.begin(), cyc.end());
                 for (auto &de : cyc) de.reversed = !de.reversed;

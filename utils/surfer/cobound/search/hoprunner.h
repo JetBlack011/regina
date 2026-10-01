@@ -22,7 +22,7 @@
 
 #include "cobound/cobordisms/cobordism.h"
 #include "linknaming/tables.h"
-#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/outgoinglink.h"
 #include "cobound/outgoing/farsidenaming.h"
 #include "cobound/outgoing/farsideredraw.h"
 #include "surfer/enumeration/searchstrategy.h"

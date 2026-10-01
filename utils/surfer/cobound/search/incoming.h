@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <triangulation/dim3.h>
+#include <triangulation/dim4.h>
 
 /*! \file utils/surfer/cobound/search/incoming.h
  *  \brief The incoming link of a search -- the row's own link L, on the
@@ -73,5 +74,17 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                     const regina::Triangulation<3> &searchSideTri,
                     const std::vector<size_t> *requiredEdges = nullptr);
 } // namespace cobordismgraph
+
+namespace farside {
+
+/**
+ * The edges of `faces` (triangle indices of `tri`) lying in boundary
+ * component `bcIndex`, as sorted local edge indices of that component --
+ * the numbering its built triangulation uses.
+ */
+std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
+                                    const std::vector<int> &faces,
+                                    size_t bcIndex);
+} // namespace farside
 
 #endif // SURFER_COBOUND_INCOMING_H

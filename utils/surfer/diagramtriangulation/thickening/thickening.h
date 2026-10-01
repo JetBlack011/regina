@@ -12,12 +12,15 @@
 #define COBORDISM_BUILDER_H
 
 #include <cassert>
+#include <unordered_map>
+#include <vector>
 
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/prism.h"
+#include "diagramtriangulation/todiagram.h"
 
 /*! \file utils/surfer/diagramtriangulation/thickening/thickening.h
  *  \brief Incrementally builds a cobordism triangulation one dimension up
@@ -192,5 +195,69 @@ class CobordismBuilder {
 
 extern template class CobordismBuilder<2>;
 extern template class CobordismBuilder<3>;
+
+/**
+ * One edge of a curve on a thickening's outgoing boundary -- an edge of that
+ * boundary component's built triangulation -- and whether the curve runs
+ * along it from its vertex(1) to its vertex(0).
+ */
+struct OutgoingEdge {
+    const regina::Edge<3> *edge;
+    bool reversed;
+};
+
+/** A curve on the outgoing boundary: its edges in order, head to tail. */
+using OutgoingCurve = std::vector<OutgoingEdge>;
+
+/**
+ * The outgoing boundary of a thickening, edge by edge, as knotbuilder's T.
+ *
+ * A search runs in S^3 x [0,2] = T x [0,2], thickened from knotbuilder's
+ * triangulation T by CobordismBuilder. Its outgoing boundary is literally
+ * T x {2}: over each base tetrahedron sigma, the top prism piece
+ * P_3(sigma) has sigma x {2} as a facet, with base vertex v's top copy at
+ * SimplicialPrism::localVertex(v, true). OutgoingMap uses exactly that to
+ * carry each edge of the outgoing boundary onto an edge of T. There is no
+ * isomorphism search anywhere on the outgoing side, so none of T's
+ * automorphisms -- some of which reverse orientation -- can relabel or
+ * mirror the outgoing link.
+ */
+class OutgoingMap {
+  public:
+    /**
+     * \param knotT knotbuilder::buildLink()'s triangulation, unmodified.
+     * \param cob built from `knotT` (CobordismBuilder takes an ordered copy,
+     *        relabelling vertices within tetrahedra), after its last
+     *        thicken() and with no cone().
+     */
+    OutgoingMap(const regina::Triangulation<3> &knotT,
+                const CobordismBuilder<3> &cob);
+
+    /** The outgoing boundary component of cob.getCobordism(). */
+    size_t boundaryComponent() const { return bc_; }
+
+    /**
+     * A curve on the outgoing boundary -- oriented edges of that boundary
+     * component's built triangulation, as orientedBoundaryLinks() gives
+     * them -- as a directed edge cycle of `knotT`.
+     */
+    knotbuilder::EdgeCycle carry(const OutgoingCurve &curve) const;
+
+    /**
+     * A closed curve given as its edges in any order (a boundary link's
+     * component, which carries no orientation) as a directed edge cycle of
+     * `knotT`, traversed in the direction of `edges.front()`.
+     *
+     * \exception regina::InvalidArgument the edges do not form one closed
+     * curve.
+     */
+    knotbuilder::EdgeCycle carryCycle(const std::vector<const regina::Edge<3> *> &edges) const;
+
+  private:
+    size_t bc_ = 0;
+    std::unordered_map<size_t, size_t> edgeToT_;   /**< boundary edge -> T edge */
+    std::unordered_map<size_t, size_t> vertexToT_; /**< boundary vertex -> T vertex */
+    std::vector<size_t> tTail_;                    /**< T edge -> its vertex(0) */
+};
 
 #endif // COBORDISM_BUILDER_H

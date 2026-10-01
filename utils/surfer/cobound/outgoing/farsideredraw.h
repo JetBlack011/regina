@@ -34,7 +34,7 @@
 
 #include "diagramtriangulation/thickening/thickening.h"
 #include "cobound/search/incoming.h"
-#include "cobound/outgoing/farsidecurves.h"
+#include "cobound/outgoing/outgoinglink.h"
 #include "diagramtriangulation/todiagram.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "cobound/search/rowsearch.h"

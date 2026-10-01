@@ -257,7 +257,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
             why = "a surface component misses the row";
             return std::nullopt;
         }
-        knotbuilder::EdgeCycle cyc = outgoing_->carry(curve);
+        knotbuilder::EdgeCycle cyc = outgoing_->carry(outgoingCurve(curve));
         if (f->second < 0) {
             std::reverse(cyc.begin(), cyc.end());
             for (auto &de : cyc) de.reversed = !de.reversed;
