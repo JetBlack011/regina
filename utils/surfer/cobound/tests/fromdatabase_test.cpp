@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #include "cobound/outgoing/farsideredraw.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/outgoing/fromdatabase.h"
 #include "cobound/tests/check.h"
 

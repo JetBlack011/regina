@@ -10,7 +10,7 @@
 
 #include <string>
 
-/*! \file utils/surfer/cobound/cobordisms/witnesskey.h
+/*! \file utils/surfer/cobound/cobordisms/cobordismkey.h
  *  \brief The per-witness key a far-side resolution is stored under.
  *
  *  \section wk_why Why a witness key rather than a name
@@ -32,7 +32,8 @@
  *  cobordism-atlas/tools/frontier.py and identify_far_sides.py key the same
  *  table on `hashlib.sha1(pairsig.encode()).hexdigest()[:12]`, so this must
  *  agree with Python's hashlib byte for byte -- witnessKey() is checked
- *  against it in tests/witnesskey_test.cpp.
+ *  against it in tests/cobordismkey_test.cpp, and the SHA-1 itself
+ *  (surfer/pairsig/sha1.h) in surfer's tests/sha1_test.cpp.
  *
  *  A prefix of the signature itself is deliberately NOT used: pair
  *  signatures share long prefixes, and truncating one silently merged
@@ -40,9 +41,6 @@
  */
 
 namespace witnesskey {
-
-/** The full 40-character lowercase hex SHA-1 digest of \a data. */
-std::string sha1Hex(const std::string &data);
 
 /**
  * The key a far-side resolution for this witness is stored under: the

@@ -34,7 +34,7 @@
 #include "surfer/report/csvwriter.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/witnessstore.h"
 #include "cobound/outgoing/farsidenaming.h"
 #include "diagramtriangulation/fromdiagram.h"

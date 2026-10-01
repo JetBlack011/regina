@@ -27,7 +27,7 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "cobound/cobordisms/witnesskey.h"
+#include "surfer/pairsig/sha1.h"
 
 #define FLUSH_EVERY_BDRY 1
 #define FLUSH_EVERY_EMBEDDED 1
@@ -193,7 +193,7 @@ std::string EmbeddingSearch<dim, subdim>::frontierFingerprint_(
       << "\nbudget " << rootBudgetStart << ' ' << rootBudgetGrowth
       << "\ncondition " << boundaryConditionName(cond) << " orientable "
       << (orientableOnly ? 1 : 0) << "\ncontext " << frontierContext_ << '\n';
-    return witnesskey::sha1Hex(s.str());
+    return pairsig::sha1Hex(s.str());
 }
 
 template <int dim, int subdim>

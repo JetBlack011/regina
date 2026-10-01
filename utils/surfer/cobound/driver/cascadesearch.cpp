@@ -76,7 +76,7 @@
 #include "cobound/bounds/axioms.h"
 #include "cobound/bounds/nodes.h"
 #include "cobound/bounds/cobordismgraph.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/witnessstore.h"
 
 extern char **environ;

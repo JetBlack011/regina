@@ -20,7 +20,7 @@
 #include <utilities/sigutils.h>
 
 #include "surfer/pairsig/parallelisosig.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "surfer/pairsig/sha1.h"
 
 namespace {
 
@@ -285,7 +285,7 @@ std::string PairSigContext<dim, subdim>::ambientKey(
                 s << '-';
         }
     }
-    return witnesskey::sha1Hex(s.str());
+    return pairsig::sha1Hex(s.str());
 }
 
 namespace {

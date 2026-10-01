@@ -27,7 +27,7 @@
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "surfer/enumeration/surfacesearch.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "surfer/pairsig/sha1.h"
 
 static int passed = 0, failed_count = 0;
 
@@ -1288,7 +1288,7 @@ void test_traversal_pinned() {
     f.write(text);
     std::cout << "  frontier: " << f.summary() << "\n";
     EXPECT_EQ(st.foundCount, 742LL, "found at the stop");
-    EXPECT_EQ(witnesskey::sha1Hex(text.str()),
+    EXPECT_EQ(pairsig::sha1Hex(text.str()),
               std::string("d8f3482a0242f579f6373d503afc95bffbb6572a"),
               "the recorded frontier's digest");
 }

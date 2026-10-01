@@ -12,7 +12,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 
-#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/cobordismkey.h"
 
 namespace fs = std::filesystem;
 

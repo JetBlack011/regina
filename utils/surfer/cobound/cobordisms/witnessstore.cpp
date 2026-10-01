@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #include "surfer/report/csvwriter.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "cobound/cobordisms/cobordismkey.h"
 
 namespace witnessstore {
 // One row of the input knot table (Name,PD Notation,Genus-4D). No RFC-4180

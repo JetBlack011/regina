@@ -15,7 +15,7 @@
 #include "surfer/submanifold/submanifold.h"
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/vertexlinks.h"
-#include "cobound/cobordisms/witnesskey.h"
+#include "surfer/pairsig/sha1.h"
 
 namespace farside {
 
@@ -349,7 +349,7 @@ std::string WitnessRedrawer::buildChecksum() const {
         const auto &emb = W.triangle(k)->front();
         data += std::to_string(emb.simplex()->index()) + ':' + std::to_string(emb.face()) + ',';
     }
-    return witnesskey::sha1Hex(data).substr(0, 16);
+    return pairsig::sha1Hex(data).substr(0, 16);
 }
 
 } // namespace farside

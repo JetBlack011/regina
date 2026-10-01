@@ -3,19 +3,17 @@
 //
 //  pairsig::sha1Hex() (OpenSSL's SHA1()) against FIPS 180-1's own vectors,
 //  the length-boundary cases a hand-written padding step gets wrong, and the
-//  values Python's hashlib gives (which the atlas keys cobordisms on) -- and,
-//  while it still exists, against the hand-written implementation it
-//  replaces, on every length from 0 to 4200 bytes of pseudo-random data and
-//  on a few large inputs.
+//  values Python's hashlib gives (which the atlas keys cobordisms on). Before
+//  it replaced the hand-written SHA-1 (witnesskey.cpp, retired in phase 2 of
+//  the refactor), this test also compared the two on every length from 0 to
+//  4200 bytes of pseudo-random data and on inputs up to 16 MiB: no input
+//  differed.
 //
 
-#include <cstdint>
 #include <iostream>
-#include <random>
 #include <string>
 
 #include "surfer/pairsig/sha1.h"
-#include "cobound/cobordisms/witnesskey.h"
 
 namespace {
 
@@ -30,13 +28,6 @@ void check(const std::string &what, const std::string &got,
                   << "\n    want " << want << "\n";
         ++failures;
     }
-}
-
-std::string randomBytes(std::mt19937_64 &rng, size_t n) {
-    std::string s(n, '\0');
-    for (char &c : s)
-        c = static_cast<char>(rng() & 0xff);
-    return s;
 }
 
 } // namespace
@@ -66,31 +57,6 @@ int main() {
           "0098ba824b5c16427bd7a1122a5a442a25ec644d");
     check("1000 bytes", pairsig::sha1Hex(std::string(1000, 'a')),
           "291e9a6c66994949b57ba5e650361e98fc36b1ba");
-
-    // Against the hand-written implementation it replaces: every length from
-    // 0 to 4200 bytes (every padding case, many times over), then a few large
-    // inputs, all of pseudo-random bytes (so 0x00, 0x80 and 0xff occur).
-    std::mt19937_64 rng(20261001);
-    long long compared = 0, differ = 0;
-    auto compare = [&](const std::string &data) {
-        ++compared;
-        if (pairsig::sha1Hex(data) != witnesskey::sha1Hex(data)) {
-            if (++differ <= 5)
-                std::cout << "  FAIL: OpenSSL and the hand-written SHA-1 "
-                             "differ on "
-                          << data.size() << " bytes\n";
-        }
-    };
-    for (size_t n = 0; n <= 4200; ++n)
-        compare(randomBytes(rng, n));
-    for (size_t n : {size_t{65535}, size_t{65536}, size_t{65537},
-                     size_t{1} << 20, (size_t{1} << 24) + 7})
-        compare(randomBytes(rng, n));
-    compare(std::string(1000000, 'a'));
-    std::cout << "  " << compared << " inputs compared with the hand-written "
-              << "SHA-1, " << differ << " differ\n";
-    if (differ)
-        ++failures;
 
     if (failures) {
         std::cout << failures << " failure(s)\n";

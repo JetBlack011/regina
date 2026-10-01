@@ -1,6 +1,6 @@
 set(TESTS
   solver_test
-  witnesskey_test
+  cobordismkey_test
   witnessstore_test
   rowmap_test
   rowsearch_test
