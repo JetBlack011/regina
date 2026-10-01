@@ -38,7 +38,7 @@ add_library(surfer_common STATIC
   cobound/bounds/partition.cpp cobound/bounds/partitiongenera.cpp cobound/bounds/cobordismgraph.cpp
   linknaming/diagrams/diagramiso.cpp cobound/bounds/nodes.cpp cobound/bounds/searchcobordisms.cpp
   cobound/bounds/axioms.cpp
-  cobound/search/hoprunner.cpp cobound/cobordisms/pending.cpp cobound/outgoing/fromdatabase.cpp)
+  cobound/cobordisms/pairsigner.cpp cobound/cobordisms/pending.cpp cobound/outgoing/fromdatabase.cpp)
 target_include_directories(surfer_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(surfer_common PUBLIC ${ENGINE_LIBRARY})
 

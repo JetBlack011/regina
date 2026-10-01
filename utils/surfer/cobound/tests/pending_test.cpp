@@ -23,7 +23,8 @@
 #include <link/link.h>
 
 #include "cobound/bounds/searchcobordisms.h"
-#include "cobound/search/hoprunner.h"
+#include "cobound/cobordisms/pairsigner.h"
+#include "cobound/search/search.h"
 #include "cobound/cobordisms/pending.h"
 #include "cobound/bounds/nodes.h"
 #include "cobound/tests/check.h"
