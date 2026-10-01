@@ -24,7 +24,7 @@ add_library(surfer_common STATIC
   surfer/enumeration/inducedsubgraphs.cpp diagramtriangulation/thickening/collar.cpp
   cobound/search/rowsearch.cpp
   surfer/submanifold/rollbackunionfind.cpp surfer/submanifold/vertexlinks.cpp
-  surfer/pairsig/pairsig.cpp surfer/report/csvwriter.cpp cobound/cobordisms/witnesskey.cpp
+  surfer/pairsig/pairsig.cpp surfer/pairsig/sha1.cpp surfer/report/csvwriter.cpp cobound/cobordisms/witnesskey.cpp
   cobound/cobordisms/witnessstore.cpp surfer/enumeration/searchstrategy.cpp
   cobound/solver/cobordismgraph.cpp cobound/outgoing/farsidecurves.cpp
   cobound/outgoing/farsidenaming.cpp cobound/outgoing/farsideredraw.cpp
@@ -56,6 +56,11 @@ set_source_files_properties(
 # top level.
 find_package(SQLite3 REQUIRED)
 target_link_libraries(surfer_common PUBLIC SQLite::SQLite3)
+
+# SHA-1 (surfer/pairsig/sha1.h): OpenSSL's libcrypto, for the frontier
+# fingerprint, the pair-signature context's ambient key and the cobordism key.
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+target_link_libraries(surfer_common PUBLIC OpenSSL::Crypto)
 
 # mimalloc in place of glibc's malloc, for every surfer binary and test
 # (2026-09-29). A perf profile of a production row put about a third of all

@@ -8,6 +8,7 @@ set(TESTS
   linkingnumber_test
   inducedsubgraphs_test
   predicate_order_test
+  sha1_test
 )
 
 # Every test just links surfer_common (defined in ../../CMakeLists.txt) rather

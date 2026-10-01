@@ -1,0 +1,101 @@
+//
+//  sha1_test.cpp
+//
+//  pairsig::sha1Hex() (OpenSSL's SHA1()) against FIPS 180-1's own vectors,
+//  the length-boundary cases a hand-written padding step gets wrong, and the
+//  values Python's hashlib gives (which the atlas keys cobordisms on) -- and,
+//  while it still exists, against the hand-written implementation it
+//  replaces, on every length from 0 to 4200 bytes of pseudo-random data and
+//  on a few large inputs.
+//
+
+#include <cstdint>
+#include <iostream>
+#include <random>
+#include <string>
+
+#include "surfer/pairsig/sha1.h"
+#include "cobound/cobordisms/witnesskey.h"
+
+namespace {
+
+int failures = 0;
+
+void check(const std::string &what, const std::string &got,
+           const std::string &want) {
+    if (got == want) {
+        std::cout << "  ok: " << what << "\n";
+    } else {
+        std::cout << "  FAIL: " << what << "\n    got  " << got
+                  << "\n    want " << want << "\n";
+        ++failures;
+    }
+}
+
+std::string randomBytes(std::mt19937_64 &rng, size_t n) {
+    std::string s(n, '\0');
+    for (char &c : s)
+        c = static_cast<char>(rng() & 0xff);
+    return s;
+}
+
+} // namespace
+
+int main() {
+    std::cout << "sha1\n";
+
+    // FIPS 180-1 appendix vectors.
+    check("empty string", pairsig::sha1Hex(""),
+          "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    check("\"abc\"", pairsig::sha1Hex("abc"),
+          "a9993e364706816aba3e25717850c26c9cd0d89d");
+    check("56-byte message (two-block tail)",
+          pairsig::sha1Hex(
+              "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+          "84983e441c3bd26ebaae4aa1f95129e5e54670f1");
+    check("one million 'a'", pairsig::sha1Hex(std::string(1000000, 'a')),
+          "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
+
+    // Length-boundary cases: 55 bytes still fits one padding block, 56 and 64
+    // force a second. These are exactly where a hand-written tail goes wrong.
+    check("55 bytes", pairsig::sha1Hex(std::string(55, 'a')),
+          "c1c8bbdc22796e28c0e15163d20899b65621d65a");
+    check("56 bytes", pairsig::sha1Hex(std::string(56, 'a')),
+          "c2db330f6083854c99d4b5bfb6e8f29f201be699");
+    check("64 bytes", pairsig::sha1Hex(std::string(64, 'a')),
+          "0098ba824b5c16427bd7a1122a5a442a25ec644d");
+    check("1000 bytes", pairsig::sha1Hex(std::string(1000, 'a')),
+          "291e9a6c66994949b57ba5e650361e98fc36b1ba");
+
+    // Against the hand-written implementation it replaces: every length from
+    // 0 to 4200 bytes (every padding case, many times over), then a few large
+    // inputs, all of pseudo-random bytes (so 0x00, 0x80 and 0xff occur).
+    std::mt19937_64 rng(20261001);
+    long long compared = 0, differ = 0;
+    auto compare = [&](const std::string &data) {
+        ++compared;
+        if (pairsig::sha1Hex(data) != witnesskey::sha1Hex(data)) {
+            if (++differ <= 5)
+                std::cout << "  FAIL: OpenSSL and the hand-written SHA-1 "
+                             "differ on "
+                          << data.size() << " bytes\n";
+        }
+    };
+    for (size_t n = 0; n <= 4200; ++n)
+        compare(randomBytes(rng, n));
+    for (size_t n : {size_t{65535}, size_t{65536}, size_t{65537},
+                     size_t{1} << 20, (size_t{1} << 24) + 7})
+        compare(randomBytes(rng, n));
+    compare(std::string(1000000, 'a'));
+    std::cout << "  " << compared << " inputs compared with the hand-written "
+              << "SHA-1, " << differ << " differ\n";
+    if (differ)
+        ++failures;
+
+    if (failures) {
+        std::cout << failures << " failure(s)\n";
+        return 1;
+    }
+    std::cout << "all passed\n";
+    return 0;
+}
