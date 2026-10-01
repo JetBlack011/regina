@@ -23,6 +23,7 @@
 #ifndef SURFER_FARSIDEREDRAW_H
 #define SURFER_FARSIDEREDRAW_H
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -142,6 +143,23 @@ class WitnessRedrawer {
     double msBoundaryBuild() const { return msBoundaryBuild_; }
 
   private:
+    /** Calls its argument on isomorphisms (ambient -> thickening) until it
+     *  returns true. */
+    using IsoVisitor = std::function<bool(const regina::Isomorphism<4> &)>;
+    using IsoSource = std::function<void(const IsoVisitor &)>;
+
+    /**
+     * The one carry: `faces` (triangles of `ambient`) carried onto
+     * thickening() by the first isomorphism `isos` offers whose image meets
+     * the incoming boundary in exactly L x {0}, or nullopt. carry() decodes
+     * the whole pair signature and enumerates the isomorphisms as it goes;
+     * outgoingLinkFast() decodes only the face suffix and offers the row's
+     * isomorphisms, found once.
+     */
+    std::optional<std::vector<int>> pinned_(const regina::Triangulation<4> &ambient,
+                                            const std::vector<int> &faces,
+                                            const IsoSource &isos) const;
+
     rowsearch::RowBuild rb_; /**< T, the thickening, its collar and row map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;

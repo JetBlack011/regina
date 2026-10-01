@@ -33,6 +33,22 @@ int carryTriangle(const regina::Triangle<4> *t, const regina::Isomorphism<4> &is
 
 } // namespace
 
+std::optional<std::vector<int>> WitnessRedrawer::pinned_(const regina::Triangulation<4> &ambient,
+                                                         const std::vector<int> &faces,
+                                                         const IsoSource &isos) const {
+    const regina::Triangulation<4> &W = thickening();
+    std::optional<std::vector<int>> carried;
+    isos([&](const regina::Isomorphism<4> &iso) {
+        std::vector<int> image;
+        image.reserve(faces.size());
+        for (int f : faces) image.push_back(carryTriangle(ambient.triangle(f), iso, W));
+        if (boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
+        carried = std::move(image);
+        return true;
+    });
+    return carried;
+}
+
 WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
@@ -70,20 +86,14 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
     auto t1 = std::chrono::steady_clock::now();
     msDecode_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    // The isomorphism onto W sending the witness's incoming curve onto L x {0}.
-    std::vector<int> carried;
-    bool found = false;
-    dec.ambient->findAllIsomorphisms(W, [&](const regina::Isomorphism<4> &iso) {
-        std::vector<int> image;
-        image.reserve(faces.size());
-        for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
-        if (boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
-        carried = std::move(image);
-        found = true;
-        return true;
-    });
+    // The isomorphism onto W sending the witness's incoming curve onto L x {0},
+    // found while the ambient's isomorphisms are enumerated.
+    std::optional<std::vector<int>> carried =
+        pinned_(*dec.ambient, faces, [&](const IsoVisitor &visit) {
+            dec.ambient->findAllIsomorphisms(W, visit);
+        });
     msIso_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
-    if (found) return carried;
+    if (carried) return carried;
 
     // Say why: no isomorphism at all (another thickening), or isomorphisms
     // whose incoming curve is not L x {0}.
@@ -155,24 +165,21 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
     auto t1 = std::chrono::steady_clock::now();
     msDecode_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    // The isomorphism carrying the incoming curve onto L x {0}.
-    std::vector<int> carried;
-    for (const regina::Isomorphism<4> &iso : isos_) {
-        std::vector<int> image;
-        image.reserve(faces.size());
-        for (int f : faces) image.push_back(carryTriangle(ambient_->triangle(f), iso, W));
-        if (boundaryEdgesOf(W, image, rb_.searchSideBC) == rb_.searchEdges) {
-            carried = std::move(image);
-            break;
-        }
-    }
+    // The isomorphism carrying the incoming curve onto L x {0}, from the
+    // ambient's isomorphisms found once per row.
+    const std::optional<std::vector<int>> pinned =
+        pinned_(*ambient_, faces, [&](const IsoVisitor &visit) {
+            for (const regina::Isomorphism<4> &iso : isos_)
+                if (visit(iso)) break;
+        });
     auto t2 = std::chrono::steady_clock::now();
     msIso_ += std::chrono::duration<double, std::milli>(t2 - t1).count();
-    if (carried.empty()) {
+    if (!pinned) {
         why = "no isomorphism carries its incoming curve onto L (" +
               std::to_string(isos_.size()) + " isomorphisms onto the thickening)";
         return std::nullopt;
     }
+    const std::vector<int> &carried = *pinned;
 
     // The surface as a plain 2-triangulation: one triangle per face, glued
     // along the edges of W two faces share (an embedded surface has no edge
@@ -220,34 +227,13 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
             surfaceOf[edge] = simplex->component()->index();
         }
     }
-    std::vector<OrientedCurve> incoming = chain(directed[rb_.searchSideBC]);
-    std::optional<std::map<size_t, int>> flips = incomingFlips(*rb_.orientation, incoming, surfaceOf);
-    if (!flips) {
-        why = "incoming orientation is inconsistent";
-        return std::nullopt;
-    }
-    OutgoingLink out;
-    for (const OrientedCurve &curve : incoming) {
-        if (curve.empty()) continue;
-        out.incomingFirstEdge.push_back(curve.front().edge->index());
-        out.incomingSurfaceComponent.push_back(surfaceOf.at(curve.front().edge));
-    }
-    for (const OrientedCurve &curve : chain(directed[outgoing_->boundaryComponent()])) {
-        if (curve.empty()) continue;
-        const size_t comp = surfaceOf.at(curve.front().edge);
-        auto f = flips->find(comp);
-        if (f == flips->end()) {
-            why = "a surface component misses the row";
-            return std::nullopt;
-        }
-        knotbuilder::EdgeCycle cyc = outgoing_->carry(outgoingCurve(curve));
-        if (f->second < 0) {
-            std::reverse(cyc.begin(), cyc.end());
-            for (auto &de : cyc) de.reversed = !de.reversed;
-        }
-        out.curves.push_back(std::move(cyc));
-        out.surfaceComponent.push_back(comp);
-    }
+    // Then oriented against the row, as for a rebuilt surface
+    // (orientedOutgoingLink()).
+    const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented = {
+        {rb_.searchSideBC, chain(directed[rb_.searchSideBC])},
+        {outgoing_->boundaryComponent(), chain(directed[outgoing_->boundaryComponent()])}};
+    std::optional<OutgoingLink> out = orientedOutgoingLink(
+        oriented, surfaceOf, *outgoing_, *rb_.orientation, rb_.searchSideBC, &why);
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t2).count();
     return out;
 }

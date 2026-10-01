@@ -27,6 +27,7 @@
 #define SURFER_OUTGOINGLINK_H
 
 #include <map>
+#include <string>
 #include <optional>
 #include <vector>
 
@@ -84,7 +85,7 @@ std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
     const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
-    size_t incomingBC);
+    size_t incomingBC, std::string *why = nullptr);
 
 } // namespace farside
 

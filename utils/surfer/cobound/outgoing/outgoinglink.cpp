@@ -54,11 +54,14 @@ std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
     const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
-    size_t incomingBC) {
+    size_t incomingBC, std::string *why) {
     std::optional<std::map<size_t, int>> flips;
     for (const auto &[bc, curves] : oriented)
         if (bc == incomingBC) flips = incomingFlips(row, curves, surfaceOf);
-    if (!flips) return std::nullopt;
+    if (!flips) {
+        if (why) *why = "incoming orientation is inconsistent";
+        return std::nullopt;
+    }
 
     OutgoingLink out;
     for (const auto &[bc, curves] : oriented) {
@@ -75,8 +78,10 @@ std::optional<OutgoingLink> orientedOutgoingLink(
             if (curve.empty()) continue;
             size_t comp = surfaceOf.at(curve.front().edge);
             auto f = flips->find(comp);
-            if (f == flips->end()) return std::nullopt; // cannot happen: every
-                                                        // component meets the row
+            if (f == flips->end()) { // cannot happen: every component meets the row
+                if (why) *why = "a surface component misses the row";
+                return std::nullopt;
+            }
             knotbuilder::EdgeCycle cyc = map.carry(outgoingCurve(curve));
             if (f->second < 0) {
                 std::reverse(cyc.begin(), cyc.end());

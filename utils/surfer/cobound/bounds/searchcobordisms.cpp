@@ -82,17 +82,8 @@ void HopAssembler::certifyRow_() {
 
 std::optional<farside::OutgoingLink>
 HopAssembler::readBack(const std::string &pairsig, std::string &why) const {
-  if (read_ == Read::fast) return redraw_->outgoingLinkFast(pairsig, why);
-  auto carried = redraw_->carry(pairsig, why);
-  if (!carried) {
-    why = "carry: " + why;
-    return std::nullopt;
-  }
-  KnottedSurface surface(redraw_->skeleton(), *carried);
-  auto link = farside::orientedOutgoingLink(surface, redraw_->outgoing(),
-                                            redraw_->row(), redraw_->incomingBC());
-  if (!link) why = "incoming orientation inconsistent";
-  return link;
+  return read_ == Read::fast ? redraw_->outgoingLinkFast(pairsig, why)
+                            : redraw_->outgoingLink(pairsig, why);
 }
 
 std::optional<std::vector<size_t>>
