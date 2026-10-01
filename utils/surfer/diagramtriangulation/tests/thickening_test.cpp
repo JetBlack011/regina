@@ -5,6 +5,7 @@
 // knotbuilder's PD-code -> triangulated-S³ pipeline.
 
 #include <iostream>
+#include <string>
 #include <triangulation/dim2.h>
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
@@ -662,6 +663,27 @@ void test_base_boundary_component_with_cone() {
               "boundary component");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// buildAmbient()'s collar seed comes in index order (phase 3.0), never in the
+// order of CollarBuilder::resolve()'s pointer set: a search numbers its
+// surfaces' triangles from the seed's, so each component's orientation, and
+// so where each outgoing curve starts, followed the heap layout.
+// ─────────────────────────────────────────────────────────────────────────────
+void test_build_ambient_seed_in_index_order() {
+    std::cout << "\n--- buildAmbient(): the collar seed in index order ---\n";
+    const char *pds[] = {"[[1;5;2;4];[3;1;4;6];[5;3;6;2]]",
+                         "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]"};
+    for (const char *pd : pds) {
+        ThickenedLink row;
+        buildAmbient(pd, 2, 2, /*useCone=*/false, row);
+        bool increasing = !row.seedFaces.empty();
+        for (size_t i = 1; i < row.seedFaces.size(); ++i)
+            if (row.seedFaces[i - 1] >= row.seedFaces[i]) increasing = false;
+        EXPECT_EQ(increasing, true,
+                  std::string(pd) + ": seed faces non-empty and strictly increasing");
+    }
+}
+
 template <typename F>
 void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
@@ -697,6 +719,8 @@ int main() {
         test_base_boundary_component_identifies_bottom_not_top);
     run("test_base_boundary_component_with_cone",
         test_base_boundary_component_with_cone);
+    run("test_build_ambient_seed_in_index_order",
+        test_build_ambient_seed_in_index_order);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

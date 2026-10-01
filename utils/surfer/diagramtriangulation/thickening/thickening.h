@@ -279,7 +279,7 @@ struct ThickenedLink {
     knotbuilder::TriangulationWithLink link; /**< T, and L's edges in it. */
     std::optional<CobordismBuilder<3>> cob;
     regina::Triangulation<4> tri;  /**< The search's ambient. */
-    std::vector<int> seedFaces;    /**< The collar; empty without one. */
+    std::vector<int> seedFaces;    /**< The collar, in index order; empty without one. */
     size_t searchSideBC = 0;       /**< The incoming boundary, T x {0}. */
     int componentCount = 1;
     /**< The closed curves L's edges form, counted by walking them. */

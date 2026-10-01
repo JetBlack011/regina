@@ -6,6 +6,7 @@
 
 #include "diagramtriangulation/thickening/thickening.h"
 
+#include <algorithm>
 #include <cassert>
 #include <optional>
 #include <unordered_map>
@@ -424,7 +425,12 @@ void buildAmbient(const std::string &pdNotation, int thickenLayers,
     row.searchSideBC = cob.baseBoundaryComponent()->index();
     row.tri = cob.getCobordism();
 
-    if (collarLayers > 0)
+    if (collarLayers > 0) {
         for (regina::Triangle<4> *t : collarBuilder.resolve())
             row.seedFaces.push_back(static_cast<int>(t->index()));
+        // In index order, never the set's (address) order: a surface's
+        // triangles are numbered from the seed's, so each component's
+        // orientation, and so where each of its curves starts, follows it.
+        std::ranges::sort(row.seedFaces);
+    }
 }

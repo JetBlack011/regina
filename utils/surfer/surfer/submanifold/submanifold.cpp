@@ -1165,8 +1165,13 @@ std::vector<std::pair<size_t, Link>> KnottedSurface::boundaryLinks() const {
         if (edgesByComponent[c].empty())
             continue;
 
+        // In index order, never the set's (address) order: the Link's
+        // components, and every name and drilling built from them, follow it.
         std::vector<const regina::Edge<3> *> edgeList(
             edgesByComponent[c].begin(), edgesByComponent[c].end());
+        std::ranges::sort(edgeList, {}, [](const regina::Edge<3> *e) {
+            return e->index();
+        });
         result.emplace_back(c, Link(bdryComponents_[c], edgeList));
     }
     return result;

@@ -57,6 +57,15 @@ add_test(NAME interrupted_outcome_test
 set_tests_properties(interrupted_outcome_test PROPERTIES
   LABELS "surfer" TIMEOUT 300 SKIP_RETURN_CODE 77)
 
+# A goal run must explore the same links whatever the heap layout (phase
+# 3.0). Needs the atlas's tables; skipped without them. See the script's
+# header.
+add_test(NAME goal_layout_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/goal_layout_test.sh
+                 $<TARGET_FILE:cascadesearch>)
+set_tests_properties(goal_layout_test PROPERTIES
+  LABELS "surfer" TIMEOUT 600 SKIP_RETURN_CODE 77)
+
 # --surface-log over two rows on one thread must not reuse the previous
 # row's (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test

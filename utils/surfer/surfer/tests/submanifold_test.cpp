@@ -402,6 +402,19 @@ AuditResult auditAllEmbeddings(const regina::Triangulation<4> &tri,
 
         if (checkBoundaryHomology) {
             for (const auto &[component, link] : embedding.boundaryLinks()) {
+                // In index order, never address order (phase 3.0): the
+                // Link's components, and every name drawn from them,
+                // follow it.
+                const auto &edges = link.edges();
+                for (size_t i = 1; i < edges.size(); ++i)
+                    if (edges[i - 1]->index() >= edges[i]->index()) {
+                        result.violations.push_back(
+                            {auditor.path(),
+                             "boundaryLinks(): component " +
+                                 std::to_string(component) +
+                                 "'s edges are not in increasing index order"});
+                        break;
+                    }
                 regina::Triangulation<3> complement = link.buildComplement();
                 regina::AbelianGroup h1 = complement.homology();
                 if (!h1.isFree(link.countComponents())) {

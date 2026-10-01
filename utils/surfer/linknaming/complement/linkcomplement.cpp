@@ -234,42 +234,44 @@ std::ostream &operator<<(std::ostream &os, const EdgeComplement &e) {
 Link::Link(const regina::Triangulation<3> &tri,
           const std::vector<const regina::Edge<3> *> &edges)
     : EdgeComplement(tri, edges) {
-    // Add the edge to the correct component
+    // Add the edge to the correct component. The walk takes its edges in
+    // index order, never in address order: each component starts from its
+    // lowest-index edge, towards that edge's vertex(1), and the components
+    // come out in the order of their lowest edges. So the components and
+    // their edge sequences are a function of the edge set alone.
     std::vector<std::vector<const regina::Edge<3> *>> edgesByComp;
-    std::unordered_set<const regina::Edge<3> *> edgeSet(edges.begin(),
-                                                        edges.end());
-    if (edgeSet.size() != edges.size()) {
+    std::vector<const regina::Edge<3> *> remaining(edges.begin(), edges.end());
+    std::ranges::sort(remaining, {}, [](const regina::Edge<3> *e) {
+        return e->index();
+    });
+    if (std::ranges::adjacent_find(remaining) != remaining.end()) {
         throw regina::InvalidArgument(
             "Link::Link: Duplicate edges in link");
     }
 
     const regina::Vertex<3> *currVert;
     bool newComponent = true;
-    while (!edgeSet.empty()) {
+    while (!remaining.empty()) {
         if (newComponent) {
-            const auto edge = *edgeSet.begin();
+            const auto edge = remaining.front();
             edgesByComp.push_back({edge});
             currVert = edge->vertex(1);
-            edgeSet.erase(edge);
+            remaining.erase(remaining.begin());
         }
 
         newComponent = true;
-        for (const regina::Edge<3> *edge : edgeSet) {
+        for (auto it = remaining.begin(); it != remaining.end(); ++it) {
+            const regina::Edge<3> *edge = *it;
             if (edge->vertex(0) == currVert ||
                 edge->vertex(1) == currVert) {
                 edgesByComp.back().push_back(edge);
                 currVert = edge->vertex(0) == currVert ? edge->vertex(1)
                                                        : edge->vertex(0);
-                edgeSet.erase(edge);
+                remaining.erase(it);
                 newComponent = false;
                 break;
             }
         }
-    }
-
-    if (edgesByComp.size() == 1) {
-        comps_.emplace_back(tri, edges);
-        return;
     }
 
     for (const auto &compEdges : edgesByComp) {
