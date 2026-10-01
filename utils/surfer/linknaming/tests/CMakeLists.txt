@@ -8,6 +8,7 @@ set(LINKNAMING_TESTS
   census_test
   meridians_test
   linknamer_test
+  simplification_test
 )
 
 foreach(TEST ${LINKNAMING_TESTS})
