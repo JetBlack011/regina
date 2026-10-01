@@ -81,7 +81,7 @@
 #include "diagramtriangulation/fromdiagram.h"
 #include "diagramtriangulation/pdcode.h"
 #include "cobound/json.h"
-#include "surfer/report/atomicwrite.h"
+#include "cobound/cobordisms/pairsigner.h"
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/submanifold/vertexlinks.h"
@@ -184,48 +184,18 @@ int main(int argc, char **argv) {
 
     // Pair signatures (--pairsig): the thickening's own part is computed once,
     // at the first surface, as pairSigsOf() does.
-    std::optional<PairSigContext<4, 2>> sigContext;
-    // With --sig-cache, the ambient part is kept per thickening, named by its
-    // digest: <DIR>/<build>.detail holds its isoSig and the isomorphism
-    // (tight encoding) onto the triangulation that sig decodes to. A kept
-    // detail is used only after checking that its isomorphism carries THIS
-    // thickening onto exactly that triangulation (PairSigContext::Detail);
-    // anything else is recomputed and rewritten.
+    std::unique_ptr<PairSigContext<4, 2>> sigContext;
+    // With --sig-cache, the ambient part is kept per thickening in the one
+    // context cache (pairSigContextFor(): PairSigContext::cached(), a
+    // .pairsigctx file per ambient, checked on every use). Before phase 3
+    // this tool kept its own <build>.detail files instead; those are no
+    // longer read, which costs a rebuild once per thickening.
     auto makeContext = [&] {
-        using Ctx = PairSigContext<4, 2>;
-        const regina::Triangulation<4> &t = redraw.thickening();
-        const std::string path =
-            sigCache.empty() ? "" : sigCache + "/" + redraw.buildChecksum() + ".detail";
-        if (!path.empty()) {
-            std::ifstream in(path);
-            std::string sig, iso;
-            if (std::getline(in, sig) && std::getline(in, iso)) {
-                try {
-                    Ctx::Detail d{sig, regina::Isomorphism<4>::tightDecoding(iso)};
-                    if (d.second.size() == t.size() &&
-                        d.second(t) == regina::Triangulation<4>::fromSig(sig)) {
-                        sigContext.emplace(t, std::move(d));
-                        std::cerr << "sig-cache hit " << redraw.buildChecksum() << "\n";
-                        return;
-                    }
-                } catch (const std::exception &) {
-                }
-                std::cerr << "sig-cache entry rejected " << redraw.buildChecksum() << "\n";
-            }
-        }
-        Ctx::Detail d = Ctx::detailFor(t);
-        if (!path.empty()) {
-            // Written whole (report::atomicWrite): a reader never sees half
-            // an entry. Best effort, as a cache: a failure only costs a rebuild.
-            try {
-                report::atomicWrite(path, [&](std::ostream &out) {
-                    out << d.first << "\n" << d.second.tightEncoding() << "\n";
-                });
-            } catch (const std::exception &) {
-            }
-            std::cerr << "sig-cache miss " << redraw.buildChecksum() << "\n";
-        }
-        sigContext.emplace(t, std::move(d));
+        bool loaded = false;
+        sigContext = cascade::pairSigContextFor(redraw.thickening(), sigCache, 1, &loaded);
+        if (!sigCache.empty())
+            std::cerr << (loaded ? "sig-cache hit " : "sig-cache miss ")
+                      << redraw.buildChecksum() << "\n";
     };
     std::vector<int> currentFaces;
 

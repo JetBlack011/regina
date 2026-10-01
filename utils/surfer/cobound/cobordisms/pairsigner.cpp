@@ -23,6 +23,16 @@ std::string pairSigOf(const regina::Triangulation<4> &thickening,
   return pairSig<4, 2>(thickening, faces);
 }
 
+std::unique_ptr<PairSigContext<4, 2>>
+pairSigContextFor(const regina::Triangulation<4> &thickening, const std::string &cacheDir,
+                  unsigned threads, bool *loaded) {
+  if (cacheDir.empty()) {
+    if (loaded) *loaded = false;
+    return std::make_unique<PairSigContext<4, 2>>(thickening, threads);
+  }
+  return PairSigContext<4, 2>::cached(thickening, cacheDir, loaded, threads);
+}
+
 std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
                                     unsigned threads, const std::string &cacheDir) {
   std::map<std::pair<std::string, int>, std::vector<size_t>> byRow;
@@ -47,8 +57,7 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
       rowsearch::RowBuild rb;
       rowsearch::buildRow(row.first, row.second, row.second, /*useCone=*/false, rb);
       const std::unique_ptr<PairSigContext<4, 2>> context =
-          cacheDir.empty() ? std::make_unique<PairSigContext<4, 2>>(rb.tri, inner)
-                           : PairSigContext<4, 2>::cached(rb.tri, cacheDir, nullptr, inner);
+          pairSigContextFor(rb.tri, cacheDir, inner);
       for (size_t i : indices) out[i] = context->sig(requests[i].faces);
     } catch (const std::exception &e) {
       std::lock_guard<std::mutex> lock(errorMutex);
