@@ -196,12 +196,14 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
     // The surface as a plain 2-triangulation: one triangle per face, glued
     // along the edges of W two faces share (an embedded surface has no edge
     // in three).
+    // Keyed by edge index, so the gluings are made in an order that depends
+    // on the surface alone, never on addresses.
     regina::Triangulation<2> surf;
-    std::unordered_map<const regina::Edge<4> *, std::vector<std::pair<size_t, int>>> byEdge;
+    std::map<size_t, std::vector<std::pair<size_t, int>>> byEdge;
     for (size_t k = 0; k < carried.size(); ++k) {
         surf.newSimplex();
         const regina::Triangle<4> *t = W.triangle(carried[k]);
-        for (int i = 0; i < 3; ++i) byEdge[t->edge(i)].push_back({k, i});
+        for (int i = 0; i < 3; ++i) byEdge[t->edge(i)->index()].push_back({k, i});
     }
     for (const auto &[edge, uses] : byEdge) {
         if (uses.size() == 1) continue;

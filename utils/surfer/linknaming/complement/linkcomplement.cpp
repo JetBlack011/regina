@@ -7,8 +7,8 @@
 #include "linknaming/complement/linkcomplement.h"
 
 #include <algorithm>
+#include <map>
 #include <set>
-#include <unordered_set>
 
 #include <triangulation/dim3/homologicaldata.h>
 
@@ -19,16 +19,41 @@ EdgeComplement::EdgeComplement(
     const std::vector<const regina::Edge<3> *> &edges)
     : tri_(&tri), edges_(edges) {}
 
-std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-EdgeComplement::tetEdges_() const {
-    // Built in the order the constructor used to, so the drilling loops
-    // below pinch in exactly the order they always did.
-    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>> map;
+std::map<size_t, std::set<int>> EdgeComplement::tetEdges_() const {
+    // Keyed by tetrahedron INDEX, never by address: the drilling loops below
+    // take the lowest-index tetrahedron's lowest local edge next, so they
+    // pinch in an order that depends on the edges alone.
+    std::map<size_t, std::set<int>> map;
     for (const regina::Edge<3> *edge : edges_)
         for (const regina::EdgeEmbedding<3> &emb : edge->embeddings())
-            map[emb.tetrahedron()].insert(emb.face());
+            map[emb.tetrahedron()->index()].insert(emb.face());
     return map;
 }
+
+namespace {
+
+// Pinches every edge `tetEdges` lists (tetrahedron index -> local edges) out
+// of `complement`, lowest tetrahedron first. pinchEdge() only ever appends
+// tetrahedra, never removes or renumbers one, so the indices stay valid.
+void pinchAll(regina::Triangulation<3> &complement,
+              std::map<size_t, std::set<int>> tetEdges) {
+    while (!tetEdges.empty()) {
+        auto &[tet, edges] = *tetEdges.begin();
+        regina::Edge<3> *e = complement.tetrahedron(tet)->edge(*edges.begin());
+
+        for (const regina::EdgeEmbedding<3> &emb : e->embeddings()) {
+            auto it = tetEdges.find(emb.tetrahedron()->index());
+            if (it == tetEdges.end())
+                continue;
+            it->second.erase(emb.face());
+            if (it->second.empty())
+                tetEdges.erase(it);
+        }
+        complement.pinchEdge(e);
+    }
+}
+
+} // namespace
 
 EdgeComplement &EdgeComplement::operator=(const EdgeComplement &other) {
     if (this != &other) {
@@ -40,27 +65,7 @@ EdgeComplement &EdgeComplement::operator=(const EdgeComplement &other) {
 
 regina::Triangulation<3> EdgeComplement::buildComplement() const {
     regina::Triangulation<3> complement(*tri_);
-    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-        complementTetEdges;
-
-    for (const auto &[tet, edges] : tetEdges_()) {
-        complementTetEdges.emplace(complement.tetrahedron(tet->index()),
-                                   edges);
-    }
-
-    while (!complementTetEdges.empty()) {
-        auto &[tet, edges] = *complementTetEdges.begin();
-        regina::Edge<3> *e = tet->edge(*edges.begin());
-
-        for (const regina::EdgeEmbedding<3> &emb : e->embeddings()) {
-            regina::Tetrahedron<3> *embTet = emb.tetrahedron();
-            complementTetEdges[embTet].erase(emb.face());
-            if (complementTetEdges[embTet].empty()) {
-                complementTetEdges.erase(embTet);
-            }
-        }
-        complement.pinchEdge(e);
-    }
+    pinchAll(complement, tetEdges_());
 
     // complement.idealToFinite();
     if (simplifyComplements.load(std::memory_order_relaxed))
@@ -85,29 +90,10 @@ EdgeComplement::drillTrackingEdges_(
             complement.tetrahedron(emb.tetrahedron()->index()), emb.edge());
     }
 
-    // Drill this object's own edges_ -- identical loop to
-    // buildComplement(), just without simplify(): homology doesn't need
-    // simplification, and simplifying would make tracking trackedDescs
-    // through it intractable.
-    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-        complementTetEdges;
-    for (const auto &[tet, edges] : tetEdges_())
-        complementTetEdges.emplace(complement.tetrahedron(tet->index()),
-                                   edges);
-
-    while (!complementTetEdges.empty()) {
-        auto &[tet, edges] = *complementTetEdges.begin();
-        regina::Edge<3> *e = tet->edge(*edges.begin());
-
-        for (const regina::EdgeEmbedding<3> &emb : e->embeddings()) {
-            regina::Tetrahedron<3> *embTet = emb.tetrahedron();
-            complementTetEdges[embTet].erase(emb.face());
-            if (complementTetEdges[embTet].empty()) {
-                complementTetEdges.erase(embTet);
-            }
-        }
-        complement.pinchEdge(e);
-    }
+    // Drill this object's own edges_ -- as buildComplement() does, just
+    // without simplify(): homology doesn't need simplification, and
+    // simplifying would make tracking trackedDescs through it intractable.
+    pinchAll(complement, tetEdges_());
 
     std::vector<const regina::Edge<3> *> tracked;
     tracked.reserve(trackedDescs.size());

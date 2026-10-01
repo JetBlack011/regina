@@ -74,6 +74,7 @@
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
+#include <utilities/randutils.h>
 
 #include <map>
 
@@ -143,6 +144,11 @@ int runSig() {
 
         for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
             try {
+                // simplify() makes random moves from Regina's one
+                // process-wide generator: reseeded per record, so each
+                // answer depends on its own input line alone, not on the
+                // records before it.
+                regina::RandomEngine::reseedWithDefault();
                 regina::Triangulation<3> complement = link.buildComplement();
                 complement.simplify();
                 std::cout << "SIG " << id << ' ' << bc << ' '

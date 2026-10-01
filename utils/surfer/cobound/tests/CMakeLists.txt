@@ -66,6 +66,14 @@ add_test(NAME goal_layout_test
 set_tests_properties(goal_layout_test PROPERTIES
   LABELS "surfer" TIMEOUT 600 SKIP_RETURN_CODE 77)
 
+# peripheral_slopes answers each input line on its own: the same records in
+# the reverse order give the same output (phase 3.0). See the script's header.
+add_test(NAME meridians_order_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/meridians_order_test.sh
+                 $<TARGET_FILE:peripheral_slopes> ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(meridians_order_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # --surface-log over two rows on one thread must not reuse the previous
 # row's (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test

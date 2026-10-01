@@ -9,7 +9,9 @@
 #define LINKCOMPLEMENT_H
 
 #include <atomic>
+#include <map>
 #include <ostream>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -64,9 +66,9 @@ class EdgeComplement {
      * and its Knots for every surface's boundary, and almost none is ever
      * drilled (2026-09-29: 17 of 100k on a production row), so building
      * it eagerly was ~6% of a row's CPU, mostly hash-map allocation.
+     * Keyed by tetrahedron index, so drilling never follows addresses.
      */
-    std::unordered_map<regina::Tetrahedron<3> *, std::unordered_set<size_t>>
-    tetEdges_() const;
+    std::map<size_t, std::set<int>> tetEdges_() const;
 
   public:
     /**
