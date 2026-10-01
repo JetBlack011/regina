@@ -22,7 +22,7 @@
 #include <triangulation/example4.h>
 
 #include "surfer/pairsig/parallelisosig.h"
-#include "cobound/search/rowsearch.h"
+#include "diagramtriangulation/thickening/thickening.h"
 
 static int passed = 0, failed_count = 0;
 
@@ -79,8 +79,8 @@ int main() {
     // pair signature is taken over, 384 pentachora) at a few, since each
     // serial isoSigDetail() of one takes seconds and ctest allows 60.
     for (const auto &[name, pd] : rows) {
-        rowsearch::RowBuild rb;
-        rowsearch::buildRow(pd, 2, 2, false, rb);
+        ThickenedLink rb;
+        buildAmbient(pd, 2, 2, false, rb);
         checkWithRelabellings(name + " T", rb.link.tri);
         if (name == "L2a1{0}")
             checkWithRelabellings(name + " thickening", rb.tri, {3, 8}, 1);

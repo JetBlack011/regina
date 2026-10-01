@@ -30,7 +30,9 @@
 #include <vector>
 
 #include "surfer/pairsig/pairsig.h"
-#include "cobound/search/rowsearch.h"
+#include "cobound/search/incoming.h"
+#include "cobound/search/preconditions.h"
+#include "cobound/search/search.h"
 #include "surfer/enumeration/surfacesearch.h"
 
 using namespace rowsearch;

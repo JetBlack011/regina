@@ -3,7 +3,7 @@ set(TESTS
   cobordismkey_test
   database_test
   rowmap_test
-  rowsearch_test
+  preconditions_test
   farsidenaming_test
 )
 
@@ -21,7 +21,7 @@ endforeach()
 
 # Two exhaustive cap-3 searches (the canaries' 3_1 and L2a1{0}) and a few
 # pair signatures; ~25 s on an idle machine.
-set_tests_properties(rowsearch_test PROPERTIES TIMEOUT 120)
+set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 
 # The cascade's tests: seconds each. See ../README.md, "Assumptions and their
 # tests", for what each pins.

@@ -12,6 +12,8 @@
 #define COBORDISM_BUILDER_H
 
 #include <cassert>
+#include <optional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -20,6 +22,7 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/prism.h"
+#include "diagramtriangulation/fromdiagram.h"
 #include "diagramtriangulation/todiagram.h"
 
 /*! \file utils/surfer/diagramtriangulation/thickening/thickening.h
@@ -259,5 +262,36 @@ class OutgoingMap {
     std::unordered_map<size_t, size_t> vertexToT_; /**< boundary vertex -> T vertex */
     std::vector<size_t> tTail_;                    /**< T edge -> its vertex(0) */
 };
+
+/**
+ * A link's diagram triangulated -- knotbuilder's T, with L's edges --
+ * thickened into S^3 x I, and seeded with the collar L x [0, collarLayers]:
+ * what a search runs in. Filled in place by buildAmbient() and never moved:
+ * a namer and a search built from it hold pointers into `link.tri` and
+ * `cob`.
+ */
+struct ThickenedLink {
+    ThickenedLink() = default;
+    ThickenedLink(const ThickenedLink &) = delete;
+    ThickenedLink &operator=(const ThickenedLink &) = delete;
+
+    knotbuilder::PDCode pdcode;
+    knotbuilder::TriangulationWithLink link; /**< T, and L's edges in it. */
+    std::optional<CobordismBuilder<3>> cob;
+    regina::Triangulation<4> tri;  /**< The search's ambient. */
+    std::vector<int> seedFaces;    /**< The collar; empty without one. */
+    size_t searchSideBC = 0;       /**< The incoming boundary, T x {0}. */
+    int componentCount = 1;
+    /**< The closed curves L's edges form, counted by walking them. */
+};
+
+/**
+ * Builds `out` for PD code `pdNotation`: T, `thickenLayers` thickenings with
+ * a collar through the first `collarLayers`, and an optional cone.
+ *
+ * \throws regina::InvalidArgument for an unparseable or unbuildable PD code.
+ */
+void buildAmbient(const std::string &pdNotation, int thickenLayers,
+                  int collarLayers, bool useCone, ThickenedLink &out);
 
 #endif // COBORDISM_BUILDER_H

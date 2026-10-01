@@ -42,7 +42,6 @@
 #include "surfer/submanifold/submanifold.h"
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
-#include "cobound/search/rowsearch.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/enumeration/surfacesearch.h"
 

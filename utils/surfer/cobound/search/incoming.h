@@ -7,11 +7,15 @@
 #ifndef SURFER_COBOUND_INCOMING_H
 #define SURFER_COBOUND_INCOMING_H
 
+#include <optional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
+
+#include "diagramtriangulation/thickening/thickening.h"
 
 /*! \file utils/surfer/cobound/search/incoming.h
  *  \brief The incoming link of a search -- the row's own link L, on the
@@ -86,5 +90,42 @@ std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
                                     const std::vector<int> &faces,
                                     size_t bcIndex);
 } // namespace farside
+
+
+namespace rowsearch {
+
+/**
+ * A row's ambient S^3 x I and its seed (ThickenedLink), with the row map.
+ * Filled in place by buildRow() and never moved: a DiagramNamer and a
+ * SurfaceSearch built from it hold pointers into `link.tri` and `cob`.
+ */
+struct RowBuild : ThickenedLink {
+    std::optional<cobordismgraph::RowOrientation> orientation;
+    /**< The row map: L's edges and PD orientation in search-side terms. */
+    std::vector<size_t> searchEdges;
+    /**< The row's own link on the search side, as sorted edge indices of that
+         boundary component's built triangulation. Seeded, the seed's own
+         edges there (L x {0}); unseeded, the image of L under the row map,
+         which splitBoundary() filters on. */
+};
+
+/**
+ * Builds `row` for PD code `pdNotation`: buildAmbient(), then orientRow().
+ *
+ * \throws regina::InvalidArgument as either does.
+ */
+void buildRow(const std::string &pdNotation, int thickenLayers,
+              int collarLayers, bool useCone, RowBuild &row);
+
+/**
+ * The row map for an ambient built by buildAmbient(). Checks, once, that the
+ * search side holds exactly L's edges in L's number of components.
+ *
+ * \throws regina::InvalidArgument for a row map that cannot be built or
+ * fails those checks.
+ */
+void orientRow(RowBuild &row);
+
+} // namespace rowsearch
 
 #endif // SURFER_COBOUND_INCOMING_H

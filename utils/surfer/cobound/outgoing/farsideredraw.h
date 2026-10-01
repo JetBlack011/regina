@@ -37,7 +37,7 @@
 #include "cobound/outgoing/outgoinglink.h"
 #include "diagramtriangulation/todiagram.h"
 #include "diagramtriangulation/fromdiagram.h"
-#include "cobound/search/rowsearch.h"
+#include "cobound/search/incoming.h"
 #include "surfer/submanifold/skeleton.h"
 
 namespace farside {

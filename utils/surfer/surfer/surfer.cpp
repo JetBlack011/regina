@@ -23,7 +23,7 @@
 #include "surfer/report/csvwriter.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
-#include "cobound/search/rowsearch.h"
+#include "diagramtriangulation/thickening/thickening.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/complementcache.h"
@@ -1037,10 +1037,9 @@ int main(int argc, char *argv[]) {
   if (havePD) {
     // The same ambient verifyslicegenus searches a row in, without its row
     // map: surfer reports what it finds and judges nothing against L.
-    rowsearch::RowBuild row;
+    ThickenedLink row;
     try {
-      rowsearch::buildAmbient(pdCode, thickenLayers, collarLayers, useCone,
-                              row);
+      buildAmbient(pdCode, thickenLayers, collarLayers, useCone, row);
     } catch (const regina::InvalidArgument &e) {
       usage(argv[0], std::string("Invalid PD code: ") + e.what());
     }

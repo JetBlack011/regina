@@ -165,3 +165,39 @@ std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
 }
 
 } // namespace farside
+
+namespace rowsearch {
+
+void orientRow(RowBuild &row) {
+    const auto &edges2 = row.link.edges;
+    const auto &reversed2 = row.link.reversed;
+    // The seed's own edges on the search side: exactly L x {0}.
+    if (!row.seedFaces.empty())
+        row.searchEdges = farside::boundaryEdgesOf(row.tri, row.seedFaces,
+                                                   row.searchSideBC);
+    row.orientation = cobordismgraph::buildRowOrientation(
+        edges2, reversed2, row.tri.boundaryComponent(row.searchSideBC)->build(),
+        row.seedFaces.empty() ? nullptr : &row.searchEdges);
+    if (row.seedFaces.empty())
+        row.searchEdges = row.orientation->edges;
+
+    // Setup-time checks on the row's own link, in place of any per-surface
+    // ones: the search side is fixed from here on.
+    if (row.searchEdges.size() != edges2.size())
+        throw regina::InvalidArgument(
+            "the search side holds " + std::to_string(row.searchEdges.size()) +
+            " link edges, the diagram " + std::to_string(edges2.size()));
+    if (row.orientation->components !=
+        static_cast<size_t>(row.componentCount))
+        throw regina::InvalidArgument(
+            "the search-side link has " +
+            std::to_string(row.orientation->components) +
+            " components, the diagram " + std::to_string(row.componentCount));
+}
+
+void buildRow(const std::string &pdNotation, int thickenLayers,
+              int collarLayers, bool useCone, RowBuild &row) {
+    buildAmbient(pdNotation, thickenLayers, collarLayers, useCone, row);
+    orientRow(row);
+}
+} // namespace rowsearch

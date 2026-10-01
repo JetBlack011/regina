@@ -24,7 +24,7 @@ add_library(surfer_common STATIC
   linknaming/complement/complementcache.cpp linknaming/complement/unlinknaming.cpp
   surfer/enumeration/namecache.cpp
   surfer/enumeration/inducedsubgraphs.cpp diagramtriangulation/thickening/collar.cpp
-  cobound/search/rowsearch.cpp
+  cobound/search/search.cpp
   surfer/submanifold/rollbackunionfind.cpp surfer/submanifold/vertexlinks.cpp
   surfer/pairsig/pairsig.cpp surfer/pairsig/sha1.cpp surfer/report/csvwriter.cpp cobound/cobordisms/cobordismkey.cpp
   cobound/cobordisms/database.cpp surfer/enumeration/searchstrategy.cpp

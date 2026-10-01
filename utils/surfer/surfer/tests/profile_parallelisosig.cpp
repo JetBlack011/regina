@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "surfer/pairsig/parallelisosig.h"
-#include "cobound/search/rowsearch.h"
+#include "diagramtriangulation/thickening/thickening.h"
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -26,8 +26,8 @@ int main(int argc, char **argv) {
     for (int i = 2; i < argc; ++i) counts.push_back(std::strtoul(argv[i], nullptr, 10));
     if (counts.empty()) counts = {1, 2, 4, 6, 8, 12};
 
-    rowsearch::RowBuild rb;
-    rowsearch::buildRow(argv[1], 2, 2, false, rb);
+    ThickenedLink rb;
+    buildAmbient(argv[1], 2, 2, false, rb);
     std::cout << "thickening: " << rb.tri.size() << " pentachora\n";
 
     std::string reference;

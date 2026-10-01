@@ -9,6 +9,9 @@
 #include <cassert>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
+
+#include "diagramtriangulation/thickening/collar.h"
 
 template <int dim>
 CobordismBuilder<dim>::CobordismBuilder(const regina::Triangulation<dim> &tri)
@@ -345,4 +348,83 @@ knotbuilder::EdgeCycle OutgoingMap::carryCycle(
         tail = head;
     }
     return carry(curve);
+}
+
+namespace {
+
+// How many closed curves a link's edges form: the connected components of
+// the graph they span, found by walking from edge to edge through shared
+// vertices. Every vertex of a link meets exactly two of its edges, so each
+// component is one closed curve -- the count Link::countComponents()
+// (linkcomplement.h) gives, without building the edge-set Link. A repeated
+// edge is refused, as that Link refuses it.
+int countLinkComponents(const std::vector<const regina::Edge<3> *> &edges) {
+    std::unordered_map<const regina::Vertex<3> *, std::vector<size_t>> at;
+    std::unordered_set<const regina::Edge<3> *> seen;
+    for (size_t i = 0; i < edges.size(); ++i) {
+        if (!seen.insert(edges[i]).second)
+            throw regina::InvalidArgument(
+                "buildAmbient(): a repeated edge in the link");
+        at[edges[i]->vertex(0)].push_back(i);
+        at[edges[i]->vertex(1)].push_back(i);
+    }
+    std::vector<bool> walked(edges.size(), false);
+    int components = 0;
+    for (size_t start = 0; start < edges.size(); ++start) {
+        if (walked[start])
+            continue;
+        ++components;
+        walked[start] = true;
+        std::vector<size_t> todo{start};
+        while (!todo.empty()) {
+            const regina::Edge<3> *e = edges[todo.back()];
+            todo.pop_back();
+            for (int end = 0; end < 2; ++end)
+                for (size_t j : at[e->vertex(end)])
+                    if (!walked[j]) {
+                        walked[j] = true;
+                        todo.push_back(j);
+                    }
+        }
+    }
+    return components;
+}
+
+} // namespace
+
+void buildAmbient(const std::string &pdNotation, int thickenLayers,
+                  int collarLayers, bool useCone, ThickenedLink &row) {
+    row.pdcode = knotbuilder::parsePDCode(pdNotation);
+    row.link = knotbuilder::buildLink(row.pdcode);
+
+    auto &[t2, edges2, reversed2] = row.link;
+    row.componentCount = countLinkComponents(edges2);
+
+    std::vector<int> edgeIndices;
+    edgeIndices.reserve(edges2.size());
+    for (const regina::Edge<3> *e : edges2)
+        edgeIndices.push_back(static_cast<int>(e->index()));
+
+    // Indices are preserved across CobordismBuilder's internal copy of t2
+    // (see CobordismBuilder::baseTriangulation()), so edgeIndices still name
+    // L's edges in the cobordism's base. The collar must be extended on
+    // every layer it is meant to cover: CollarBuilder::addLayer() captures
+    // only the most recently built layer's prisms.
+    row.cob.emplace(t2);
+    CobordismBuilder<3> &cob = *row.cob;
+    CollarBuilder collarBuilder(edgeIndices);
+    for (int i = 0; i < thickenLayers; ++i) {
+        cob.thicken();
+        if (i < collarLayers)
+            collarBuilder.addLayer(cob);
+    }
+    if (useCone)
+        cob.cone();
+
+    row.searchSideBC = cob.baseBoundaryComponent()->index();
+    row.tri = cob.getCobordism();
+
+    if (collarLayers > 0)
+        for (regina::Triangle<4> *t : collarBuilder.resolve())
+            row.seedFaces.push_back(static_cast<int>(t->index()));
 }

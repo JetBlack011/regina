@@ -49,7 +49,7 @@
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/complementcache.h"
 #include "linknaming/complement/unlinknaming.h"
-#include "cobound/search/rowsearch.h"
+#include "cobound/search/search.h"
 
 using namespace cobordismgraph;
 

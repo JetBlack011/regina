@@ -7,8 +7,10 @@
 #ifndef SURFER_COBOUND_PRECONDITIONS_H
 #define SURFER_COBOUND_PRECONDITIONS_H
 
+#include <atomic>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <triangulation/dim3.h>
@@ -106,5 +108,113 @@ OrientationVerdict classifyRowOrientation(
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
 } // namespace cobordismgraph
+
+namespace farside {
+class DiagramNamer;
+}
+
+namespace rowsearch {
+
+/** Why a surface does or does not witness anything about its row. */
+enum class Gate {
+    accepted,
+    nonOrientable,       /**< Impossible: orientableOnly prunes these. */
+    unnamedSide,         /**< Impossible: a far side with no name at all. */
+    searchSideElsewhere, /**< Unseeded only: another link on the search side. */
+    searchSideBroken,    /**< Impossible when seeded. */
+    orientation,         /**< Witnesses another oriented variant of the row. */
+    orientationBroken,   /**< Impossible: an incoherent or foreign curve. */
+    multiFarSide,        /**< Impossible: S^3 x I has two boundary components. */
+};
+
+/** The name --rejection-sample-log records a rejection under. */
+const char *gateReason(Gate gate);
+
+/** A found surface, judged against its row by gateSurface(). */
+struct GatedSurface {
+    Gate gate = Gate::accepted;
+    cobordismgraph::BoundarySplit split;
+    /** Captured only once the search side has passed (so from the
+     *  orientation gate on). Per ambient boundary component, its oriented
+     *  curves, each surface component oriented independently. */
+    std::vector<std::pair<size_t, std::vector<OrientedCurve>>> orientedLinks;
+    /** Which surface component each boundary edge lies on. */
+    std::map<const regina::Edge<3> *, size_t> surfaceOf;
+    std::vector<OrientedCurve> searchSideCurves;
+
+    bool accepted() const { return gate == Gate::accepted; }
+};
+
+/**
+ * Judges `info` against `row`, in this order: orientable; the boundary split
+ * (search side by geometry, never by name); the search side holding the
+ * row's component count; the row's own orientation, per surface component
+ * (cobordismgraph::classifyRowOrientation()); at most one far side.
+ */
+GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
+
+/**
+ * The name a witness records for an accepted surface's one far side: the
+ * namer's name, normalized (identify() decorates a translated census hit as
+ * "4_1 (m004 : #1)" while the tables call it "4_1"). With exact names on
+ * (`namer->exactNamesOn()`), a multi-component far side takes its exact
+ * oriented name when there is one: two surfaces whose far sides are
+ * different orientation variants of one link must be two witnesses.
+ *
+ * \pre `g` is accepted with exactly one far side.
+ */
+std::string farSideName(const GatedSurface &g, const RowBuild &row,
+                        const farside::DiagramNamer *namer);
+
+/**
+ * Every surface the drain describes lands in exactly one of these, and at
+ * row end they must add up to what the search accepted. A surface can never
+ * vanish between the search and the witness record without being counted.
+ */
+struct RowAccounting {
+    std::atomic<long long> described{0};
+    std::atomic<long long> recorded{0};
+    std::atomic<long long> duplicate{0};
+    std::atomic<long long> orientation{0};         // another oriented variant
+    std::atomic<long long> searchSideElsewhere{0}; // unseeded only
+    // Impossible for a correct build; any nonzero count halts the run.
+    std::atomic<long long> nonOrientable{0};
+    std::atomic<long long> searchSideBroken{0};
+    std::atomic<long long> orientationBroken{0};
+    std::atomic<long long> multiFarSide{0};
+    std::atomic<long long> unnamedSide{0};
+
+    /** Counts one surface rejected by `gate` (not Gate::accepted). */
+    void reject(Gate gate);
+
+    long long impossible() const {
+        return nonOrientable + searchSideBroken + orientationBroken +
+               multiFarSide + unnamedSide;
+    }
+    long long bucketed() const {
+        return recorded + duplicate + orientation + searchSideElsewhere +
+               impossible();
+    }
+    /** Surfaces were described, yet none reached the witness record. That
+     *  can be genuine (every one witnesses another oriented variant), but it
+     *  is also what a broken gate looks like, so it licenses no negative. */
+    bool nothingExamined() const {
+        return described > 0 && recorded + duplicate == 0;
+    }
+
+    /**
+     * Why this row's surfaces do not add up, or empty if they do. Every
+     * surface the search accepted must have been described by the drain
+     * (unless the drain was deliberately cut short), and every described
+     * surface must sit in exactly one bucket, none of them impossible.
+     */
+    std::string failure(long long accepted, long long rebuildFailed,
+                        bool drainSkipped) const;
+
+    /** The body of the `accounting:` line tools/orchestrate/dispatch.py
+     *  parses (RE_ACCOUNTING): "accepted N, described N, ..., ok". */
+    std::string summary(long long accepted, bool drainSkipped) const;
+};
+} // namespace rowsearch
 
 #endif // SURFER_COBOUND_PRECONDITIONS_H
