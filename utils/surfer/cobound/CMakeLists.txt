@@ -2,7 +2,7 @@
 # part's (see ../CMakeLists.txt for the dependency rule), then the drivers
 # and the tests.
 add_library(cobound_lib STATIC
-  search/search.cpp
+  search/search.cpp search/searchreport.cpp
   cobordisms/cobordismkey.cpp cobordisms/database.cpp
   solver/literature.cpp solver/solver.cpp
   cobordisms/cobordism.cpp search/incoming.cpp search/preconditions.cpp
