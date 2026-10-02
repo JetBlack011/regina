@@ -60,16 +60,6 @@ using namespace cobordismgraph;
 
 namespace {
 
-// The search's report: its progress block, per-search files and lines.
-using rowsearch::appendSelfIntersectionCensus;
-using rowsearch::appendSurfaceStats;
-using rowsearch::printBoundaryProgress;
-using rowsearch::printProgress;
-using rowsearch::progressBlock;
-using rowsearch::REJECTION_SAMPLES_PER_REASON;
-using rowsearch::SurfaceStatsKey;
-using rowsearch::SurfaceStatsTally;
-
 // ─────────────────────────────────────────────────────────────────────────
 // Fatal-bug detection: a found surface implying a genus BELOW an already-
 // established true lower bound is a mathematical impossibility, not a data
@@ -2123,26 +2113,29 @@ int main(int argc, char *argv[]) {
     return contradictions;
   };
 
-  // Cost of the pair signatures each row's signer computes; see the per-row
-  // identification line.
-  std::atomic<long long> pairSigCount{0};
-  std::atomic<long long> pairSigMillis{0};
-  // The current row's signer (WitnessSigner), while its search runs.
-  cascade::WitnessSigner *activeSigner = nullptr;
-  // Records one witness if it's genuinely new, returning whether it was.
-  // The dedup matters a lot in --harvest mode: a single search reports
-  // thousands of near-identical surfaces, and signing each would dominate
-  // the run. The row's signer takes the witness's faces and signs it off
-  // this (drain) thread; its identity is claimed now, so the dedup stays
-  // exact (RecordedWitnesses::claim()).
-  auto recordWitness = [&](cobordismgraph::Witness w,
-                           const std::function<std::vector<int>()> &captureFaces)
-      -> bool {
-    if (!recorded.claim(w))
-      return false;
-    activeSigner->add(std::move(w), captureFaces());
-    return true;
-  };
+  // How this run's searches differ from the cascade's: one field per
+  // divergence the plan removes in phase 4(b) (search/search.h, SearchPolicy).
+  cascade::SearchPolicy policy;
+  policy.frontierNeedsExamined = true;
+  policy.failures = cascade::SearchPolicy::Failures::halt;
+  policy.censusWriteAfterSearch = censusUpdates;
+  policy.stopAtConstructive = !harvest;
+  policy.judgeInSearch = true;
+  policy.signing = cascade::SearchPolicy::Signing::duringSearch;
+  policy.skipSettledRows = !researchSettled;
+
+  // Every row's search shape, but for its boundary condition (per row,
+  // below).
+  cascade::SearchShape searchShape;
+  searchShape.iddfsIterations = iddfsIterations;
+  searchShape.iddfsStep = iddfsStep;
+  searchShape.iddfsStart = iddfsStart;
+  searchShape.iddfsFinalThreads = iddfsFinalThreads;
+  searchShape.maxFaces = maxFaces;
+  searchShape.rootBudgetStart = rootBudgetStart;
+  searchShape.rootBudgetGrowth = rootBudgetGrowth;
+  searchShape.resolveUnlinked = resolveUnlinked;
+  searchShape.limits = limits;
 
   const auto sweepStart = std::chrono::steady_clock::now();
   size_t processedThisRun = 0;
@@ -2167,7 +2160,7 @@ int main(int argc, char *argv[]) {
     // established.
     {
       auto it = outputRows.find(row.name);
-      if (!researchSettled && it != outputRows.end() &&
+      if (policy.skipSettledRows && it != outputRows.end() &&
           (it->second.status == "verified" || it->second.status == "pinned")) {
         continue;
       }
@@ -2175,7 +2168,7 @@ int main(int argc, char *argv[]) {
       // this budget -- it would enumerate exactly the same surfaces and
       // learn exactly nothing. A bigger --max-faces does make it worth
       // redoing, which is what turns a re-run into progressive deepening.
-      if (!researchSettled && it != outputRows.end() &&
+      if (policy.skipSettledRows && it != outputRows.end() &&
           it->second.searchOutcome == "exhausted" && maxFaces &&
           it->second.searchedFaces >= *maxFaces) {
         continue;
@@ -2186,11 +2179,8 @@ int main(int argc, char *argv[]) {
               << ", " << row.hi << "], " << row.crossings
               << " crossings)...\n";
 
-    // Declared before namer and eOpt, which hold pointers into it.
+    // Declared before the search, which holds pointers into it.
     rowsearch::RowBuild rb;
-    const farside::ComplementNamer complementNamer{};
-    std::optional<farside::DiagramNamer> namer;
-    std::optional<SurfaceSearch> eOpt;
     bool buildFailed = false;
 
     // buildRow() throws regina::InvalidArgument for a bad PD code and for a
@@ -2225,12 +2215,6 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    if (rb.seedFaces.empty())
-      eOpt.emplace(rb.tri);
-    else
-      eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
-    SurfaceSearch &e = *eOpt;
-    e.configureLimits(limits);
     // The row's frontier: carried on from, and recorded (see --frontier-dir).
     auto frontierPath = [&](const std::string &dir) {
       return dir + "/" + row.name + ".frontier";
@@ -2243,355 +2227,11 @@ int main(int argc, char *argv[]) {
         std::cout << "[!] " << row.name << ": WARNING: frontier not read ("
                   << ex.what() << "); searching from the start\n";
       }
-      if (resumeFrom)
-        e.setResumeFrontier(&*resumeFrom);
-    }
-    e.setRecordFrontier(frontierDir.has_value());
-    if (pairSigCacheDir)
-      e.setPairSigCacheDir(*pairSigCacheDir);
-    // Every boundary by its complement, unless the row draws its far sides.
-    e.setBoundaryNamer(complementNamer);
-    if (signatureTable && !useCone) {
-      try {
-        namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatureTable);
-        if (exactTables) namer->enableExactNames(*exactTables);
-        e.setBoundaryNamer(*namer);
-      } catch (const std::exception &ex) {
-        std::cerr << "[!] " << row.name
-                  << ": diagram naming off for this row (" << ex.what()
-                  << ")\n";
-      }
     }
 
-    if (!rb.seedFaces.empty()) {
-      // The invariant that makes the search side fixed: no searchable
-      // triangle other than the seed has an edge on it. Checked once here
-      // rather than re-derived for every surface found.
-      size_t touching = e.countSearchableFacesTouching(rb.searchSideBC);
-      if (touching != 0) {
-        flagFatalBug(row.name + ": " + std::to_string(touching) +
-                     " searchable non-seed triangles have an edge on the "
-                     "search side, so found surfaces could change it.");
-        haltIfFatalBugDetected();
-      }
-      // Its name is known by construction; never identify it.
-      e.primeBoundaryName(rb.searchSideBC, rb.searchEdges, row.name);
-    }
-
-    // Fresh per row, so each census line describes one row's search.
-    std::optional<SelfIntersectionCensus> selfIntersectionCensus;
-    if (selfIntersectionCensusPath) {
-      selfIntersectionCensus.emplace();
-      selfIntersectionCensus->searchSideBoundary =
-          static_cast<long>(rb.searchSideBC);
-    }
-    e.configureSelfIntersections(
-        {.resolveUnlinked = resolveUnlinked,
-         .census = selfIntersectionCensus ? &*selfIntersectionCensus
-                                          : nullptr});
-
-    std::optional<SurfaceStatsTally> surfaceStats;
-    if (surfaceStatsPath)
-      surfaceStats.emplace();
-
-    std::optional<CsvWriter> surfaceLog;
-    if (surfaceLogPath)
-      surfaceLog.emplace(*surfaceLogPath,
-                         "orientable,genus,tubed_genus,punctures,triangles,"
-                         "pairsig",
-                         numThreads);
-
-    // Why the search stopped, for the T5 bookkeeping. Set by whoever
-    // requests the stop; "exhausted" means nobody did and the search ran
-    // out of candidates on its own, which is only possible with
-    // --max-faces (see EmbeddingSearch::search()'s hardFaceCap).
-    std::string searchOutcome = "exhausted";
-    std::mutex outcomeMutex;
-    auto noteStop = [&](const char *why) {
-      std::lock_guard<std::mutex> lock(outcomeMutex);
-      if (searchOutcome == "exhausted")
-        searchOutcome = why;
-    };
-
-    const identify::RecognitionCacheStats recognitionBefore =
-        identify::recognitionCacheStats();
-    const long long pairSigCountBefore = pairSigCount.load();
-    const auto censusWritesBefore = census::insertCounts();
-    const long long pairSigMillisBefore = pairSigMillis.load();
-
-    // Every surface the drain describes lands in exactly one of its buckets
-    // (see the accounting check after e.search()).
-    rowsearch::RowAccounting acct;
-
-    // --rejection-sample-log: the pair signatures of the first few surfaces
-    // each rejection reason turns away in this row, so a misbehaving gate
-    // can be audited offline without re-searching.
-    std::mutex rejectionSampleMutex;
-    std::map<std::string, int> rejectionSamplesTaken;
-    auto sampleRejection = [&](const char *reason,
-                               const SurfaceBoundaryInfo &info) {
-      if (!rejectionSampleLog)
-        return;
-      {
-        std::lock_guard<std::mutex> lock(rejectionSampleMutex);
-        if (rejectionSamplesTaken[reason]++ >= REJECTION_SAMPLES_PER_REASON)
-          return;
-      }
-      std::string sig =
-          info.capturePairSig ? info.capturePairSig() : std::string{};
-      std::lock_guard<std::mutex> lock(rejectionSampleMutex);
-      *rejectionSampleLog << csvField(row.name) << ',' << reason << ','
-                          << info.tubedGenus << ','
-                          << (info.connected ? "true" : "false") << ','
-                          << csvField(info.boundaryDescription) << ','
-                          << csvField(sig) << '\n';
-      rejectionSampleLog->flush();
-    };
-
-    std::atomic<long long> newWitnessesThisRow{0};
-    std::atomic<bool> resolvedThisRow{false};
-
-    recorded.markActivity();
-
-    // Started just before the search (below). It polls at 200ms but has no
-    // access to SearchStats; onProgress is the only place the live count is
-    // handed to us, so it publishes it there.
-    std::optional<rowsearch::RowWatchdog> watchdog;
-
-    SurfaceSearchCallbacks callbacks;
-    // A stop nobody else noted (SIGINT) is not running out of candidates.
-    callbacks.onInterrupted = [&] { noteStop("interrupted"); };
-    callbacks.onProgress = [&](const SearchStats &stats) {
-      if (watchdog)
-        watchdog->publishSatisfying(stats.satisfyingCount);
-      printProgress(stats, e);
-    };
-    // The equalising rule, checked where each surface is counted, so a row
-    // stops at the target rather than a progress tick later (see
-    // SearchCallbacks::surfaceTarget). The watchdog below still checks it
-    // too, as a backstop. As there, the drain is let finish unless
-    // --skip-drain-on-timeout.
-    if (surfaceTarget) {
-      callbacks.surfaceTarget = *surfaceTarget;
-      callbacks.onSurfaceTarget = [&] {
-        noteStop("surface-target");
-        if (skipDrainOnTimeout)
-          e.skipRemainingBoundaryProcessing();
-      };
-    }
-    // For the `search profile:` line: petal-cache counters as root filtering
-    // ends, and the post-search drain tail.
-    std::optional<PetalCache::Stats> petalAtRootsReady;
-    callbacks.onRootsReady = [&] { petalAtRootsReady = e.petalCacheStats(); };
-    size_t drainTailQueued = 0;
-    std::chrono::steady_clock::duration drainTailTime{};
-    callbacks.onBoundaryProcessingStarted = [&](size_t total,
-                                                unsigned threads) {
-      drainTailQueued = total;
-      progressBlock.forget();
-      std::cerr << "[+] boundary processing: " << total
-                << " queued surfaces, " << threads << " threads\n";
-    };
-    callbacks.onBoundaryProcessingProgress =
-        [&](size_t processed, size_t total,
-            std::chrono::steady_clock::duration elapsed) {
-          printBoundaryProgress(
-              processed, total, elapsed,
-              resolvedThisRow.load() ? std::optional<int>(row.lo)
-                                     : std::nullopt,
-              row.hi);
-          // The drain is the long pole of a row and the phase most likely to
-          // be interrupted, so checkpoint from here.
-          recorded.checkpoint(/*force=*/false);
-        };
-    callbacks.onBoundaryProcessingComplete =
-        [&](size_t total, std::chrono::steady_clock::duration elapsed) {
-          drainTailTime = elapsed;
-          progressBlock.forget();
-          std::cerr << "[+] boundary processing: done (" << total
-                    << " processed in " << formatElapsed(elapsed) << ")\n";
-        };
-
-    callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo
-                                                   &info) {
-      // Recorded before any of the filtering below: the question this
-      // answers is what the SEARCH found, not what survived the checks that
-      // decide whether a surface bounds this particular row.
-      if (surfaceStats)
-        surfaceStats->record(
-            SurfaceStatsKey{.triangles = info.triangleCount,
-                            .orientable = info.orientable,
-                            .genus = info.genus,
-                            .punctures = info.punctures,
-                            .tubedGenus = info.tubedGenus,
-                            .closedComponents = info.closedComponents,
-                            .connected = info.connected});
-
-      if (surfaceLog) {
-        std::string pairSig =
-            info.capturePairSig ? info.capturePairSig() : std::string{};
-        std::ostringstream row2;
-        row2 << (info.orientable ? "true" : "false") << ',' << info.genus
-             << ',' << info.tubedGenus << ',' << info.punctures << ','
-             << info.triangleCount << ',' << csvField(pairSig);
-        surfaceLog->writeRow(row2.str());
-      }
-
-      acct.described.fetch_add(1, std::memory_order_relaxed);
-
-      // Orientable, search side intact, the row's own oriented variant, one
-      // far side (rowsearch::gateSurface()). The orientation check needs the
-      // search side's oriented curves, and an exact oriented far-side name
-      // (--exact-far-side-names) the rest, so the gate captures them once.
-      const rowsearch::GatedSurface gated = rowsearch::gateSurface(info, rb);
-      if (!gated.accepted()) {
-        acct.reject(gated.gate);
-        sampleRejection(rowsearch::gateReason(gated.gate), info);
-        return;
-      }
-      const BoundarySplit &split = gated.split;
-
-      // A disconnected find is NOT discarded any more. Its components tube
-      // into a single connected surface with the same boundary and genus
-      // exactly info.tubedGenus (see KnottedSurface::tubedSurfaceType), so
-      // it witnesses precisely what a connected find of that genus would.
-      // This is what makes multi-component links tractable at all: their
-      // seeded collar starts as one disjoint annulus per component, and
-      // nothing forces the DFS to ever bridge them.
-      const int witnessGenus = info.tubedGenus;
-      const bool tubed = !info.connected;
-
-      cobordismgraph::Witness w;
-      w.subject = row.name;
-      w.subjectComponents = rb.componentCount;
-      w.genus = witnessGenus;
-      w.tubed = tubed;
-      w.sourceRow = row.name;
-      w.thickenLayers = thickenLayers;
-      w.maxFaces = maxFaces.value_or(0);
-      w.resolvedVertices = info.resolvedVertices;
-
-      if (split.otherSides.empty()) {
-        w.kind = cobordismgraph::WitnessKind::direct;
-      } else {
-        // Exactly one: the gate turns away more (multi-far-side).
-        // A genuinely-linked far side is recorded but, unless it is a
-        // knot or a proven unlink, it will not carry a bound: a complement
-        // does not determine a link (cobordismgraph.h, \ref cg_farside).
-        // It is kept because the observation is real and is exactly what a
-        // later peripheral resolution needs as input; the solver's
-        // farSideBearsBound() is what declines it.
-        const BoundarySide &far = split.otherSides.front();
-        // Normalized, so a census hit and the table name are one graph node,
-        // and oriented where exact names are on (rowsearch::farSideName()).
-        const std::string farName =
-            rowsearch::farSideName(gated, namer ? &*namer : nullptr);
-        w.kind = cobordismgraph::WitnessKind::cobordism;
-        w.other = farName;
-        w.otherComponents = far.components;
-        w.otherCandidates = names.candidates(farName, far.components);
-      }
-
-      if (!recordWitness(w, info.captureFaces)) {
-        acct.duplicate.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      acct.recorded.fetch_add(1, std::memory_order_relaxed);
-      newWitnessesThisRow.fetch_add(1, std::memory_order_relaxed);
-
-      // Does this witness alone already settle the row? Checked cheaply
-      // against the bounds as of the last full solve rather than by
-      // re-running the solver here: the far side's own bound can only have
-      // improved since, so this under-reports at worst, and the next
-      // resolveAll() picks up anything it missed. Whether the bound leans
-      // on a literature value decides whether the row may be considered
-      // settled: stopping the search on an assisted one would forfeit the
-      // chance of finding the surface that upgrades it.
-      const cobordismgraph::UpperBoundVia via =
-          cobordismgraph::upperBoundVia(w, bounds, names);
-      const int implied = via.genus;
-      const bool impliedAssisted = via.assisted;
-
-      if (implied != cobordismgraph::NO_UPPER_BOUND && implied < row.lo) {
-        std::ostringstream msg;
-        msg << row.name << ": witness implies an upper bound of " << implied
-            << ", BELOW the literature lower bound " << row.lo << ".";
-        flagFatalBug(msg.str());
-        noteStop("fatal-bug");
-        e.requestStop();
-        e.skipRemainingBoundaryProcessing();
-        return;
-      }
-
-      if (implied != cobordismgraph::NO_UPPER_BOUND && implied <= row.lo &&
-          !impliedAssisted) {
-        // Only a CONSTRUCTIVE result settles a row. An assisted one is a
-        // correct deduction but not an independent verification, and the
-        // search might still find the surface that turns it into one -- so
-        // it must not end the row. (Moot under --harvest, which never stops
-        // early anyway; this matters for a non-harvest run.)
-        // Announce on stdout, once, the first time this row resolves.
-        // Previously the only sign was "-- ACHIEVED" appearing in the
-        // redrawn stderr progress block, which is invisible to any log
-        // filter and vanishes as soon as the next block overwrites it -- so
-        // a row could sit verified-but-unwritten for hours with nothing in
-        // the log to say so. Checkpoint immediately too: this is the single
-        // most valuable moment in a row, and under --harvest the row may
-        // keep running for hours afterwards.
-        if (!resolvedThisRow.exchange(true, std::memory_order_relaxed)) {
-          std::cout << "[+] " << row.name
-                    << ": CONSTRUCTIVE witness found -- reaches genus "
-                    << implied << " (literature [" << row.lo << ", " << row.hi
-                    << "]). Checkpointing now.\n"
-                    << std::flush;
-          recorded.checkpoint(/*force=*/true);
-        }
-        if (!harvest) {
-          // Without --harvest, stop the moment the row is settled: the
-          // rest of this cobordism's surfaces would only add edges we
-          // aren't going to need. With it, keep going and bank them.
-          noteStop("stopped");
-          e.requestStop();
-          e.skipRemainingBoundaryProcessing();
-        }
-      }
-    };
-
-    {
-      // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
-      //
-      // The time limit bounds the *search*, not the row. Identification is
-      // the product: an unidentified surface says nothing whatever about a
-      // slice genus, so a surface found and then discarded unexamined is
-      // pure waste. Cutting the drain short measured 1% identification on a
-      // run that produced 1,216,027 qualifying surfaces -- 1.2 million
-      // boundaries thrown away unlooked-at, which is why that run's "found
-      // nothing" meant nothing.
-      //
-      // The cost is that a row overruns its nominal limit by however long
-      // the queue takes to drain, which can be minutes. That is the right
-      // trade: waiting is cheaper than searching a region and then refusing
-      // to look at what it found. --skip-drain-on-timeout restores the old
-      // behaviour for when throughput genuinely matters more.
-      auto endRowNow = [&](const char *why) {
-        noteStop(why);
-        e.requestStop();
-        if (skipDrainOnTimeout)
-          e.skipRemainingBoundaryProcessing();
-      };
-      rowsearch::WatchdogLimits watchdogLimits{
-          .surfaceTarget = surfaceTarget,
-          .rowSeconds = perKnotTimeLimit,
-          .sweepSeconds = sweepTimeLimit,
-          .sweepStart = sweepStart,
-          // Quiescence: this row has stopped teaching us anything new, so
-          // spending the rest of its budget enumerating more of the same is
-          // worse than moving on to a row we know nothing about.
-          .quiescenceSeconds = harvestQuiescence,
-          .idleMillis = [&] { return recorded.millisSinceNew(); }};
-      watchdog.emplace(std::move(watchdogLimits), endRowNow);
-    }
-
+    cascade::SearchRequest request;
+    request.name = row.name;
+    request.shape = searchShape;
     // A multi-component link's own boundary necessarily puts more than one
     // of the surface's boundary curves on the single search-side ambient
     // component -- impossible under `connected`'s one-curve-per-ambient-
@@ -2607,95 +2247,76 @@ int main(int argc, char *argv[]) {
     // zero knot-to-link edges, while link rows produced 62 link-to-knot
     // ones. --boundary-condition proper lifts that, at the cost of much
     // weaker pruning.
-    const BoundaryCondition cond =
+    request.shape.condition =
         rowsearch::conditionFor(boundaryConditionMode, rb.componentCount);
-    // The row's new witnesses are signed off the drain threads, the
-    // pair-signature context built by the signer at the first of them
-    // (WitnessSigner).
-    std::optional<cascade::WitnessSigner> signer;
-    signer.emplace(
-        [&e]() -> const PairSigContext<4, 2> & { return e.pairSigContext(); },
-        [&](cobordismgraph::Witness &&w) { recorded.publish(std::move(w)); });
-    struct SignerScope {
-      cascade::WitnessSigner *&active;
-      ~SignerScope() { active = nullptr; }
-    } signerScope{activeSigner};
-    activeSigner = &*signer;
-    const SearchStats finalStats =
-        e.search(numThreads, cond, callbacks, iddfsIterations, iddfsStep,
-                 iddfsStart, iddfsFinalThreads, /*orientableOnly=*/true,
-                 maxFaces, rootBudgetStart, rootBudgetGrowth);
-    // Every surface is described; sign what is still queued, with every
-    // thread, before anything reads or writes this row's witnesses.
-    signer->finish(numThreads);
-    activeSigner = nullptr;
-    pairSigCount.fetch_add(signer->signedCount());
-    pairSigMillis.fetch_add(signer->signMillis());
-    std::cout << "[+] " << row.name << ": pair signatures: "
-              << signer->signedCount() << " signed in " << std::fixed
-              << std::setprecision(1) << signer->signMillis() / 1000.0
-              << "s of thread time; context ";
-    if (signer->signedCount() > 0)
-      std::cout << (e.pairSigContextLoaded() ? "loaded from the cache, "
-                                             : "built, ")
-                << "ready " << signer->contextSeconds()
-                << "s after the search began";
-    else
-      std::cout << "not needed";
-    std::cout << "; " << signer->finishSeconds()
-              << "s after the drain finishing\n"
-              << std::defaultfloat;
+    // The search stops at the surface target, the per-row or sweep time
+    // limit, or quiescence; the boundary drain then finishes, unless
+    // --skip-drain-on-timeout.
+    request.surfaceTarget = surfaceTarget;
+    request.seconds = perKnotTimeLimit;
+    request.sweepSeconds = sweepTimeLimit;
+    request.sweepStart = sweepStart;
+    request.quiescenceSeconds = harvestQuiescence;
+    request.skipDrainOnTimeout = skipDrainOnTimeout;
+    request.resume = resumeFrom ? &*resumeFrom : nullptr;
+    request.recordFrontier = frontierDir.has_value();
+    request.pairSigCacheDir = pairSigCacheDir;
+    // Every boundary by its complement, unless the row draws its far sides.
+    request.diagramNaming = !useCone;
+    request.unseeded = true;
+    request.sweep = {.record = &recorded,
+                     .names = &names,
+                     .bounds = &bounds,
+                     .literatureLo = row.lo,
+                     .literatureHi = row.hi,
+                     .thickenLayers = thickenLayers};
+    request.outputs = {.progress = true,
+                       .surfaceStats = surfaceStatsPath,
+                       .surfaceLog = surfaceLogPath,
+                       .rejectionSamples =
+                           rejectionSampleLog ? &*rejectionSampleLog : nullptr,
+                       .selfIntersectionCensus = selfIntersectionCensusPath};
 
-    watchdog->stop();
+    // One searcher per row, so each row's exact names start from fresh
+    // table caches, as they always have.
+    const cascade::HopSearcher searcher(
+        signatureTable ? &*signatureTable : nullptr,
+        exactTables ? &*exactTables : nullptr, policy, numThreads);
+    cascade::HopRun run;
+    try {
+      run = searcher.run(rb, request);
+    } catch (const cascade::SeedInvariantFailure &f) {
+      flagFatalBug(row.name + ": " + std::to_string(f.touching) +
+                   " searchable non-seed triangles have an edge on the "
+                   "search side, so found surfaces could change it.");
+      haltIfFatalBugDetected();
+    }
+    // A find below the literature (the search's own check): halts once the
+    // row's witnesses are written, below.
+    if (!run.fatal.empty())
+      flagFatalBug(run.fatal);
 
-    if (surfaceLog)
-      surfaceLog->finalize();
-
-    // Accounting: every surface the search accepted must have been
-    // described by the drain (unless the drain was deliberately cut short),
-    // and every described surface must sit in exactly one bucket. Anything
-    // else means surfaces vanished unexamined -- the failure mode that once
-    // emptied whole rows without a trace -- and halts the run once this
-    // row's witnesses are safely written.
-    const long long accepted = finalStats.satisfyingCount;
-    const long long described = acct.described.load();
-    const bool drainSkipped = e.boundaryProcessingSkipped();
-    const std::string accountingFailure =
-        acct.failure(accepted, e.rebuildFailures(), drainSkipped);
     // Surfaces were accepted, yet not one reached the witness record. That
     // can be genuine (every one witnesses another oriented variant), but it
     // is also exactly what a broken gate looks like, so it never licenses a
     // negative.
-    const bool nothingExamined = acct.nothingExamined();
-    if (nothingExamined)
-      std::cout << "[!] " << row.name << ": WARNING: " << described
+    if (run.nothingExamined)
+      std::cout << "[!] " << row.name << ": WARNING: " << run.described
                 << " surfaces accepted but none reached the witness record; "
                    "no exhaustion claimed for this search\n";
 
-    if (finalStats.deepestExhaustedCap && accountingFailure.empty() &&
-        !nothingExamined && !drainSkipped) {
+    if (run.stats.deepestExhaustedCap && run.accountingFailure.empty() &&
+        !run.nothingExamined && !run.drainSkipped) {
       OutputRow &out = outputRows[row.name];
       // Never let a shallower run overwrite a deeper exhaustive result.
       out.exhaustedDepth =
-          std::max(out.exhaustedDepth, *finalStats.deepestExhaustedCap);
+          std::max(out.exhaustedDepth, *run.stats.deepestExhaustedCap);
       std::cout << "[+] " << row.name << ": EXHAUSTIVE to "
-                << *finalStats.deepestExhaustedCap
+                << *run.stats.deepestExhaustedCap
                 << " added faces -- every root enumerated to completion, so "
                    "no cobordism exists for it at that depth.\n";
     }
-    if (surfaceStats)
-      appendSurfaceStats(*surfaceStatsPath, row.name,
-                         maxFaces.value_or(0), surfaceStats->take());
-    if (selfIntersectionCensus)
-      appendSelfIntersectionCensus(*selfIntersectionCensusPath, row.name,
-                                   maxFaces.value_or(0), resolveUnlinked,
-                                   finalStats, *selfIntersectionCensus);
-    progressBlock.forget();
     ++searchedThisRun;
-
-    // A row that cannot account for its surfaces vouches for no negative.
-    if (!accountingFailure.empty() || nothingExamined)
-      noteStop("unaccounted");
 
     // Record what this search actually cost before anything else, so even
     // a fatal halt below leaves the bookkeeping behind.
@@ -2705,7 +2326,7 @@ int main(int argc, char *argv[]) {
       out.literatureLo = row.lo;
       out.literatureHi = row.hi;
       out.searchedFaces = maxFaces.value_or(0);
-      out.searchOutcome = searchOutcome;
+      out.searchOutcome = run.outcome;
       if (out.status.empty())
         out.status = "unresolved";
     }
@@ -2714,7 +2335,7 @@ int main(int argc, char *argv[]) {
     {
       OutputRow &out = outputRows[row.name];
       out.searchedFaces = maxFaces.value_or(0);
-      out.searchOutcome = searchOutcome;
+      out.searchOutcome = run.outcome;
     }
 
     recorded.flush();
@@ -2725,27 +2346,13 @@ int main(int argc, char *argv[]) {
     // vouch for having examined every surface in it -- else a later run
     // would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
-      std::cout << "[+] " << row.name << ": breadth: ";
-      if (const auto &f = e.frontier())
-        std::cout << f->summary() << "; fingerprint "
-                  << f->fingerprint.substr(0, 12);
-      else
-        std::cout << "not recorded";
-      std::cout << "; resumed "
-                << (!resumeFrom ? std::string("none")
-                    : e.resumedFrontier()
-                        ? std::string("yes (") +
-                              std::to_string(resumeFrom->runs) + " runs before)"
-                        : "no: " + e.resumeRefusal())
-                << "; frontier " << std::fixed << std::setprecision(2)
-                << e.frontierSeconds() << "s, replayed "
-                << finalStats.profile.replayed << " re-adds\n"
-                << std::defaultfloat;
-      if (frontierDir && e.frontier()) {
-        if (accountingFailure.empty() && !nothingExamined && !drainSkipped) {
+      rowsearch::printSweepBreadth(std::cout, row.name, run,
+                                   resumeFrom ? &*resumeFrom : nullptr);
+      if (frontierDir && run.recordedFrontier) {
+        if (run.frontier) {
           try {
             std::filesystem::create_directories(*frontierDir);
-            e.frontier()->save(frontierPath(*frontierDir));
+            run.frontier->save(frontierPath(*frontierDir));
           } catch (const std::exception &ex) {
             std::cout << "[!] " << row.name << ": WARNING: frontier not "
                       << "written: " << ex.what() << "\n";
@@ -2759,147 +2366,32 @@ int main(int argc, char *argv[]) {
 
     for (const std::string &reason : contradictions)
       flagFatalBug(reason);
-    if (!accountingFailure.empty())
+    // Divergence 2: an accounting failure halts the run, once this row's
+    // witnesses are safely written.
+    if (policy.failures == cascade::SearchPolicy::Failures::halt &&
+        !run.accountingFailure.empty())
       flagFatalBug(row.name + ": surface accounting failed -- " +
-                   accountingFailure + ".");
+                   run.accountingFailure + ".");
     if (fatalBugDetected_.load())
       haltIfFatalBugDetected();
 
-    long long rejected = acct.orientation.load();
-    std::cout << "[+] " << row.name << ": "
-              << newWitnessesThisRow.load() << " new witnesses, outcome "
-              << searchOutcome;
-    if (rejected > 0)
-      std::cout << ", " << rejected
-                << " surfaces rejected on orientation mismatch";
-    std::cout << "\n";
-    // Its own line, parsed by tools/orchestrate/dispatch.py (RE_ACCOUNTING);
-    // the summary line above stays exactly as RE_OUTCOME expects.
-    std::cout << "[+] " << row.name << ": accounting: "
-              << acct.summary(accepted, drainSkipped) << "\n";
-    {
-      const identify::RecognitionCacheStats r =
-          identify::recognitionCacheStats();
-      const identify::BoundarySignatureCacheStats b =
-          e.boundarySignatureCacheStats();
-      auto secs = [](long long ms) {
-        std::ostringstream o;
-        o << std::fixed << std::setprecision(1) << ms / 1000.0;
-        return o.str();
-      };
-      const auto censusWritesNow = census::insertCounts();
-      const long long censusOk =
-          censusWritesNow.first - censusWritesBefore.first;
-      const long long censusFailed =
-          censusWritesNow.second - censusWritesBefore.second;
-      std::cout << "[+] " << row.name << ": identification: boundary cache "
-                << b.hits << "/" << b.checks << " hits, census checks "
-                << (r.censusChecks - recognitionBefore.censusChecks)
-                << " (local hits "
-                << (r.localCensusHits - recognitionBefore.localCensusHits)
-                << "), Pachner knots "
-                << (r.pachnerKnots.attempts -
-                    recognitionBefore.pachnerKnots.attempts)
-                << " tried/"
-                << (r.pachnerKnots.successes -
-                    recognitionBefore.pachnerKnots.successes)
-                << " named/"
-                << secs(r.pachnerKnots.milliseconds -
-                        recognitionBefore.pachnerKnots.milliseconds)
-                << "s, links "
-                << (r.pachnerLinks.attempts -
-                    recognitionBefore.pachnerLinks.attempts)
-                << "/"
-                << (r.pachnerLinks.successes -
-                    recognitionBefore.pachnerLinks.successes)
-                << "/"
-                << secs(r.pachnerLinks.milliseconds -
-                        recognitionBefore.pachnerLinks.milliseconds)
-                << "s, pairsigs " << (pairSigCount.load() - pairSigCountBefore)
-                << "/" << secs(pairSigMillis.load() - pairSigMillisBefore)
-                << "s, census writes " << censusOk << " ok/" << censusFailed
-                << " failed\n";
-      if (namer) {
-        const farside::NamingStats &ns = namer->stats();
-        std::cout << "[+] " << row.name << ": diagram naming: " << ns.summary()
-                  << "\n";
-        // Harmless to the names (each went to the complement route), but
-        // each is a drawer defect that must be found.
-        if (ns.nonPlanar > 0)
-          std::cout << "[!] " << row.name << ": WARNING: " << ns.nonPlanar
-                    << " far-side drawings were not planar diagrams (drawer "
-                       "defect; named by the complement route instead)\n";
-      }
-      // A census that cannot be written to costs nothing in correctness,
-      // but every name it fails to keep is recomputed by every later row.
-      if (censusFailed > 0)
-        std::cout << "[!] " << row.name << ": WARNING: " << censusFailed
-                  << " census writes failed (names found here will not "
-                     "reach later rows)\n";
-
-      // Where the row's search time went. Measurement only; parsed by
-      // utils/surfer/tools/bench_search.sh.
-      const SearchStats::Profile &p = finalStats.profile;
-      const PetalCache::Stats petals = e.petalCacheStats();
-      const PetalCache::Stats atRoots = petalAtRootsReady.value_or(petals);
-      auto dsecs = [](std::chrono::steady_clock::duration d) {
-        std::ostringstream o;
-        o << std::fixed << std::setprecision(1)
-          << std::chrono::duration<double>(d).count();
-        return o.str();
-      };
-      auto nsecs = [](long long nanos) {
-        std::ostringstream o;
-        o << std::fixed << std::setprecision(1) << nanos / 1e9;
-        return o.str();
-      };
-      auto unknotMisses = [](const PetalCache::Stats &s) {
-        return s.unknotChecks - s.unknotCacheHits;
-      };
-      auto linkingMisses = [](const PetalCache::Stats &s) {
-        return s.linkingChecks - s.linkingCacheHits;
-      };
-      std::cout << "[+] " << row.name << ": search profile: prototype "
-                << dsecs(p.prototype) << "s (unknot misses "
-                << unknotMisses(atRoots) << " in "
-                << nsecs(atRoots.unknotMissNanos) << "s, linking misses "
-                << linkingMisses(atRoots) << " in "
-                << nsecs(atRoots.linkingMissNanos) << "s); rounds";
-      for (auto round : p.rounds)
-        std::cout << " " << dsecs(round) << "s";
-      std::cout << "; drain tail " << drainTailQueued << " surfaces in "
-                << dsecs(drainTailTime) << "s; nodes " << p.nodes
-                << ", attempts " << p.attempts << ", evaluated "
-                << p.evaluated << ", charged " << p.charged << ", replayed "
-                << p.replayed
-                << "; petal misses: unknot " << unknotMisses(petals) << " in "
-                << nsecs(petals.unknotMissNanos) << "s, linking "
-                << linkingMisses(petals) << " in "
-                << nsecs(petals.linkingMissNanos) << "s (cochains "
-                << petals.linkingFast << ", fallbacks "
-                << petals.linkingFallbacks << ")";
-      if (linkingnumber::auditLinkingNumbers.load())
-        std::cout << "; linking audit: " << petals.linkingAudited
-                  << " checked (" << petals.linkingAuditNonzero
-                  << " linked), " << petals.linkingDisagreements
-                  << " disagree, drilling route "
-                  << nsecs(petals.linkingAuditOldNanos) << "s";
-      std::cout << "\n";
-      // The audit exists to catch exactly this; a wrong linking number
-      // prunes (or keeps) surfaces it should not.
-      if (petals.linkingDisagreements > 0) {
-        flagFatalBug(row.name + ": " +
-                     std::to_string(petals.linkingDisagreements) +
-                     " petal linking numbers disagree between the cochain "
-                     "and drilling routes (--audit-linking).");
-        haltIfFatalBugDetected();
-      }
+    rowsearch::printOutcome(std::cout, row.name, run);
+    rowsearch::printIdentification(std::cout, row.name, run);
+    rowsearch::printSearchProfile(std::cout, row.name, run);
+    // The audit exists to catch exactly this; a wrong linking number prunes
+    // (or keeps) surfaces it should not.
+    if (run.petals.linkingDisagreements > 0) {
+      flagFatalBug(row.name + ": " +
+                   std::to_string(run.petals.linkingDisagreements) +
+                   " petal linking numbers disagree between the cochain "
+                   "and drilling routes (--audit-linking).");
+      haltIfFatalBugDetected();
     }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.
     if (resolveUnlinked)
-      std::cout << "[+] " << row.name << ": " << finalStats.resolvedCount
-                << " of " << finalStats.satisfyingCount
+      std::cout << "[+] " << row.name << ": " << run.stats.resolvedCount
+                << " of " << run.stats.satisfyingCount
                 << " accepted surfaces have unlinked self-intersections "
                    "(--resolve-unlinked)\n";
 
@@ -2932,7 +2424,7 @@ int main(int argc, char *argv[]) {
     // that isoSig, an identification the complement cannot support --
     // exactly the claim linknames.h forbids adding "from a complement match
     // alone". For a knot the same entry is sound by Gordon-Luecke.
-    if (censusUpdates && rb.componentCount == 1) {
+    if (policy.censusWriteAfterSearch && rb.componentCount == 1) {
       auto &[t2, edges2, reversed2] = rb.link;
       Link linkGrouping(t2, edges2);
       regina::Triangulation<3> complement = linkGrouping.buildComplement();

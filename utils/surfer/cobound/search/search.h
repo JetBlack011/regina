@@ -14,28 +14,39 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <ostream>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/cobordisms/cobordism.h"
+#include "cobound/cobordisms/pending.h"
+#include "cobound/solver/solver.h"
 #include "linknaming/tables.h"
+#include "linknaming/complement/complementcache.h"
 #include "cobound/outgoing/outgoinglink.h"
 #include "cobound/outgoing/outgoingnamer.h"
 #include "cobound/outgoing/fromdatabase.h"
 #include "surfer/enumeration/searchstrategy.h"
+#include "surfer/enumeration/surfacesearch.h"
 
 /*! \file utils/surfer/cobound/search/search.h
- *  \brief One search from a link: which BoundaryCondition it runs under
- *  (conditionFor()), and the watchdog that ends it at its surface target or
- *  deadline (RowWatchdog).
+ *  \brief THE search from a link (HopSearcher::run()), as every driver runs
+ *  it: which BoundaryCondition it runs under (conditionFor()), the watchdog
+ *  that ends it at its surface target or deadline (RowWatchdog), and what
+ *  each caller still does its own way (SearchPolicy).
  *
- *  HopSearcher runs one hop of the cascade in process: the row's own
- *  thickening (the one its HopAssembler certified and reads from), the
- *  campaign's search shape, and the gates and accounting verifyslicegenus
- *  applies (preconditions.h), with the accepted surfaces read straight off
- *  the search instead of written out as pair signatures and read back.
+ *  verifyslicegenus searches each table row through it (one witness per
+ *  identity across the whole database, signed during the search), and the
+ *  cascade runs each hop through it in process: the row's own thickening
+ *  (the one its HopAssembler certified and reads from), the campaign's
+ *  search shape, and the gates and accounting of preconditions.h, with the
+ *  accepted surfaces read straight off the search instead of written out as
+ *  pair signatures and read back.
  *
  *  What that saves, per hop: a process start and table load, a pair
  *  signature per kept surface (3.4 s each on a 10-crossing row, 2026-09-28:
@@ -140,6 +151,137 @@ struct HopShape {
   size_t recognitionCacheLimit = 1'500'000;
 };
 
+/// How one search runs: the arguments of SurfaceSearch::search() that fix
+/// its traversal and what it accepts, and the limits of its shared
+/// structures. Every caller fills all of it (searchShape() for a hop).
+struct SearchShape {
+  BoundaryCondition condition = BoundaryCondition::proper;
+  unsigned iddfsIterations = 0;
+  long long iddfsStep = 0;
+  std::optional<long long> iddfsStart;
+  std::optional<unsigned> iddfsFinalThreads;
+  std::optional<long long> maxFaces; ///< none: unbounded
+  long long rootBudgetStart = 0;
+  long long rootBudgetGrowth = 2;
+  /// Accept surfaces whose only self-intersections are unlinked (paper
+  /// §4.5). An input of every search, with each caller's own default
+  /// (verifyslicegenus off, the cascade on): the plan's divergence 3 makes
+  /// it a required config key.
+  bool resolveUnlinked = false;
+  SurfaceSearchLimits limits;
+};
+
+/// A hop's SearchShape: `proper`, `shape`'s rounds, cap and budgets, its
+/// limits, one name per multi-curve component and no pair signatures (a
+/// hop keeps faces).
+SearchShape searchShape(const HopShape &shape);
+
+/**
+ * Where one caller's searches still differ from the other's. Phase 4(a) put
+ * verifyslicegenus's row loop and the cascade's in-process hops on one
+ * search (HopSearcher::run()) without changing what either does; each
+ * remaining difference is one field here, named after the plan's "Unified
+ * divergences" entry that removes it in phase 4(b). The defaults are the
+ * cascade's behaviour; verifyslicegenus sets its own. Fields read by the
+ * drivers rather than the search are marked so: the drivers' own per-search
+ * code (verifyslicegenus's row loop, the cascade's hop) reads them from
+ * here too, so that every difference is listed in one place.
+ *
+ * Two divergences have no field. 3 (defaults) is a matter of inputs:
+ * SearchShape::resolveUnlinked and the boundary condition are set by each
+ * caller (verifyslicegenus from its options, the cascade from HopShape and
+ * `proper`), and retriangulation on a census miss is process-wide, set in
+ * each driver's main (verifyslicegenus: on unless
+ * --no-retriangulate-on-miss; the cascade: off). 8 (signals) does not
+ * differ inside a search: both record "interrupted" when the library's
+ * SIGINT scope stops one, and each driver then carries on with its next
+ * search.
+ */
+struct SearchPolicy {
+  /// Divergence 1, frontiers. HopRun::frontier is vouched for only when the
+  /// accounting balanced and the drain completed; with this set, also only
+  /// when something was examined (verifyslicegenus's rule; the cascade
+  /// lacks that check).
+  bool frontierNeedsExamined = false;
+
+  /// Divergence 2, failures. `halt` (verifyslicegenus): a row whose diagram
+  /// namer cannot be built is searched on the complement route, with a
+  /// warning; a search whose accounting failed, or that examined nothing,
+  /// records the outcome "unaccounted"; and the driver halts the process
+  /// (exit 2) on a seed-invariant failure (SeedInvariantFailure), on an
+  /// accounting failure and on a find below the literature (HopRun::fatal).
+  /// `refuse` (the cascade): a namer that cannot be built, like the seed
+  /// invariant, throws (the node is refused); the outcome is left as the
+  /// search ended; and an accounting failure only marks the hop suspect.
+  enum class Failures { halt, refuse };
+  Failures failures = Failures::refuse;
+
+  /// Divergence 4, census writes (read by verifyslicegenus's driver): after
+  /// a knot's search, its complement goes into the census under its name
+  /// (verifyslicegenus unless --no-census-updates; the Pachner-hit insert
+  /// inside naming is unconditional for both).
+  bool censusWriteAfterSearch = false;
+
+  /// Divergence 5, harvest: the search stops at its first constructive find
+  /// (verifyslicegenus without --harvest). Needs judgeInSearch.
+  bool stopAtConstructive = false;
+
+  /// Divergences 6 and 10, who judges a find: the search itself, each new
+  /// witness against the solver's bounds as of the last solve
+  /// (cobordismgraph::upperBoundVia(); verifyslicegenus). It prints the
+  /// CONSTRUCTIVE line and forces a checkpoint at the first constructive
+  /// find, and a find below the row's literature lower bound ends the
+  /// search with HopRun::fatal set. Needs SweepInputs.
+  bool judgeInSearch = false;
+
+  /// Divergence 7, signing. `duringSearch` (verifyslicegenus): one witness
+  /// per identity across the whole database (SweepInputs::record), each new
+  /// one signed off the drain threads (WitnessSigner) and appended at the
+  /// 60 s checkpoints. `deferred` (the cascade): one kept surface per
+  /// keptKey() within the search, its faces kept (HopRun::kept), signed
+  /// later.
+  enum class Signing { duringSearch, deferred };
+  Signing signing = Signing::deferred;
+
+  /// Divergence 9, settled rows (read by verifyslicegenus's driver): a row
+  /// already verified or pinned, or exhausted at this face cap, is not
+  /// searched (verifyslicegenus without --research-settled).
+  bool skipSettledRows = false;
+};
+
+/**
+ * What a search that signs during the search, or judges its finds itself,
+ * reads and writes beyond its row: verifyslicegenus's (SearchPolicy).
+ * Pointers outlive the search.
+ */
+struct SweepInputs {
+  /// Signing::duringSearch: where new witnesses are claimed and published.
+  RecordedWitnesses *record = nullptr;
+  /// The literature, for each witness's other_candidates (re-derived per
+  /// witness, as every reader of the field does) and for judging.
+  const cobordismgraph::NameTable *names = nullptr;
+  /// judgeInSearch: the solver's bounds as of the last solve.
+  const std::unordered_map<std::string, cobordismgraph::Bounds> *bounds = nullptr;
+  /// The row's literature interval: judging, and the progress block.
+  int literatureLo = 0, literatureHi = 0;
+  /// The witnesses' thicken_layers (provenance).
+  int thickenLayers = 1;
+};
+
+/// What a search writes besides what it returns: verifyslicegenus's
+/// options. None by default.
+struct SearchOutputs {
+  /// The live progress block, and the drain's started/done lines, on
+  /// stderr (rowsearch::progressBlock).
+  bool progress = false;
+  std::optional<std::string> surfaceStats; ///< --surface-stats, appended
+  std::optional<std::string> surfaceLog;   ///< --surface-log, rewritten
+  /// --rejection-sample-log: the first REJECTION_SAMPLES_PER_REASON
+  /// surfaces each gate turns away. Outlives the search.
+  std::ostream *rejectionSamples = nullptr;
+  std::optional<std::string> selfIntersectionCensus; ///< appended
+};
+
 /// A surface a hop kept.
 struct KeptSurface {
   farside::OutgoingLink link; ///< far side on T, oriented, and incoming side
@@ -152,6 +294,61 @@ struct KeptSurface {
   /// pair signature, other_candidates and the provenance (source row,
   /// layers, face cap): its subject is the hop's rowName.
   cobordismgraph::Witness witness;
+};
+
+/// One search's inputs besides its row.
+struct SearchRequest {
+  /// The incoming link's name: the subject of every witness, the name the
+  /// incoming curves are primed with, and the name in every report line.
+  std::string name;
+  /// The row's redrawer: Signing::deferred orients each kept surface's
+  /// outgoing link on it and keys it by its row components.
+  const farside::WitnessRedrawer *row = nullptr;
+  SearchShape shape;
+
+  /// When to stop: at this many surfaces satisfying the condition, after
+  /// `seconds` of this search, after `sweepSeconds` since `sweepStart`, or
+  /// once no new witness has been recorded for `quiescenceSeconds`
+  /// (SweepInputs::record). The drain then finishes, unless
+  /// `skipDrainOnTimeout`.
+  std::optional<long long> surfaceTarget;
+  std::optional<double> seconds;
+  std::optional<double> sweepSeconds;
+  std::chrono::steady_clock::time_point sweepStart{};
+  std::optional<double> quiescenceSeconds;
+  bool skipDrainOnTimeout = false;
+
+  /// An earlier search's frontier to carry on from (if it is this
+  /// search's), and whether to record this one's.
+  const SearchFrontier *resume = nullptr;
+  bool recordFrontier = true;
+  /// Where the pair-signature context is read from and kept
+  /// (SurfaceSearch::setPairSigCacheDir()).
+  std::optional<std::string> pairSigCacheDir;
+
+  /// Name outgoing curves by their drawing when the searcher has signature
+  /// tables (else every boundary by its complement).
+  bool diagramNaming = true;
+  /// Search a row without a collar seed (verifyslicegenus's --cone and
+  /// --collar-layers 0, retired with coning); otherwise such a row is
+  /// refused.
+  bool unseeded = false;
+
+  /// Signing::deferred: polled with each newly kept surface (from drain
+  /// threads, one at a time); the search ends when it returns true.
+  std::function<bool(const KeptSurface &)> stop;
+
+  SweepInputs sweep;
+  SearchOutputs outputs;
+};
+
+/// Thrown by HopSearcher::run() before searching when a searchable triangle
+/// other than the seed has an edge on the incoming boundary, so found
+/// surfaces could change the incoming link. what() is the cascade's
+/// refusal; verifyslicegenus halts with its own message.
+struct SeedInvariantFailure : std::runtime_error {
+  explicit SeedInvariantFailure(size_t touching);
+  size_t touching;
 };
 
 /// What a hop did.
@@ -181,6 +378,30 @@ struct HopRun {
   std::optional<SearchFrontier> frontier;
   bool resumed = false;          ///< carried on from the frontier it was given
   std::string resumeRefusal;     ///< why not, when given one it refused
+
+  // What verifyslicegenus's row report reads besides (searchreport.h).
+  SearchStats stats;               ///< the search's own, as it returned them
+  long long described = 0;         ///< surfaces the drain described
+  long long recorded = 0;          ///< new witnesses (or kept surfaces)
+  long long otherOrientation = 0;  ///< rejected as another oriented variant
+  bool drainSkipped = false;
+  bool nothingExamined = false;    ///< RowAccounting::nothingExamined()
+  /// The search's frontier as recorded, whether vouched for or not.
+  std::optional<SearchFrontier> recordedFrontier;
+  double frontierSeconds = 0;
+  std::chrono::steady_clock::duration drainTailTime{};
+  std::optional<PetalCache::Stats> petalsAtRoots; ///< as root filtering ended
+  PetalCache::Stats petals;                        ///< at the search's end
+  identify::BoundarySignatureCacheStats boundaryCache;
+  identify::RecognitionCacheStats recognitionBefore; ///< as the search began
+  std::pair<long long, long long> censusWritesBefore; ///< census::insertCounts()
+  bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves
+  long long nonPlanar = 0;         ///< its non-planar drawings
+  long long pairSigsSigned = 0;    ///< Signing::duringSearch
+  long long pairSigMillis = 0;
+  /// judgeInSearch: why the search found something impossible (a witness
+  /// below the literature lower bound); empty when it did not.
+  std::string fatal;
 };
 
 class HopSearcher {
@@ -190,11 +411,17 @@ public:
   /// Both must outlive the searcher. Every hop's exact names use one set of
   /// table caches (`exactCaches`, or the searcher's own when null), so what
   /// naming learns about the tables -- the HOMFLY index above all -- is
-  /// built once, not once per hop.
+  /// built once, not once per hop. The cascade's: SearchPolicy's defaults.
   HopSearcher(const farside::SignatureTable &signatures,
               const exactnaming::ExactTables *exact, HopShape shape,
               unsigned threads,
               std::shared_ptr<exactnaming::TableCaches> exactCaches = nullptr);
+
+  /// Any caller's: its own `policy`. Without `signatures`, every boundary is
+  /// named by its complement. Exact names use this searcher's own caches.
+  HopSearcher(const farside::SignatureTable *signatures,
+              const exactnaming::ExactTables *exact, SearchPolicy policy,
+              unsigned threads);
 
   /**
    * Searches `row`'s thickening, seeded with its collar, under `proper`,
@@ -220,10 +447,27 @@ public:
              const std::function<bool(const KeptSurface &)> &stop = {},
              const SearchFrontier *resume = nullptr) const;
 
+  /**
+   * THE search: one search from `rb`'s incoming link, as `request` and this
+   * searcher's SearchPolicy say. It builds the search over `rb`'s
+   * thickening (seeded with its collar), names boundaries, checks the seed
+   * invariant, runs the search with the watchdog, gates every surface the
+   * drain describes (preconditions.h), records what passes (SearchPolicy::
+   * Signing), and accounts for every surface. run(row, ...) above is the
+   * cascade's hop through it.
+   *
+   * \throws SeedInvariantFailure when the seed invariant fails;
+   * std::runtime_error for a row with no seed (unless `request.unseeded`),
+   * and (SearchPolicy::Failures::refuse) when the diagram namer cannot be
+   * built; a signer's failure (Signing::duringSearch).
+   */
+  HopRun run(const rowsearch::RowBuild &rb, const SearchRequest &request) const;
+
 private:
-  const farside::SignatureTable &signatures_;
+  const farside::SignatureTable *signatures_;
   const exactnaming::ExactTables *exact_;
   HopShape shape_;
+  SearchPolicy policy_;
   unsigned threads_;
   std::shared_ptr<exactnaming::TableCaches> exactCaches_;
 };
