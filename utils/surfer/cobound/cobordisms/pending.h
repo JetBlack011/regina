@@ -12,7 +12,11 @@
 
 #pragma once
 
+#include <atomic>
+#include <filesystem>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "cobound/cobordisms/cobordism.h"
@@ -60,5 +64,84 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
                       const std::vector<std::string> &dedupeAgainst,
                       const cobordismgraph::NameTable &names, unsigned threads,
                       const std::string &pairSigCache = "");
+
+/**
+ * The witnesses of a run that signs during its searches (verifyslicegenus,
+ * SearchPolicy::Signing::duringSearch): the database's own, as loaded, and
+ * every one its searches have found since, one per witness identity across
+ * them all.
+ *
+ * A search claims a new witness's identity when it finds it (claim()), so
+ * the dedupe is exact, and publishes it once it is signed (publish(), as
+ * WitnessSigner's output). What is published reaches the database file only
+ * by appending -- at checkpoints (checkpoint()), and at the end of each
+ * search (flush()) -- so nothing on disk is ever rewritten.
+ *
+ * Checkpointing exists because a search's witnesses would otherwise be
+ * written only when it ends, so a search that is interrupted -- by a crash,
+ * a shutdown, or an operator stopping a run that looks unproductive --
+ * loses everything it found. That is not hypothetical: a 4-hour L9n2{1} row
+ * lost 13 hours to a shutdown mid-drain, and an L9a26{1} row was killed five
+ * hours after it had already found a constructive genus-0 witness that had
+ * never reached disk. Under --harvest the exposure is worst, because a row
+ * that has ALREADY resolved deliberately keeps running to bank more edges.
+ *
+ * The plan's divergence 7 (signing) replaces this with pending surfaces,
+ * appended unsigned and signed at the end of the run.
+ */
+class RecordedWitnesses {
+public:
+  /// `loaded`: the witnesses of the database file at `path` (loadWitnesses()),
+  /// which every later write appends to.
+  RecordedWitnesses(std::filesystem::path path, std::vector<cobordismgraph::Witness> loaded);
+  RecordedWitnesses(const RecordedWitnesses &) = delete;
+  RecordedWitnesses &operator=(const RecordedWitnesses &) = delete;
+
+  /// Claims `w`'s witness identity: false when a witness with it is recorded
+  /// (or claimed) already. Thread-safe.
+  bool claim(const cobordismgraph::Witness &w);
+
+  /// A claimed witness, signed, into the record. Thread-safe.
+  void publish(cobordismgraph::Witness &&w);
+
+  /// Appends whatever was published since the last write, unless the last
+  /// checkpoint was under 60 s ago; `force` writes at once regardless. A
+  /// failure is reported on stderr, never thrown: a failed checkpoint must
+  /// not kill a running search, and the next write retries. Thread-safe.
+  void checkpoint(bool force);
+
+  /// The end-of-search and end-of-run write: appends whatever is new and --
+  /// unlike a checkpoint -- lets a failure propagate. Writes nothing at all
+  /// when nothing is new, so a run that searched nothing never touches the
+  /// file.
+  void flush();
+
+  /// Restarts the quiescence clock, as a search begins.
+  void markActivity();
+  /// Milliseconds since the last new witness was claimed (or markActivity()).
+  long long millisSinceNew() const;
+
+  /// Every witness, loaded and found. Read only while no search runs.
+  const std::vector<cobordismgraph::Witness> &all() const { return witnesses_; }
+
+private:
+  std::filesystem::path path_;
+  std::mutex mutex_;
+  std::vector<cobordismgraph::Witness> witnesses_;
+  // witnessIdentity() of every witness in witnesses_, and of every witness
+  // claimed and not yet published, under mutex_: the dedupe is a hash
+  // lookup, not a scan of every witness ever recorded while holding the one
+  // lock.
+  std::unordered_set<std::string> identities_;
+  // How far the file is current. witnesses_ is append-only -- publish() is
+  // its only mutation after construction -- so its size changes if and only
+  // if its content does, which makes the count an exact dirty flag rather
+  // than a heuristic one. Read and written only under mutex_. Initialised
+  // from the loaded set, so a run that resumes does not rewrite what it
+  // just read.
+  size_t lastCheckpointedCount_;
+  std::atomic<long long> lastCheckpointTick_{0};
+  std::atomic<long long> lastNewTick_{0};
+};
 
 } // namespace cascade

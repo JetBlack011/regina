@@ -44,6 +44,7 @@
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/database.h"
 #include "cobound/cobordisms/pairsigner.h"
+#include "cobound/cobordisms/pending.h"
 #include "linknaming/tables.h"
 #include "cobound/outgoing/outgoingnamer.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -356,7 +357,6 @@ void printBoundaryProgress(size_t processed, size_t total,
 
 // The witness store and the table readers live in witnessstore.h, shared
 // with cascadesearch.
-using witnessstore::appendWitnesses;
 using witnessstore::loadNameTable;
 using witnessstore::loadWitnesses;
 using witnessstore::rewriteWitnessFile;
@@ -2039,9 +2039,13 @@ int main(int argc, char *argv[]) {
   pairSigReader().setPath(cobordismsPath);
   // Both per-witness tables are keyed on the pair signature's key, which is
   // hashed at load only when one of them will be looked up.
-  std::vector<cobordismgraph::Witness> witnesses = loadWitnesses(
+  // Every witness the run knows: the file's, and each one its searches
+  // record (cobordisms/pending). `witnesses` is what the solver reads.
+  cascade::RecordedWitnesses recorded(
       cobordismsPath,
-      !farSideResolutionPath.empty() || !farSideExactPath.empty());
+      loadWitnesses(cobordismsPath,
+                    !farSideResolutionPath.empty() || !farSideExactPath.empty()));
+  const std::vector<cobordismgraph::Witness> &witnesses = recorded.all();
   std::cout << "[+] Resuming with " << witnesses.size()
             << " previously-recorded witnesses from " << cobordismsPath
             << "\n";
@@ -2337,163 +2341,25 @@ int main(int argc, char *argv[]) {
     return contradictions;
   };
 
-  // Records one witness if it's genuinely new, returning whether it was.
-  // The dedup matters a lot in --harvest mode: a single search reports
-  // thousands of near-identical surfaces, and capturing a pair signature
-  // for each would dominate the run (see SurfaceFoundInfo::capturePairSig).
-  std::mutex witnessMutex;
-  // witnessIdentity() of every witness in `witnesses`, maintained alongside
-  // it under witnessMutex: the dedup test is a hash lookup, not a scan of
-  // every witness ever recorded while holding the one global lock.
-  std::unordered_set<std::string> witnessIdentities;
-  // Cost of the pair signatures recordWitness() computes; see the per-row
+  // Cost of the pair signatures each row's signer computes; see the per-row
   // identification line.
   std::atomic<long long> pairSigCount{0};
   std::atomic<long long> pairSigMillis{0};
-  witnessIdentities.reserve(witnesses.size() * 2 + 1024);
-  for (const cobordismgraph::Witness &w : witnesses)
-    witnessIdentities.insert(cobordismgraph::witnessIdentity(w));
-  std::atomic<long long> lastNewWitnessTick{0};
-  auto tickNow = [] {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
-        .count();
-  };
   // The current row's signer (WitnessSigner), while its search runs.
   cascade::WitnessSigner *activeSigner = nullptr;
+  // Records one witness if it's genuinely new, returning whether it was.
+  // The dedup matters a lot in --harvest mode: a single search reports
+  // thousands of near-identical surfaces, and signing each would dominate
+  // the run. The row's signer takes the witness's faces and signs it off
+  // this (drain) thread; its identity is claimed now, so the dedup stays
+  // exact (RecordedWitnesses::claim()).
   auto recordWitness = [&](cobordismgraph::Witness w,
-                           const std::function<std::string()> &capturePairSig,
                            const std::function<std::vector<int>()> &captureFaces)
       -> bool {
-    // A row's signer takes the witness's faces and signs it off this (drain)
-    // thread; its identity is claimed now, so the dedup stays exact.
-    if (activeSigner && captureFaces) {
-      std::string identity = cobordismgraph::witnessIdentity(w);
-      {
-        std::lock_guard<std::mutex> lock(witnessMutex);
-        if (!witnessIdentities.insert(std::move(identity)).second)
-          return false;
-        lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
-      }
-      activeSigner->add(std::move(w), captureFaces());
-      return true;
-    }
-    // capturePairSig() must NOT run under witnessMutex. It computes a
-    // 4-dimensional isomorphism signature of the whole cobordism, and perf
-    // puts it at ~93% of the drain's CPU (IsoSigData<1,4>::fillFrom plus
-    // IsoSigPrintable::encode<4>). Holding the one global witness lock
-    // across it serialised all 12 boundary-identification threads behind a
-    // single core: measured at 1.00 core of 12 in use, with ten worker
-    // threads accumulating literally zero CPU ticks, and the drain
-    // alternating ~90s stalls with brief 12-thread bursts depending on
-    // whether witnesses were being found. A row that finds NOTHING drained
-    // at full speed, which is what made this so easy to misread as a
-    // problem with the boundary identification itself.
-    //
-    // So: check under the lock, compute outside it, then re-check before
-    // inserting. The re-check is what keeps the dedup exact -- two threads
-    // can pass the first check for the same witness concurrently, and
-    // without it both would insert.
-    std::string identity = cobordismgraph::witnessIdentity(w);
-    {
-      std::lock_guard<std::mutex> lock(witnessMutex);
-      if (witnessIdentities.contains(identity))
-        return false;
-    }
-
-    if (capturePairSig) {
-      const auto sigStart = std::chrono::steady_clock::now();
-      w.pairSig = capturePairSig();
-      pairSigCount.fetch_add(1, std::memory_order_relaxed);
-      pairSigMillis.fetch_add(
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-              std::chrono::steady_clock::now() - sigStart)
-              .count(),
-          std::memory_order_relaxed);
-    }
-
-    std::lock_guard<std::mutex> lock(witnessMutex);
-    if (!witnessIdentities.insert(std::move(identity)).second)
-      return false; // another thread got there while we were computing
-    witnesses.push_back(std::move(w));
-    lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
+    if (!recorded.claim(w))
+      return false;
+    activeSigner->add(std::move(w), captureFaces());
     return true;
-  };
-
-  // Checkpointing: witnesses are otherwise written only when a row finishes
-  // (see flushWitnesses() at the end of the row loop), so a row that
-  // is interrupted -- by a crash, a shutdown, or an operator stopping a run
-  // that looks unproductive -- loses everything it found. That is not
-  // hypothetical: a 4-hour L9n2{1} row lost 13 hours to a shutdown mid-drain,
-  // and an L9a26{1} row was killed five hours after it had already found a
-  // constructive genus-0 witness that had never reached disk.
-  //
-  // Under --harvest the exposure is worst, because a row that has ALREADY
-  // resolved deliberately keeps running to bank more edges -- so the longer
-  // it usefully runs, the more there is to lose.
-  //
-  // A checkpoint APPENDS only the witnesses recorded since the last one
-  // (appendWitnesses(), with fsync); the file is never rewritten, so nothing
-  // already on disk can be lost to a crash, a merge, or a solve. A torn last
-  // line from a crash mid-append is ignored on load and truncated before the
-  // next append.
-  //
-  // lastCheckpointedCount marks how far the file is current.
-  // `witnesses` is append-only -- push_back below is its only
-  // mutation after the initial loadWitnesses(), and applyNameAliases()
-  // deliberately builds a SEPARATE vector so that interpretations never
-  // mutate the observation record -- so the size changes if and only if the
-  // content does, which makes the count an exact dirty flag rather than a
-  // heuristic one. It is read and written only under witnessMutex, so it
-  // needs no atomicity of its own and cannot race push_back.
-  //
-  // Initialised from the loaded set, so resuming a run does not immediately
-  // rewrite a file identical to the one just read.
-  std::atomic<long long> lastCheckpointTick{0};
-  size_t lastCheckpointedCount = witnesses.size();
-  constexpr long long CHECKPOINT_INTERVAL_MS = 60'000;
-  auto checkpointWitnesses = [&](bool force) {
-    const long long now = tickNow();
-    if (!force &&
-        now - lastCheckpointTick.load(std::memory_order_relaxed) <
-            CHECKPOINT_INTERVAL_MS)
-      return;
-    std::lock_guard<std::mutex> lock(witnessMutex);
-    // Re-check under the lock so concurrent callers don't each rewrite.
-    if (!force &&
-        now - lastCheckpointTick.load(std::memory_order_relaxed) <
-            CHECKPOINT_INTERVAL_MS)
-      return;
-    lastCheckpointTick.store(now, std::memory_order_relaxed);
-    // The gate below is only sound while `witnesses` is append-only. If this
-    // ever fires, the count is no longer an exact dirty flag and must be
-    // replaced by a real flag set in recordWitness().
-    assert(witnesses.size() >= lastCheckpointedCount &&
-           "witnesses must be append-only for the checkpoint gate to be sound");
-    // Nothing new since the last successful write, so the file already holds
-    // exactly what we would write. A forced checkpoint still writes: callers
-    // pass force=true at points where the file must be current regardless.
-    if (!force && witnesses.size() == lastCheckpointedCount)
-      return;
-    try {
-      appendWitnesses(cobordismsPath, witnesses, lastCheckpointedCount);
-      // Only on success -- a checkpoint that threw has NOT reached disk, and
-      // marking it clean here would suppress every later attempt to write the
-      // same witnesses, turning a transient write failure into silent loss.
-      lastCheckpointedCount = witnesses.size();
-    } catch (const std::exception &e) {
-      // A failed checkpoint must not kill a running search: the row's own
-      // end-of-row write is still to come, and that one is allowed to throw.
-      std::cerr << "[!] witness checkpoint failed: " << e.what() << "\n";
-    }
-  };
-  // The end-of-row and end-of-run write: appends whatever is new, and --
-  // unlike a checkpoint -- lets a failure propagate. Writes nothing at all
-  // when nothing is new, so a --solve-only run never touches the file.
-  auto flushWitnesses = [&] {
-    std::lock_guard<std::mutex> lock(witnessMutex);
-    appendWitnesses(cobordismsPath, witnesses, lastCheckpointedCount);
-    lastCheckpointedCount = witnesses.size();
   };
 
   const auto sweepStart = std::chrono::steady_clock::now();
@@ -2703,7 +2569,7 @@ int main(int argc, char *argv[]) {
     std::atomic<long long> newWitnessesThisRow{0};
     std::atomic<bool> resolvedThisRow{false};
 
-    lastNewWitnessTick.store(tickNow(), std::memory_order_relaxed);
+    recorded.markActivity();
 
     // Started just before the search (below). It polls at 200ms but has no
     // access to SearchStats; onProgress is the only place the live count is
@@ -2754,7 +2620,7 @@ int main(int argc, char *argv[]) {
               row.hi);
           // The drain is the long pole of a row and the phase most likely to
           // be interrupted, so checkpoint from here.
-          checkpointWitnesses(/*force=*/false);
+          recorded.checkpoint(/*force=*/false);
         };
     callbacks.onBoundaryProcessingComplete =
         [&](size_t total, std::chrono::steady_clock::duration elapsed) {
@@ -2813,10 +2679,6 @@ int main(int argc, char *argv[]) {
       const int witnessGenus = info.tubedGenus;
       const bool tubed = !info.connected;
 
-      auto capturePairSig = [&info] {
-        return info.capturePairSig ? info.capturePairSig() : std::string{};
-      };
-
       cobordismgraph::Witness w;
       w.subject = row.name;
       w.subjectComponents = rb.componentCount;
@@ -2848,7 +2710,7 @@ int main(int argc, char *argv[]) {
         w.otherCandidates = names.candidates(farName, far.components);
       }
 
-      if (!recordWitness(w, capturePairSig, info.captureFaces)) {
+      if (!recordWitness(w, info.captureFaces)) {
         acct.duplicate.fetch_add(1, std::memory_order_relaxed);
         return;
       }
@@ -2900,7 +2762,7 @@ int main(int argc, char *argv[]) {
                     << implied << " (literature [" << row.lo << ", " << row.hi
                     << "]). Checkpointing now.\n"
                     << std::flush;
-          checkpointWitnesses(/*force=*/true);
+          recorded.checkpoint(/*force=*/true);
         }
         if (!harvest) {
           // Without --harvest, stop the moment the row is settled: the
@@ -2944,10 +2806,7 @@ int main(int argc, char *argv[]) {
           // spending the rest of its budget enumerating more of the same is
           // worse than moving on to a row we know nothing about.
           .quiescenceSeconds = harvestQuiescence,
-          .idleMillis = [&] {
-            return tickNow() -
-                   lastNewWitnessTick.load(std::memory_order_relaxed);
-          }};
+          .idleMillis = [&] { return recorded.millisSinceNew(); }};
       watchdog.emplace(std::move(watchdogLimits), endRowNow);
     }
 
@@ -2974,10 +2833,7 @@ int main(int argc, char *argv[]) {
     std::optional<cascade::WitnessSigner> signer;
     signer.emplace(
         [&e]() -> const PairSigContext<4, 2> & { return e.pairSigContext(); },
-        [&](cobordismgraph::Witness &&w) {
-          std::lock_guard<std::mutex> lock(witnessMutex);
-          witnesses.push_back(std::move(w));
-        });
+        [&](cobordismgraph::Witness &&w) { recorded.publish(std::move(w)); });
     struct SignerScope {
       cascade::WitnessSigner *&active;
       ~SignerScope() { active = nullptr; }
@@ -3079,7 +2935,7 @@ int main(int argc, char *argv[]) {
       out.searchOutcome = searchOutcome;
     }
 
-    flushWitnesses();
+    recorded.flush();
     writeOutputCsv(*outputPath, rows, outputRows);
 
     // The row's breadth, and its frontier: written only now that every
@@ -3309,7 +3165,7 @@ int main(int argc, char *argv[]) {
   // reflects everything its witness file knows.
   for (const std::string &reason : resolveAll())
     flagFatalBug(reason);
-  flushWitnesses();
+  recorded.flush();
   writeOutputCsv(*outputPath, rows, outputRows);
   haltIfFatalBugDetected();
 

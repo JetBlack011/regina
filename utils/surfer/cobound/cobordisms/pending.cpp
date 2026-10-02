@@ -3,11 +3,13 @@
 #include "cobound/cobordisms/pending.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
@@ -177,6 +179,91 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
     appendonly::append(sidecar, buffer, appendonly::Sync::yes);
   }
   return r;
+}
+
+namespace {
+
+constexpr long long CHECKPOINT_INTERVAL_MS = 60'000;
+
+long long tickNow() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+} // namespace
+
+RecordedWitnesses::RecordedWitnesses(fs::path path,
+                                     std::vector<cobordismgraph::Witness> loaded)
+    : path_(std::move(path)), witnesses_(std::move(loaded)),
+      lastCheckpointedCount_(witnesses_.size()) {
+  identities_.reserve(witnesses_.size() * 2 + 1024);
+  for (const cobordismgraph::Witness &w : witnesses_)
+    identities_.insert(cobordismgraph::witnessIdentity(w));
+}
+
+bool RecordedWitnesses::claim(const cobordismgraph::Witness &w) {
+  std::string identity = cobordismgraph::witnessIdentity(w);
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!identities_.insert(std::move(identity)).second)
+    return false;
+  lastNewTick_.store(tickNow(), std::memory_order_relaxed);
+  return true;
+}
+
+void RecordedWitnesses::publish(cobordismgraph::Witness &&w) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  witnesses_.push_back(std::move(w));
+}
+
+void RecordedWitnesses::checkpoint(bool force) {
+  const long long now = tickNow();
+  if (!force &&
+      now - lastCheckpointTick_.load(std::memory_order_relaxed) <
+          CHECKPOINT_INTERVAL_MS)
+    return;
+  std::lock_guard<std::mutex> lock(mutex_);
+  // Re-check under the lock so concurrent callers don't each rewrite.
+  if (!force &&
+      now - lastCheckpointTick_.load(std::memory_order_relaxed) <
+          CHECKPOINT_INTERVAL_MS)
+    return;
+  lastCheckpointTick_.store(now, std::memory_order_relaxed);
+  // The gate below is only sound while witnesses_ is append-only. If this
+  // ever fires, the count is no longer an exact dirty flag and must be
+  // replaced by a real flag set in publish().
+  assert(witnesses_.size() >= lastCheckpointedCount_ &&
+         "witnesses must be append-only for the checkpoint gate to be sound");
+  // Nothing new since the last successful write, so the file already holds
+  // exactly what we would write. A forced checkpoint still writes: callers
+  // pass force=true at points where the file must be current regardless.
+  if (!force && witnesses_.size() == lastCheckpointedCount_)
+    return;
+  try {
+    witnessstore::appendWitnesses(path_, witnesses_, lastCheckpointedCount_);
+    // Only on success -- a checkpoint that threw has NOT reached disk, and
+    // marking it clean here would suppress every later attempt to write the
+    // same witnesses, turning a transient write failure into silent loss.
+    lastCheckpointedCount_ = witnesses_.size();
+  } catch (const std::exception &e) {
+    // A failed checkpoint must not kill a running search: the search's own
+    // end-of-search write is still to come, and that one is allowed to throw.
+    std::cerr << "[!] witness checkpoint failed: " << e.what() << "\n";
+  }
+}
+
+void RecordedWitnesses::flush() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  witnessstore::appendWitnesses(path_, witnesses_, lastCheckpointedCount_);
+  lastCheckpointedCount_ = witnesses_.size();
+}
+
+void RecordedWitnesses::markActivity() {
+  lastNewTick_.store(tickNow(), std::memory_order_relaxed);
+}
+
+long long RecordedWitnesses::millisSinceNew() const {
+  return tickNow() - lastNewTick_.load(std::memory_order_relaxed);
 }
 
 } // namespace cascade
