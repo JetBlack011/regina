@@ -394,11 +394,22 @@ struct HopRun {
   PetalCache::Stats petals;                        ///< at the search's end
   identify::BoundarySignatureCacheStats boundaryCache;
   identify::RecognitionCacheStats recognitionBefore; ///< as the search began
+  identify::RecognitionCacheStats recognitionAfter;  ///< and as it ended
   std::pair<long long, long long> censusWritesBefore; ///< census::insertCounts()
+  std::pair<long long, long long> censusWritesAfter;
   bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves
   long long nonPlanar = 0;         ///< its non-planar drawings
   long long pairSigsSigned = 0;    ///< Signing::duringSearch
   long long pairSigMillis = 0;
+  /// The signer's context: when it was ready (seconds after the search
+  /// began; 0 if never needed), whether the cache held it, and what
+  /// waiting for the last signatures added after the drain.
+  double pairSigContextSeconds = 0;
+  bool pairSigContextLoaded = false;
+  double pairSigFinishSeconds = 0;
+  /// The `runs` of the frontier this search was offered to resume, if any.
+  std::optional<unsigned> resumeOfferedRuns;
+  bool linkingAudit = false;       ///< petal linking numbers were audited
   /// judgeInSearch: why the search found something impossible (a witness
   /// below the literature lower bound); empty when it did not.
   std::string fatal;

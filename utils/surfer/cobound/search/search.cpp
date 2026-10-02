@@ -13,11 +13,13 @@
 
 #include <sys/resource.h>
 
+#include "cobound/cobordisms/pairsigner.h"
 #include "cobound/driver/timers.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
 #include "cobound/search/searchreport.h"
 #include "linknaming/census/censusnaming.h"
+#include "surfer/submanifold/linkingnumber.h"
 #include "surfer/enumeration/surfacesearch.h"
 #include "surfer/report/csvwriter.h"
 
@@ -614,8 +616,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     signer->finish(threads_);
     out.pairSigsSigned = signer->signedCount();
     out.pairSigMillis = signer->signMillis();
-    rowsearch::printPairSignatures(std::cout, request.name, *signer,
-                                   e.pairSigContextLoaded());
+    out.pairSigContextSeconds = signer->contextSeconds();
+    out.pairSigContextLoaded = e.pairSigContextLoaded();
+    out.pairSigFinishSeconds = signer->finishSeconds();
+    rowsearch::printPairSignatures(std::cout, request.name, out);
   }
   watchdog->stop();
   if (surfaceLog)
@@ -668,6 +672,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.outcome = outcome;
   out.resumed = e.resumedFrontier();
   out.resumeRefusal = e.resumeRefusal();
+  if (request.resume)
+    out.resumeOfferedRuns = request.resume->runs;
   out.recordedFrontier = e.frontier();
   out.frontierSeconds = e.frontierSeconds();
   // Only a prefix whose every surface was examined may be skipped later
@@ -678,6 +684,9 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.stats = stats;
   out.petals = e.petalCacheStats();
   out.boundaryCache = e.boundarySignatureCacheStats();
+  out.recognitionAfter = identify::recognitionCacheStats();
+  out.censusWritesAfter = census::insertCounts();
+  out.linkingAudit = linkingnumber::auditLinkingNumbers.load();
   out.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
   out.cpu = timers::processCpuSeconds() - cpu0;
   return out;

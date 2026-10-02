@@ -15,7 +15,6 @@
 #include <optional>
 #include <string>
 
-#include "cobound/cobordisms/pairsigner.h"
 #include "cobound/search/search.h"
 #include "surfer/enumeration/surfacesearch.h"
 #include "surfer/report/progress.h"
@@ -142,26 +141,26 @@ constexpr int REJECTION_SAMPLES_PER_REASON = 20;
 
 /*
  * verifyslicegenus's per-row lines, from what the search returned
- * (cascade::HopRun). Each writes to `out` exactly as the row loop did,
- * stream state included (the pair-signature and breadth lines leave `out`
- * in std::fixed's precision, as they always have).
+ * (cascade::HopRun) and nothing else. Each writes to `out` exactly as the
+ * row loop did, stream state included (the pair-signature and breadth lines
+ * leave `out` in std::fixed's precision, as they always have).
  */
 
 /** `pair signatures:`, for a search that signed during the search. */
 void printPairSignatures(std::ostream &out, const std::string &name,
-                         const cascade::WitnessSigner &signer, bool contextLoaded);
+                         const cascade::HopRun &run);
 
 /** `breadth:` (the atlas's search_breadth.py parses it): the recorded
- *  frontier, whether `resumeFrom` was carried on from, and the frontier's
- *  cost. */
+ *  frontier, whether the frontier the search was offered was carried on
+ *  from, and the frontier's cost. */
 void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const cascade::HopRun &run, const SearchFrontier *resumeFrom);
+                       const cascade::HopRun &run);
 
 /** `N new witnesses, outcome X` and `accounting:` (dispatch.py's RE_OUTCOME
  *  and RE_ACCOUNTING). */
 void printOutcome(std::ostream &out, const std::string &name, const cascade::HopRun &run);
 
-/** `identification:` (the census and recognition counters read now, against
+/** `identification:` (the census and recognition counters as the search ended, against
  *  the search's start), `diagram naming:` and their warnings. */
 void printIdentification(std::ostream &out, const std::string &name,
                          const cascade::HopRun &run);

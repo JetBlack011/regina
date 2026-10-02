@@ -2346,8 +2346,7 @@ int main(int argc, char *argv[]) {
     // vouch for having examined every surface in it -- else a later run
     // would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
-      rowsearch::printSweepBreadth(std::cout, row.name, run,
-                                   resumeFrom ? &*resumeFrom : nullptr);
+      rowsearch::printSweepBreadth(std::cout, row.name, run);
       if (frontierDir && run.recordedFrontier) {
         if (run.frontier) {
           try {

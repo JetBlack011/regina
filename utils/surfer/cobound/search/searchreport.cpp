@@ -9,10 +9,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/complementcache.h"
 #include "surfer/report/csvwriter.h"
-#include "surfer/submanifold/linkingnumber.h"
 
 namespace rowsearch {
 
@@ -156,30 +154,30 @@ void printBoundaryProgress(size_t processed, size_t total,
 }
 
 void printPairSignatures(std::ostream &out, const std::string &name,
-                         const cascade::WitnessSigner &signer, bool contextLoaded) {
-  out << "[+] " << name << ": pair signatures: " << signer.signedCount()
+                         const cascade::HopRun &run) {
+  out << "[+] " << name << ": pair signatures: " << run.pairSigsSigned
       << " signed in " << std::fixed << std::setprecision(1)
-      << signer.signMillis() / 1000.0 << "s of thread time; context ";
-  if (signer.signedCount() > 0)
-    out << (contextLoaded ? "loaded from the cache, " : "built, ") << "ready "
-        << signer.contextSeconds() << "s after the search began";
+      << run.pairSigMillis / 1000.0 << "s of thread time; context ";
+  if (run.pairSigsSigned > 0)
+    out << (run.pairSigContextLoaded ? "loaded from the cache, " : "built, ") << "ready "
+        << run.pairSigContextSeconds << "s after the search began";
   else
     out << "not needed";
-  out << "; " << signer.finishSeconds() << "s after the drain finishing\n"
+  out << "; " << run.pairSigFinishSeconds << "s after the drain finishing\n"
       << std::defaultfloat;
 }
 
 void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const cascade::HopRun &run, const SearchFrontier *resumeFrom) {
+                       const cascade::HopRun &run) {
   out << "[+] " << name << ": breadth: ";
   if (const auto &f = run.recordedFrontier)
     out << f->summary() << "; fingerprint " << f->fingerprint.substr(0, 12);
   else
     out << "not recorded";
   out << "; resumed "
-      << (!resumeFrom ? std::string("none")
+      << (!run.resumeOfferedRuns ? std::string("none")
           : run.resumed
-              ? std::string("yes (") + std::to_string(resumeFrom->runs) + " runs before)"
+              ? std::string("yes (") + std::to_string(*run.resumeOfferedRuns) + " runs before)"
               : "no: " + run.resumeRefusal)
       << "; frontier " << std::fixed << std::setprecision(2) << run.frontierSeconds
       << "s, replayed " << run.stats.profile.replayed << " re-adds\n"
@@ -199,7 +197,7 @@ void printOutcome(std::ostream &out, const std::string &name, const cascade::Hop
 
 void printIdentification(std::ostream &out, const std::string &name,
                          const cascade::HopRun &run) {
-  const identify::RecognitionCacheStats r = identify::recognitionCacheStats();
+  const identify::RecognitionCacheStats &r = run.recognitionAfter;
   const identify::RecognitionCacheStats &before = run.recognitionBefore;
   const identify::BoundarySignatureCacheStats &b = run.boundaryCache;
   auto secs = [](long long ms) {
@@ -207,9 +205,8 @@ void printIdentification(std::ostream &out, const std::string &name,
     o << std::fixed << std::setprecision(1) << ms / 1000.0;
     return o.str();
   };
-  const auto censusWritesNow = census::insertCounts();
-  const long long censusOk = censusWritesNow.first - run.censusWritesBefore.first;
-  const long long censusFailed = censusWritesNow.second - run.censusWritesBefore.second;
+  const long long censusOk = run.censusWritesAfter.first - run.censusWritesBefore.first;
+  const long long censusFailed = run.censusWritesAfter.second - run.censusWritesBefore.second;
   out << "[+] " << name << ": identification: boundary cache " << b.hits << "/"
       << b.checks << " hits, census checks " << (r.censusChecks - before.censusChecks)
       << " (local hits " << (r.localCensusHits - before.localCensusHits)
@@ -275,7 +272,7 @@ void printSearchProfile(std::ostream &out, const std::string &name,
       << nsecs(petals.unknotMissNanos) << "s, linking " << linkingMisses(petals) << " in "
       << nsecs(petals.linkingMissNanos) << "s (cochains " << petals.linkingFast
       << ", fallbacks " << petals.linkingFallbacks << ")";
-  if (linkingnumber::auditLinkingNumbers.load())
+  if (run.linkingAudit)
     out << "; linking audit: " << petals.linkingAudited << " checked ("
         << petals.linkingAuditNonzero << " linked), " << petals.linkingDisagreements
         << " disagree, drilling route " << nsecs(petals.linkingAuditOldNanos) << "s";
