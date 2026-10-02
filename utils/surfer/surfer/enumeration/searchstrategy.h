@@ -13,11 +13,22 @@
  * A SearchFrontier records exactly that, plus a fingerprint of everything
  * that fixes the traversal and what it accepts (see
  * EmbeddingSearch::frontierFingerprint_). Handed back to a search with the
- * same fingerprint, it resumes there: the concatenation of the two runs'
- * reports is one uninterrupted run's, nothing visited twice and nothing
- * skipped (embeddingsearch_test's frontier tests). A stop suspends each
- * in-flight root at its exact position (BudgetedPredicate::suspendOnStop),
- * so a frontier never overclaims.
+ * same fingerprint, it resumes there: the two runs together report what one
+ * uninterrupted run reports, nothing visited twice and nothing skipped
+ * (submanifoldsearch_test's frontier tests). A stop suspends each in-flight
+ * root at its exact position (BudgetedPredicate::suspendOnStop), so a
+ * frontier never overclaims.
+ *
+ * In the same ORDER only when passes are unbudgeted. Within a round, a root
+ * that spends its budget without finishing goes to the back of the root
+ * queue (runSearch_'s worker, `rootQueue.push_back(idx)`), while a resumed
+ * round rebuilds the queue in index order (runRound). So with root budgets
+ * a resumed run visits a permutation of what one run visits: a search
+ * stopped at a surface target and resumed reaches its next target through
+ * other surfaces than one run would have (8_8 at the production shape,
+ * 2026-10-02: 25,255 of 120,000 differ over six resumed steps), while
+ * running it to exhaustion gives exactly one run's surfaces. Preserving the
+ * order would need the queue in the frontier: a format change.
  *
  * It is also the search's breadth, as data: which round, how many roots
  * finished, how far the rest got, and the cumulative counts over every run
