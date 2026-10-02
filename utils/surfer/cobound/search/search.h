@@ -208,18 +208,6 @@ struct SearchPolicy {
   /// lacks that check).
   bool frontierNeedsExamined = false;
 
-  /// Divergence 2, failures. `halt` (verifyslicegenus): a row whose diagram
-  /// namer cannot be built is searched on the complement route, with a
-  /// warning; a search whose accounting failed, or that examined nothing,
-  /// records the outcome "unaccounted"; and the driver halts the process
-  /// (exit 2) on a seed-invariant failure (SeedInvariantFailure), on an
-  /// accounting failure and on a find below the literature (HopRun::fatal).
-  /// `refuse` (the cascade): a namer that cannot be built, like the seed
-  /// invariant, throws (the node is refused); the outcome is left as the
-  /// search ended; and an accounting failure only marks the hop suspect.
-  enum class Failures { halt, refuse };
-  Failures failures = Failures::refuse;
-
   /// Divergences 6 and 10, who judges a find: the search itself, each new
   /// witness against the solver's bounds as of the last solve
   /// (cobordismgraph::upperBoundVia(); verifyslicegenus). It prints the
@@ -337,11 +325,19 @@ struct SearchRequest {
 
 /// Thrown by HopSearcher::run() before searching when a searchable triangle
 /// other than the seed has an edge on the incoming boundary, so found
-/// surfaces could change the incoming link. what() is the cascade's
-/// refusal; verifyslicegenus halts with its own message.
+/// surfaces could change the incoming link: an impossible state, on which
+/// every driver halts once what it found is written (plan divergence 2).
 struct SeedInvariantFailure : std::runtime_error {
   explicit SeedInvariantFailure(size_t touching);
   size_t touching;
+};
+
+/// Thrown by HopSearcher::run() for a row it will not search: no collar
+/// seed, or a far-side namer that cannot be built on it (plan divergence 2:
+/// refused, never searched by a fallback route). The cascade refuses the
+/// node; verifyslicegenus records the row as a build failure and goes on.
+struct SearchRefused : std::runtime_error {
+  using std::runtime_error::runtime_error;
 };
 
 /// What a hop did.
@@ -379,6 +375,9 @@ struct HopRun {
   long long otherOrientation = 0;  ///< rejected as another oriented variant
   bool drainSkipped = false;
   bool nothingExamined = false;    ///< RowAccounting::nothingExamined()
+  /// Surfaces in a state that cannot occur (RowAccounting::impossible()):
+  /// unlike an imbalance, which ends only its search, a halt (divergence 2).
+  long long impossible = 0;
   /// The search's frontier as recorded, whether vouched for or not.
   std::optional<SearchFrontier> recordedFrontier;
   double frontierSeconds = 0;
@@ -463,9 +462,9 @@ public:
    * cascade's hop through it.
    *
    * \throws SeedInvariantFailure when the seed invariant fails;
-   * std::runtime_error for a row with no seed (unless `request.unseeded`),
-   * and (SearchPolicy::Failures::refuse) when the diagram namer cannot be
-   * built; a signer's failure (Signing::duringSearch).
+   * SearchRefused for a row with no seed (unless `request.unseeded`), or
+   * whose diagram namer cannot be built; a signer's failure
+   * (Signing::duringSearch).
    */
   HopRun run(const rowsearch::RowBuild &rb, const SearchRequest &request) const;
 

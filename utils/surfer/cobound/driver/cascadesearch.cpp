@@ -373,6 +373,8 @@ private:
   std::map<NodeId, std::string> tableName_;
   std::map<NodeId, std::vector<long>> expansions_;
   std::set<NodeId> refused_;
+  /// Why the run must halt (an impossible state, divergence 2); empty if not.
+  std::string halt_;
   // What a checker needs to replay each witness edge (certificate.json).
   struct EdgeInfo {
     std::string hopDir, rowPD, key;
@@ -1311,6 +1313,12 @@ void Cascade::expand(NodeId n, long surfaces) {
                            tables_.entry(rowName)
                                ? std::optional<std::string>(cobordismgraph::baseName(rowName))
                                : std::nullopt);
+    } catch (const SeedInvariantFailure &e) {
+      // Divergence 2: an impossible state halts the run, once what it found
+      // is written (run()).
+      halt_ = "node " + std::to_string(n) + ": " + e.what();
+      std::cout << "[!!] HALT: " << halt_ << "\n";
+      return;
     } catch (const std::exception &e) {
       refused_.insert(n);
       log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
@@ -1348,10 +1356,18 @@ void Cascade::expand(NodeId n, long surfaces) {
     std::cout << "[+] hop " << k << " " << rowName << ": accounting: " << run.accounting
               << "\n[+] hop " << k << " " << rowName << ": diagram naming: " << run.naming
               << "\n";
-    if (!run.accountingFailure.empty())
+    if (run.impossible > 0) {
+      // Divergence 2: a state that cannot occur halts the run, once this
+      // hop's finds are recorded (below) and stored (run()), even if they
+      // meet the goal.
+      halt_ = "hop " + std::to_string(k) + ": surface accounting failed -- " +
+              std::to_string(run.impossible) + " surfaces hit a state that cannot occur";
+      std::cout << "[!!] HALT: " << halt_ << "\n";
+    } else if (!run.accountingFailure.empty()) {
       std::cout << "[!!] hop " << k << ": surface accounting failed -- "
                 << run.accountingFailure << " (completeness only: nothing unsound "
                 << "is recorded)\n";
+    }
     // The node's breadth so far, and where its next hop carries on from.
     std::cout << "[+] hop " << k << " " << rowName << ": breadth: "
               << (run.frontier ? run.frontier->summary() : std::string("not recorded"))
@@ -1966,7 +1982,17 @@ int Cascade::run() {
   const auto start = std::chrono::steady_clock::now();
   const double startupSeconds = secondsSince(tRun);
   long budget = cfg_.hopSurfaces;
-  while (!goalMet()) {
+  while (true) {
+    // A halt first (divergence 2): even a goal met by the hop that found an
+    // impossible state is not reported as met.
+    if (!halt_.empty()) {
+      // The surfaces found are real whatever broke, so they are kept.
+      storeWitnesses();
+      writeProfiles();
+      printOutcome("halted");
+      return 2;
+    }
+    if (goalMet()) break;
     if (!g_.contradictions().empty()) {
       for (const auto &c : g_.contradictions()) std::cout << "[!!] CONTRADICTION: " << c << "\n";
       // The surfaces are real whatever the contradiction's cause (a naming

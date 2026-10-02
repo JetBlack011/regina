@@ -2126,7 +2126,6 @@ int main(int argc, char *argv[]) {
   // divergence the plan removes in phase 4(b) (search/search.h, SearchPolicy).
   cascade::SearchPolicy policy;
   policy.frontierNeedsExamined = true;
-  policy.failures = cascade::SearchPolicy::Failures::halt;
   policy.judgeInSearch = true;
   policy.signing = cascade::SearchPolicy::Signing::duringSearch;
 
@@ -2144,6 +2143,8 @@ int main(int argc, char *argv[]) {
   searchShape.limits = limits;
 
   const auto sweepStart = std::chrono::steady_clock::now();
+  // Searches whose accounting failed (divergence 2): the run exits 2.
+  std::vector<std::string> unaccounted;
   size_t processedThisRun = 0;
   size_t searchedThisRun = 0;
   bool sweepTimedOut = false;
@@ -2183,7 +2184,9 @@ int main(int argc, char *argv[]) {
       buildFailed = true;
     }
 
-    if (buildFailed) {
+    // A row that cannot be built, or that the search refuses: recorded as
+    // such, and the run goes on.
+    auto recordBuildFailure = [&] {
       OutputRow out;
       out.knot = row.name;
       out.status = "unresolved";
@@ -2193,6 +2196,9 @@ int main(int argc, char *argv[]) {
       out.searchOutcome = "build-failed";
       outputRows[row.name] = std::move(out);
       writeOutputCsv(*outputPath, rows, outputRows);
+    };
+    if (buildFailed) {
+      recordBuildFailure();
       continue;
     }
 
@@ -2274,6 +2280,11 @@ int main(int argc, char *argv[]) {
                    " searchable non-seed triangles have an edge on the "
                    "search side, so found surfaces could change it.");
       haltIfFatalBugDetected();
+    } catch (const cascade::SearchRefused &ex) {
+      std::cerr << "[!] " << row.name << ": failed to build (" << ex.what()
+                << "), skipping\n";
+      recordBuildFailure();
+      continue;
     }
     // A find below the literature (the search's own check): halts once the
     // row's witnesses are written, below.
@@ -2349,12 +2360,23 @@ int main(int argc, char *argv[]) {
 
     for (const std::string &reason : contradictions)
       flagFatalBug(reason);
-    // Divergence 2: an accounting failure halts the run, once this row's
-    // witnesses are safely written.
-    if (policy.failures == cascade::SearchPolicy::Failures::halt &&
-        !run.accountingFailure.empty())
+    // Divergence 2: a state that cannot occur halts the run, now that this
+    // row's witnesses are written; any other accounting failure ends only
+    // this search (its outcome is `unaccounted`; no frontier, no exhaustion
+    // claim, above) and the run goes on to its other rows; completeness is
+    // what a run without a goal is for, so the run then exits 2.
+    if (run.impossible > 0) {
       flagFatalBug(row.name + ": surface accounting failed -- " +
-                   run.accountingFailure + ".");
+                   std::to_string(run.impossible) +
+                   " surfaces hit a state that cannot occur (accounting: " +
+                   run.accounting + ").");
+    } else if (!run.accountingFailure.empty()) {
+      unaccounted.push_back(row.name);
+      std::cout << "[!!] " << row.name << ": surface accounting failed -- "
+                << run.accountingFailure
+                << " (its search vouches for nothing: no frontier, no "
+                   "exhaustion claim; the run goes on and exits 2)\n";
+    }
     if (fatalBugDetected_.load())
       haltIfFatalBugDetected();
 
@@ -2437,5 +2459,11 @@ int main(int argc, char *argv[]) {
             << verifiedAssisted << " more only with literature help), "
             << improved << " improved, " << pinnedCount << " pinned, "
             << unresolvedCount << " unresolved.\n";
+  if (!unaccounted.empty()) {
+    std::cerr << "[!] " << unaccounted.size()
+              << " search(es) failed their surface accounting (first: "
+              << unaccounted.front() << "); exiting 2\n";
+    return 2;
+  }
   return 0;
 }

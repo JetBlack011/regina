@@ -132,9 +132,14 @@ guard against that whole class of fault:
     enumeration takes: 246–326 s on halcyon for rows that took 707–1,079 s.
 - **Every surface is accounted for.** Each row prints
   `accounting: accepted A, described D, recorded R, duplicate …, other-orientation …, search-side-elsewhere …, impossible I, drain complete|skipped, ok|WARNING`.
-  An imbalance or an impossible state halts, after the witnesses are written.
-  No exhaustion is claimed unless the row balanced. The campaign dispatcher
-  fails any row without a clean accounting line.
+  An impossible state (or a broken seed invariant) halts, after the
+  witnesses are written, in both drivers. An imbalance ends only its own
+  search: outcome `unaccounted`, no frontier, no exhaustion claim; the run
+  goes on, and a run without a goal then exits 2, while a goal run keeps its
+  code (the hop is marked suspect). A row whose far sides cannot be drawn is
+  refused (a build failure in `verifyslicegenus`, a refused node in the
+  cascade), never named some other way. The campaign dispatcher fails any
+  row without a clean accounting line.
 - **An append-only witness store.** `cobordisms.csv` is appended and fsynced,
   never rewritten. Loading keeps byte offsets instead of pair signatures.
   `--solve-only` never writes. `--rewrite-witnesses` is the one explicit
@@ -424,6 +429,8 @@ needs an idle machine. Besides each component's own unit tests:
 | `tests/rowsearch_test` | the rest of `rowsearch.h` on its own: `conditionFor()`, the rejection names, every accounting bucket and failure message and the exact `accounting:` body `dispatch.py` parses, the watchdog's order and reasons; `gateSurface()` on exhaustive cap-3 searches reproducing the canaries' 3_1 and L2a1{0} counts with no naming at all; and a pair signature computed from `captureFaces()` equal to the captured one |
 | `tests/name_independence_test.sh` | perturbing every name (identified or drawn: it runs with diagram naming and requires that it was used) changes nothing the search accepts or records |
 | `tests/interrupted_outcome_test.sh` | a search stopped by SIGINT is recorded as `interrupted`, never `exhausted` |
+| `cobound/tests/search_defaults_test.sh` | both drivers refuse a search that states neither `--resolve-unlinked` nor `--no-resolve-unlinked`; a row with no shape options searches exactly the spelled-out default shape (2/2 layers, no cone, proper) |
+| `cobound/tests/unaccounted_search_test.sh` | an imbalanced search (fixture `SURFER_TEST_UNACCOUNTED`) ends only itself: outcome `unaccounted`, no frontier, the run goes on, exit 2 at depth 0 and the goal's own code with a goal; an impossible state (`SURFER_TEST_IMPOSSIBLE`) halts with 2 after writing what was found, even when the goal is met |
 | `tests/census_test` | census lookups, and that an insert after a hit lands; with census updates off (`--no-census-updates`, `census::censusUpdates`) neither insert site writes: a direct insert, and a Pachner search's hit (it still names) |
 | `tests/cobordismgraph_test` | the solver's rules, `splitBoundary`, per-component orientation, witness identity; exact far sides (bound by their own variant, receive a bound only when exact), `m`/`r` knot marks and the slice test with them, sum pieces, and `--sum-rules` |
 | `exactnaming/tests/exactnaming_test` | exact names: every table entry names itself, orientation variants pinned (L7n1{0} vs {1}), granny vs square, splits and sums, the search path forced, the table-side search and the isometry step each on its own |

@@ -86,6 +86,16 @@ add_test(NAME search_defaults_test
 set_tests_properties(search_defaults_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
+# An imbalanced search ends only itself: outcome unaccounted, the run goes
+# on, and the exit code reports what the run was for (plan divergence 2).
+# See the script's header.
+add_test(NAME unaccounted_search_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/unaccounted_search_test.sh
+                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(unaccounted_search_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # --surface-log over two rows on one thread must not reuse the previous
 # row's (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test

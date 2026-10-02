@@ -5,6 +5,7 @@
 #include "cobound/search/search.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -185,7 +186,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   const bool signDuringSearch =
       policy_.signing == SearchPolicy::Signing::duringSearch;
   if (rb.seedFaces.empty() && !request.unseeded)
-    throw std::runtime_error("hop: the row has no collar seed");
+    throw SearchRefused("hop: the row has no collar seed");
   if (signDuringSearch ? !sweep.record || !sweep.names : !request.row)
     throw std::logic_error("HopSearcher::run(): the request lacks what its "
                            "signing needs");
@@ -211,23 +212,15 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     e.setPairSigCacheDir(*request.pairSigCacheDir);
   e.setBoundaryNamer(complementNamer);
   if (signatures_ && request.diagramNaming) {
-    if (policy_.failures == SearchPolicy::Failures::halt) {
-      // Divergence 2: a row whose namer cannot be built stays on the
-      // complement route.
-      try {
-        namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatures_);
-        if (exact_) namer->enableExactNames(*exact_, exactCaches_);
-        e.setBoundaryNamer(*namer);
-      } catch (const std::exception &ex) {
-        std::cerr << "[!] " << request.name
-                  << ": diagram naming off for this row (" << ex.what()
-                  << ")\n";
-      }
-    } else {
+    // A row whose far sides cannot be drawn is refused (divergence 2): its
+    // T does not read back, and naming it some other way would hide that.
+    try {
       namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatures_);
       if (exact_) namer->enableExactNames(*exact_, exactCaches_);
-      e.setBoundaryNamer(*namer);
+    } catch (const std::exception &ex) {
+      throw SearchRefused(ex.what());
     }
+    e.setBoundaryNamer(*namer);
   }
 
   if (!rb.seedFaces.empty()) {
@@ -279,6 +272,21 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // Every surface the drain describes lands in exactly one of its buckets
   // (see the accounting after the search).
   rowsearch::RowAccounting acct;
+  // The fixtures for divergence 2's test: with SURFER_TEST_UNACCOUNTED
+  // naming this search, its first described surface is dropped from every
+  // bucket, as a surface lost between the drain and the record would be;
+  // with SURFER_TEST_IMPOSSIBLE, it is counted in an impossible bucket.
+  std::atomic<bool> dropOne{false}, impossibleOne{false};
+  if (const char *v = std::getenv("SURFER_TEST_UNACCOUNTED"); v && request.name == v) {
+    dropOne.store(true);
+    std::cerr << "[!] SURFER_TEST_UNACCOUNTED: one surface of " << request.name
+              << " is dropped from the accounting (test mode)\n";
+  }
+  if (const char *v = std::getenv("SURFER_TEST_IMPOSSIBLE"); v && request.name == v) {
+    impossibleOne.store(true);
+    std::cerr << "[!] SURFER_TEST_IMPOSSIBLE: one surface of " << request.name
+              << " is counted in a state that cannot occur (test mode)\n";
+  }
 
   // --rejection-sample-log: the pair signatures of the first few surfaces
   // each rejection reason turns away in this search, so a misbehaving gate
@@ -401,6 +409,12 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     }
 
     acct.described.fetch_add(1, std::memory_order_relaxed);
+    if (dropOne.exchange(false))
+      return;
+    if (impossibleOne.exchange(false)) {
+      acct.reject(rowsearch::Gate::orientationBroken);
+      return;
+    }
 
     // Orientable, search side intact, the row's own oriented variant, one
     // far side (rowsearch::gateSurface()). The orientation check needs the
@@ -648,6 +662,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // genuine (every one witnesses another oriented variant), but it is also
   // exactly what a broken gate looks like, so it never licenses a negative.
   out.nothingExamined = acct.nothingExamined();
+  out.impossible = acct.impossible();
 
   if (surfaceStats)
     rowsearch::appendSurfaceStats(*outputs.surfaceStats, request.name,
@@ -661,9 +676,9 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     rowsearch::progressBlock.forget();
 
   // Divergence 2: a search that cannot account for its surfaces vouches for
-  // no negative.
-  if (policy_.failures == SearchPolicy::Failures::halt &&
-      (!out.accountingFailure.empty() || out.nothingExamined))
+  // no negative: its outcome says so, and it records no frontier (below) and
+  // claims no exhaustion (the drivers read accountingFailure).
+  if (!out.accountingFailure.empty() || out.nothingExamined)
     noteStop("unaccounted");
   out.outcome = outcome;
   out.resumed = e.resumedFrontier();
