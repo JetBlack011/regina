@@ -38,7 +38,8 @@ void syncPath(const std::filesystem::path &path, int flags) {
 } // namespace
 
 void atomicWrite(const std::filesystem::path &path,
-                 const std::function<void(std::ostream &)> &write) {
+                 const std::function<void(std::ostream &)> &write, Durability durability) {
+    const bool durable = durability == Durability::durable;
     std::filesystem::path tmp = path;
     tmp += ".tmp." + std::to_string(::getpid()) + "." + std::to_string(counter++);
     try {
@@ -51,7 +52,8 @@ void atomicWrite(const std::filesystem::path &path,
             if (!out)
                 throw std::runtime_error("error writing " + tmp.string());
         }
-        syncPath(tmp, O_RDONLY);
+        if (durable)
+            syncPath(tmp, O_RDONLY);
         std::error_code ec;
         std::filesystem::rename(tmp, path, ec);
         if (ec)
@@ -62,6 +64,8 @@ void atomicWrite(const std::filesystem::path &path,
         std::filesystem::remove(tmp, ignored);
         throw;
     }
+    if (!durable)
+        return;
     const std::filesystem::path dir =
         path.has_parent_path() ? path.parent_path() : std::filesystem::path(".");
     syncPath(dir, O_RDONLY | O_DIRECTORY);

@@ -31,12 +31,20 @@ namespace report {
  * new one, never part of either, and once this returns the new one survives
  * a crash.
  *
+ * With Durability::cache -- for a file that is only ever a cache, whose lost
+ * write is noticed and rebuilt -- the file is replaced just as atomically,
+ * but nothing is fsynced: the writing-back is left to the system, as
+ * write-then-rename always did.
+ *
  * \exception std::runtime_error the temporary file cannot be written or
  * synced, or the rename fails; `path` is then untouched and the temporary
  * file removed. Whatever `write` throws propagates the same way.
  */
+enum class Durability { durable, cache };
+
 void atomicWrite(const std::filesystem::path &path,
-                 const std::function<void(std::ostream &)> &write);
+                 const std::function<void(std::ostream &)> &write,
+                 Durability durability = Durability::durable);
 
 } // namespace report
 

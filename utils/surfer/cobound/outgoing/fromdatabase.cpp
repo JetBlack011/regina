@@ -486,7 +486,11 @@ void RowReadBacks::flush() {
         if (ch == '\n' || ch == '\t') ch = ' ';
       out += key + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
     }
-    report::atomicWrite(path_, [&](std::ostream &f) { f << out; });
+    // A cache: replaced atomically, but not fsynced (a lost write is
+    // rebuilt), as before phase 3. Two fsyncs per row can cost a cold load
+    // seconds while the disk is still writing back a big write.
+    report::atomicWrite(path_, [&](std::ostream &f) { f << out; },
+                        report::Durability::cache);
     rewrite_ = false;
   } else {
     // Another run may have appended meanwhile; a duplicate key is harmless

@@ -75,6 +75,11 @@ int main() {
     report::atomicWrite(file, [](std::ostream &) {});
     check(contents(file).empty(), "an empty write leaves an empty file");
 
+    report::atomicWrite(file, [](std::ostream &out) { out << "cache\n"; },
+                        report::Durability::cache);
+    check(contents(file) == "cache\n", "a cache's write replaces the file whole too");
+    check(entries(dir) == 1, "and leaves nothing beside it");
+
     fs::remove_all(dir);
     std::cout << "atomicwrite_test: " << passed << " passed, " << failed << " failed\n";
     return failed == 0 ? 0 : 1;
