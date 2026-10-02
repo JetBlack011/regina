@@ -171,6 +171,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = timers::processCpuSeconds();
   const SearchShape &shape = request.shape;
+  if (!shape.resolveUnlinked)
+    throw std::logic_error("HopSearcher::run(): the search shape does not say whether "
+                           "resolvable surfaces count (resolve_unlinked has no default)");
+  const bool resolveUnlinked = *shape.resolveUnlinked;
   const SweepInputs &sweep = request.sweep;
   const SearchOutputs &outputs = request.outputs;
   // Divergence 7: a witness per identity across the database, signed during
@@ -240,7 +244,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     selfIntersectionCensus->searchSideBoundary = static_cast<long>(rb.searchSideBC);
   }
   e.configureSelfIntersections(
-      {.resolveUnlinked = shape.resolveUnlinked,
+      {.resolveUnlinked = resolveUnlinked,
        .census = selfIntersectionCensus ? &*selfIntersectionCensus : nullptr});
 
   std::optional<rowsearch::SurfaceStatsTally> surfaceStats;
@@ -648,7 +652,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   if (selfIntersectionCensus)
     rowsearch::appendSelfIntersectionCensus(*outputs.selfIntersectionCensus,
                                             request.name, shape.maxFaces.value_or(0),
-                                            shape.resolveUnlinked, stats,
+                                            resolveUnlinked, stats,
                                             *selfIntersectionCensus);
   if (outputs.progress)
     rowsearch::progressBlock.forget();

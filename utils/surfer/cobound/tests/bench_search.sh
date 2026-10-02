@@ -146,7 +146,7 @@ run_one() {
         [ -n "$CFG_SURFACE_TARGET" ] && cmd+=(--surface-target "$CFG_SURFACE_TARGET") ;;
     *) echo "bench_search.sh: mode must be b1 or b2" >&2; return 2 ;;
   esac
-  [ "$CFG_RESOLVE_UNLINKED" = 1 ] && cmd+=(--resolve-unlinked)
+  if [ "$CFG_RESOLVE_UNLINKED" = 1 ]; then cmd+=(--resolve-unlinked); else cmd+=(--no-resolve-unlinked); fi
   [ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && cmd+=(--exact-far-side-names)
   # Word-split on purpose: extra flags, e.g. EXTRA_ARGS=--audit-linking.
   # shellcheck disable=SC2206

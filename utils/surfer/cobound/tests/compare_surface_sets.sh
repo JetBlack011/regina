@@ -21,6 +21,9 @@
 #   PENDING_CAP  --pending-surface-cap (default: the binary's own). Set it
 #           small to make the search pause and drain its queue many times
 #           in a row that would otherwise never reach the cap.
+#   RESOLVE_FLAG  how the builds are told resolve_unlinked, which has no
+#           default (default --no-resolve-unlinked; set it empty to compare
+#           builds from before that, which take no such option)
 #   ATLAS   cobordism-atlas checkout (default: as bench_search.sh)
 #   WORK    scratch directory (default: a mktemp directory, removed on
 #           success and kept on failure)
@@ -36,6 +39,8 @@ THREADS=${THREADS:-8}
 BUDGET=${BUDGET:-0}
 CAPFLAG=()
 [ -n "${PENDING_CAP:-}" ] && CAPFLAG=(--pending-surface-cap "$PENDING_CAP")
+RESOLVE_FLAG=${RESOLVE_FLAG---no-resolve-unlinked}
+[ -n "$RESOLVE_FLAG" ] && CAPFLAG+=("$RESOLVE_FLAG")
 if [ -z "${ATLAS:-}" ]; then
   for d in "$HOME/Projects/cobordism-atlas" "$HOME/Projects/triangles/cobordism-atlas"; do
     [ -d "$d/data" ] && { ATLAS=$d; break; }

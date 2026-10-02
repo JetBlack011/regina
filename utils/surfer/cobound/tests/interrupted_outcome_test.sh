@@ -31,6 +31,7 @@ printf 'kind,subject,subject_components,other,other_candidates,other_components,
      --no-census-updates --no-retriangulate-on-miss \
      --thicken-layers 2 --collar-layers 2 --max-faces 5 \
      --no-cone --harvest --boundary-condition proper --research-settled \
+     --no-resolve-unlinked \
      --threads 2 > "$T/log" 2> "$T/err" &
 P=$!
 

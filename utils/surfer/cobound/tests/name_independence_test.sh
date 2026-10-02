@@ -40,6 +40,7 @@ run() {
        --no-census-updates --no-retriangulate-on-miss \
        --thicken-layers 2 --collar-layers 2 --max-faces 3 \
        --no-cone --harvest --boundary-condition proper --research-settled \
+     --no-resolve-unlinked \
        --threads 2 > "$dir/log" 2> "$dir/err"
   # accepted, described, other-orientation, search-side-elsewhere,
   # impossible, drain, verdict -- and recorded+duplicate as one number.

@@ -76,6 +76,16 @@ add_test(NAME meridians_order_test
 set_tests_properties(meridians_order_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
+# One set of search defaults (2/2 layers, no cone, proper), and no default
+# for resolve_unlinked in either driver (plan divergence 3). See the script's
+# header.
+add_test(NAME search_defaults_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/search_defaults_test.sh
+                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(search_defaults_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # --surface-log over two rows on one thread must not reuse the previous
 # row's (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test

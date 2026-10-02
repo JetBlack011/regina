@@ -27,6 +27,7 @@ rc=0
      --no-census-updates --no-retriangulate-on-miss \
      --thicken-layers 2 --collar-layers 2 --max-faces 2 \
      --no-cone --harvest --boundary-condition proper --research-settled \
+     --no-resolve-unlinked \
      --surface-log "$T/surfaces.csv" --threads 1 \
      > "$T/log" 2> "$T/err" || rc=$?
 

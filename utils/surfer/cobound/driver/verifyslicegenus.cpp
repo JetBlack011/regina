@@ -840,7 +840,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr
       << "    --boundary-condition auto|connected|proper : How much boundary "
          "freedom a\n"
-         "                     row's search allows (default: auto).\n"
+         "                     row's search allows (default: proper).\n"
          "                       auto/connected -- a single-component knot "
          "is searched\n"
          "                     under `connected` (at most one surface "
@@ -1070,7 +1070,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "counts toward\n"
          "                     --surface-target, so set it for a whole "
          "campaign or not\n"
-         "                     at all (default: off).\n";
+         "                     at all.\n"
+         "    --no-resolve-unlinked : Accept embedded surfaces only. A search "
+         "needs one of\n"
+         "                     the two: resolve_unlinked has no default.\n";
   std::cerr
       << "    --self-intersection-census <path> : Measurement only. Appends "
          "one row per\n"
@@ -1189,7 +1192,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "--petal-cache-limit,\n"
                "    --recognition-cache-limit, "
                "--boundary-signature-cache-limit,\n"
-               "    --boundary-tally-cap, --census-db : as surfer.cpp.\n";
+               "    --boundary-tally-cap, --census-db : as surfer.cpp; the "
+               "defaults are\n"
+               "    --thicken-layers 2 --collar-layers 2 --no-cone, as the "
+               "cascade's.\n";
   std::cerr << "    -h, --help : Display this help\n";
   exit(1);
 }
@@ -1231,7 +1237,7 @@ int main(int argc, char *argv[]) {
   // its boundary queue to completion; only the SEARCH is bounded.
   bool skipDrainOnTimeout = false;
   BoundaryConditionMode boundaryConditionMode =
-      BoundaryConditionMode::automatic;
+      BoundaryConditionMode::proper;
   int maxCrossings = 13;
   std::optional<double> perKnotTimeLimit;
   // Stop the SEARCH once this many boundary-satisfying surfaces exist.
@@ -1255,10 +1261,10 @@ int main(int argc, char *argv[]) {
   long long rootBudgetGrowth = 2;
   bool censusUpdates = true;
   // Accept surfaces whose only self-intersections are unlinked (paper §4.5,
-  // KnottedSurface::isResolvable()). Off by default because it changes which
-  // surfaces count toward --surface-target, so a campaign must set it for
-  // every host or for none.
-  bool resolveUnlinked = false;
+  // KnottedSurface::isResolvable()). No default (plan divergence 3): it
+  // changes which surfaces count toward --surface-target and is part of the
+  // frontier fingerprint, so a search run must state it either way.
+  std::optional<bool> resolveUnlinked;
   // Measurement only; see SelfIntersectionCensus.
   std::optional<std::string> selfIntersectionCensusPath;
   // Audit trail: see --rejection-sample-log and sampleRejection below.
@@ -1277,9 +1283,10 @@ int main(int argc, char *argv[]) {
   if (numThreads == 0)
     numThreads = 1;
 
-  int thickenLayers = 1;
-  bool useCone = true;
-  int collarLayers = 1;
+  // As the cascade's hops (HopShape::layers) and every campaign.
+  int thickenLayers = 2;
+  bool useCone = false;
+  int collarLayers = 2;
 
   unsigned iddfsIterations = 0;
   long long iddfsStep = 0;
@@ -1432,6 +1439,8 @@ int main(int argc, char *argv[]) {
       // tools that pass it, until the config replaces the options.
     } else if (arg == "--resolve-unlinked") {
       resolveUnlinked = true;
+    } else if (arg == "--no-resolve-unlinked") {
+      resolveUnlinked = false;
     } else if (arg == "--audit-linking") {
       linkingnumber::auditLinkingNumbers.store(true);
     } else if (arg == "--self-intersection-census") {
@@ -1618,6 +1627,11 @@ int main(int argc, char *argv[]) {
 
   if (!outputPath)
     usage(argv[0], "--output is required.");
+  if (!solveOnly && !resolveUnlinked)
+    usage(argv[0],
+          "a search needs --resolve-unlinked or --no-resolve-unlinked: "
+          "resolve_unlinked has no default (it changes which surfaces count "
+          "toward --surface-target, and every frontier's fingerprint).");
   if (collarLayers < 0)
     usage(argv[0], "--collar-layers requires a value >= 0.");
   if (collarLayers > thickenLayers)
@@ -2354,7 +2368,7 @@ int main(int argc, char *argv[]) {
     }
     // Its own line, so the summary line above (parsed by
     // tools/orchestrate/dispatch.py's RE_OUTCOME) is unchanged.
-    if (resolveUnlinked)
+    if (*resolveUnlinked)
       std::cout << "[+] " << row.name << ": " << run.stats.resolvedCount
                 << " of " << run.stats.satisfyingCount
                 << " accepted surfaces have unlinked self-intersections "

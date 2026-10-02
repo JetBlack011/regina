@@ -39,12 +39,13 @@ cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
   --knot-table $D/4d_smooth_slice_genus_13_crossings_pd_codes.csv \
   --link-table $D/links_4d_smooth_slice_genus_11_crossings_pd_codes.csv \
   --knot-symmetry $D/knot_symmetry.csv --census-db <private census copy> \
-  --goal-genus 1 --constructive --threads 14 \
+  --goal-genus 1 --constructive --threads 14 --resolve-unlinked \
   --hop-surfaces 50000 --max-hop-surfaces 200000 --max-expansions 8
 ```
 
 | option | what |
 |---|---|
+| `--resolve-unlinked` / `--no-resolve-unlinked` | required, with no default (plan divergence 3): whether surfaces whose only self-intersections are unlinked count (the campaign's: on). It changes what a surface target counts and every frontier's fingerprint |
 | `--goal-genus g`, `--goal connected\|disjoint` | the bound to prove: connected g₄ ≤ g (the coarsest partition), or disjoint surfaces (singletons) |
 | `--goal-lower G`, `--lower-sources CSV`, `--lower-max-crossings n` | also stop once lower(target, goal partition) ≥ G ("Lower-bound mode" below); the sources file (the atlas's `data/lower_bound_sources.csv`) is required, and a node kept only for the lower goal is never expanded above n crossings (default 16) |
 | `--constructive` / `--literature` | whether table values may be leaves (never the target's own) |

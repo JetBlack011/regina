@@ -140,7 +140,11 @@ struct HopShape {
   long long iddfsStep = 1;
   long long rootBudgetStart = 840;
   long long rootBudgetGrowth = 2;
-  bool resolveUnlinked = true;
+  /// Whether surfaces whose only self-intersections are unlinked count. No
+  /// default (plan divergence 3): cascadesearch takes it from
+  /// --resolve-unlinked or --no-resolve-unlinked, and a search refuses a
+  /// shape without it.
+  std::optional<bool> resolveUnlinked;
   /// hosts.conf's per-host limits, identical on every host. The pending
   /// cap in particular: at the binary's default (500,000) a search pauses
   /// to drain its queue, which a campaign row never does.
@@ -164,10 +168,12 @@ struct SearchShape {
   long long rootBudgetStart = 0;
   long long rootBudgetGrowth = 2;
   /// Accept surfaces whose only self-intersections are unlinked (paper
-  /// §4.5). An input of every search, with each caller's own default
-  /// (verifyslicegenus off, the cascade on): the plan's divergence 3 makes
-  /// it a required config key.
-  bool resolveUnlinked = false;
+  /// §4.5). A required input of every search, with no default anywhere
+  /// (plan divergence 3): it changes which surfaces count toward a surface
+  /// target and is part of every frontier's fingerprint, so a caller that
+  /// forgot it must not get one silently. HopSearcher::run() refuses a
+  /// shape without it.
+  std::optional<bool> resolveUnlinked;
   SurfaceSearchLimits limits;
 };
 
@@ -187,15 +193,13 @@ SearchShape searchShape(const HopShape &shape);
  * code (verifyslicegenus's row loop, the cascade's hop) reads them from
  * here too, so that every difference is listed in one place.
  *
- * Two divergences have no field. 3 (defaults) is a matter of inputs:
- * SearchShape::resolveUnlinked and the boundary condition are set by each
- * caller (verifyslicegenus from its options, the cascade from HopShape and
- * `proper`), and retriangulation on a census miss is process-wide, set in
- * each driver's main (verifyslicegenus: on unless
- * --no-retriangulate-on-miss; the cascade: off). 8 (signals) does not
- * differ inside a search: both record "interrupted" when the library's
- * SIGINT scope stops one, and each driver then carries on with its next
- * search.
+ * Divergence 3 (defaults) is done: the search's inputs have one set of
+ * defaults (layers 2/2, `proper`), and resolve_unlinked none. Divergence 8
+ * (signals) has no field: it does not differ inside a search (both record
+ * "interrupted" when the library's SIGINT scope stops one, and each driver
+ * then carries on with its next search). Retriangulation on a census miss
+ * is process-wide, set in each driver's main (verifyslicegenus: on unless
+ * --no-retriangulate-on-miss; the cascade: off).
  */
 struct SearchPolicy {
   /// Divergence 1, frontiers. HopRun::frontier is vouched for only when the

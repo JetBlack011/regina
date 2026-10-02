@@ -44,7 +44,8 @@ for pad in "" x "$X" "$X$X" "$X$X$X$X"; do
        --census-db "$dir/none.sqlite" --goal-genus 1 --constructive --threads 4 \
        --max-expansions 4 --hop-surfaces 1000000000 --max-hop-surfaces 1000000000 \
        --hop-max-faces 3 --hop-iddfs-iterations 0 --hop-iddfs-start 0 \
-       --hop-iddfs-step 0 --hop-root-budget 0 > "$dir/stdout.txt" 2>&1 || true
+       --hop-iddfs-step 0 --hop-root-budget 0 --resolve-unlinked \
+       > "$dir/stdout.txt" 2>&1 || true
   if [ ! -s "$dir/work/node_bounds.jsonl" ]; then
     echo "FAIL: layout $n wrote no node_bounds.jsonl"; tail -5 "$dir/stdout.txt"; exit 1
   fi

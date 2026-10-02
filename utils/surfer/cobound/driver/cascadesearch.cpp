@@ -12,6 +12,7 @@
 //                 [--max-expansions K] [--cpu-budget SECONDS]
 //                 [--max-crossings C] [--strategy best|dfs|bfs]
 //                 [--literature | --constructive]
+//                 (--resolve-unlinked | --no-resolve-unlinked)
 //                 [--witness-store CSV --run-name NAME [--dedupe-against CSV]...]
 //   cascadesearch --sign-only --work DIR --witness-store CSV
 //                 --knot-table CSV --link-table CSV [--dedupe-against CSV]...
@@ -1407,7 +1408,8 @@ void Cascade::expand(NodeId n, long surfaces) {
         "--root-budget-growth", std::to_string(shape.rootBudgetGrowth), "--no-cone",
         "--harvest", "--boundary-condition", "proper", "--research-settled",
         "--per-knot-time-limit", "7200", "--threads", std::to_string(cfg_.threads),
-        "--surface-target", std::to_string(surfaces), "--resolve-unlinked",
+        "--surface-target", std::to_string(surfaces),
+        *shape.resolveUnlinked ? "--resolve-unlinked" : "--no-resolve-unlinked",
         "--exact-far-side-names", "--no-retriangulate-on-miss",
         "--pending-surface-cap", std::to_string(shape.pendingSurfaceCap),
         "--petal-cache-limit", std::to_string(shape.petalCacheLimit),
@@ -2215,7 +2217,7 @@ void Cascade::printProfile() const {
             << " iddfs_iterations=" << s.iddfsIterations << " iddfs_start=" << s.iddfsStart
             << " iddfs_step=" << s.iddfsStep << " root_budget_start=" << s.rootBudgetStart
             << " root_budget_growth=" << s.rootBudgetGrowth << " layers=" << s.layers
-            << " resolve_unlinked=" << (s.resolveUnlinked ? 1 : 0)
+            << " resolve_unlinked=" << (*s.resolveUnlinked ? 1 : 0)
             << " exact_far_side_names=1 pending_surface_cap=" << s.pendingSurfaceCap
             << " petal_cache_limit=" << s.petalCacheLimit
             << " boundary_signature_cache_limit=" << s.boundarySignatureCacheLimit
@@ -2268,6 +2270,8 @@ int main(int argc, char **argv) {
       c.hopShape.boundarySignatureCacheLimit = std::stoull(next());
     else if (a == "--hop-recognition-cache")
       c.hopShape.recognitionCacheLimit = std::stoull(next());
+    else if (a == "--resolve-unlinked") c.hopShape.resolveUnlinked = true;
+    else if (a == "--no-resolve-unlinked") c.hopShape.resolveUnlinked = false;
     else if (a == "--verbose") c.verbose = true;
     else if (a == "--witness-store") c.witnessStore = next();
     else if (a == "--pair-sig-cache") c.pairSigCache = next();
@@ -2312,6 +2316,13 @@ int main(int argc, char **argv) {
       std::cerr << "cascadesearch: " << e.what() << "\n";
       return 2;
     }
+  }
+  if (!c.hopShape.resolveUnlinked) {
+    // Plan divergence 3: no default. It changes which surfaces a hop's
+    // surface target counts, and every frontier's fingerprint.
+    std::cerr << "cascadesearch: --resolve-unlinked or --no-resolve-unlinked is required "
+                 "(resolve_unlinked has no default)\n";
+    return 2;
   }
   if (!c.witnessStore.empty() && (c.runName.empty() || c.hopMode != "process")) {
     // A child hop writes its own witnesses (hop dir cob.csv), under its own
