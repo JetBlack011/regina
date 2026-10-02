@@ -45,6 +45,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
 #include <limits>
 #include <cmath>
 #include <chrono>
@@ -637,7 +640,7 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
     driver_.master += secondsSince(tLoad);
     return;
   }
-  double readSeconds = 0; // phase A, the pool's read-backs
+  double readSeconds = 0; // phase A: the assembly's waits for the readers
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0, refusedRows = 0;
   // A witness can be on an upper proof only if its genus is at most the
@@ -705,53 +708,105 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
       reads.push_back(std::move(r));
     }
   }
-  // In batches: every batch is read (in parallel) then assembled (in order)
-  // before the next is read, so at most a batch of rows' thickenings are held
-  // at once (reading every row first held them all: 5.5 GB on L10a174).
-  auto readBatch = [&](size_t from, size_t to) {
-    const auto tRead = Clock::now();
-    parallelFor(to - from, static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t j) {
-      RowRead &r = reads[from + j];
+  // Read by a pool of `threads` readers that lives for the whole load, in
+  // row order, at most `window` rows ahead of the assembly below, which takes
+  // each row as soon as it is read: so at most a window of rows' thickenings
+  // is held at once (reading every row first held them all: 5.5 GB on
+  // L10a174), and no reader waits at a batch's end for the batch's slowest
+  // row (2026-10-02: a fresh pool per batch of 2 x threads rows, joined before
+  // the batch was assembled, cost L10n112's cold load 6% of its wall).
+  auto readRow = [&](size_t i) {
+    RowRead &r = reads[i];
+    try {
+      r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
+    } catch (const std::exception &ex) {
+      r.buildError = ex.what();
+      return;
+    }
+    RowReadBacks cache(cfg_.readBackCache, r.pd, r.layers,
+                       cfg_.readBackCache.empty() ? std::string()
+                                                  : r.redraw->buildChecksum());
+    r.links.resize(r.ws.size());
+    r.why.resize(r.ws.size());
+    r.invariant.assign(r.ws.size(), 0);
+    for (size_t k = 0; k < r.ws.size(); ++k) {
+      const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
+      if (const CachedReadBack *c = cache.get(key)) {
+        r.links[k] = c->link;
+        r.why[k] = c->why;
+        continue;
+      }
+      std::string why;
       try {
-        r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
+        r.links[k] = r.redraw->outgoingLinkFast(r.ws[k]->pairsig, why);
+        r.why[k] = why;
+        cache.put(key, {r.links[k], why});
+      } catch (const std::logic_error &ex) {
+        r.invariant[k] = 1; // reported, never cached
+        r.why[k] = ex.what();
       } catch (const std::exception &ex) {
-        r.buildError = ex.what();
-        return;
+        r.why[k] = ex.what(); // not cached either: it may be transient
       }
-      RowReadBacks cache(cfg_.readBackCache, r.pd, r.layers,
-                         cfg_.readBackCache.empty() ? std::string()
-                                                    : r.redraw->buildChecksum());
-      r.links.resize(r.ws.size());
-      r.why.resize(r.ws.size());
-      r.invariant.assign(r.ws.size(), 0);
-      for (size_t k = 0; k < r.ws.size(); ++k) {
-        const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
-        if (const CachedReadBack *c = cache.get(key)) {
-          r.links[k] = c->link;
-          r.why[k] = c->why;
-          continue;
-        }
-        std::string why;
-        try {
-          r.links[k] = r.redraw->outgoingLinkFast(r.ws[k]->pairsig, why);
-          r.why[k] = why;
-          cache.put(key, {r.links[k], why});
-        } catch (const std::logic_error &ex) {
-          r.invariant[k] = 1; // reported, never cached
-          r.why[k] = ex.what();
-        } catch (const std::exception &ex) {
-          r.why[k] = ex.what(); // not cached either: it may be transient
-        }
+    }
+    r.cacheHits = cache.hits();
+    try {
+      cache.flush();
+    } catch (const std::exception &ex) {
+      std::cerr << "[!] read-back cache not written for " << r.name << ": " << ex.what()
+                << "\n";
+    }
+  };
+  const size_t window = 2 * static_cast<size_t>(std::max(cfg_.threads, 1));
+  std::mutex readMutex;
+  std::condition_variable readCv;
+  std::vector<char> readDone(reads.size(), 0);
+  size_t assembling = 0;      // rows before this one are assembled (under readMutex)
+  bool stopReading = false;   // the assembly left early (under readMutex)
+  std::atomic<size_t> nextRead{0};
+  auto reader = [&] {
+    for (size_t i; (i = nextRead.fetch_add(1)) < reads.size();) {
+      {
+        std::unique_lock<std::mutex> lock(readMutex);
+        readCv.wait(lock, [&] { return stopReading || i < assembling + window; });
+        if (stopReading) return;
       }
-      r.cacheHits = cache.hits();
-      try {
-        cache.flush();
-      } catch (const std::exception &ex) {
-        std::cerr << "[!] read-back cache not written for " << r.name << ": " << ex.what()
-                  << "\n";
+      readRow(i);
+      {
+        std::lock_guard<std::mutex> lock(readMutex);
+        readDone[i] = 1;
       }
-    });
-    readSeconds += secondsSince(tRead);
+      readCv.notify_all();
+    }
+  };
+  // Joined on every way out of the assembly, an exception included: the
+  // readers stop at once, finishing only the rows they hold.
+  struct ReaderPool {
+    std::vector<std::thread> threads;
+    std::function<void()> release;
+    ~ReaderPool() {
+      release();
+      for (std::thread &t : threads) t.join();
+    }
+  } pool;
+  pool.release = [&] {
+    {
+      std::lock_guard<std::mutex> lock(readMutex);
+      stopReading = true;
+    }
+    readCv.notify_all();
+  };
+  for (size_t t = 0, k = std::min<size_t>(std::max(cfg_.threads, 1), reads.size()); t < k; ++t)
+    pool.threads.emplace_back(reader);
+  // Row i, read: what the assembly waited for it is read-back time.
+  auto awaitRow = [&](size_t i) {
+    const auto tWait = Clock::now();
+    {
+      std::unique_lock<std::mutex> lock(readMutex);
+      assembling = i;
+      readCv.notify_all();
+      readCv.wait(lock, [&] { return readDone[i] != 0; });
+    }
+    readSeconds += secondsSince(tWait);
   };
   const auto tRows = Clock::now();
   size_t cacheHits = 0;
@@ -764,9 +819,8 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
     GaussDiagram diagram; ///< the row's diagram, in the row PD's component order
   };
   std::map<std::string, RowNode> interned; // by row PD
-  const size_t batch = 2 * static_cast<size_t>(std::max(cfg_.threads, 1));
   for (size_t i = 0; i < reads.size(); ++i) {
-    if (i % batch == 0) readBatch(i, std::min(reads.size(), i + batch));
+    awaitRow(i);
     RowRead &r = reads[i];
     cacheHits += r.cacheHits;
     auto seen = interned.find(r.pd);
