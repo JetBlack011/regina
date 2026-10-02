@@ -762,13 +762,20 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   std::vector<char> readDone(reads.size(), 0);
   size_t assembling = 0;      // rows before this one are assembled (under readMutex)
   bool stopReading = false;   // the assembly left early (under readMutex)
-  std::atomic<size_t> nextRead{0};
+  size_t nextRead = 0;        // the next row to read (under readMutex)
   auto reader = [&] {
-    for (size_t i; (i = nextRead.fetch_add(1)) < reads.size();) {
+    for (;;) {
+      // A reader takes a row only once it is inside the window, so no
+      // reader sits on a row it may not read yet while the rows before it
+      // wait for a thread.
+      size_t i;
       {
         std::unique_lock<std::mutex> lock(readMutex);
-        readCv.wait(lock, [&] { return stopReading || i < assembling + window; });
-        if (stopReading) return;
+        readCv.wait(lock, [&] {
+          return stopReading || nextRead >= reads.size() || nextRead < assembling + window;
+        });
+        if (stopReading || nextRead >= reads.size()) return;
+        i = nextRead++;
       }
       readRow(i);
       {
