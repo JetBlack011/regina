@@ -2859,52 +2859,14 @@ int main(int argc, char *argv[]) {
       // against the bounds as of the last full solve rather than by
       // re-running the solver here: the far side's own bound can only have
       // improved since, so this under-reports at worst, and the next
-      // resolveAll() picks up anything it missed.
-      int implied = cobordismgraph::NO_UPPER_BOUND;
-      // Whether that bound leans on a literature value anywhere. It decides
-      // whether the row may be considered settled: a conclusion resting on
-      // someone else's literature number is not an independent verification
-      // (Basis::literatureAssisted), and stopping the search on one would
-      // forfeit the chance of finding the surface that upgrades it.
-      bool impliedAssisted = false;
-      if (w.kind == cobordismgraph::WitnessKind::direct) {
-        implied = w.genus;
-      } else if (!cobordismgraph::farSideBearsBound(w)) {
-        // Same rule as propagate(): this witness settles nothing on its
-        // own, so it must neither stop the search nor trip the
-        // below-literature check below. (Before this gate, a row could
-        // "reach its bound" through a complement-named link, print
-        // CONSTRUCTIVE and stop looking for a sound surface.)
-      } else {
-        int worst = 0;
-        bool haveAll = !w.otherCandidates.empty();
-        for (const std::string &c : w.otherCandidates) {
-          int hi = cobordismgraph::NO_UPPER_BOUND;
-          bool assisted = false;
-          if (auto it = bounds.find(c);
-              it != bounds.end() && it->second.haveUpper()) {
-            hi = it->second.hi;
-            assisted = !it->second.support.empty();
-          } else if (const auto *ni = names.find(c); ni && ni->haveLiterature) {
-            hi = ni->litHi;
-            assisted = true;
-          }
-          if (hi == cobordismgraph::NO_UPPER_BOUND) {
-            haveAll = false;
-            break;
-          }
-          worst = std::max(worst, hi);
-          impliedAssisted = impliedAssisted || assisted;
-        }
-        // As propagate(): an n-component unlink bounds n disjoint discs, so
-        // capping it off costs no tubes (the n - 1 is for a far side whose
-        // components are joined by one connected surface).
-        const bool unlinkFar =
-            std::all_of(w.otherCandidates.begin(), w.otherCandidates.end(),
-                        identify::isMultiComponentUnlinkName);
-        if (haveAll)
-          implied = worst + w.genus + (unlinkFar ? 0 : w.otherComponents - 1);
-      }
+      // resolveAll() picks up anything it missed. Whether the bound leans
+      // on a literature value decides whether the row may be considered
+      // settled: stopping the search on an assisted one would forfeit the
+      // chance of finding the surface that upgrades it.
+      const cobordismgraph::UpperBoundVia via =
+          cobordismgraph::upperBoundVia(w, bounds, names);
+      const int implied = via.genus;
+      const bool impliedAssisted = via.assisted;
 
       if (implied != cobordismgraph::NO_UPPER_BOUND && implied < row.lo) {
         std::ostringstream msg;
