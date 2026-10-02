@@ -490,9 +490,9 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       return;
     }
 
-    // Signing::duringSearch. The dedup matters a lot under harvest: a
-    // single search reports thousands of near-identical surfaces, and
-    // signing each would dominate the run. The signer takes the witness's
+    // Signing::duringSearch. The dedup matters a lot, since every search
+    // harvests: a single search reports thousands of near-identical
+    // surfaces, and signing each would dominate the run. The signer takes the witness's
     // faces and signs it off this (drain) thread; its identity is claimed
     // now, so the dedup stays exact.
     if (!sweep.record->claim(w)) {
@@ -532,18 +532,15 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     if (implied != cobordismgraph::NO_UPPER_BOUND && implied <= sweep.literatureLo &&
         !via.assisted) {
       // Only a CONSTRUCTIVE result settles a row. An assisted one is a
-      // correct deduction but not an independent verification, and the
-      // search might still find the surface that turns it into one -- so
-      // it must not end the row. (Moot under --harvest, which never stops
-      // early anyway; this matters for a non-harvest run.)
+      // correct deduction but not an independent verification.
       // Announce on stdout, once, the first time this row resolves.
       // Previously the only sign was "-- ACHIEVED" appearing in the
       // redrawn stderr progress block, which is invisible to any log filter
       // and vanishes as soon as the next block overwrites it -- so a row
       // could sit verified-but-unwritten for hours with nothing in the log
       // to say so. Checkpoint immediately too: this is the single most
-      // valuable moment in a row, and under --harvest the row may keep
-      // running for hours afterwards.
+      // valuable moment in a row, and every search harvests, so the row may
+      // keep running for hours afterwards.
       if (!constructive.exchange(true, std::memory_order_relaxed)) {
         std::cout << "[+] " << request.name
                   << ": CONSTRUCTIVE witness found -- reaches genus " << implied
@@ -551,14 +548,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                   << sweep.literatureHi << "]). Checkpointing now.\n"
                   << std::flush;
         sweep.record->checkpoint(/*force=*/true);
-      }
-      if (policy_.stopAtConstructive) {
-        // Without --harvest, stop the moment the row is settled: the rest
-        // of this cobordism's surfaces would only add edges we aren't going
-        // to need. With it, keep going and bank them.
-        noteStop("stopped");
-        e.requestStop();
-        e.skipRemainingBoundaryProcessing();
       }
     }
   };

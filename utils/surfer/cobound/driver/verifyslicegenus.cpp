@@ -920,19 +920,17 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     deepening across the whole table (default: "
          "unbounded).\n";
   std::cerr
-      << "    --harvest      : Don't stop a row's search once that row is "
-         "settled;\n"
-         "                     keep recording every distinct cobordism it "
-         "finds. One\n"
-         "                     expensive search then yields many edges "
-         "instead of\n"
-         "                     one, and those edges bound OTHER rows via "
-         "the solver.\n"
-         "                     Requires a stopping rule (--max-faces, "
+      << "    --harvest      : Accepted and ignored: every search harvests, "
+         "recording\n"
+         "                     every distinct cobordism it finds rather than "
+         "stopping\n"
+         "                     once its row is settled. One expensive search "
+         "then yields\n"
+         "                     many edges, which bound OTHER rows. So a "
+         "search needs a\n"
+         "                     stopping rule (--max-faces, --surface-target, "
          "--harvest-\n"
-         "                     quiescence, or --per-knot-time-limit), "
-         "since resolving\n"
-         "                     the row no longer ends it (default: off).\n";
+         "                     quiescence or --per-knot-time-limit).\n";
   std::cerr
       << "    --surface-target N : Stop a row's SEARCH once N surfaces "
          "satisfying the\n"
@@ -1226,7 +1224,6 @@ int main(int argc, char *argv[]) {
   // composite whose summands pair off into concordance inverses.
   std::string knotSymmetryPath;
   std::optional<long long> maxFaces;
-  bool harvest = false;
   std::optional<double> harvestQuiescence;
   std::optional<double> sweepTimeLimit;
   bool solveOnly = false;
@@ -1359,7 +1356,8 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "--max-faces requires an integer value.");
       }
     } else if (arg == "--harvest") {
-      harvest = true;
+      // Every search harvests (plan divergence 5); still accepted for the
+      // tools that pass it, until the config replaces the options.
     } else if (arg == "--harvest-quiescence") {
       if (i + 1 >= argc)
         usage(argv[0], "--harvest-quiescence requires a value.");
@@ -1653,14 +1651,13 @@ int main(int argc, char *argv[]) {
           "rows would cover different amounts of the root ordering -- the "
           "very thing --surface-target exists to equalise -- and a row whose "
           "witnesses were being lost would simply look quiescent.");
-  if (harvest && !maxFaces && !harvestQuiescence && !perKnotTimeLimit &&
+  if (!solveOnly && !maxFaces && !harvestQuiescence && !perKnotTimeLimit &&
       !surfaceTarget)
     usage(argv[0],
-          "--harvest needs a stopping rule: without --max-faces, "
-          "--harvest-quiescence or --per-knot-time-limit, a search has "
-          "nothing to end it (resolving the row no longer does, which is "
-          "the point of --harvest) and the sweep will never reach its "
-          "second row.");
+          "a search needs a stopping rule: without --max-faces, "
+          "--surface-target, --harvest-quiescence or --per-knot-time-limit, "
+          "nothing ends it (every search harvests, so resolving the row does "
+          "not) and the sweep will never reach its second row.");
   if (retriangulateHeightArg < 0)
     usage(argv[0], "--retriangulate-height requires a value >= 0.");
   if (retriangulateCandidateBudgetArg == 0)
@@ -2115,7 +2112,6 @@ int main(int argc, char *argv[]) {
   policy.frontierNeedsExamined = true;
   policy.failures = cascade::SearchPolicy::Failures::halt;
   policy.censusWriteAfterSearch = censusUpdates;
-  policy.stopAtConstructive = !harvest;
   policy.judgeInSearch = true;
   policy.signing = cascade::SearchPolicy::Signing::duringSearch;
 

@@ -222,10 +222,6 @@ struct SearchPolicy {
   /// inside naming is unconditional for both).
   bool censusWriteAfterSearch = false;
 
-  /// Divergence 5, harvest: the search stops at its first constructive find
-  /// (verifyslicegenus without --harvest). Needs judgeInSearch.
-  bool stopAtConstructive = false;
-
   /// Divergences 6 and 10, who judges a find: the search itself, each new
   /// witness against the solver's bounds as of the last solve
   /// (cobordismgraph::upperBoundVia(); verifyslicegenus). It prints the
