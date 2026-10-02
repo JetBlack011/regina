@@ -242,11 +242,6 @@ struct SearchPolicy {
   /// later.
   enum class Signing { duringSearch, deferred };
   Signing signing = Signing::deferred;
-
-  /// Divergence 9, settled rows (read by verifyslicegenus's driver): a row
-  /// already verified or pinned, or exhausted at this face cap, is not
-  /// searched (verifyslicegenus without --research-settled).
-  bool skipSettledRows = false;
 };
 
 /**

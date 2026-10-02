@@ -796,10 +796,10 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr
       << "    --output <csv> : Required. Resumable result file -- rewritten "
          "after\n"
-         "                     every knot/link processed; already-resolved "
-         "rows from a\n"
-         "                     prior run are trusted directly and not "
-         "re-searched. A\n"
+         "                     every knot/link processed; rows from a prior "
+         "run keep\n"
+         "                     their search bookkeeping (every --input row is "
+         "searched). A\n"
          "                     single unified table, not scoped to any one "
          "--input: rows\n"
          "                     already here from a different --input (e.g. "
@@ -1044,18 +1044,14 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "                     knot. Debugging only -- lossy on crash "
          "(default: off).\n";
   std::cerr
-      << "    --research-settled : Search rows whose own bound is already "
-         "settled\n"
-         "                     (verified/pinned), instead of skipping them. "
-         "Pointless\n"
-         "                     alone, but with --harvest such a search still "
-         "banks every\n"
-         "                     cobordism it finds, and those edges bound "
-         "OTHER rows --\n"
-         "                     which is what makes re-sweeping at a deeper "
-         "cap, or with\n"
-         "                     per-root budgets, worth the time (default: "
-         "off).\n";
+      << "    --research-settled : Accepted and ignored: every row of --input "
+         "is searched,\n"
+         "                     settled or not. Choosing which rows to search "
+         "is the\n"
+         "                     worklist's job, and a row resumed from a "
+         "complete frontier,\n"
+         "                     or already at its surface target, returns at "
+         "once.\n";
   std::cerr
       << "    --audit-linking : Validation only (slow). Compute every petal "
          "linking number\n"
@@ -1258,7 +1254,6 @@ int main(int argc, char *argv[]) {
   std::optional<std::string> frontierDir;       // see --frontier-dir
   std::optional<std::string> pairSigCacheDir;   // see --pair-sig-cache
   std::optional<std::string> resumeFrontierDir; // see --resume-frontier-dir
-  bool researchSettled = false;    // see --research-settled
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
   long long rootBudgetGrowth = 2;
   bool censusUpdates = true;
@@ -1435,7 +1430,8 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "--resume-frontier-dir requires a value.");
       resumeFrontierDir = argv[++i];
     } else if (arg == "--research-settled") {
-      researchSettled = true;
+      // Every row is searched (plan divergence 9); still accepted for the
+      // tools that pass it, until the config replaces the options.
     } else if (arg == "--resolve-unlinked") {
       resolveUnlinked = true;
     } else if (arg == "--audit-linking") {
@@ -2122,7 +2118,6 @@ int main(int argc, char *argv[]) {
   policy.stopAtConstructive = !harvest;
   policy.judgeInSearch = true;
   policy.signing = cascade::SearchPolicy::Signing::duringSearch;
-  policy.skipSettledRows = !researchSettled;
 
   // Every row's search shape, but for its boundary condition (per row,
   // below).
@@ -2148,31 +2143,6 @@ int main(int argc, char *argv[]) {
             std::chrono::duration<double>(*sweepTimeLimit)) {
       sweepTimedOut = true;
       break;
-    }
-
-    // Already settled? `verified` means we constructed a surface meeting
-    // the literature's own lower bound, so there is nothing left to find
-    // FOR THIS ROW -- but under --harvest a search still records every other
-    // cobordism it stumbles on, and an edge found while searching a settled
-    // object frequently bounds a different, unsettled one. --research-settled
-    // opts into that: it is how a re-sweep at a deeper cap, or with per-root
-    // budgets, extracts new edges from objects whose own bound is long since
-    // established.
-    {
-      auto it = outputRows.find(row.name);
-      if (policy.skipSettledRows && it != outputRows.end() &&
-          (it->second.status == "verified" || it->second.status == "pinned")) {
-        continue;
-      }
-      // T5: don't repeat a search we have already run to exhaustion at
-      // this budget -- it would enumerate exactly the same surfaces and
-      // learn exactly nothing. A bigger --max-faces does make it worth
-      // redoing, which is what turns a re-run into progressive deepening.
-      if (policy.skipSettledRows && it != outputRows.end() &&
-          it->second.searchOutcome == "exhausted" && maxFaces &&
-          it->second.searchedFaces >= *maxFaces) {
-        continue;
-      }
     }
 
     std::cout << "[+] Searching " << row.name << " (literature [" << row.lo
