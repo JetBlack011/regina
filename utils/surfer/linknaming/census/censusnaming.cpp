@@ -20,6 +20,7 @@
 #include "linknaming/complement/unlinknaming.h"
 
 std::mutex identify::censusLookupMutex;
+std::atomic<bool> census::censusUpdates{true};
 std::atomic<bool> census::retriangulateOnMiss{false};
 std::atomic<bool> census::retriangulateLinks{false};
 std::atomic<int> census::retriangulateHeight{2};
@@ -448,6 +449,8 @@ std::pair<long long, long long> insertCounts() {
 
 bool insertCensusEntry(const std::string &isoSig, const std::string &name,
                        const std::string &source) {
+    if (!censusUpdates.load(std::memory_order_relaxed))
+        return false;
     std::lock_guard<std::mutex> lock(writeConnMutex_);
     if (!ensureWriteConn_()) {
         insertsFailed_.fetch_add(1, std::memory_order_relaxed);

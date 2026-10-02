@@ -1144,8 +1144,11 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "                     is skipped, not re-searched. May be the same "
                "directory as\n"
                "                     --frontier-dir (default: off).\n";
-  std::cerr << "    --no-census-updates : Disable live census seeding "
-               "(default: on).\n";
+  std::cerr << "    --no-census-updates : Never write the census: neither a "
+               "knot row's own\n"
+               "                     complement after its search nor a Pachner "
+               "search's hit\n"
+               "                     (default: both on).\n";
   std::cerr << "    --exact-far-side-names : record a multi-curve far side under "
                "its exact,\n"
                "        ORIENTED name (exactnaming/, fast path), so witnesses are "
@@ -1259,7 +1262,6 @@ int main(int argc, char *argv[]) {
   std::optional<std::string> resumeFrontierDir; // see --resume-frontier-dir
   long long rootBudgetStart = 0;   // 0 = off, i.e. today's single-pass behaviour
   long long rootBudgetGrowth = 2;
-  bool censusUpdates = true;
   // Accept surfaces whose only self-intersections are unlinked (paper §4.5,
   // KnottedSurface::isResolvable()). No default (plan divergence 3): it
   // changes which surfaces count toward --surface-target and is part of the
@@ -1470,7 +1472,7 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "--surface-stats requires a value.");
       surfaceStatsPath = argv[++i];
     } else if (arg == "--no-census-updates") {
-      censusUpdates = false;
+      census::censusUpdates.store(false, std::memory_order_relaxed);
     } else if (arg == "--no-retriangulate-on-miss") {
       retriangulateOnMissArg = false;
     } else if (arg == "--retriangulate-links") {
@@ -2125,7 +2127,6 @@ int main(int argc, char *argv[]) {
   cascade::SearchPolicy policy;
   policy.frontierNeedsExamined = true;
   policy.failures = cascade::SearchPolicy::Failures::halt;
-  policy.censusWriteAfterSearch = censusUpdates;
   policy.judgeInSearch = true;
   policy.signing = cascade::SearchPolicy::Signing::duringSearch;
 
@@ -2244,6 +2245,9 @@ int main(int argc, char *argv[]) {
     // Every boundary by its complement, unless the row draws its far sides.
     request.diagramNaming = !useCone;
     request.unseeded = true;
+    // A knot row's complement goes into the census after its search (when
+    // census writes are on).
+    request.censusName = cobordismgraph::baseName(row.name);
     request.sweep = {.record = &recorded,
                      .names = &names,
                      .bounds = &bounds,
@@ -2395,20 +2399,6 @@ int main(int argc, char *argv[]) {
                   << (out.derivedHi.empty() ? "" : " (upper bound " +
                                                        out.derivedHi + ")")
                   << "\n";
-    }
-
-    // Knots only. A link's complement is shared by infinitely many links
-    // (Rolfsen twisting), so writing `isoSig -> L6a3` into a shared cache
-    // would assert, permanently and for every future far side landing on
-    // that isoSig, an identification the complement cannot support --
-    // exactly the claim linknames.h forbids adding "from a complement match
-    // alone". For a knot the same entry is sound by Gordon-Luecke.
-    if (policy.censusWriteAfterSearch && rb.componentCount == 1) {
-      auto &[t2, edges2, reversed2] = rb.link;
-      Link linkGrouping(t2, edges2);
-      regina::Triangulation<3> complement = linkGrouping.buildComplement();
-      census::insertCensusEntry(complement.isoSig(),
-                                cobordismgraph::baseName(row.name));
     }
 
     ++processedThisRun;

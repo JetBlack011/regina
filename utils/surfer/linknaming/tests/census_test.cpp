@@ -211,6 +211,69 @@ void test_insert_after_a_hit_on_this_thread() {
     std::remove(path);
 }
 
+// census::censusUpdates off (the plan's census_updates, divergence 4): no
+// insert lands, whoever calls it, and nothing is counted, ok or failed --
+// nothing was tried. Back on, inserts land again.
+void test_insert_refused_with_updates_off() {
+    const char *path = "census_test_fixture_updates_off.sqlite";
+    buildFixture(path);
+    census::setCensusPath(path);
+    const auto before = census::insertCounts();
+    census::censusUpdates.store(false);
+    EXPECT_EQ(census::insertCensusEntry("updates-off-sig", "K9a3", "test"),
+              false, "an insert with census updates off reports nothing written");
+    EXPECT_EQ(census::insertCounts().first - before.first, 0LL, "not counted ok");
+    EXPECT_EQ(census::insertCounts().second - before.second, 0LL,
+              "nor counted failed");
+    EXPECT_EQ(census::localCensusLookup("updates-off-sig").value_or("<MISS>"),
+              std::string("<MISS>"), "and nothing is found");
+    census::censusUpdates.store(true);
+    EXPECT_EQ(census::insertCensusEntry("updates-off-sig", "K9a3", "test"),
+              true, "switched back on, the same insert lands");
+    EXPECT_EQ(census::localCensusLookup("updates-off-sig").value_or("<MISS>"),
+              std::string("K9a3"), "and is found");
+    std::remove(path);
+}
+
+// The other insert site, the Pachner-hit insert inside naming, follows the
+// same switch: a complement whose own signature the census lacks, found by
+// retriangulating to one it holds, is inserted under its own signature only
+// with census updates on. (Deterministic: the census holds the figure
+// eight's signature after one 2-3 move, one Pachner move away.)
+void test_pachner_hit_insert_follows_updates_switch() {
+    const regina::Triangulation<3> fig8 = regina::Example<3>::figureEight();
+    regina::Triangulation<3> moved(fig8);
+    bool movedOk = false;
+    for (size_t i = 0; i < moved.countTriangles() && !movedOk; ++i)
+        movedOk = moved.pachner(moved.triangle(i));
+    EXPECT_EQ(movedOk, true, "a 2-3 move applies to the figure eight");
+    EXPECT_EQ(moved.isoSig() != fig8.isoSig(), true, "and changes its signature");
+    for (bool on : {false, true}) {
+        // Its own file each time: the write connection is cached per path.
+        const std::string path = std::string("census_test_fixture_pachner_") +
+                                 (on ? "on" : "off") + ".sqlite";
+        buildFixture(path.c_str());
+        census::setCensusPath(path);
+        census::censusUpdates.store(true);
+        census::insertCensusEntry(moved.isoSig(), "K-fig8-moved", "test");
+        census::censusUpdates.store(on);
+        const auto before = census::insertCounts();
+        EXPECT_EQ(census::retriangulateAndLookup(fig8, 1, 100000, std::chrono::seconds(30))
+                      .value_or("<MISS>"),
+                  std::string("K-fig8-moved"),
+                  std::string("updates ") + (on ? "on" : "off") +
+                      ": the Pachner search finds the moved signature");
+        EXPECT_EQ(census::localCensusLookup(fig8.isoSig()).value_or("<MISS>"),
+                  std::string(on ? "K-fig8-moved" : "<MISS>"),
+                  std::string("updates ") + (on ? "on" : "off") +
+                      ": the unmoved signature is " + (on ? "inserted" : "not inserted"));
+        EXPECT_EQ(census::insertCounts().first - before.first, on ? 1LL : 0LL,
+                  "and counted accordingly");
+        census::censusUpdates.store(true);
+        std::remove(path.c_str());
+    }
+}
+
 // Builds a single-row fixture keyed by a caller-supplied signature -- used
 // below to insert a row keyed by a REAL triangulation's REAL isoSig(),
 // rather than the synthetic placeholder strings the tests above use.
@@ -295,6 +358,9 @@ int main() {
     run("insert_lands_and_is_found", test_insert_lands_and_is_found);
     run("insert_after_a_hit_on_this_thread",
         test_insert_after_a_hit_on_this_thread);
+    run("insert_refused_with_updates_off", test_insert_refused_with_updates_off);
+    run("pachner_hit_insert_follows_updates_switch",
+        test_pachner_hit_insert_follows_updates_switch);
 
     std::remove(FIXTURE_PATH);
 

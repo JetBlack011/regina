@@ -178,6 +178,16 @@ bool setCensusPath(const std::string &path);
 void resetCensusForTesting();
 
 /**
+ * Whether the local census is ever written (the plan's census_updates): off,
+ * insertCensusEntry() writes nothing, whoever calls it -- a search's
+ * end-of-search insert of its own knot's complement and the Pachner-hit
+ * insert inside naming alike. On by default; a goal-directed run switches it
+ * off. Set once, before any search worker thread is spawned, like
+ * retriangulateOnMiss.
+ */
+extern std::atomic<bool> censusUpdates;
+
+/**
  * Inserts (isoSig -> name) into the local census at the current path
  * (creating the file/table if missing), tagged with `source` for
  * provenance. INSERT OR IGNORE: never overwrites an existing entry. Bumps
@@ -186,7 +196,8 @@ void resetCensusForTesting();
  * Thread-safe (its own mutex-guarded read-write connection, opened
  * lazily, WAL + busy_timeout enabled for robustness against another
  * concurrently-running surfer/verifyslicegenus instance sharing the same
- * file). No-op (returns false) if the path can't be opened for writing.
+ * file). No-op (returns false) if the path can't be opened for writing, and
+ * with censusUpdates off (counted neither ok nor failed: nothing was tried).
  */
 bool insertCensusEntry(const std::string &isoSig, const std::string &name,
                        const std::string &source = "verifyslicegenus");

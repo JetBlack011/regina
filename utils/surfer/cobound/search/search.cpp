@@ -19,6 +19,7 @@
 #include "cobound/search/preconditions.h"
 #include "cobound/search/searchreport.h"
 #include "linknaming/census/censusnaming.h"
+#include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/linkingnumber.h"
 #include "surfer/enumeration/surfacesearch.h"
 #include "surfer/report/csvwriter.h"
@@ -151,7 +152,8 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                         const std::string &rowName, long long surfaceTarget,
                         double seconds,
                         const std::function<bool(const KeptSurface &)> &stop,
-                        const SearchFrontier *resume) const {
+                        const SearchFrontier *resume,
+                        std::optional<std::string> censusName) const {
   SearchRequest request;
   request.name = rowName;
   request.row = &row;
@@ -163,6 +165,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   request.recordFrontier = true;
   request.resume = resume;
   request.stop = stop;
+  request.censusName = std::move(censusName);
   return run(row.rowBuild(), request);
 }
 
@@ -680,6 +683,21 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.recognitionAfter = identify::recognitionCacheStats();
   out.censusWritesAfter = census::insertCounts();
   out.linkingAudit = linkingnumber::auditLinkingNumbers.load();
+
+  // The incoming knot's complement into the census under its table name,
+  // after the counters above were read (it never counted in the row's own
+  // identification line). Knots only. A link's complement is shared by
+  // infinitely many links (Rolfsen twisting), so writing `isoSig -> L6a3`
+  // into a shared cache would assert, permanently and for every future far
+  // side landing on that isoSig, an identification the complement cannot
+  // support -- exactly the claim linknames.h forbids adding "from a
+  // complement match alone". For a knot the same entry is sound by
+  // Gordon-Luecke.
+  if (request.censusName && rb.componentCount == 1 &&
+      census::censusUpdates.load(std::memory_order_relaxed)) {
+    Link incoming(rb.link.tri, rb.link.edges);
+    census::insertCensusEntry(incoming.buildComplement().isoSig(), *request.censusName);
+  }
   out.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
   out.cpu = timers::processCpuSeconds() - cpu0;
   return out;

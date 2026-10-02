@@ -1307,7 +1307,10 @@ void Cascade::expand(NodeId n, long surfaces) {
   if (searcher_) {
     HopRun run;
     try {
-      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200, {}, resume);
+      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200, {}, resume,
+                           tables_.entry(rowName)
+                               ? std::optional<std::string>(cobordismgraph::baseName(rowName))
+                               : std::nullopt);
     } catch (const std::exception &e) {
       refused_.insert(n);
       log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
@@ -1863,6 +1866,7 @@ int Cascade::run() {
     if (!census::setCensusPath(cfg_.censusDb))
       std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
     census::retriangulateOnMiss.store(false);
+    census::censusUpdates.store(false);
     identify::recognitionCacheLimit.store(cfg_.hopShape.recognitionCacheLimit);
     const auto t0 = std::chrono::steady_clock::now();
     signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);

@@ -220,12 +220,6 @@ struct SearchPolicy {
   enum class Failures { halt, refuse };
   Failures failures = Failures::refuse;
 
-  /// Divergence 4, census writes (read by verifyslicegenus's driver): after
-  /// a knot's search, its complement goes into the census under its name
-  /// (verifyslicegenus unless --no-census-updates; the Pachner-hit insert
-  /// inside naming is unconditional for both).
-  bool censusWriteAfterSearch = false;
-
   /// Divergences 6 and 10, who judges a find: the search itself, each new
   /// witness against the solver's bounds as of the last solve
   /// (cobordismgraph::upperBoundVia(); verifyslicegenus). It prints the
@@ -324,6 +318,10 @@ struct SearchRequest {
   /// Name outgoing curves by their drawing when the searcher has signature
   /// tables (else every boundary by its complement).
   bool diagramNaming = true;
+  /// The incoming knot's table name: after its search, its complement goes
+  /// into the census under it, when census writes are on
+  /// (census::censusUpdates). Unset, or a link: no insert.
+  std::optional<std::string> censusName;
   /// Search a row without a collar seed (verifyslicegenus's --cone and
   /// --collar-layers 0, retired with coning); otherwise such a row is
   /// refused.
@@ -448,10 +446,12 @@ public:
   /// carries on from it (if it is this search's; see HopRun::resumeRefusal).
   /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
+  /// `censusName`, if any, is SearchRequest::censusName.
   HopRun run(const farside::WitnessRedrawer &row, const std::string &rowName,
              long long surfaceTarget, double seconds,
              const std::function<bool(const KeptSurface &)> &stop = {},
-             const SearchFrontier *resume = nullptr) const;
+             const SearchFrontier *resume = nullptr,
+             std::optional<std::string> censusName = std::nullopt) const;
 
   /**
    * THE search: one search from `rb`'s incoming link, as `request` and this
