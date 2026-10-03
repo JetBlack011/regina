@@ -383,6 +383,15 @@ int run(const config::Config &cfg) {
     }
 
     // The row's frontier: carried on from, and recorded (see frontier_dir).
+    //
+    // INVARIANT: a torn, partial or unparsable frontier loads as ABSENT. The
+    // search starts fresh and the log names the reason; it never resumes from
+    // such a file. Frontiers are written atomically but not fsynced (phase 5),
+    // so a crash can leave one empty or cut short; read() refuses any file
+    // without its 'end' line or with a malformed line (submanifoldsearch_test
+    // cuts one at every byte; frontier_pending_test resumes from a truncated
+    // and a garbage one). A whole frontier of another search is refused
+    // later, by its fingerprint ("resumed no").
     auto frontierPath = [&](const std::string &dir) { return dir + "/" + row.name + ".frontier"; };
     std::optional<SearchFrontier> resumeFrom;
     if (resumeFrontierDir) {

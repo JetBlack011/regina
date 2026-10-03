@@ -263,6 +263,8 @@ void SearchFrontier::save(const std::string &path) const {
     }
 }
 
+// A damaged file throws (read()) and is never returned as a frontier: callers
+// load it as absent (see load()'s contract in the header).
 std::optional<SearchFrontier> SearchFrontier::load(const std::string &path) {
     std::ifstream in(path);
     if (!in)

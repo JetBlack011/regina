@@ -128,7 +128,11 @@ struct SearchFrontier {
      * is resolved against `path`'s directory (an absolute one is kept), and
      * when that file does not exist but one of its name lies beside the
      * frontier, that one is named: `pending->path` is absolute either way.
-     * \throws as read().
+     * \throws as read(): an empty, torn, partial or unparsable file throws
+     * a runtime_error naming the reason ("SearchFrontier: ..."), never
+     * returns a frontier. A caller treats that file as ABSENT -- it searches
+     * from the start and logs the reason -- and never resumes from it
+     * (cobound's sweep does exactly this).
      */
     static std::optional<SearchFrontier> load(const std::string &path);
 };
