@@ -1,0 +1,4 @@
+3_1 Target best: none outcome expansion-limit
+3_1 hop0 accepted=1752 described=1752 examined=1752 other-orientation 0, search-side-elsewhere 0, impossible 0, drain complete, ok
+L2a1{0} Target best: 0 outcome met
+L2a1{0} hop0 accepted=945 described=945 examined=795 other-orientation 150, search-side-elsewhere 0, impossible 0, drain complete, ok

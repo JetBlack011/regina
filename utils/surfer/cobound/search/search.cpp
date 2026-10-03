@@ -109,19 +109,24 @@ RowWatchdog::~RowWatchdog() { stop(); }
 namespace cascade {
 
 SearchShape searchShape(const HopShape &shape) {
+  if (!shape.layers || !shape.maxFaces || !shape.iddfsIterations || !shape.iddfsStart ||
+      !shape.iddfsStep || !shape.rootBudgetStart || !shape.rootBudgetGrowth)
+    throw std::logic_error("searchShape(): the hop shape leaves a field that decides what a "
+                           "search visits unset (the config sets every one)");
   SearchShape s;
   s.condition = BoundaryCondition::proper;
-  s.iddfsIterations = shape.iddfsIterations;
-  s.iddfsStep = shape.iddfsStep;
-  s.iddfsStart = shape.iddfsStart;
+  s.iddfsIterations = *shape.iddfsIterations;
+  s.iddfsStep = *shape.iddfsStep;
+  s.iddfsStart = *shape.iddfsStart;
   s.iddfsFinalThreads = std::nullopt;
-  s.maxFaces = shape.maxFaces;
-  s.rootBudgetStart = shape.rootBudgetStart;
-  s.rootBudgetGrowth = shape.rootBudgetGrowth;
+  s.maxFaces = *shape.maxFaces;
+  s.rootBudgetStart = *shape.rootBudgetStart;
+  s.rootBudgetGrowth = *shape.rootBudgetGrowth;
   s.resolveUnlinked = shape.resolveUnlinked;
-  s.limits.pendingSurfaceCap = shape.pendingSurfaceCap;
-  s.limits.petalCacheLimit = shape.petalCacheLimit;
-  s.limits.boundarySignatureCacheLimit = shape.boundarySignatureCacheLimit;
+  if (shape.pendingSurfaceCap) s.limits.pendingSurfaceCap = *shape.pendingSurfaceCap;
+  if (shape.petalCacheLimit) s.limits.petalCacheLimit = *shape.petalCacheLimit;
+  if (shape.boundarySignatureCacheLimit)
+    s.limits.boundarySignatureCacheLimit = *shape.boundarySignatureCacheLimit;
   // Only a multi-curve component's curve COUNT is ever used, as in
   // verifyslicegenus; and no pair signatures (faces are kept instead).
   s.limits.nameLinkCurves = false;
@@ -177,7 +182,7 @@ SearchRequest HopSearcher::hopRequest(const farside::WitnessRedrawer &row,
   // Always recorded (it costs one fingerprint): a later hop from this node
   // carries on from it instead of searching this prefix again.
   request.recordFrontier = true;
-  request.layers = shape_.layers;
+  request.layers = *shape_.layers;
   return request;
 }
 

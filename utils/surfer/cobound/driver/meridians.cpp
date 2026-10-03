@@ -1,7 +1,10 @@
 //
-//  peripheral_slopes.cpp
+//  meridians.cpp (was peripheral_slopes.cpp)
 //
 //  Created by John Teague on 09/03/2026.
+//
+//  cobound meridians <sig|dump|dump-link|dump-subset|slope>: peripheral_slopes's
+//  five subcommands, byte-compatible.
 //
 //  The C++ half of the far-side identification pass (see peripheral.h and
 //  cobordism-atlas/tools/identify_far_sides.py). Everything topological
@@ -84,10 +87,11 @@
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/pairsig/pairsig.h"
 #include "linknaming/complement/meridians.h"
+#include "cobound/driver/commands.h"
 
 namespace {
 
-void usage(const char *progName) {
+[[noreturn]] void usage(const char *progName) {
     std::cerr << "Usage:\n"
               << "    " << progName << " dump      < ids-and-pairsigs\n"
               << "    " << progName << " dump-link   < ids-and-pd-codes\n"
@@ -585,12 +589,12 @@ int runSlope() {
 
 } // namespace
 
-int main(int argc, char *argv[]) {
+int commands::meridians(const std::vector<std::string> &args) {
     std::ios::sync_with_stdio(false);
-    if (argc != 2)
-        usage(argv[0]);
+    if (args.size() != 1)
+        usage("cobound meridians");
 
-    const std::string mode = argv[1];
+    const std::string mode = args.front();
     if (mode == "dump")
         return runDump();
     if (mode == "dump-link")
@@ -601,6 +605,5 @@ int main(int argc, char *argv[]) {
         return runSlope();
     if (mode == "sig")
         return runSig();
-    usage(argv[0]);
-    return 1;
+    usage("cobound meridians");
 }

@@ -1,6 +1,6 @@
 # cobound: bounding g4 by cobordisms. Its library, which links every other
-# part's (see ../CMakeLists.txt for the dependency rule), then the drivers
-# and the tests.
+# part's (see ../CMakeLists.txt for the dependency rule), then the one
+# program and the tests.
 add_library(cobound_lib STATIC
   search/search.cpp search/searchreport.cpp
   cobordisms/cobordismkey.cpp cobordisms/database.cpp
@@ -13,33 +13,20 @@ add_library(cobound_lib STATIC
   cobordisms/appendonly.cpp driver/signals.cpp
   solver/verdicts.cpp solver/solverinputs.cpp
   bounds/certificate.cpp bounds/databasecobordisms.cpp
-  driver/targets.cpp driver/runrecords.cpp driver/scheduler.cpp)
+  driver/config.cpp driver/setup.cpp driver/fatal.cpp driver/targets.cpp
+  driver/runrecords.cpp driver/scheduler.cpp driver/sweep.cpp
+  driver/run.cpp driver/solve.cpp driver/sign.cpp driver/draw.cpp driver/name.cpp
+  driver/meridians.cpp)
 target_link_libraries(cobound_lib PUBLIC ${ENGINE_LIBRARY} surfer_lib
                       diagramtriangulation_lib linknaming_lib linknaming_complement)
 surfer_include_view(cobound_lib cobound)
-#
-# Each driver keeps its build directory: verifyslicegenus and the tools in
-# build/utils/surfer/ (hosts.conf's surfer=, remote_run.sh, stage.sh,
-# verify.sh and the gates expect them there), cascadesearch in
-# build/utils/surfer/cascade/.
 
-set(COBOUND_TOOLS
-  verifyslicegenus  driver/verifyslicegenus.cpp
-  farsidediagram    driver/draw.cpp
-  farsidename       driver/name.cpp
-  peripheral_slopes driver/meridians.cpp
-)
-while(COBOUND_TOOLS)
-  list(POP_FRONT COBOUND_TOOLS EXE SRC)
-  add_executable(${EXE} ${SRC})
-  target_link_libraries(${EXE} cobound_lib surfer_mimalloc)
-  set_target_properties(${EXE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SURFER_BUILD_DIR}")
-  install(TARGETS ${EXE} DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Runtime)
-endwhile()
-
-add_executable(cascadesearch driver/cascadesearch.cpp)
-target_link_libraries(cascadesearch cobound_lib surfer_mimalloc)
-set_target_properties(cascadesearch PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${SURFER_BUILD_DIR}/cascade")
+# The one program: cobound run | solve | sign | draw | name | meridians. It
+# goes to build/utils/surfer/, where scripts and campaigns expect the
+# project's programs.
+add_executable(cobound main.cpp)
+target_link_libraries(cobound cobound_lib surfer_mimalloc)
+set_target_properties(cobound PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SURFER_BUILD_DIR}")
+install(TARGETS cobound DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}" COMPONENT Runtime)
 
 add_subdirectory(tests)

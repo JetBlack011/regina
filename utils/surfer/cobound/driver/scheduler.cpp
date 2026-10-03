@@ -4,21 +4,14 @@
 //  A goal run: chained searches for one target over its cobordism graph.
 //  See ../README.md.
 //
-//  Each expansion is one row searched on a node's diagram with the
-//  campaign's search shape: in this process (search.h; the default), or
-//  as a verifyslicegenus child (hop mode child). Its surfaces become edges
-//  of the cobordism graph (searchcobordisms.h), far sides become nodes
-//  (links.h), and bounds are relaxed to a fixed point (cobordismgraph.h)
-//  after every hop. The run stops when the target's goal has a proof, or
-//  the budget is spent.
+//  Each expansion is one search, in this process (search.h), on a node's
+//  diagram with the run's search shape. Its surfaces become edges of the
+//  cobordism graph (searchcobordisms.h), far sides become nodes (links.h),
+//  and bounds are relaxed to a fixed point (cobordismgraph.h) after every
+//  hop. The run stops when the target's goal has a proof, or the budget is
+//  spent.
 
 #include "cobound/driver/scheduler.h"
-
-#include <spawn.h>
-#include <sys/resource.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 #include <algorithm>
 #include <chrono>
@@ -68,8 +61,6 @@
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"
 
-extern char **environ;
-
 namespace cascade {
 
 using exactnaming::GaussDiagram;
@@ -79,55 +70,6 @@ namespace {
 
 using timers::Clock;
 using timers::secondsSince;
-
-// A child hop's witness, read back from its cob.csv.
-struct Witness {
-  std::string other, pairsig;
-  int genus = 0, otherComponents = 0, layers = 2;
-};
-
-std::vector<Witness> readWitnesses(const std::string &path) {
-  std::vector<Witness> out;
-  for (cobordismgraph::Witness &w : witnessstore::readWitnesses(path))
-    out.push_back({w.other, std::move(w.pairSig), w.genus, w.otherComponents, w.thickenLayers});
-  return out;
-}
-
-struct ChildRun {
-  int status = -1;
-  double wall = 0, cpu = 0;
-};
-
-// Runs argv with stdout/stderr to files; returns wall and child CPU time.
-ChildRun runChild(const std::vector<std::string> &argv, const std::string &out,
-                  const std::string &err) {
-  std::vector<char *> a;
-  for (const auto &s : argv) a.push_back(const_cast<char *>(s.c_str()));
-  a.push_back(nullptr);
-  posix_spawn_file_actions_t fa;
-  posix_spawn_file_actions_init(&fa);
-  posix_spawn_file_actions_addopen(&fa, 1, out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  posix_spawn_file_actions_addopen(&fa, 2, err.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  rusage before{}, after{};
-  getrusage(RUSAGE_CHILDREN, &before);
-  const auto t0 = std::chrono::steady_clock::now();
-  pid_t pid;
-  ChildRun r;
-  if (posix_spawn(&pid, a[0], &fa, nullptr, a.data(), environ) != 0) {
-    posix_spawn_file_actions_destroy(&fa);
-    return r;
-  }
-  int st = 0;
-  waitpid(pid, &st, 0);
-  posix_spawn_file_actions_destroy(&fa);
-  r.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-  getrusage(RUSAGE_CHILDREN, &after);
-  auto secs = [](const timeval &t) { return t.tv_sec + t.tv_usec / 1e6; };
-  r.cpu = secs(after.ru_utime) - secs(before.ru_utime) + secs(after.ru_stime) -
-          secs(before.ru_stime);
-  r.status = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
-  return r;
-}
 
 class Cascade {
 public:
@@ -186,7 +128,7 @@ private:
   /// --lower-sources: which table names are special sources (their lower
   /// bound is not a Lipschitz invariant's), and the largest such bound.
   void loadLowerSources();
-  std::optional<NodeId> choose(bool freeOnly = false);
+  std::optional<NodeId> choose();
   void expand(NodeId n, long surfaces);
   /// The name node n's hop records its witnesses under: the target's own
   /// name, a proved table name, or cascade:<run>/<target>/n<n>.
@@ -430,8 +372,7 @@ bool Cascade::usefulLower(NodeId n, int *slack) const {
   return true;
 }
 
-// freeOnly: only nodes whose master rows are not yet loaded (no search).
-std::optional<NodeId> Cascade::choose(bool freeOnly) {
+std::optional<NodeId> Cascade::choose() {
   const auto tChoose = Clock::now();
   struct ChooseTimer {
     DriverTimes &d;
@@ -450,12 +391,8 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
     if (!reg_.known(n) || n == reg_.unknot() || refused_.count(n)) continue;
     const NodeInfo &ni = reg_.info(n);
     if (ni.diagram.crossings() > cfg_.maxCrossings) continue;
-    if (!freeOnly && searchedOut_.count(n)) continue; // nothing left to search
-    if (freeOnly) {
-      if (masterDone(n) || !masterRowsFor(n)) continue;
-    } else if (!expansions_[n].empty()) {
-      continue; // one expansion per budget level
-    }
+    if (searchedOut_.count(n)) continue; // nothing left to search
+    if (!expansions_[n].empty()) continue; // one expansion per budget level
     eligible.push_back(n);
   }
   // The upper gate first; the lower what-ifs for every node it rejects run
@@ -480,16 +417,6 @@ std::optional<NodeId> Cascade::choose(bool freeOnly) {
     int slack = 0;
     const bool lowerOnly = !upper[n] && usefulLower(n, &slack);
     const bool use = upper[n] || lowerOnly;
-    if (cfg_.verbose && !freeOnly) {
-      auto t = tableName_.find(n);
-      std::cout << "    candidate " << n << " (" << ni.diagram.crossings() << "x, "
-                << ni.diagram.components() << "c, "
-                << (t == tableName_.end() ? "untabulated" : t->second) << ", depth " << dep
-                << "): "
-                << (upper[n] ? "useful" : lowerOnly ? "useful for the lower goal" : "not useful");
-      if (lowerOnly) std::cout << " (slack " << slack << ")";
-      std::cout << (masterRowsFor(n) && !masterDone(n) ? ", master rows" : "") << "\n";
-    }
     if (!use) continue;
     const int crossings = static_cast<int>(ni.diagram.crossings());
     int order = 0;
@@ -533,8 +460,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   // already searched this far (a hub's wide hop, say) has nothing new at
   // this budget.
   const SearchFrontier *resume = nullptr;
-  if (searcher_)
-    if (auto f = frontiers_.find(n); f != frontiers_.end()) resume = &f->second;
+  if (auto f = frontiers_.find(n); f != frontiers_.end()) resume = &f->second;
   if (resume && resume->satisfying >= surfaces) {
     expansions_[n].push_back(surfaces);
     std::cout << "[+] node " << n << " already searched to " << resume->satisfying
@@ -551,7 +477,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   row.nodeMap.resize(d.components());
   std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
   row.pd = rowPD(d);
-  row.layers = cfg_.hopShape.layers;
+  row.layers = *cfg_.hopShape.layers;
   using clock = std::chrono::steady_clock;
   auto seconds = [](clock::time_point a, clock::time_point b) {
     return std::chrono::duration<double>(b - a).count();
@@ -588,7 +514,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   std::string roundsJson = "[]";
   size_t drainTail = 0;
   double drainTailSeconds = 0;
-  std::string namingJson; // in-process hops only: the drain's naming times
+  std::string namingJson; // the drain's naming times
   // The hop's subject: what its witnesses are recorded under, and what its
   // log lines are named by (subjectName()).
   const std::string rowName = subjectName(n);
@@ -596,10 +522,9 @@ void Cascade::expand(NodeId n, long surfaces) {
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
   size_t witnesses = 0;
-  // One witness (or kept surface) into the graph. Its edge's key is its
-  // provenance: the witness key of a child hop's witness, or hop<k>#<i> for
-  // an in-process one, which has no pair signature.
-  const std::string build = searcher_ ? hop->redrawer().buildChecksum() : std::string();
+  // One kept surface into the graph. Its edge's key is its provenance:
+  // hop<k>#<i> (it has no pair signature).
+  const std::string build = hop->redrawer().buildChecksum();
   auto take = [&](const std::string &key, const std::string &label,
                   const std::function<HopEdge()> &add, std::vector<int> faces) {
     HopEdge e;
@@ -627,12 +552,16 @@ void Cascade::expand(NodeId n, long surfaces) {
     }
   };
 
-  ChildRun r;
+  struct {
+    int status = -1;
+    double wall = 0, cpu = 0;
+  } r;
   std::chrono::steady_clock::time_point t0;
-  if (searcher_) {
+  {
     HopRun run;
     try {
-      SearchRequest request = searcher_->hopRequest(hop->redrawer(), rowName, surfaces, 7200);
+      SearchRequest request =
+          searcher_->hopRequest(hop->redrawer(), rowName, surfaces, cfg_.searchSeconds);
       request.resume = resume;
       if (tables_.entry(rowName)) request.censusName = cobordismgraph::baseName(rowName);
       // Every kept surface, durably, as the search runs (divergence 7): the
@@ -726,43 +655,6 @@ void Cascade::expand(NodeId n, long surfaces) {
       take(key, ks.farName, [&] { return hop->addRead(ks.link, ks.genus, key); },
            std::move(ks.faces));
     }
-  } else {
-    std::ofstream(dir + "/input.csv") << "Name,PD Notation,Genus-4D\n"
-                                      << rowName << "," << row.pd << ",[0;99]\n";
-    const HopShape &shape = cfg_.hopShape;
-    std::vector<std::string> argv = {
-        cfg_.verify, "--input", dir + "/input.csv", "--output", dir + "/out.csv",
-        "--cobordisms", dir + "/cob.csv", "--census-db", cfg_.censusDb,
-        "--no-census-updates", "--knot-table", cfg_.knotTable, "--link-table",
-        cfg_.linkTable, "--max-crossings", "999", "--thicken-layers",
-        std::to_string(shape.layers), "--collar-layers", std::to_string(shape.layers),
-        "--max-faces", std::to_string(shape.maxFaces),
-        "--iddfs-iterations", std::to_string(shape.iddfsIterations), "--iddfs-start",
-        std::to_string(shape.iddfsStart), "--iddfs-step", std::to_string(shape.iddfsStep),
-        "--root-budget-start", std::to_string(shape.rootBudgetStart),
-        "--root-budget-growth", std::to_string(shape.rootBudgetGrowth), "--no-cone",
-        "--harvest", "--boundary-condition", "proper", "--research-settled",
-        "--per-knot-time-limit", "7200", "--threads", std::to_string(cfg_.threads),
-        "--surface-target", std::to_string(surfaces),
-        *shape.resolveUnlinked ? "--resolve-unlinked" : "--no-resolve-unlinked",
-        "--exact-far-side-names", "--no-retriangulate-on-miss",
-        "--pending-surface-cap", std::to_string(shape.pendingSurfaceCap),
-        "--petal-cache-limit", std::to_string(shape.petalCacheLimit),
-        "--recognition-cache-limit", std::to_string(shape.recognitionCacheLimit),
-        "--boundary-signature-cache-limit",
-        std::to_string(shape.boundarySignatureCacheLimit)};
-    if (!cfg_.pairSigCache.empty()) {
-      argv.push_back("--pair-sig-cache");
-      argv.push_back(cfg_.pairSigCache);
-    }
-    r = runChild(argv, dir + "/log.txt", dir + "/err.txt");
-    t0 = std::chrono::steady_clock::now();
-    std::vector<Witness> ws = readWitnesses(dir + "/cob.csv");
-    witnesses = ws.size();
-    for (const Witness &w : ws) {
-      const std::string key = witnesskey::witnessKey(w.pairsig);
-      take(key, w.other, [&] { return hop->add({w.pairsig, w.genus, key}); }, {});
-    }
   }
   cpuSpent_ += r.cpu;
   wallSpent_ += r.wall;
@@ -833,18 +725,16 @@ int Cascade::run() {
   const auto tRun = Clock::now();
   const double cpuRun = timers::processCpuSeconds();
   fs::create_directories(cfg_.work);
-  if (cfg_.hopMode == "process") {
-    // As a child hop runs verifyslicegenus: a private census copy, never
-    // written, and no Pachner searches on a census miss.
-    if (!census::setCensusPath(cfg_.censusDb))
-      std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
-    census::retriangulateOnMiss.store(false);
-    census::censusUpdates.store(false);
-    identify::recognitionCacheLimit.store(cfg_.hopShape.recognitionCacheLimit);
+  // The process-wide settings (census, census writes, Pachner searches, the
+  // complement cache) were set from the config before this run began
+  // (setup::applyRunSettings()).
+  if (!cfg_.censusLoaded)
+    std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
+  {
     const auto t0 = std::chrono::steady_clock::now();
     // From the node namer's tables: one table load (phase 5).
     signatures_ = farside::SignatureTable::fromTables(tables_);
-    // The hops' far-side namers share the node namer's table caches.
+    // The searches' outgoing namers share the node namer's table caches.
     searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, cfg_.hopShape,
                                               static_cast<unsigned>(cfg_.threads),
                                               namer_.caches());
@@ -853,14 +743,12 @@ int Cascade::run() {
               << std::fixed << std::setprecision(1)
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
               << " s)\n";
-  } else if (cfg_.hopMode != "child") {
-    throw std::invalid_argument("--hop-mode must be process or child");
   }
   {
     const HopShape &s = cfg_.hopShape;
-    std::cout << "[+] hop shape: cap " << s.maxFaces << ", IDDFS " << s.iddfsIterations
-              << " from " << s.iddfsStart << " step " << s.iddfsStep << ", root budget "
-              << s.rootBudgetStart << " x" << s.rootBudgetGrowth << "\n";
+    std::cout << "[+] hop shape: cap " << *s.maxFaces << ", IDDFS " << *s.iddfsIterations
+              << " from " << *s.iddfsStart << " step " << *s.iddfsStep << ", root budget "
+              << *s.rootBudgetStart << " x" << *s.rootBudgetGrowth << "\n";
   }
   printProfile();
   loadLowerSources();
@@ -981,12 +869,7 @@ int Cascade::run() {
     // one about to be expanded (below): a proof can run through a node only
     // when the search picks it, and reading every table node's rows as it
     // was met cost more than the hops (2026-09-30, close1: 35-45 loads and
-    // ~2,500 read-backs per row). --master-loads eager restores that.
-    if (database_ && !cfg_.lazyMasterLoads)
-      if (auto f = choose(/*freeOnly=*/true)) {
-        loadMaster(*f);
-        continue;
-      }
+    // ~2,500 read-backs per row).
     auto n = choose();
     if (hops_ >= cfg_.maxExpansions) {
       std::cout << "[-] expansion limit\n";
@@ -1011,7 +894,7 @@ int Cascade::run() {
       std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
       continue;
     }
-    if (database_ && cfg_.lazyMasterLoads && !masterDone(*n) && masterRowsFor(*n)) {
+    if (database_ && !masterDone(*n) && masterRowsFor(*n)) {
       // Its stored rows first: free edges, which may close the proof
       // without the hop, and are in any case what the hop would refind.
       loadMaster(*n, /*countsAsExpansion=*/false);
@@ -1090,28 +973,87 @@ void Cascade::printProfile() const {
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
             << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower
             << " lower_max_crossings=" << cfg_.lowerMaxCrossings
-            << " master_loads=" << (cfg_.lazyMasterLoads ? "lazy" : "eager")
+            << " master_loads=lazy"
             << " literature=" << (cfg_.literature ? 1 : 0)
-            << " hop_mode=" << cfg_.hopMode << " hop_surfaces=" << cfg_.hopSurfaces
+            << " hop_mode=process hop_surfaces=" << cfg_.hopSurfaces
             << " max_hop_surfaces=" << cfg_.maxHopSurfaces
             << " max_expansions=" << cfg_.maxExpansions << " cpu_budget=" << cfg_.cpuBudget
             << " strategy=" << cfg_.strategy << " max_crossings=" << cfg_.maxCrossings
             << " hub_degree=" << cfg_.hubDegree << " hub_surfaces=" << cfg_.hubSurfaces
-            << " threads=" << cfg_.threads << " max_faces=" << s.maxFaces
-            << " iddfs_iterations=" << s.iddfsIterations << " iddfs_start=" << s.iddfsStart
-            << " iddfs_step=" << s.iddfsStep << " root_budget_start=" << s.rootBudgetStart
-            << " root_budget_growth=" << s.rootBudgetGrowth << " layers=" << s.layers
+            << " threads=" << cfg_.threads << " max_faces=" << *s.maxFaces
+            << " iddfs_iterations=" << *s.iddfsIterations << " iddfs_start=" << *s.iddfsStart
+            << " iddfs_step=" << *s.iddfsStep << " root_budget_start=" << *s.rootBudgetStart
+            << " root_budget_growth=" << *s.rootBudgetGrowth << " layers=" << *s.layers
             << " resolve_unlinked=" << (*s.resolveUnlinked ? 1 : 0)
-            << " exact_far_side_names=1 pending_surface_cap=" << s.pendingSurfaceCap
-            << " petal_cache_limit=" << s.petalCacheLimit
-            << " boundary_signature_cache_limit=" << s.boundarySignatureCacheLimit
-            << " recognition_cache_limit=" << s.recognitionCacheLimit
+            << " exact_far_side_names=1 pending_surface_cap=" << *s.pendingSurfaceCap
+            << " petal_cache_limit=" << *s.petalCacheLimit
+            << " boundary_signature_cache_limit=" << *s.boundarySignatureCacheLimit
+            << " recognition_cache_limit=" << cfg_.complementCacheLimit
             << " master_witnesses=" << (cfg_.masterWitnesses.empty() ? "none" : cfg_.masterWitnesses)
             << " witness_store=" << (cfg_.witnessStore.empty() ? "none" : cfg_.witnessStore)
             << " run_name=" << (cfg_.runName.empty() ? "none" : cfg_.runName) << "\n";
 }
 
 } // namespace
+
+GoalOptions goalOptions(const config::Config &cfg) {
+  GoalOptions o;
+  o.targetPD = cfg.text("target_pd");
+  o.targetName = cfg.text("target_name");
+  o.work = cfg.text("work");
+  o.knotTable = cfg.text("knot_table");
+  o.linkTable = cfg.text("link_table");
+  o.knotSymmetry = cfg.text("knot_symmetry");
+  o.censusDb = cfg.text("census");
+  o.goalGenus = static_cast<int>(cfg.integer("goal_genus"));
+  o.goalDisjoint = cfg.text("goal_partition") == "disjoint";
+  o.hopSurfaces = static_cast<long>(cfg.integer("surface_target"));
+  o.maxHopSurfaces = static_cast<long>(cfg.integer("max_surface_target"));
+  o.threads = static_cast<int>(cfg.threads());
+  o.maxExpansions = static_cast<int>(cfg.integer("max_searches"));
+  o.cpuBudget = cfg.real("cpu_budget");
+  o.searchSeconds = cfg.real("search_seconds");
+  o.maxCrossings = static_cast<size_t>(cfg.integer("max_crossings"));
+  o.strategy = cfg.text("strategy");
+  o.literature = cfg.flag("literature");
+  o.masterWitnesses = cfg.text("master_witnesses");
+  HopShape &h = o.hopShape;
+  h.layers = static_cast<int>(cfg.integer("layers"));
+  h.maxFaces = cfg.integer("max_faces");
+  h.iddfsIterations = static_cast<unsigned>(cfg.integer("iddfs_iterations"));
+  h.iddfsStart = cfg.integer("iddfs_start");
+  h.iddfsStep = cfg.integer("iddfs_step");
+  h.rootBudgetStart = cfg.integer("root_budget_start");
+  h.rootBudgetGrowth = cfg.integer("root_budget_growth");
+  h.resolveUnlinked = cfg.flag("resolve_unlinked");
+  h.pendingSurfaceCap = static_cast<size_t>(cfg.integer("pending_surface_cap"));
+  h.petalCacheLimit = static_cast<size_t>(cfg.integer("petal_cache_limit"));
+  h.boundarySignatureCacheLimit =
+      static_cast<size_t>(cfg.integer("boundary_signature_cache_limit"));
+  o.complementCacheLimit = static_cast<size_t>(cfg.integer("complement_cache_limit"));
+  o.witnessStore = cfg.text("cobordisms");
+  o.runName = cfg.text("run_name");
+  o.pairSigCache = cfg.text("pair_sig_cache");
+  o.readBackCache = cfg.text("read_back_cache");
+  o.dedupeAgainst = cfg.paths("dedupe_against");
+  o.lowerReport = cfg.flag("lower_report");
+  o.lowerSources = cfg.text("lower_sources");
+  o.goalLower = static_cast<int>(cfg.optionalInteger("goal_lower").value_or(-1));
+  o.lowerMaxCrossings = static_cast<size_t>(cfg.integer("lower_max_crossings"));
+  o.hubDegree = static_cast<size_t>(cfg.integer("hub_degree"));
+  o.hubSurfaces = static_cast<long>(cfg.integer("hub_surfaces"));
+  // What the retired cascadesearch refused, still refused.
+  if (!cfg.flag("exact_far_side_names"))
+    throw config::Error("exact_far_side_names cannot be 0 in a run with a goal (its "
+                        "searches always name outgoing links exactly)");
+  if (!o.witnessStore.empty() && o.runName.empty())
+    throw config::Error("cobordisms needs run_name in a run with a goal");
+  if (o.goalLower >= 0 && o.lowerSources.empty())
+    throw config::Error("goal_lower needs lower_sources (the special sources' largest bound "
+                        "is what makes the lower gate prune)");
+  if (o.targetName.empty()) o.targetName = "target";
+  return o;
+}
 
 int runToGoal(const GoalOptions &options) {
   Cascade cascade(options);

@@ -1,5 +1,5 @@
 #!/bin/sh
-# frontier_pending_test.sh <verifyslicegenus> <cascadesearch> <test data dir>
+# frontier_pending_test.sh <cobound> <test data dir>
 #
 # One frontier rule (plan divergence 1). A search's frontier records its
 # pending file and that file's fsynced byte length; `sign` records how far it
@@ -16,7 +16,7 @@
 #      its frontier names WA's pending file and length;
 #   2. A's signed record is removed: as if A had been killed before signing;
 #   3. run B (work WB) refuses A's frontier, naming the reason;
-#   4. `cascadesearch --sign-only --work WA` signs WA: the record is back;
+#   4. `cobound sign` with work WA signs WA: the record is back;
 #   5. run C (work WC) resumes A's frontier;
 #   6. with the record removed again, run D in A's own work directory WA
 #      resumes it (its own sign step signs WA's files);
@@ -25,9 +25,8 @@
 #   8. with the moved record removed, run F in the moved WA resumes it.
 set -eu
 
-V=$1
-C=$2
-DATA=$3
+C=$1
+DATA=$2
 R=$(mktemp -d)
 trap 'rm -rf "$R"' EXIT
 T=$R/tree
@@ -36,12 +35,25 @@ HDR='kind,subject,subject_components,other,other_candidates,other_components,gen
 head -2 "$DATA/knots_to_6.csv" > "$T/rows.csv"   # 3_1
 echo "$HDR" > "$T/cobordisms.csv"
 run() { # tag work target [resume]
-  r=""; [ -n "${4:-}" ] && r="--resume-frontier-dir $T/fr"
-  "$V" --input "$T/rows.csv" --output "$T/out.csv" --cobordisms "$T/cobordisms.csv" \
-       --census-db "$T/none.sqlite" --knot-table "$DATA/knots_to_6.csv" \
-       --link-table "$DATA/links_to_6.csv" --no-census-updates --no-retriangulate-on-miss \
-       --no-resolve-unlinked --max-faces 4 --threads 1 --surface-target "$3" \
-       --work "$2" --frontier-dir "$T/fr$1" $r > "$T/$1.log" 2> "$T/$1.err"
+  r=""; [ -n "${4:-}" ] && r="resume_frontier_dir=$T/fr"
+  cat > "$T/$1.conf" <<CONF
+targets = $T/rows.csv
+verdicts = $T/out.csv
+cobordisms = $T/cobordisms.csv
+census = $T/none.sqlite
+knot_table = $DATA/knots_to_6.csv
+link_table = $DATA/links_to_6.csv
+census_updates = 0
+retriangulate_on_miss = 0
+resolve_unlinked = 0
+max_faces = 4
+threads = 1
+surface_target = $3
+work = $2
+frontier_dir = $T/fr$1
+CONF
+  [ -n "$r" ] && echo "$r" | sed 's/=/ = /' >> "$T/$1.conf"
+  "$C" run --config "$T/$1.conf" > "$T/$1.log" 2> "$T/$1.err"
   grep -oE 'breadth: .*' "$T/$1.log" | sed -E 's/fingerprint [0-9a-f]+/fingerprint <f>/'
 }
 # The pending file the frontier in $T/fr names, absolute (it is recorded
@@ -68,8 +80,8 @@ run B "$T/WB" 600 resume
 grep -q "resumed no: its pending file $file is signed through 0 of the $bytes bytes" "$T/B.log" ||
   { echo "FAIL: run B resumed a frontier whose pending file is not signed"; exit 1; }
 
-"$C" --sign-only --work "$T/WA" --witness-store "$T/cobordisms.csv" \
-     --knot-table "$DATA/knots_to_6.csv" --link-table "$DATA/links_to_6.csv" > "$T/sign.log" 2>&1
+"$C" sign --set "work=$T/WA" --set "cobordisms=$T/cobordisms.csv" \
+     --set "knot_table=$DATA/knots_to_6.csv" --set "link_table=$DATA/links_to_6.csv" > "$T/sign.log" 2>&1
 [ "$(cat "$file.signed")" -ge "$bytes" ] || { echo "FAIL: sign recorded no signed length"; exit 1; }
 
 run C "$T/WC" 600 resume

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Rough, repeatable search benchmarks for verifyslicegenus, one row per run.
-# Results land in $BENCH_DIR/results.tsv; the "Search performance history"
-# table in utils/surfer/README.md is written from them.
+# Rough, repeatable search benchmarks for `cobound run` (or a retired
+# verifyslicegenus, to compare against it), one row per run. Results land in
+# $BENCH_DIR/results.tsv; the "Search performance history" table in
+# utils/surfer/README.md is written from them.
+#
+# A <binary> is cobound (by the name it resolves to), driven with a config
+# file; anything else is taken for a verifyslicegenus and given its options.
 #
 #   bench_search.sh run <binary> <b1|b2> <row>      one run, one result line
 #   bench_search.sh ab  <binaryA> <binaryB> [reps]   B1 on every B1 row, A and B
@@ -41,7 +45,8 @@
 #              that a budgeted run's charged - replayed equals an unbudgeted
 #              run's attempts)
 #   TAG        tag for `run` results (default: none)
-#   EXTRA_ARGS further verifyslicegenus flags, e.g. --audit-linking
+#   EXTRA_ARGS further arguments: for cobound, e.g. --set audit_linking=1;
+#              for a verifyslicegenus, e.g. --audit-linking
 set -euo pipefail
 
 BENCH_DIR=${BENCH_DIR:-$HOME/bench-runs}
@@ -95,6 +100,9 @@ dst.close(); src.close()
 EOF
 fi
 
+# Whether $1 is cobound (a symbolic link to it counts).
+is_cobound() { [ "$(basename "$(readlink -f "$1")")" = cobound ]; }
+
 run_one() {
   local bin=$1 mode=$2 row=$3 tag=${4:-}
   local name safe run
@@ -118,7 +126,48 @@ run_one() {
   fi
   cp "$FROZEN" "$run/census.sqlite"
 
-  local cmd=(
+  local cmd
+  if is_cobound "$bin"; then
+    [ "$CFG_THICKEN_LAYERS" = "$CFG_COLLAR_LAYERS" ] || {
+      echo "bench_search.sh: cobound collars through every layer; hosts.conf has thicken $CFG_THICKEN_LAYERS, collar $CFG_COLLAR_LAYERS" >&2; return 2; }
+    {
+      echo "targets = $run/rows.csv"
+      echo "verdicts = $run/out.csv"
+      echo "cobordisms = $run/cobordisms.csv"
+      echo "work = $run/work"
+      echo "surface_stats = $run/surface_stats.csv"
+      echo "census = $run/census.sqlite"
+      echo "knot_table = $DATA/4d_smooth_slice_genus_13_crossings_pd_codes.csv"
+      echo "link_table = $DATA/links_4d_smooth_slice_genus_11_crossings_pd_codes.csv"
+      echo "max_crossings = $CFG_MAX_CROSSINGS"
+      echo "layers = $CFG_THICKEN_LAYERS"
+      echo "root_budget_start = ${ROOT_BUDGET_START:-$CFG_ROOT_BUDGET_START}"
+      echo "root_budget_growth = $CFG_ROOT_BUDGET_GROWTH"
+      echo "boundary_condition = proper"
+      echo "threads = $THREADS"
+      echo "retriangulate_time_budget = $CFG_RETRIANGULATE_TIME_BUDGET"
+      echo "pending_surface_cap = $CFG_PENDING_SURFACE_CAP"
+      echo "petal_cache_limit = $CFG_PETAL_CACHE_LIMIT"
+      echo "complement_cache_limit = $CFG_RECOGNITION_CACHE_LIMIT"
+      echo "boundary_signature_cache_limit = $CFG_BOUNDARY_SIGNATURE_CACHE_LIMIT"
+      case $mode in
+        b1) echo "max_faces = 4"; echo "iddfs_iterations = 1"; echo "iddfs_start = 4"
+            echo "iddfs_step = 1"; echo "search_seconds = 7200" ;;
+        b2) echo "max_faces = $CFG_MAX_FACES"; echo "iddfs_iterations = $CFG_IDDFS_ITERATIONS"
+            echo "iddfs_start = $CFG_IDDFS_START"; echo "iddfs_step = $CFG_IDDFS_STEP"
+            echo "search_seconds = $CFG_SECS"
+            [ -n "$CFG_SURFACE_TARGET" ] && echo "surface_target = $CFG_SURFACE_TARGET" ;;
+        *) echo "bench_search.sh: mode must be b1 or b2" >&2; return 2 ;;
+      esac
+      echo "resolve_unlinked = $([ "$CFG_RESOLVE_UNLINKED" = 1 ] && echo 1 || echo 0)"
+      echo "exact_far_side_names = $([ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && echo 1 || echo 0)"
+    } > "$run/run.conf"
+    cmd=("$bin" run --config "$run/run.conf")
+    # Word-split on purpose: e.g. EXTRA_ARGS="--set audit_linking=1".
+    # shellcheck disable=SC2206
+    [ -n "${EXTRA_ARGS:-}" ] && cmd+=($EXTRA_ARGS)
+  else
+  cmd=(
     "$bin" --input "$run/rows.csv" --output "$run/out.csv"
     --cobordisms "$run/cobordisms.csv" --surface-stats "$run/surface_stats.csv"
     --census-db "$run/census.sqlite"
@@ -151,6 +200,7 @@ run_one() {
   # Word-split on purpose: extra flags, e.g. EXTRA_ARGS=--audit-linking.
   # shellcheck disable=SC2206
   [ -n "${EXTRA_ARGS:-}" ] && cmd+=($EXTRA_ARGS)
+  fi
 
   local rc=0
   if [ -x /usr/bin/time ]; then

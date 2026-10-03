@@ -1,5 +1,5 @@
 #!/bin/sh
-# interrupted_outcome_test.sh <verifyslicegenus> <cascadesearch> <test data dir>
+# interrupted_outcome_test.sh <cobound> <test data dir>
 #
 # One process-level policy for SIGINT and SIGTERM (plan divergence 8): the
 # first signal ends the running search cleanly -- its drain finishes, its
@@ -17,9 +17,8 @@
 # must never start), and with a goal one hop.
 set -eu
 
-V=$1
-C=$2
-DATA=$3
+C=$1
+DATA=$2
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 HDR='kind,subject,subject_components,other,other_candidates,other_components,genus,tubed,pairsig,source_row,thicken_layers,max_faces,resolved_vertices'
@@ -41,10 +40,21 @@ signal_after() { # pid signal
 depth0() { # signal
   d=$T/d0-$1; mkdir -p "$d"
   echo "$HDR" > "$d/cobordisms.csv"
-  "$V" --input "$T/rows.csv" --output "$d/out.csv" --cobordisms "$d/cobordisms.csv" \
-       --census-db "$d/none.sqlite" --knot-table "$DATA/knots_to_6.csv" \
-       --link-table "$DATA/links_to_6.csv" --no-census-updates --no-retriangulate-on-miss \
-       --max-faces 5 --no-resolve-unlinked --threads 2 > "$d/log" 2> "$d/err" &
+  cat > "$d/run.conf" <<CONF
+targets = $T/rows.csv
+verdicts = $d/out.csv
+cobordisms = $d/cobordisms.csv
+work = $d/work
+census = $d/none.sqlite
+knot_table = $DATA/knots_to_6.csv
+link_table = $DATA/links_to_6.csv
+census_updates = 0
+retriangulate_on_miss = 0
+max_faces = 5
+resolve_unlinked = 0
+threads = 2
+CONF
+  "$C" run --config "$d/run.conf" > "$d/log" 2> "$d/err" &
   signal_after $! "$1"
   [ "$rc" = 77 ] && { echo "SKIP: the run ended before it could be signalled"; exit 77; }
   if grep -q '6_1: EXHAUSTIVE to' "$d/log"; then
@@ -61,12 +71,27 @@ depth0() { # signal
 
 goal() { # signal
   d=$T/g-$1
-  "$C" --target-pd "$pd62" --target-name 6_2 --work "$d" --knot-table "$DATA/knots_to_6.csv" \
-       --link-table "$DATA/links_to_6.csv" --census-db "$T/none.sqlite" --goal-genus 0 \
-       --constructive --threads 2 --max-expansions 4 --hop-surfaces 1000000000 \
-       --max-hop-surfaces 1000000000 --hop-max-faces 5 --hop-iddfs-iterations 0 \
-       --hop-iddfs-start 0 --hop-iddfs-step 0 --hop-root-budget 0 --resolve-unlinked \
-       > "$T/g-$1.log" 2>&1 &
+  cat > "$T/g-$1.conf" <<CONF
+target_pd = $pd62
+target_name = 6_2
+work = $d
+knot_table = $DATA/knots_to_6.csv
+link_table = $DATA/links_to_6.csv
+census = $T/none.sqlite
+goal_genus = 0
+literature = 0
+threads = 2
+max_searches = 4
+surface_target = 1000000000
+max_surface_target = 1000000000
+max_faces = 5
+iddfs_iterations = 0
+iddfs_start = 0
+iddfs_step = 0
+root_budget_start = 0
+resolve_unlinked = 1
+CONF
+  "$C" run --config "$T/g-$1.conf" > "$T/g-$1.log" 2>&1 &
   signal_after $! "$1"
   [ "$rc" = 77 ] && { echo "SKIP: the goal run ended before it could be signalled"; exit 77; }
   hop=$(grep -h 'outcome' "$d"/hop_0_n0/log.txt 2>/dev/null || true)

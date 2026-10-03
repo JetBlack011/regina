@@ -104,7 +104,10 @@ endif()
 add_subdirectory(linknaming)
 add_subdirectory(surfer)
 add_subdirectory(diagramtriangulation)
-add_subdirectory(cobound)
+# The cobound part builds in cobound_part/: its program, cobound, goes to
+# build/utils/surfer/cobound, where scripts and campaigns expect the
+# project's programs (a build directory of that name would be in its way).
+add_subdirectory(cobound cobound_part)
 
 if (REGINA_BUILD_ENGINE_DOCS)
   add_subdirectory(apidocs)

@@ -1,16 +1,20 @@
 //
-//  farsidename.cpp
+//  name.cpp
 //
-//  Exact names for stored witnesses' far sides, from their pair signatures.
+//  cobound name (was farsidename): exact names for stored cobordisms'
+//  outgoing links, from their pair signatures.
 //
 //  Usage:
-//    farsidename --knots <table.csv> --links <table.csv> [--symmetry <csv>]
-//                [--search-height H] [--search-visits N] [--simplify-tries N]
-//                [--exhaustive-height H] [--max-search-crossings N]
-//                [--deep-height H] [--deep-visits N] [--max-deep-crossings N]
-//                [--profile] [--reference] < witnesses
+//    cobound name --knots <table.csv> --links <table.csv> [--symmetry <csv>]
+//                 [--search-height H] [--search-visits N] [--simplify-tries N]
+//                 [--exhaustive-height H] [--max-search-crossings N]
+//                 [--deep-height H] [--deep-visits N] [--max-deep-crossings N]
+//                 [--profile] [--reference] < witnesses
 //
-//  The limits default to exactnaming::NamerLimits.
+//  The flags are farsidename's, which the atlas's run_farsidename.py passes;
+//  each is a config key (knot_table, link_table, knot_symmetry, namer_*,
+//  name_profile, name_reference), so --config and --set work too. The limits
+//  default to exactnaming::NamerLimits.
 //
 //  stdin: one "<id>\t<row>\t<thicken_layers>\t<pair signature>" per line,
 //  grouped by row (each row's thickening is built once). <row> is a table
@@ -44,6 +48,8 @@
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
 #include "cobound/outgoing/fromdatabase.h"
+#include "cobound/driver/commands.h"
+#include "cobound/driver/config.h"
 
 namespace {
 
@@ -65,35 +71,42 @@ const char *byName(exactnaming::PieceName::By by) {
 
 } // namespace
 
-int main(int argc, char **argv) {
+int commands::name(const std::vector<std::string> &args) {
     std::string knots, links, symmetry;
     exactnaming::NamerLimits limits;
     bool profile = false, reference = false;
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "--profile") profile = true;
-        if (std::string(argv[i]) == "--reference") reference = true;
-    }
-    for (int i = 1; i + 1 < argc; i += 2) {
-        if (std::string(argv[i]) == "--profile" || std::string(argv[i]) == "--reference") {
-            --i;
-            continue;
-        }
-        std::string a = argv[i], v = argv[i + 1];
-        if (a == "--knots") knots = v;
-        else if (a == "--links") links = v;
-        else if (a == "--symmetry") symmetry = v;
-        else if (a == "--search-height") limits.searchHeight = std::stoi(v);
-        else if (a == "--search-visits") limits.searchVisits = std::stoul(v);
-        else if (a == "--simplify-tries") limits.simplifyTries = std::stoi(v);
-        else if (a == "--exhaustive-height") limits.exhaustiveHeight = std::stoi(v);
-        else if (a == "--max-search-crossings") limits.maxSearchCrossings = std::stoul(v);
-        else if (a == "--deep-height") limits.deepHeight = std::stoi(v);
-        else if (a == "--deep-visits") limits.deepVisits = std::stoul(v);
-        else if (a == "--max-deep-crossings") limits.maxDeepCrossings = std::stoul(v);
-        else { std::cerr << "unknown option " << a << "\n"; return 2; }
-    }
-    if (knots.empty() || links.empty()) {
-        std::cerr << "usage: farsidename --knots <csv> --links <csv> [--symmetry <csv>]\n"
+    try {
+        const config::Config cfg = config::forCommand(
+            "name", config::Context::name, args,
+            {{"--knots", "knot_table"},
+             {"--links", "link_table"},
+             {"--symmetry", "knot_symmetry"},
+             {"--search-height", "namer_search_height"},
+             {"--search-visits", "namer_search_visits"},
+             {"--simplify-tries", "namer_simplify_tries"},
+             {"--exhaustive-height", "namer_exhaustive_height"},
+             {"--max-search-crossings", "namer_max_search_crossings"},
+             {"--deep-height", "namer_deep_height"},
+             {"--deep-visits", "namer_deep_visits"},
+             {"--max-deep-crossings", "namer_max_deep_crossings"},
+             {"--profile", "name_profile", false, "1"},
+             {"--reference", "name_reference", false, "1"}});
+        knots = cfg.text("knot_table");
+        links = cfg.text("link_table");
+        symmetry = cfg.text("knot_symmetry");
+        limits.searchHeight = static_cast<int>(cfg.integer("namer_search_height"));
+        limits.searchVisits = static_cast<size_t>(cfg.integer("namer_search_visits"));
+        limits.simplifyTries = static_cast<int>(cfg.integer("namer_simplify_tries"));
+        limits.exhaustiveHeight = static_cast<int>(cfg.integer("namer_exhaustive_height"));
+        limits.maxSearchCrossings = static_cast<size_t>(cfg.integer("namer_max_search_crossings"));
+        limits.deepHeight = static_cast<int>(cfg.integer("namer_deep_height"));
+        limits.deepVisits = static_cast<size_t>(cfg.integer("namer_deep_visits"));
+        limits.maxDeepCrossings = static_cast<size_t>(cfg.integer("namer_max_deep_crossings"));
+        profile = cfg.flag("name_profile");
+        reference = cfg.flag("name_reference");
+    } catch (const config::Error &e) {
+        std::cerr << e.what() << "\n"
+                  << "usage: cobound name --knots <csv> --links <csv> [--symmetry <csv>]\n"
                      "       [--search-height H] [--search-visits N] [--simplify-tries N]\n"
                      "       [--exhaustive-height H] [--max-search-crossings N]\n"
                      "       [--deep-height H] [--deep-visits N] [--max-deep-crossings N]\n"

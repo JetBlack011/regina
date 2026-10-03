@@ -1,5 +1,5 @@
 #!/bin/sh
-# contradiction_halt_test.sh <verifyslicegenus> <cascadesearch> <test data dir>
+# contradiction_halt_test.sh <cobound> <test data dir>
 #
 # The cobordism graph's contradiction gates run in every run (plan divergence
 # 6), and a contradiction halts it, each with its documented code: 2 without
@@ -11,9 +11,8 @@
 # writes what it found before it halts (depth 0: the witness file).
 set -eu
 
-V=$1
-C=$2
-DATA=$3
+C=$1
+DATA=$2
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 HDR='kind,subject,subject_components,other,other_candidates,other_components,genus,tubed,pairsig,source_row,thicken_layers,max_faces,resolved_vertices'
@@ -25,10 +24,21 @@ echo "$HDR" > "$T/cobordisms.csv"
 
 # 1. Depth 0: exit 2, the FATAL banner, and the row's witnesses on disk.
 rc=0
-"$V" --input "$T/rows.csv" --output "$T/out.csv" --cobordisms "$T/cobordisms.csv" \
-     --census-db "$T/none.sqlite" --knot-table "$DATA/knots_to_6.csv" --link-table "$T/links.csv" \
-     --no-census-updates --no-retriangulate-on-miss --no-resolve-unlinked \
-     --max-faces 3 --threads 2 > "$T/log" 2> "$T/err" || rc=$?
+cat > "$T/depth0.conf" <<CONF
+targets = $T/rows.csv
+verdicts = $T/out.csv
+cobordisms = $T/cobordisms.csv
+work = $T/work
+census = $T/none.sqlite
+knot_table = $DATA/knots_to_6.csv
+link_table = $T/links.csv
+census_updates = 0
+retriangulate_on_miss = 0
+resolve_unlinked = 0
+max_faces = 3
+threads = 2
+CONF
+"$C" run --config "$T/depth0.conf" > "$T/log" 2> "$T/err" || rc=$?
 grep -E 'CONTRADICTION|contradict|BELOW|FATAL' "$T/log" "$T/err" | head -5 || true
 if [ "$rc" -ne 2 ] || ! grep -q 'FATAL' "$T/err"; then
   echo "FAIL: depth 0 exited $rc (want 2, halted)"; exit 1; fi
@@ -38,12 +48,27 @@ if [ "$(wc -l < "$T/cobordisms.csv")" -lt 2 ]; then
 # 2. With a goal: exit 3, even though the same surface meets the goal.
 pd=$(grep -F 'L2a1{0},' "$T/links.csv" | cut -d, -f2)
 rc=0
-"$C" --target-pd "$pd" --target-name 'L2a1{0}' --work "$T/goal" \
-     --knot-table "$DATA/knots_to_6.csv" --link-table "$T/links.csv" --census-db "$T/none.sqlite" \
-     --goal-genus 0 --constructive --threads 2 --max-expansions 1 \
-     --hop-surfaces 1000000000 --max-hop-surfaces 1000000000 --hop-max-faces 3 \
-     --hop-iddfs-iterations 0 --hop-iddfs-start 0 --hop-iddfs-step 0 --hop-root-budget 0 \
-     --resolve-unlinked > "$T/goal.log" 2>&1 || rc=$?
+cat > "$T/goal.conf" <<CONF
+target_pd = $pd
+target_name = L2a1{0}
+work = $T/goal
+knot_table = $DATA/knots_to_6.csv
+link_table = $T/links.csv
+census = $T/none.sqlite
+goal_genus = 0
+literature = 0
+threads = 2
+max_searches = 1
+surface_target = 1000000000
+max_surface_target = 1000000000
+max_faces = 3
+iddfs_iterations = 0
+iddfs_start = 0
+iddfs_step = 0
+root_budget_start = 0
+resolve_unlinked = 1
+CONF
+"$C" run --config "$T/goal.conf" > "$T/goal.log" 2>&1 || rc=$?
 grep -E 'CONTRADICTION|outcome' "$T/goal.log" | head -5 || true
 if [ "$rc" -ne 3 ] || ! grep -q 'CONTRADICTION' "$T/goal.log"; then
   echo "FAIL: the goal run exited $rc (want 3, a contradiction)"; exit 1; fi

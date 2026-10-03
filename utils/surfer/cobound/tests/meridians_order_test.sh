@@ -1,7 +1,7 @@
 #!/bin/sh
-# meridians_order_test.sh <peripheral_slopes> <test data dir>
+# meridians_order_test.sh <cobound> <test data dir>
 #
-# peripheral_slopes answers each input line on its own: the same records in
+# cobound meridians (peripheral_slopes) answers each input line on its own: the same records in
 # the reverse order must give the same output, record by record. Until phase
 # 3.0 they did not (10 of 24 `sig` records changed on reversal):
 #   - a surface's boundary edges were collected, and split into curves, in
@@ -37,9 +37,9 @@ records() {
 fail=0
 for spec in sig:pairsigs dump:pairsigs dump-link:pds; do
   mode=${spec%%:*}; input=$T/${spec#*:}
-  "$P" "$mode" < "$input" > "$T/$mode.fwd"
+  "$P" meridians "$mode" < "$input" > "$T/$mode.fwd"
   awk '{ l[NR] = $0 } END { for (i = NR; i >= 1; i--) print l[i] }' "$input" > "$T/$mode.rin"
-  "$P" "$mode" < "$T/$mode.rin" > "$T/$mode.rev"
+  "$P" meridians "$mode" < "$T/$mode.rin" > "$T/$mode.rev"
   records "$T/$mode.fwd" > "$T/$mode.fwd.sorted"
   records "$T/$mode.rev" > "$T/$mode.rev.sorted"
   n=$(wc -l < "$T/$mode.fwd.sorted")

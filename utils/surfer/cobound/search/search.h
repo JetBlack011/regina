@@ -127,33 +127,32 @@ private:
 
 namespace cascade {
 
-/// The campaign's search shape (atlas tools/orchestrate/hosts.conf
-/// [campaign], root budget 840 from c5 on): the one place the cascade's
-/// hops take it from, in either hop mode, and what its profile line prints.
+/// A goal run's search shape: what its profile line prints, and every
+/// search of the run searches with (searchShape()). No field that decides
+/// what a search visits or accepts has a default here: the config is the
+/// one source of every value (plan, "search-shape defaults"; with a goal,
+/// the campaign's shape: atlas tools/orchestrate/hosts.conf [campaign]), and
+/// searchShape() refuses a shape with one unset.
 struct HopShape {
-  /// Thicken and collar layers of a hop's row (both): the in-process row,
-  /// a child's --thicken-layers/--collar-layers, and the profile's layers=.
-  /// A master row's layers are its witnesses' own.
-  int layers = 2;
-  long long maxFaces = 5;
-  unsigned iddfsIterations = 2;
-  long long iddfsStart = 4;
-  long long iddfsStep = 1;
-  long long rootBudgetStart = 840;
-  long long rootBudgetGrowth = 2;
-  /// Whether surfaces whose only self-intersections are unlinked count. No
-  /// default (plan divergence 3): cascadesearch takes it from
-  /// --resolve-unlinked or --no-resolve-unlinked, and a search refuses a
-  /// shape without it.
+  /// Thicken and collar layers of a hop's row (both), and the profile's
+  /// layers=. A master row's layers are its witnesses' own.
+  std::optional<int> layers;
+  std::optional<long long> maxFaces;
+  std::optional<unsigned> iddfsIterations;
+  std::optional<long long> iddfsStart;
+  std::optional<long long> iddfsStep;
+  std::optional<long long> rootBudgetStart;
+  std::optional<long long> rootBudgetGrowth;
+  /// Whether surfaces whose only self-intersections are unlinked count (plan
+  /// divergence 3).
   std::optional<bool> resolveUnlinked;
-  /// hosts.conf's per-host limits, identical on every host. The pending
-  /// cap in particular: at the binary's default (500,000) a search pauses
-  /// to drain its queue, which a campaign row never does.
-  size_t pendingSurfaceCap = 20'000'000;
-  size_t petalCacheLimit = 12'000'000;
-  size_t boundarySignatureCacheLimit = 1'000'000;
-  /// Process-wide (identify::recognitionCacheLimit); set by the driver.
-  size_t recognitionCacheLimit = 1'500'000;
+  /// The searches' resources (SurfaceSearchLimits): they decide no order,
+  /// and unset is the library's default. With a goal the config sets
+  /// hosts.conf's: at the library's pending cap (500,000) a search pauses to
+  /// drain its queue, which a campaign row never does.
+  std::optional<size_t> pendingSurfaceCap;
+  std::optional<size_t> petalCacheLimit;
+  std::optional<size_t> boundarySignatureCacheLimit;
 };
 
 /// How one search runs: the arguments of SurfaceSearch::search() that fix

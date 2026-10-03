@@ -1,0 +1,9 @@
+3_1 accepted=1752 described=1752 examined=1752 other-orientation 0, search-side-elsewhere 0, impossible 0, drain complete, ok
+6_1 accepted=8105 described=8105 examined=8105 other-orientation 0, search-side-elsewhere 0, impossible 0, drain complete, ok
+8_20 accepted=16855 described=16855 examined=16855 other-orientation 0, search-side-elsewhere 0, impossible 0, drain complete, ok
+8_8 accepted=16447 described=16447 examined=16447 other-orientation 0, search-side-elsewhere 0, impossible 0, drain complete, ok
+L2a1{0} accepted=945 described=945 examined=795 other-orientation 150, search-side-elsewhere 0, impossible 0, drain complete, ok
+L2a1{1} accepted=945 described=945 examined=795 other-orientation 150, search-side-elsewhere 0, impossible 0, drain complete, ok
+L6a3{0} accepted=8825 described=8825 examined=7895 other-orientation 930, search-side-elsewhere 0, impossible 0, drain complete, ok
+L6a3{1} accepted=8825 described=8825 examined=7895 other-orientation 930, search-side-elsewhere 0, impossible 0, drain complete, ok
+L6a4{0;0} accepted=9253 described=9253 examined=8323 other-orientation 930, search-side-elsewhere 0, impossible 0, drain complete, ok

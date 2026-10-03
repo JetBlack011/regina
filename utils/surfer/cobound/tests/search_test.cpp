@@ -136,11 +136,13 @@ bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, cons
 // The canaries' shape: exhaustive to 3 added faces, one pass, no budget.
 HopShape capThree() {
   HopShape s;
+  s.layers = 2;
   s.maxFaces = 3;
   s.iddfsIterations = 0;
   s.iddfsStart = 0;
   s.iddfsStep = 0;
   s.rootBudgetStart = 0;
+  s.rootBudgetGrowth = 2;
   s.resolveUnlinked = false;
   return s;
 }

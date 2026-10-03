@@ -1,5 +1,5 @@
 #!/bin/sh
-# goal_layout_test.sh <cascadesearch>
+# goal_layout_test.sh <cobound>
 #
 # A goal run must explore the same links whatever the heap layout. Until
 # phase 3.0 it did not: boundary edges were collected in unordered sets of
@@ -39,13 +39,28 @@ for pad in "" x "$X" "$X$X" "$X$X$X$X"; do
   n=$((n + 1))
   dir=$T/w$pad
   mkdir -p "$dir"
-  "$C" --target-pd "$PD" --target-name 6_2 --work "$dir/work" \
-       --knot-table "$KNOTS" --link-table "$LINKS" --knot-symmetry "$DATA/knot_symmetry.csv" \
-       --census-db "$dir/none.sqlite" --goal-genus 1 --constructive --threads 4 \
-       --max-expansions 4 --hop-surfaces 1000000000 --max-hop-surfaces 1000000000 \
-       --hop-max-faces 3 --hop-iddfs-iterations 0 --hop-iddfs-start 0 \
-       --hop-iddfs-step 0 --hop-root-budget 0 --resolve-unlinked \
-       > "$dir/stdout.txt" 2>&1 || true
+  cat > "$dir/run.conf" <<CONF
+target_pd = $PD
+target_name = 6_2
+work = $dir/work
+knot_table = $KNOTS
+link_table = $LINKS
+knot_symmetry = $DATA/knot_symmetry.csv
+census = $dir/none.sqlite
+goal_genus = 1
+literature = 0
+threads = 4
+max_searches = 4
+surface_target = 1000000000
+max_surface_target = 1000000000
+max_faces = 3
+iddfs_iterations = 0
+iddfs_start = 0
+iddfs_step = 0
+root_budget_start = 0
+resolve_unlinked = 1
+CONF
+  "$C" run --config "$dir/run.conf" > "$dir/stdout.txt" 2>&1 || true
   if [ ! -s "$dir/work/node_bounds.jsonl" ]; then
     echo "FAIL: layout $n wrote no node_bounds.jsonl"; tail -5 "$dir/stdout.txt"; exit 1
   fi

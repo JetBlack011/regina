@@ -1,5 +1,5 @@
 #!/bin/sh
-# name_independence_test.sh <verifyslicegenus>
+# name_independence_test.sh <cobound>
 #
 # No gate of the search may depend on an identified name. Names are not
 # canonical -- a census hit's "#N" varies between identifications of the
@@ -14,7 +14,7 @@
 # that bear a bound; their sum may not.
 set -eu
 
-V=$1
+C=$1
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
@@ -34,14 +34,23 @@ run() {
   mkdir -p "$dir"
   printf 'kind,subject,subject_components,other,other_candidates,other_components,genus,tubed,pairsig,source_row,thicken_layers,max_faces,resolved_vertices\n' \
     > "$dir/cobordisms.csv"
-  "$V" --input "$T/rows.csv" --output "$dir/out.csv" \
-       --cobordisms "$dir/cobordisms.csv" --census-db "$dir/none.sqlite" \
-       --knot-table "$T/knots.csv" --link-table "$T/links.csv" \
-       --no-census-updates --no-retriangulate-on-miss \
-       --thicken-layers 2 --collar-layers 2 --max-faces 3 \
-       --no-cone --harvest --boundary-condition proper --research-settled \
-     --no-resolve-unlinked \
-       --threads 2 > "$dir/log" 2> "$dir/err"
+  cat > "$dir/run.conf" <<CONF
+targets = $T/rows.csv
+verdicts = $dir/out.csv
+cobordisms = $dir/cobordisms.csv
+work = $dir/work
+census = $dir/none.sqlite
+knot_table = $T/knots.csv
+link_table = $T/links.csv
+census_updates = 0
+retriangulate_on_miss = 0
+layers = 2
+max_faces = 3
+boundary_condition = proper
+resolve_unlinked = 0
+threads = 2
+CONF
+  "$C" run --config "$dir/run.conf" > "$dir/log" 2> "$dir/err"
   # accepted, described, other-orientation, search-side-elsewhere,
   # impossible, drain, verdict -- and recorded+duplicate as one number.
   grep ': accounting:' "$dir/log" | sed -E \

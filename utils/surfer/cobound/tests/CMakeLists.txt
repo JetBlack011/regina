@@ -28,7 +28,7 @@ set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 # tests", for what each pins.
 foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordisms_test
              search_test axioms_test pending_test fromdatabase_test thickening_rows_test
-             json_test parallelfor_test appendonly_test timers_test)
+             json_test parallelfor_test appendonly_test timers_test config_test)
   add_executable(${TEST} ${TEST}.cpp)
   target_link_libraries(${TEST} cobound_lib surfer_mimalloc)
   add_test(NAME ${TEST} COMMAND ${TEST})
@@ -47,7 +47,7 @@ endforeach()
 # script's header.
 add_test(NAME name_independence_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/name_independence_test.sh
-                 $<TARGET_FILE:verifyslicegenus>)
+                 $<TARGET_FILE:cobound>)
 set_tests_properties(name_independence_test PROPERTIES
   LABELS "surfer" TIMEOUT 600)
 
@@ -57,8 +57,7 @@ set_tests_properties(name_independence_test PROPERTIES
 # script's header.
 add_test(NAME interrupted_outcome_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/interrupted_outcome_test.sh
-                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
-                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(interrupted_outcome_test PROPERTIES
   LABELS "surfer" TIMEOUT 600 SKIP_RETURN_CODE 77)
 
@@ -67,25 +66,25 @@ set_tests_properties(interrupted_outcome_test PROPERTIES
 # header.
 add_test(NAME goal_layout_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/goal_layout_test.sh
-                 $<TARGET_FILE:cascadesearch>)
+                 $<TARGET_FILE:cobound>)
 set_tests_properties(goal_layout_test PROPERTIES
   LABELS "surfer" TIMEOUT 600 SKIP_RETURN_CODE 77)
 
-# peripheral_slopes answers each input line on its own: the same records in
+# cobound meridians answers each input line on its own: the same records in
 # the reverse order give the same output (phase 3.0). See the script's header.
 add_test(NAME meridians_order_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/meridians_order_test.sh
-                 $<TARGET_FILE:peripheral_slopes> ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(meridians_order_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
-# One set of search defaults (2/2 layers, no cone, proper), and no default
-# for resolve_unlinked in either driver (plan divergence 3). See the script's
-# header.
+# One set of search defaults (2 layers, proper), no default for
+# resolve_unlinked or work, the retired options refused, and a run's written
+# configuration running the same search (plan divergence 3, phase 5). See the
+# script's header.
 add_test(NAME search_defaults_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/search_defaults_test.sh
-                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
-                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(search_defaults_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
@@ -94,8 +93,7 @@ set_tests_properties(search_defaults_test PROPERTIES
 # See the script's header.
 add_test(NAME unaccounted_search_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/unaccounted_search_test.sh
-                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
-                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(unaccounted_search_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
@@ -103,25 +101,33 @@ set_tests_properties(unaccounted_search_test PROPERTIES
 # (plan divergence 6). See the script's header.
 add_test(NAME contradiction_halt_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/contradiction_halt_test.sh
-                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
-                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(contradiction_halt_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
 # A frontier records its pending file and that file's fsynced length; a
 # resume refuses, with a named reason, unless `sign` signed that far or the
-# file is the run's own (plan divergence 1). See the script's header.
+# file is the run's own (plan divergence 1); a moved work tree keeps its
+# resume (phase 5). See the script's header.
 add_test(NAME frontier_pending_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/frontier_pending_test.sh
-                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
-                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(frontier_pending_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
-# --surface-log over two rows on one thread must not reuse the previous
-# row's (destroyed) CsvWriter shard. See the script's header.
+# The atlas's canaries (canaries.sh, cascade_canaries.sh) as a cobound test:
+# phase 0's accounting numbers on nine exhaustive rows and two goal runs. See
+# the script's header.
+add_test(NAME canaries_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/canaries_test.sh
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(canaries_test PROPERTIES
+  LABELS "surfer" TIMEOUT 600)
+
+# surface_log over two rows on one thread must not reuse the previous row's
+# (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/surface_log_rows_test.sh
-                 $<TARGET_FILE:verifyslicegenus>)
+                 $<TARGET_FILE:cobound>)
 set_tests_properties(surface_log_rows_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)

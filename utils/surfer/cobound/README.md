@@ -32,34 +32,76 @@ Still to come:
 
 ## Running it
 
-As Pool A runs it (`D` = the atlas's `data/`):
+One program, `cobound` (`main.cpp`, `driver/commands.h`), replaces
+verifyslicegenus, cascadesearch, farsidename, farsidediagram and
+peripheral_slopes (phase 5):
 
-```sh
-cascadesearch --target-pd '<PD>' --target-name 10_27 --work <dir> \
-  --knot-table $D/4d_smooth_slice_genus_13_crossings_pd_codes.csv \
-  --link-table $D/links_4d_smooth_slice_genus_11_crossings_pd_codes.csv \
-  --knot-symmetry $D/knot_symmetry.csv --census-db <private census copy> \
-  --goal-genus 1 --constructive --threads 14 --resolve-unlinked \
-  --hop-surfaces 50000 --max-hop-surfaces 200000 --max-expansions 8
+| command | was | does |
+|---|---|---|
+| `cobound run` | verifyslicegenus (a search run), cascadesearch | a search from each target: without a goal each once (`driver/sweep.h`), with one (`goal_genus` or `goal_lower` set) outwards from the target until the goal has a proof or the limits are spent (`driver/scheduler.h`) |
+| `cobound solve` | verifyslicegenus --solve-only | every verdict re-derived from the database; never writes it |
+| `cobound sign` | cascadesearch --sign-only | a work directory's pending cobordisms signed into the database |
+| `cobound draw` | farsidediagram | stored cobordisms' outgoing links drawn; takes farsidediagram's flags |
+| `cobound name` | farsidename | stored cobordisms' outgoing links named; takes farsidename's flags |
+| `cobound meridians` | peripheral_slopes | `sig`, `dump`, `dump-link`, `dump-subset`, `slope`, byte-compatible |
+
+`run`, `solve` and `sign` read a configuration (`driver/config.h`): `key =
+value` lines from `--config FILE` (any number), then `--set key=value` (any
+number; the last wins). One schema serves every command; each key's default
+reproduces the retired tool's (without a goal verifyslicegenus's, with one
+cascadesearch's; `config_test` checks every one), and `resolve_unlinked`
+(with or without a goal) and `work` have none. `cobound help keys` lists
+every key with its type, its default in each command and the option it
+replaces. A run writes the configuration it ran with to `<work>/cobound.conf`;
+read back with `--config`, it runs the same search.
+
+A goal run, as Pool A ran it (`D` = the atlas's `data/`):
+
+```
+target_pd = <PD>
+target_name = 10_27
+work = <dir>
+knot_table = $D/4d_smooth_slice_genus_13_crossings_pd_codes.csv
+link_table = $D/links_4d_smooth_slice_genus_11_crossings_pd_codes.csv
+knot_symmetry = $D/knot_symmetry.csv
+census = <private census copy>
+goal_genus = 1
+literature = 0
+threads = 14
+resolve_unlinked = 1
+surface_target = 50000
+max_surface_target = 200000
+max_searches = 8
 ```
 
-| option | what |
+| key (was) | what |
 |---|---|
-| `--resolve-unlinked` / `--no-resolve-unlinked` | required, with no default (plan divergence 3): whether surfaces whose only self-intersections are unlinked count (the campaign's: on). It changes what a surface target counts and every frontier's fingerprint |
-| `--goal-genus g`, `--goal connected\|disjoint` | the bound to prove: connected g₄ ≤ g (the coarsest partition), or disjoint surfaces (singletons) |
-| `--goal-lower G`, `--lower-sources CSV`, `--lower-max-crossings n` | also stop once lower(target, goal partition) ≥ G ("Lower-bound mode" below); the sources file (the atlas's `data/lower_bound_sources.csv`) is required, and a node kept only for the lower goal is never expanded above n crossings (default 16) |
-| `--constructive` / `--literature` | whether table values may be leaves (never the target's own) |
-| `--master-witnesses <cobordisms.csv>` | the atlas's witnesses as free edges for table nodes (read only) |
-| `--hop-surfaces`, `--max-hop-surfaces` | a hop's surface target, and the most a revisit may raise it to |
-| `--max-expansions`, `--cpu-budget` | stop after this many hops, or this much hop CPU (checked between hops) |
-| `--strategy best\|dfs\|bfs` | which node to expand next |
-| `--max-crossings n` | never expand a node whose diagram has more than n crossings (default 24) |
-| `--hop-max-faces`, `--hop-iddfs-start`, `--hop-iddfs-iterations`, `--hop-iddfs-step`, `--hop-root-budget`, `--hop-root-growth` | each hop's search shape; the defaults are the campaign's (cap 5, IDDFS 2 rounds from 4 step 1, root budget 840 doubling) |
-| `--hop-pending-cap`, `--hop-petal-cache`, `--hop-boundary-cache`, `--hop-recognition-cache` | hosts.conf's per-host limits, which the hops use (defaults 20M, 12M, 1M, 1.5M) |
-| `--hop-mode process\|child` | hops in this process (default) or as `verifyslicegenus` children (`--verifyslicegenus` then required) |
-| `--witness-store <csv> --run-name <name>` | record every kept surface for the atlas ("Witnesses for the atlas" below); in-process hops only |
-| `--dedupe-against <csv>` (repeatable) | read-only witness files whose identities the store must not repeat (the master) |
-| `--sign-only` | the store step alone, over `--work`'s `hop_*/kept.csv` (a killed run) |
+| `resolve_unlinked` (`--resolve-unlinked` / `--no-resolve-unlinked`) | required, with no default (plan divergence 3): whether surfaces whose only self-intersections are unlinked count (the campaign's: on). It changes what a surface target counts and every frontier's fingerprint |
+| `goal_genus` (`--goal-genus`), `goal_partition` (`--goal connected\|disjoint`) | the bound to prove: connected g₄ ≤ g (the coarsest partition), or disjoint surfaces (singletons); setting `goal_genus` (or `goal_lower`) is what makes a run goal-directed |
+| `goal_lower`, `lower_sources`, `lower_max_crossings` (`--goal-lower`, `--lower-sources`, `--lower-max-crossings`) | also stop once lower(target, goal partition) ≥ G ("Lower-bound mode" below); the sources file (the atlas's `data/lower_bound_sources.csv`) is required, and a node kept only for the lower goal is never expanded above n crossings (default 16) |
+| `literature` (`--constructive` / `--literature`) | whether table values may be leaves (never the target's own) |
+| `master_witnesses` (`--master-witnesses`) | a read-only database whose cobordisms are free edges for table nodes, loaded for a node just before it is searched (`bounds/databasecobordisms.h`; never without a goal) |
+| `surface_target`, `max_surface_target` (`--hop-surfaces`, `--max-hop-surfaces`) | a search's surface target, and the most a revisit may raise it to |
+| `max_searches`, `cpu_budget` (`--max-expansions`, `--cpu-budget`) | stop after this many searches, or this much search CPU (checked between searches) |
+| `search_seconds` (the fixed 7200 s per hop) | each search's wall-clock backstop |
+| `strategy` (`--strategy best\|dfs\|bfs`) | which node to search next |
+| `max_crossings` (`--max-crossings`) | never search a node whose diagram has more than n crossings (default 24 with a goal) |
+| `max_faces`, `iddfs_start`, `iddfs_iterations`, `iddfs_step`, `root_budget_start`, `root_budget_growth`, `layers` (`--hop-max-faces`, ...) | each search's shape; with a goal the defaults are the campaign's (cap 5, IDDFS 2 rounds from 4 step 1, root budget 840 doubling, 2 layers) |
+| `pending_surface_cap`, `petal_cache_limit`, `boundary_signature_cache_limit`, `complement_cache_limit` (`--hop-pending-cap`, `--hop-petal-cache`, `--hop-boundary-cache`, `--hop-recognition-cache`) | hosts.conf's per-host limits (with a goal 20M, 12M, 1M, 1.5M) |
+| `cobordisms`, `run_name` (`--witness-store`, `--run-name`) | record every kept surface for the atlas ("Witnesses for the atlas" below) |
+| `dedupe_against` (`--dedupe-against`, comma-separated) | read-only databases whose identities the store must not repeat (the master) |
+| `cobound sign` (`--sign-only`) | the store step alone, over `work`'s `hop_*/kept.csv` (a killed run) |
+| `hub_degree`, `hub_surfaces` (`--hub-degree`, `--hub-surfaces`) | hub breadth (John, 2026-09-29): a node chosen for search with at least D witness edges is searched once at N surfaces (when above the current budget), for many more first-level far sides where many routes meet, as wide rows do; logged `[+] hub: ...` |
+| `lower_report` (`--lower-report`) | write `lower_report.jsonl`: what each tabulated node's lower bound carries to the target ("Lower bounds" below) |
+
+Retired with the old executables (plan, "Retired"): the child hop mode
+(`--hop-mode child`, `--verifyslicegenus`), `--master-loads eager` (loads are
+lazy), `--verbose`, and verifyslicegenus's `--cone`, `--sweep-time-limit`,
+`--harvest-quiescence`, `--skip-drain-on-timeout`, `--no-diagram-naming`,
+`--retriangulate-links`, `--retriangulate-height`,
+`--retriangulate-candidate-budget`, `--no-simplify`, `--boundary-tally-cap`,
+`--iddfs-final-threads`, `--rewrite-witnesses`, `--harvest` and
+`--research-settled` (every run harvests and searches every target).
 
 **Table classes.** A table name stands for its class: the variants of its
 base that are one oriented link up to mirror and global reversal, joined by
@@ -77,8 +119,6 @@ was searched in its own right, so nothing was lost. `cascade_check.py`
 applies the same rule independently: it refuses a literature leaf in the
 target's class, by the class table or by its own isometry test, and a scan
 of every certificate on both hosts (1,618) found none that used one.
-| `--hub-degree D --hub-surfaces N` | hub breadth (John, 2026-09-29): a node chosen for expansion with at least D witness edges is expanded once at N surfaces (when above the current budget), for many more first-level far sides where many routes meet, as `verifyslicegenus`'s wide rows do; logged `[+] hub: ...` |
-| `--lower-report [--lower-sources <csv>]` | write `lower_report.jsonl`: what each tabulated node's lower bound carries to the target ("Lower bounds" below) |
 
 It writes `cascade.jsonl` (one line per hop, with its phase timers),
 `driver.log` and, when the goal is met, `certificate.json` for

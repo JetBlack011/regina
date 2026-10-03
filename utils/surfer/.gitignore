@@ -13,3 +13,4 @@ __pycache__/
 !cobound/tests/data/hop_L11n33_witnesses.csv
 !cobound/tests/data/knots_to_6.csv
 !cobound/tests/data/links_to_6.csv
+!cobound/tests/data/canaries.csv

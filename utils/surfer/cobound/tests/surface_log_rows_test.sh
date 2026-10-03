@@ -1,14 +1,14 @@
 #!/bin/sh
-# surface_log_rows_test.sh <verifyslicegenus>
+# surface_log_rows_test.sh <cobound>
 #
-# --surface-log makes one CsvWriter per row. CsvWriter caches each thread's
+# surface_log makes one CsvWriter per row. CsvWriter caches each thread's
 # shard in a function-local thread_local pointer, shared by every CsvWriter
 # in the process, so a thread that writes in one row and again in the next
 # uses a shard of the previous, destroyed writer. Two rows on one thread
 # must both be logged, and the run must finish.
 set -eu
 
-V=$1
+C=$1
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
@@ -23,18 +23,27 @@ printf 'kind,subject,subject_components,other,other_candidates,other_components,
   > "$T/cobordisms.csv"
 
 rc=0
-"$V" --input "$T/rows.csv" --output "$T/out.csv" \
-     --cobordisms "$T/cobordisms.csv" --census-db "$T/none.sqlite" \
-     --knot-table "$T/rows.csv" --link-table "$T/links.csv" \
-     --no-census-updates --no-retriangulate-on-miss \
-     --thicken-layers 2 --collar-layers 2 --max-faces 2 \
-     --no-cone --harvest --boundary-condition proper --research-settled \
-     --no-resolve-unlinked \
-     --surface-log "$T/surfaces.csv" --threads 1 \
-     > "$T/log" 2> "$T/err" || rc=$?
+cat > "$T/run.conf" <<CONF
+targets = $T/rows.csv
+verdicts = $T/out.csv
+cobordisms = $T/cobordisms.csv
+work = $T/work
+census = $T/none.sqlite
+knot_table = $T/rows.csv
+link_table = $T/links.csv
+census_updates = 0
+retriangulate_on_miss = 0
+layers = 2
+max_faces = 2
+boundary_condition = proper
+resolve_unlinked = 0
+surface_log = $T/surfaces.csv
+threads = 1
+CONF
+"$C" run --config "$T/run.conf" > "$T/log" 2> "$T/err" || rc=$?
 
 if [ "$rc" -ne 0 ]; then
-  echo "FAIL: verifyslicegenus exited $rc"
+  echo "FAIL: cobound run exited $rc"
   grep -a 'terminate\|what()' "$T/err" || tail -3 "$T/err"
   exit 1
 fi

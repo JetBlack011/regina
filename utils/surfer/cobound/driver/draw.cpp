@@ -1,11 +1,15 @@
 //
-//  farsidediagram.cpp
+//  draw.cpp
 //
-//  Oriented diagrams of witnesses' outgoing links, from their pair
-//  signatures.
+//  cobound draw (was farsidediagram): oriented diagrams of stored
+//  cobordisms' outgoing links, from their pair signatures.
 //
 //  Usage:
-//    farsidediagram [--layers N] [--gauss] [--faces] '<row PD code>' < pairsigs
+//    cobound draw [--layers N] [--gauss] [--faces] '<row PD code>' < pairsigs
+//
+//  The flags are farsidediagram's, which the cascade's checker and recorder
+//  pass; each is a config key (layers, draw_gauss, draw_faces, draw_pairsig,
+//  pair_sig_cache), so --config and --set work too.
 //
 //  --gauss appends each diagram's signed Gauss data (signs=, gauss=) to the
 //  ROW line and to every W line: per component, in curve order, the
@@ -85,6 +89,8 @@
 #include "surfer/pairsig/pairsig.h"
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/submanifold/vertexlinks.h"
+#include "cobound/driver/commands.h"
+#include "cobound/driver/config.h"
 
 namespace {
 
@@ -100,8 +106,6 @@ template <typename T>
 std::string list(const std::vector<T> &v) {
     return json::array(v);
 }
-
-} // namespace
 
 // Signed Gauss data (--gauss): the crossing signs, then per component the
 // crossings it passes in order (+(k+1) over crossing k, -(k+1) under), which
@@ -129,41 +133,39 @@ std::string curveEdges(const std::vector<knotbuilder::EdgeCycle> &curves) {
     return o.str() + "]";
 }
 
-int main(int argc, char **argv) {
+} // namespace
+
+int commands::draw(const std::vector<std::string> &args) {
+    const char *usage = "usage: cobound draw [--layers N] [--gauss] "
+                        "[--faces [--pairsig [--sig-cache DIR]]] '<row PD code>' < pairsigs (or faces)\n";
     int layers = 2;
-    bool gauss = false;
-    bool facesInput = false;
-    bool pairsigOut = false;
+    bool gauss = false, facesInput = false, pairsigOut = false;
     std::string sigCache;
-    int arg = 1;
-    while (arg < argc && std::string(argv[arg]).rfind("--", 0) == 0) {
-        const std::string flag = argv[arg];
-        if (flag == "--layers" && arg + 1 < argc) {
-            layers = std::stoi(argv[arg + 1]);
-            arg += 2;
-        } else if (flag == "--gauss") {
-            gauss = true;
-            ++arg;
-        } else if (flag == "--faces") {
-            facesInput = true;
-            ++arg;
-        } else if (flag == "--pairsig") {
-            pairsigOut = true;
-            ++arg;
-        } else if (flag == "--sig-cache" && arg + 1 < argc) {
-            sigCache = argv[arg + 1];
-            arg += 2;
-        } else {
-            break;
-        }
-    }
-    if (argc != arg + 1 || layers < 1 || (pairsigOut && !facesInput) ||
-        (!sigCache.empty() && !pairsigOut)) {
-        std::cerr << "usage: farsidediagram [--layers N] [--gauss] "
-                     "[--faces [--pairsig [--sig-cache DIR]]] '<row PD code>' < pairsigs (or faces)\n";
+    std::vector<std::string> positional;
+    try {
+        const config::Config cfg = config::forCommand(
+            "draw", config::Context::draw, args,
+            {{"--layers", "layers"},
+             {"--gauss", "draw_gauss", false, "1"},
+             {"--faces", "draw_faces", false, "1"},
+             {"--pairsig", "draw_pairsig", false, "1"},
+             {"--sig-cache", "pair_sig_cache"}},
+            &positional);
+        layers = static_cast<int>(cfg.integer("layers"));
+        gauss = cfg.flag("draw_gauss");
+        facesInput = cfg.flag("draw_faces");
+        pairsigOut = cfg.flag("draw_pairsig");
+        sigCache = cfg.text("pair_sig_cache");
+    } catch (const config::Error &e) {
+        std::cerr << e.what() << "\n" << usage;
         return 2;
     }
-    const farside::WitnessRedrawer redraw(argv[arg], layers);
+    if (positional.size() != 1 || layers < 1 || (pairsigOut && !facesInput) ||
+        (!sigCache.empty() && !pairsigOut)) {
+        std::cerr << usage;
+        return 2;
+    }
+    const farside::WitnessRedrawer redraw(positional.front(), layers);
     const knotbuilder::TriangulationWithLink &built = redraw.built();
 
     // The row's own components, in cyclesOf() order, and each row edge's component.
