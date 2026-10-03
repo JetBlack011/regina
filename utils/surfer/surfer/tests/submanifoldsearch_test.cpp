@@ -12,7 +12,10 @@
 
 #include <algorithm>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include <unordered_map>
 #include <maths/perm.h>
@@ -1346,6 +1349,70 @@ void test_frontier_file_round_trip() {
     EXPECT_EQ(d.str(), c.str(), "format 2 round-trips");
 }
 
+// A format-2 frontier records its pending file relative to its own
+// directory (phase 5): a work tree moved, packed or synced keeps its resume.
+// load() names the file absolutely again, wherever the tree now is, and
+// falls back to a file of the pending file's name beside the frontier.
+void test_frontier_pending_relative() {
+    std::cout << "\n--- frontiers: the pending file is recorded relative to the frontier ---\n";
+    namespace fs = std::filesystem;
+    char tmpl[] = "/tmp/frontier_rel_XXXXXX";
+    const fs::path root = mkdtemp(tmpl);
+    const fs::path a = root / "a";
+    fs::create_directories(a / "frontiers");
+    fs::create_directories(a / "work" / "hop_0_n0");
+    std::ofstream(a / "work" / "hop_0_n0" / "kept.csv") << "x\n";
+    SearchFrontier f;
+    f.fingerprint = "abc123";
+    f.roots.resize(2);
+    f.pending = SearchFrontier::Pending{(a / "work" / "hop_0_n0" / "kept.csv").string(), 2};
+    f.save((a / "frontiers" / "3_1.frontier").string());
+    auto slurp = [](const fs::path &p) {
+        std::ifstream in(p);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    };
+    EXPECT_EQ(slurp(a / "frontiers" / "3_1.frontier").find("pending 2 ../work/hop_0_n0/kept.csv\n") !=
+                  std::string::npos,
+              true, "the record is relative to the frontier's directory");
+    auto g = SearchFrontier::load((a / "frontiers" / "3_1.frontier").string());
+    EXPECT_EQ(g && g->pending ? g->pending->path : std::string(),
+              (a / "work" / "hop_0_n0" / "kept.csv").string(), "loaded: the file, absolute");
+
+    // The whole tree moved: the record follows it.
+    const fs::path b = root / "b";
+    fs::rename(a, b);
+    auto h = SearchFrontier::load((b / "frontiers" / "3_1.frontier").string());
+    EXPECT_EQ(h && h->pending ? h->pending->path : std::string(),
+              (b / "work" / "hop_0_n0" / "kept.csv").string(), "moved: the moved file");
+
+    // A frontier beside its pending file (a goal run's hop directory).
+    SearchFrontier c = f;
+    c.pending->path = (b / "work" / "hop_0_n0" / "kept.csv").string();
+    c.save((b / "work" / "hop_0_n0" / "frontier.txt").string());
+    EXPECT_EQ(slurp(b / "work" / "hop_0_n0" / "frontier.txt").find("pending 2 kept.csv\n") !=
+                  std::string::npos,
+              true, "beside it: the file's own name");
+
+    // The relative record does not resolve, but a file of its name lies
+    // beside the frontier: that one.
+    fs::create_directories(root / "c");
+    fs::copy_file(b / "frontiers" / "3_1.frontier", root / "c" / "3_1.frontier");
+    std::ofstream(root / "c" / "kept.csv") << "x\n";
+    auto k = SearchFrontier::load((root / "c" / "3_1.frontier").string());
+    EXPECT_EQ(k && k->pending ? k->pending->path : std::string(),
+              (root / "c" / "kept.csv").string(), "fallback: the name beside the frontier");
+
+    // An absolute record (4(b)'s format 2) is read as it stands.
+    std::ostringstream abs;
+    f.write(abs);
+    std::ofstream(root / "c" / "abs.frontier") << abs.str();
+    fs::remove(root / "c" / "kept.csv");
+    auto m = SearchFrontier::load((root / "c" / "abs.frontier").string());
+    EXPECT_EQ(m && m->pending ? m->pending->path : std::string(), f.pending->path,
+              "an absolute record is kept");
+    fs::remove_all(root);
+}
+
 template <typename F> void run(const char *name, F fn) {
     std::cout << "\nRunning " << name << "...\n";
     try {
@@ -1397,6 +1464,7 @@ int main() {
     run("test_resolve_unlinked_seeded_search",
         test_resolve_unlinked_seeded_search);
     run("test_frontier_file_round_trip", test_frontier_file_round_trip);
+    run("test_frontier_pending_relative", test_frontier_pending_relative);
     run("test_frontier_resume_matches_single_pass",
         test_frontier_resume_matches_single_pass);
     run("test_frontier_refused_by_another_search",

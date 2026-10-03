@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <istream>
 #include <sstream>
@@ -15,7 +16,8 @@
 //   fingerprint <hex>
 //   round <r> <R> cap <c|-> suppress_below <s> deepest_exhausted <e|-> complete <0|1>
 //   runs <n> satisfying <S> found <F> attempts <A>
-//   pending <bytes> <path>                      (format 2 only)
+//   pending <bytes> <path>                      (format 2 only; the path relative
+//                                               to the frontier file's directory)
 //   roots <N>
 //   r <idx> <done> <level> <deepest> <levels> {<childIndex> <child> <npruned> <pruned>...}
 //   ...
@@ -207,9 +209,53 @@ SearchFrontier SearchFrontier::read(std::istream &in) {
     bad("no 'end' line: the file is truncated");
 }
 
+namespace {
+
+namespace fs = std::filesystem;
+
+// The directory a frontier file at `path` lives in, absolute and lexically
+// normal.
+fs::path frontierDirectory(const std::string &path) {
+    return fs::absolute(fs::path(path)).lexically_normal().parent_path();
+}
+
+// The pending path as save() records it: relative to the frontier's
+// directory, so a work tree that is packed, synced or copied keeps its
+// resume; the file's own name when no relative path exists.
+std::string recordedPending(const std::string &pending, const std::string &frontierPath) {
+    const fs::path file = fs::absolute(fs::path(pending)).lexically_normal();
+    const fs::path rel = file.lexically_relative(frontierDirectory(frontierPath));
+    return rel.empty() ? file.filename().string() : rel.string();
+}
+
+// The pending file a loaded frontier names: a relative record resolved
+// against the frontier's directory (an absolute one, as 4(b)'s format 2
+// wrote it, as it stands); when that file does not exist but one of its
+// name lies beside the frontier, that one.
+std::string resolvedPending(const std::string &recorded, const std::string &frontierPath) {
+    const fs::path p(recorded);
+    const fs::path dir = frontierDirectory(frontierPath);
+    fs::path file = p.is_absolute() ? p : (dir / p).lexically_normal();
+    std::error_code ec;
+    if (!fs::exists(file, ec)) {
+        const fs::path beside = dir / p.filename();
+        if (fs::exists(beside, ec))
+            file = beside;
+    }
+    return file.string();
+}
+
+} // namespace
+
 void SearchFrontier::save(const std::string &path) const {
     try {
-        report::atomicWrite(path, [this](std::ostream &out) { write(out); });
+        if (pending) {
+            SearchFrontier recorded = *this;
+            recorded.pending->path = recordedPending(pending->path, path);
+            report::atomicWrite(path, [&recorded](std::ostream &out) { recorded.write(out); });
+        } else {
+            report::atomicWrite(path, [this](std::ostream &out) { write(out); });
+        }
     } catch (const std::runtime_error &e) {
         bad(e.what());
     }
@@ -219,5 +265,8 @@ std::optional<SearchFrontier> SearchFrontier::load(const std::string &path) {
     std::ifstream in(path);
     if (!in)
         return std::nullopt;
-    return read(in);
+    SearchFrontier f = read(in);
+    if (f.pending)
+        f.pending->path = resolvedPending(f.pending->path, path);
+    return f;
 }

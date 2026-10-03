@@ -81,8 +81,8 @@ struct SearchFrontier {
     /**
      * Where the caller recorded this search's finds, when it keeps them in a
      * file (cobound: the search's pending file), and that file's fsynced
-     * byte length when the frontier was taken. Format 2 writes it; a
-     * format-1 frontier has none.
+     * byte length when the frontier was taken. Format 2 writes it (save():
+     * relative to the frontier's directory); a format-1 frontier has none.
      */
     struct Pending {
         std::string path;
@@ -112,9 +112,20 @@ struct SearchFrontier {
     /** \throws std::runtime_error on anything but write()'s format. */
     static SearchFrontier read(std::istream &in);
 
-    /** Writes `path` atomically (a temporary beside it, then a rename). */
+    /**
+     * Writes `path` atomically (a temporary beside it, then a rename). The
+     * pending file is recorded relative to `path`'s directory (its own name
+     * when no relative path exists), so a work tree that is packed, synced
+     * or copied keeps its resume.
+     */
     void save(const std::string &path) const;
-    /** Reads `path`; nullopt if it does not exist. \throws as read(). */
+    /**
+     * Reads `path`; nullopt if it does not exist. A relative pending record
+     * is resolved against `path`'s directory (an absolute one is kept), and
+     * when that file does not exist but one of its name lies beside the
+     * frontier, that one is named: `pending->path` is absolute either way.
+     * \throws as read().
+     */
     static std::optional<SearchFrontier> load(const std::string &path);
 };
 
