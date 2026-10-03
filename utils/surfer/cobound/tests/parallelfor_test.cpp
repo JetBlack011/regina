@@ -25,5 +25,5 @@ int main() {
   bool onCaller = true;
   parallelFor(10, 1, [&](size_t) { onCaller = onCaller && std::this_thread::get_id() == self; });
   CHECK(onCaller, "one thread is the calling thread");
-  return cascadetest::finish("parallelfor_test");
+  return checks::finish("parallelfor_test");
 }

@@ -514,7 +514,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * Whether the trace T_v(S) at ambient vertex `v` -- the union of its
      * petals' traces -- is certifiably an unlink in Lk(v)
      * (pl_enumeration_draft §4.5): false if `v` is a boundary vertex,
-     * if any petal there is not closed, or if identify::certifiesUnlink()
+     * if any petal there is not closed, or if complement::certifiesUnlink()
      * cannot prove it. Memoized through petalCache_.
      */
     bool vertexUnlinked_(size_t v) const;
@@ -522,7 +522,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
     /**
      * The boundary-vertex analogue of vertexUnlinked_(), for measurement
      * only: at boundary vertex `v`, caps the open petal (if any) through a
-     * cone apex (identify::capInCone()) and certifies the result an unlink.
+     * cone apex (complement::capInCone()) and certifies the result an unlink.
      * nullopt if `v` carries two or more open petals.
      */
     std::optional<bool> boundaryVertexUnlinked_(size_t v) const;
@@ -531,7 +531,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * Whether petal `root` at boundary vertex `v` is unknotted in the sense of
      * pl_enumeration_draft Definition "petal-knotted": its trace, closed up
      * through the cone point after coning off the boundary of Lk(v) (see
-     * identify::capInCone()), is an unknot. Memoized per worker in
+     * complement::capInCone()), is an unknot. Memoized per worker in
      * boundaryFlatMemo_ first, then in the shared petalCache_, so the common
      * case takes no lock. A trace that cannot be capped counts as knotted.
      */

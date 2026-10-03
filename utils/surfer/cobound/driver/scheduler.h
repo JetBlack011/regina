@@ -27,7 +27,7 @@
  *  when the goal is met (plan divergences 2, 6, 8).
  */
 
-namespace cascade {
+namespace scheduler {
 
 /// A goal run's options: every value from the config (goalOptions()).
 struct GoalOptions {
@@ -49,7 +49,7 @@ struct GoalOptions {
   /// entry the database holds rows of gets those cobordisms as free edges.
   std::string masterWitnesses;
   /// Each search's shape.
-  HopShape hopShape;
+  search::HopShape hopShape;
   /// The complement cache's limit, as the profile line prints it (it is
   /// process-wide: setup::applyRunSettings() sets it).
   size_t complementCacheLimit = 0;
@@ -95,6 +95,6 @@ GoalOptions goalOptions(const config::Config &cfg);
  */
 int runToGoal(const GoalOptions &options);
 
-} // namespace cascade
+} // namespace scheduler
 
 #endif // SURFER_COBOUND_SCHEDULER_H

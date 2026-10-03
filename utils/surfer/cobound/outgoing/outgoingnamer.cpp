@@ -13,17 +13,17 @@
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/census/censusnaming.h"
 
-namespace farside {
+namespace outgoing {
 
 // The complement route, as SurfaceSearch called it before a namer was
 // required: a lone curve on its own (identify(const EdgeComplement&)),
 // several curves together (identify(const Link&)).
 ComplementNamer::ComplementNamer()
-    : ComplementBoundaryNamer(static_cast<KnotRoute>(&identify::identify),
-                              static_cast<LinkRoute>(&identify::identify)) {}
+    : ComplementBoundaryNamer(static_cast<KnotRoute>(&census::identify),
+                              static_cast<LinkRoute>(&census::identify)) {}
 
 DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
-                           const CobordismBuilder<3> &cob, const SignatureTable &table)
+                           const CobordismBuilder<3> &cob, const linknaming::SignatureTable &table)
     : map_(knotT, cob), drawer_(knotT, crossings), namer_(table) {}
 
 std::string DiagramNamer::name(const Link &curves) const {
@@ -38,8 +38,8 @@ std::string DiagramNamer::nameCurve(size_t bc, const Knot &curve) const {
     return complement_.nameCurve(bc, curve);
 }
 
-DrawnCurves DiagramNamer::draw(const Link &curves) const {
-    DrawnCurves out;
+linknaming::DrawnCurves DiagramNamer::draw(const Link &curves) const {
+    linknaming::DrawnCurves out;
     const size_t n = curves.comps_.size();
     try {
         std::vector<knotbuilder::EdgeCycle> cycles;
@@ -54,20 +54,20 @@ DrawnCurves DiagramNamer::draw(const Link &curves) const {
 
         out.diagram = d.link();
         out.someLinking = someLinking;
-        out.outcome = DrawnCurves::Outcome::drawn;
+        out.outcome = linknaming::DrawnCurves::Outcome::drawn;
     } catch (const knotbuilder::NonPlanar &) {
-        out.outcome = DrawnCurves::Outcome::nonPlanar;
+        out.outcome = linknaming::DrawnCurves::Outcome::nonPlanar;
     } catch (const knotbuilder::Degenerate &) {
-        out.outcome = DrawnCurves::Outcome::failed;
+        out.outcome = linknaming::DrawnCurves::Outcome::failed;
     } catch (const regina::InvalidArgument &) {
-        out.outcome = DrawnCurves::Outcome::failed;
+        out.outcome = linknaming::DrawnCurves::Outcome::failed;
     }
     return out;
 }
 
-void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables,
-                                    std::shared_ptr<exactnaming::TableCaches> caches) {
-    exactnaming::NamerLimits fast;
+void DiagramNamer::enableExactNames(const linknaming::ExactTables &tables,
+                                    std::shared_ptr<linknaming::TableCaches> caches) {
+    linknaming::NamerLimits fast;
     fast.simplifyTries = 2;
     fast.exhaustiveHeight = 0;
     fast.searchHeight = -1; // no Reidemeister search in the search
@@ -78,7 +78,7 @@ void DiagramNamer::enableExactNames(const exactnaming::ExactTables &tables,
     // name (a 50k-surface hop spent 57,000 thread-seconds there, 2026-09-29).
     // farsidename refines such names offline from the pair signature.
     fast.tableSideHeight = -1;
-    exact_ = std::make_unique<exactnaming::ExactNamer>(tables, fast, std::move(caches));
+    exact_ = std::make_unique<linknaming::ExactNamer>(tables, fast, std::move(caches));
 }
 
 std::optional<std::string> DiagramNamer::orientedName(
@@ -124,4 +124,4 @@ std::optional<std::string> DiagramNamer::orientedName(
     }
 }
 
-} // namespace farside
+} // namespace outgoing

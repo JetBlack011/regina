@@ -311,7 +311,7 @@ void buildSingleRowFixture(const std::string &sig, const std::string &name,
 // with the same synthetic placeholder string by construction, so a
 // key-format mismatch in *real* usage can't show up there. This test uses a
 // real triangulation and its real isoSig() throughout, going through the
-// full identify::identify() path (not just census::localCensusLookup()
+// full census::identify() path (not just census::localCensusLookup()
 // directly), so a future regression reintroducing any key-format mismatch
 // fails here.
 void test_real_triangulation_isosig_key_matches_production_query() {
@@ -320,20 +320,20 @@ void test_real_triangulation_isosig_key_matches_production_query() {
 
     buildSingleRowFixture(sig, "synthetic-name-for-fig8", "snappy");
     census::setCensusPath(FIXTURE_PATH);
-    identify::resetRecognitionCacheForTesting();
+    complement::resetRecognitionCacheForTesting();
 
     EXPECT_EQ(census::localCensusLookup(sig).value_or("<MISS>"),
               std::string("synthetic-name-for-fig8"),
               "a fixture row keyed by a REAL triangulation's isoSig() is a "
               "direct census::localCensusLookup() hit");
 
-    EXPECT_EQ(identify::identify(EdgeComplement(figureEight, {})),
+    EXPECT_EQ(census::identify(EdgeComplement(figureEight, {})),
               std::string("synthetic-name-for-fig8"),
               "...and the SAME key is what identify::resolveRecognition()/"
               "identify::identify() actually queries with, end to end (not "
               "some other signature computed independently)");
 
-    identify::resetRecognitionCacheForTesting();
+    complement::resetRecognitionCacheForTesting();
 }
 
 } // namespace

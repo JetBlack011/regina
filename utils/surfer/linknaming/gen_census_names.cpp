@@ -6,7 +6,7 @@
 //  up to a given crossing number, and (with --links) every link in a
 //  Thistlethwaite-Link-Table-style PD code CSV ("Name,PD Notation,
 //  Genus-4D" rows, deduped to one row per base name -- see
-//  cobordismgraph::stripOrientationTag()'s use below, since component
+//  linknaming::stripOrientationTag()'s use below, since component
 //  orientation doesn't change the complement), builds the complement the same way
 //  surfer.cpp/verifyslicegenus.cpp does at runtime (knotbuilder::buildLink()
 //  -> Knot/Link -> buildComplement()) and records every
@@ -152,7 +152,7 @@ int crossingsFromPDCode(const knotbuilder::PDCode &pdcode) {
 
 // A trailing "{...}" orientation-variant suffix is stripped from a
 // Thistlethwaite link name (e.g. "L11n459{0;1;0}" -> "L11n459",
-// cobordismgraph::stripOrientationTag()). Component orientation doesn't
+// linknaming::stripOrientationTag()). Component orientation doesn't
 // change the complement, so every row sharing a base name builds the exact
 // same manifold -- processing only one representative per base name is both
 // correct and (for names with many orientation variants) significantly
@@ -163,7 +163,7 @@ int crossingsFromPDCode(const knotbuilder::PDCode &pdcode) {
 // unchanged, but going through the same types surfer.cpp/verifyslicegenus.cpp
 // use at runtime keeps this generator honest about what it's actually
 // mimicking), and returns both the complement's isoSig (the same key
-// census::localCensusLookup()/identify::identify() query by -- written out
+// census::localCensusLookup()/census::identify() query by -- written out
 // so a miss row can be fed to an offline SnapPy identification pass, the
 // same way custom_analysis/identify_boundaries.py already does for knot
 // complements) and every regina::Census::lookup() hit against it.
@@ -312,7 +312,7 @@ void runLinks(std::istream &file, int maxCrossings) {
         const std::string &pdStr = fields[1];
         ++c.total;
 
-        std::string baseName = cobordismgraph::stripOrientationTag(rawName);
+        std::string baseName = linknaming::stripOrientationTag(rawName);
         if (!seenBaseNames.insert(baseName).second)
             continue; // already processed this base link under another
                        // orientation variant

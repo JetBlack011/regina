@@ -35,13 +35,15 @@
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
+using linknaming::GaussDiagram;
+using namespace bounds;
+using namespace cobordisms;
+using namespace search;
 
 namespace {
 
 HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
-  const regina::Link l = exactnaming::linkFromTablePD(pd);
+  const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
@@ -151,7 +153,7 @@ HopShape capThree() {
 // searched thickening; testBatchSigning() signs them again all at once.
 std::vector<std::pair<SignRequest, std::string>> signed_;
 
-void checkRow(const farside::SignatureTable &sigs, const std::string &name,
+void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
               const std::string &pd, long long accepted, long long otherOrientation) {
   // One graph and registry for both reads, so equal far sides are one node.
   ProofGraph g;
@@ -173,7 +175,7 @@ void checkRow(const farside::SignatureTable &sigs, const std::string &name,
 
   std::set<std::string> keys;
   int same = 0, compared = 0, fromFaces = 0;
-  const farside::WitnessRedrawer &redraw = inProcess.redrawer();
+  const outgoing::WitnessRedrawer &redraw = inProcess.redrawer();
   const std::vector<int> seed = redraw.rowBuild().seedFaces;
   for (size_t i = 0; i < run.kept.size(); ++i) {
     const KeptSurface &k = run.kept[i];
@@ -238,9 +240,9 @@ void checkRow(const farside::SignatureTable &sigs, const std::string &name,
 // different for another row or another number of layers.
 void testBuildChecksum() {
   const char *trefoil = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
-  const farside::WitnessRedrawer a(trefoil, 2), b(trefoil, 2);
-  const farside::WitnessRedrawer hopf("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 2);
-  const farside::WitnessRedrawer oneLayer(trefoil, 1);
+  const outgoing::WitnessRedrawer a(trefoil, 2), b(trefoil, 2);
+  const outgoing::WitnessRedrawer hopf("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 2);
+  const outgoing::WitnessRedrawer oneLayer(trefoil, 1);
   CHECK_EQ(a.buildChecksum(), b.buildChecksum(), "digest: two builds of one row agree");
   CHECK(a.buildChecksum() != hopf.buildChecksum(), "digest: another row differs");
   CHECK(a.buildChecksum() != oneLayer.buildChecksum(), "digest: another layer count differs");
@@ -264,7 +266,7 @@ void testBatchSigning() {
   CHECK(requests.size() >= 4, "batch: surfaces from both rows");
 }
 
-void testStop(const farside::SignatureTable &sigs) {
+void testStop(const linknaming::SignatureTable &sigs) {
   ProofGraph g;
   NodeRegistry reg(g);
   HopAssembler hop(g, reg, makeRow(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
@@ -282,12 +284,12 @@ void testStop(const farside::SignatureTable &sigs) {
 
 int main() {
   const std::string data = CASCADE_TEST_DATA;
-  const farside::SignatureTable sigs = farside::SignatureTable::fromTables(
+  const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(
       data + "/knots_to_6.csv", data + "/links_to_6.csv");
   checkRow(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
   checkRow(sigs, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
   testBuildChecksum();
   testBatchSigning();
   testStop(sigs);
-  return cascadetest::finish("hoprunner_test");
+  return checks::finish("hoprunner_test");
 }

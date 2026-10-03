@@ -8,10 +8,10 @@
 
 #include "surfer/pairsig/sha1.h"
 
-namespace witnesskey {
+namespace cobordisms {
 
 std::string witnessKey(const std::string &pairSig) {
     return pairsig::sha1Hex(pairSig).substr(0, 12);
 }
 
-} // namespace witnesskey
+} // namespace cobordisms

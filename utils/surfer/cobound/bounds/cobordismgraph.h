@@ -26,7 +26,7 @@
 
 #include "cobound/bounds/partitiongenera.h"
 
-namespace cascade {
+namespace bounds {
 
 using NodeId = int;
 using EdgeId = int;
@@ -314,4 +314,4 @@ private:
   std::vector<std::string> contradictions_;
 };
 
-} // namespace cascade
+} // namespace bounds

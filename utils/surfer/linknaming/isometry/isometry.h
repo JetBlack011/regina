@@ -47,7 +47,7 @@ struct Triangulation;
 } // namespace snappea
 } // namespace regina
 
-namespace exactnaming {
+namespace linknaming {
 
 class KernelLink {
   public:
@@ -112,6 +112,6 @@ class KernelLink {
     double volume_ = 0;
 };
 
-} // namespace exactnaming
+} // namespace linknaming
 
 #endif

@@ -8,7 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace cascade {
+namespace bounds {
 
 Partition Partition::singletons(int n) {
   std::vector<int> l(n);
@@ -113,4 +113,4 @@ const std::vector<Partition> &allPartitions(int n) {
   return it->second;
 }
 
-} // namespace cascade
+} // namespace bounds

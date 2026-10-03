@@ -28,7 +28,7 @@
  *  row's.
  */
 
-namespace cobordismgraph {
+namespace search {
 
 /* Boundary classification */
 
@@ -94,7 +94,7 @@ struct RowOrientationJudgement {
 
     /** The flips when every component is consistently oriented: with
      *  verdict match, or (an empty map) with no curves at all; else
-     *  nullopt. farside::incomingFlips() is this. */
+     *  nullopt. outgoing::incomingFlips() is this. */
     std::optional<std::map<size_t, int>> consistentFlips() const {
         if (verdict == OrientationVerdict::match || noCurves)
             return flips;
@@ -105,7 +105,7 @@ struct RowOrientationJudgement {
 /**
  * Compares one found surface's induced boundary orientation on the
  * search side with `row`: the one walk behind classifyRowOrientation() and
- * farside::incomingFlips().
+ * outgoing::incomingFlips().
  *
  * `curves` come from KnottedSurface::orientedBoundaryLinks(), which orients
  * each CONNECTED COMPONENT of the surface independently and arbitrarily;
@@ -129,13 +129,13 @@ OrientationVerdict classifyRowOrientation(
     const RowOrientation &row, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
-} // namespace cobordismgraph
+} // namespace search
 
-namespace farside {
+namespace outgoing {
 class DiagramNamer;
 }
 
-namespace rowsearch {
+namespace search {
 
 /** Why a surface does or does not witness anything about its row. */
 enum class Gate {
@@ -154,7 +154,7 @@ const char *gateReason(Gate gate);
 /** A found surface, judged against its row by gateSurface(). */
 struct GatedSurface {
     Gate gate = Gate::accepted;
-    cobordismgraph::BoundarySplit split;
+    search::BoundarySplit split;
     /** Captured only once the search side has passed (so from the
      *  orientation gate on). Per ambient boundary component, its oriented
      *  curves, each surface component oriented independently. */
@@ -173,7 +173,7 @@ struct GatedSurface {
  * Judges `info` against `row`, in this order: orientable; the boundary split
  * (search side by geometry, never by name); the search side holding the
  * row's component count; the row's own orientation, per surface component
- * (cobordismgraph::classifyRowOrientation()); at most one far side.
+ * (search::classifyRowOrientation()); at most one far side.
  */
 GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
 
@@ -187,7 +187,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
  *
  * \pre `g` is accepted with exactly one far side.
  */
-std::string farSideName(const GatedSurface &g, const farside::DiagramNamer *namer);
+std::string farSideName(const GatedSurface &g, const outgoing::DiagramNamer *namer);
 
 /**
  * Every surface the drain describes lands in exactly one of these, and at
@@ -239,13 +239,13 @@ struct RowAccounting {
 
 /**
  * What a search keeps one cobordism per: the cobordism's identity
- * (cobordismgraph::witnessIdentity(), the one identity every dedupe uses),
+ * (cobordisms::witnessIdentity(), the one identity every dedupe uses),
  * then -- the grouping a goal run's graph needs -- which row components and
  * how many outgoing curves each surface component carries, as a canonical
  * string (surface components are unlabelled, so the entries are sorted).
  */
-std::string keptKey(const cobordismgraph::Witness &w, const farside::OutgoingLink &link,
-                    const farside::WitnessRedrawer &row);
-} // namespace rowsearch
+std::string keptKey(const cobordisms::Witness &w, const outgoing::OutgoingLink &link,
+                    const outgoing::WitnessRedrawer &row);
+} // namespace search
 
 #endif // SURFER_COBOUND_PRECONDITIONS_H

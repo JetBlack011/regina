@@ -7,13 +7,13 @@
 #include "linknaming/names.h"
 #include "linknaming/tables.h"
 
-namespace cobordismgraph {
+namespace solver {
 
 void NameTable::addLiterature(const std::string &name, int lo, int hi) {
     auto [it, inserted] = info_.try_emplace(name);
     if (inserted) {
-        it->second.components = componentsFromName(name);
-        byBase_[baseName(name)].push_back(name);
+        it->second.components = linknaming::componentsFromName(name);
+        byBase_[linknaming::baseName(name)].push_back(name);
     }
     it->second.haveLiterature = true;
     it->second.litLo = lo;
@@ -27,13 +27,13 @@ const NameInfo *NameTable::find(const std::string &name) const {
 
 int NameTable::components(const std::string &name) const {
     auto it = info_.find(name);
-    return it == info_.end() ? componentsFromName(name) : it->second.components;
+    return it == info_.end() ? linknaming::componentsFromName(name) : it->second.components;
 }
 
 std::vector<std::string>
 NameTable::candidates(const std::string &name,
                       std::optional<int> observedComponents) const {
-    auto it = byBase_.find(baseName(name));
+    auto it = byBase_.find(linknaming::baseName(name));
     if (it == byBase_.end() || it->second.empty())
         return {name};
 
@@ -52,9 +52,9 @@ NameTable::candidates(const std::string &name,
     return filtered.empty() ? std::vector<std::string>{name} : filtered;
 }
 
-} // namespace cobordismgraph
+} // namespace solver
 
-namespace witnessstore {
+namespace solver {
 
 // Loads a literature table for its names and bounds only, skipping the PD
 // code entirely. Used for tables that aren't this run's --input: we need
@@ -62,29 +62,29 @@ namespace witnessstore {
 // sets) and their bounds, but never build a triangulation from them, so
 // there is no reason to pay parsePDCode()'s cost across 12k+ rows.
 size_t loadNameTable(const std::filesystem::path &path,
-                     cobordismgraph::NameTable &names) {
+                     solver::NameTable &names) {
   size_t loaded = 0;
-  for (const exactnaming::TableRow &row : exactnaming::readTableRows(path))
-    if (auto g4 = exactnaming::parseTableG4(row.g4)) {
+  for (const linknaming::TableRow &row : linknaming::readTableRows(path))
+    if (auto g4 = linknaming::parseTableG4(row.g4)) {
       names.addLiterature(row.name, g4->first, g4->second);
       ++loaded;
     }
   return loaded;
 }
 
-cobordismgraph::NameTable loadTableNames(const std::string &knotTable,
+solver::NameTable loadTableNames(const std::string &knotTable,
                                          const std::string &linkTable,
                                          const std::string &knotSymmetry,
                                          size_t *symmetryTypes) {
-  cobordismgraph::NameTable names;
+  solver::NameTable names;
   loadNameTable(knotTable, names);
   loadNameTable(linkTable, names);
   if (!knotSymmetry.empty()) {
-    const exactnaming::SymmetryTable types = exactnaming::readSymmetryTable(knotSymmetry);
+    const linknaming::SymmetryTable types = linknaming::readSymmetryTable(knotSymmetry);
     for (const auto &[knot, type] : types) names.setSymmetry(knot, type);
     if (symmetryTypes) *symmetryTypes = types.size();
   }
   return names;
 }
 
-} // namespace witnessstore
+} // namespace solver

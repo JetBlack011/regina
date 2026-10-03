@@ -20,7 +20,7 @@
 
 namespace runrecords {
 
-using namespace cascade;
+using namespace bounds;
 
 void append(const std::string &work, const std::string &line) {
   std::ofstream(work + "/cascade.jsonl", std::ios::app) << line << "\n";
@@ -38,7 +38,7 @@ void writeProfiles(const std::string &work, const GraphView &v,
     std::string name = subjectName(n);
     if (reg.known(n) && reg.info(n).diagram.signs.empty() && n != v.target) {
       const int k = g.node(n).components;
-      name = identify::unlinkName(static_cast<size_t>(k));
+      name = complement::unlinkName(static_cast<size_t>(k));
     }
     out << "{\"node\":" << n << ",\"name\":\"" << json::escape(name) << '"';
     if (auto it = v.tableName.find(n); it != v.tableName.end())
@@ -81,7 +81,7 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
       o << ",\"table\":\"" << json::escape(t->second) << "\"";
     if (reg.known(n)) {
       const NodeInfo &ni = reg.info(n);
-      const exactnaming::GaussDiagram &d = ni.diagram;
+      const linknaming::GaussDiagram &d = ni.diagram;
       o << ",\"crossings\":" << d.crossings() << ",\"hyperbolic\":"
         << (ni.hyperbolic ? "true" : "false");
       if (ni.hyperbolic) o << ",\"volume\":" << std::setprecision(12) << ni.volume;
@@ -123,7 +123,7 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
 }
 
 void writeLowerReport(const std::string &work, const GraphView &v,
-                      const exactnaming::ExactTables &tables, const std::string &targetName,
+                      const linknaming::ExactTables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads) {
   // For every tabulated node Y: the least charge of carrying a lower bound
   // from Y to the target, over every path the graph holds. Measured by
@@ -139,8 +139,8 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   const Partition goal = v.goal;
   const int targetLower = g.lower(target, goal);
   int litLo = -1;
-  if (const exactnaming::TableEntry *e = tables.entry(targetName))
-    if (auto g4 = exactnaming::parseTableG4(e->g4)) litLo = g4->first;
+  if (const linknaming::TableEntry *e = tables.entry(targetName))
+    if (auto g4 = linknaming::parseTableG4(e->g4)) litLo = g4->first;
   std::ofstream out(work + "/lower_report.jsonl");
   out << "{\"target\":\"" << json::escape(targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g.nodeCount() << "}\n";
@@ -171,9 +171,9 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   std::vector<Job> jobs;
   for (const auto &[n, name] : v.tableName) {
     if (n == target) continue;
-    const exactnaming::TableEntry *e = tables.entry(name);
+    const linknaming::TableEntry *e = tables.entry(name);
     if (!e) continue;
-    auto g4 = exactnaming::parseTableG4(e->g4);
+    auto g4 = linknaming::parseTableG4(e->g4);
     if (!g4) continue;
     // The most n could be: its literature upper end, or less if a surface
     // for it is already proved.
@@ -223,7 +223,7 @@ void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> 
   nodes << "name,components,crossings,pd,signs,gauss,label\n";
   for (const auto &[n, name] : subjects) {
     if (name.rfind("cascade:", 0) != 0) continue;
-    const exactnaming::GaussDiagram &d = reg.info(n).diagram;
+    const linknaming::GaussDiagram &d = reg.info(n).diagram;
     std::ostringstream signs, gauss;
     signs << '[';
     for (size_t i = 0; i < d.signs.size(); ++i) signs << (i ? ", " : "") << d.signs[i];

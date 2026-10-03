@@ -16,9 +16,9 @@
 #include "linknaming/tests/check.h"
 #include "linknaming/tests/gaussfixtures.h"
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
-using namespace cascadetest;
+using linknaming::GaussDiagram;
+using namespace linknaming;
+using namespace checks;
 
 namespace {
 
@@ -124,5 +124,5 @@ int main() {
   testNugatoryCrossings();
   testLinking();
   testSimplifyKeepsComponents();
-  return cascadetest::finish("simplification_test");
+  return checks::finish("simplification_test");
 }

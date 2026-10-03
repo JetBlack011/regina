@@ -49,7 +49,7 @@
  * final step -- what pairSig()'s per-automorphism inner loop relies on to
  * stay cheap, and equally useful for canonicalizing a marked face set
  * against a single fixed triangulation's own automorphism group (see
- * identify::BoundarySignatureCache in identifycomplement.h).
+ * namecache::BoundarySignatureCache in identifycomplement.h).
  */
 template <int dim>
 struct FaceDescriptor {

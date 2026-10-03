@@ -96,10 +96,10 @@ loadOutputCsv(const std::filesystem::path &path);
  * other row follows, sorted by name for a stable, diffable order.
  */
 void writeOutputCsv(const std::filesystem::path &path,
-                    const std::vector<cobordismgraph::InputRow> &rows,
+                    const std::vector<solver::InputRow> &rows,
                     const std::unordered_map<std::string, OutputRow> &outputRows);
 
-const char *statusName(cobordismgraph::Status s);
+const char *statusName(solver::Status s);
 
 /**
  * Rebuilds `name`'s row from the solver's verdict, keeping whatever search
@@ -109,9 +109,9 @@ const char *statusName(cobordismgraph::Status s);
  * when the bound holds only its offset.
  */
 OutputRow rowFromVerdict(
-    const std::string &name, const cobordismgraph::Verdict &v, const OutputRow *existing,
-    const std::unordered_map<std::string, cobordismgraph::Bounds> &bounds,
-    witnessstore::PairSigReader &reader);
+    const std::string &name, const solver::Verdict &v, const OutputRow *existing,
+    const std::unordered_map<std::string, solver::Bounds> &bounds,
+    cobordisms::PairSigReader &reader);
 
 } // namespace verdicts
 

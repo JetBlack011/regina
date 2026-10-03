@@ -15,13 +15,13 @@
 #include "cobound/bounds/links.h"
 #include "cobound/bounds/cobordismgraph.h"
 
-namespace cascade {
+namespace bounds {
 
 /// What a hop searched: a node, as the diagram written into the row's PD.
 struct HopRow {
   NodeId node = -1;
   /// The diagram the row was built from (its PD), components in its order.
-  exactnaming::GaussDiagram diagram;
+  linknaming::GaussDiagram diagram;
   /// diagram component i is the node's component nodeMap[i].
   std::vector<int> nodeMap;
   std::string pd;   ///< as written to the row, `;`-separated
@@ -75,45 +75,45 @@ public:
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
   HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
-               std::unique_ptr<farside::WitnessRedrawer> built, Read read = Read::fast);
+               std::unique_ptr<outgoing::WitnessRedrawer> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
   HopEdge add(const HopWitness &w);
 
   /// A surface already read: its oriented far side and incoming side, as
-  /// farside::orientedOutgoingLink() gives them for a surface in
+  /// outgoing::orientedOutgoingLink() gives them for a surface in
   /// redrawer().thickening() (an in-process hop's search; see hoprunner.h).
-  HopEdge addRead(const farside::OutgoingLink &link, int genus,
+  HopEdge addRead(const outgoing::OutgoingLink &link, int genus,
                   const std::string &key);
 
   /// knotbuilder's row component i is the node's component rowToNode()[i].
   const std::vector<int> &rowToNode() const { return rowToNode_; }
 
   /// The row's thickening and everything read from it.
-  const farside::WitnessRedrawer &redrawer() const { return *redraw_; }
+  const outgoing::WitnessRedrawer &redrawer() const { return *redraw_; }
 
 private:
-  std::optional<farside::OutgoingLink> readBack(const std::string &pairsig,
+  std::optional<outgoing::OutgoingLink> readBack(const std::string &pairsig,
                                                 std::string &why) const;
   /// Per knotbuilder row component, the surface component it lies on.
   std::optional<std::vector<size_t>>
-  surfaceOfRowComponents(const farside::OutgoingLink &link, std::string &why) const;
+  surfaceOfRowComponents(const outgoing::OutgoingLink &link, std::string &why) const;
   void certifyRow_();
   Read read_;
   ProofGraph &g_;
   NodeRegistry &nodes_;
   HopRow row_;
-  std::unique_ptr<farside::WitnessRedrawer> redraw_;
+  std::unique_ptr<outgoing::WitnessRedrawer> redraw_;
   std::vector<int> rowToNode_;
 };
 
 /// The GaussDiagram of a drawn diagram, `origin` = drawn component index.
-exactnaming::GaussDiagram gaussOf(const knotbuilder::Diagram &d);
+linknaming::GaussDiagram gaussOf(const knotbuilder::Diagram &d);
 
 /// A PD code for a connected diagram, as a row's `PD Notation` (`;`-separated,
 /// labels from 1). Throws if the PD would not fix every orientation
 /// (regina::Link::pdAmbiguous()), unless every ambiguous component is split
 /// from the rest, when orientation there cannot matter.
-std::string rowPD(const exactnaming::GaussDiagram &d);
+std::string rowPD(const linknaming::GaussDiagram &d);
 
-} // namespace cascade
+} // namespace bounds

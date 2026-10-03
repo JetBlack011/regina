@@ -103,7 +103,7 @@ loadOutputCsv(const std::filesystem::path &path) {
 }
 
 void writeOutputCsv(const std::filesystem::path &path,
-                    const std::vector<cobordismgraph::InputRow> &rows,
+                    const std::vector<solver::InputRow> &rows,
                     const std::unordered_map<std::string, OutputRow> &outputRows) {
   report::atomicWrite(path, [&](std::ostream &out) {
     out << OUTPUT_HEADER << "\n";
@@ -129,8 +129,8 @@ void writeOutputCsv(const std::filesystem::path &path,
   });
 }
 
-const char *statusName(cobordismgraph::Status s) {
-  using S = cobordismgraph::Status;
+const char *statusName(solver::Status s) {
+  using S = solver::Status;
   switch (s) {
   case S::verified:
     return "verified";
@@ -151,9 +151,9 @@ const char *statusName(cobordismgraph::Status s) {
 }
 
 OutputRow rowFromVerdict(
-    const std::string &name, const cobordismgraph::Verdict &v, const OutputRow *existing,
-    const std::unordered_map<std::string, cobordismgraph::Bounds> &bounds,
-    witnessstore::PairSigReader &reader) {
+    const std::string &name, const solver::Verdict &v, const OutputRow *existing,
+    const std::unordered_map<std::string, solver::Bounds> &bounds,
+    cobordisms::PairSigReader &reader) {
   OutputRow out;
   out.knot = name;
   out.status = statusName(v.status);
@@ -165,12 +165,12 @@ OutputRow rowFromVerdict(
   if (b.haveUpper()) {
     out.derivedHi = std::to_string(b.hi);
     out.witnessKind =
-        b.kind == cobordismgraph::WitnessKind::direct ? "direct" : "cobordism";
+        b.kind == cobordisms::WitnessKind::direct ? "direct" : "cobordism";
     out.witnessPairSig = !b.pairSig.empty() ? b.pairSig : reader.at(b.pairSigOffset);
     out.viaKnot = b.viaName;
     out.viaEdgeGenus = b.viaGenus;
-    out.dependsOn = cobordismgraph::buildDependsOn(b.viaName, bounds);
-    out.witnessBasis = b.basis == cobordismgraph::Basis::constructive
+    out.dependsOn = solver::buildDependsOn(b.viaName, bounds);
+    out.witnessBasis = b.basis == solver::Basis::constructive
                            ? "constructive"
                            : "literature-assisted";
     out.tubed = b.tubed;

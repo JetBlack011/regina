@@ -24,7 +24,7 @@
  *  censusnaming.h's.
  */
 
-namespace identify {
+namespace complement {
 
 /**
  * The handlebody genus of `complement` (whose isoSig is `sig`), cached in
@@ -81,7 +81,7 @@ bool isMultiComponentUnlinkName(const std::string &name);
  * candidate set is not enumerable at all. Single-curve names need no such
  * check, since Gordon-Luecke makes a knot's complement determine it.
  *
- * The solver applies this through cobordismgraph::farSideBearsBound(). Kept
+ * The solver applies this through solver::farSideBearsBound(). Kept
  * here, next to where these strings are actually produced, rather than
  * pattern-matched elsewhere, so the two stay in sync if the format ever
  * changes.
@@ -172,6 +172,6 @@ bool capInCone(const regina::Triangulation<3> &ball,
                const std::vector<const regina::Edge<3> *> &edges,
                CappedCurves &out);
 
-} // namespace identify
+} // namespace complement
 
 #endif // SURFER_LINKNAMING_UNLINKNAMING_H

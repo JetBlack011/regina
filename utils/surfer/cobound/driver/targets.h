@@ -31,14 +31,14 @@ namespace targets {
  * the run, never becomes a bound.
  * \throws std::runtime_error a malformed 4-genus field.
  */
-std::vector<cobordismgraph::InputRow> loadInputCsv(const std::filesystem::path &path);
+std::vector<solver::InputRow> loadInputCsv(const std::filesystem::path &path);
 
 /**
  * One diagram as a row: its name, PD and crossings, and its literature
  * interval from `tables` when the name is a table row there, else [0, 99]
  * (as the retired child hop wrote an untabulated row).
  */
-cobordismgraph::InputRow oneDiagram(const std::string &name, const std::string &pd,
+solver::InputRow oneDiagram(const std::string &name, const std::string &pd,
                                     const std::vector<std::filesystem::path> &tables);
 
 /**
@@ -46,8 +46,8 @@ cobordismgraph::InputRow oneDiagram(const std::string &name, const std::string &
  * `maxCrossings` crossings, stable-sorted by crossings. Each row above it
  * that the verdicts do not hold yet is recorded there as `skipped`.
  */
-std::vector<cobordismgraph::InputRow>
-searchOrder(const std::vector<cobordismgraph::InputRow> &rows, int maxCrossings,
+std::vector<solver::InputRow>
+searchOrder(const std::vector<solver::InputRow> &rows, int maxCrossings,
             std::unordered_map<std::string, verdicts::OutputRow> &outputRows);
 
 /** name -> the table's PD string, as the atlas's rows were searched from it. */

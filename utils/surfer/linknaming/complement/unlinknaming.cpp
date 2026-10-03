@@ -26,7 +26,7 @@ namespace {
 // never a wrong answer: this can only shorten the path to genus == 1, so
 // it's always safe to fall back to recogniseHandlebody() when it fails.
 bool groupProvesUnknot(const regina::Triangulation<3> &t) {
-    return identify::freeGroupRank(t) == std::optional<size_t>(1);
+    return complement::freeGroupRank(t) == std::optional<size_t>(1);
 }
 
 // Fast, sound, one-sided proof that `t`'s genus is -1 (not any
@@ -49,10 +49,10 @@ bool hyperbolicityProvesNotHandlebody(const regina::Triangulation<3> &t) {
 
 } // namespace
 
-namespace identify {
+namespace complement {
 
 // Cached recogniseHandlebody(): never touches censusLookupMutex, so this is
-// safe to call from identify::isUnknot()'s hot, highly-parallel path
+// safe to call from complement::isUnknot()'s hot, highly-parallel path
 // without risking contention with an in-flight Census::lookup(). Tries the
 // two fast, sound one-sided checks above before falling back to the
 // expensive normal-surface-theory path -- both are cheap regardless of
@@ -272,4 +272,4 @@ bool capInCone(const regina::Triangulation<3> &ball,
     return true;
 }
 
-} // namespace identify
+} // namespace complement

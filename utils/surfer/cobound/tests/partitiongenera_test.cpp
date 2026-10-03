@@ -12,7 +12,7 @@
 #include "cobound/bounds/partitiongenera.h"
 #include "linknaming/tests/check.h"
 
-using namespace cascade;
+using namespace bounds;
 
 namespace {
 
@@ -369,5 +369,5 @@ int main() {
   testLinking();
   testProfile();
   testGlueMonotone();
-  return cascadetest::finish("profile_test");
+  return checks::finish("profile_test");
 }

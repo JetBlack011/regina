@@ -14,7 +14,7 @@
 
 #include "linknaming/names.h"
 
-using namespace cobordismgraph;
+using namespace linknaming;
 
 static int passed = 0, failed_count = 0;
 

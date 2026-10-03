@@ -20,7 +20,7 @@
  *  punctuation, the integers in fours, renumbered from 0 (a code that
  *  already holds a 0 is taken as 0-based). Reading a PD code into a
  *  regina::Link, labels as written, is linknaming/tables.h's
- *  (exactnaming::linkFromTablePD()).
+ *  (linknaming::linkFromTablePD()).
  *
  *  Writing: formatPDCode() is the one formatter. The files that store a PD
  *  code spell it in two ways, both frozen until the atlas task picks one

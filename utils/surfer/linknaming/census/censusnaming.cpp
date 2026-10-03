@@ -19,7 +19,7 @@
 #include "linknaming/complement/complementcache.h"
 #include "linknaming/complement/unlinknaming.h"
 
-std::mutex identify::censusLookupMutex;
+std::mutex census::censusLookupMutex;
 std::atomic<bool> census::censusUpdates{true};
 std::atomic<bool> census::retriangulateOnMiss{false};
 std::atomic<bool> census::retriangulateLinks{false};
@@ -29,19 +29,19 @@ std::atomic<long long> census::retriangulateTimeBudgetSeconds{20};
 
 namespace {
 
-using identify::cachedGenus;
-using identify::checkRecognition;
-using identify::countRecognition;
-using identify::lookupRecognition;
-using identify::RecognitionCacheStats;
-using identify::storeRecognition;
+using complement::cachedGenus;
+using complement::checkRecognition;
+using complement::countRecognition;
+using complement::lookupRecognition;
+using complement::RecognitionCacheStats;
+using complement::storeRecognition;
 
 // The actual (uncached) Census::lookup() call, serialized under
 // censusLookupMutex per its documented contract. No memoization here --
 // that's entirely recognitionCache's job now.
 std::optional<std::string> censusLookupName(
     const regina::Triangulation<3> &complement) {
-    std::lock_guard<std::mutex> lock(identify::censusLookupMutex);
+    std::lock_guard<std::mutex> lock(census::censusLookupMutex);
     std::list<regina::CensusHit> hits = regina::Census::lookup(complement);
     if (hits.empty())
         return std::nullopt;
@@ -124,7 +124,7 @@ struct CensusConnection_ {
 // (local census, then the real Census::lookup(), then -- if
 // retriangulateOnMiss, and for a link complement only if
 // retriangulateLinks too -- census::retriangulateAndLookup()).
-identify::RecognitionResult
+complement::RecognitionResult
 resolveRecognition(const regina::Triangulation<3> &complement,
                    const std::string &sig) {
     ssize_t genus = cachedGenus(complement, sig);
@@ -133,7 +133,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
         // cleared the cache since cachedGenus() stored the genus.
         if (auto cached = lookupRecognition(sig))
             return *cached;
-        return identify::RecognitionResult{.genus = genus};
+        return complement::RecognitionResult{.genus = genus};
     }
 
     // The Pachner search is the expensive rung. A knot's name can bear a
@@ -152,7 +152,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
     if (auto hit = checkRecognition(
             sig, &RecognitionCacheStats::censusChecks,
             &RecognitionCacheStats::censusCacheHits,
-            [mayRetriangulate](const identify::RecognitionResult &r) {
+            [mayRetriangulate](const complement::RecognitionResult &r) {
                 return r.censusChecked &&
                        (r.censusName || r.retriangulateAttempted ||
                         !mayRetriangulate);
@@ -191,7 +191,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
     }
 
     return storeRecognition(
-        sig, identify::RecognitionResult{
+        sig, complement::RecognitionResult{
                  .genus = -1,
                  .censusChecked = true,
                  .censusName = name,
@@ -204,10 +204,10 @@ resolveRecognition(const regina::Triangulation<3> &complement,
 // out (rather than having identify(const Link&) just call identify(const
 // EdgeComplement&)) specifically so neither caller ever builds the same
 // complement twice -- buildComplement() is not cheap.
-std::string nameFromRecognition(const identify::RecognitionResult &result,
+std::string nameFromRecognition(const complement::RecognitionResult &result,
                                 const std::string &sig) {
     if (result.genus == 1)
-        return identify::unlinkName(1);
+        return complement::unlinkName(1);
     if (result.censusName)
         return *result.censusName;
     return sig;
@@ -215,7 +215,7 @@ std::string nameFromRecognition(const identify::RecognitionResult &result,
 
 } // namespace
 
-namespace identify {
+namespace census {
 
 namespace {
 // See perturbNamesForTesting: every name identify() returns gets a fresh
@@ -238,7 +238,7 @@ namespace {
 // else the isoSig.
 std::string nameComplement(const regina::Triangulation<3> &complement) {
     std::string sig = complement.isoSig();
-    RecognitionResult result = resolveRecognition(complement, sig);
+    complement::RecognitionResult result = resolveRecognition(complement, sig);
     return perturbed(nameFromRecognition(result, sig));
 }
 } // namespace
@@ -250,8 +250,8 @@ std::string identify(const EdgeComplement &e) {
 std::string identify(const Link &l) {
     auto complement = l.buildComplement();
 
-    if (l.countComponents() > 1 && groupProvesUnlink(complement))
-        return perturbed(unlinkName(l.countComponents()));
+    if (l.countComponents() > 1 && complement::groupProvesUnlink(complement))
+        return perturbed(complement::unlinkName(l.countComponents()));
 
     return nameComplement(complement);
 }
@@ -259,7 +259,7 @@ std::string identify(const Link &l) {
 bool recognizeComplement(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();
-    RecognitionResult result = resolveRecognition(complement, sig);
+    complement::RecognitionResult result = resolveRecognition(complement, sig);
 
     if (result.genus == 1) {
         std::cout << "      unknot, " << sig << "\n";
@@ -285,7 +285,7 @@ void recognizeComplement(const Link &l) {
     // cache does at least make this second recogniseHandlebody() free.
     auto complement = l.buildComplement();
     std::string sig = complement.isoSig();
-    ssize_t genus = cachedGenus(complement, sig);
+    ssize_t genus = complement::cachedGenus(complement, sig);
     int numComponents = l.countComponents();
 
     if (genus != -1 && numComponents == 1) {
@@ -299,7 +299,7 @@ void recognizeComplement(const Link &l) {
         for (int i = 0; i < numComponents; ++i) {
             regina::Triangulation<3> compI = l.buildComplement(i);
             std::string sigI = compI.isoSig();
-            RecognitionResult result = resolveRecognition(compI, sigI);
+            complement::RecognitionResult result = resolveRecognition(compI, sigI);
 
             std::cout << "    Component " << i + 1 << ": ";
             if (result.genus == 1) {
@@ -320,7 +320,7 @@ void recognizeComplement(const Link &l) {
     }
 }
 
-} // namespace identify
+} // namespace census
 
 namespace census {
 

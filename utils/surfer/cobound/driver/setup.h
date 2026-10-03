@@ -19,7 +19,7 @@
  *
  *  The tables are loaded once: a run's exact tables (the depth-0 graph's,
  *  or a goal run's namer's), with diagram naming's signature table derived
- *  from them (farside::SignatureTable::fromTables(const ExactTables &)).
+ *  from them (linknaming::SignatureTable::fromTables(const ExactTables &)).
  *  What is NOT loaded unless asked for: a database's cobordisms as a goal
  *  run's free edges (master_witnesses, a goal key: never without a goal),
  *  and link classes (computed lazily per base by a goal run's namer).

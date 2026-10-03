@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-namespace cobordismgraph {
+namespace cobordisms {
 
 std::string witnessIdentity(const Witness &w) {
     // Unit separators: no field (names, keys, numbers) can contain one.
@@ -38,4 +38,4 @@ bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w) {
                            return witnessIdentity(existing) == key;
                        });
 }
-} // namespace cobordismgraph
+} // namespace cobordisms

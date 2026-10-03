@@ -11,7 +11,7 @@
 #include <tuple>
 #include <unordered_map>
 
-namespace cobordismgraph {
+namespace search {
 
 namespace {
 // Maps ambient vertex `v` to its corresponding vertex in `dest`, via `iso`
@@ -132,9 +132,9 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
     return result;
 }
 
-} // namespace cobordismgraph
+} // namespace search
 
-namespace farside {
+namespace search {
 
 std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
                                     const std::vector<int> &faces,
@@ -154,18 +154,18 @@ std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
     return edges;
 }
 
-} // namespace farside
+} // namespace search
 
-namespace rowsearch {
+namespace search {
 
 void orientRow(RowBuild &row) {
     const auto &edges2 = row.link.edges;
     const auto &reversed2 = row.link.reversed;
     // The seed's own edges on the search side: exactly L x {0}.
     if (!row.seedFaces.empty())
-        row.searchEdges = farside::boundaryEdgesOf(row.tri, row.seedFaces,
+        row.searchEdges = search::boundaryEdgesOf(row.tri, row.seedFaces,
                                                    row.searchSideBC);
-    row.orientation = cobordismgraph::buildRowOrientation(
+    row.orientation = search::buildRowOrientation(
         edges2, reversed2, row.tri.boundaryComponent(row.searchSideBC)->build(),
         row.seedFaces.empty() ? nullptr : &row.searchEdges);
     if (row.seedFaces.empty())
@@ -190,4 +190,4 @@ void buildRow(const std::string &pdNotation, int thickenLayers,
     buildAmbient(pdNotation, thickenLayers, collarLayers, row);
     orientRow(row);
 }
-} // namespace rowsearch
+} // namespace search

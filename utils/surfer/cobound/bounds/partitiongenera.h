@@ -29,7 +29,7 @@
 
 #include "cobound/bounds/partition.h"
 
-namespace cascade {
+namespace bounds {
 
 /**
  * The part of a cobordism C in S^3 x [0,1] that bounds depend on.
@@ -143,4 +143,4 @@ private:
   std::vector<ProfileEntry> entries_;
 };
 
-} // namespace cascade
+} // namespace bounds

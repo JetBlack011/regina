@@ -338,7 +338,7 @@ inline const std::unordered_map<std::string, std::string> table = {
  * comment above), so callers can pass CensusHit::name() unmodified.
  */
 inline std::optional<std::string> name(const std::string &censusName) {
-    std::string base = cobordismgraph::stripCensusSuffix(censusName);
+    std::string base = linknaming::stripCensusSuffix(censusName);
     auto it = table.find(base);
     if (it == table.end())
         return std::nullopt;

@@ -12,7 +12,7 @@
 #include "linknaming/complement/complementcache.h"
 #include "surfer/report/csvwriter.h"
 
-namespace rowsearch {
+namespace search {
 
 report::RollingReport progressBlock;
 
@@ -154,7 +154,7 @@ void printBoundaryProgress(size_t processed, size_t total,
 }
 
 void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const cascade::HopRun &run) {
+                       const search::HopRun &run) {
   out << "[+] " << name << ": breadth: ";
   if (const auto &f = run.recordedFrontier)
     out << f->summary() << "; fingerprint " << f->fingerprint.substr(0, 12);
@@ -170,7 +170,7 @@ void printSweepBreadth(std::ostream &out, const std::string &name,
       << std::defaultfloat;
 }
 
-void printOutcome(std::ostream &out, const std::string &name, const cascade::HopRun &run) {
+void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run) {
   out << "[+] " << name << ": " << run.newWitnesses << " new witnesses, outcome "
       << run.outcome;
   if (run.otherOrientation > 0)
@@ -182,10 +182,10 @@ void printOutcome(std::ostream &out, const std::string &name, const cascade::Hop
 }
 
 void printIdentification(std::ostream &out, const std::string &name,
-                         const cascade::HopRun &run) {
-  const identify::RecognitionCacheStats &r = run.recognitionAfter;
-  const identify::RecognitionCacheStats &before = run.recognitionBefore;
-  const identify::BoundarySignatureCacheStats &b = run.boundaryCache;
+                         const search::HopRun &run) {
+  const complement::RecognitionCacheStats &r = run.recognitionAfter;
+  const complement::RecognitionCacheStats &before = run.recognitionBefore;
+  const namecache::BoundarySignatureCacheStats &b = run.boundaryCache;
   auto secs = [](long long ms) {
     std::ostringstream o;
     o << std::fixed << std::setprecision(1) << ms / 1000.0;
@@ -223,7 +223,7 @@ void printIdentification(std::ostream &out, const std::string &name,
 }
 
 void printSearchProfile(std::ostream &out, const std::string &name,
-                        const cascade::HopRun &run) {
+                        const search::HopRun &run) {
   // Where the search's time went. Measurement only; parsed by
   // cobound/tests/bench_search.sh.
   const SearchStats::Profile &p = run.stats.profile;
@@ -265,4 +265,4 @@ void printSearchProfile(std::ostream &out, const std::string &name,
   out << "\n";
 }
 
-} // namespace rowsearch
+} // namespace search

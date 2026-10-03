@@ -1,6 +1,6 @@
 // unlinknaming_test.cpp
 //
-// Tests for identify::certifiesUnlink() and identify::capInCone() (see
+// Tests for complement::certifiesUnlink() and complement::capInCone() (see
 // ../complement/unlinknaming.h): the census-free recognition of unknots and
 // unlinks that KnottedSurface's local flatness and resolution checks rest
 // on.
@@ -58,7 +58,7 @@ std::ostream &resetColor(std::ostream &os) {
 namespace {
 
 // ─────────────────────────────────────────────────────────────────────────
-// identify::certifiesUnlink(): the certificate behind --resolve-unlinked.
+// complement::certifiesUnlink(): the certificate behind --resolve-unlinked.
 // It is one-sided, so the tests that matter most are the negatives: a
 // false "unlink" would admit a genuinely self-intersecting surface.
 // ─────────────────────────────────────────────────────────────────────────
@@ -87,23 +87,23 @@ const knotbuilder::PDCode kBorromeanPD = knotbuilder::parsePDCode(
 void test_certifies_unlink_positive() {
     {
         auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink2PD);
-        EXPECT_EQ(identify::certifiesUnlink(tri, edges, 2), true,
+        EXPECT_EQ(complement::certifiesUnlink(tri, edges, 2), true,
                   "the 2-component unlink is certified");
-        EXPECT_EQ(identify::certifiesUnlink(tri, edges, 1), false,
+        EXPECT_EQ(complement::certifiesUnlink(tri, edges, 1), false,
                   "...but not as a 1-component unlink (wrong m)");
-        EXPECT_EQ(identify::certifiesUnlink(tri, edges, 3), false,
+        EXPECT_EQ(complement::certifiesUnlink(tri, edges, 3), false,
                   "...nor as a 3-component one");
 
         Link link(tri, edges);
         std::vector<const regina::Edge<3> *> one = link.comps_[0].edges();
-        EXPECT_EQ(identify::certifiesUnlink(tri, one, 1), true,
+        EXPECT_EQ(complement::certifiesUnlink(tri, one, 1), true,
                   "one component of it alone is certified the unknot");
     }
     {
         auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink3PD);
         EXPECT_EQ(Link(tri, edges).countComponents(), 3,
                   "fixture sanity: the R2-tangled unlink has 3 components");
-        EXPECT_EQ(identify::certifiesUnlink(tri, edges, 3), true,
+        EXPECT_EQ(complement::certifiesUnlink(tri, edges, 3), true,
                   "the 3-component unlink is certified");
     }
 }
@@ -115,7 +115,7 @@ void test_certifies_unlink_negative() {
         EXPECT_EQ(Link(tri, edges).countComponents(), m,
                   std::string("fixture sanity: ") + label + " has " +
                       std::to_string(m) + " components");
-        EXPECT_EQ(identify::certifiesUnlink(tri, edges, m), false,
+        EXPECT_EQ(complement::certifiesUnlink(tri, edges, m), false,
                   std::string(label) + " is not certified an unlink");
         // ...and for the right reason: the complement is built, and its
         // group keeps a relation, rather than certifiesUnlink() having bailed
@@ -135,14 +135,14 @@ void test_certifies_unlink_malformed() {
     auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink2PD);
     std::vector<const regina::Edge<3> *> dropped(edges.begin() + 1,
                                                  edges.end());
-    EXPECT_EQ(identify::certifiesUnlink(tri, dropped, 2), false,
+    EXPECT_EQ(complement::certifiesUnlink(tri, dropped, 2), false,
               "an edge set with an arc in it is refused, whatever its "
               "complement");
     std::vector<const regina::Edge<3> *> doubled = edges;
     doubled.push_back(edges.front());
-    EXPECT_EQ(identify::certifiesUnlink(tri, doubled, 2), false,
+    EXPECT_EQ(complement::certifiesUnlink(tri, doubled, 2), false,
               "a repeated edge is refused");
-    EXPECT_EQ(identify::certifiesUnlink(tri, {}, 0), false,
+    EXPECT_EQ(complement::certifiesUnlink(tri, {}, 0), false,
               "the empty link is refused");
 }
 
@@ -211,20 +211,20 @@ void test_cap_in_cone_single_tetrahedron() {
     // apex it is a triangle -- trivially an unknot in the coned-off S^3.
     regina::Triangulation<3> ball;
     ball.newTetrahedron();
-    identify::CappedCurves capped;
-    EXPECT_EQ(identify::capInCone(ball, {ball.edge(0)}, capped), true,
+    complement::CappedCurves capped;
+    EXPECT_EQ(complement::capInCone(ball, {ball.edge(0)}, capped), true,
               "a boundary edge of a ball is capped");
     EXPECT_EQ(capped.edges.size(), size_t{3},
               "...into a 3-edge loop through the apex");
     EXPECT_EQ(capped.components, size_t{1}, "...forming one closed curve");
     EXPECT_EQ(capped.tri.isSphere(), true,
               "the coned-off ball is a 3-sphere");
-    EXPECT_EQ(identify::certifiesUnlink(capped.tri, capped.edges, 1), true,
+    EXPECT_EQ(complement::certifiesUnlink(capped.tri, capped.edges, 1), true,
               "the capped edge is certified unknotted");
 
-    identify::CappedCurves none;
+    complement::CappedCurves none;
     regina::Triangulation<3> closed = regina::Example<3>::threeSphere();
-    EXPECT_EQ(identify::capInCone(closed, {closed.edge(0)}, none), false,
+    EXPECT_EQ(complement::capInCone(closed, {closed.edge(0)}, none), false,
               "a closed triangulation has no boundary to cone off");
 }
 
@@ -245,12 +245,12 @@ void test_cap_in_cone_detects_knotted_arc() {
                       ": some tetrahedron's removal leaves a ball");
         if (!built)
             continue;
-        identify::CappedCurves capped;
-        EXPECT_EQ(identify::capInCone(fixture.ball, fixture.arc, capped), true,
+        complement::CappedCurves capped;
+        EXPECT_EQ(complement::capInCone(fixture.ball, fixture.arc, capped), true,
                   std::string(c.label) + ": the arc is capped");
         EXPECT_EQ(capped.components, size_t{1},
                   std::string(c.label) + ": into one closed curve");
-        EXPECT_EQ(identify::isUnknot(Knot(capped.tri, capped.edges)),
+        EXPECT_EQ(complement::isUnknot(Knot(capped.tri, capped.edges)),
                   c.unknotted,
                   std::string(c.label) + ": capped arc is " +
                       (c.unknotted ? "unknotted" : "knotted"));
@@ -261,19 +261,19 @@ void test_cap_in_cone_detects_knotted_arc() {
 // the alias loader read it back with (phase 3: written out by hand at ~10
 // sites before).
 void test_unlink_names() {
-    EXPECT_EQ(identify::unlinkName(1), std::string("Unknot"), "one component");
-    EXPECT_EQ(identify::unlinkName(2), std::string("2-component unlink"), "two");
-    EXPECT_EQ(identify::unlinkName(12), std::string("12-component unlink"), "twelve");
-    EXPECT_EQ(identify::isUnlinkName("Unknot"), true, "the unknot is an unlink");
-    EXPECT_EQ(identify::isUnlinkName("3-component unlink"), true, "so is this");
-    EXPECT_EQ(identify::isUnlinkName("3_1"), false, "a knot is not");
-    EXPECT_EQ(identify::isUnlinkName("L2a1{0}"), false, "a link is not");
-    EXPECT_EQ(identify::isMultiComponentUnlinkName("Unknot"), false,
+    EXPECT_EQ(complement::unlinkName(1), std::string("Unknot"), "one component");
+    EXPECT_EQ(complement::unlinkName(2), std::string("2-component unlink"), "two");
+    EXPECT_EQ(complement::unlinkName(12), std::string("12-component unlink"), "twelve");
+    EXPECT_EQ(complement::isUnlinkName("Unknot"), true, "the unknot is an unlink");
+    EXPECT_EQ(complement::isUnlinkName("3-component unlink"), true, "so is this");
+    EXPECT_EQ(complement::isUnlinkName("3_1"), false, "a knot is not");
+    EXPECT_EQ(complement::isUnlinkName("L2a1{0}"), false, "a link is not");
+    EXPECT_EQ(complement::isMultiComponentUnlinkName("Unknot"), false,
               "the multi-component test leaves the unknot out");
-    EXPECT_EQ(identify::isMultiComponentUnlinkName("2-component unlink"), true,
+    EXPECT_EQ(complement::isMultiComponentUnlinkName("2-component unlink"), true,
               "and takes every <n>-component unlink");
     for (size_t n = 1; n < 6; ++n)
-        EXPECT_EQ(identify::isUnlinkName(identify::unlinkName(n)), true,
+        EXPECT_EQ(complement::isUnlinkName(complement::unlinkName(n)), true,
                   "unlinkName(" + std::to_string(n) + ") reads back as an unlink");
 }
 

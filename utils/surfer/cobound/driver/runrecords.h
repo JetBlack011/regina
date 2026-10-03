@@ -28,16 +28,16 @@
 
 namespace runrecords {
 
-using cascade::NodeId;
+using bounds::NodeId;
 
 /// What the records read of a goal run's graph.
 struct GraphView {
-  const cascade::ProofGraph &g;
-  const cascade::NodeRegistry &reg;
+  const bounds::ProofGraph &g;
+  const bounds::NodeRegistry &reg;
   const std::map<NodeId, std::string> &tableName;
   const std::map<NodeId, int> &depth;
   NodeId target = -1;
-  cascade::Partition goal; ///< the target's goal partition
+  bounds::Partition goal; ///< the target's goal partition
 };
 
 /// Appends one line to <work>/cascade.jsonl.
@@ -66,13 +66,13 @@ void writeNodeBounds(const std::string &work, const GraphView &v);
  * run's `threads`; prints the `[+] lower report:` line.
  */
 void writeLowerReport(const std::string &work, const GraphView &v,
-                      const exactnaming::ExactTables &tables, const std::string &targetName,
+                      const linknaming::ExactTables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads);
 
 /// <work>/nodes.csv: the cascade: subjects searched (`subjects`, by node),
 /// with their diagrams, for the atlas's results/cascade/nodes.csv.
 void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> &subjects,
-                   const cascade::NodeRegistry &reg);
+                   const bounds::NodeRegistry &reg);
 
 } // namespace runrecords
 

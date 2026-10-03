@@ -13,9 +13,9 @@
 #include "linknaming/diagrams/gaussdiagram.h"
 #include "linknaming/diagrams/simplification.h"
 
-namespace cascadetest {
+namespace checks {
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
 inline GaussDiagram of(const regina::Link &l) {
   std::vector<size_t> origin(l.countComponents());
@@ -40,7 +40,7 @@ inline GaussDiagram scramble(const GaussDiagram &d, std::mt19937 &rng, int moves
     }
   }
   GaussDiagram s = GaussDiagram::of(l, d.origin);
-  return cascade::simplifyKeepingComponents(s);
+  return linknaming::simplifyKeepingComponents(s);
 }
 
 // `a` summed along its component `onComponent` with the knot `k` through a
@@ -74,4 +74,4 @@ inline bool sameDiagram(const GaussDiagram &a, const GaussDiagram &b) {
   return a.signs == b.signs && a.comps == b.comps && a.origin == b.origin;
 }
 
-} // namespace cascadetest
+} // namespace checks

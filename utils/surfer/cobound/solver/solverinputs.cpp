@@ -36,7 +36,7 @@ std::unordered_map<std::string, std::string> loadNameAliases(const std::filesyst
     // An anchor name is an AXIOM to the solver (seedAxioms matches on the
     // string), and identify() only ever emits one from a structural proof.
     // An alias must not be able to manufacture that proof by spelling.
-    if (identify::isUnlinkName(f[1]))
+    if (complement::isUnlinkName(f[1]))
       throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" + f[1] +
                                "': an unknot/unlink can only be established "
                                "by identify(), never by alias");
@@ -46,16 +46,16 @@ std::unordered_map<std::string, std::string> loadNameAliases(const std::filesyst
 }
 
 std::string aliasKey(const std::string &name) {
-  return cobordismgraph::stripCensusSuffix(name);
+  return linknaming::stripCensusSuffix(name);
 }
 
-std::vector<cobordismgraph::Witness>
-applyNameAliases(const std::vector<cobordismgraph::Witness> &witnesses,
+std::vector<cobordisms::Witness>
+applyNameAliases(const std::vector<cobordisms::Witness> &witnesses,
                  const std::unordered_map<std::string, std::string> &aliases,
-                 const cobordismgraph::NameTable &names, size_t &appliedOut) {
-  std::vector<cobordismgraph::Witness> resolved = witnesses;
+                 const solver::NameTable &names, size_t &appliedOut) {
+  std::vector<cobordisms::Witness> resolved = witnesses;
   size_t applied = 0;
-  for (cobordismgraph::Witness &w : resolved) {
+  for (cobordisms::Witness &w : resolved) {
     if (w.other.empty())
       continue;
     auto it = aliases.find(aliasKey(w.other));
@@ -93,16 +93,16 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
   return out;
 }
 
-std::vector<cobordismgraph::Witness>
-applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
+std::vector<cobordisms::Witness>
+applyFarSideExact(std::vector<cobordisms::Witness> witnesses,
                   const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
                   size_t &refused) {
   applied = refused = 0;
-  for (cobordismgraph::Witness &w : witnesses) {
-    if (w.kind != cobordismgraph::WitnessKind::cobordism)
+  for (cobordisms::Witness &w : witnesses) {
+    if (w.kind != cobordisms::WitnessKind::cobordism)
       continue;
     if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
+      w.pairSigKey = cobordisms::witnessKey(w.pairSig);
     auto it = exact.find(w.pairSigKey);
     if (it == exact.end())
       continue;
@@ -111,7 +111,7 @@ applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
       continue;
     }
     w.other = it->second.name;
-    w.otherCandidates = cobordismgraph::exactCandidates(it->second.name);
+    w.otherCandidates = linknaming::exactCandidates(it->second.name);
     w.farSideProved = true;
     w.farSideExact = it->second.exact;
     ++applied;
@@ -139,22 +139,22 @@ loadFarSideResolutions(const std::filesystem::path &path) {
   return resolutions;
 }
 
-std::vector<cobordismgraph::Witness> applyFarSideResolutions(
-    std::vector<cobordismgraph::Witness> resolved,
-    const std::vector<cobordismgraph::Witness> &observed,
+std::vector<cobordisms::Witness> applyFarSideResolutions(
+    std::vector<cobordisms::Witness> resolved,
+    const std::vector<cobordisms::Witness> &observed,
     const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
-    const cobordismgraph::NameTable &names, size_t &appliedOut) {
+    const solver::NameTable &names, size_t &appliedOut) {
   // Taken by value and rewritten in place. (A loaded witness no longer
   // carries its pair signature in memory, only pairSigKey.)
   size_t applied = 0;
   size_t linkAliasesOverridden = 0;
   std::vector<std::string> conflicts;
 
-  for (cobordismgraph::Witness &w : resolved) {
+  for (cobordisms::Witness &w : resolved) {
     if (w.other.empty())
       continue;
     if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
+      w.pairSigKey = cobordisms::witnessKey(w.pairSig);
     if (w.pairSigKey.empty())
       continue;
     auto it = resolutions.find(w.pairSigKey);
@@ -173,19 +173,19 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
       // base name states no count, so ask the table: if it has registered
       // variants with the observed count, the resolution is about this side.
       const bool countFromName =
-          cobordismgraph::componentsFromName(r.name) == w.otherComponents;
+          linknaming::componentsFromName(r.name) == w.otherComponents;
       // candidates() falls back to {name} itself for an unregistered base,
       // so a real table hit is one whose front is a different (tagged) name.
       // A composite K #_c L has L's components (a knot is summed INTO a
       // component), so it is L's variants that state the count.
-      const std::optional<cobordismgraph::CompositeName> cp =
-          cobordismgraph::compositeParts(r.name);
+      const std::optional<linknaming::CompositeName> cp =
+          linknaming::compositeParts(r.name);
       const std::string countable = cp ? cp->link : r.name;
       const std::vector<std::string> variants =
           names.candidates(countable, w.otherComponents);
       const bool countFromTable =
           !variants.empty() && variants.front() != countable &&
-          cobordismgraph::componentsFromName(variants.front()) == w.otherComponents;
+          linknaming::componentsFromName(variants.front()) == w.otherComponents;
       if (countFromName || countFromTable) {
         match = &r.name;
         break;
@@ -203,8 +203,8 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
     // the entire purpose of the resolution.
     const size_t idx = static_cast<size_t>(&w - resolved.data());
     const bool aliasFired = idx < observed.size() && observed[idx].other != w.other;
-    const std::string aliasedBase = cobordismgraph::stripOrientationTag(w.other);
-    const std::string resolvedBase = cobordismgraph::stripOrientationTag(*match);
+    const std::string aliasedBase = linknaming::stripOrientationTag(w.other);
+    const std::string resolvedBase = linknaming::stripOrientationTag(*match);
     if (aliasFired && !aliasedBase.empty() && aliasedBase != resolvedBase) {
       if (w.otherComponents == 1)
         conflicts.push_back(w.other + " -> " + *match);
@@ -279,7 +279,7 @@ CertifiedBounds loadCascadeProofs(const std::filesystem::path &path,
       ++out.skipped;
       continue;
     }
-    cobordismgraph::ExternalProof p;
+    solver::ExternalProof p;
     p.name = classOf(f[cT]);
     p.genus = std::stoi(f[cB]);
     std::istringstream support(f[cS]);

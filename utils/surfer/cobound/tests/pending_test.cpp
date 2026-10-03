@@ -37,14 +37,16 @@
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
+using linknaming::GaussDiagram;
+using namespace bounds;
+using namespace cobordisms;
+using namespace search;
 namespace fs = std::filesystem;
 
 namespace {
 
 HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
-  const regina::Link l = exactnaming::linkFromTablePD(pd);
+  const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
@@ -71,8 +73,8 @@ HopShape capThree() {
   return s;
 }
 
-bool sameWitness(const cobordismgraph::Witness &a, const cobordismgraph::Witness &b) {
-  return witnessstore::formatWitness(a) == witnessstore::formatWitness(b);
+bool sameWitness(const cobordisms::Witness &a, const cobordisms::Witness &b) {
+  return cobordisms::formatWitness(a) == cobordisms::formatWitness(b);
 }
 
 } // namespace
@@ -80,7 +82,7 @@ bool sameWitness(const cobordismgraph::Witness &a, const cobordismgraph::Witness
 int main() {
   const std::string data = CASCADE_TEST_DATA;
   const std::string knots = data + "/knots_to_6.csv", links = data + "/links_to_6.csv";
-  const farside::SignatureTable sigs = farside::SignatureTable::fromTables(knots, links);
+  const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(knots, links);
   const fs::path dir = fs::temp_directory_path() / ("keptstore_test." + std::to_string(::getpid()));
   const fs::path hopDir = dir / "hop_0_n0";
   fs::create_directories(hopDir);
@@ -102,7 +104,7 @@ int main() {
     p.witness.sourceRow = "3_1";
     p.witness.thickenLayers = row.layers;
     p.witness.maxFaces = 3;
-    sigOfIdentity.emplace(cobordismgraph::witnessIdentity(p.witness),
+    sigOfIdentity.emplace(cobordisms::witnessIdentity(p.witness),
                           pairSigOf(hop.redrawer().thickening(), ks.faces));
     pending.push_back(std::move(p));
   }
@@ -122,9 +124,9 @@ int main() {
   CHECK_EQ(same, static_cast<int>(pending.size()), "kept.csv: every field and face round-trips");
 
   // 2. Into a store.
-  cobordismgraph::NameTable names;
-  witnessstore::loadNameTable(knots, names);
-  witnessstore::loadNameTable(links, names);
+  solver::NameTable names;
+  solver::loadNameTable(knots, names);
+  solver::loadNameTable(links, names);
   const std::string store = (dir / "cobordisms.csv").string();
   // Every surface offered twice: within one batch, an identity is recorded once.
   std::vector<PendingWitness> twice = back;
@@ -133,22 +135,22 @@ int main() {
   CHECK_EQ(s.kept, 2 * pending.size(), "store: every surface offered");
   CHECK_EQ(s.fresh, sigOfIdentity.size(), "store: one fresh surface per witness identity");
   CHECK_EQ(s.appended, sigOfIdentity.size(), "store: all of them appended");
-  std::vector<cobordismgraph::Witness> stored = witnessstore::loadWitnesses(store, false);
+  std::vector<cobordisms::Witness> stored = cobordisms::loadWitnesses(store, false);
   CHECK_EQ(stored.size(), sigOfIdentity.size(), "store: one line per identity");
   int sigOk = 0, provenanceOk = 0, candidatesOk = 0;
   {
     std::ifstream in(store);
     std::string line;
     std::getline(in, line);
-    CHECK_EQ(line, std::string(witnessstore::COBORDISMS_HEADER), "store: the header");
+    CHECK_EQ(line, std::string(cobordisms::COBORDISMS_HEADER), "store: the header");
     while (std::getline(in, line)) {
-      cobordismgraph::Witness w;
-      witnessstore::witnessFromFields(parseCsvLine(line), w, true, false, store);
-      auto it = sigOfIdentity.find(cobordismgraph::witnessIdentity(w));
+      cobordisms::Witness w;
+      cobordisms::witnessFromFields(parseCsvLine(line), w, true, false, store);
+      auto it = sigOfIdentity.find(cobordisms::witnessIdentity(w));
       if (it != sigOfIdentity.end() && it->second == w.pairSig) ++sigOk;
       if (w.subject == "3_1" && w.sourceRow == "3_1" && w.thickenLayers == 2 && w.maxFaces == 3)
         ++provenanceOk;
-      if (w.kind == cobordismgraph::WitnessKind::direct ||
+      if (w.kind == cobordisms::WitnessKind::direct ||
           w.otherCandidates == names.candidates(w.other, w.otherComponents))
         ++candidatesOk;
     }
@@ -173,7 +175,7 @@ int main() {
     }
     CHECK_EQ(rows.size(), stored.size(), "rows sidecar: one line per stored witness");
     int keyed = 0;
-    for (const auto &w : witnessstore::loadWitnesses(store, true))
+    for (const auto &w : cobordisms::loadWitnesses(store, true))
       if (rows.count(w.pairSigKey) && rows[w.pairSigKey] == pd) ++keyed;
     CHECK_EQ(keyed, static_cast<int>(stored.size()),
              "rows sidecar: every stored witness keyed to its hop row's PD");
@@ -192,5 +194,5 @@ int main() {
   CHECK_EQ(readKept(dir.string()).size(), pending.size(), "a torn kept line is skipped");
 
   fs::remove_all(dir);
-  return cascadetest::finish("keptstore_test");
+  return checks::finish("keptstore_test");
 }

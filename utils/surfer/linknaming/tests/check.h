@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-namespace cascadetest {
+namespace checks {
 
 inline int passed = 0, failed = 0;
 
@@ -28,10 +28,10 @@ inline int finish(const char *name) {
   return failed == 0 ? 0 : 1;
 }
 
-} // namespace cascadetest
+} // namespace checks
 
 #define CHECK(cond, what)                                                      \
-  cascadetest::report(static_cast<bool>(cond), what, #cond)
+  checks::report(static_cast<bool>(cond), what, #cond)
 
 #define CHECK_EQ(actual, expected, what)                                       \
   do {                                                                         \
@@ -40,5 +40,5 @@ inline int finish(const char *name) {
     std::ostringstream _o;                                                     \
     if (!(_a == _e))                                                           \
       _o << "got " << _a << ", expected " << _e;                               \
-    cascadetest::report(_a == _e, what, _o.str());                             \
+    checks::report(_a == _e, what, _o.str());                             \
   } while (0)

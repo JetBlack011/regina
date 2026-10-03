@@ -6,9 +6,9 @@
 #include <cstdlib>
 #include <functional>
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
-namespace cascade {
+namespace linknaming {
 
 GaussDiagram reverseAll(const GaussDiagram &d) {
   // Reversing every strand keeps each crossing's sign (both strands turn
@@ -150,4 +150,4 @@ findDiagramIsomorphism(const GaussDiagram &a, const GaussDiagram &b,
   return std::nullopt;
 }
 
-} // namespace cascade
+} // namespace linknaming

@@ -61,9 +61,40 @@
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"
 
-namespace cascade {
+namespace scheduler {
 
-using exactnaming::GaussDiagram;
+using bounds::CertificateGoal;
+using bounds::CertificateWriter;
+using bounds::DatabaseCobordisms;
+using bounds::DatabaseLoad;
+using bounds::EdgeInfo;
+using bounds::EdgeInfos;
+using bounds::HopAssembler;
+using bounds::HopEdge;
+using bounds::HopRow;
+using bounds::Node;
+using bounds::NodeAxioms;
+using bounds::NodeId;
+using bounds::NodeInfo;
+using bounds::NodeMatch;
+using bounds::NodeRegistry;
+using bounds::Partition;
+using bounds::ProofGraph;
+using bounds::RecordId;
+using bounds::RecordKind;
+using bounds::allPartitions;
+using bounds::rowPD;
+using cobordisms::StoreResult;
+using cobordisms::signPending;
+using linknaming::simplifyKeepingComponents;
+using search::HopRun;
+using search::HopSearcher;
+using search::HopShape;
+using search::KeptSurface;
+using search::SearchRequest;
+using search::SeedInvariantFailure;
+
+using linknaming::GaussDiagram;
 namespace fs = std::filesystem;
 
 namespace {
@@ -75,7 +106,7 @@ class Cascade {
 public:
   explicit Cascade(GoalOptions c)
       : cfg_(std::move(c)), reg_(g_),
-        tables_(exactnaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
+        tables_(linknaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
                                                cfg_.knotSymmetry)),
         namer_(tables_, NodeAxioms::namerLimits()),
         axioms_(g_, reg_, tables_, namer_, names_.symmetries(),
@@ -109,7 +140,7 @@ private:
   /// with its table name, literature leaf and lower bound (in order):
   /// NodeAxioms::name().
   void onNewNodes(const std::vector<NodeId> &ns, int depth) { axioms_.name(ns, depth); }
-  cobordismgraph::NameTable names_; ///< table names and symmetry types
+  solver::NameTable names_; ///< table names and symmetry types
   std::vector<NodeId> nodesSince(size_t first) const {
     std::vector<NodeId> ns;
     for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
@@ -159,8 +190,8 @@ private:
   GoalOptions cfg_;
   ProofGraph g_;
   NodeRegistry reg_;
-  exactnaming::ExactTables tables_;
-  exactnaming::ExactNamer namer_;
+  linknaming::ExactTables tables_;
+  linknaming::ExactNamer namer_;
   /// Each link's name and outside facts (bounds/axioms.h), shared with a
   /// depth-0 search's own graph; the target, its class, each node's depth
   /// and table name are its.
@@ -175,7 +206,7 @@ private:
   std::string halt_;
   /// What a checker needs to replay each witness edge (certificate.json).
   EdgeInfos edges_;
-  std::optional<farside::SignatureTable> signatures_;
+  std::optional<linknaming::SignatureTable> signatures_;
   std::unique_ptr<HopSearcher> searcher_;
   /// The database's cobordisms as free edges (master_witnesses).
   std::unique_ptr<DatabaseCobordisms> database_;
@@ -310,7 +341,7 @@ void Cascade::loadLowerSources() {
     const bool sp = f[specialCol] == "1";
     special_[f[nameCol]] = sp;
     if (sp && loCol < f.size())
-      if (auto lo = exactnaming::parseTableG4(f[loCol])) lowerLMax_ = std::max(lowerLMax_, lo->first);
+      if (auto lo = linknaming::parseTableG4(f[loCol])) lowerLMax_ = std::max(lowerLMax_, lo->first);
   }
 }
 
@@ -341,8 +372,8 @@ void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
     // no-op, and above a proved surface it is refused (nullopt).
     int litHi = std::numeric_limits<int>::max();
     if (auto t = tableName_.find(n); t != tableName_.end())
-      if (const exactnaming::TableEntry *e = tables_.entry(t->second))
-        if (auto g4 = exactnaming::parseTableG4(e->g4)) litHi = g4->second;
+      if (const linknaming::TableEntry *e = tables_.entry(t->second))
+        if (auto g4 = linknaming::parseTableG4(e->g4)) litHi = g4->second;
     std::vector<ProofGraph::LowerSeed> seeds;
     for (const Partition &p : allPartitions(node.components)) {
       int cap = lowerLMax_;
@@ -563,7 +594,7 @@ void Cascade::expand(NodeId n, long surfaces) {
       SearchRequest request =
           searcher_->hopRequest(hop->redrawer(), rowName, surfaces, cfg_.searchSeconds);
       request.resume = resume;
-      if (tables_.entry(rowName)) request.censusName = cobordismgraph::baseName(rowName);
+      if (tables_.entry(rowName)) request.censusName = linknaming::baseName(rowName);
       // Every kept surface, durably, as the search runs (divergence 7): the
       // hop's pending file, signed at the run's end (storeWitnesses()).
       request.rowPD = row.pd;
@@ -733,7 +764,7 @@ int Cascade::run() {
   {
     const auto t0 = std::chrono::steady_clock::now();
     // From the node namer's tables: one table load (phase 5).
-    signatures_ = farside::SignatureTable::fromTables(tables_);
+    signatures_ = linknaming::SignatureTable::fromTables(tables_);
     // The searches' outgoing namers share the node namer's table caches.
     searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, cfg_.hopShape,
                                               static_cast<unsigned>(cfg_.threads),
@@ -755,7 +786,7 @@ int Cascade::run() {
   // Table names and symmetry types, for the slice-composite anchors
   // (NodeAxioms) and the store step: as verifyslicegenus loads them.
   size_t symmetryTypes = 0;
-  names_ = witnessstore::loadTableNames(cfg_.knotTable, cfg_.linkTable, cfg_.knotSymmetry,
+  names_ = solver::loadTableNames(cfg_.knotTable, cfg_.linkTable, cfg_.knotSymmetry,
                                         &symmetryTypes);
   if (!cfg_.knotSymmetry.empty())
     std::cout << "[+] knot symmetry: " << symmetryTypes << " types (slice composites beyond "
@@ -776,22 +807,22 @@ int Cascade::run() {
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
               << " s (read only)\n";
   }
-  GaussDiagram raw = GaussDiagram::of(exactnaming::linkFromTablePD(cfg_.targetPD));
+  GaussDiagram raw = GaussDiagram::of(linknaming::linkFromTablePD(cfg_.targetPD));
   GaussDiagram simp = simplifyKeepingComponents(raw);
-  if (exactnaming::splitPieces(simp).size() != 1)
+  if (linknaming::splitPieces(simp).size() != 1)
     throw std::runtime_error("the target is a split diagram; give one piece");
   // The target's own table name, so its literature value never proves it.
   bool named = false;
   std::string composite;
   try {
     auto pn = namer_.identify(simp);
-    if (pn.names.size() == 1 && pn.by != exactnaming::PieceName::By::untabulated) {
+    if (pn.names.size() == 1 && pn.by != linknaming::PieceName::By::untabulated) {
       targetCanonical_ = classOf(pn.names.front());
       named = true;
     } else if (simp.components() == 1) {
       // A composite target: its whole-diagram name (never an anchor for
       // itself: NodeAxioms skips the target), reported and recorded.
-      exactnaming::FarSideName fs = namer_.name(simp.link());
+      linknaming::FarSideName fs = namer_.name(simp.link());
       if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
           fs.name.find('#') != std::string::npos)
         composite = fs.name;
@@ -816,7 +847,7 @@ int Cascade::run() {
   if (!composite.empty()) {
     tableName_[target_] = composite;
     std::cout << "[+] target is the composite " << composite
-              << (exactnaming::isElementarySlice(composite, names_.symmetries())
+              << (linknaming::isElementarySlice(composite, names_.symmetries())
                       ? " (a slice composite: its summands cancel in concordance)"
                       : "")
               << "\n";
@@ -1060,4 +1091,4 @@ int runToGoal(const GoalOptions &options) {
   return cascade.run();
 }
 
-} // namespace cascade
+} // namespace scheduler

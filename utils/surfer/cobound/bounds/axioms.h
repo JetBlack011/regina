@@ -15,9 +15,9 @@
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
 
-namespace cascade {
+namespace bounds {
 
-// A table's literature 4-genus is parsed by exactnaming::parseTableG4()
+// A table's literature 4-genus is parsed by linknaming::parseTableG4()
 // (linknaming/tables.h), the one parser of that field.
 
 /**
@@ -63,13 +63,13 @@ public:
 
   /// The limits every graph's link naming runs under: the cheap ones
   /// (no Reidemeister searches; a few simplification tries).
-  static exactnaming::NamerLimits namerLimits();
+  static linknaming::NamerLimits namerLimits();
 
   /// All references must outlive this. `symmetries` may change content
   /// later (cascadesearch fills its NameTable after constructing this).
-  NodeAxioms(ProofGraph &graph, NodeRegistry &nodes, const exactnaming::ExactTables &tables,
-             const exactnaming::ExactNamer &namer,
-             const exactnaming::SymmetryTable &symmetries, Options options);
+  NodeAxioms(ProofGraph &graph, NodeRegistry &nodes, const linknaming::ExactTables &tables,
+             const linknaming::ExactNamer &namer,
+             const linknaming::SymmetryTable &symmetries, Options options);
   NodeAxioms(const NodeAxioms &) = delete;
   NodeAxioms &operator=(const NodeAxioms &) = delete;
 
@@ -94,17 +94,17 @@ public:
   int anchors = 0;
 
 private:
-  void applyName(NodeId n, const exactnaming::PieceName &pn);
-  void applyComposite(NodeId n, const exactnaming::FarSideName &fs);
-  void applySum(NodeId n, const std::vector<exactnaming::GaussDiagram> &primes, int depth);
+  void applyName(NodeId n, const linknaming::PieceName &pn);
+  void applyComposite(NodeId n, const linknaming::FarSideName &fs);
+  void applySum(NodeId n, const std::vector<linknaming::GaussDiagram> &primes, int depth);
   std::vector<NodeId> nodesSince(size_t first) const;
 
   ProofGraph &g_;
   NodeRegistry &reg_;
-  const exactnaming::ExactTables &tables_;
-  const exactnaming::ExactNamer &namer_;
-  const exactnaming::SymmetryTable &symmetries_;
+  const linknaming::ExactTables &tables_;
+  const linknaming::ExactNamer &namer_;
+  const linknaming::SymmetryTable &symmetries_;
   Options options_;
 };
 
-} // namespace cascade
+} // namespace bounds

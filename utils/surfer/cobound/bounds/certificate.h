@@ -31,7 +31,7 @@
  *  tree of facts.
  */
 
-namespace cascade {
+namespace bounds {
 
 /// What a checker needs to replay one cobordism edge of the graph.
 struct EdgeInfo {
@@ -101,6 +101,6 @@ private:
   const EdgeInfos &edges_;
 };
 
-} // namespace cascade
+} // namespace bounds
 
 #endif // SURFER_COBOUND_CERTIFICATE_H

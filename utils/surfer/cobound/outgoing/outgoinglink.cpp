@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-namespace farside {
+namespace outgoing {
 
 OutgoingCurve outgoingCurve(const OrientedCurve &curve) {
     OutgoingCurve out;
@@ -19,16 +19,16 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve) {
 }
 
 std::optional<std::map<size_t, int>> incomingFlips(
-    const cobordismgraph::RowOrientation &row,
+    const search::RowOrientation &row,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    return cobordismgraph::judgeRowOrientation(row, incomingCurves, surfaceComponentOf)
+    return search::judgeRowOrientation(row, incomingCurves, surfaceComponentOf)
         .consistentFlips();
 }
 
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
-    const cobordismgraph::RowOrientation &row, size_t incomingBC) {
+    const search::RowOrientation &row, size_t incomingBC) {
     return orientedOutgoingLink(surface.orientedBoundaryLinks(),
                                 surface.boundaryEdgeSurfaceComponent(), map,
                                 row, incomingBC);
@@ -37,7 +37,7 @@ std::optional<OutgoingLink> orientedOutgoingLink(
 std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
-    const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
+    const OutgoingMap &map, const search::RowOrientation &row,
     size_t incomingBC, std::string *why) {
     std::optional<std::map<size_t, int>> flips;
     for (const auto &[bc, curves] : oriented)
@@ -85,4 +85,4 @@ std::optional<OutgoingLink> orientedOutgoingLink(
     return out;
 }
 
-} // namespace farside
+} // namespace outgoing

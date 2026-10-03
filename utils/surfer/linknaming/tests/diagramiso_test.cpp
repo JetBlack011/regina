@@ -16,8 +16,8 @@
 #include "linknaming/diagrams/diagramiso.h"
 #include "linknaming/tests/check.h"
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
+using linknaming::GaussDiagram;
+using namespace linknaming;
 
 namespace {
 
@@ -224,7 +224,7 @@ void testSplitPiecesKeepOrigins() {
   u.comps = {tre.comps[0], hopf.comps[0], hopf.comps[1]};
   for (long &x : u.comps[0]) x += (x > 0 ? off : -off);
   u.origin = {7, 8, 9};
-  auto pieces = exactnaming::splitPieces(u);
+  auto pieces = linknaming::splitPieces(u);
   CHECK_EQ(static_cast<int>(pieces.size()), 2, "two split pieces");
   std::vector<size_t> origins;
   for (const auto &p : pieces)
@@ -249,5 +249,5 @@ int main() {
   testOrientationSensitivity();
   testMirrorAndReverse();
   testSplitPiecesKeepOrigins();
-  return cascadetest::finish("diagramiso_test");
+  return checks::finish("diagramiso_test");
 }

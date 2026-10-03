@@ -13,9 +13,9 @@
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoinglink.h"
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
-namespace cascade {
+namespace bounds {
 
 GaussDiagram gaussOf(const knotbuilder::Diagram &d) {
   GaussDiagram g;
@@ -36,7 +36,7 @@ std::string rowPD(const GaussDiagram &d) {
     // split from the rest, and reversing it changes nothing. Such a
     // component has linking number 0 with every other; anything else is a
     // PD we cannot trust to carry orientation.
-    auto lk = linkingMatrix(d);
+    auto lk = linknaming::linkingMatrix(d);
     for (size_t c = 0; c < d.components(); ++c) {
       bool allOver = !d.comps[c].empty();
       for (long x : d.comps[c]) if (x < 0) allOver = false;
@@ -52,12 +52,12 @@ std::string rowPD(const GaussDiagram &d) {
 HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                            Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
-  redraw_ = std::make_unique<farside::WitnessRedrawer>(row_.pd, row_.layers);
+  redraw_ = std::make_unique<outgoing::WitnessRedrawer>(row_.pd, row_.layers);
   certifyRow_();
 }
 
 HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
-                           std::unique_ptr<farside::WitnessRedrawer> built, Read read)
+                           std::unique_ptr<outgoing::WitnessRedrawer> built, Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
   certifyRow_();
@@ -67,7 +67,7 @@ void HopAssembler::certifyRow_() {
   const auto &cycles = redraw_->rowCycles();
   // Certify the row: knotbuilder's link, drawn back, is row.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
-  auto iso = findDiagramIsomorphism(drawn, row_.diagram, /*allowMirror=*/false,
+  auto iso = linknaming::findDiagramIsomorphism(drawn, row_.diagram, /*allowMirror=*/false,
                                     /*allowReverse=*/false);
   if (!iso)
     throw std::runtime_error(
@@ -80,14 +80,14 @@ void HopAssembler::certifyRow_() {
     rowToNode_[i] = row_.nodeMap[iso->componentMap[i]];
 }
 
-std::optional<farside::OutgoingLink>
+std::optional<outgoing::OutgoingLink>
 HopAssembler::readBack(const std::string &pairsig, std::string &why) const {
   return read_ == Read::fast ? redraw_->outgoingLinkFast(pairsig, why)
                             : redraw_->outgoingLink(pairsig, why);
 }
 
 std::optional<std::vector<size_t>>
-HopAssembler::surfaceOfRowComponents(const farside::OutgoingLink &link,
+HopAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
                                      std::string &why) const {
   std::vector<size_t> of(redraw_->rowCycles().size(), static_cast<size_t>(-1));
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i) {
@@ -117,7 +117,7 @@ HopEdge HopAssembler::add(const HopWitness &w) {
   return addRead(*link, w.genus, w.key);
 }
 
-HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
+HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
                               const std::string &key) {
   HopEdge out;
   std::string why;
@@ -126,7 +126,7 @@ HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
     out.why = why;
     return out;
   }
-  const farside::OutgoingLink *link = &read;
+  const outgoing::OutgoingLink *link = &read;
 
   // Surface components, renumbered 0..c-1 in order of first appearance.
   std::map<size_t, int> compIndex;
@@ -176,11 +176,11 @@ HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
   // One pass: simplify() is randomised, so each simplified piece must stay
   // together with its own match and origins.
   std::vector<std::vector<size_t>> pieceOrigins;
-  for (const GaussDiagram &p : exactnaming::splitPieces(whole)) {
-    const GaussDiagram s = simplifyKeepingComponents(p);
+  for (const GaussDiagram &p : linknaming::splitPieces(whole)) {
+    const GaussDiagram s = linknaming::simplifyKeepingComponents(p);
     // simplify() can make a piece split further (a component unlinked by
     // Reidemeister moves): intern each resulting piece separately.
-    for (const GaussDiagram &q : exactnaming::splitPieces(s)) {
+    for (const GaussDiagram &q : linknaming::splitPieces(s)) {
       out.pieces.push_back(nodes_.intern(q, "far side of " + key));
       pieceOrigins.push_back(q.origin);
     }
@@ -195,7 +195,7 @@ HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
     // A split far side: a fresh whole node (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
     out.farNode = g_.addNode(static_cast<int>(m), "split far side of " + key,
-                             linkingMatrix(whole));
+                             linknaming::linkingMatrix(whole));
     std::vector<NodeId> pn;
     std::vector<std::vector<int>> pmap;
     for (size_t k = 0; k < out.pieces.size(); ++k) {
@@ -216,4 +216,4 @@ HopEdge HopAssembler::addRead(const farside::OutgoingLink &read, int genus,
   return out;
 }
 
-} // namespace cascade
+} // namespace bounds

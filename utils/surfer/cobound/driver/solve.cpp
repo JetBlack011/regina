@@ -22,7 +22,7 @@
 
 namespace {
 
-using cobordismgraph::InputRow;
+using solver::InputRow;
 using verdicts::OutputRow;
 
 // `solve` (was verifyslicegenus --solve-only): every conclusion re-derived
@@ -64,7 +64,7 @@ int solveWith(const config::Config &cfg) {
 
   // Literature metadata for every name that could ever appear in the
   // graph, not just this run's targets: both tables, always.
-  cobordismgraph::NameTable names;
+  solver::NameTable names;
   size_t metadataRows = 0;
   for (const auto &row : rows)
     names.addLiterature(row.name, row.lo, row.hi);
@@ -72,7 +72,7 @@ int solveWith(const config::Config &cfg) {
     if (table.empty() || table == inputPath)
       continue;
     try {
-      metadataRows += witnessstore::loadNameTable(table, names);
+      metadataRows += solver::loadNameTable(table, names);
     } catch (const std::exception &e) {
       std::cerr << "[!] could not load name table " << table << ": " << e.what()
                 << " (continuing without it)\n";
@@ -85,11 +85,11 @@ int solveWith(const config::Config &cfg) {
 
   // A bound's witness pair signature, read back from its line when the
   // verdicts print it.
-  witnessstore::PairSigReader pairSigReader;
+  cobordisms::PairSigReader pairSigReader;
   pairSigReader.setPath(cobordismsPath);
   // Both per-witness tables are keyed on the pair signature's key, which is
   // hashed at load only when one of them will be looked up.
-  const std::vector<cobordismgraph::Witness> witnesses = witnessstore::loadWitnesses(
+  const std::vector<cobordisms::Witness> witnesses = cobordisms::loadWitnesses(
       cobordismsPath, !farSideResolutionPath.empty() || !farSideExactPath.empty());
   std::cout << "[+] Resuming with " << witnesses.size()
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
@@ -107,9 +107,9 @@ int solveWith(const config::Config &cfg) {
   }
 
   if (!knotSymmetryPath.empty()) {
-    exactnaming::SymmetryTable types;
+    linknaming::SymmetryTable types;
     try {
-      types = exactnaming::readSymmetryTable(knotSymmetryPath);
+      types = linknaming::readSymmetryTable(knotSymmetryPath);
     } catch (const std::exception &) {
       std::cerr << "[!] could not open knot symmetry table " << knotSymmetryPath << "\n";
       return 1;
@@ -180,7 +180,7 @@ int solveWith(const config::Config &cfg) {
   // cascade_proofs: only CERTIFIED proofs of the connected goal bound g4;
   // names (the target and every literature leaf) read through the link
   // classes, as witnesses'.
-  std::vector<cobordismgraph::ExternalProof> externalProofs;
+  std::vector<solver::ExternalProof> externalProofs;
   if (!cascadeProofsPath.empty()) {
     solverinputs::CertifiedBounds certified;
     try {
@@ -203,8 +203,8 @@ int solveWith(const config::Config &cfg) {
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
   size_t exactApplied = 0, exactRefused = 0;
-  auto solverWitnesses = [&]() -> std::vector<cobordismgraph::Witness> {
-    std::vector<cobordismgraph::Witness> out =
+  auto solverWitnesses = [&]() -> std::vector<cobordisms::Witness> {
+    std::vector<cobordisms::Witness> out =
         nameAliases.empty()
             ? witnesses
             : solverinputs::applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
@@ -217,7 +217,7 @@ int solveWith(const config::Config &cfg) {
     // Last: whole names only. A name inside a sum or split is a piece,
     // bounded by its literature value, which is the same across a class.
     if (!linkClasses.empty())
-      for (cobordismgraph::Witness &w : out) {
+      for (cobordisms::Witness &w : out) {
         w.subject = classOf(w.subject);
         w.other = classOf(w.other);
         for (std::string &c : w.otherCandidates)
@@ -232,20 +232,20 @@ int solveWith(const config::Config &cfg) {
   // contradiction is a data error, not a bug, so it exits rather than
   // aborting; caught here because the table is static -- if it contradicts
   // at all, it does so on this first solve.
-  std::unordered_map<std::string, cobordismgraph::Bounds> bounds;
+  std::unordered_map<std::string, solver::Bounds> bounds;
   {
-    std::vector<cobordismgraph::Witness> initialWitnesses;
+    std::vector<cobordisms::Witness> initialWitnesses;
     try {
       initialWitnesses = solverWitnesses();
     } catch (const std::exception &e) {
       std::cerr << "[!] " << e.what() << "\n";
       return 1;
     }
-    bounds = cobordismgraph::propagate(initialWitnesses, names, externalProofs);
+    bounds = solver::propagate(initialWitnesses, names, externalProofs);
     // Release it now: it is a full witness set, pair signatures included, and
     // held for the rest of the run it raised peak memory by ~45% -- enough for
     // a full-master solve to be OOM-killed on yoga (2026-09-24).
-    std::vector<cobordismgraph::Witness>().swap(initialWitnesses);
+    std::vector<cobordisms::Witness>().swap(initialWitnesses);
   }
   if (!nameAliases.empty())
     std::cout << "[+] Name aliases: applied to " << aliasesApplied << " witness edges\n";
@@ -268,7 +268,7 @@ int solveWith(const config::Config &cfg) {
 
   // The solve, from everything the database knows: every affected verdict
   // rewritten.
-  bounds = cobordismgraph::propagate(solverWitnesses(), names, externalProofs);
+  bounds = solver::propagate(solverWitnesses(), names, externalProofs);
   // Every name that could need its row rewritten -- crucially including
   // rows that currently HAVE a row but no longer have any derived bound.
   // Iterating `bounds` alone would leave such a row frozen at whatever a
@@ -287,12 +287,12 @@ int solveWith(const config::Config &cfg) {
     if (bounds.contains(canonical) && !bounds.contains(member) && !outputRows.contains(member))
       toJudge.push_back(member);
   for (const std::string &name : toJudge) {
-    cobordismgraph::Bounds b; // default = nothing derived
+    solver::Bounds b; // default = nothing derived
     // A class member's row reads its class's node (link_classes).
     if (auto it = bounds.find(classOf(name)); it != bounds.end())
       b = it->second;
-    cobordismgraph::Verdict v = cobordismgraph::judge(name, b, names);
-    if (v.status == cobordismgraph::Status::contradiction)
+    solver::Verdict v = solver::judge(name, b, names);
+    if (v.status == solver::Status::contradiction)
       fatal::flag(v.reason);
     auto existing = outputRows.find(name);
     // Only names we actually track get a row: the graph is full of

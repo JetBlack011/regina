@@ -12,7 +12,7 @@
 
 #include "cobound/json.h"
 
-namespace cascade {
+namespace bounds {
 
 // How a certificate finds a witness's surface: a master witness's pair
 // signature inline; an in-process one's faces in its row's thickening, with
@@ -286,7 +286,7 @@ void CertificateWriter::writeNodes(std::ostream &c, const std::set<NodeId> &node
     if (reg_.known(n) && reg_.info(n).diagram.crossings() > 0) {
       // The node's own diagram, as signed Gauss data: component maps refer
       // to ITS component order, which a PD round trip need not keep.
-      const exactnaming::GaussDiagram &d = reg_.info(n).diagram;
+      const linknaming::GaussDiagram &d = reg_.info(n).diagram;
       c << ",\"pd\":\"" << json::escape(rowPD(d)) << "\",\"signs\":[";
       for (size_t k = 0; k < d.signs.size(); ++k) c << (k ? "," : "") << d.signs[k];
       c << "],\"gauss\":[";
@@ -385,4 +385,4 @@ void CertificateWriter::describeLower(std::ostream &o, NodeId n, const Partition
   }
 }
 
-} // namespace cascade
+} // namespace bounds

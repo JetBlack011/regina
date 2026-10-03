@@ -700,7 +700,7 @@ bool KnottedSurface::vertexUnlinked_(size_t v) const {
         auto curve = petalTrace_(ambientVertex, v, root);
         edges.insert(edges.end(), curve.begin(), curve.end());
     }
-    bool unlinked = identify::certifiesUnlink(ambientVertex->buildLink(), edges,
+    bool unlinked = complement::certifiesUnlink(ambientVertex->buildLink(), edges,
                                               roots.size());
     petalCache_.recordPetalSet(PetalCache::SetQuery::unlink, ids, unlinked);
     return unlinked;
@@ -731,11 +731,11 @@ std::optional<bool> KnottedSurface::boundaryVertexUnlinked_(size_t v) const {
         auto curve = petalTrace_(ambientVertex, v, root);
         edges.insert(edges.end(), curve.begin(), curve.end());
     }
-    identify::CappedCurves capped;
+    complement::CappedCurves capped;
     bool unlinked =
-        identify::capInCone(ambientVertex->buildLink(), edges, capped) &&
+        complement::capInCone(ambientVertex->buildLink(), edges, capped) &&
         capped.components == roots.size() &&
-        identify::certifiesUnlink(capped.tri, capped.edges, roots.size());
+        complement::certifiesUnlink(capped.tri, capped.edges, roots.size());
     petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnlink, ids,
                                unlinked);
     return unlinked;
@@ -847,14 +847,14 @@ bool KnottedSurface::boundaryPetalUnknotted_(size_t v, int root) const {
         petalCache_.lookupPetalSet(PetalCache::SetQuery::cappedUnknot, id);
     if (!unknotted) {
         const auto *ambientVertex = skeleton_.triangulation().vertex(v);
-        identify::CappedCurves capped;
+        complement::CappedCurves capped;
         // A trace that cannot be capped (an arc end off the boundary, i.e. a
         // non-proper surface) is not certified flat, so it counts as knotted.
         bool isUnknot =
-            identify::capInCone(ambientVertex->buildLink(),
+            complement::capInCone(ambientVertex->buildLink(),
                                 petalTrace_(ambientVertex, v, root), capped) &&
             capped.components == 1 &&
-            identify::isUnknot(Knot(capped.tri, capped.edges));
+            complement::isUnknot(Knot(capped.tri, capped.edges));
         petalCache_.recordPetalSet(PetalCache::SetQuery::cappedUnknot, id,
                                    isUnknot);
         unknotted = isUnknot;
@@ -1042,7 +1042,7 @@ bool KnottedSurface::addFace(int f) {
             isUnknot = *cachedUnknot;
         } else {
             const auto start = std::chrono::steady_clock::now();
-            isUnknot = identify::isUnknot(ensureKnotA());
+            isUnknot = complement::isUnknot(ensureKnotA());
             petalCache_.recordUnknot(idA, isUnknot);
             petalCache_.recordUnknotMissTime(nanosSince(start));
         }

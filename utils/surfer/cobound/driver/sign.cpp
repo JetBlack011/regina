@@ -21,10 +21,10 @@ int commands::sign(const std::vector<std::string> &args) {
   try {
     const config::Config cfg = config::forCommand("sign", config::Context::sign, args);
     const std::string store = cfg.text("cobordisms");
-    const cobordismgraph::NameTable names =
-        witnessstore::loadTableNames(cfg.text("knot_table"), cfg.text("link_table"), "");
-    const cascade::StoreResult s =
-        cascade::signPending(cfg.text("work"), store, cfg.paths("dedupe_against"), names,
+    const solver::NameTable names =
+        solver::loadTableNames(cfg.text("knot_table"), cfg.text("link_table"), "");
+    const cobordisms::StoreResult s =
+        cobordisms::signPending(cfg.text("work"), store, cfg.paths("dedupe_against"), names,
                              cfg.threads(), cfg.text("pair_sig_cache"));
     std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
               << s.appended << " appended to " << store << "\n";

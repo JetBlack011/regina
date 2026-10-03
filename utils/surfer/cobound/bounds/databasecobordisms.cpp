@@ -20,9 +20,9 @@
 #include "cobound/outgoing/fromdatabase.h"
 #include "linknaming/diagrams/simplification.h"
 
-namespace cascade {
+namespace bounds {
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 using timers::Clock;
 using timers::secondsSince;
 
@@ -40,7 +40,7 @@ struct Witness {
   std::string rowPD;
 };
 
-Witness carried(const witnessstore::StoredCobordism &s) {
+Witness carried(const cobordisms::StoredCobordism &s) {
   return {s.witness.other, s.witness.pairSig, s.witness.genus, s.witness.otherComponents,
           s.witness.thickenLayers, s.rowPD};
 }
@@ -52,22 +52,22 @@ DatabaseCobordisms::DatabaseCobordisms(const std::string &database,
     : index_(database) {
   // name -> the table's PD string, as the atlas's rows were searched from it.
   for (const std::string &file : tables)
-    for (const exactnaming::TableRow &row : exactnaming::readTableRows(file))
+    for (const linknaming::TableRow &row : linknaming::readTableRows(file))
       tablePD_[row.name] = row.pd;
 }
 
 bool DatabaseCobordisms::rowsFor(NodeId n, const NodeAxioms &axioms,
-                                 const exactnaming::ExactTables &tables,
+                                 const linknaming::ExactTables &tables,
                                  std::vector<std::string> *rows) const {
   auto it = axioms.tableName.find(n);
   if (it == axioms.tableName.end()) return false;
   // Every table entry of this link's class (one oriented link up to mirror
   // and global reversal) is the same node; each is a row of its own.
   const std::string canon = axioms.classOf(it->second);
-  const exactnaming::TableEntry *e = tables.entry(it->second);
+  const linknaming::TableEntry *e = tables.entry(it->second);
   if (!e) return false;
-  bool any = !index_.byOutgoing(witnessstore::DatabaseIndex::base(it->second), 1).empty();
-  for (const exactnaming::TableEntry *v : tables.variants(e->base))
+  bool any = !index_.byOutgoing(cobordisms::DatabaseIndex::base(it->second), 1).empty();
+  for (const linknaming::TableEntry *v : tables.variants(e->base))
     if (axioms.classOf(v->name) == canon && index_.has(v->name)) {
       any = true;
       if (rows) rows->push_back(v->name);
@@ -82,7 +82,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   if (!rowsFor(n, ld.axioms, ld.tables, &own)) return secondsSince(tLoad);
   ProofGraph &g = ld.g;
   NodeRegistry &reg = ld.reg;
-  const exactnaming::ExactTables &tables = ld.tables;
+  const linknaming::ExactTables &tables = ld.tables;
   std::map<NodeId, std::string> &tableName = ld.axioms.tableName;
   double readSeconds = 0; // phase A: the assembly's waits for the readers
   const size_t nodesBefore = g.nodeCount();
@@ -105,11 +105,11 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   std::map<std::string, std::vector<Witness>> bySubject;
   std::set<std::string> ownRows(own.begin(), own.end());
   for (const std::string &name : own)
-    for (const witnessstore::StoredCobordism &s : index_.rows(name))
+    for (const cobordisms::StoredCobordism &s : index_.rows(name))
       if (const Witness w = carried(s); keep(w)) bySubject[s.witness.subject].push_back(w);
   size_t reverse = 0;
-  for (const witnessstore::StoredCobordism &s :
-       index_.byOutgoing(witnessstore::DatabaseIndex::base(tableName[n]), 300))
+  for (const cobordisms::StoredCobordism &s :
+       index_.byOutgoing(cobordisms::DatabaseIndex::base(tableName[n]), 300))
     if (const Witness w = carried(s); !ownRows.count(s.witness.subject) && keep(w)) {
       bySubject[s.witness.subject].push_back(w);
       ++reverse;
@@ -125,16 +125,16 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     std::string name, pd;
     int layers = 2;
     std::vector<const Witness *> ws;
-    std::unique_ptr<farside::WitnessRedrawer> redraw;
+    std::unique_ptr<outgoing::WitnessRedrawer> redraw;
     std::string buildError; // the redrawer could not be built
-    std::vector<std::optional<farside::OutgoingLink>> links;
+    std::vector<std::optional<outgoing::OutgoingLink>> links;
     std::vector<std::string> why;
     std::vector<char> invariant; // the read-back broke an invariant (logic_error)
     size_t cacheHits = 0;
   };
   std::vector<RowRead> reads;
   for (const auto &[name, ws] : bySubject) {
-    const exactnaming::TableEntry *e = tables.entry(name);
+    const linknaming::TableEntry *e = tables.entry(name);
     auto pdIt = tablePD_.find(name);
     if (!e || pdIt == tablePD_.end()) continue;
     // One read per (row PD, layers): the table's PD unless the sidecar
@@ -162,19 +162,19 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   auto readRow = [&](size_t i) {
     RowRead &r = reads[i];
     try {
-      r.redraw = std::make_unique<farside::WitnessRedrawer>(r.pd, r.layers);
+      r.redraw = std::make_unique<outgoing::WitnessRedrawer>(r.pd, r.layers);
     } catch (const std::exception &ex) {
       r.buildError = ex.what();
       return;
     }
-    RowReadBacks cache(readBackCache, r.pd, r.layers,
+    outgoing::RowReadBacks cache(readBackCache, r.pd, r.layers,
                        readBackCache.empty() ? std::string() : r.redraw->buildChecksum());
     r.links.resize(r.ws.size());
     r.why.resize(r.ws.size());
     r.invariant.assign(r.ws.size(), 0);
     for (size_t k = 0; k < r.ws.size(); ++k) {
-      const std::string key = witnesskey::witnessKey(r.ws[k]->pairsig);
-      if (const CachedReadBack *c = cache.get(key)) {
+      const std::string key = cobordisms::witnessKey(r.ws[k]->pairsig);
+      if (const outgoing::CachedReadBack *c = cache.get(key)) {
         r.links[k] = c->link;
         r.why[k] = c->why;
         continue;
@@ -278,9 +278,9 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
       RowNode rn;
       if (r.pd == tablePD_.at(r.name)) {
         rn.diagram = GaussDiagram::of(tables.entry(r.name)->diagram);
-        rn.match = reg.intern(simplifyKeepingComponents(rn.diagram), "row " + r.name);
+        rn.match = reg.intern(linknaming::simplifyKeepingComponents(rn.diagram), "row " + r.name);
       } else {
-        rn.diagram = GaussDiagram::of(exactnaming::linkFromTablePD(r.pd));
+        rn.diagram = GaussDiagram::of(linknaming::linkFromTablePD(r.pd));
         rn.match = reg.intern(rn.diagram, "row " + r.name + " (recorded diagram)");
       }
       seen = interned.emplace(r.pd, std::move(rn)).first;
@@ -309,7 +309,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     }
     for (size_t k = 0; k < r.ws.size(); ++k) {
       const Witness *w = r.ws[k];
-      const std::string key = witnesskey::witnessKey(w->pairsig);
+      const std::string key = cobordisms::witnessKey(w->pairsig);
       HopEdge he;
       if (r.invariant[k]) {
         ++ld.invariantFailures;
@@ -367,4 +367,4 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   return loadSeconds;
 }
 
-} // namespace cascade
+} // namespace bounds

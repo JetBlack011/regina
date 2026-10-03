@@ -14,7 +14,7 @@
 //  The flags are farsidename's, which the atlas's run_farsidename.py passes;
 //  each is a config key (knot_table, link_table, knot_symmetry, namer_*,
 //  name_profile, name_reference), so --config and --set work too. The limits
-//  default to exactnaming::NamerLimits.
+//  default to linknaming::NamerLimits.
 //
 //  stdin: one "<id>\t<row>\t<thicken_layers>\t<pair signature>" per line,
 //  grouped by row (each row's thickening is built once). <row> is a table
@@ -27,10 +27,10 @@
 //    <id> <row> FAILED <reason>
 //
 //  The far side is recovered exactly as the search saw it
-//  (farside::WitnessRedrawer: the pair carried onto the row's own
+//  (outgoing::WitnessRedrawer: the pair carried onto the row's own
 //  thickening by an isomorphism pinned by L x {0}), oriented as a cobordism
 //  from the row's oriented link, drawn (knotbuilder::DiagramDrawer, which
-//  refuses any non-planar drawing) and named by exactnaming::ExactNamer.
+//  refuses any non-planar drawing) and named by linknaming::ExactNamer.
 //  <exact> is 1 when the name is an identity, <pinned> when every piece's
 //  oriented variant is proved; <pieces> lists "display/by/crossings" per
 //  piece, joined by " & " (a link tag contains ';'). Names are cached per drawn diagram (its exact signature), so a far
@@ -55,16 +55,16 @@ namespace {
 
 std::unordered_map<std::string, std::string> pdCodes(const std::string &path) {
     std::unordered_map<std::string, std::string> out;
-    for (const exactnaming::TableRow &row : exactnaming::readTableRows(path))
+    for (const linknaming::TableRow &row : linknaming::readTableRows(path))
         out.emplace(row.name, row.pd);
     return out;
 }
 
-const char *byName(exactnaming::PieceName::By by) {
+const char *byName(linknaming::PieceName::By by) {
     switch (by) {
-        case exactnaming::PieceName::By::exactDiagram: return "diagram";
-        case exactnaming::PieceName::By::isometry: return "isometry";
-        case exactnaming::PieceName::By::searchAndInvariants: return "search";
+        case linknaming::PieceName::By::exactDiagram: return "diagram";
+        case linknaming::PieceName::By::isometry: return "isometry";
+        case linknaming::PieceName::By::searchAndInvariants: return "search";
         default: return "untabulated";
     }
 }
@@ -73,7 +73,7 @@ const char *byName(exactnaming::PieceName::By by) {
 
 int commands::name(const std::vector<std::string> &args) {
     std::string knots, links, symmetry;
-    exactnaming::NamerLimits limits;
+    linknaming::NamerLimits limits;
     bool profile = false, reference = false;
     try {
         const config::Config cfg = config::forCommand(
@@ -114,10 +114,10 @@ int commands::name(const std::vector<std::string> &args) {
                      "(defaults: exactnaming::NamerLimits)\n";
         return 2;
     }
-    const exactnaming::ExactTables tables = exactnaming::ExactTables::load(knots, links, symmetry);
+    const linknaming::ExactTables tables = linknaming::ExactTables::load(knots, links, symmetry);
     for (const std::string &c : tables.inconsistentClasses())
         std::cerr << "[!] table classes with two literature values: " << c << "\n";
-    const exactnaming::ExactNamer namer(tables, limits);
+    const linknaming::ExactNamer namer(tables, limits);
     std::unordered_map<std::string, std::string> pd = pdCodes(knots);
     for (auto &[k, v] : pdCodes(links)) pd.emplace(k, v);
 
@@ -128,16 +128,16 @@ int commands::name(const std::vector<std::string> &args) {
     auto ms = [](std::chrono::steady_clock::time_point t) {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
     };
-    auto flushRow = [&](const farside::WitnessRedrawer *r) {
+    auto flushRow = [&](const outgoing::WitnessRedrawer *r) {
         if (r) {
             msDecode += r->msDecode(); msIso += r->msIsomorphism();
             msSurface += r->msSurfaceBuild(); msRead += r->msBoundaryRead();
             msBoundaryBuild += r->msBoundaryBuild();
         }
     };
-    std::unique_ptr<farside::WitnessRedrawer> redraw;
+    std::unique_ptr<outgoing::WitnessRedrawer> redraw;
     std::string redrawKey;
-    std::unordered_map<std::string, exactnaming::FarSideName> cache; // per row
+    std::unordered_map<std::string, linknaming::FarSideName> cache; // per row
     std::string line;
     while (std::getline(std::cin, line)) {
         std::istringstream in(line);
@@ -164,7 +164,7 @@ int commands::name(const std::vector<std::string> &args) {
                 flushRow(redraw.get());
                 redraw.reset();
                 const auto tr = std::chrono::steady_clock::now();
-                redraw = std::make_unique<farside::WitnessRedrawer>(code, std::stoi(layers));
+                redraw = std::make_unique<outgoing::WitnessRedrawer>(code, std::stoi(layers));
                 msRow += ms(tr);
                 ++rows;
                 redrawKey = row + "\t" + layers;
@@ -193,7 +193,7 @@ int commands::name(const std::vector<std::string> &args) {
                 msName += ms(tn);
                 ++named;
             }
-            const exactnaming::FarSideName &n = hit->second;
+            const linknaming::FarSideName &n = hit->second;
             std::ostringstream pieces;
             for (size_t i = 0; i < n.pieces.size(); ++i)
                 pieces << (i ? " & " : "") << n.pieces[i].display() << '/' << byName(n.pieces[i].by)

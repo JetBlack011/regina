@@ -18,7 +18,7 @@
 //   - at every interior vertex, every closed petal's trace is an unknot and
 //     every two closed petals' traces have linking number 0.
 // Unknot recognition and linking numbers are the production ones
-// (identify::isUnknot, EdgeComplement::linkingNumberWith): this test is about
+// (complement::isUnknot, EdgeComplement::linkingNumberWith): this test is about
 // which corners make up a petal and when it is checked, not about knot
 // recognition.
 //
@@ -153,7 +153,7 @@ bool referenceAccepts(const regina::Triangulation<4> &tri,
             }
             if (!closed)
                 continue;
-            if (!identify::isUnknot(Knot(v->buildLink(), trace)))
+            if (!complement::isUnknot(Knot(v->buildLink(), trace)))
                 return false;
             closedTraces.push_back(std::move(trace));
         }

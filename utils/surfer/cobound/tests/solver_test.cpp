@@ -34,7 +34,10 @@
 #include "cobound/solver/solver.h"
 #include "linknaming/names.h"
 
-using namespace cobordismgraph;
+using namespace cobordisms;
+using namespace search;
+using namespace solver;
+using namespace linknaming;
 
 static int passed = 0, failed_count = 0;
 
@@ -1006,7 +1009,7 @@ void test_classify_row_orientation() {
               true, "a curve with no known surface component is not guessed");
 
     // The judgement's flips (phase 3: the one walk behind both
-    // classifyRowOrientation() and farside::incomingFlips()).
+    // classifyRowOrientation() and outgoing::incomingFlips()).
     using Flips = std::map<size_t, int>;
     const Flips keep = {{0, 1}}, reverse = {{0, -1}}, each = {{0, 1}, {1, -1}};
     EXPECT_EQ(judgeRowOrientation(row, allMatch, oneComponent).flips == keep, true,

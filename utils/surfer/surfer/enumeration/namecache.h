@@ -20,7 +20,7 @@
  *  component, canonicalized against that component's automorphism group.
  */
 
-namespace identify {
+namespace namecache {
 
 /** Counters for how much recomputation BoundarySignatureCache is actually avoiding. */
 struct BoundarySignatureCacheStats {
@@ -136,6 +136,6 @@ class BoundarySignatureCache {
     std::string canonicalKey_(const std::vector<size_t> &edgeIndices);
 };
 
-} // namespace identify
+} // namespace namecache
 
 #endif // SURFER_NAMECACHE_H

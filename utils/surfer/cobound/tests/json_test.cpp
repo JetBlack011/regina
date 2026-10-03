@@ -28,5 +28,5 @@ int main() {
   CHECK_EQ(json::matrix(std::vector<std::vector<int>>{}), std::string("[]"), "an empty matrix");
   CHECK_EQ(json::matrix(std::vector<std::vector<int>>{{}}), std::string("[[]]"),
            "one empty row");
-  return cascadetest::finish("json_test");
+  return checks::finish("json_test");
 }

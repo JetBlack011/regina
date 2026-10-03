@@ -16,7 +16,7 @@
 #include "surfer/pairsig/pairsig.h"
 #include "cobound/search/incoming.h"
 
-namespace cascade {
+namespace cobordisms {
 
 std::string pairSigOf(const regina::Triangulation<4> &thickening,
                       const std::vector<int> &faces) {
@@ -54,8 +54,8 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
   parallelFor(rows.size(), static_cast<unsigned>(n), [&](size_t r) {
     try {
       const auto &[row, indices] = *rows[r];
-      rowsearch::RowBuild rb;
-      rowsearch::buildRow(row.first, row.second, row.second, rb);
+      search::RowBuild rb;
+      search::buildRow(row.first, row.second, row.second, rb);
       const std::unique_ptr<PairSigContext<4, 2>> context =
           pairSigContextFor(rb.tri, cacheDir, inner);
       for (size_t i : indices) out[i] = context->sig(requests[i].faces);
@@ -68,4 +68,4 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
   return out;
 }
 
-} // namespace cascade
+} // namespace cobordisms

@@ -14,7 +14,7 @@
 
 #include "linknaming/names.h"
 
-namespace exactnaming {
+namespace linknaming {
 
 std::vector<TableRow> readTableRows(const std::filesystem::path &path) {
     std::ifstream in(path);
@@ -121,7 +121,7 @@ bool isSliceComposite(const std::string &name) {
 bool isElementarySlice(const std::string &name, const SymmetryTable &symmetry) {
     if (isSliceComposite(name))
         return true;
-    std::vector<std::string> parts = cobordismgraph::knotSummands(name);
+    std::vector<std::string> parts = linknaming::knotSummands(name);
     if (parts.empty())
         return false;
     // Each summand reduced to what its symmetry type leaves meaningful of its
@@ -199,7 +199,7 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
     auto add = [&](const std::string &name, const std::string &pd, const std::string &g4) {
         TableEntry e;
         e.name = name;
-        e.base = cobordismgraph::stripOrientationTag(name);
+        e.base = linknaming::stripOrientationTag(name);
         e.diagram = linkFromTablePD(pd);
         e.components = e.diagram.countComponents();
         e.g4 = g4;
@@ -293,9 +293,9 @@ std::optional<SymmetryType> ExactTables::symmetry(const std::string &knot) const
     return it->second;
 }
 
-} // namespace exactnaming
+} // namespace linknaming
 
-namespace farside {
+namespace linknaming {
 
 SignatureTable SignatureTable::fromTables(const std::string &knotTable,
                                           const std::string &linkTable) {
@@ -303,35 +303,35 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
     // partial table would quietly send every far side back to the
     // complement route (it did, once, when the PD codes were read with
     // 0-based labels).
-    // The PD codes as Regina reads them (exactnaming::linkFromTablePD()):
+    // The PD codes as Regina reads them (linknaming::linkFromTablePD()):
     // labels as written, 1..2n. Not knotbuilder::parsePDCode(), which
     // renumbers from 0.
     SignatureTable t;
     if (!knotTable.empty())
-        for (const exactnaming::TableRow &row : exactnaming::readTableRows(knotTable)) {
-            t.knots_.try_emplace(exactnaming::linkFromTablePD(row.pd).knotSig(true, true),
+        for (const linknaming::TableRow &row : linknaming::readTableRows(knotTable)) {
+            t.knots_.try_emplace(linknaming::linkFromTablePD(row.pd).knotSig(true, true),
                                  row.name);
             t.knotNames_.insert(row.name);
         }
     if (!linkTable.empty())
-        for (const exactnaming::TableRow &row : exactnaming::readTableRows(linkTable))
-            t.links_.try_emplace(exactnaming::linkFromTablePD(row.pd).sig<2>(true, true, true),
-                                 cobordismgraph::stripOrientationTag(row.name));
+        for (const linknaming::TableRow &row : linknaming::readTableRows(linkTable))
+            t.links_.try_emplace(linknaming::linkFromTablePD(row.pd).sig<2>(true, true, true),
+                                 linknaming::stripOrientationTag(row.name));
     if ((!knotTable.empty() && t.knots_.empty()) ||
         (!linkTable.empty() && t.links_.empty()))
         throw regina::InvalidArgument("a table yielded no signatures");
     return t;
 }
 
-SignatureTable SignatureTable::fromTables(const exactnaming::ExactTables &tables) {
+SignatureTable SignatureTable::fromTables(const linknaming::ExactTables &tables) {
     // Exactly fromTables(knotTable, linkTable) over the same files: each
     // entry's diagram is linkFromTablePD() of its row's PD, in file order,
     // the knot table's first, so every signature and every first-wins name
     // is the same.
     SignatureTable t;
-    const std::vector<exactnaming::TableEntry> &entries = tables.entries();
+    const std::vector<linknaming::TableEntry> &entries = tables.entries();
     for (size_t i = 0; i < entries.size(); ++i) {
-        const exactnaming::TableEntry &e = entries[i];
+        const linknaming::TableEntry &e = entries[i];
         if (i < tables.knotEntries()) {
             t.knots_.try_emplace(e.diagram.knotSig(true, true), e.name);
             t.knotNames_.insert(e.name);
@@ -354,4 +354,4 @@ const std::string *SignatureTable::link(const std::string &sig) const {
     return it == links_.end() ? nullptr : &it->second;
 }
 
-} // namespace farside
+} // namespace linknaming

@@ -32,7 +32,7 @@
 #include "surfer/submanifold/submanifold.h"
 #include "surfer/submanifold/vertexlinks.h"
 
-namespace farside {
+namespace outgoing {
 
 namespace {
 
@@ -57,7 +57,7 @@ std::optional<std::vector<int>> WitnessRedrawer::pinned_(const regina::Triangula
         std::vector<int> image;
         image.reserve(faces.size());
         for (int f : faces) image.push_back(carryTriangle(ambient.triangle(f), iso, W));
-        if (boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
+        if (search::boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
         carried = std::move(image);
         return true;
     });
@@ -68,7 +68,7 @@ WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
     // through every layer.
-    rowsearch::buildRow(rowPD, layers, layers, rb_);
+    search::buildRow(rowPD, layers, layers, rb_);
     const regina::Triangulation<4> &W = rb_.tri;
     outgoing_ = std::make_unique<OutgoingMap>(rb_.link.tri, *rb_.cob);
     drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(rb_.link.tri, rb_.pdcode.size());
@@ -118,8 +118,8 @@ std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsi
         std::vector<int> image;
         for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
         if (isos < 4) {
-            auto in = boundaryEdgesOf(W, image, rb_.searchSideBC);
-            auto out = boundaryEdgesOf(W, image, outgoing_->boundaryComponent());
+            auto in = search::boundaryEdgesOf(W, image, rb_.searchSideBC);
+            auto out = search::boundaryEdgesOf(W, image, outgoing_->boundaryComponent());
             std::vector<size_t> common;
             std::ranges::set_intersection(in, rb_.searchEdges, std::back_inserter(common));
             sizes += " [in " + std::to_string(in.size()) + " edges, " +
@@ -282,7 +282,7 @@ bool WitnessRedrawer::rebuild(const std::vector<int> &faces, KnottedSurface &sur
             return false;
         }
     // Before anything is built: the search side must be exactly L x {0}.
-    if (boundaryEdgesOf(W, faces, rb_.searchSideBC) != rb_.searchEdges) {
+    if (search::boundaryEdgesOf(W, faces, rb_.searchSideBC) != rb_.searchEdges) {
         why = "its incoming boundary is not L x {0}";
         return false;
     }
@@ -336,11 +336,11 @@ std::string WitnessRedrawer::buildChecksum() const {
     return pairsig::sha1Hex(data).substr(0, 16);
 }
 
-} // namespace farside
+} // namespace outgoing
 
 namespace fs = std::filesystem;
 
-namespace cascade {
+namespace outgoing {
 
 namespace {
 
@@ -368,7 +368,7 @@ bool splitSizes(const std::string &s, std::vector<size_t> &out) {
 } // namespace
 
 // "e+,e-,...;e+,...|sc,sc|firstEdge,...|surfaceComponent,..."
-std::string serialiseLink(const farside::OutgoingLink &link) {
+std::string serialiseLink(const outgoing::OutgoingLink &link) {
   std::ostringstream o;
   for (size_t c = 0; c < link.curves.size(); ++c) {
     o << (c ? ";" : "");
@@ -384,7 +384,7 @@ std::string serialiseLink(const farside::OutgoingLink &link) {
   return o.str();
 }
 
-std::optional<farside::OutgoingLink> parseLink(const std::string &text) {
+std::optional<outgoing::OutgoingLink> parseLink(const std::string &text) {
   std::vector<std::string> parts;
   {
     std::istringstream in(text);
@@ -392,7 +392,7 @@ std::optional<farside::OutgoingLink> parseLink(const std::string &text) {
     if (!text.empty() && text.back() == '|') parts.emplace_back();
   }
   if (parts.size() != 4) return std::nullopt;
-  farside::OutgoingLink link;
+  outgoing::OutgoingLink link;
   if (!parts[0].empty()) {
     std::istringstream curves(parts[0]);
     for (std::string c; std::getline(curves, c, ';');) {
@@ -427,7 +427,7 @@ RowReadBacks::RowReadBacks(const std::string &dir, const std::string &rowPD, int
     : digest_(buildDigest) {
   if (dir.empty()) return;
   fs::create_directories(dir);
-  path_ = dir + "/" + witnesskey::witnessKey(rowPD + "|" + std::to_string(layers)) + ".readback";
+  path_ = dir + "/" + cobordisms::witnessKey(rowPD + "|" + std::to_string(layers)) + ".readback";
   std::ifstream in(path_, std::ios::binary);
   std::string line;
   if (!in || !std::getline(in, line) || in.eof()) {
@@ -501,4 +501,4 @@ void RowReadBacks::flush() {
   pending_.clear();
 }
 
-} // namespace cascade
+} // namespace outgoing

@@ -16,7 +16,7 @@
  *  (KnottedSurface::orientedBoundaryLinks()). Every component meets the
  *  incoming boundary (it contains a seed annulus), and the search accepts a
  *  surface only if each component's incoming curves all run with the row's
- *  orientation or all against it (cobordismgraph::classifyRowOrientation()).
+ *  orientation or all against it (search::classifyRowOrientation()).
  *  Reversing the components that run against it orients the surface as an
  *  oriented cobordism from the row's oriented link L; its outgoing curves
  *  are then the oriented outgoing link, up to reversing every component at
@@ -38,7 +38,7 @@
 #include "surfer/submanifold/submanifold.h"
 #include "diagramtriangulation/todiagram.h"
 
-namespace farside {
+namespace outgoing {
 
 /** A boundary curve as a search hands it out (KnottedSurface's
  *  OrientedCurve), as the OutgoingMap reads curves. */
@@ -50,10 +50,10 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve);
  * component's incoming curves disagree among themselves, a curve has an
  * edge off the row's link, or a curve's component is unknown -- exactly the
  * surfaces classifyRowOrientation() rejects; an empty map for no curves.
- * (cobordismgraph::judgeRowOrientation()'s consistentFlips(): one walk.)
+ * (search::judgeRowOrientation()'s consistentFlips(): one walk.)
  */
 std::optional<std::map<size_t, int>> incomingFlips(
-    const cobordismgraph::RowOrientation &row,
+    const search::RowOrientation &row,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
@@ -75,7 +75,7 @@ struct OutgoingLink {
  */
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
-    const cobordismgraph::RowOrientation &row, size_t incomingBC);
+    const search::RowOrientation &row, size_t incomingBC);
 
 /**
  * As above, from a surface's boundary as a search hands it out
@@ -85,12 +85,12 @@ std::optional<OutgoingLink> orientedOutgoingLink(
 std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
-    const OutgoingMap &map, const cobordismgraph::RowOrientation &row,
+    const OutgoingMap &map, const search::RowOrientation &row,
     size_t incomingBC, std::string *why = nullptr);
 
 /**
  * As above, with the incoming curves' flips already judged (incomingFlips(),
- * or a search's gate, rowsearch::GatedSurface::flips). nullopt ("a surface
+ * or a search's gate, search::GatedSurface::flips). nullopt ("a surface
  * component misses the row") when an outgoing curve's component has none.
  */
 std::optional<OutgoingLink> orientedOutgoingLink(
@@ -99,6 +99,6 @@ std::optional<OutgoingLink> orientedOutgoingLink(
     const OutgoingMap &map, const std::map<size_t, int> &flips, size_t incomingBC,
     std::string *why = nullptr);
 
-} // namespace farside
+} // namespace outgoing
 
 #endif

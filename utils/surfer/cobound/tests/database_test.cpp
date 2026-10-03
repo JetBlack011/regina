@@ -27,7 +27,7 @@
 #include "cobound/cobordisms/database.h"
 
 namespace fs = std::filesystem;
-using cobordismgraph::Witness;
+using cobordisms::Witness;
 
 namespace {
 
@@ -47,7 +47,7 @@ std::string slurp(const fs::path &p) {
 
 Witness sample(const std::string &subject, int genus, int resolved) {
   Witness w;
-  w.kind = cobordismgraph::WitnessKind::cobordism;
+  w.kind = cobordisms::WitnessKind::cobordism;
   w.subject = subject;
   w.subjectComponents = 2;
   w.other = "#{L2a1{0},L2a1{1}}"; // a name with a comma
@@ -84,15 +84,15 @@ int main() {
   // 1. Round trip of a line.
   {
     const Witness w = sample("cascade:run/L6a5{0;1}/n3", 1, 0);
-    const std::string line = witnessstore::formatWitness(w);
+    const std::string line = cobordisms::formatWitness(w);
     Witness back;
-    check(witnessstore::witnessFromFields(parseCsvLine(line), back, true, false, store) &&
+    check(cobordisms::witnessFromFields(parseCsvLine(line), back, true, false, store) &&
               same(w, back) && back.pairSig == w.pairSig,
           "a witness round-trips through its line");
     check(line.back() == ',', "resolved_vertices 0 is written empty");
     const Witness r = sample("L6a5{0;1}", 0, 2);
     Witness backR;
-    witnessstore::witnessFromFields(parseCsvLine(witnessstore::formatWitness(r)), backR, false,
+    cobordisms::witnessFromFields(parseCsvLine(cobordisms::formatWitness(r)), backR, false,
                                     false, store);
     check(backR.resolvedVertices == 2 && backR.pairSig.empty(),
           "resolved_vertices 2 round-trips; the pair signature is dropped when not kept");
@@ -101,18 +101,18 @@ int main() {
   // 2. Appends.
   {
     std::vector<Witness> ws = {sample("a", 0, 0), sample("b", 1, 0)};
-    witnessstore::appendWitnesses(store, ws, 0);
+    cobordisms::appendWitnesses(store, ws, 0);
     const std::string first = slurp(store);
-    check(first.rfind(std::string(witnessstore::COBORDISMS_HEADER) + "\n", 0) == 0,
+    check(first.rfind(std::string(cobordisms::COBORDISMS_HEADER) + "\n", 0) == 0,
           "a new store starts with the header");
     check(ws[0].pairSig.empty() && ws[0].fileOffset > 0 && ws[1].fileOffset > ws[0].fileOffset,
           "appended witnesses get their offsets and drop their pair signatures");
     std::vector<Witness> more = {sample("c", 2, 1)};
-    witnessstore::appendWitnesses(store, more, 0);
+    cobordisms::appendWitnesses(store, more, 0);
     const std::string second = slurp(store);
     check(second.compare(0, first.size(), first) == 0 && second.size() > first.size(),
           "a second append keeps every earlier byte");
-    const auto loaded = witnessstore::loadWitnesses(store, true);
+    const auto loaded = cobordisms::loadWitnesses(store, true);
     check(loaded.size() == 3 && loaded[2].subject == "c" && loaded[2].resolvedVertices == 1 &&
               !loaded[0].pairSigKey.empty(),
           "the store loads back, keys computed");
@@ -121,11 +121,11 @@ int main() {
   // 3. A torn last line.
   {
     std::ofstream(store, std::ios::app | std::ios::binary) << "cobordism,torn,1,Unknot";
-    check(witnessstore::loadWitnesses(store, false).size() == 3,
+    check(cobordisms::loadWitnesses(store, false).size() == 3,
           "a torn last line is ignored on load");
     std::vector<Witness> d = {sample("d", 0, 0)};
-    witnessstore::appendWitnesses(store, d, 0);
-    const auto loaded = witnessstore::loadWitnesses(store, false);
+    cobordisms::appendWitnesses(store, d, 0);
+    const auto loaded = cobordisms::loadWitnesses(store, false);
     check(loaded.size() == 4 && loaded.back().subject == "d" &&
               slurp(store).find("torn") == std::string::npos,
           "the next append truncates it first");
@@ -143,7 +143,7 @@ int main() {
     std::vector<Witness> e = {sample("e", 0, 0)};
     bool refused = false;
     try {
-      witnessstore::appendWitnesses(old, e, 0);
+      cobordisms::appendWitnesses(old, e, 0);
     } catch (const std::exception &) {
       refused = true;
     }
@@ -156,31 +156,31 @@ int main() {
     std::vector<Witness> ws;
     for (int i = 0; i < 400; ++i)
       ws.push_back(sample("row" + std::to_string(i % 97), i % 5, i % 3));
-    witnessstore::appendWitnesses(big, ws, 0);
+    cobordisms::appendWitnesses(big, ws, 0);
     {
       std::ofstream out(big, std::ios::app | std::ios::binary);
       out << "\n"                            // an empty line
           << "cobordism,not,a,witness\n"     // a malformed line
-          << witnessstore::formatWitness(sample("late", 4, 0)) << "\n"
+          << cobordisms::formatWitness(sample("late", 4, 0)) << "\n"
           << "cobordism,torn,1,Unknot";      // a torn last line
     }
     std::unordered_set<std::string> serial;
-    for (const Witness &w : witnessstore::loadWitnesses(big, false))
-      serial.insert(cobordismgraph::witnessIdentity(w));
+    for (const Witness &w : cobordisms::loadWitnesses(big, false))
+      serial.insert(cobordisms::witnessIdentity(w));
     bool allSame = true;
     for (unsigned threads : {1u, 2u, 3u, 7u, 16u})
       for (std::streamoff range : {1, 100, 4096, 64 << 20})
-        allSame = allSame && witnessstore::witnessIdentities(big, threads, range) == serial;
-    check(allSame && serial.size() > 100 && serial.count(cobordismgraph::witnessIdentity(
+        allSame = allSame && cobordisms::witnessIdentities(big, threads, range) == serial;
+    check(allSame && serial.size() > 100 && serial.count(cobordisms::witnessIdentity(
                                                sample("late", 4, 0))),
           "witnessIdentities() equals loadWitnesses()'s identities at every range split");
-    check(witnessstore::witnessIdentities(dir / "absent.csv", 4).empty(),
+    check(cobordisms::witnessIdentities(dir / "absent.csv", 4).empty(),
           "a missing file has no identities");
   }
 
   // 6. other_candidates splits at ';' outside a tag only (phase 3's fix).
   {
-    using witnessstore::splitCandidates;
+    using cobordisms::splitCandidates;
     check(splitCandidates("L8a4{0;1};L8a4{1;0}") ==
               std::vector<std::string>{"L8a4{0;1}", "L8a4{1;0}"},
           "a tag's ';' does not split a candidate");
@@ -192,7 +192,7 @@ int main() {
     Witness w = sample("tagged", 1, 0);
     w.otherCandidates = {"L8a4{0;1}", "L8a4{1;0}"};
     Witness back;
-    check(witnessstore::parseWitnessLine(witnessstore::formatWitness(w), back, false, false,
+    check(cobordisms::parseWitnessLine(cobordisms::formatWitness(w), back, false, false,
                                          "x") &&
               back.otherCandidates == w.otherCandidates,
           "a three-component candidate list round-trips");
@@ -206,22 +206,22 @@ int main() {
     std::vector<Witness> ws = {sample("K", 1, 0), sample("L", 2, 0), sample("K", 3, 0)};
     ws[1].other = "m3_1";
     ws[1].otherCandidates = {"m3_1"};
-    witnessstore::appendWitnesses(db, ws, 0);
+    cobordisms::appendWitnesses(db, ws, 0);
     std::ofstream(db, std::ios::app | std::ios::binary) << "cobordism,K,2,torn";
-    const std::vector<Witness> all = witnessstore::readWitnesses(db);
+    const std::vector<Witness> all = cobordisms::readWitnesses(db);
     check(all.size() == 3 && all[0].pairSig == "-cabcdef1" && all[2].pairSig == "-cabcdef3",
           "readWitnesses(): every complete line, pair signatures kept, the torn one left out");
-    const witnessstore::DatabaseIndex index(db.string());
+    const cobordisms::DatabaseIndex index(db.string());
     check(index.subjects() == 2 && index.has("K") && !index.has("torn"),
           "the index: two subjects, the torn line left out");
     const auto k = index.rows("K");
     check(k.size() == 2 && k[0].witness.genus == 1 && k[1].witness.genus == 3 &&
               k[1].witness.pairSig == "-cabcdef3" && k[0].rowPD.empty(),
           "rows(): a subject's lines, in file order, pair signatures kept");
-    const auto byBase = index.byOutgoing(witnessstore::DatabaseIndex::base("3_1"), 10);
+    const auto byBase = index.byOutgoing(cobordisms::DatabaseIndex::base("3_1"), 10);
     check(byBase.size() == 1 && byBase[0].witness.subject == "L",
           "byOutgoing(): the outgoing base, mirror mark dropped");
-    witnessstore::PairSigReader reader;
+    cobordisms::PairSigReader reader;
     reader.setPath(db);
     check(reader.at(k[1].witness.fileOffset) == "-cabcdef3" && reader.at(-1).empty(),
           "PairSigReader reads a line's pair signature back by offset");

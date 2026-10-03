@@ -110,7 +110,7 @@ struct Reference {
 
 std::vector<Reference> references() {
   const SurfaceSearchLimits library;   // verifyslicegenus left these in place
-  const exactnaming::NamerLimits namer; // farsidename's defaults
+  const linknaming::NamerLimits namer; // farsidename's defaults
   using C = Context;
   return {
       // the tables and files
@@ -169,7 +169,7 @@ std::vector<Reference> references() {
        "SurfaceSearchLimits::boundarySignatureCacheLimit"},
       {"boundary_signature_cache_limit", C::goal, "1000000",
        "HopShape::boundarySignatureCacheLimit"},
-      {"complement_cache_limit", C::run, std::to_string(identify::recognitionCacheLimit.load()),
+      {"complement_cache_limit", C::run, std::to_string(complement::recognitionCacheLimit.load()),
        "identify::recognitionCacheLimit"},
       {"complement_cache_limit", C::goal, "1500000", "HopShape::recognitionCacheLimit"},
       {"exact_far_side_names", C::run, "0", "verifyslicegenus exactFarSideNames"},
@@ -435,5 +435,5 @@ int main() {
   testDefaults();
   testParsing();
   testEffective();
-  return cascadetest::finish("config_test");
+  return checks::finish("config_test");
 }

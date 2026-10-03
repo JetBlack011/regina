@@ -12,10 +12,10 @@
 
 #include "linknaming/diagrams/diagramiso.h"
 
-using exactnaming::GaussDiagram;
-using exactnaming::KernelLink;
+using linknaming::GaussDiagram;
+using linknaming::KernelLink;
 
-namespace cascade {
+namespace bounds {
 
 std::string NodeRegistry::diagramKey(const GaussDiagram &d) {
   std::vector<size_t> lengths;
@@ -50,7 +50,7 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   ++stats_.lookups;
   if (piece.components() == 0)
     throw std::invalid_argument("intern: empty diagram");
-  if (exactnaming::splitPieces(piece).size() != 1)
+  if (linknaming::splitPieces(piece).size() != 1)
     throw std::invalid_argument("intern: not one split piece");
 
   // Crossingless: the unknot.
@@ -65,7 +65,7 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   const std::string key = diagramKey(piece);
   for (auto [it, end] = byDiagramKey_.equal_range(key); it != end; ++it) {
     const NodeId n = it->second;
-    if (auto iso = findDiagramIsomorphism(piece, info_.at(n).diagram,
+    if (auto iso = linknaming::findDiagramIsomorphism(piece, info_.at(n).diagram,
                                           /*allowMirror=*/true, /*allowReverse=*/true)) {
       ++stats_.diagramHits;
       return NodeMatch{n, iso->componentMap, iso->mirrored, iso->reversed, false,
@@ -121,7 +121,7 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   // 3. A new node.
   NodeInfo ni;
   ni.diagram = piece;
-  ni.linking = linkingMatrix(piece);
+  ni.linking = linknaming::linkingMatrix(piece);
   ni.hyperbolic = kl->hyperbolic();
   ni.volume = kl->volume();
   const NodeId n = g_.addNode(static_cast<int>(m), label, ni.linking);
@@ -140,4 +140,4 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   return nm;
 }
 
-} // namespace cascade
+} // namespace bounds

@@ -114,12 +114,12 @@ public:
    * different questions.
    */
   enum class SetQuery : uint8_t {
-    unlink,       /**< identify::certifiesUnlink() of the petals' traces --
+    unlink,       /**< complement::certifiesUnlink() of the petals' traces --
                        together T_v(S) -- in the (interior) vertex's link. */
-    cappedUnlink, /**< The same, after identify::capInCone() closes any open
+    cappedUnlink, /**< The same, after complement::capInCone() closes any open
                        petal through the cone apex (boundary vertices). */
     cappedUnknot, /**< A single petal at a boundary vertex, capped and
-                       tested with identify::isUnknot(). */
+                       tested with complement::isUnknot(). */
   };
   /**
    * Returns the cached answer to `query` for the set of petals `ids`, if

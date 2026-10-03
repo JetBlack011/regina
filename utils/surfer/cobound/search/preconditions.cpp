@@ -11,7 +11,7 @@
 #include "cobound/outgoing/outgoinglink.h"
 #include "linknaming/names.h"
 
-namespace cobordismgraph {
+namespace search {
 
 /* Boundary classification */
 
@@ -88,9 +88,9 @@ OrientationVerdict classifyRowOrientation(
     return judgeRowOrientation(row, curves, surfaceComponentOf).verdict;
 }
 
-} // namespace cobordismgraph
+} // namespace search
 
-namespace rowsearch {
+namespace search {
 
 const char *gateReason(Gate gate) {
     switch (gate) {
@@ -115,7 +115,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
 
     // The search side is L by construction (the seed; asserted once at row
     // setup), so splitBoundary() just takes component searchSideBC.
-    g.split = cobordismgraph::splitBoundary(info.boundaryComponents,
+    g.split = search::splitBoundary(info.boundaryComponents,
                                             row.searchSideBC);
     if (g.split.unnamedSide) {
         g.gate = Gate::unnamedSide;
@@ -141,20 +141,20 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
             break;
         }
     }
-    cobordismgraph::OrientationVerdict verdict =
-        cobordismgraph::OrientationVerdict::incoherentCurve;
+    search::OrientationVerdict verdict =
+        search::OrientationVerdict::incoherentCurve;
     if (foundSearchSide) {
-        cobordismgraph::RowOrientationJudgement judged =
-            cobordismgraph::judgeRowOrientation(*row.orientation, g.searchSideCurves,
+        search::RowOrientationJudgement judged =
+            search::judgeRowOrientation(*row.orientation, g.searchSideCurves,
                                                 g.surfaceOf);
         verdict = judged.verdict;
         g.flips = std::move(judged.flips);
     }
-    if (verdict == cobordismgraph::OrientationVerdict::mismatch) {
+    if (verdict == search::OrientationVerdict::mismatch) {
         g.gate = Gate::orientation;
         return g;
     }
-    if (verdict != cobordismgraph::OrientationVerdict::match) {
+    if (verdict != search::OrientationVerdict::match) {
         g.gate = Gate::orientationBroken;
         return g;
     }
@@ -164,9 +164,9 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     return g;
 }
 
-std::string farSideName(const GatedSurface &g, const farside::DiagramNamer *namer) {
-    const cobordismgraph::BoundarySide &far = g.split.otherSides.front();
-    std::string name = cobordismgraph::normalizeIdentifiedName(far.name);
+std::string farSideName(const GatedSurface &g, const outgoing::DiagramNamer *namer) {
+    const search::BoundarySide &far = g.split.otherSides.front();
+    std::string name = linknaming::normalizeIdentifiedName(far.name);
     // An accepted surface's flips are the gate's (g.flips, its incoming
     // curves judged once).
     if (far.components > 1 && namer && namer->exactNamesOn()) {
@@ -248,8 +248,8 @@ namespace {
 // Which row components and how many far-side curves each surface component
 // carries, as a canonical string: surface components are unlabelled, so the
 // per-component entries are sorted.
-std::string groupingOf(const farside::OutgoingLink &link,
-                       const farside::WitnessRedrawer &row) {
+std::string groupingOf(const outgoing::OutgoingLink &link,
+                       const outgoing::WitnessRedrawer &row) {
   std::map<size_t, std::pair<std::vector<size_t>, int>> bySurface;
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i)
     bySurface[link.incomingSurfaceComponent[i]].first.push_back(
@@ -270,9 +270,9 @@ std::string groupingOf(const farside::OutgoingLink &link,
 
 } // namespace
 
-std::string keptKey(const cobordismgraph::Witness &w, const farside::OutgoingLink &link,
-                    const farside::WitnessRedrawer &row) {
-    return cobordismgraph::witnessIdentity(w) + '\x1f' + groupingOf(link, row);
+std::string keptKey(const cobordisms::Witness &w, const outgoing::OutgoingLink &link,
+                    const outgoing::WitnessRedrawer &row) {
+    return cobordisms::witnessIdentity(w) + '\x1f' + groupingOf(link, row);
 }
 
-} // namespace rowsearch
+} // namespace search

@@ -9,7 +9,7 @@
 
 #include "surfer/pairsig/pairsig.h"
 
-namespace identify {
+namespace namecache {
 
 BoundarySignatureCache::BoundarySignatureCache(
     const regina::Triangulation<3> &boundary, size_t clearThreshold)
@@ -108,4 +108,4 @@ size_t BoundarySignatureCache::size() const {
     return cache_.size();
 }
 
-} // namespace identify
+} // namespace namecache

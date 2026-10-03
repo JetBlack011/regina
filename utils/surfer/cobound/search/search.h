@@ -56,7 +56,7 @@
  *  (cobordisms/pairsigner.h), for the few witnesses a certificate needs.
  */
 
-namespace rowsearch {
+namespace search {
 
 /** Which BoundaryCondition to search a row under; see conditionFor(). */
 enum class BoundaryConditionMode { automatic, connected, proper };
@@ -115,9 +115,9 @@ private:
     std::thread thread_;
 };
 
-} // namespace rowsearch
+} // namespace search
 
-namespace cascade {
+namespace search {
 
 /// A goal run's search shape: what its profile line prints, and every
 /// search of the run searches with (searchShape()). No field that decides
@@ -183,7 +183,7 @@ struct SweepInputs {
 /// options. None by default.
 struct SearchOutputs {
   /// The live progress block, and the drain's started/done lines, on
-  /// stderr (rowsearch::progressBlock).
+  /// stderr (search::progressBlock).
   bool progress = false;
   std::optional<std::string> surfaceStats; ///< --surface-stats, appended
   std::optional<std::string> surfaceLog;   ///< --surface-log, rewritten
@@ -207,7 +207,7 @@ struct FindJudgement {
 
 /// A surface a hop kept.
 struct KeptSurface {
-  farside::OutgoingLink link; ///< far side on T, oriented, and incoming side
+  outgoing::OutgoingLink link; ///< far side on T, oriented, and incoming side
   int genus = 0;              ///< tubed genus
   int resolvedVertices = 0;
   std::string farName;        ///< the namer's name; "" for no far side
@@ -216,7 +216,7 @@ struct KeptSurface {
   /// The cobordism as the database will record it, every column but the
   /// pair signature and other_candidates (both made when it is signed): its
   /// subject is the search's name.
-  cobordismgraph::Witness witness;
+  cobordisms::Witness witness;
 };
 
 /// One search's inputs besides its row.
@@ -226,7 +226,7 @@ struct SearchRequest {
   std::string name;
   /// The row's redrawer (required): each kept surface's outgoing link is
   /// oriented on it and keyed by its row components.
-  const farside::WitnessRedrawer *row = nullptr;
+  const outgoing::WitnessRedrawer *row = nullptr;
   SearchShape shape;
 
   /// When to stop: at this many surfaces satisfying the condition, or
@@ -320,7 +320,7 @@ struct HopRun {
   size_t drainTail = 0;          ///< surfaces left for the drain when the search ended
   double drainTailSeconds = 0;   ///< and the wall it took to describe them
   /// The drain's far-side naming: the `diagram naming:` body
-  /// (farside::NamingStats::summary()), its times by route, and the slowest
+  /// (linknaming::NamingStats::summary()), its times by route, and the slowest
   /// single name, which is what can hold a drain's last thread alone.
   std::string naming;
   double namingDiagramSeconds = 0, namingFallbackSeconds = 0, namingExactSeconds = 0;
@@ -358,9 +358,9 @@ struct HopRun {
   std::chrono::steady_clock::duration drainTailTime{};
   std::optional<PetalCache::Stats> petalsAtRoots; ///< as root filtering ended
   PetalCache::Stats petals;                        ///< at the search's end
-  identify::BoundarySignatureCacheStats boundaryCache;
-  identify::RecognitionCacheStats recognitionBefore; ///< as the search began
-  identify::RecognitionCacheStats recognitionAfter;  ///< and as it ended
+  namecache::BoundarySignatureCacheStats boundaryCache;
+  complement::RecognitionCacheStats recognitionBefore; ///< as the search began
+  complement::RecognitionCacheStats recognitionAfter;  ///< and as it ended
   std::pair<long long, long long> censusWritesBefore; ///< census::insertCounts()
   std::pair<long long, long long> censusWritesAfter;
   bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves
@@ -380,20 +380,20 @@ struct HopRun {
 class HopSearcher {
 public:
   /// `signatures` and `exact` name far sides as verifyslicegenus names them
-  /// (farside::DiagramNamer), which is what surfaces are deduplicated by.
+  /// (outgoing::DiagramNamer), which is what surfaces are deduplicated by.
   /// Both must outlive the searcher. Every hop's exact names use one set of
   /// table caches (`exactCaches`, or the searcher's own when null), so what
   /// naming learns about the tables -- the HOMFLY index above all -- is
   /// built once, not once per hop. The cascade's.
-  HopSearcher(const farside::SignatureTable &signatures,
-              const exactnaming::ExactTables *exact, HopShape shape,
+  HopSearcher(const linknaming::SignatureTable &signatures,
+              const linknaming::ExactTables *exact, HopShape shape,
               unsigned threads,
-              std::shared_ptr<exactnaming::TableCaches> exactCaches = nullptr);
+              std::shared_ptr<linknaming::TableCaches> exactCaches = nullptr);
 
   /// Any caller's. Without `signatures`, every boundary is named by its
   /// complement. Exact names use this searcher's own caches.
-  HopSearcher(const farside::SignatureTable *signatures,
-              const exactnaming::ExactTables *exact, unsigned threads);
+  HopSearcher(const linknaming::SignatureTable *signatures,
+              const linknaming::ExactTables *exact, unsigned threads);
 
   /**
    * Searches `row`'s thickening, seeded with its collar, under `proper`,
@@ -415,7 +415,7 @@ public:
   /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   /// `censusName`, if any, is SearchRequest::censusName.
-  HopRun run(const farside::WitnessRedrawer &row, const std::string &rowName,
+  HopRun run(const outgoing::WitnessRedrawer &row, const std::string &rowName,
              long long surfaceTarget, double seconds,
              const std::function<bool(const KeptSurface &)> &stop = {},
              const SearchFrontier *resume = nullptr,
@@ -424,7 +424,7 @@ public:
   /// The request run(row, rowName, ...) makes: a hop's search of `row`
   /// (searchShape() of this searcher's HopShape, its frontier always
   /// recorded), for a caller that adds to it (its pending file, say).
-  SearchRequest hopRequest(const farside::WitnessRedrawer &row, const std::string &rowName,
+  SearchRequest hopRequest(const outgoing::WitnessRedrawer &row, const std::string &rowName,
                            long long surfaceTarget, double seconds) const;
 
   /**
@@ -441,16 +441,16 @@ public:
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */
-  HopRun run(const rowsearch::RowBuild &rb, const SearchRequest &request) const;
+  HopRun run(const search::RowBuild &rb, const SearchRequest &request) const;
 
 private:
-  const farside::SignatureTable *signatures_;
-  const exactnaming::ExactTables *exact_;
+  const linknaming::SignatureTable *signatures_;
+  const linknaming::ExactTables *exact_;
   HopShape shape_;
   unsigned threads_;
-  std::shared_ptr<exactnaming::TableCaches> exactCaches_;
+  std::shared_ptr<linknaming::TableCaches> exactCaches_;
 };
 
-} // namespace cascade
+} // namespace search
 
 #endif // SURFER_COBOUND_SEARCH_H

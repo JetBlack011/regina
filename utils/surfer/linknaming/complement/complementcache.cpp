@@ -7,7 +7,7 @@
 #include <mutex>
 #include <unordered_map>
 
-std::atomic<size_t> identify::recognitionCacheLimit{200'000};
+std::atomic<size_t> complement::recognitionCacheLimit{200'000};
 
 namespace {
 
@@ -24,12 +24,12 @@ namespace {
 // only case isUnknot()'s hot path ever takes -- never blocks behind a slow
 // in-flight Census::lookup() on another thread.
 std::mutex recognitionCacheMutex;
-std::unordered_map<std::string, identify::RecognitionResult> recognitionCache;
-identify::RecognitionCacheStats recognitionStats;
+std::unordered_map<std::string, complement::RecognitionResult> recognitionCache;
+complement::RecognitionCacheStats recognitionStats;
 
 } // namespace
 
-namespace identify {
+namespace complement {
 
 std::optional<RecognitionResult> lookupRecognition(const std::string &sig) {
     std::lock_guard<std::mutex> lock(recognitionCacheMutex);
@@ -44,7 +44,7 @@ RecognitionResult storeRecognition(const std::string &sig,
     std::lock_guard<std::mutex> lock(recognitionCacheMutex);
     if (recognitionCache.find(sig) == recognitionCache.end() &&
             recognitionCache.size() >=
-                identify::recognitionCacheLimit.load(
+                complement::recognitionCacheLimit.load(
                     std::memory_order_relaxed)) {
         recognitionCache.clear();
         ++recognitionStats.cacheResets;
@@ -99,4 +99,4 @@ void resetRecognitionCacheForTesting() {
     recognitionStats = RecognitionCacheStats{};
 }
 
-} // namespace identify
+} // namespace complement

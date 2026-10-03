@@ -14,7 +14,7 @@
 #include "cobound/bounds/cobordismgraph.h"
 #include "linknaming/tests/check.h"
 
-using namespace cascade;
+using namespace bounds;
 
 namespace {
 
@@ -810,5 +810,5 @@ int main() {
   testContradictionGates();
   testSaturationAndMaps();
   testRandomFixedPoints();
-  return cascadetest::finish("proofgraph_test");
+  return checks::finish("proofgraph_test");
 }

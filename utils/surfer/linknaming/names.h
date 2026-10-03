@@ -20,7 +20,7 @@
  *  Pure string functions, shared by both solvers' C++ side and the search.
  */
 
-namespace cobordismgraph {
+namespace linknaming {
 
 /**
  * The number of components of whatever `name` names, worked out from the
@@ -132,6 +132,6 @@ std::vector<std::string> factorAlternatives(const std::string &factor);
 /** A tagged table link, "L7n1{1}": its component count is in the tag. */
 bool isTaggedLinkName(const std::string &s);
 
-} // namespace cobordismgraph
+} // namespace linknaming
 
 #endif // SURFER_LINKNAMING_NAMES_H

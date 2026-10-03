@@ -9,7 +9,7 @@
 #include <map>
 #include <numeric>
 
-namespace exactnaming {
+namespace linknaming {
 
 regina::Link GaussDiagram::link() const {
     return regina::Link::fromData(signs.begin(), signs.end(), comps.begin(), comps.end());
@@ -203,4 +203,4 @@ std::optional<std::pair<GaussDiagram, GaussDiagram>> visibleSum(const GaussDiagr
     return std::nullopt;
 }
 
-} // namespace exactnaming
+} // namespace linknaming

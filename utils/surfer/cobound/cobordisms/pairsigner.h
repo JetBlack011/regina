@@ -21,10 +21,10 @@
 #include "cobound/cobordisms/cobordism.h"
 #include "surfer/pairsig/pairsig.h"
 
-namespace cascade {
+namespace cobordisms {
 
 /// The pair signature of a kept surface, from its faces and the thickening
-/// it was found in (rebuilt from the row's PD by rowsearch::buildRow(), or
+/// it was found in (rebuilt from the row's PD by search::buildRow(), or
 /// the searched one itself).
 std::string pairSigOf(const regina::Triangulation<4> &thickening,
                       const std::vector<int> &faces);
@@ -38,7 +38,7 @@ struct SignRequest {
 
 /// pairSigOf() for many surfaces at once. Almost all of a signature's cost is
 /// the ambient's own (~50 s for a 10-crossing row, 2026-09-28), so each
-/// distinct row is rebuilt (rowsearch::buildRow(), deterministic, so faces
+/// distinct row is rebuilt (search::buildRow(), deterministic, so faces
 /// index it as they did the searched one) and its ambient part computed once
 /// (PairSigContext), up to `threads` rows at a time. In request order.
 /// With a `cacheDir`, each row's context is read from there when stored and
@@ -56,4 +56,4 @@ std::unique_ptr<PairSigContext<4, 2>>
 pairSigContextFor(const regina::Triangulation<4> &thickening, const std::string &cacheDir,
                   unsigned threads = 1, bool *loaded = nullptr);
 
-} // namespace cascade
+} // namespace cobordisms

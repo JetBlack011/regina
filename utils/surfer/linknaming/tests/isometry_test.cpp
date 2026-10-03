@@ -16,8 +16,8 @@
 #include "linknaming/tables.h"
 #include "linknaming/isometry/isometry.h"
 
-using exactnaming::KernelLink;
-using exactnaming::linkFromTablePD;
+using linknaming::KernelLink;
+using linknaming::linkFromTablePD;
 
 static int passed = 0;
 static int failed = 0;

@@ -5,7 +5,7 @@
 #include <numeric>
 #include <stdexcept>
 
-namespace cascade {
+namespace bounds {
 
 namespace {
 
@@ -140,4 +140,4 @@ std::optional<ProfileEntry> Profile::best(const Partition &target) const {
   return ans;
 }
 
-} // namespace cascade
+} // namespace bounds

@@ -1,7 +1,7 @@
 //
 //  exactnaming_test.cpp
 //
-//  exactnaming::ExactNamer on diagrams built by hand from table PD codes:
+//  linknaming::ExactNamer on diagrams built by hand from table PD codes:
 //
 //    1. every table entry drawn as itself is named as itself (canonically),
 //       exactly;
@@ -30,7 +30,7 @@
 #include "linknaming/tables.h"
 #include "linknaming/diagrams/gaussdiagram.h"
 
-using namespace exactnaming;
+using namespace linknaming;
 
 static int passed = 0;
 static int failed_count = 0;

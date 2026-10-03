@@ -64,10 +64,10 @@ std::string aliasKey(const std::string &name);
  * would let a witness claim a far side of one name and the variants of
  * another.
  */
-std::vector<cobordismgraph::Witness>
-applyNameAliases(const std::vector<cobordismgraph::Witness> &witnesses,
+std::vector<cobordisms::Witness>
+applyNameAliases(const std::vector<cobordisms::Witness> &witnesses,
                  const std::unordered_map<std::string, std::string> &aliases,
-                 const cobordismgraph::NameTable &names, size_t &appliedOut);
+                 const solver::NameTable &names, size_t &appliedOut);
 
 /** One proved far-side identity, keyed on the witness rather than the name. */
 struct FarSideResolution {
@@ -95,8 +95,8 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes);
  * is not the count the search observed. The candidates are the name alone,
  * or its proved alternatives -- never a base's variants.
  */
-std::vector<cobordismgraph::Witness>
-applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
+std::vector<cobordisms::Witness>
+applyFarSideExact(std::vector<cobordisms::Witness> witnesses,
                   const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
                   size_t &refused);
 
@@ -113,7 +113,7 @@ applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
  * wrong on most of the witnesses it matched.
  *
  * The pair signature does determine the far side, so link far sides are
- * keyed on it (via witnesskey::witnessKey) plus which boundary component of
+ * keyed on it (via cobordisms::witnessKey) plus which boundary component of
  * that witness is meant.
  */
 std::unordered_map<std::string, std::vector<FarSideResolution>>
@@ -137,11 +137,11 @@ loadFarSideResolutions(const std::filesystem::path &path);
  * load_witnesses(); the two implementations are deliberately independent,
  * and `frontier.py --check` is only a check while they stay that way.
  */
-std::vector<cobordismgraph::Witness> applyFarSideResolutions(
-    std::vector<cobordismgraph::Witness> resolved,
-    const std::vector<cobordismgraph::Witness> &observed,
+std::vector<cobordisms::Witness> applyFarSideResolutions(
+    std::vector<cobordisms::Witness> resolved,
+    const std::vector<cobordisms::Witness> &observed,
     const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
-    const cobordismgraph::NameTable &names, size_t &appliedOut);
+    const solver::NameTable &names, size_t &appliedOut);
 
 /**
  * link_classes: table names that are one oriented link up to mirror and
@@ -157,7 +157,7 @@ std::unordered_map<std::string, std::string> loadLinkClasses(const std::filesyst
  * \throws std::runtime_error the file cannot be opened, or lacks a column.
  */
 struct CertifiedBounds {
-  std::vector<cobordismgraph::ExternalProof> proofs;
+  std::vector<solver::ExternalProof> proofs;
   size_t skipped = 0; ///< rows not CERTIFIED proofs of the connected goal
 };
 CertifiedBounds loadCascadeProofs(const std::filesystem::path &path,

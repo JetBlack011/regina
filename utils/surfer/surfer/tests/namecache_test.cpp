@@ -1,6 +1,6 @@
 // namecache_test.cpp
 //
-// Tests for identify::BoundarySignatureCache (see ../enumeration/namecache.h):
+// Tests for namecache::BoundarySignatureCache (see ../enumeration/namecache.h):
 // the pre-triangulation dedup layer that canonicalizes a marked edge set
 // against its ambient (fixed) boundary triangulation's own automorphism
 // group, so a boundary curve already seen -- exactly, or up to a symmetry of
@@ -99,7 +99,7 @@ regina::Triangulation<3> testBoundary() {
 
 void test_memoization() {
     regina::Triangulation<3> boundary = testBoundary();
-    identify::BoundarySignatureCache cache(boundary);
+    namecache::BoundarySignatureCache cache(boundary);
 
     int computeCalls = 0;
     auto compute = [&] {
@@ -150,7 +150,7 @@ void test_automorphism_invariance() {
         return;
     }
 
-    identify::BoundarySignatureCache cache(boundary);
+    namecache::BoundarySignatureCache cache(boundary);
     EdgeComplement real(boundary, {boundary.edge(0)});
     // The cache is indifferent to what a name is; a real complement's
     // isoSig stands in for one here.
@@ -180,7 +180,7 @@ void test_automorphism_invariance() {
 
 void test_boundary_signature_cache_clear_threshold() {
     regina::Triangulation<3> boundary = testBoundary();
-    identify::BoundarySignatureCache cache(boundary, /*clearThreshold=*/2);
+    namecache::BoundarySignatureCache cache(boundary, /*clearThreshold=*/2);
 
     int computeCalls = 0;
     auto compute = [&] {

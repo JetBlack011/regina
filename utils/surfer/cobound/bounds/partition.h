@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace cascade {
+namespace bounds {
 
 /**
  * A partition of {0, ..., n-1}, stored as a restricted growth string: element
@@ -58,10 +58,10 @@ private:
 /// them), built once per n and shared (safe from many threads).
 const std::vector<Partition> &allPartitions(int n);
 
-} // namespace cascade
+} // namespace bounds
 
-template <> struct std::hash<cascade::Partition> {
-  std::size_t operator()(const cascade::Partition &p) const noexcept {
+template <> struct std::hash<bounds::Partition> {
+  std::size_t operator()(const bounds::Partition &p) const noexcept {
     std::size_t h = 0x9e3779b97f4a7c15ULL;
     for (int l : p.labels())
       h = (h ^ static_cast<std::size_t>(l + 1)) * 0x100000001b3ULL;

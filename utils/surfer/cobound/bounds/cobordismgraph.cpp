@@ -11,7 +11,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace cascade {
+namespace bounds {
 
 const char *kindName(RecordKind k) {
   switch (k) {
@@ -889,4 +889,4 @@ std::string ProofGraph::recheck(RecordId rid) const {
   return "";
 }
 
-} // namespace cascade
+} // namespace bounds

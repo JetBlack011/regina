@@ -27,7 +27,7 @@
  *  this operates on.
  */
 
-namespace identify {
+namespace census {
 
 /**
  * A mutex guarding only regina::Census::lookup() itself: Regina's census
@@ -59,7 +59,7 @@ std::string identify(const EdgeComplement &e);
 extern std::atomic<bool> perturbNamesForTesting;
 
 /** `name`, perturbed as identify() perturbs its own when
- *  perturbNamesForTesting is set; for other namers (farside::DiagramNamer)
+ *  perturbNamesForTesting is set; for other namers (outgoing::DiagramNamer)
  *  to honour the same test. */
 std::string perturbedForTesting(std::string name);
 
@@ -96,7 +96,7 @@ bool recognizeComplement(const EdgeComplement &e);
 /** Prints whether each component of `l`'s complement is recognized; see recognizeComplement(const EdgeComplement&). */
 void recognizeComplement(const Link &l);
 
-} // namespace identify
+} // namespace census
 
 namespace census {
 
@@ -166,7 +166,7 @@ std::optional<std::string> localCensusLookup(const std::string &sig);
  * Set once, before any search worker thread is spawned (see surfer.cpp's
  * --census-db flag, defaulting to the SURFER_CENSUS_PATH compile
  * definition from CMakeLists.txt) -- same contract as
- * linkcomplement.h's simplifyComplements/identify::recognitionCacheLimit.
+ * linkcomplement.h's simplifyComplements/complement::recognitionCacheLimit.
  */
 bool setCensusPath(const std::string &path);
 

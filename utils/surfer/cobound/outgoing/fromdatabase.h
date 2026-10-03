@@ -11,12 +11,12 @@
  *
  *  **WitnessRedrawer** redraws witnesses of one row from their pair
  *  signatures, exactly as the search itself would have seen them. The row is
- *  thickened as verifyslicegenus thickens it (rowsearch::buildRow()). A
+ *  thickened as verifyslicegenus thickens it (search::buildRow()). A
  *  witness's decoded pair is carried onto that thickening by an isomorphism
  *  sending its incoming curve onto the row's L x {0}; from there the outgoing
  *  side is read through the thickening's own product structure
  *  (OutgoingMap), so no automorphism of T can mirror it, and oriented against
- *  the row (farside::orientedOutgoingLink()). The isomorphism is the only
+ *  the row (outgoing::orientedOutgoingLink()). The isomorphism is the only
  *  search, and L x {0} pins it. Used by farsidediagram (diagrams),
  *  farsidename (exact names) and the cascade (stored cobordisms as graph
  *  edges).
@@ -60,7 +60,7 @@
 #include "diagramtriangulation/todiagram.h"
 #include "surfer/submanifold/skeleton.h"
 
-namespace farside {
+namespace outgoing {
 
 class WitnessRedrawer {
   public:
@@ -133,7 +133,7 @@ class WitnessRedrawer {
     const regina::Triangulation<4> &thickening() const { return rb_.tri; }
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }
     const OutgoingMap &outgoing() const { return *outgoing_; }
-    const cobordismgraph::RowOrientation &row() const { return *rb_.orientation; }
+    const search::RowOrientation &row() const { return *rb_.orientation; }
     size_t incomingBC() const { return rb_.searchSideBC; }
     const std::vector<size_t> &rowEdges() const { return rb_.searchEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
@@ -146,7 +146,7 @@ class WitnessRedrawer {
     const knotbuilder::TriangulationWithLink &built() const { return rb_.link; }
     /** The whole row build: a search run in thickening() (cascadesearch's
      *  in-process hops) sees exactly what this redrawer reads. */
-    const rowsearch::RowBuild &rowBuild() const { return rb_; }
+    const search::RowBuild &rowBuild() const { return rb_; }
 
     /** Cumulative milliseconds spent decoding pair signatures, and searching
      *  for the isomorphism onto the thickening (carry()). */
@@ -179,7 +179,7 @@ class WitnessRedrawer {
                                             const std::vector<int> &faces,
                                             const IsoSource &isos) const;
 
-    rowsearch::RowBuild rb_; /**< T, the thickening, its collar and row map. */
+    search::RowBuild rb_; /**< T, the thickening, its collar and row map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
@@ -197,19 +197,19 @@ class WitnessRedrawer {
     /**< an edge of W in its boundary -> (component, local edge index) */
 };
 
-} // namespace farside
+} // namespace outgoing
 
-namespace cascade {
+namespace outgoing {
 
 /// One cached read-back: the link, or why reading it back fails.
 struct CachedReadBack {
-  std::optional<farside::OutgoingLink> link;
+  std::optional<outgoing::OutgoingLink> link;
   std::string why;
 };
 
-std::string serialiseLink(const farside::OutgoingLink &link);
+std::string serialiseLink(const outgoing::OutgoingLink &link);
 /// Inverse of serialiseLink(); nullopt if the text is malformed.
-std::optional<farside::OutgoingLink> parseLink(const std::string &text);
+std::optional<outgoing::OutgoingLink> parseLink(const std::string &text);
 
 /// One row's read-backs: loaded from its file, appended as new ones are
 /// computed. Not shared between threads (one per row being read).
@@ -236,6 +236,6 @@ private:
   mutable size_t hits_ = 0;
 };
 
-} // namespace cascade
+} // namespace outgoing
 
 #endif

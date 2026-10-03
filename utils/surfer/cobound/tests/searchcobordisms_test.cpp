@@ -23,8 +23,8 @@
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
+using linknaming::GaussDiagram;
+using namespace bounds;
 
 namespace {
 
@@ -64,7 +64,7 @@ GaussDiagram of(const regina::Link &l) {
 // The row as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
 HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
-  GaussDiagram d = of(exactnaming::linkFromTablePD(pd));
+  GaussDiagram d = of(linknaming::linkFromTablePD(pd));
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
   HopRow row;
   row.node = nm.node;
@@ -236,5 +236,5 @@ int main() {
   testFastMatchesReference();
   test10_3();
   testL11n33();
-  return cascadetest::finish("hopedges_test");
+  return checks::finish("hopedges_test");
 }

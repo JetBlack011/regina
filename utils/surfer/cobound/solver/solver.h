@@ -49,7 +49,7 @@
  *
  *  \section cg_farside Which far sides may carry a bound at all
  *
- *  identify::identify() names a far side by its COMPLEMENT. Whether that
+ *  census::identify() names a far side by its COMPLEMENT. Whether that
  *  name may feed either inequality above depends entirely on how many
  *  components the far side has, and the rule is decided by farSideBearsBound():
  *
@@ -78,7 +78,7 @@
  *  on its own, and so it is never the thing that licenses a bound.
  */
 
-namespace cobordismgraph {
+namespace solver {
 
 /** Sentinels for "no bound derived yet" */
 constexpr int NO_UPPER_BOUND = INT_MAX;
@@ -96,7 +96,7 @@ constexpr int NO_LOWER_BOUND = INT_MIN;
  * spelling of the name, so an alias that renames a two-component far side to
  * something knot-shaped cannot slip through.
  */
-bool farSideBearsBound(const Witness &w);
+bool farSideBearsBound(const cobordisms::Witness &w);
 
 /* Solving */
 
@@ -120,7 +120,7 @@ struct Bounds {
     Basis basis = Basis::constructive;
 
     // Provenance of whichever witness last improved `hi`.
-    WitnessKind kind = WitnessKind::direct;
+    cobordisms::WitnessKind kind = cobordisms::WitnessKind::direct;
     std::string viaName;
     int viaGenus = 0;
     std::string pairSig;
@@ -179,7 +179,7 @@ struct ExternalProof {
 };
 
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<Witness> &witnesses, const NameTable &names,
+propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &names,
           const std::vector<ExternalProof> &external = {});
 
 /* Reporting */
@@ -225,6 +225,6 @@ std::string
 buildDependsOn(const std::string &via,
                const std::unordered_map<std::string, Bounds> &bounds);
 
-} // namespace cobordismgraph
+} // namespace solver
 
 #endif // SURFER_COBOUND_SOLVER_H

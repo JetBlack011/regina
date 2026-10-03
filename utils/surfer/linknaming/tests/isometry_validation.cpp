@@ -1,7 +1,7 @@
 //
 //  isometry_validation.cpp
 //
-//  Whole-table validation of the isometry step of exactnaming::ExactNamer
+//  Whole-table validation of the isometry step of linknaming::ExactNamer
 //  (../snappeaisometry.h), as the drawer was validated on every table row.
 //  Not a ctest target: it takes minutes on the full tables.
 //
@@ -58,7 +58,7 @@
 #include "linknaming/diagrams/gaussdiagram.h"
 #include "linknaming/isometry/isometry.h"
 
-using namespace exactnaming;
+using namespace linknaming;
 
 namespace {
 

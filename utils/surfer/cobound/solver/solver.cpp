@@ -13,9 +13,9 @@
 #include "linknaming/complement/unlinknaming.h"
 #include "linknaming/names.h"
 
-namespace cobordismgraph {
+namespace solver {
 
-bool farSideBearsBound(const Witness &w) {
+bool farSideBearsBound(const cobordisms::Witness &w) {
     // The observed count, never the name: componentsFromName() is an
     // inference from a string, and an alias could make a two-curve far side
     // read like a knot.
@@ -23,7 +23,7 @@ bool farSideBearsBound(const Witness &w) {
     // split -- is the one case where a multi-component name is a complete
     // candidate set; see Witness::farSideProved.
     return w.otherComponents == 1 || w.farSideProved ||
-           identify::isUnlinkName(w.other);
+           complement::isUnlinkName(w.other);
 }
 
 namespace {
@@ -82,7 +82,7 @@ bool isPrimeKnotName(const std::string &alt) {
 // knot name possibly mirrored ("3_1", "m3_1", "11n_34"), or a composite knot
 // ("3_1#5_1"). Only knot factors take part in the split rule's lower bound.
 bool isKnotFactor(const std::string &alt) {
-    return alt == "Unknot" || !knotSummands(alt).empty() ||
+    return alt == "Unknot" || !linknaming::knotSummands(alt).empty() ||
            isPrimeKnotName(alt);
 }
 
@@ -92,7 +92,7 @@ bool isKnotFactor(const std::string &alt) {
 // would give "3_1#3_1" (the granny, g_4 = 2), a different knot. Its summands
 // are unmirrored where the composite rule reads them.
 std::string unmirrored(const std::string &alt) {
-    return isPrimeKnotName(alt) ? stripKnotMarks(alt) : alt;
+    return isPrimeKnotName(alt) ? linknaming::stripKnotMarks(alt) : alt;
 }
 
 // A split factor's component count, when its name states it (every
@@ -101,13 +101,13 @@ std::string unmirrored(const std::string &alt) {
 // written occurrences are one piece.
 std::optional<int> factorComponents(const std::string &factor) {
     std::optional<int> count;
-    for (const std::string &alt : factorAlternatives(factor)) {
+    for (const std::string &alt : linknaming::factorAlternatives(factor)) {
         int n;
         if (isKnotFactor(alt)) {
             n = 1;
-        } else if (isTaggedLinkName(alt)) {
-            n = componentsFromName(alt);
-        } else if (auto pieces = sumPieces(alt);
+        } else if (linknaming::isTaggedLinkName(alt)) {
+            n = linknaming::componentsFromName(alt);
+        } else if (auto pieces = linknaming::sumPieces(alt);
                    pieces && alt.find("#{") == std::string::npos) {
             n = pieces->back().second;
         } else {
@@ -138,7 +138,7 @@ UpperContribution upperOf(const std::string &name,
     // surfaces together in B^4 (a tube leaves the genus the sum) --
     // constructive. There is no matching lower bound by addition: see
     // lowerOf(), where K u -K bounding an annulus is the reason.
-    if (std::vector<std::string> factors = splitFactors(name);
+    if (std::vector<std::string> factors = linknaming::splitFactors(name);
         !factors.empty()) {
         int total = 0;
         std::vector<std::string> support;
@@ -148,7 +148,7 @@ UpperContribution upperOf(const std::string &name,
             // candidates() uses: the bound has to hold whichever it is.
             int worstAlt = NO_UPPER_BOUND;
             std::vector<std::string> altSupport;
-            for (const std::string &alt : factorAlternatives(f)) {
+            for (const std::string &alt : linknaming::factorAlternatives(f)) {
                 UpperContribution u = upperOf(
                     isKnotFactor(alt) ? unmirrored(alt) : alt, bounds, names);
                 if (u.value == NO_UPPER_BOUND) {
@@ -176,8 +176,8 @@ UpperContribution upperOf(const std::string &name,
     // g_4(L) - g_4(K), is in lowerOf.) L is a base name proved up to
     // orientation, so take the WORST of its registered orientation variants;
     // if it has none, no bound.
-    if (std::optional<CompositeName> cp = compositeParts(name)) {
-        const std::string knot = stripKnotMarks(cp->knot);
+    if (std::optional<linknaming::CompositeName> cp = linknaming::compositeParts(name)) {
+        const std::string knot = linknaming::stripKnotMarks(cp->knot);
         UpperContribution k = upperOf(knot, bounds, names);
         // A TAGGED L comes from an exact name: it is its own only variant.
         const bool tagged = cp->link.find('{') != std::string::npos;
@@ -207,7 +207,7 @@ UpperContribution upperOf(const std::string &name,
     // boundary-connect-summing the pieces' minimal connected surfaces along
     // the summed components -- constructive, whichever the components are.
     if (names.sumRules())
-        if (auto pieces = sumPieces(name)) {
+        if (auto pieces = linknaming::sumPieces(name)) {
             int total = 0;
             std::vector<std::string> support;
             bool haveAll = true;
@@ -226,14 +226,14 @@ UpperContribution upperOf(const std::string &name,
     // A composite KNOT A#B#...: g_4 is subadditive under connected sum, so
     // g_4 <= sum of the summands' g_4 (mirrors look up as their knot, g_4
     // being mirror-invariant).
-    if (std::vector<std::string> parts = knotSummands(name); !parts.empty()) {
+    if (std::vector<std::string> parts = linknaming::knotSummands(name); !parts.empty()) {
         int total = 0;
         std::vector<std::string> support;
         bool haveAll = true;
         for (const std::string &p : parts) {
             if (p == "Unknot" || p == "mUnknot")
                 continue;
-            UpperContribution u = upperOf(stripKnotMarks(p), bounds, names);
+            UpperContribution u = upperOf(linknaming::stripKnotMarks(p), bounds, names);
             if (u.value == NO_UPPER_BOUND) {
                 haveAll = false;
                 break;
@@ -280,14 +280,14 @@ LowerContribution lowerOf(const std::string &name,
     // only when every remaining factor is a knot. A factor's alternatives
     // ("3_1|m3_1") must all satisfy it: the MIN of their lower bounds and
     // the MAX of their upper bounds.
-    if (std::vector<std::string> factors = splitFactors(name);
+    if (std::vector<std::string> factors = linknaming::splitFactors(name);
         !factors.empty()) {
         std::vector<std::vector<std::string>> knots;   // nontrivial factors
         bool allKnots = true;
         for (const std::string &f : factors) {
             std::vector<std::string> alts;
             bool trivial = true;
-            for (const std::string &alt : factorAlternatives(f)) {
+            for (const std::string &alt : linknaming::factorAlternatives(f)) {
                 if (!isKnotFactor(alt)) {
                     allKnots = false;
                     break;
@@ -348,12 +348,12 @@ LowerContribution lowerOf(const std::string &name,
     //     g_4(F_i) <= g_4(u F) + sum_{j != i} (g_4(F_j) + n(F_j) - 1).
     // For knot factors that is the rule above, less its -(f - 1).
     if (names.sumRules())
-        if (std::vector<std::string> factors = splitFactors(name); !factors.empty())
+        if (std::vector<std::string> factors = linknaming::splitFactors(name); !factors.empty())
             for (size_t i = 0; i < factors.size(); ++i) {
                 int value = NO_LOWER_BOUND;
                 std::vector<std::string> support;
                 bool ok = true;
-                for (const std::string &alt : factorAlternatives(factors[i])) {
+                for (const std::string &alt : linknaming::factorAlternatives(factors[i])) {
                     LowerContribution l = lowerOf(unmirrored(alt), bounds, names);
                     if (l.value == NO_LOWER_BOUND) {
                         ok = false;
@@ -371,7 +371,7 @@ LowerContribution lowerOf(const std::string &name,
                         break;
                     }
                     int worst = NO_UPPER_BOUND;
-                    for (const std::string &alt : factorAlternatives(factors[j])) {
+                    for (const std::string &alt : linknaming::factorAlternatives(factors[j])) {
                         UpperContribution u = upperOf(unmirrored(alt), bounds, names);
                         if (u.value == NO_UPPER_BOUND) {
                             ok = false;
@@ -391,7 +391,7 @@ LowerContribution lowerOf(const std::string &name,
     // annuli, each annulus a handle once glued on) costs g_4(B) + n(B) - 1,
     //     g_4(P_i) <= g_4(sum) + sum_{j != i} (g_4(P_j) + n(P_j) - 1).
     if (names.sumRules())
-        if (auto pieces = sumPieces(name))
+        if (auto pieces = linknaming::sumPieces(name))
             for (size_t i = 0; i < pieces->size(); ++i) {
                 LowerContribution l = lowerOf((*pieces)[i].first, bounds, names);
                 if (l.value == NO_LOWER_BOUND)
@@ -418,11 +418,11 @@ LowerContribution lowerOf(const std::string &name,
     // i.e. g_4(A) >= g_4(K_i) - sum_{j != i} g_4(K_j), for every i. This is
     // the only lower bound a sum admits in terms of its summands: K # -K is
     // slice, so nothing like g_4(K) + g_4(J) - c holds.
-    if (std::vector<std::string> parts = knotSummands(name); !parts.empty()) {
+    if (std::vector<std::string> parts = linknaming::knotSummands(name); !parts.empty()) {
         std::vector<std::string> knots;
         for (const std::string &p : parts)
             if (p != "Unknot" && p != "mUnknot")
-                knots.push_back(stripKnotMarks(p));
+                knots.push_back(linknaming::stripKnotMarks(p));
         for (size_t i = 0; i < knots.size(); ++i) {
             LowerContribution l = lowerOf(knots[i], bounds, names);
             if (l.value == NO_LOWER_BOUND)
@@ -451,8 +451,8 @@ LowerContribution lowerOf(const std::string &name,
     // gives a concordant link), so g_4(L) <= g_4(K #_c L) + g_4(K), i.e.
     //     g_4(K #_c L) >= g_4(L) - g_4(K).
     // L is proved up to orientation, so the MIN over its variants.
-    if (std::optional<CompositeName> cp = compositeParts(name)) {
-        const std::string knot = stripKnotMarks(cp->knot);
+    if (std::optional<linknaming::CompositeName> cp = linknaming::compositeParts(name)) {
+        const std::string knot = linknaming::stripKnotMarks(cp->knot);
         UpperContribution k = upperOf(knot, bounds, names);
         const bool tagged = cp->link.find('{') != std::string::npos;
         const std::vector<std::string> variants =
@@ -483,7 +483,7 @@ LowerContribution lowerOf(const std::string &name,
 /** Applies `hi[name] <- min(hi[name], value)`, returning whether it changed. */
 bool relaxUpper(std::unordered_map<std::string, Bounds> &bounds,
                 const NameTable &names, const std::string &name, int value,
-                std::vector<std::string> support, const Witness &w,
+                std::vector<std::string> support, const cobordisms::Witness &w,
                 const std::string &via) {
     if (value == NO_UPPER_BOUND)
         return false;
@@ -538,38 +538,38 @@ bool relaxLower(std::unordered_map<std::string, Bounds> &bounds,
 
 /** Seeds the bounds that need neither a search nor the literature. */
 void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
-                const std::vector<Witness> &witnesses,
+                const std::vector<cobordisms::Witness> &witnesses,
                 const NameTable &names) {
     auto axiom = [&bounds](const std::string &name) {
         Bounds &b = bounds[name];
         b.hi = 0;
         b.lo = 0;
         b.basis = Basis::constructive;
-        b.kind = WitnessKind::direct;
+        b.kind = cobordisms::WitnessKind::direct;
     };
     axiom("Unknot");
     // Every "<n>-component unlink" actually mentioned anywhere: it bounds
     // n disks, which tube into a connected planar surface of genus 0.
     // Likewise every slice composite mentioned anywhere: it bounds a disk.
-    for (const Witness &w : witnesses)
+    for (const cobordisms::Witness &w : witnesses)
         for (const std::string &side : {w.other, w.subject})
-            if (identify::isMultiComponentUnlinkName(side) ||
-                exactnaming::isElementarySlice(side, names.symmetries()))
+            if (complement::isMultiComponentUnlinkName(side) ||
+                linknaming::isElementarySlice(side, names.symmetries()))
                 axiom(side);
 }
 
 } // namespace
 
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<Witness> &witnesses, const NameTable &names,
+propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &names,
           const std::vector<ExternalProof> &external) {
     std::unordered_map<std::string, Bounds> bounds;
     seedAxioms(bounds, witnesses, names);
 
     // Direct witnesses are the constructive base case (surfaces that straight
     // up bound the link)
-    for (const Witness &w : witnesses)
-        if (w.kind == WitnessKind::direct)
+    for (const cobordisms::Witness &w : witnesses)
+        if (w.kind == cobordisms::WitnessKind::direct)
             relaxUpper(bounds, names, w.subject, w.genus, /*support=*/{}, w,
                        "");
 
@@ -577,8 +577,8 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
     // constructive as their leaves. Recorded as direct, via the proof's
     // source, so a report names where the bound came from.
     for (const ExternalProof &p : external) {
-        Witness w;
-        w.kind = WitnessKind::direct;
+        cobordisms::Witness w;
+        w.kind = cobordisms::WitnessKind::direct;
         w.subject = p.name;
         w.genus = p.genus;
         relaxUpper(bounds, names, p.name, p.genus, p.support, w, p.source);
@@ -589,8 +589,8 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
     bool changed = true;
     while (changed) {
         changed = false;
-        for (const Witness &w : witnesses) {
-            if (w.kind != WitnessKind::cobordism)
+        for (const cobordisms::Witness &w : witnesses) {
+            if (w.kind != cobordisms::WitnessKind::cobordism)
                 continue;
             // A multi-component far side that is not a proven unlink bounds
             // nothing in either direction -- its complement does not
@@ -623,7 +623,7 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
             // an axiom).
             if ((w.otherComponents == 1 || w.farSideExact) &&
                 w.otherCandidates.size() == 1 &&
-                !identify::isMultiComponentUnlinkName(w.otherCandidates.front()))
+                !complement::isMultiComponentUnlinkName(w.otherCandidates.front()))
                 directions.push_back({w.otherCandidates.front(),
                                       w.otherComponents,
                                       {w.subject},
@@ -655,7 +655,7 @@ propagate(const std::vector<Witness> &witnesses, const NameTable &names,
                 const bool unlinkFar =
                     !d.far.empty() &&
                     std::all_of(d.far.begin(), d.far.end(),
-                                identify::isMultiComponentUnlinkName);
+                                complement::isMultiComponentUnlinkName);
                 const int penalty = unlinkFar ? 0 : d.farComponents - 1;
                 if (haveAll && relaxUpper(bounds, names, d.near,
                                           addUpper(worst, w.genus + penalty),
@@ -765,7 +765,7 @@ buildDependsOn(const std::string &via,
     std::string cur = via;
     while (!cur.empty() && seen.insert(cur).second) {
         chain.push_back(cur);
-        if (identify::isUnlinkName(cur))
+        if (complement::isUnlinkName(cur))
             break;
         auto it = bounds.find(cur);
         if (it == bounds.end() || it->second.viaName.empty())
@@ -781,4 +781,4 @@ buildDependsOn(const std::string &via,
     return out.str();
 }
 
-} // namespace cobordismgraph
+} // namespace solver

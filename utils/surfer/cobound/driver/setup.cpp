@@ -16,7 +16,7 @@ namespace setup {
 
 bool applyRunSettings(const config::Config &cfg) {
   const bool goal = cfg.context() == config::Context::goal;
-  identify::recognitionCacheLimit.store(
+  complement::recognitionCacheLimit.store(
       static_cast<size_t>(cfg.integer("complement_cache_limit")), std::memory_order_relaxed);
   census::censusUpdates.store(cfg.flag("census_updates"), std::memory_order_relaxed);
   census::retriangulateOnMiss.store(cfg.flag("retriangulate_on_miss"),
@@ -29,7 +29,7 @@ bool applyRunSettings(const config::Config &cfg) {
     // verifyslicegenus honoured it).
     if (const char *perturb = std::getenv("SURFER_TEST_PERTURB_NAMES");
         perturb && *perturb && std::string(perturb) != "0") {
-      identify::perturbNamesForTesting.store(true);
+      census::perturbNamesForTesting.store(true);
       std::cerr << "[!] SURFER_TEST_PERTURB_NAMES: every identified name is "
                    "perturbed (test mode)\n";
     }

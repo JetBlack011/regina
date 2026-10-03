@@ -38,7 +38,7 @@
 
 #include <link/link.h>
 
-namespace exactnaming {
+namespace linknaming {
 
 struct GaussDiagram {
     std::vector<int> signs;             /**< per crossing, +1 right-handed */
@@ -68,6 +68,6 @@ std::vector<GaussDiagram> splitPieces(const GaussDiagram &d);
  */
 std::optional<std::pair<GaussDiagram, GaussDiagram>> visibleSum(const GaussDiagram &d);
 
-} // namespace exactnaming
+} // namespace linknaming
 
 #endif

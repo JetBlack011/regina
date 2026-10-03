@@ -383,7 +383,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   // is already the full aggregate across every search thread. Boundaries are
   // named without a census, so only the genus answers are cached.
   auto recognitionCacheText = [] {
-    identify::RecognitionCacheStats s = identify::recognitionCacheStats();
+    complement::RecognitionCacheStats s = complement::recognitionCacheStats();
     auto hitRate = [](long long hits, long long checks) {
       return checks > 0 ? 100.0 * static_cast<double>(hits) /
                                static_cast<double>(checks)
@@ -395,7 +395,7 @@ void runSearch(const regina::Triangulation<4> &tri,
         << std::setprecision(1) << hitRate(s.genusCacheHits, s.genusChecks)
         << "% hit rate)\n";
     out << "[+] recognition cache entries (distinct isoSigs seen): "
-        << identify::recognitionCacheSize() << " | full resets: "
+        << complement::recognitionCacheSize() << " | full resets: "
         << s.cacheResets << "\n";
     long long misses = s.genusChecks - s.genusCacheHits;
     out << "[+] genus cache misses resolved via: group-is-Z check="
@@ -407,13 +407,13 @@ void runSearch(const regina::Triangulation<4> &tri,
   };
 
   // How much recomputation the pre-triangulation boundary-signature cache
-  // (see identify::BoundarySignatureCache in namecache.h) is actually
+  // (see namecache::BoundarySignatureCache in namecache.h) is actually
   // avoiding -- one cache per ambient boundary component, shared across
   // every search thread, so this is already the full aggregate. A high hit
   // rate here means most boundary curves are never named again at all, let
   // alone drilled for the recognition cache above.
   auto boundarySignatureCacheText = [&] {
-    identify::BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
+    namecache::BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
     double hitRate = s.checks > 0 ? 100.0 * static_cast<double>(s.hits) /
                                         static_cast<double>(s.checks)
                                   : 0.0;
@@ -671,7 +671,7 @@ int main(int argc, char *argv[]) {
   long long rootBudgetGrowth = 2;
 
   SurfaceSearchLimits limits;
-  size_t recognitionCacheLimitArg = identify::recognitionCacheLimit.load();
+  size_t recognitionCacheLimitArg = complement::recognitionCacheLimit.load();
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -868,7 +868,7 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
-  identify::recognitionCacheLimit.store(recognitionCacheLimitArg,
+  complement::recognitionCacheLimit.store(recognitionCacheLimitArg,
                                         std::memory_order_relaxed);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than

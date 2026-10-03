@@ -23,7 +23,7 @@
  *  PD orientation there (the row map).
  */
 
-namespace cobordismgraph {
+namespace search {
 
 /**
  * A row's own PD-tagged diagram edges (knotbuilder::TriangulationWithLink's
@@ -77,9 +77,9 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                     const std::vector<bool> &rowReversed,
                     const regina::Triangulation<3> &searchSideTri,
                     const std::vector<size_t> *requiredEdges = nullptr);
-} // namespace cobordismgraph
+} // namespace search
 
-namespace farside {
+namespace search {
 
 /**
  * The edges of `faces` (triangle indices of `tri`) lying in boundary
@@ -89,10 +89,10 @@ namespace farside {
 std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
                                     const std::vector<int> &faces,
                                     size_t bcIndex);
-} // namespace farside
+} // namespace search
 
 
-namespace rowsearch {
+namespace search {
 
 /**
  * A row's ambient S^3 x I and its seed (ThickenedLink), with the row map.
@@ -100,7 +100,7 @@ namespace rowsearch {
  * SurfaceSearch built from it hold pointers into `link.tri` and `cob`.
  */
 struct RowBuild : ThickenedLink {
-    std::optional<cobordismgraph::RowOrientation> orientation;
+    std::optional<search::RowOrientation> orientation;
     /**< The row map: L's edges and PD orientation in search-side terms. */
     std::vector<size_t> searchEdges;
     /**< The row's own link on the search side, as sorted edge indices of that
@@ -126,6 +126,6 @@ void buildRow(const std::string &pdNotation, int thickenLayers,
  */
 void orientRow(RowBuild &row);
 
-} // namespace rowsearch
+} // namespace search
 
 #endif // SURFER_COBOUND_INCOMING_H

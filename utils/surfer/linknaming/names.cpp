@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace cobordismgraph {
+namespace linknaming {
 
 /* Names of knots/links that appear in the cobordism graph */
 
@@ -349,4 +349,4 @@ int componentsFromName(const std::string &name) {
     return entries + 1;
 }
 
-} // namespace cobordismgraph
+} // namespace linknaming

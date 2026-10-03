@@ -9,9 +9,9 @@
 
 #include "cobound/parallelfor.h"
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
-namespace cascade {
+namespace bounds {
 
 bool mayUseLiteratureUpperBound(const std::string &nodeClass,
                                 const std::string &targetClass,
@@ -20,8 +20,8 @@ bool mayUseLiteratureUpperBound(const std::string &nodeClass,
   return targetClass.empty() || nodeClass != targetClass;
 }
 
-exactnaming::NamerLimits NodeAxioms::namerLimits() {
-  exactnaming::NamerLimits l;
+linknaming::NamerLimits NodeAxioms::namerLimits() {
+  linknaming::NamerLimits l;
   l.simplifyTries = 4;
   l.exhaustiveHeight = 0;
   l.searchHeight = -1;
@@ -31,15 +31,15 @@ exactnaming::NamerLimits NodeAxioms::namerLimits() {
 }
 
 NodeAxioms::NodeAxioms(ProofGraph &graph, NodeRegistry &nodes,
-                       const exactnaming::ExactTables &tables,
-                       const exactnaming::ExactNamer &namer,
-                       const exactnaming::SymmetryTable &symmetries, Options options)
+                       const linknaming::ExactTables &tables,
+                       const linknaming::ExactNamer &namer,
+                       const linknaming::SymmetryTable &symmetries, Options options)
     : g_(graph), reg_(nodes), tables_(tables), namer_(namer), symmetries_(symmetries),
       options_(options) {}
 
 std::string NodeAxioms::classOf(const std::string &name) const {
   if (!options_.classes) return name;
-  const exactnaming::TableEntry *e = tables_.entry(name);
+  const linknaming::TableEntry *e = tables_.entry(name);
   return e ? namer_.canonicalName(*e) : name;
 }
 
@@ -54,11 +54,11 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
   // name is independent of the others', so the names are found on a pool
   // (ExactNamer is safe to share: its caches are locked, and its SnapPea
   // calls serialised) and applied here in node order, as one at a time would.
-  std::vector<std::optional<exactnaming::PieceName>> names(ns.size());
+  std::vector<std::optional<linknaming::PieceName>> names(ns.size());
   // A knot identify() leaves untabulated may be a connected sum the tables
   // hold only summand by summand: the whole-diagram namer cuts it at its
   // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
-  std::vector<std::optional<exactnaming::FarSideName>> composites(ns.size());
+  std::vector<std::optional<linknaming::FarSideName>> composites(ns.size());
   // Any untabulated node (knot or link) with visible sum spheres is cut into
   // its prime summands, which become nodes joined to it by a sum edge
   // (applySum; paper lem:sum-partitions): the tables list prime links only,
@@ -70,9 +70,9 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
     try {
       const GaussDiagram &d = reg_.info(n).diagram;
       names[i] = namer_.identify(d);
-      if (names[i]->by == exactnaming::PieceName::By::untabulated && d.crossings() > 0) {
+      if (names[i]->by == linknaming::PieceName::By::untabulated && d.crossings() > 0) {
         if (d.components() == 1) {
-          exactnaming::FarSideName fs = namer_.name(d.link());
+          linknaming::FarSideName fs = namer_.name(d.link());
           if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
               fs.name.find('#') != std::string::npos)
             composites[i] = std::move(fs);
@@ -133,7 +133,7 @@ void NodeAxioms::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int
   *options_.log << o.str() << "\n";
 }
 
-void NodeAxioms::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
+void NodeAxioms::applyComposite(NodeId n, const linknaming::FarSideName &fs) {
   // The composite's name is recorded (certificates, node bounds, the
   // subject name stays cascade:, since no table row holds it). It is an
   // ANCHOR when its summands cancel in concordance (cobordismgraph.h
@@ -142,7 +142,7 @@ void NodeAxioms::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
   // unknot's leaf, constructive like the unknot's, never for the target.
   tableName[n] = fs.name;
   if (n == target) return;
-  if (!exactnaming::isElementarySlice(fs.name, symmetries_)) return;
+  if (!linknaming::isElementarySlice(fs.name, symmetries_)) return;
   g_.addLeaf(n, Partition::coarsest(1), 0, "anchor " + fs.name);
   ++anchors;
   if (options_.log)
@@ -150,14 +150,14 @@ void NodeAxioms::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
                   << "): a slice composite, anchored\n";
 }
 
-void NodeAxioms::applyName(NodeId n, const exactnaming::PieceName &pn) {
-  if (pn.by == exactnaming::PieceName::By::untabulated || !pn.pinned() || pn.names.size() != 1)
+void NodeAxioms::applyName(NodeId n, const linknaming::PieceName &pn) {
+  if (pn.by == linknaming::PieceName::By::untabulated || !pn.pinned() || pn.names.size() != 1)
     return;
   const std::string &name = pn.names.front();
   tableName[n] = name;
-  const exactnaming::TableEntry *e = tables_.entry(name);
+  const linknaming::TableEntry *e = tables_.entry(name);
   if (!e) return;
-  auto g4 = exactnaming::parseTableG4(e->g4);
+  auto g4 = linknaming::parseTableG4(e->g4);
   if (!g4) return;
   const auto [lo, hi] = *g4;
   g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
@@ -169,4 +169,4 @@ void NodeAxioms::applyName(NodeId n, const exactnaming::PieceName &pn) {
              "literature " + name + " " + e->g4);
 }
 
-} // namespace cascade
+} // namespace bounds

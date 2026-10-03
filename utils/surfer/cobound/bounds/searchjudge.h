@@ -17,7 +17,7 @@
 #include "linknaming/linknamer.h"
 #include "linknaming/tables.h"
 
-namespace cascade {
+namespace bounds {
 
 /**
  * The cobordism graph of one search without a goal (plan divergences 6 and
@@ -36,7 +36,7 @@ namespace cascade {
  * cobordism is not judged so here (plan divergence 10, intended).
  *
  * The search runs in row().rowBuild(), the row this judge reads its finds'
- * outgoing links from (rowsearch::buildRow(pd, layers, layers)).
+ * outgoing links from (search::buildRow(pd, layers, layers)).
  */
 class SearchJudge {
 public:
@@ -45,13 +45,13 @@ public:
   /// \throws std::runtime_error when the row's own link does not redraw as
   /// its diagram (HopAssembler's certification).
   SearchJudge(const std::string &name, const std::string &pd, int layers, int literatureLo,
-              const exactnaming::ExactTables &tables, const exactnaming::ExactNamer &namer,
-              const exactnaming::SymmetryTable &symmetries, unsigned threads);
+              const linknaming::ExactTables &tables, const linknaming::ExactNamer &namer,
+              const linknaming::SymmetryTable &symmetries, unsigned threads);
   SearchJudge(const SearchJudge &) = delete;
   SearchJudge &operator=(const SearchJudge &) = delete;
 
   /// The row the search runs in, and reads its finds' outgoing links from.
-  const farside::WitnessRedrawer &row() const { return hop_->redrawer(); }
+  const outgoing::WitnessRedrawer &row() const { return hop_->redrawer(); }
 
   struct Verdict {
     /// The graph's contradictions so far (each a sentence); none, normally.
@@ -66,7 +66,7 @@ public:
   /// calls it under its own lock. A find the graph cannot take (it breaks
   /// an invariant of its reading) is counted in failures() and judged as
   /// absent.
-  Verdict add(const farside::OutgoingLink &link, int genus, const std::string &key);
+  Verdict add(const outgoing::OutgoingLink &link, int genus, const std::string &key);
 
   long long finds() const { return finds_; }
   long long failures() const { return failures_; }
@@ -83,4 +83,4 @@ private:
   long long finds_ = 0, failures_ = 0;
 };
 
-} // namespace cascade
+} // namespace bounds

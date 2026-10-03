@@ -5,7 +5,7 @@
 // independent of any recognition/census logic.
 //
 // See identifycomplement_test.cpp for BoundarySignatureCache and
-// recognition-cache tests -- those exercise identify::identify() and its
+// recognition-cache tests -- those exercise census::identify() and its
 // caches, not this file's representation-only concern.
 
 #include <algorithm>

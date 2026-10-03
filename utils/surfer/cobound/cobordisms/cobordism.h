@@ -15,7 +15,7 @@
  *  the identity a search deduplicates by.
  */
 
-namespace cobordismgraph {
+namespace cobordisms {
 
 /** Whether a witness bounds its subject on its own, or only relative to
  * another name. */
@@ -57,7 +57,7 @@ struct Witness {
          witness never holds its ~11 KB pair signature in memory; anything
          that needs it reads it back through this offset. */
     std::string pairSigKey;
-    /**< witnesskey::witnessKey(pairSig), sha1(pairsig)[:12] -- the key the
+    /**< cobordisms::witnessKey(pairSig), sha1(pairsig)[:12] -- the key the
          per-witness far-side resolution file is keyed on. Filled at load
          only when resolutions are in use, and for every new witness. */
     /**
@@ -121,6 +121,6 @@ std::string witnessIdentity(const Witness &w);
  * witnessIdentity(). Linear; the search keeps a hashed set of identities
  * instead, and this remains for tests and small callers. */
 bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w);
-} // namespace cobordismgraph
+} // namespace cobordisms
 
 #endif // SURFER_COBOUND_COBORDISM_H

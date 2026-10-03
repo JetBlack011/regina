@@ -23,12 +23,12 @@
 #include "cobound/cobordisms/cobordism.h"
 #include "cobound/solver/literature.h"
 
-namespace cascade {
+namespace cobordisms {
 
 /// A kept surface bound for the witness store: its witness (every column
 /// but the pair signature), and what its signature is computed from.
 struct PendingWitness {
-  cobordismgraph::Witness witness;
+  cobordisms::Witness witness;
   std::string rowPD;
   int layers = 2;
   std::vector<int> faces;
@@ -114,7 +114,7 @@ long long signedThrough(const std::string &path);
 /// resumed). Returns storeKept()'s result.
 StoreResult signPending(const std::string &work, const std::string &store,
                         const std::vector<std::string> &dedupeAgainst,
-                        const cobordismgraph::NameTable &names, unsigned threads,
+                        const solver::NameTable &names, unsigned threads,
                         const std::string &pairSigCache = "",
                         const LoadedStore &loaded = {},
                         const std::function<bool(const PendingWitness &)> &sidecarLine = {});
@@ -122,7 +122,7 @@ StoreResult signPending(const std::string &work, const std::string &store,
 
 /**
  * Signs and stores kept surfaces. A surface is fresh when its
- * cobordismgraph::witnessIdentity() is in neither `store` nor any of
+ * cobordisms::witnessIdentity() is in neither `store` nor any of
  * `dedupeAgainst` (read only; the master, say), nor earlier in `pending`:
  * exactly the sweep's rule, which records one witness per identity. Only
  * fresh surfaces are signed (pairSigsOf(), `threads` rows at a time).
@@ -136,7 +136,7 @@ StoreResult signPending(const std::string &work, const std::string &store,
  */
 StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
-                      const cobordismgraph::NameTable &names, unsigned threads,
+                      const solver::NameTable &names, unsigned threads,
                       const std::string &pairSigCache = "",
                       const LoadedStore &loaded = {},
                       const std::function<bool(const PendingWitness &)> &sidecarLine = {});
@@ -151,22 +151,22 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
 class RecordedWitnesses {
 public:
   /// `loaded`: the witnesses of the database file at `path` (loadWitnesses()).
-  RecordedWitnesses(std::filesystem::path path, std::vector<cobordismgraph::Witness> loaded);
+  RecordedWitnesses(std::filesystem::path path, std::vector<cobordisms::Witness> loaded);
   RecordedWitnesses(const RecordedWitnesses &) = delete;
   RecordedWitnesses &operator=(const RecordedWitnesses &) = delete;
 
   /// Every witness, as loaded.
-  const std::vector<cobordismgraph::Witness> &all() const { return witnesses_; }
-  /// cobordismgraph::witnessIdentity() of each.
+  const std::vector<cobordisms::Witness> &all() const { return witnesses_; }
+  /// cobordisms::witnessIdentity() of each.
   const std::unordered_set<std::string> &identities() const { return identities_; }
   /// The store's first bytes() bytes are what was loaded.
   LoadedStore loaded() const { return {&identities_, bytes_}; }
 
 private:
   std::filesystem::path path_;
-  std::vector<cobordismgraph::Witness> witnesses_;
+  std::vector<cobordisms::Witness> witnesses_;
   std::unordered_set<std::string> identities_;
   std::uintmax_t bytes_ = 0;
 };
 
-} // namespace cascade
+} // namespace cobordisms

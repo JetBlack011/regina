@@ -17,7 +17,7 @@
 #include "linknaming/isometry/isometry.h"
 #include "cobound/bounds/cobordismgraph.h"
 
-namespace cascade {
+namespace bounds {
 
 /// How a diagram was found to be a node.
 struct NodeMatch {
@@ -31,7 +31,7 @@ struct NodeMatch {
 };
 
 struct NodeInfo {
-  exactnaming::GaussDiagram diagram; ///< the representative diagram, simplified
+  linknaming::GaussDiagram diagram; ///< the representative diagram, simplified
   std::vector<std::vector<int>> linking;
   bool hyperbolic = false;
   double volume = 0;
@@ -49,7 +49,7 @@ struct NodeRegistryStats {
  *     reversal, whose component map is the node's; or
  *   - for hyperbolic diagrams, an isometry of complements carrying meridians
  *     to meridians with ONE orientation sign on every component
- *     (exactnaming::KernelLink, exact when found), whose component map is
+ *     (linknaming::KernelLink, exact when found), whose component map is
  *     the isometry's.
  * A miss creates a new node: two nodes for one link cost duplicated search,
  * never soundness. One node for two links is what must not happen, and
@@ -61,8 +61,8 @@ public:
   NodeRegistry(const NodeRegistry &) = delete;
   NodeRegistry &operator=(const NodeRegistry &) = delete;
 
-  /// \pre `piece` is one split piece (exactnaming::splitPieces()), simplified.
-  NodeMatch intern(const exactnaming::GaussDiagram &piece, const std::string &label);
+  /// \pre `piece` is one split piece (linknaming::splitPieces()), simplified.
+  NodeMatch intern(const linknaming::GaussDiagram &piece, const std::string &label);
 
   /// The unknot's node (created on first use, with its disc as a leaf).
   NodeId unknot();
@@ -72,11 +72,11 @@ public:
   const NodeRegistryStats &stats() const { return stats_; }
 
 private:
-  static std::string diagramKey(const exactnaming::GaussDiagram &d);
+  static std::string diagramKey(const linknaming::GaussDiagram &d);
 
   ProofGraph &g_;
   std::map<NodeId, NodeInfo> info_;
-  std::map<NodeId, std::unique_ptr<exactnaming::KernelLink>> kernel_;
+  std::map<NodeId, std::unique_ptr<linknaming::KernelLink>> kernel_;
   std::multimap<std::string, NodeId> byDiagramKey_;
   // Hyperbolic nodes by (components, volume rounded to 1e-6); lookups scan
   // neighbouring buckets, so rounding never hides a match.
@@ -85,4 +85,4 @@ private:
   NodeRegistryStats stats_;
 };
 
-} // namespace cascade
+} // namespace bounds

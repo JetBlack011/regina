@@ -71,5 +71,5 @@ int main() {
   CHECK(threw, "an unopenable file throws");
 
   fs::remove_all(dir);
-  return cascadetest::finish("appendonly_test");
+  return checks::finish("appendonly_test");
 }

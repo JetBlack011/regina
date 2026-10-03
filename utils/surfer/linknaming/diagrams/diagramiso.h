@@ -10,7 +10,7 @@
 
 #include "linknaming/diagrams/gaussdiagram.h"
 
-namespace cascade {
+namespace linknaming {
 
 /**
  * A combinatorial isomorphism between two diagrams, as a map on components.
@@ -42,18 +42,18 @@ struct DiagramIsomorphism {
  * permutation of components is a symmetry of the link.
  */
 std::optional<DiagramIsomorphism>
-findDiagramIsomorphism(const exactnaming::GaussDiagram &a,
-                       const exactnaming::GaussDiagram &b,
+findDiagramIsomorphism(const linknaming::GaussDiagram &a,
+                       const linknaming::GaussDiagram &b,
                        bool allowMirror, bool allowReverse,
                        const std::vector<int> *componentMap = nullptr);
 
 /// The diagram with every component reversed.
-exactnaming::GaussDiagram reverseAll(const exactnaming::GaussDiagram &d);
+linknaming::GaussDiagram reverseAll(const linknaming::GaussDiagram &d);
 /// The mirror image: signs negated, over and under swapped.
-exactnaming::GaussDiagram mirrorImage(const exactnaming::GaussDiagram &d);
+linknaming::GaussDiagram mirrorImage(const linknaming::GaussDiagram &d);
 /// The diagram with ONE component reversed (a different oriented link in
 /// general). The signs of that component's crossings with others flip.
-exactnaming::GaussDiagram reverseComponent(const exactnaming::GaussDiagram &d,
+linknaming::GaussDiagram reverseComponent(const linknaming::GaussDiagram &d,
                                            size_t c);
 
-} // namespace cascade
+} // namespace linknaming

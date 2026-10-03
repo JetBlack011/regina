@@ -1,7 +1,7 @@
 //
 //  witnesskey_test.cpp
 //
-//  Checks witnesskey::witnessKey() against values produced by Python's
+//  Checks cobordisms::witnessKey() against values produced by Python's
 //  hashlib, which is what the cobordism-atlas tooling keys far-side
 //  resolutions on. If these two ever disagree, a resolution written by the
 //  Python side silently fails to match any witness on the C++ side -- and
@@ -37,11 +37,11 @@ int main() {
 
     // A real pair signature prefix, keyed the way frontier.py keys it.
     check("witnessKey is the 12-char prefix",
-          witnesskey::witnessKey("abc"), "a9993e364706");
-    check("the empty signature's key", witnesskey::witnessKey(""),
+          cobordisms::witnessKey("abc"), "a9993e364706");
+    check("the empty signature's key", cobordisms::witnessKey(""),
           "da39a3ee5e6b");
     check("a 1000-byte signature's key",
-          witnesskey::witnessKey(std::string(1000, 'a')), "291e9a6c6699");
+          cobordisms::witnessKey(std::string(1000, 'a')), "291e9a6c6699");
 
     if (failures) {
         std::cout << failures << " failure(s)\n";

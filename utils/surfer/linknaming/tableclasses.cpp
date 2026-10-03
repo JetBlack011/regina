@@ -2,7 +2,7 @@
 //  tableclasses.cpp
 //
 //  The table's link classes: every knot and link table entry whose
-//  canonical name is another entry's, as exactnaming::ExactNamer names it.
+//  canonical name is another entry's, as linknaming::ExactNamer names it.
 //
 //  Usage:
 //    tableclasses --knots <table.csv> --links <table.csv> [--symmetry <csv>]
@@ -38,11 +38,11 @@ int main(int argc, char **argv) {
         std::cerr << "usage: tableclasses --knots <csv> --links <csv> [--symmetry <csv>]\n";
         return 2;
     }
-    const exactnaming::ExactTables tables = exactnaming::ExactTables::load(knots, links, symmetry);
-    const exactnaming::ExactNamer namer(tables);
+    const linknaming::ExactTables tables = linknaming::ExactTables::load(knots, links, symmetry);
+    const linknaming::ExactNamer namer(tables);
     std::cout << "name,canonical,proof\n";
     size_t merged = 0;
-    for (const exactnaming::TableEntry &e : tables.entries()) {
+    for (const linknaming::TableEntry &e : tables.entries()) {
         const std::string &c = namer.canonicalName(e);
         if (c == e.name)
             continue;

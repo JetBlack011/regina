@@ -26,7 +26,7 @@
  *  frozen (the atlas's tools parse them: plan, Hard constraint 2).
  */
 
-namespace rowsearch {
+namespace search {
 
 /**
  * The status block redrawn in place (surfer/report/progress): the process's
@@ -141,7 +141,7 @@ constexpr int REJECTION_SAMPLES_PER_REASON = 20;
 
 /*
  * verifyslicegenus's per-row lines, from what the search returned
- * (cascade::HopRun) and nothing else. Each writes to `out` exactly as the
+ * (search::HopRun) and nothing else. Each writes to `out` exactly as the
  * row loop did, stream state included (the breadth line leaves `out` in
  * std::fixed's precision, as it always has).
  */
@@ -150,22 +150,22 @@ constexpr int REJECTION_SAMPLES_PER_REASON = 20;
  *  frontier, whether the frontier the search was offered was carried on
  *  from, and the frontier's cost. */
 void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const cascade::HopRun &run);
+                       const search::HopRun &run);
 
 /** `N new witnesses, outcome X` and `accounting:` (dispatch.py's RE_OUTCOME
  *  and RE_ACCOUNTING). */
-void printOutcome(std::ostream &out, const std::string &name, const cascade::HopRun &run);
+void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run);
 
 /** `identification:` (the census and recognition counters as the search ended, against
  *  the search's start), `diagram naming:` and their warnings. */
 void printIdentification(std::ostream &out, const std::string &name,
-                         const cascade::HopRun &run);
+                         const search::HopRun &run);
 
 /** `search profile:` (bench_search.sh parses it), with the linking audit
  *  when it is on. */
 void printSearchProfile(std::ostream &out, const std::string &name,
-                        const cascade::HopRun &run);
+                        const search::HopRun &run);
 
-} // namespace rowsearch
+} // namespace search
 
 #endif // SURFER_COBOUND_SEARCHREPORT_H

@@ -173,7 +173,7 @@ struct SurfaceSearchLimits {
     size_t petalCacheLimit = 2'000'000;
     /** See BoundarySignatureCache's clearThreshold constructor parameter. */
     size_t boundarySignatureCacheLimit =
-        identify::BoundarySignatureCache::DEFAULT_CLEAR_THRESHOLD;
+        namecache::BoundarySignatureCache::DEFAULT_CLEAR_THRESHOLD;
     /** See SurfaceSearch::LinkBoundaryTally::setCap(). */
     size_t boundaryTallyCap = 1'000'000;
     bool capturePairSig = false;
@@ -217,7 +217,7 @@ class BoundaryNamer {
  * Names boundary curves by their complements, through one pair of routes: a
  * lone curve (and each curve named on its own) by `knot`, several curves
  * together by `link`. UnlinkBoundaryNamer below is the census-free pair;
- * cobound's farside::ComplementNamer the census pair (identify::identify()).
+ * cobound's outgoing::ComplementNamer the census pair (census::identify()).
  */
 class ComplementBoundaryNamer : public BoundaryNamer {
   public:
@@ -237,7 +237,7 @@ class ComplementBoundaryNamer : public BoundaryNamer {
 /**
  * Names boundary curves without any census, from their complements:
  * "Unknot", "<n>-component unlink", or else the complement's isoSig
- * (identify::unlinkNameOrIsoSig(), linknaming/complement/unlinknaming.h).
+ * (complement::unlinkNameOrIsoSig(), linknaming/complement/unlinknaming.h).
  */
 class UnlinkBoundaryNamer : public ComplementBoundaryNamer {
   public:
@@ -473,7 +473,7 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
     mutable std::vector<regina::Triangulation<3>> boundaryComponentTris_;
 
-    mutable std::vector<std::unique_ptr<identify::BoundarySignatureCache>>
+    mutable std::vector<std::unique_ptr<namecache::BoundarySignatureCache>>
         boundarySigCaches_;
 
     /**
@@ -539,7 +539,7 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
      * Returns the aggregated hit/miss counters of every boundary component's
      * BoundarySignatureCache (see boundarySigCaches_) summed together.
      */
-    identify::BoundarySignatureCacheStats boundarySignatureCacheStats() const;
+    namecache::BoundarySignatureCacheStats boundarySignatureCacheStats() const;
 
     /** As above, but the total number of distinct canonical boundary signatures
      * seen across every boundary component. */

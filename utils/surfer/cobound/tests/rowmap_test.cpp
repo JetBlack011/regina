@@ -15,7 +15,7 @@
 //       collar is one annulus per component, each oriented independently;
 //       comparing their signs globally (D2) rejected it for some variants.
 //
-//  Built from real PD codes by rowsearch::buildRow(), the build
+//  Built from real PD codes by search::buildRow(), the build
 //  verifyslicegenus and cascadesearch both use. An optional argument
 //  -- a table CSV of Name,PD,... rows -- sweeps every row of it instead
 //  (slow; not part of ctest):
@@ -45,7 +45,7 @@
 #include "surfer/submanifold/skeleton.h"
 #include "surfer/enumeration/surfacesearch.h"
 
-using namespace cobordismgraph;
+using namespace search;
 
 static int passed = 0;
 static int failed_count = 0;
@@ -68,7 +68,7 @@ namespace {
 
 // The seed's edges in boundary component `bcIndex`, as sorted indices of
 // that component's built triangulation: computed here independently of
-// farside::boundaryEdgesOf(), which buildRow() uses, as a cross-check.
+// search::boundaryEdgesOf(), which buildRow() uses, as a cross-check.
 std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
                                 const std::vector<int> &seedFaces,
                                 size_t bcIndex) {
@@ -88,9 +88,9 @@ std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
 
 void checkRow(const std::string &name, const std::string &pd) {
     // The campaign shape: two layers, collared through both.
-    rowsearch::RowBuild rb;
+    search::RowBuild rb;
     try {
-        rowsearch::buildRow(pd, 2, 2, rb);
+        search::buildRow(pd, 2, 2, rb);
     } catch (const regina::InvalidArgument &e) {
         std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
                   << "\n";

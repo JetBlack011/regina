@@ -19,9 +19,9 @@
 #include "linknaming/tests/gaussfixtures.h"
 #include "linknaming/tables.h"
 
-using exactnaming::GaussDiagram;
-using namespace cascade;
-using namespace cascadetest;
+using linknaming::GaussDiagram;
+using namespace bounds;
+using namespace checks;
 
 namespace {
 
@@ -79,7 +79,7 @@ void testDifferentDiagramsSameLink() {
     NodeMatch n0 = reg.intern(base, "base");
     for (int t = 0; t < 25; ++t) {
       GaussDiagram s = scramble(base, rng, 20);
-      for (const GaussDiagram &q : exactnaming::splitPieces(s)) {
+      for (const GaussDiagram &q : linknaming::splitPieces(s)) {
         if (q.components() != base.components()) continue; // came apart: skip
         NodeMatch m = reg.intern(q, "scrambled");
         ++trials;
@@ -109,8 +109,8 @@ void testOrientationVariantsAreDifferentNodes() {
   ProofGraph g;
   NodeRegistry reg(g);
   for (auto [a, b] : {std::pair{L7n1_0, L7n1_1}, std::pair{L4a1_0, L4a1_1}}) {
-    GaussDiagram da = simplifyKeepingComponents(of(exactnaming::linkFromTablePD(a)));
-    GaussDiagram db = simplifyKeepingComponents(of(exactnaming::linkFromTablePD(b)));
+    GaussDiagram da = simplifyKeepingComponents(of(linknaming::linkFromTablePD(a)));
+    GaussDiagram db = simplifyKeepingComponents(of(linknaming::linkFromTablePD(b)));
     NodeMatch ma = reg.intern(da, a), mb = reg.intern(db, b);
     CHECK(ma.node != mb.node, "orientation variants are different nodes");
     // And each variant, re-interned, finds itself.
@@ -198,7 +198,7 @@ void testLiftedRowsCertify() {
   CHECK(liftSplitComponents(lifted).comps == lifted.comps, "nothing further to lift");
 
   const GaussDiagram s = simplifyKeepingComponents(d);
-  const auto pieces = exactnaming::splitPieces(s);
+  const auto pieces = linknaming::splitPieces(s);
   CHECK(pieces.size() >= 2, "simplified, the far side comes apart");
   bool all = true;
   for (const GaussDiagram &p : pieces)
@@ -223,5 +223,5 @@ int main() {
   testDifferentDiagramsSameLink();
   testOrientationVariantsAreDifferentNodes();
   testUnknot();
-  return cascadetest::finish("nodes_test");
+  return checks::finish("nodes_test");
 }

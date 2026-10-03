@@ -7,9 +7,9 @@
 
 #include "linknaming/diagrams/simplification.h"
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
-namespace cascade {
+namespace bounds {
 
 namespace {
 
@@ -30,20 +30,20 @@ NodeAxioms::Options judgeOptions(unsigned threads) {
 } // namespace
 
 SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int layers,
-                         int literatureLo, const exactnaming::ExactTables &tables,
-                         const exactnaming::ExactNamer &namer,
-                         const exactnaming::SymmetryTable &symmetries, unsigned threads)
+                         int literatureLo, const linknaming::ExactTables &tables,
+                         const linknaming::ExactNamer &namer,
+                         const linknaming::SymmetryTable &symmetries, unsigned threads)
     : reg_(g_), axioms_(g_, reg_, tables, namer, symmetries, judgeOptions(threads)),
       literatureLo_(literatureLo) {
   // The searched link as a node, as a goal run's graph takes a table row's
   // stored cobordisms: interned from its simplified diagram, assembled
   // against the row's own (HopAssembler certifies that the triangulated
   // link redraws as it).
-  const regina::Link link = exactnaming::linkFromTablePD(pd);
+  const regina::Link link = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(link.countComponents());
   std::iota(origin.begin(), origin.end(), 0);
   const GaussDiagram diagram = GaussDiagram::of(link, origin);
-  const NodeMatch m = reg_.intern(simplifyKeepingComponents(diagram), "target " + name);
+  const NodeMatch m = reg_.intern(linknaming::simplifyKeepingComponents(diagram), "target " + name);
   target_ = m.node;
   components_ = g_.node(target_).components;
   axioms_.target = target_;
@@ -60,7 +60,7 @@ SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int lay
   hop_ = std::make_unique<HopAssembler>(g_, reg_, row);
 }
 
-SearchJudge::Verdict SearchJudge::add(const farside::OutgoingLink &link, int genus,
+SearchJudge::Verdict SearchJudge::add(const outgoing::OutgoingLink &link, int genus,
                                       const std::string &key) {
   ++finds_;
   const size_t before = g_.nodeCount();
@@ -92,4 +92,4 @@ SearchJudge::Verdict SearchJudge::add(const farside::OutgoingLink &link, int gen
   return v;
 }
 
-} // namespace cascade
+} // namespace bounds

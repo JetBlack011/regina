@@ -21,7 +21,7 @@
 #include "diagramtriangulation/pdcode.h"
 #include "linknaming/tables.h"
 
-using namespace exactnaming;
+using namespace linknaming;
 
 static int passed = 0, failed_count = 0;
 
@@ -232,10 +232,10 @@ void test_signature_table_from_loaded_tables() {
            "L2a1{1},PD[X[4; 2; 3; 1]; X[2; 4; 1; 3]],0\n";
     auto compare = [](const std::filesystem::path &k, const std::filesystem::path &l,
                       const char *what) {
-        const farside::SignatureTable fromFiles =
-            farside::SignatureTable::fromTables(k.string(), l.string());
+        const linknaming::SignatureTable fromFiles =
+            linknaming::SignatureTable::fromTables(k.string(), l.string());
         const ExactTables tables = ExactTables::load(k.string(), l.string(), "");
-        const farside::SignatureTable shared = farside::SignatureTable::fromTables(tables);
+        const linknaming::SignatureTable shared = linknaming::SignatureTable::fromTables(tables);
         EXPECT_EQ(shared.knots(), fromFiles.knots(), std::string(what) + ": knot signatures");
         EXPECT_EQ(shared.links(), fromFiles.links(), std::string(what) + ": link signatures");
         EXPECT_EQ(shared == fromFiles, true,

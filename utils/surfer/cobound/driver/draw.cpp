@@ -52,7 +52,7 @@
 //  (knotbuilder, CobordismBuilder x2, CollarBuilder), the witness's decoded
 //  pair is carried onto that thickening by an isomorphism sending its
 //  incoming curve onto the row's L x {0}, and from there on everything is
-//  what the search itself would have had: farside::orientedOutgoingLink()
+//  what the search itself would have had: outgoing::orientedOutgoingLink()
 //  and knotbuilder::DiagramDrawer. The isomorphism is the only search in
 //  the pipeline, and it is pinned by L x {0}, so the outgoing side is read
 //  through the thickening's own product structure -- never mirrored by an
@@ -165,7 +165,7 @@ int commands::draw(const std::vector<std::string> &args) {
         std::cerr << usage;
         return 2;
     }
-    const farside::WitnessRedrawer redraw(positional.front(), layers);
+    const outgoing::WitnessRedrawer redraw(positional.front(), layers);
     const knotbuilder::TriangulationWithLink &built = redraw.built();
 
     // The row's own components, in cyclesOf() order, and each row edge's component.
@@ -194,7 +194,7 @@ int commands::draw(const std::vector<std::string> &args) {
     // longer read, which costs a rebuild once per thickening.
     auto makeContext = [&] {
         bool loaded = false;
-        sigContext = cascade::pairSigContextFor(redraw.thickening(), sigCache, 1, &loaded);
+        sigContext = cobordisms::pairSigContextFor(redraw.thickening(), sigCache, 1, &loaded);
         if (!sigCache.empty())
             std::cerr << (loaded ? "sig-cache hit " : "sig-cache miss ")
                       << redraw.buildChecksum() << "\n";
@@ -203,7 +203,7 @@ int commands::draw(const std::vector<std::string> &args) {
 
     // One witness's W line, from its surface in the thickening.
     auto describe = [&](const std::string &id, KnottedSurface &surface) {
-            auto link = farside::orientedOutgoingLink(surface, redraw.outgoing(), redraw.row(),
+            auto link = outgoing::orientedOutgoingLink(surface, redraw.outgoing(), redraw.row(),
                                                       redraw.incomingBC());
             if (!link) {
                 std::cout << "W " << id << " FAILED incoming orientation is inconsistent\n";

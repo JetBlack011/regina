@@ -39,8 +39,8 @@
 
 namespace {
 
-using cobordismgraph::InputRow;
-using rowsearch::BoundaryConditionMode;
+using solver::InputRow;
+using search::BoundaryConditionMode;
 using verdicts::OutputRow;
 
 BoundaryConditionMode boundaryCondition(const std::string &mode) {
@@ -180,7 +180,7 @@ int runWithoutGoal(const config::Config &cfg) {
   // oriented variants it might be (see NameTable::candidates), and a links
   // run needs the knots table for the same reason in reverse -- so both
   // are always loaded, regardless of which one is being searched.
-  cobordismgraph::NameTable names;
+  solver::NameTable names;
   size_t metadataRows = 0;
   for (const auto &row : rows)
     names.addLiterature(row.name, row.lo, row.hi);
@@ -188,7 +188,7 @@ int runWithoutGoal(const config::Config &cfg) {
     if (table.empty() || table == inputPath)
       continue;
     try {
-      metadataRows += witnessstore::loadNameTable(table, names);
+      metadataRows += solver::loadNameTable(table, names);
     } catch (const std::exception &e) {
       std::cerr << "[!] could not load name table " << table << ": " << e.what()
                 << " (continuing without it)\n";
@@ -201,12 +201,12 @@ int runWithoutGoal(const config::Config &cfg) {
   // cobordism graph names its links by (divergence 6) and its outgoing links
   // are named exactly by (exact_far_side_names), and diagram naming's
   // signature table, drawn from them.
-  std::optional<exactnaming::ExactTables> exactTables;
+  std::optional<linknaming::ExactTables> exactTables;
   if (exactFarSideNames) {
     const auto t0 = std::chrono::steady_clock::now();
     try {
       exactTables =
-          exactnaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath);
+          linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath);
       std::cout << "[+] exact far-side names: " << exactTables->size() << " table entries ("
                 << std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::steady_clock::now() - t0)
@@ -216,24 +216,24 @@ int runWithoutGoal(const config::Config &cfg) {
       std::cerr << "[!] exact far-side names off: " << e.what() << "\n";
     }
   }
-  std::optional<exactnaming::ExactTables> graphTablesOwn;
-  const exactnaming::ExactTables *graphTables = exactTables ? &*exactTables : nullptr;
-  std::optional<exactnaming::ExactNamer> graphNamer;
+  std::optional<linknaming::ExactTables> graphTablesOwn;
+  const linknaming::ExactTables *graphTables = exactTables ? &*exactTables : nullptr;
+  std::optional<linknaming::ExactNamer> graphNamer;
   try {
     if (!graphTables)
       graphTables = &graphTablesOwn.emplace(
-          exactnaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath));
-    graphNamer.emplace(*graphTables, cascade::NodeAxioms::namerLimits());
+          linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath));
+    graphNamer.emplace(*graphTables, bounds::NodeAxioms::namerLimits());
   } catch (const std::exception &e) {
     std::cerr << "[!] the cobordism graph cannot load the tables: " << e.what() << "\n";
     return 1;
   }
-  std::optional<farside::SignatureTable> signatureTable;
+  std::optional<linknaming::SignatureTable> signatureTable;
   {
     const auto t0 = std::chrono::steady_clock::now();
     try {
       // From the tables the graph already loaded: one table load (phase 5).
-      signatureTable = farside::SignatureTable::fromTables(*graphTables);
+      signatureTable = linknaming::SignatureTable::fromTables(*graphTables);
       std::cout << "[+] diagram naming: " << signatureTable->knots() << " knot and "
                 << signatureTable->links() << " link diagram signatures ("
                 << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -250,9 +250,9 @@ int runWithoutGoal(const config::Config &cfg) {
 
   // The database the run signs into, loaded: a search keeps no cobordism
   // whose identity it holds (one per identity across the database).
-  cascade::RecordedWitnesses recorded(cobordismsPath,
-                                      witnessstore::loadWitnesses(cobordismsPath, false));
-  const std::vector<cobordismgraph::Witness> &witnesses = recorded.all();
+  cobordisms::RecordedWitnesses recorded(cobordismsPath,
+                                      cobordisms::loadWitnesses(cobordismsPath, false));
+  const std::vector<cobordisms::Witness> &witnesses = recorded.all();
   std::cout << "[+] Resuming with " << witnesses.size()
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
 
@@ -289,13 +289,13 @@ int runWithoutGoal(const config::Config &cfg) {
     std::unordered_map<std::string, std::string> tablePD;
     for (const std::string &table : {knotTablePath, linkTablePath})
       if (!table.empty() && std::filesystem::exists(table))
-        for (const exactnaming::TableRow &r : exactnaming::readTableRows(table))
+        for (const linknaming::TableRow &r : linknaming::readTableRows(table))
           tablePD.emplace(r.name, r.pd);
-    const auto sidecarLine = [&](const cascade::PendingWitness &p) {
+    const auto sidecarLine = [&](const cobordisms::PendingWitness &p) {
       auto it = tablePD.find(p.witness.subject);
       return it == tablePD.end() || it->second != p.rowPD;
     };
-    const cascade::StoreResult s = cascade::signPending(
+    const cobordisms::StoreResult s = cobordisms::signPending(
         workDir, cobordismsPath, {}, names, numThreads, pairSigCacheDir.value_or(""),
         recorded.loaded(), sidecarLine);
     signedAppended = s.appended;
@@ -315,9 +315,9 @@ int runWithoutGoal(const config::Config &cfg) {
   });
 
   if (!knotSymmetryPath.empty()) {
-    exactnaming::SymmetryTable types;
+    linknaming::SymmetryTable types;
     try {
-      types = exactnaming::readSymmetryTable(knotSymmetryPath);
+      types = linknaming::readSymmetryTable(knotSymmetryPath);
     } catch (const std::exception &) {
       std::cerr << "[!] could not open knot symmetry table " << knotSymmetryPath << "\n";
       return 1;
@@ -332,7 +332,7 @@ int runWithoutGoal(const config::Config &cfg) {
 
   // Every row's search shape, but for its boundary condition (per row,
   // below).
-  cascade::SearchShape searchShape;
+  search::SearchShape searchShape;
   searchShape.iddfsIterations = iddfsIterations;
   searchShape.iddfsStep = iddfsStep;
   searchShape.iddfsStart = iddfsStart;
@@ -357,15 +357,15 @@ int runWithoutGoal(const config::Config &cfg) {
               << "], " << row.crossings << " crossings)...\n";
 
     // The row's own cobordism graph (divergence 6), which judges its finds,
-    // and the row the search runs in: rowsearch::buildRow() of its PD,
+    // and the row the search runs in: search::buildRow() of its PD,
     // collared through every layer. buildRow() and the graph's row
     // certification throw for a bad PD, a row map that cannot be built or
     // checked, or a triangulated link that does not redraw as its diagram;
     // letting that escape would abort the whole sweep over one bad row.
-    std::unique_ptr<cascade::SearchJudge> judge;
+    std::unique_ptr<bounds::SearchJudge> judge;
     bool buildFailed = false;
     try {
-      judge = std::make_unique<cascade::SearchJudge>(row.name, row.pdNotation, thickenLayers,
+      judge = std::make_unique<bounds::SearchJudge>(row.name, row.pdNotation, thickenLayers,
                                                      row.lo, *graphTables, *graphNamer,
                                                      names.symmetries(), numThreads);
       if (judge->row().rowBuild().orientation->divergedFromDefaultIsomorphism)
@@ -377,7 +377,7 @@ int runWithoutGoal(const config::Config &cfg) {
       std::cerr << "[!] " << row.name << ": failed to build (" << e.what() << "), skipping\n";
       buildFailed = true;
     }
-    const rowsearch::RowBuild *rbp = judge ? &judge->row().rowBuild() : nullptr;
+    const search::RowBuild *rbp = judge ? &judge->row().rowBuild() : nullptr;
 
     // A row that cannot be built, or that the search refuses: recorded as
     // such, and the run goes on.
@@ -418,7 +418,7 @@ int runWithoutGoal(const config::Config &cfg) {
       }
     }
 
-    cascade::SearchRequest request;
+    search::SearchRequest request;
     request.name = row.name;
     request.shape = searchShape;
     // A multi-component link's own boundary necessarily puts more than one
@@ -428,8 +428,8 @@ int runWithoutGoal(const config::Config &cfg) {
     // curve count on EVERY ambient boundary component, the far side
     // included, so a knot row searched under it can only ever discover
     // single-curve far sides: proper, the default, lifts that.
-    const rowsearch::RowBuild &rb = *rbp;
-    request.shape.condition = rowsearch::conditionFor(boundaryConditionMode, rb.componentCount);
+    const search::RowBuild &rb = *rbp;
+    request.shape.condition = search::conditionFor(boundaryConditionMode, rb.componentCount);
     // The search stops at the surface target or the per-row time limit; the
     // boundary drain then finishes.
     request.surfaceTarget = surfaceTarget;
@@ -439,7 +439,7 @@ int runWithoutGoal(const config::Config &cfg) {
     request.pairSigCacheDir = pairSigCacheDir;
     // A knot row's complement goes into the census after its search (when
     // census writes are on).
-    request.censusName = cobordismgraph::baseName(row.name);
+    request.censusName = linknaming::baseName(row.name);
     request.sweep = {.literatureLo = row.lo, .literatureHi = row.hi};
     // Its finds: kept one per cobordism (none the database holds), written to
     // its pending file as it runs, and signed at the run's end (divergence 7).
@@ -453,10 +453,10 @@ int runWithoutGoal(const config::Config &cfg) {
     // Each find, judged by the row's own cobordism graph as it is kept.
     request.row = &judge->row();
     long long judged = 0;
-    request.judge = [&](const cascade::KeptSurface &k) {
-      const cascade::SearchJudge::Verdict v =
+    request.judge = [&](const search::KeptSurface &k) {
+      const bounds::SearchJudge::Verdict v =
           judge->add(k.link, k.genus, "find#" + std::to_string(judged++));
-      cascade::FindJudgement j;
+      search::FindJudgement j;
       if (!v.contradictions.empty()) j.contradiction = v.contradictions.front();
       j.constructive = v.constructive;
       return j;
@@ -469,17 +469,17 @@ int runWithoutGoal(const config::Config &cfg) {
 
     // One searcher per row, so each row's exact names start from fresh
     // table caches, as they always have.
-    const cascade::HopSearcher searcher(signatureTable ? &*signatureTable : nullptr,
+    const search::HopSearcher searcher(signatureTable ? &*signatureTable : nullptr,
                                         exactTables ? &*exactTables : nullptr, numThreads);
-    cascade::HopRun run;
+    search::HopRun run;
     try {
       run = searcher.run(rb, request);
-    } catch (const cascade::SeedInvariantFailure &f) {
+    } catch (const search::SeedInvariantFailure &f) {
       fatal::flag(row.name + ": " + std::to_string(f.touching) +
                   " searchable non-seed triangles have an edge on the "
                   "search side, so found surfaces could change it.");
       fatal::haltIfFlagged();
-    } catch (const cascade::SearchRefused &ex) {
+    } catch (const search::SearchRefused &ex) {
       std::cerr << "[!] " << row.name << ": failed to build (" << ex.what() << "), skipping\n";
       recordBuildFailure();
       continue;
@@ -532,7 +532,7 @@ int runWithoutGoal(const config::Config &cfg) {
     // only when the row can vouch for having examined every surface in it --
     // else a later run would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
-      rowsearch::printSweepBreadth(std::cout, row.name, run);
+      search::printSweepBreadth(std::cout, row.name, run);
       if (frontierDir && run.recordedFrontier) {
         if (run.frontier) {
           try {
@@ -568,9 +568,9 @@ int runWithoutGoal(const config::Config &cfg) {
     if (fatal::flagged())
       fatal::haltIfFlagged();
 
-    rowsearch::printOutcome(std::cout, row.name, run);
-    rowsearch::printIdentification(std::cout, row.name, run);
-    rowsearch::printSearchProfile(std::cout, row.name, run);
+    search::printOutcome(std::cout, row.name, run);
+    search::printIdentification(std::cout, row.name, run);
+    search::printSearchProfile(std::cout, row.name, run);
     // The audit exists to catch exactly this; a wrong linking number prunes
     // (or keeps) surfaces it should not.
     if (run.petals.linkingDisagreements > 0) {
@@ -630,14 +630,14 @@ int commands::run(const std::vector<std::string> &args) {
         report::Durability::cache);
     if (cfg.context() == config::Context::run)
       return runWithoutGoal(cfg);
-    cascade::GoalOptions options = cascade::goalOptions(cfg);
+    scheduler::GoalOptions options = scheduler::goalOptions(cfg);
     // The process-wide settings, from the config, before the first naming.
     options.censusLoaded = setup::applyRunSettings(cfg);
     // One policy for SIGINT and SIGTERM (divergence 8): the first ends the
     // running search cleanly and the run searches no further; a second ends
     // the process.
     runsignals::install();
-    return cascade::runToGoal(options);
+    return scheduler::runToGoal(options);
   } catch (const std::exception &e) {
     std::cerr << "cobound run: " << e.what() << "\n";
     return 2;

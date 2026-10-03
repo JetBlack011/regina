@@ -29,7 +29,7 @@
  *  never blocks behind a slow lookup on another thread.
  */
 
-namespace identify {
+namespace complement {
 
 /**
  * The outcome of recognizing a complement, memoized by isomorphism
@@ -172,6 +172,6 @@ checkRecognition(const std::string &sig, long long RecognitionCacheStats::*check
 /** Applies `update` to the cache's counters, under its mutex. */
 void countRecognition(const std::function<void(RecognitionCacheStats &)> &update);
 
-} // namespace identify
+} // namespace complement
 
 #endif // SURFER_LINKNAMING_COMPLEMENTCACHE_H

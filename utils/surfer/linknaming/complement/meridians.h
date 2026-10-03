@@ -23,7 +23,7 @@
  *
  *  \section per_why Why this exists
  *
- *  identify::identify() names a link by its *complement*, and a complement
+ *  census::identify() names a link by its *complement*, and a complement
  *  does not determine a link: Rolfsen twisting along an unknotted component
  *  changes the link while preserving the exterior. Knots are exempt
  *  (Gordon-Luecke); links are not, and the ambiguity is real in our own data

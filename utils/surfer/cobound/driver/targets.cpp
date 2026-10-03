@@ -12,16 +12,16 @@
 
 namespace targets {
 
-std::vector<cobordismgraph::InputRow> loadInputCsv(const std::filesystem::path &path) {
-  std::vector<cobordismgraph::InputRow> rows;
-  for (const exactnaming::TableRow &table : exactnaming::readTableRows(path)) {
+std::vector<solver::InputRow> loadInputCsv(const std::filesystem::path &path) {
+  std::vector<solver::InputRow> rows;
+  for (const linknaming::TableRow &table : linknaming::readTableRows(path)) {
     // A row to search must state its literature bounds: a malformed field
     // stops the run (it always did), never becomes a bound.
-    const auto g4 = exactnaming::parseTableG4(table.g4);
+    const auto g4 = linknaming::parseTableG4(table.g4);
     if (!g4)
       throw std::runtime_error("malformed 4-genus field '" + table.g4 + "' for " +
                                table.name + " in " + path.string());
-    cobordismgraph::InputRow row;
+    solver::InputRow row;
     row.name = table.name;
     row.pdNotation = table.pd;
     row.lo = g4->first;
@@ -36,17 +36,17 @@ std::vector<cobordismgraph::InputRow> loadInputCsv(const std::filesystem::path &
   return rows;
 }
 
-cobordismgraph::InputRow oneDiagram(const std::string &name, const std::string &pd,
+solver::InputRow oneDiagram(const std::string &name, const std::string &pd,
                                     const std::vector<std::filesystem::path> &tables) {
-  cobordismgraph::InputRow row;
+  solver::InputRow row;
   row.name = name;
   row.pdNotation = pd;
   row.lo = 0;
   row.hi = 99;
   for (const std::filesystem::path &table : tables)
-    for (const exactnaming::TableRow &t : exactnaming::readTableRows(table))
+    for (const linknaming::TableRow &t : linknaming::readTableRows(table))
       if (t.name == name)
-        if (const auto g4 = exactnaming::parseTableG4(t.g4)) {
+        if (const auto g4 = linknaming::parseTableG4(t.g4)) {
           row.lo = g4->first;
           row.hi = g4->second;
         }
@@ -54,10 +54,10 @@ cobordismgraph::InputRow oneDiagram(const std::string &name, const std::string &
   return row;
 }
 
-std::vector<cobordismgraph::InputRow>
-searchOrder(const std::vector<cobordismgraph::InputRow> &rows, int maxCrossings,
+std::vector<solver::InputRow>
+searchOrder(const std::vector<solver::InputRow> &rows, int maxCrossings,
             std::unordered_map<std::string, verdicts::OutputRow> &outputRows) {
-  std::vector<cobordismgraph::InputRow> pending;
+  std::vector<solver::InputRow> pending;
   pending.reserve(rows.size());
   for (const auto &row : rows) {
     if (row.crossings > maxCrossings) {
@@ -75,7 +75,7 @@ searchOrder(const std::vector<cobordismgraph::InputRow> &rows, int maxCrossings,
     pending.push_back(row);
   }
   std::stable_sort(pending.begin(), pending.end(),
-                   [](const cobordismgraph::InputRow &a, const cobordismgraph::InputRow &b) {
+                   [](const solver::InputRow &a, const solver::InputRow &b) {
                      return a.crossings < b.crossings;
                    });
   return pending;
@@ -84,7 +84,7 @@ searchOrder(const std::vector<cobordismgraph::InputRow> &rows, int maxCrossings,
 std::map<std::string, std::string> tablePDs(const std::vector<std::string> &files) {
   std::map<std::string, std::string> out;
   for (const std::string &file : files)
-    for (const exactnaming::TableRow &row : exactnaming::readTableRows(file))
+    for (const linknaming::TableRow &row : linknaming::readTableRows(file))
       out[row.name] = row.pd;
   return out;
 }

@@ -20,10 +20,10 @@
  *  any surface found: its component count, its literature 4-genus bounds,
  *  its oriented variants and a knot's symmetry type. The tables are read by
  *  linknaming/tables.h, which also holds the symmetry types and the anchors
- *  (exactnaming::isElementarySlice()).
+ *  (linknaming::isElementarySlice()).
  */
 
-namespace cobordismgraph {
+namespace solver {
 
 /** One --input row: a name to verify/bound the slice genus of, plus its
  * literature bounds and the PD code to search from. */
@@ -36,7 +36,7 @@ struct InputRow {
 };
 
 /** A prime knot's symmetry type: the one enum, linknaming/tables.h's. */
-using exactnaming::SymmetryType;
+using linknaming::SymmetryType;
 
 /** What we know about one name independently of any surface we have found. */
 struct NameInfo {
@@ -97,8 +97,8 @@ class NameTable {
         return it == symmetry_.end() ? nullptr : &it->second;
     }
 
-    /** Every recorded symmetry type, for exactnaming::isElementarySlice(). */
-    const exactnaming::SymmetryTable &symmetries() const { return symmetry_; }
+    /** Every recorded symmetry type, for linknaming::isElementarySlice(). */
+    const linknaming::SymmetryTable &symmetries() const { return symmetry_; }
 
     /**
      * Whether upperOf()/lowerOf() bound sums along components and splits
@@ -112,29 +112,29 @@ class NameTable {
 
   private:
     bool sumRules_ = false;
-    exactnaming::SymmetryTable symmetry_;
+    linknaming::SymmetryTable symmetry_;
     std::unordered_map<std::string, NameInfo> info_;
     std::unordered_map<std::string, std::vector<std::string>> byBase_;
 };
 
-} // namespace cobordismgraph
+} // namespace solver
 
-namespace witnessstore {
+namespace solver {
 
 /// Registers every row of a literature table in `names` (names and bounds
 /// only; PD codes are skipped). Returns the number loaded.
 size_t loadNameTable(const std::filesystem::path &path,
-                     cobordismgraph::NameTable &names);
+                     solver::NameTable &names);
 
 /// The knot and link tables' names and literature bounds (the store step's
 /// candidate sets) and, with `knotSymmetry`, the knots' symmetry types (the
 /// slice-composite anchors; their count into `symmetryTypes`): a goal run's
 /// NameTable, and `sign`'s (without symmetry types).
-cobordismgraph::NameTable loadTableNames(const std::string &knotTable,
+solver::NameTable loadTableNames(const std::string &knotTable,
                                          const std::string &linkTable,
                                          const std::string &knotSymmetry,
                                          size_t *symmetryTypes = nullptr);
 
-} // namespace witnessstore
+} // namespace solver
 
 #endif // SURFER_COBOUND_LITERATURE_H

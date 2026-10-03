@@ -19,7 +19,7 @@
 #include "linknaming/complement/linkcomplement.h"
 #include "linknaming/complement/unlinknaming.h"
 
-namespace exactnaming {
+namespace linknaming {
 
 std::vector<long> linkingNumbers(const GaussDiagram &g) {
     std::vector<long> over(g.crossings(), -1), under(g.crossings(), -1);
@@ -589,7 +589,7 @@ FarSideName ExactNamer::name(const regina::Link &drawn) const {
     out.pinned = std::all_of(out.pieces.begin(), out.pieces.end(),
                              [](const PieceName &p) { return p.pinned(); });
     if (primes.empty()) {
-        out.name = identify::unlinkName(n);
+        out.name = complement::unlinkName(n);
         out.exact = out.pinned = true;
         out.factors = n;
         return out;
@@ -693,9 +693,9 @@ FarSideName ExactNamer::name(const regina::Link &drawn) const {
     return out;
 }
 
-} // namespace exactnaming
+} // namespace linknaming
 
-namespace farside {
+namespace linknaming {
 
 namespace {
 
@@ -753,7 +753,7 @@ std::string LinkNamer::name(const Link &curves,
     stats_.noteDuration(microsSince(start),
                         stats_.fallbacks.load() != fallbacksBefore ? "complement" : "diagram",
                         out);
-    return identify::perturbedForTesting(std::move(out));
+    return census::perturbedForTesting(std::move(out));
 }
 
 std::string LinkNamer::nameOnce(const Link &curves,
@@ -771,9 +771,9 @@ std::string LinkNamer::nameOnce(const Link &curves,
             simplified.simplify();
             if (simplified.size() == 0) {
                 stats_.microsDiagram += microsSince(start);
-                if (n == 1) { ++stats_.unknots; return identify::unlinkName(1); }
+                if (n == 1) { ++stats_.unknots; return complement::unlinkName(1); }
                 ++stats_.unlinks;
-                return identify::unlinkName(n);
+                return complement::unlinkName(n);
             }
             if (n == 1) {
                 std::string sig = simplified.knotSig(true, true);
@@ -832,7 +832,7 @@ std::string LinkNamer::nameOnce(const Link &curves,
     // remembered against the diagram.
     const auto fb = std::chrono::steady_clock::now();
     ++stats_.fallbacks;
-    std::string name = identify::identify(curves);
+    std::string name = census::identify(curves);
     stats_.microsFallback += microsSince(fb);
     if (!key.empty()) {
         std::lock_guard<std::mutex> lock(learnedMutex_);
@@ -841,4 +841,4 @@ std::string LinkNamer::nameOnce(const Link &curves,
     return name;
 }
 
-} // namespace farside
+} // namespace linknaming

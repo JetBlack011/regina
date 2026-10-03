@@ -37,10 +37,10 @@
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/enumeration/surfacesearch.h"
 
-namespace farside {
+namespace outgoing {
 
 /**
- * Names every boundary curve by its complement (identify::identify(), the
+ * Names every boundary curve by its complement (census::identify(), the
  * census route) -- the search's namer where a row has no DiagramNamer, and
  * DiagramNamer's own fallback.
  */
@@ -64,7 +64,7 @@ class DiagramNamer : public BoundaryNamer {
      * \param table outlives this namer.
      */
     DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
-                 const CobordismBuilder<3> &cob, const SignatureTable &table);
+                 const CobordismBuilder<3> &cob, const linknaming::SignatureTable &table);
 
     /** Whether boundary component `bc` is the outgoing one, which this
      *  namer draws. */
@@ -75,7 +75,7 @@ class DiagramNamer : public BoundaryNamer {
 
     std::string nameLink(size_t bc, const Link &curves) const override;
     std::string nameCurve(size_t bc, const Knot &curve) const override;
-    const NamingStats &stats() const { return namer_.stats(); }
+    const linknaming::NamingStats &stats() const { return namer_.stats(); }
 
     /**
      * Turns on orientedName() (verifyslicegenus --exact-far-side-names).
@@ -83,15 +83,15 @@ class DiagramNamer : public BoundaryNamer {
      * \param caches what naming learns about `tables`, shared with other
      *        namers over them (a cascade's hops share one); new when null.
      */
-    void enableExactNames(const exactnaming::ExactTables &tables,
-                          std::shared_ptr<exactnaming::TableCaches> caches = nullptr);
+    void enableExactNames(const linknaming::ExactTables &tables,
+                          std::shared_ptr<linknaming::TableCaches> caches = nullptr);
     bool exactNamesOn() const { return exact_ != nullptr; }
 
     /**
      * The exact name (exactnaming/) of ONE surface's outgoing curves,
      * oriented as a cobordism from the row: each curve reversed when
      * `flips` says its surface component runs against the row
-     * (farside::incomingFlips()). name() cannot give this -- it is asked once
+     * (outgoing::incomingFlips()). name() cannot give this -- it is asked once
      * per edge set, and an edge set's orientation depends on the surface --
      * so the search asks it per witness, for deduplicating by the ORIENTED
      * far side (two surfaces whose far sides are different orientation
@@ -109,18 +109,18 @@ class DiagramNamer : public BoundaryNamer {
 
   private:
     /** This namer's drawing of `curves`, as namer_ asks for it. */
-    DrawnCurves draw(const Link &curves) const;
+    linknaming::DrawnCurves draw(const Link &curves) const;
 
     ComplementNamer complement_; ///< everything name() does not draw
     OutgoingMap map_;
     knotbuilder::DiagramDrawer drawer_;
-    LinkNamer namer_;
-    std::unique_ptr<exactnaming::ExactNamer> exact_;
+    linknaming::LinkNamer namer_;
+    std::unique_ptr<linknaming::ExactNamer> exact_;
     mutable std::mutex exactMutex_;
     mutable std::unordered_map<std::string, std::string> exactCache_;
     /**< drawn diagram's exact signature -> its exact name. */
 };
 
-} // namespace farside
+} // namespace outgoing
 
 #endif

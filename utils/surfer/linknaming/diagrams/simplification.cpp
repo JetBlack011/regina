@@ -8,9 +8,9 @@
 
 #include <link/link.h>
 
-using exactnaming::GaussDiagram;
+using linknaming::GaussDiagram;
 
-namespace cascade {
+namespace linknaming {
 
 std::vector<std::vector<int>> linkingMatrix(const GaussDiagram &d) {
   const size_t m = d.components(), n = d.crossings();
@@ -188,4 +188,4 @@ GaussDiagram simplifyKeepingComponents(const GaussDiagram &d) {
   return s;
 }
 
-} // namespace cascade
+} // namespace linknaming

@@ -32,7 +32,7 @@
  *  (plan, "Startup per process").
  */
 
-namespace cascade {
+namespace bounds {
 
 /// Where loading puts what it reads: the run's graph, its links and their
 /// names and outside facts, and how each new edge's surface is found.
@@ -40,7 +40,7 @@ struct DatabaseLoad {
   ProofGraph &g;
   NodeRegistry &reg;
   NodeAxioms &axioms;
-  const exactnaming::ExactTables &tables;
+  const linknaming::ExactTables &tables;
   EdgeInfos &edges;
   /// Read-backs and assemblies that broke an invariant (reported, dropped).
   int &invariantFailures;
@@ -69,7 +69,7 @@ public:
   /// Whether the database holds cobordisms for link `n` (a table link): rows
   /// of its class's table entries (named into `rows`), or cobordisms of other
   /// rows whose outgoing link has its base name.
-  bool rowsFor(NodeId n, const NodeAxioms &axioms, const exactnaming::ExactTables &tables,
+  bool rowsFor(NodeId n, const NodeAxioms &axioms, const linknaming::ExactTables &tables,
                std::vector<std::string> *rows = nullptr) const;
   /// Whether `n`'s cobordisms were loaded already.
   bool loaded(NodeId n) const { return done_.count(n) > 0; }
@@ -85,11 +85,11 @@ public:
   double load(NodeId n, DatabaseLoad &load);
 
 private:
-  witnessstore::DatabaseIndex index_;
+  cobordisms::DatabaseIndex index_;
   std::map<std::string, std::string> tablePD_;
   std::set<NodeId> done_;
 };
 
-} // namespace cascade
+} // namespace bounds
 
 #endif // SURFER_COBOUND_DATABASECOBORDISMS_H

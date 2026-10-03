@@ -40,7 +40,7 @@
  *  distinct witnesses once.
  */
 
-namespace witnesskey {
+namespace cobordisms {
 
 /**
  * The key a far-side resolution for this witness is stored under: the
@@ -53,6 +53,6 @@ namespace witnesskey {
  */
 std::string witnessKey(const std::string &pairSig);
 
-} // namespace witnesskey
+} // namespace cobordisms
 
 #endif

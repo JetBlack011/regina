@@ -3,7 +3,7 @@
 #include "cobound/bounds/axioms.h"
 #include "linknaming/tests/check.h"
 
-using namespace cascade;
+using namespace bounds;
 
 int main() {
   // F1 (table values parse exactly; malformed ones never become bounds) is
@@ -17,5 +17,5 @@ int main() {
   CHECK(!mayUseLiteratureUpperBound("", "13n_65", true), "an unnamed node has none");
   CHECK(mayUseLiteratureUpperBound("3_1", "", true),
         "an off-table target excludes nothing");
-  return cascadetest::finish("leaves_test");
+  return checks::finish("leaves_test");
 }

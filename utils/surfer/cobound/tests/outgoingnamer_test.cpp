@@ -1,7 +1,7 @@
 //
 //  farsidenaming_test.cpp
 //
-//  farside::DiagramNamer on real thickenings, the way verifyslicegenus uses
+//  outgoing::DiagramNamer on real thickenings, the way verifyslicegenus uses
 //  it:
 //
 //    1. The bare collar L x [0,2] has the row's own link as its far side,
@@ -74,9 +74,9 @@ struct Row : ThickenedLink {
 
 void test_collar_far_side_is_the_row(const std::string &name, const std::string &pd,
                                      const std::string &want,
-                                     const farside::SignatureTable &table) {
+                                     const linknaming::SignatureTable &table) {
     Row row(pd);
-    farside::DiagramNamer namer(row.link.tri, knotbuilder::parsePDCode(pd).size(),
+    outgoing::DiagramNamer namer(row.link.tri, knotbuilder::parsePDCode(pd).size(),
                                 *row.cob, table);
     Skeleton<4, 2> skeleton(row.tri);
     KnottedSurface collar(skeleton, row.seedFaces);
@@ -88,9 +88,9 @@ void test_collar_far_side_is_the_row(const std::string &name, const std::string 
               name + ": named from the diagram, no complement drilled");
 }
 
-void test_small_curve_is_unknot(const farside::SignatureTable &table) {
+void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
     Row row("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-    farside::DiagramNamer namer(row.link.tri, 3, *row.cob, table);
+    outgoing::DiagramNamer namer(row.link.tri, 3, *row.cob, table);
     size_t bc = row.tri.boundaryComponent(0)->index() == row.cob->baseBoundaryComponent()->index()
                     ? 1
                     : 0;
@@ -109,14 +109,14 @@ void test_tables_refuse_to_be_empty() {
     { std::ofstream e(empty); e << "Name,PD Notation,Genus-4D\n"; }
     bool threw = false;
     try {
-        farside::SignatureTable::fromTables(empty, "");
+        linknaming::SignatureTable::fromTables(empty, "");
     } catch (const regina::InvalidArgument &) {
         threw = true;
     }
     EXPECT_EQ(threw, true, "a knot table yielding no signatures is an error");
     threw = false;
     try {
-        farside::SignatureTable::fromTables("/nonexistent/table.csv", "");
+        linknaming::SignatureTable::fromTables("/nonexistent/table.csv", "");
     } catch (const regina::InvalidArgument &) {
         threw = true;
     }
@@ -149,7 +149,7 @@ void test_complement_namers() {
               "a curve named on its own goes by the knot route");
 
     const UnlinkBoundaryNamer censusFree{};
-    const farside::ComplementNamer census{};
+    const outgoing::ComplementNamer census{};
     const std::vector<std::pair<std::string, const BoundaryNamer *>> namers = {
         {"census-free", &censusFree}, {"census", &census}};
     for (const auto &[label, namer] : namers) {
@@ -165,7 +165,7 @@ void test_complement_namers() {
 
 int main() {
     writeTables();
-    farside::SignatureTable table = farside::SignatureTable::fromTables(KNOTS, LINKS);
+    linknaming::SignatureTable table = linknaming::SignatureTable::fromTables(KNOTS, LINKS);
     EXPECT_EQ(table.knots(), static_cast<size_t>(2), "both table knots signed");
     EXPECT_EQ(table.links(), static_cast<size_t>(1),
               "both orientations of L6a3 share one unoriented signature");

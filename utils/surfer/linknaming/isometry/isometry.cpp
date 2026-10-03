@@ -12,7 +12,7 @@
 #include <snappea/kernel/kernel_prototypes.h>
 #include <snappea/kernel/unix_file_io.h>
 
-namespace exactnaming {
+namespace linknaming {
 
 namespace {
 
@@ -138,4 +138,4 @@ bool KernelLink::sameOrientedLinkAs(const KernelLink &other) const {
     return false;
 }
 
-} // namespace exactnaming
+} // namespace linknaming

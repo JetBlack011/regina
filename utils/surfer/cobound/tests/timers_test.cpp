@@ -55,5 +55,5 @@ void testProcessCpu() {
 int main() {
   testWallClocks();
   testProcessCpu();
-  return cascadetest::finish("timers_test");
+  return checks::finish("timers_test");
 }

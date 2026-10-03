@@ -38,8 +38,8 @@ std::string ComplementBoundaryNamer::nameCurve(size_t, const Knot &curve) const 
 
 UnlinkBoundaryNamer::UnlinkBoundaryNamer()
     : ComplementBoundaryNamer(
-          static_cast<KnotRoute>(&identify::unlinkNameOrIsoSig),
-          static_cast<LinkRoute>(&identify::unlinkNameOrIsoSig)) {}
+          static_cast<KnotRoute>(&complement::unlinkNameOrIsoSig),
+          static_cast<LinkRoute>(&complement::unlinkNameOrIsoSig)) {}
 
 SurfaceSearch::SurfaceSearch(
     const regina::Triangulation<4> &tri, const std::vector<int> &seedFaces,
@@ -215,7 +215,7 @@ void SurfaceSearch::ensureBoundarySigCaches_() const {
         boundarySigCaches_.reserve(boundaryComponentTris_.size());
         for (const auto &bc : boundaryComponentTris_)
             boundarySigCaches_.push_back(
-                std::make_unique<identify::BoundarySignatureCache>(
+                std::make_unique<namecache::BoundarySignatureCache>(
                     bc, limits_.boundarySignatureCacheLimit));
     });
 }
@@ -234,7 +234,7 @@ SurfaceSearch::describeBoundary_(
             out << ", ";
         firstComponent = false;
 
-        identify::BoundarySignatureCache &cache = *boundarySigCaches_[component];
+        namecache::BoundarySignatureCache &cache = *boundarySigCaches_[component];
 
         out << (component + 1) << ": ";
         std::vector<std::string> curveNames;
@@ -291,10 +291,10 @@ void SurfaceSearch::primeBoundaryName(size_t component,
     boundarySigCaches_[component]->prime(edgeIndices, name);
 }
 
-identify::BoundarySignatureCacheStats
+namecache::BoundarySignatureCacheStats
 SurfaceSearch::boundarySignatureCacheStats() const {
     ensureBoundarySigCaches_();
-    identify::BoundarySignatureCacheStats total;
+    namecache::BoundarySignatureCacheStats total;
     for (const auto &cache : boundarySigCaches_) {
         auto s = cache->stats();
         total.checks += s.checks;

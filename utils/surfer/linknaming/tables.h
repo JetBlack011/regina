@@ -37,7 +37,7 @@
 
 #include <link/link.h>
 
-namespace exactnaming {
+namespace linknaming {
 
 // ---- the table files ----
 
@@ -203,9 +203,9 @@ class ExactTables {
  */
 regina::Link linkFromTablePD(const std::string &pd);
 
-} // namespace exactnaming
+} // namespace linknaming
 
-namespace farside {
+namespace linknaming {
 
 /**
  * Diagram signatures of the knot and link tables: exact diagrams, so a hit
@@ -228,7 +228,7 @@ class SignatureTable {
      * read and no PD code parsed again.
      * \exception regina::InvalidArgument either table yielded no entries.
      */
-    static SignatureTable fromTables(const exactnaming::ExactTables &tables);
+    static SignatureTable fromTables(const linknaming::ExactTables &tables);
 
     const std::string *knot(const std::string &knotSig) const;
     const std::string *link(const std::string &linkSig) const;
@@ -243,6 +243,6 @@ class SignatureTable {
     std::unordered_set<std::string> knotNames_;
 };
 
-} // namespace farside
+} // namespace linknaming
 
 #endif

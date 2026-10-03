@@ -29,7 +29,7 @@
 #include "surfer/enumeration/surfacesearch.h"
 #include "surfer/report/csvwriter.h"
 
-namespace rowsearch {
+namespace search {
 
 BoundaryCondition conditionFor(BoundaryConditionMode mode, int componentCount) {
     switch (mode) {
@@ -88,9 +88,9 @@ void RowWatchdog::stop() {
 
 RowWatchdog::~RowWatchdog() { stop(); }
 
-} // namespace rowsearch
+} // namespace search
 
-namespace cascade {
+namespace search {
 
 SearchShape searchShape(const HopShape &shape) {
   if (!shape.layers || !shape.maxFaces || !shape.iddfsIterations || !shape.iddfsStart ||
@@ -123,24 +123,24 @@ SeedInvariantFailure::SeedInvariantFailure(size_t touching)
                          "side, so found surfaces could change it"),
       touching(touching) {}
 
-HopSearcher::HopSearcher(const farside::SignatureTable &signatures,
-                         const exactnaming::ExactTables *exact, HopShape shape,
+HopSearcher::HopSearcher(const linknaming::SignatureTable &signatures,
+                         const linknaming::ExactTables *exact, HopShape shape,
                          unsigned threads,
-                         std::shared_ptr<exactnaming::TableCaches> exactCaches)
+                         std::shared_ptr<linknaming::TableCaches> exactCaches)
     : signatures_(&signatures), exact_(exact), shape_(shape), threads_(threads),
       exactCaches_(std::move(exactCaches)) {
   if (exact_ && !exactCaches_)
-    exactCaches_ = std::make_shared<exactnaming::TableCaches>(*exact_);
+    exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-HopSearcher::HopSearcher(const farside::SignatureTable *signatures,
-                         const exactnaming::ExactTables *exact, unsigned threads)
+HopSearcher::HopSearcher(const linknaming::SignatureTable *signatures,
+                         const linknaming::ExactTables *exact, unsigned threads)
     : signatures_(signatures), exact_(exact), threads_(threads) {
   if (exact_)
-    exactCaches_ = std::make_shared<exactnaming::TableCaches>(*exact_);
+    exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
+HopRun HopSearcher::run(const outgoing::WitnessRedrawer &row,
                         const std::string &rowName, long long surfaceTarget,
                         double seconds,
                         const std::function<bool(const KeptSurface &)> &stop,
@@ -153,7 +153,7 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   return run(row.rowBuild(), request);
 }
 
-SearchRequest HopSearcher::hopRequest(const farside::WitnessRedrawer &row,
+SearchRequest HopSearcher::hopRequest(const outgoing::WitnessRedrawer &row,
                                       const std::string &rowName, long long surfaceTarget,
                                       double seconds) const {
   SearchRequest request;
@@ -169,7 +169,7 @@ SearchRequest HopSearcher::hopRequest(const farside::WitnessRedrawer &row,
   return request;
 }
 
-HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
+HopRun HopSearcher::run(const search::RowBuild &rb,
                         const SearchRequest &request) const {
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = timers::processCpuSeconds();
@@ -187,8 +187,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
 
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the row draws its far sides.
-  const farside::ComplementNamer complementNamer{};
-  std::optional<farside::DiagramNamer> namer;
+  const outgoing::ComplementNamer complementNamer{};
+  std::optional<outgoing::DiagramNamer> namer;
   SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
   e.configureLimits(shape.limits);
   // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
@@ -205,7 +205,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       return f.size() > d.size() && f.compare(0, d.size(), d) == 0 && f[d.size()] == '/';
     };
     const bool ours = request.runDirectory && under(p.path, *request.runDirectory);
-    const long long signedTo = signedThrough(p.path);
+    const long long signedTo = cobordisms::signedThrough(p.path);
     if (!ours && signedTo < p.bytes)
       pendingRefusal = "its pending file " + p.path + " is signed through " +
                        std::to_string(signedTo) + " of the " + std::to_string(p.bytes) +
@@ -249,7 +249,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       {.resolveUnlinked = resolveUnlinked,
        .census = selfIntersectionCensus ? &*selfIntersectionCensus : nullptr});
 
-  std::optional<rowsearch::SurfaceStatsTally> surfaceStats;
+  std::optional<search::SurfaceStatsTally> surfaceStats;
   if (outputs.surfaceStats)
     surfaceStats.emplace();
 
@@ -272,12 +272,12 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   };
 
   HopRun out;
-  out.recognitionBefore = identify::recognitionCacheStats();
+  out.recognitionBefore = complement::recognitionCacheStats();
   out.censusWritesBefore = census::insertCounts();
 
   // Every surface the drain describes lands in exactly one of its buckets
   // (see the accounting after the search).
-  rowsearch::RowAccounting acct;
+  search::RowAccounting acct;
   // The fixtures for divergence 2's test: with SURFER_TEST_UNACCOUNTED
   // naming this search, its first described surface is dropped from every
   // bucket, as a surface lost between the drain and the record would be;
@@ -304,7 +304,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       return;
     {
       std::lock_guard<std::mutex> lock(rejectionSampleMutex);
-      if (rejectionSamplesTaken[reason]++ >= rowsearch::REJECTION_SAMPLES_PER_REASON)
+      if (rejectionSamplesTaken[reason]++ >= search::REJECTION_SAMPLES_PER_REASON)
         return;
     }
     std::string sig = info.capturePairSig ? info.capturePairSig() : std::string{};
@@ -325,7 +325,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   std::unordered_set<std::string> newIdentities;
   // The search's pending file (divergence 7): every kept surface, appended
   // and fsynced as the search runs.
-  std::optional<PendingWriter> pending;
+  std::optional<cobordisms::PendingWriter> pending;
   if (request.pending)
     pending.emplace(*request.pending);
   std::atomic<bool> stopped{false};
@@ -353,7 +353,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // Started just before the search (below). It polls at 200ms but has no
   // access to SearchStats; onProgress is the only place the live count is
   // handed to us, so it publishes it there.
-  std::optional<rowsearch::RowWatchdog> watchdog;
+  std::optional<search::RowWatchdog> watchdog;
   SurfaceSearchCallbacks callbacks;
   // A stop nobody else noted (a signal: divergence 8) is not running out of
   // candidates.
@@ -363,7 +363,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     // SIGTERM stops this search within a tick; its drain still finishes.
     if (runsignals::interrupted()) e.requestStop();
     if (watchdog) watchdog->publishSatisfying(stats.satisfyingCount);
-    if (outputs.progress) rowsearch::printProgress(stats, e);
+    if (outputs.progress) search::printProgress(stats, e);
     // The pending file's 60 s writes run through the enumeration too, not
     // only the post-search drain (below): the drain describes surfaces while
     // the search runs, so a kill during enumeration loses at most a minute.
@@ -383,7 +383,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   callbacks.onBoundaryProcessingStarted = [&](size_t total, unsigned threads) {
     out.drainTail = total;
     if (outputs.progress) {
-      rowsearch::progressBlock.forget();
+      search::progressBlock.forget();
       std::cerr << "[+] boundary processing: " << total << " queued surfaces, "
                 << threads << " threads\n";
     }
@@ -393,7 +393,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         [&](size_t processed, size_t total,
             std::chrono::steady_clock::duration elapsed) {
           if (outputs.progress)
-            rowsearch::printBoundaryProgress(
+            search::printBoundaryProgress(
                 processed, total, elapsed,
                 constructive.load() ? std::optional<int>(sweep.literatureLo)
                                     : std::nullopt,
@@ -409,7 +409,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         out.drainTailTime = elapsed;
         out.drainTailSeconds = std::chrono::duration<double>(elapsed).count();
         if (outputs.progress) {
-          rowsearch::progressBlock.forget();
+          search::progressBlock.forget();
           std::cerr << "[+] boundary processing: done (" << total
                     << " processed in " << formatElapsed(elapsed) << ")\n";
         }
@@ -420,7 +420,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     // is what the SEARCH found, not what survived the checks that decide
     // whether a surface bounds this particular row.
     if (surfaceStats)
-      surfaceStats->record(rowsearch::SurfaceStatsKey{
+      surfaceStats->record(search::SurfaceStatsKey{
           .triangles = info.triangleCount,
           .orientable = info.orientable,
           .genus = info.genus,
@@ -441,32 +441,32 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     if (dropOne.exchange(false))
       return;
     if (impossibleOne.exchange(false)) {
-      acct.reject(rowsearch::Gate::orientationBroken);
+      acct.reject(search::Gate::orientationBroken);
       return;
     }
 
     // Orientable, search side intact, the row's own oriented variant, one
-    // far side (rowsearch::gateSurface()). The orientation check needs the
+    // far side (search::gateSurface()). The orientation check needs the
     // search side's oriented curves, and an exact oriented far-side name the
     // rest, so the gate captures them once.
-    const rowsearch::GatedSurface g = rowsearch::gateSurface(info, rb);
+    const search::GatedSurface g = search::gateSurface(info, rb);
     if (!g.accepted()) {
       acct.reject(g.gate);
-      sampleRejection(rowsearch::gateReason(g.gate), info);
+      sampleRejection(search::gateReason(g.gate), info);
       return;
     }
     // The oriented outgoing link, kept and judged by: oriented by the gate's
     // own judgement of the incoming curves (g.flips: the row is rb's,
     // request.row->row() is *rb.orientation).
-    std::optional<farside::OutgoingLink> link;
+    std::optional<outgoing::OutgoingLink> link;
     {
-      link = farside::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
+      link = outgoing::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.row->outgoing(), g.flips,
                                            rb.searchSideBC);
       if (!link) {
         // Only a surface component off the row, which the gate's flips (one
         // per component meeting the row) rule out: impossible.
-        acct.reject(rowsearch::Gate::orientationBroken);
+        acct.reject(search::Gate::orientationBroken);
         return;
       }
     }
@@ -478,7 +478,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     // is what makes multi-component links tractable at all: their seeded
     // collar starts as one disjoint annulus per component, and nothing
     // forces the DFS to ever bridge them.
-    cobordismgraph::Witness w;
+    cobordisms::Witness w;
     w.subject = request.name;
     w.subjectComponents = rb.componentCount;
     w.genus = info.tubedGenus;
@@ -490,7 +490,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     w.maxFaces = shape.maxFaces.value_or(0);
     std::string farName;
     if (g.split.otherSides.empty()) {
-      w.kind = cobordismgraph::WitnessKind::direct;
+      w.kind = cobordisms::WitnessKind::direct;
     } else {
       // Exactly one: the gate turns away more (multi-far-side). A
       // genuinely-linked far side is recorded but, unless it is a knot or a
@@ -498,11 +498,11 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       // determine a link. It is kept because the observation is real and is
       // exactly what a later per-witness naming needs as input; the solver's
       // farSideBearsBound() is what declines it.
-      const cobordismgraph::BoundarySide &far = g.split.otherSides.front();
+      const search::BoundarySide &far = g.split.otherSides.front();
       // Normalized, so a census hit and the table name are one graph node,
-      // and oriented where exact names are on (rowsearch::farSideName()).
-      farName = rowsearch::farSideName(g, namer ? &*namer : nullptr);
-      w.kind = cobordismgraph::WitnessKind::cobordism;
+      // and oriented where exact names are on (search::farSideName()).
+      farName = search::farSideName(g, namer ? &*namer : nullptr);
+      w.kind = cobordisms::WitnessKind::cobordism;
       w.other = farName;
       w.otherComponents = far.components;
       // other_candidates is derived from the name when it is signed, as every
@@ -512,12 +512,12 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     // The dedup matters a lot, since every search harvests: a single search
     // reports thousands of near-identical surfaces. One kept surface per
     // keptKey(), and none the loaded database holds already.
-    std::string identity = cobordismgraph::witnessIdentity(w);
+    std::string identity = cobordisms::witnessIdentity(w);
     if (request.knownIdentities && request.knownIdentities->count(identity)) {
       acct.duplicate.fetch_add(1, std::memory_order_relaxed);
       return;
     }
-    std::string key = rowsearch::keptKey(w, *link, *request.row);
+    std::string key = search::keptKey(w, *link, *request.row);
     {
       std::lock_guard<std::mutex> lock(keptMutex);
       if (!keys.insert(key).second) {
@@ -536,7 +536,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                   .witness = std::move(w)};
     std::lock_guard<std::mutex> lock(keptMutex);
     if (pending)
-      pending->add(PendingWitness{k.witness, request.rowPD, request.layers, k.faces});
+      pending->add(cobordisms::PendingWitness{k.witness, request.rowPD, request.layers, k.faces});
     if (request.stop && !stopped.load() && request.stop(k)) {
       stopped.store(true);
       noteStop("stopped");
@@ -561,7 +561,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // waiting is cheaper than searching a region and then refusing to look at
   // what it found.
   watchdog.emplace(
-      rowsearch::WatchdogLimits{.surfaceTarget = request.surfaceTarget,
+      search::WatchdogLimits{.surfaceTarget = request.surfaceTarget,
                                 .rowSeconds = request.seconds},
       [&](const char *why) {
         noteStop(why);
@@ -663,7 +663,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // rows without a trace.
   const bool drainSkipped = e.boundaryProcessingSkipped();
   if (namer) {
-    const farside::NamingStats &ns = namer->stats();
+    const linknaming::NamingStats &ns = namer->stats();
     out.naming = ns.summary();
     out.namingDiagramSeconds = ns.microsDiagram / 1e6;
     out.namingFallbackSeconds = ns.microsFallback / 1e6;
@@ -687,15 +687,15 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.impossible = acct.impossible();
 
   if (surfaceStats)
-    rowsearch::appendSurfaceStats(*outputs.surfaceStats, request.name,
+    search::appendSurfaceStats(*outputs.surfaceStats, request.name,
                                   shape.maxFaces.value_or(0), surfaceStats->take());
   if (selfIntersectionCensus)
-    rowsearch::appendSelfIntersectionCensus(*outputs.selfIntersectionCensus,
+    search::appendSelfIntersectionCensus(*outputs.selfIntersectionCensus,
                                             request.name, shape.maxFaces.value_or(0),
                                             resolveUnlinked, stats,
                                             *selfIntersectionCensus);
   if (outputs.progress)
-    rowsearch::progressBlock.forget();
+    search::progressBlock.forget();
 
   // Divergence 2: a search that cannot account for its surfaces vouches for
   // no negative: its outcome says so, and it records no frontier (below) and
@@ -722,7 +722,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.stats = stats;
   out.petals = e.petalCacheStats();
   out.boundaryCache = e.boundarySignatureCacheStats();
-  out.recognitionAfter = identify::recognitionCacheStats();
+  out.recognitionAfter = complement::recognitionCacheStats();
   out.censusWritesAfter = census::insertCounts();
   out.linkingAudit = linkingnumber::auditLinkingNumbers.load();
 
@@ -745,4 +745,4 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   return out;
 }
 
-} // namespace cascade
+} // namespace search

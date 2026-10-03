@@ -36,7 +36,7 @@
 #include "surfer/enumeration/surfacesearch.h"
 #include "linknaming/census/censusnaming.h"
 
-using namespace rowsearch;
+using namespace search;
 
 namespace {
 
@@ -206,11 +206,11 @@ class FarNamer : public BoundaryNamer {
     explicit FarNamer(size_t searchSide) : searchSide_(searchSide) {}
     std::string nameLink(size_t bc, const Link &curves) const override {
         if (bc != searchSide_) return "far";
-        return curves.comps_.size() == 1 ? identify::identify(curves.comps_.front())
-                                         : identify::identify(curves);
+        return curves.comps_.size() == 1 ? census::identify(curves.comps_.front())
+                                         : census::identify(curves);
     }
     std::string nameCurve(size_t, const Knot &curve) const override {
-        return identify::identify(curve);
+        return census::identify(curve);
     }
 
   private:

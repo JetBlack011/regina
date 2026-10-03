@@ -83,7 +83,7 @@
 #include "linknaming/diagrams/gaussdiagram.h"
 #include "linknaming/isometry/isometry.h"
 
-namespace exactnaming {
+namespace linknaming {
 
 struct NamerLimits {
     /** Name a piece by its own diagram when it is a version of a table
@@ -268,13 +268,13 @@ class ExactNamer {
 /** Pairwise linking numbers of a diagram's components, sorted. */
 std::vector<long> linkingNumbers(const GaussDiagram &g);
 
-} // namespace exactnaming
+} // namespace linknaming
 
 /** The curves of one boundary component, as linkcomplement.h holds them
  *  (edges of a triangulation), for the complement route. */
 class Link;
 
-namespace farside {
+namespace linknaming {
 
 /** How LinkNamer (and DiagramNamer's exact names) named what it was asked
  *  to (cumulative). */
@@ -344,11 +344,11 @@ struct DrawnCurves {
  * Everything else -- a knot the table does not know, a link the Jones
  * polynomial cannot tell from an unlink, a drawing that failed or that the
  * drawer refused as not planar (counted in NamingStats::nonPlanar) -- falls
- * back to identify::identify(), the complement route. Whatever it returns is
+ * back to census::identify(), the complement route. Whatever it returns is
  * remembered against the diagram's signature (a diagram determines its
  * link), so each distinct diagram costs at most one fallback, and repeats
  * of it get the same name. Names are perturbed as identify()'s are under
- * identify::perturbNamesForTesting.
+ * census::perturbNamesForTesting.
  */
 class LinkNamer {
   public:
@@ -381,6 +381,6 @@ class LinkNamer {
     mutable NamingStats stats_;
 };
 
-} // namespace farside
+} // namespace linknaming
 
 #endif
