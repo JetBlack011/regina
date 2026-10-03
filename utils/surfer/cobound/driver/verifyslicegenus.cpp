@@ -39,6 +39,9 @@
 #include "cobound/search/preconditions.h"
 #include "cobound/solver/literature.h"
 #include "cobound/solver/solver.h"
+#include "cobound/solver/solverinputs.h"
+#include "cobound/solver/verdicts.h"
+#include "cobound/driver/targets.h"
 #include "linknaming/names.h"
 #include "surfer/report/atomicwrite.h"
 #include "surfer/report/progress.h"
@@ -143,492 +146,22 @@ void haltIfFatalBugDetected() {
 using witnessstore::loadNameTable;
 using witnessstore::loadWitnesses;
 using witnessstore::rewriteWitnessFile;
+using targets::loadInputCsv;
+using verdicts::OutputRow;
+using verdicts::writeOutputCsv;
+using solverinputs::ExactFarSide;
+using solverinputs::FarSideResolution;
+using solverinputs::applyFarSideExact;
+using solverinputs::applyFarSideResolutions;
+using solverinputs::applyNameAliases;
+using solverinputs::loadFarSideExact;
+using solverinputs::loadFarSideResolutions;
+using solverinputs::loadNameAliases;
 
-
-std::vector<InputRow> loadInputCsv(const std::filesystem::path &path) {
-  std::vector<InputRow> rows;
-  for (const exactnaming::TableRow &table : exactnaming::readTableRows(path)) {
-    // A row to search must state its literature bounds: a malformed field
-    // stops the run (it always did), never becomes a bound.
-    const auto g4 = exactnaming::parseTableG4(table.g4);
-    if (!g4)
-      throw std::runtime_error("malformed 4-genus field '" + table.g4 + "' for " +
-                               table.name + " in " + path.string());
-    InputRow row;
-    row.name = table.name;
-    row.pdNotation = table.pd;
-    row.lo = g4->first;
-    row.hi = g4->second;
-    const std::string &pd = row.pdNotation;
-    // Crossing count is derived from the PD code itself (works uniformly
-    // for both knot names like "13n_1109" and link names like "L10a1{0}",
-    // which have no leading digit run to parse) rather than from `name`.
-    row.crossings =
-        static_cast<int>(knotbuilder::parsePDCode(pd).size());
-    rows.push_back(std::move(row));
-  }
-  return rows;
-}
-
-
-
-// ─────────────────────────────────────────────────────────────────────────
-// Output CSV schema and resumable I/O
-// ─────────────────────────────────────────────────────────────────────────
-
-// One row of --output: a name's current standing plus, when something was
-// derived, how. Lives here rather than in cobordismgraph.h because it is
-// purely this driver's file format -- the solver itself deals in
-// cobordismgraph::Bounds/Verdict and has no opinion about CSV.
-struct OutputRow {
-  std::string knot;
-  int resolvedGenus = 0;
-      /**< The established genus when `status` pins one; otherwise the best
-           derived upper bound, or 0. */
-  std::string status;
-      // verified | improved | pinned | bounded | unresolved | skipped
-  std::string witnessKind; // direct | cobordism | none
-  std::string witnessPairSig;
-  std::string viaKnot;
-  int viaEdgeGenus = 0;
-  std::string dependsOn;
-  int literatureLo = 0;
-  int literatureHi = 0;
-
-  // Added alongside the interval solver.
-  std::string derivedLo; // empty when no lower bound was derived
-  std::string derivedHi; // empty when no upper bound was derived
-  std::string witnessBasis; // constructive | literature-assisted | empty
-  bool tubed = false;
-      /**< Whether the witness surface was disconnected as found, with the
-           recorded genus being its tubed genus. */
-
-  // T5 bookkeeping: how hard this row was actually tried, so a later,
-  // bigger-budget pass knows what is worth re-searching and what is
-  // already settled. Without this a resume re-runs an identical search and
-  // learns nothing.
-  long long searchedFaces = 0; // the --max-faces used; 0 means unbounded
-  std::string searchOutcome;
-      // exhausted | timeout | quiescent | stopped | empty (never searched)
-  long long exhaustedDepth = -1;
-      /**< The largest face cap at which EVERY root was enumerated to
-           completion, or -1 if no round finished.
-
-           This is the row's only exhaustive claim, and it is much stronger
-           than `searchOutcome`: it says no cobordism exists for this object
-           with at most this many added faces, rather than merely that we
-           looked for a while. A timed-out run covers only a prefix of the
-           root list, so it leaves this at -1 however long it ran.
-
-           Kept as the best ever achieved for the row: a later, shallower
-           run must not erase a deeper exhaustive result. */
-};
 
 // Which BoundaryCondition to search a row under; see
 // rowsearch::conditionFor() for what each costs.
 using rowsearch::BoundaryConditionMode;
-
-constexpr const char *OUTPUT_HEADER =
-    "knot,resolved_genus,status,witness_kind,witness_pairsig,via_knot,"
-    "via_edge_genus,depends_on,literature_lo,literature_hi,"
-    "derived_lo,derived_hi,witness_basis,tubed,searched_faces,search_outcome,"
-    "exhausted_depth";
-
-std::string formatOutputRow(const OutputRow &r) {
-  std::ostringstream out;
-  out << csvField(r.knot) << ',' << r.resolvedGenus << ',' << r.status << ','
-      << r.witnessKind << ',' << csvField(r.witnessPairSig) << ','
-      << csvField(r.viaKnot) << ',' << r.viaEdgeGenus << ','
-      << csvField(r.dependsOn) << ',' << r.literatureLo << ','
-      << r.literatureHi << ',' << r.derivedLo << ',' << r.derivedHi << ','
-      << r.witnessBasis << ',' << (r.tubed ? "true" : "false") << ','
-      << r.searchedFaces << ',' << r.searchOutcome << ',' << r.exhaustedDepth;
-  return out.str();
-}
-
-// Loads a previously-written --output file, if present, keyed by knot name.
-std::unordered_map<std::string, OutputRow>
-loadOutputCsv(const std::filesystem::path &path) {
-  std::unordered_map<std::string, OutputRow> result;
-  std::ifstream in(path);
-  if (!in)
-    return result;
-
-  std::string line;
-  std::getline(in, line); // header
-  while (std::getline(in, line)) {
-    if (line.empty())
-      continue;
-    auto f = parseCsvLine(line);
-    if (f.size() < 10)
-      continue;
-    OutputRow r;
-    r.knot = f[0];
-    try {
-      r.resolvedGenus = std::stoi(f[1]);
-    } catch (const std::exception &) {
-      continue;
-    }
-    r.status = f[2];
-    r.witnessKind = f[3];
-    r.witnessPairSig = f[4];
-    r.viaKnot = f[5];
-    try {
-      r.viaEdgeGenus = f[6].empty() ? 0 : std::stoi(f[6]);
-    } catch (const std::exception &) {
-      r.viaEdgeGenus = 0;
-    }
-    r.dependsOn = f[7];
-    try {
-      r.literatureLo = std::stoi(f[8]);
-      r.literatureHi = std::stoi(f[9]);
-    } catch (const std::exception &) {
-      continue;
-    }
-    // Columns beyond the original ten are optional, so a file written by
-    // an older build still loads (its rows simply carry no derived bounds
-    // and no search bookkeeping, which is exactly the truth about them).
-    if (f.size() > 10)
-      r.derivedLo = f[10];
-    if (f.size() > 11)
-      r.derivedHi = f[11];
-    if (f.size() > 12)
-      r.witnessBasis = f[12];
-    if (f.size() > 13)
-      r.tubed = f[13] == "true";
-    if (f.size() > 14) {
-      try {
-        r.searchedFaces = std::stoll(f[14]);
-      } catch (const std::exception &) {
-        r.searchedFaces = 0;
-      }
-    }
-    if (f.size() > 15)
-      r.searchOutcome = f[15];
-    if (f.size() > 16) {
-      try {
-        r.exhaustedDepth = std::stoll(f[16]);
-      } catch (const std::exception &) {
-        r.exhaustedDepth = -1;
-      }
-    }
-    result[r.knot] = std::move(r);
-  }
-  return result;
-}
-
-
-
-
-// Loads the observed-name -> classical-name table (see --name-aliases).
-//
-// A far side is named by identify(), from its complement alone, and that
-// often lands on something no literature table knows: a bare isomorphism
-// signature, a Christy census name ("L108019"), or a SnapPy census manifold
-// name ("m129 : #3"). Such an edge bounds nothing. Where we have since
-// PROVED what one of those is -- by a Pachner match against a complement
-// built from a PD code, or by the peripheral test for a link -- this table
-// records it.
-//
-// Deliberately a separate file rather than a rewrite of cobordisms.csv:
-// that file records what the search observed, and must keep doing so. See
-// applyNameAliases() for why the distinction has to survive into memory too.
-std::unordered_map<std::string, std::string>
-loadNameAliases(const std::filesystem::path &path) {
-  std::unordered_map<std::string, std::string> aliases;
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open name alias table: " + path.string());
-
-  std::string line;
-  std::getline(in, line); // header: observed,classical,basis
-  while (std::getline(in, line)) {
-    if (line.empty() || line[0] == '#')
-      continue;
-    auto f = parseCsvLine(line);
-    if (f.size() < 2 || f[0].empty() || f[1].empty())
-      continue;
-    // An anchor name is an AXIOM to the solver (seedAxioms matches on the
-    // string), and identify() only ever emits one from a structural proof.
-    // An alias must not be able to manufacture that proof by spelling.
-    if (identify::isUnlinkName(f[1]))
-      throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" +
-                               f[1] +
-                               "': an unknot/unlink can only be established "
-                               "by identify(), never by alias");
-    aliases.emplace(f[0], f[1]);
-  }
-  return aliases;
-}
-
-// `name` as loadNameAliases() keys it: any " : #N" census-hit suffix
-// stripped, matching linknames::name()'s own convention.
-std::string aliasKey(const std::string &name) {
-  return cobordismgraph::stripCensusSuffix(name);
-}
-
-// Resolves every witness's far side through the alias table, returning a
-// SEPARATE vector for the solver to consume.
-//
-// Returning a copy rather than mutating in place is the whole point: the
-// vector the search holds is what appendWitnesses() writes into
-// cobordisms.csv, so aliasing it would quietly bake resolved names into the
-// observation record -- exactly what keeping a separate alias table was
-// meant to avoid.
-//
-// `otherCandidates` is re-derived rather than carried across: propagate()
-// consumes the stored candidate list, so leaving it keyed to the old name
-// would let a witness claim a far side of one name and the variants of
-// another.
-std::vector<cobordismgraph::Witness>
-applyNameAliases(const std::vector<cobordismgraph::Witness> &witnesses,
-                 const std::unordered_map<std::string, std::string> &aliases,
-                 const cobordismgraph::NameTable &names, size_t &appliedOut) {
-  std::vector<cobordismgraph::Witness> resolved = witnesses;
-  size_t applied = 0;
-  for (cobordismgraph::Witness &w : resolved) {
-    if (w.other.empty())
-      continue;
-    auto it = aliases.find(aliasKey(w.other));
-    if (it == aliases.end())
-      continue;
-    w.other = it->second;
-    w.otherCandidates = names.candidates(w.other, w.otherComponents);
-    ++applied;
-  }
-  appliedOut = applied;
-  return resolved;
-}
-
-// One proved far-side identity, keyed on the witness rather than the name.
-struct FarSideResolution {
-  std::string boundaryComponent; // "0" or "1", as peripheral_slopes reports it
-  std::string name;              // the ORIENTED name we have proved it to be
-};
-
-// One row of --far-side-exact: the far side redrawn from the witness's own
-// pair signature, oriented by its surface and named with a proof
-// (farsidename, exactnaming/).
-struct ExactFarSide {
-  std::string name;
-  bool exact = false; // an identity (may receive a bound), not a description
-  int components = 0; // curves drawn: must equal the witness's observed count
-};
-
-// Loads --far-side-exact: witness,name,exact,pinned,components,proof. A key
-// seen with two different names is a contradiction and is dropped.
-std::unordered_map<std::string, ExactFarSide>
-loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
-  std::unordered_map<std::string, ExactFarSide> out;
-  std::unordered_set<std::string> clash;
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open far-side exact names: " + path.string());
-  std::string line;
-  std::getline(in, line); // header
-  while (std::getline(in, line)) {
-    auto f = parseCsvLine(line);
-    if (f.size() < 5 || f[0].empty() || f[1].empty())
-      continue;
-    ExactFarSide e{f[1], f[2] == "1", std::stoi(f[4])};
-    auto [it, fresh] = out.try_emplace(f[0], e);
-    if (!fresh && (it->second.name != e.name || it->second.exact != e.exact))
-      clash.insert(f[0]);
-  }
-  for (const std::string &k : clash)
-    out.erase(k);
-  clashes = clash.size();
-  return out;
-}
-
-// Applies --far-side-exact to the solver's copy of the witnesses, last, so it
-// outranks aliases and resolutions: it is the far side drawn from this
-// witness's own surface. Refused (and counted) when the drawing's curve count
-// is not the count the search observed. The candidates are the name alone,
-// or its proved alternatives -- never a base's variants.
-std::vector<cobordismgraph::Witness>
-applyFarSideExact(std::vector<cobordismgraph::Witness> witnesses,
-                  const std::unordered_map<std::string, ExactFarSide> &exact,
-                  size_t &applied, size_t &refused) {
-  applied = refused = 0;
-  for (cobordismgraph::Witness &w : witnesses) {
-    if (w.kind != cobordismgraph::WitnessKind::cobordism)
-      continue;
-    if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
-    auto it = exact.find(w.pairSigKey);
-    if (it == exact.end())
-      continue;
-    if (it->second.components != w.otherComponents) {
-      ++refused;
-      continue;
-    }
-    w.other = it->second.name;
-    w.otherCandidates = cobordismgraph::exactCandidates(it->second.name);
-    w.farSideProved = true;
-    w.farSideExact = it->second.exact;
-    ++applied;
-  }
-  return witnesses;
-}
-
-// Loads the per-witness far-side resolution table (see
-// --far-side-resolutions).
-//
-// WHY THIS EXISTS SEPARATELY FROM --name-aliases. An alias is keyed on the
-// observed NAME, which is sound only where a name determines the object.
-// For a knot it does: Gordon-Luecke makes the complement determine the knot
-// up to mirroring, and g_4 is mirror-invariant. For a LINK it does not --
-// one complement belongs to infinitely many links (Rolfsen twisting), and
-// in our own data one observed census name is a dozen different links
-// across different witnesses. A name-keyed row for such a far side would be
-// wrong on most of the witnesses it matched.
-//
-// The pair signature does determine the far side, so link far sides are
-// keyed on it (via witnesskey::witnessKey) plus which boundary component of
-// that witness is meant.
-std::unordered_map<std::string, std::vector<FarSideResolution>>
-loadFarSideResolutions(const std::filesystem::path &path) {
-  std::unordered_map<std::string, std::vector<FarSideResolution>> resolutions;
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error("Cannot open far-side resolution table: " +
-                             path.string());
-
-  std::string line;
-  std::getline(in, line); // header: witness,boundary_component,resolved_name,...
-  while (std::getline(in, line)) {
-    if (line.empty() || line[0] == '#')
-      continue;
-    auto f = parseCsvLine(line);
-    if (f.size() < 3 || f[0].empty() || f[2].empty())
-      continue;
-    resolutions[f[0]].push_back({f[1], f[2]});
-  }
-  return resolutions;
-}
-
-// Resolves far sides witness-by-witness, returning a SEPARATE vector for the
-// same reason applyNameAliases() does: the search's own vector is what gets
-// written to cobordisms.csv, so mutating it in place would bake an
-// interpretation into the observation record.
-//
-// Applied AFTER applyNameAliases(), and strictly more specific than it: a
-// resolution names one witness's far side, where an alias can only speak
-// about a name. For a KNOT far side the two must agree -- a knot is
-// determined by its complement (Gordon-Luecke), so an alias is an identity
-// and a disagreement is a bug, and the run stops. For a LINK far side an
-// alias can only say which COMPLEMENT was observed, and one complement is
-// many links: on 2026-09-24, 21 witnesses whose far side was aliased from a
-// census name (e.g. 9^2_55 -> L9n6) were proved per witness, with their own
-// meridians, to be another link with the same complement (L9n8). There the
-// resolution wins, and the count of such overrides is reported. This mirrors
-// cobordism-atlas/tools/frontier.py's load_witnesses(); the two
-// implementations are deliberately independent, and `frontier.py --check`
-// is only a check while they stay that way.
-std::vector<cobordismgraph::Witness> applyFarSideResolutions(
-    std::vector<cobordismgraph::Witness> resolved,
-    const std::vector<cobordismgraph::Witness> &observed,
-    const std::unordered_map<std::string, std::vector<FarSideResolution>>
-        &resolutions,
-    const cobordismgraph::NameTable &names, size_t &appliedOut) {
-  // Taken by value and rewritten in place. (A loaded witness no longer
-  // carries its pair signature in memory, only pairSigKey.)
-  size_t applied = 0;
-  size_t linkAliasesOverridden = 0;
-  std::vector<std::string> conflicts;
-
-  for (cobordismgraph::Witness &w : resolved) {
-    if (w.other.empty())
-      continue;
-    if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = witnesskey::witnessKey(w.pairSig);
-    if (w.pairSigKey.empty())
-      continue;
-    auto it = resolutions.find(w.pairSigKey);
-    if (it == resolutions.end())
-      continue;
-
-    // A witness has two boundary components and the table names one of them.
-    // The component count is what says which: a resolution whose own
-    // component count does not match this far side's observed curve count is
-    // about the other side, not this one.
-    const std::string *match = nullptr;
-    for (const FarSideResolution &r : it->second) {
-      // The name alone gives the count for a knot, an unlink or a tagged
-      // link ("L9a47{0}"). A peripherally proved link arrives as its BASE
-      // name -- the meridians pin the link, not its orientation -- and a
-      // base name states no count, so ask the table: if it has registered
-      // variants with the observed count, the resolution is about this side.
-      const bool countFromName =
-          cobordismgraph::componentsFromName(r.name) == w.otherComponents;
-      // candidates() falls back to {name} itself for an unregistered base,
-      // so a real table hit is one whose front is a different (tagged) name.
-      // A composite K #_c L has L's components (a knot is summed INTO a
-      // component), so it is L's variants that state the count.
-      const std::optional<cobordismgraph::CompositeName> cp =
-          cobordismgraph::compositeParts(r.name);
-      const std::string countable = cp ? cp->link : r.name;
-      const std::vector<std::string> variants =
-          names.candidates(countable, w.otherComponents);
-      const bool countFromTable =
-          !variants.empty() && variants.front() != countable &&
-          cobordismgraph::componentsFromName(variants.front()) ==
-              w.otherComponents;
-      if (countFromName || countFromTable) {
-        match = &r.name;
-        break;
-      }
-    }
-    if (!match)
-      continue;
-
-    // The alias layer has already run, so w.other is the aliased name here.
-    // Compare base names with any orientation tag stripped: a resolution
-    // REFINES `L2a1` to `L2a1{0}`, which is the whole point, but must never
-    // turn it into some other link. Only an ALIASED name is worth checking --
-    // if no alias fired, w.other is still the raw observed name (an isoSig or
-    // a census name), and disagreeing with that is not a contradiction but
-    // the entire purpose of the resolution.
-    const size_t idx = static_cast<size_t>(&w - resolved.data());
-    const bool aliasFired =
-        idx < observed.size() && observed[idx].other != w.other;
-    const std::string aliasedBase = cobordismgraph::stripOrientationTag(w.other);
-    const std::string resolvedBase = cobordismgraph::stripOrientationTag(*match);
-    if (aliasFired && !aliasedBase.empty() && aliasedBase != resolvedBase) {
-      if (w.otherComponents == 1)
-        conflicts.push_back(w.other + " -> " + *match);
-      else
-        ++linkAliasesOverridden;
-    }
-
-    w.other = *match;
-    w.otherCandidates = names.candidates(w.other, w.otherComponents);
-    w.farSideProved = true;
-    ++applied;
-  }
-
-  if (!conflicts.empty()) {
-    std::ostringstream msg;
-    msg << "far-side resolutions contradict name aliases on "
-        << conflicts.size() << " KNOT far sides, e.g.";
-    for (size_t i = 0; i < conflicts.size() && i < 3; ++i)
-      msg << " [" << conflicts[i] << "]";
-    msg << ". A knot is determined by its complement, so a resolution may "
-           "refine a knot alias but never disagree with it; resolve by hand "
-           "before solving.";
-    throw std::runtime_error(msg.str());
-  }
-  if (linkAliasesOverridden)
-    std::cerr << "[+] Far-side resolutions: " << linkAliasesOverridden
-              << " link far sides named by a complement-level alias were "
-                 "proved per witness to be another link with that complement; "
-                 "the per-witness proof wins\n";
-
-  appliedOut = applied;
-  return resolved;
-}
-
 
 // Reads a witness's pair signature back from its line in the witness file
 // (Witness::fileOffset), for the few places that print one: the database's
@@ -637,125 +170,6 @@ std::vector<cobordismgraph::Witness> applyFarSideResolutions(
 witnessstore::PairSigReader &pairSigReader() {
   static witnessstore::PairSigReader reader;
   return reader;
-}
-
-// Rewrites the whole --output file from `outputRows` via write-to-temp +
-// atomic rename -- so a crash mid-write never corrupts the previous,
-// already-durable version. Called once per knot/link processed (resolved,
-// attempted-but-unresolved, skipped, or newly propagated).
-//
-// --output is a single unified table shared across every run ever pointed
-// at it, regardless of what any one run's --input covers -- e.g. a
-// knots-only run and a links-only run sharing the same --output file both
-// resume from and contribute to the same pool of results, so a cobordism
-// found this run between (say) a link and a not-yet-resolved knot from an
-// earlier knots-only run resolves that knot too (see propagateGraph()),
-// right here in the same file. So this writes every row currently in
-// `outputRows`, not just ones belonging to this run's own --input: `rows`
-// is used only to keep this run's own rows in their familiar
-// crossing-count order at the top of the file; every other row (from a
-// prior run's --input, sharing this --output) follows after, sorted by
-// name for a stable, diffable order.
-void writeOutputCsv(const std::filesystem::path &path,
-                    const std::vector<InputRow> &rows,
-                    const std::unordered_map<std::string, OutputRow>
-                        &outputRows) {
-  report::atomicWrite(path, [&](std::ostream &out) {
-    out << OUTPUT_HEADER << "\n";
-
-    std::unordered_set<std::string> written;
-    written.reserve(outputRows.size());
-    for (const auto &row : rows) {
-      auto it = outputRows.find(row.name);
-      if (it == outputRows.end())
-        continue; // not yet processed
-      out << formatOutputRow(it->second) << "\n";
-      written.insert(row.name);
-    }
-
-    std::vector<std::string> others;
-    others.reserve(outputRows.size());
-    for (const auto &[name, unused] : outputRows)
-      if (!written.contains(name))
-        others.push_back(name);
-    std::sort(others.begin(), others.end());
-    for (const auto &name : others)
-      out << formatOutputRow(outputRows.at(name)) << "\n";
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Turning the solver's verdicts into --output rows
-// ─────────────────────────────────────────────────────────────────────────
-
-const char *statusName(cobordismgraph::Status s) {
-  using S = cobordismgraph::Status;
-  switch (s) {
-  case S::verified:
-    return "verified";
-  case S::verifiedAssisted:
-    return "verified-assisted";
-  case S::improved:
-    return "improved";
-  case S::pinned:
-    return "pinned";
-  case S::bounded:
-    return "bounded";
-  case S::unresolved:
-    return "unresolved";
-  case S::contradiction:
-    return "contradiction";
-  }
-  return "unresolved";
-}
-
-// Rebuilds `name`'s output row from the solver's current verdict, keeping
-// whatever search bookkeeping (searchedFaces/searchOutcome) the row already
-// carried -- that records what we DID, which no amount of re-solving
-// changes, unlike everything else here.
-OutputRow rowFromVerdict(
-    const std::string &name, const cobordismgraph::Verdict &v,
-    const OutputRow *existing,
-    const std::unordered_map<std::string, cobordismgraph::Bounds> &bounds) {
-  OutputRow out;
-  out.knot = name;
-  out.status = statusName(v.status);
-  out.literatureLo = v.litLo;
-  out.literatureHi = v.litHi;
-  out.resolvedGenus = v.value;
-
-  const auto &b = v.bounds;
-  if (b.haveUpper()) {
-    out.derivedHi = std::to_string(b.hi);
-    out.witnessKind =
-        b.kind == cobordismgraph::WitnessKind::direct ? "direct" : "cobordism";
-    out.witnessPairSig = !b.pairSig.empty()
-                             ? b.pairSig
-                             : pairSigReader().at(b.pairSigOffset);
-    out.viaKnot = b.viaName;
-    out.viaEdgeGenus = b.viaGenus;
-    out.dependsOn = cobordismgraph::buildDependsOn(b.viaName, bounds);
-    out.witnessBasis = b.basis == cobordismgraph::Basis::constructive
-                           ? "constructive"
-                           : "literature-assisted";
-    out.tubed = b.tubed;
-  } else {
-    out.witnessKind = "none";
-  }
-  if (b.haveLower())
-    out.derivedLo = std::to_string(b.lo);
-
-  if (existing) {
-    out.searchedFaces = existing->searchedFaces;
-    out.searchOutcome = existing->searchOutcome;
-    out.exhaustedDepth = existing->exhaustedDepth;
-    // A row that was skipped for crossing count and has still never been
-    // searched keeps saying so, rather than being relabelled "unresolved"
-    // as though we had tried.
-    if (existing->status == "skipped" && !b.haveUpper() && !b.haveLower())
-      out.status = "skipped";
-  }
-  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1862,7 +1276,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::unordered_map<std::string, OutputRow> outputRows =
-      loadOutputCsv(*outputPath);
+      verdicts::loadOutputCsv(*outputPath);
 
   if (rewriteWitnesses && std::filesystem::exists(cobordismsPath)) {
     try {
@@ -2012,17 +1426,11 @@ int main(int argc, char *argv[]) {
   // whose members' literature values differ.
   std::unordered_map<std::string, std::string> linkClasses;
   if (!linkClassesPath.empty()) {
-    std::ifstream in(linkClassesPath);
-    if (!in) {
-      std::cerr << "[!] could not open link classes " << linkClassesPath << "\n";
+    try {
+      linkClasses = solverinputs::loadLinkClasses(linkClassesPath);
+    } catch (const std::exception &e) {
+      std::cerr << "[!] " << e.what() << "\n";
       return 1;
-    }
-    std::string line;
-    std::getline(in, line); // name,canonical,proof
-    while (std::getline(in, line)) {
-      auto f = parseCsvLine(line);
-      if (f.size() >= 2 && !f[0].empty() && !f[1].empty())
-        linkClasses[f[0]] = f[1];
     }
     std::cout << "[+] Link classes: " << linkClasses.size()
               << " table names read as their class's canonical name, from "
@@ -2042,47 +1450,18 @@ int main(int argc, char *argv[]) {
   // and every literature leaf) read through the link classes, as witnesses'.
   std::vector<cobordismgraph::ExternalProof> externalProofs;
   if (!cascadeProofsPath.empty()) {
-    std::ifstream in(cascadeProofsPath);
-    if (!in) {
-      std::cerr << "[!] could not open cascade proofs " << cascadeProofsPath << "\n";
+    solverinputs::CertifiedBounds certified;
+    try {
+      certified = solverinputs::loadCascadeProofs(cascadeProofsPath, classOf);
+    } catch (const std::exception &e) {
+      std::cerr << "[!] " << e.what() << "\n";
       return 1;
     }
-    std::string line;
-    std::getline(in, line);
-    const std::vector<std::string> head = parseCsvLine(line);
-    auto col = [&head](const std::string &c) {
-      return static_cast<size_t>(std::find(head.begin(), head.end(), c) - head.begin());
-    };
-    const size_t cT = col("target"), cG = col("goal"), cB = col("bound"),
-                 cS = col("support"), cV = col("verdict"), cSrc = col("source");
-    if (std::max({cT, cG, cB, cS, cV, cSrc}) >= head.size()) {
-      std::cerr << "[!] " << cascadeProofsPath
-                << ": needs target,goal,bound,support,verdict,source columns\n";
-      return 1;
-    }
-    size_t skipped = 0;
-    while (std::getline(in, line)) {
-      if (line.empty())
-        continue;
-      const auto f = parseCsvLine(line);
-      if (f.size() < head.size() || f[cV] != "CERTIFIED" || f[cG] != "connected") {
-        ++skipped;
-        continue;
-      }
-      cobordismgraph::ExternalProof p;
-      p.name = classOf(f[cT]);
-      p.genus = std::stoi(f[cB]);
-      std::istringstream support(f[cS]);
-      for (std::string s; std::getline(support, s, ';');)
-        if (!s.empty())
-          p.support.push_back(classOf(s));
-      p.source = f[cSrc];
-      externalProofs.push_back(std::move(p));
-    }
+    externalProofs = std::move(certified.proofs);
     std::cout << "[+] Cascade proofs: " << externalProofs.size()
               << " certified bounds on connected g4 from " << cascadeProofsPath;
-    if (skipped)
-      std::cout << " (" << skipped << " others skipped)";
+    if (certified.skipped)
+      std::cout << " (" << certified.skipped << " others skipped)";
     std::cout << "\n";
   }
 
@@ -2154,27 +1533,7 @@ int main(int argc, char *argv[]) {
             << " names\n\n";
   }
 
-  std::vector<InputRow> pending;
-  pending.reserve(rows.size());
-  for (const auto &row : rows) {
-    if (row.crossings > maxCrossings) {
-      if (!outputRows.contains(row.name)) {
-        OutputRow out;
-        out.knot = row.name;
-        out.status = "skipped";
-        out.witnessKind = "none";
-        out.literatureLo = row.lo;
-        out.literatureHi = row.hi;
-        outputRows[row.name] = std::move(out);
-      }
-      continue;
-    }
-    pending.push_back(row);
-  }
-  std::stable_sort(pending.begin(), pending.end(),
-                   [](const InputRow &a, const InputRow &b) {
-                     return a.crossings < b.crossings;
-                   });
+  std::vector<InputRow> pending = targets::searchOrder(rows, maxCrossings, outputRows);
 
   // --solve-only: re-derive every conclusion from the witness file and
   // stop. Emptying `pending` (rather than branching around the loop) means
@@ -2226,9 +1585,9 @@ int main(int argc, char *argv[]) {
       // chaining but aren't results in their own right.
       if (existing == outputRows.end() && !names.find(name))
         continue;
-      OutputRow updated = rowFromVerdict(
+      OutputRow updated = verdicts::rowFromVerdict(
           name, v, existing == outputRows.end() ? nullptr : &existing->second,
-          bounds);
+          bounds, pairSigReader());
       outputRows[name] = std::move(updated);
     }
     return contradictions;

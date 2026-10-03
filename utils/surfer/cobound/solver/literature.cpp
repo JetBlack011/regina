@@ -72,4 +72,19 @@ size_t loadNameTable(const std::filesystem::path &path,
   return loaded;
 }
 
+cobordismgraph::NameTable loadTableNames(const std::string &knotTable,
+                                         const std::string &linkTable,
+                                         const std::string &knotSymmetry,
+                                         size_t *symmetryTypes) {
+  cobordismgraph::NameTable names;
+  loadNameTable(knotTable, names);
+  loadNameTable(linkTable, names);
+  if (!knotSymmetry.empty()) {
+    const exactnaming::SymmetryTable types = exactnaming::readSymmetryTable(knotSymmetry);
+    for (const auto &[knot, type] : types) names.setSymmetry(knot, type);
+    if (symmetryTypes) *symmetryTypes = types.size();
+  }
+  return names;
+}
+
 } // namespace witnessstore

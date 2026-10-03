@@ -10,7 +10,10 @@ add_library(cobound_lib STATIC
   bounds/partition.cpp bounds/partitiongenera.cpp bounds/cobordismgraph.cpp
   bounds/links.cpp bounds/searchcobordisms.cpp bounds/axioms.cpp bounds/searchjudge.cpp
   cobordisms/pairsigner.cpp cobordisms/pending.cpp outgoing/fromdatabase.cpp
-  cobordisms/appendonly.cpp driver/signals.cpp)
+  cobordisms/appendonly.cpp driver/signals.cpp
+  solver/verdicts.cpp solver/solverinputs.cpp
+  bounds/certificate.cpp bounds/databasecobordisms.cpp
+  driver/targets.cpp driver/runrecords.cpp driver/scheduler.cpp)
 target_link_libraries(cobound_lib PUBLIC ${ENGINE_LIBRARY} surfer_lib
                       diagramtriangulation_lib linknaming_lib linknaming_complement)
 surfer_include_view(cobound_lib cobound)

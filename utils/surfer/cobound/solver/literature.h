@@ -126,6 +126,15 @@ namespace witnessstore {
 size_t loadNameTable(const std::filesystem::path &path,
                      cobordismgraph::NameTable &names);
 
+/// The knot and link tables' names and literature bounds (the store step's
+/// candidate sets) and, with `knotSymmetry`, the knots' symmetry types (the
+/// slice-composite anchors; their count into `symmetryTypes`): a goal run's
+/// NameTable, and `sign`'s (without symmetry types).
+cobordismgraph::NameTable loadTableNames(const std::string &knotTable,
+                                         const std::string &linkTable,
+                                         const std::string &knotSymmetry,
+                                         size_t *symmetryTypes = nullptr);
+
 } // namespace witnessstore
 
 #endif // SURFER_COBOUND_LITERATURE_H

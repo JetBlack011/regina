@@ -34,6 +34,12 @@ GaussDiagram GaussDiagram::of(const regina::Link &l, std::vector<size_t> origin)
     return g;
 }
 
+GaussDiagram GaussDiagram::of(const regina::Link &l) {
+    std::vector<size_t> origin(l.countComponents());
+    for (size_t c = 0; c < origin.size(); ++c) origin[c] = c;
+    return of(l, std::move(origin));
+}
+
 namespace {
 
 // The sub-diagram on the crossings in `keep` (old indices), made of the given

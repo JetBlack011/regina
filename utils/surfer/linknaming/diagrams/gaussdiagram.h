@@ -51,6 +51,8 @@ struct GaussDiagram {
 
     /** Read a Regina link back, components in its own order. */
     static GaussDiagram of(const regina::Link &l, std::vector<size_t> origin);
+    /** The same, each component its own origin (0, 1, ...). */
+    static GaussDiagram of(const regina::Link &l);
 };
 
 /** The diagram's split pieces, each a group of components joined by
