@@ -48,10 +48,6 @@ struct BoundarySide {
  */
 struct BoundarySplit {
     size_t searchCurveCount = 0; // 0 if the search side has no boundary here
-    bool searchSideRejected = false;
-    /**< Set when `requiredSearchEdges` was given and the curves on
-         searchSideBC are not exactly those edges -- the surface's boundary
-         there is some other link, so it says nothing about this row. */
     bool unnamedSide = false;
     /**< Set when a non-search-side component carried no name at all, which
          describeBoundary_() never produces; the caller treats it as a bug. */
@@ -61,21 +57,17 @@ struct BoundarySplit {
 /**
  * The search side is identified by geometry, never by name.
  *
- * Component `searchSideBC` is the search side. In a seeded search that is
- * all there is to it: the seed is L x {0} and no other triangle with an edge
- * in that boundary component is ever searchable, so its curves are L by
- * construction (verifyslicegenus asserts this once per row). An unseeded
- * search has no such guarantee, and passes `requiredSearchEdges` -- the
- * sorted boundary-triangulation edge indices of the row's own link -- so
- * that a surface whose search-side curves are any other edge set is
- * rejected. Identified names are deliberately not consulted: they are not
- * canonical (a census hit's "#N" varies from one identification to the
- * next), and comparing them once silently discarded whole rows.
+ * Component `searchSideBC` is the search side. Every search is seeded: the
+ * seed is L x {0} and no other triangle with an edge in that boundary
+ * component is ever searchable, so its curves are L by construction
+ * (asserted once per row). Identified names are deliberately not consulted:
+ * they are not canonical (a census hit's "#N" varies from one
+ * identification to the next), and comparing them once silently discarded
+ * whole rows.
  */
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC,
-              const std::vector<size_t> *requiredSearchEdges = nullptr);
+              size_t searchSideBC);
 
 /** How a surface's search-side boundary compares with the row's orientation;
  * see classifyRowOrientation(). */
@@ -150,7 +142,6 @@ enum class Gate {
     accepted,
     nonOrientable,       /**< Impossible: orientableOnly prunes these. */
     unnamedSide,         /**< Impossible: a far side with no name at all. */
-    searchSideElsewhere, /**< Unseeded only: another link on the search side. */
     searchSideBroken,    /**< Impossible when seeded. */
     orientation,         /**< Witnesses another oriented variant of the row. */
     orientationBroken,   /**< Impossible: an incoherent or foreign curve. */
@@ -207,8 +198,7 @@ struct RowAccounting {
     std::atomic<long long> described{0};
     std::atomic<long long> recorded{0};
     std::atomic<long long> duplicate{0};
-    std::atomic<long long> orientation{0};         // another oriented variant
-    std::atomic<long long> searchSideElsewhere{0}; // unseeded only
+    std::atomic<long long> orientation{0}; // another oriented variant
     // Impossible for a correct build; any nonzero count halts the run.
     std::atomic<long long> nonOrientable{0};
     std::atomic<long long> searchSideBroken{0};
@@ -224,8 +214,7 @@ struct RowAccounting {
                multiFarSide + unnamedSide;
     }
     long long bucketed() const {
-        return recorded + duplicate + orientation + searchSideElsewhere +
-               impossible();
+        return recorded + duplicate + orientation + impossible();
     }
     /** Surfaces were described, yet none reached the witness record. That
      *  can be genuine (every one witnesses another oriented variant), but it

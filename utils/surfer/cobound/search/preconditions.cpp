@@ -17,15 +17,11 @@ namespace cobordismgraph {
 
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC,
-              const std::vector<size_t> *requiredSearchEdges) {
+              size_t searchSideBC) {
     BoundarySplit result;
     for (const auto &info : boundaryComponents) {
         if (info.component == searchSideBC) {
-            if (requiredSearchEdges && info.edgeIndices != *requiredSearchEdges)
-                result.searchSideRejected = true;
-            else
-                result.searchCurveCount = info.curveNames.size();
+            result.searchCurveCount = info.curveNames.size();
             continue;
         }
 
@@ -101,7 +97,6 @@ const char *gateReason(Gate gate) {
     case Gate::accepted: return "accepted";
     case Gate::nonOrientable: return "non-orientable";
     case Gate::unnamedSide: return "unnamed-side";
-    case Gate::searchSideElsewhere: return "search-side-elsewhere";
     case Gate::searchSideBroken: return "search-side-broken";
     case Gate::orientation: return "orientation";
     case Gate::orientationBroken: return "orientation-broken";
@@ -118,21 +113,16 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
         return g;
     }
 
-    // Seeded, the search side is L by construction (asserted once at row
+    // The search side is L by construction (the seed; asserted once at row
     // setup), so splitBoundary() just takes component searchSideBC.
-    // Unseeded, it filters on L's own edges, setwise.
-    g.split = cobordismgraph::splitBoundary(
-        info.boundaryComponents, row.searchSideBC,
-        row.seedFaces.empty() ? &row.searchEdges : nullptr);
+    g.split = cobordismgraph::splitBoundary(info.boundaryComponents,
+                                            row.searchSideBC);
     if (g.split.unnamedSide) {
         g.gate = Gate::unnamedSide;
         return g;
     }
     if (g.split.searchCurveCount != static_cast<size_t>(row.componentCount)) {
-        // Unseeded: a different link on the search side, so whatever this
-        // surface witnesses, it isn't about this row.
-        g.gate = row.seedFaces.empty() ? Gate::searchSideElsewhere
-                                       : Gate::searchSideBroken;
+        g.gate = Gate::searchSideBroken;
         return g;
     }
 
@@ -197,9 +187,6 @@ void RowAccounting::reject(Gate gate) {
     case Gate::unnamedSide:
         unnamedSide.fetch_add(1, std::memory_order_relaxed);
         break;
-    case Gate::searchSideElsewhere:
-        searchSideElsewhere.fetch_add(1, std::memory_order_relaxed);
-        break;
     case Gate::searchSideBroken:
         searchSideBroken.fetch_add(1, std::memory_order_relaxed);
         break;
@@ -238,13 +225,19 @@ std::string RowAccounting::failure(long long accepted, long long rebuildFailed,
     return {};
 }
 
+// The accounting line keeps the bucket of the retired unseeded search, whose
+// count is always 0: a frozen token (dispatch.py's RE_ACCOUNTING, the
+// canaries' expected lines).
+static constexpr const char *kFrozenSearchSideElsewhere =
+    ", search-side-elsewhere 0";
+
 std::string RowAccounting::summary(long long accepted, bool drainSkipped) const {
     return "accepted " + std::to_string(accepted) + ", described " +
            std::to_string(described.load()) + ", recorded " +
            std::to_string(recorded.load()) + ", duplicate " +
            std::to_string(duplicate.load()) + ", other-orientation " +
-           std::to_string(orientation.load()) + ", search-side-elsewhere " +
-           std::to_string(searchSideElsewhere.load()) + ", impossible " +
+           std::to_string(orientation.load()) + kFrozenSearchSideElsewhere +
+           ", impossible " +
            std::to_string(impossible()) + ", drain " +
            (drainSkipped ? "skipped" : "complete") + ", " +
            (nothingExamined() ? "WARNING" : "ok");

@@ -86,8 +86,6 @@ void test_gate_reasons() {
              std::string("non-orientable"), "non-orientable");
     expectEq(std::string(gateReason(Gate::unnamedSide)),
              std::string("unnamed-side"), "unnamed-side");
-    expectEq(std::string(gateReason(Gate::searchSideElsewhere)),
-             std::string("search-side-elsewhere"), "search-side-elsewhere");
     expectEq(std::string(gateReason(Gate::searchSideBroken)),
              std::string("search-side-broken"), "search-side-broken");
     expectEq(std::string(gateReason(Gate::orientation)),
@@ -103,10 +101,9 @@ void test_accounting() {
         RowAccounting a;
         a.described = 10;
         a.recorded = 3;
-        a.duplicate = 4;
+        a.duplicate = 5;
         a.reject(Gate::orientation);
         a.reject(Gate::orientation);
-        a.reject(Gate::searchSideElsewhere);
         expectEq(a.bucketed(), 10LL, "every gate lands in its own bucket");
         expectEq(a.impossible(), 0LL, "no impossible bucket touched");
         expectEq(a.failure(10, 0, false), std::string(),
@@ -115,8 +112,8 @@ void test_accounting() {
         // Exactly what dispatch.py's RE_ACCOUNTING reads.
         expectEq(a.summary(10, false),
                  std::string("accepted 10, described 10, recorded 3, "
-                             "duplicate 4, other-orientation 2, "
-                             "search-side-elsewhere 1, impossible 0, drain "
+                             "duplicate 5, other-orientation 2, "
+                             "search-side-elsewhere 0, impossible 0, drain "
                              "complete, ok"),
                  "the accounting line's body, byte for byte");
         expectEq(a.failure(11, 0, false),

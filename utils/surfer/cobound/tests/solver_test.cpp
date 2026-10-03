@@ -919,47 +919,8 @@ void test_split_boundary_seeded_ignores_names() {
     EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(1),
               "the search side is component searchSideBC, whatever it was "
               "named");
-    EXPECT_EQ(split.searchSideRejected, false, "nothing to reject when seeded");
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
               "the far side is still classified");
-}
-
-void test_split_boundary_unseeded_other_link_rejected() {
-    // Unseeded, the search side is not fixed, so the row's own edges are
-    // required -- setwise. The L6a3{0} repro: component 0 holds as many
-    // curves as the row's own link has components, but they are a different
-    // link. Rejected by its edges; its name plays no part.
-    const std::vector<size_t> rowEdges = {10, 11, 12, 13};
-    std::vector<BoundaryComponentNames> components = {
-        BoundaryComponentNames{0, {"?", "?"},
-                               std::optional<std::string>("L6a3"),
-                               {1, 2, 3, 4}},
-        BoundaryComponentNames{1, {"Unknot"}, std::nullopt, {5, 6}},
-    };
-    BoundarySplit split = splitBoundary(components, 0, &rowEdges);
-
-    EXPECT_EQ(split.searchSideRejected, true,
-              "other edges on the search side: not about this row, even "
-              "though that link is even NAMED like this row's");
-    EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(0),
-              "so no search side is counted");
-    EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
-              "and the search-side component is not mistaken for a far side");
-}
-
-void test_split_boundary_unseeded_own_link_accepted() {
-    const std::vector<size_t> rowEdges = {1, 2, 3, 4};
-    std::vector<BoundaryComponentNames> components = {
-        BoundaryComponentNames{0, {"?", "?"},
-                               std::optional<std::string>("L206001"),
-                               {1, 2, 3, 4}},
-        BoundaryComponentNames{1, {"Unknot"}, std::nullopt, {5, 6}},
-    };
-    BoundarySplit split = splitBoundary(components, 0, &rowEdges);
-
-    EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(2),
-              "exactly the row's own edges: the search side, under any name");
-    EXPECT_EQ(split.searchSideRejected, false, "not rejected");
 }
 
 void test_split_boundary_unnamed_side_flagged() {
@@ -1549,10 +1510,6 @@ int main() {
         test_split_boundary_multiple_other_sides_not_collapsed);
     run("split_boundary_seeded_ignores_names",
         test_split_boundary_seeded_ignores_names);
-    run("split_boundary_unseeded_other_link_rejected",
-        test_split_boundary_unseeded_other_link_rejected);
-    run("split_boundary_unseeded_own_link_accepted",
-        test_split_boundary_unseeded_own_link_accepted);
     run("split_boundary_unnamed_side_flagged",
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
