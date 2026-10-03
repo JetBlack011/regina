@@ -21,7 +21,7 @@
  *
  *  | command   | was                               | does |
  *  |-----------|-----------------------------------|------|
- *  | run       | verifyslicegenus (a search run), cascadesearch | searches from each target: without a goal each once (sweep.h), with one by the scheduler (scheduler.h) |
+ *  | run       | verifyslicegenus (a search run), cascadesearch | searches from each target: without a goal each once (run.cpp), with one by the scheduler (scheduler.h) |
  *  | solve     | verifyslicegenus --solve-only     | re-derives every verdict from the database |
  *  | sign      | cascadesearch --sign-only         | signs a work directory's pending cobordisms into the database |
  *  | draw      | farsidediagram                    | stored cobordisms' outgoing links, drawn |

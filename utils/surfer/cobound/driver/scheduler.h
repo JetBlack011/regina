@@ -15,7 +15,7 @@
 
 /*! \file utils/surfer/cobound/driver/scheduler.h
  *  \brief Which search next. A run's targets are searched by one scheduler:
- *  without a goal each target once, in order (driver/sweep.h: the old sweep,
+ *  without a goal each target once, in order (driver/run.cpp: the old sweep,
  *  at depth 0); with a goal, from the target outwards (here): the links that
  *  could still move the target's bound, each loaded with the database's
  *  cobordisms first (bounds/databasecobordisms.h), then searched, until the

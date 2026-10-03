@@ -14,7 +14,7 @@ add_library(cobound_lib STATIC
   solver/verdicts.cpp solver/solverinputs.cpp
   bounds/certificate.cpp bounds/databasecobordisms.cpp
   driver/config.cpp driver/setup.cpp driver/fatal.cpp driver/targets.cpp
-  driver/runrecords.cpp driver/scheduler.cpp driver/sweep.cpp
+  driver/runrecords.cpp driver/scheduler.cpp
   driver/run.cpp driver/solve.cpp driver/sign.cpp driver/draw.cpp driver/name.cpp
   driver/meridians.cpp)
 target_link_libraries(cobound_lib PUBLIC ${ENGINE_LIBRARY} surfer_lib
