@@ -113,10 +113,14 @@ struct SearchFrontier {
     static SearchFrontier read(std::istream &in);
 
     /**
-     * Writes `path` atomically (a temporary beside it, then a rename). The
-     * pending file is recorded relative to `path`'s directory (its own name
-     * when no relative path exists), so a work tree that is packed, synced
-     * or copied keeps its resume.
+     * Writes `path` atomically (a temporary beside it, then a rename), but
+     * not fsynced (report::Durability::cache): a frontier lost in a crash
+     * only costs the resume, and read() refuses a damaged one by name (an
+     * empty or truncated file has no 'end' line). What makes a search safe
+     * to kill is its pending file's fsync, not this. The pending file is
+     * recorded relative to `path`'s directory (its own name when no relative
+     * path exists), so a work tree that is packed, synced or copied keeps
+     * its resume.
      */
     void save(const std::string &path) const;
     /**

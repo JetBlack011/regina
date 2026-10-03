@@ -252,9 +252,11 @@ void SearchFrontier::save(const std::string &path) const {
         if (pending) {
             SearchFrontier recorded = *this;
             recorded.pending->path = recordedPending(pending->path, path);
-            report::atomicWrite(path, [&recorded](std::ostream &out) { recorded.write(out); });
+            report::atomicWrite(path, [&recorded](std::ostream &out) { recorded.write(out); },
+                                report::Durability::cache);
         } else {
-            report::atomicWrite(path, [this](std::ostream &out) { write(out); });
+            report::atomicWrite(path, [this](std::ostream &out) { write(out); },
+                                report::Durability::cache);
         }
     } catch (const std::runtime_error &e) {
         bad(e.what());

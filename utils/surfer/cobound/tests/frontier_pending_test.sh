@@ -22,7 +22,10 @@
 #      resumes it (its own sign step signs WA's files);
 #   7. the whole tree is moved: run E (work WE, in the moved tree) resumes
 #      A's frontier, whose pending file moved with it and is signed;
-#   8. with the moved record removed, run F in the moved WA resumes it.
+#   8. with the moved record removed, run F in the moved WA resumes it;
+#   9. the frontier cut in half (frontiers are not fsynced, so a crash can
+#      leave one short) and then replaced by garbage: runs G and H refuse it,
+#      naming the reason, and search from the start ("resumed none").
 set -eu
 
 C=$1
@@ -105,4 +108,14 @@ rm "$file.signed"
 run F "$T/WA" 900 resume
 grep -q 'resumed yes' "$T/F.log" ||
   { echo "FAIL: run F refused its own (moved) run's pending file"; grep -o 'resumed .*' "$T/F.log"; exit 1; }
-echo "PASS: a frontier is resumed only once its pending file is signed (or is the run's own), and a moved tree keeps its resume"
+whole=$(wc -c < "$T/fr/3_1.frontier")
+head -c $((whole / 2)) "$T/fr/3_1.frontier" > "$T/fr/half" && mv "$T/fr/half" "$T/fr/3_1.frontier"
+run G "$T/WG" 300 resume
+grep -q 'WARNING: frontier not read (SearchFrontier: ' "$T/G.log" && grep -q 'resumed none' "$T/G.log" ||
+  { echo "FAIL: run G trusted a truncated frontier"; grep -oE 'frontier not read.*|resumed .*' "$T/G.log"; exit 1; }
+printf 'garbage\n' > "$T/fr/3_1.frontier"
+run H "$T/WH" 300 resume
+grep -q 'WARNING: frontier not read (SearchFrontier: ' "$T/H.log" && grep -q 'resumed none' "$T/H.log" ||
+  { echo "FAIL: run H trusted a garbage frontier"; grep -oE 'frontier not read.*|resumed .*' "$T/H.log"; exit 1; }
+grep -oE 'frontier not read \([^)]*\)' "$T/G.log" "$T/H.log"
+echo "PASS: a frontier is resumed only once its pending file is signed (or is the run's own), a moved tree keeps its resume, and a truncated or garbage frontier is refused by name"

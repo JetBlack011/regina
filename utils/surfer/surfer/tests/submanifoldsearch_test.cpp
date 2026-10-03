@@ -1353,6 +1353,75 @@ void test_frontier_file_round_trip() {
 // directory (phase 5): a work tree moved, packed or synced keeps its resume.
 // load() names the file absolutely again, wherever the tree now is, and
 // falls back to a file of the pending file's name beside the frontier.
+// A frontier is written without fsync (phase 5), so a crash can leave it
+// empty or cut short. Every strict prefix of a saved one is refused with a
+// named reason ("SearchFrontier: ..."), or reads back as the very same
+// frontier (only its final newline missing); garbage is refused by name.
+void test_frontier_damaged_refused() {
+    std::cout << "\n--- frontiers: a truncated or garbage file is refused, by name ---\n";
+    namespace fs = std::filesystem;
+    char tmpl[] = "/tmp/frontier_bad_XXXXXX";
+    const fs::path root = mkdtemp(tmpl);
+    fs::create_directories(root / "work");
+    std::ofstream(root / "work" / "kept.csv") << "x\n";
+    SearchFrontier f;
+    f.fingerprint = "abc123";
+    f.round = 2;
+    f.rounds = 3;
+    f.cap = 5;
+    f.runs = 2;
+    f.satisfying = 17;
+    f.roots.resize(3);
+    f.roots[0].done = true;
+    f.roots[2].level = 3;
+    f.roots[2].position.deepest = 1;
+    f.roots[2].position.levels = {{0, 7, {}}, {2, 9, {4, 5}}};
+    f.pending = SearchFrontier::Pending{(root / "work" / "kept.csv").string(), 2};
+    const fs::path file = root / "3_1.frontier";
+    f.save(file.string());
+    std::string whole;
+    {
+        std::ifstream in(file);
+        whole.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    std::ostringstream original;
+    SearchFrontier::load(file.string())->write(original);
+    // load() -> the refusal's message, or "" when it reads back as the original.
+    auto verdict = [&](const std::string &text) -> std::string {
+        std::ofstream(file, std::ios::binary | std::ios::trunc) << text;
+        try {
+            auto g = SearchFrontier::load(file.string());
+            if (!g) return "missing";
+            std::ostringstream o;
+            g->write(o);
+            return o.str() == original.str() ? "" : "READ BACK DIFFERENT";
+        } catch (const std::runtime_error &e) {
+            return e.what();
+        }
+    };
+    size_t refused = 0, same = 0, unnamed = 0, different = 0;
+    for (size_t n = 0; n < whole.size(); ++n) {
+        const std::string v = verdict(whole.substr(0, n));
+        if (v.empty()) ++same;
+        else if (v == "READ BACK DIFFERENT" || v == "missing") ++different;
+        else if (v.rfind("SearchFrontier: ", 0) == 0) ++refused;
+        else ++unnamed;
+    }
+    EXPECT_EQ(different, size_t{0}, "no truncation reads back as another frontier");
+    EXPECT_EQ(unnamed, size_t{0}, "every refusal names its reason");
+    EXPECT_EQ(same <= 1, true, "only the final newline may go unnoticed");
+    EXPECT_EQ(refused + same, whole.size(), "every strict prefix is refused or the same");
+    EXPECT_EQ(verdict("").rfind("SearchFrontier: ", 0), size_t{0}, "an empty file is refused");
+    EXPECT_EQ(verdict(whole.substr(0, whole.size() / 2)).rfind("SearchFrontier: ", 0), size_t{0},
+              "half a file is refused");
+    EXPECT_EQ(verdict("garbage\n").rfind("SearchFrontier: ", 0), size_t{0}, "garbage is refused");
+    std::string mangled = whole;
+    mangled.replace(mangled.find("\nroots "), 7, "\nr00ts ");
+    EXPECT_EQ(verdict(mangled).rfind("SearchFrontier: ", 0), size_t{0},
+              "a garbled keyword is refused");
+    fs::remove_all(root);
+}
+
 void test_frontier_pending_relative() {
     std::cout << "\n--- frontiers: the pending file is recorded relative to the frontier ---\n";
     namespace fs = std::filesystem;
@@ -1465,6 +1534,7 @@ int main() {
         test_resolve_unlinked_seeded_search);
     run("test_frontier_file_round_trip", test_frontier_file_round_trip);
     run("test_frontier_pending_relative", test_frontier_pending_relative);
+    run("test_frontier_damaged_refused", test_frontier_damaged_refused);
     run("test_frontier_resume_matches_single_pass",
         test_frontier_resume_matches_single_pass);
     run("test_frontier_refused_by_another_search",
