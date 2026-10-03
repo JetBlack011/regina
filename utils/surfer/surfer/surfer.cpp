@@ -55,7 +55,7 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "<isosig>\n\n"
       << "    " << progName
       << " [ -a, --all | -c, --closed | -p, --proper | --connected ]\n"
-         "    [ --threads N ] [ --thicken-layers N ] [ --cone | --no-cone ]\n"
+         "    [ --threads N ] [ --thicken-layers N ]\n"
          "    [ --collar-layers N ]\n"
          "    [ --iddfs-iterations N --iddfs-step D ] [ --iddfs-start N ]\n"
          "    [ --iddfs-final-threads N ] [ --orientable-only ] "
@@ -273,10 +273,6 @@ void usage(const char *progName, const std::string &error = std::string()) {
   std::cerr << "    --thicken-layers N : Number of times to thicken() the "
                "cobordism\n"
                "                     (default: 1; only valid with --pd)\n";
-  std::cerr
-      << "    --cone, --no-cone      : Whether to cap the cobordism with "
-         "cone()\n"
-         "                     (default: --cone; only valid with --pd)\n";
   std::cerr
       << "    --collar-layers N : Number of thickening layers the search is "
          "seeded\n"
@@ -660,9 +656,8 @@ int main(int argc, char *argv[]) {
   std::optional<std::string> outputPath;
 
   int thickenLayers = 1;
-  bool useCone = true;
   int collarLayers = 1;
-  bool sawThickenLayers = false, sawCone = false, sawCollarLayers = false;
+  bool sawThickenLayers = false, sawCollarLayers = false;
 
   unsigned iddfsIterations = 0;
   long long iddfsStep = 0;
@@ -752,12 +747,6 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "--thicken-layers requires an integer value.");
       }
       sawThickenLayers = true;
-    } else if (arg == "--cone") {
-      useCone = true;
-      sawCone = true;
-    } else if (arg == "--no-cone") {
-      useCone = false;
-      sawCone = true;
     } else if (arg == "--collar-layers") {
       if (i + 1 >= argc)
         usage(argv[0], "--collar-layers requires a value.");
@@ -856,8 +845,8 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--pd and an isosig are mutually exclusive.");
   if (!havePD && !haveIsoSig)
     usage(argv[0], "Please specify an isosig or --pd <pdcode>.");
-  if (!havePD && (sawThickenLayers || sawCone || sawCollarLayers))
-    usage(argv[0], "--thicken-layers, --cone/--no-cone, and --collar-layers "
+  if (!havePD && (sawThickenLayers || sawCollarLayers))
+    usage(argv[0], "--thicken-layers and --collar-layers "
                    "are only valid with --pd.");
   if (havePD && collarLayers < 0)
     usage(argv[0], "--collar-layers requires a value >= 0.");
@@ -896,7 +885,7 @@ int main(int argc, char *argv[]) {
     // map: surfer reports what it finds and judges nothing against L.
     ThickenedLink row;
     try {
-      buildAmbient(pdCode, thickenLayers, collarLayers, useCone, row);
+      buildAmbient(pdCode, thickenLayers, collarLayers, row);
     } catch (const regina::InvalidArgument &e) {
       usage(argv[0], std::string("Invalid PD code: ") + e.what());
     }

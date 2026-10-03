@@ -10,7 +10,6 @@
 
 #include "cobound/cobordisms/appendonly.h"
 #include "cobound/parallelfor.h"
-#include "surfer/report/atomicwrite.h"
 
 
 #include <cctype>
@@ -413,9 +412,9 @@ std::string readHeader(int fd) {
 // solve or a crash can never lose what an earlier write put there.
 //
 // Creates the file (with the header) if absent. Refuses a file with the old
-// 12-column header -- the 12->13 migration is one explicit
-// --rewrite-witnesses run, never something an append does implicitly --
-// and truncates a torn last line (no newline) before appending.
+// 12-column header -- the 12->13 migration was one explicit run of the
+// retired verifyslicegenus --rewrite-witnesses, never something an append
+// does implicitly -- and truncates a torn last line (no newline) before appending.
 //
 // On success each appended witness gets its fileOffset and drops its pair
 // signature from memory. Throws on any failure, leaving those witnesses
@@ -446,8 +445,8 @@ void appendWitnesses(const std::filesystem::path &path,
       throw std::runtime_error(
           what + " does not have the current witness-file header" +
           (header == COBORDISMS_HEADER_12
-               ? std::string(" (it is the 12-column one: run "
-                             "--rewrite-witnesses once to migrate it)")
+               ? std::string(" (it is the 12-column one: migrate it first, as "
+                             "the retired verifyslicegenus --rewrite-witnesses did)")
                : std::string()) +
           "; refusing to append to it");
     appendonly::cutTornLine(fd, what);
@@ -473,58 +472,6 @@ void appendWitnesses(const std::filesystem::path &path,
       w.pairSigKey = witnesskey::witnessKey(w.pairSig);
     std::string().swap(w.pairSig);
   }
-}
-
-// --rewrite-witnesses: the one full rewrite, used for the 12->13 column
-// migration. Streams the file line by line (never holding it in memory),
-// re-emitting each witness through formatWitness(), and checks the round
-// trip as it goes: a 13-field line must come back byte-identical, a
-// 12-field line must come back as itself plus the trailing ',' of an empty
-// resolved_vertices. Anything else means formatWitness() is not a faithful
-// inverse of the loader, and the rewrite is abandoned before it replaces
-// anything. Returns the number of witnesses written.
-size_t rewriteWitnessFile(const std::filesystem::path &path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in)
-    throw std::runtime_error("cannot open " + path.string());
-  size_t written = 0, migrated = 0;
-  report::atomicWrite(path, [&](std::ostream &out) {
-    std::string line;
-    std::getline(in, line); // old header
-    out << COBORDISMS_HEADER << "\n";
-    while (std::getline(in, line)) {
-      if (in.eof()) {
-        if (!line.empty())
-          std::cerr << "[!] " << path.string()
-                    << ": dropping a torn last line (" << line.size()
-                    << " bytes)\n";
-        break;
-      }
-      if (line.empty())
-        continue;
-      cobordismgraph::Witness w;
-      if (!parseWitnessLine(line, w, /*keepPairSig=*/true,
-                            /*wantPairSigKey=*/false, path))
-        throw std::runtime_error("malformed witness line " +
-                                 std::to_string(written + 2) + " of " +
-                                 path.string() + "; nothing rewritten");
-      std::string again = formatWitness(w);
-      const size_t fields = parseCsvLine(line).size();
-      const bool faithful =
-          fields == 12 ? again == line + "," : again == line;
-      if (!faithful)
-        throw std::runtime_error(
-            "line " + std::to_string(written + 2) + " of " + path.string() +
-            " does not round-trip through formatWitness(); nothing rewritten");
-      migrated += fields == 12;
-      out << again << '\n';
-      ++written;
-    }
-  });
-  std::cout << "[+] --rewrite-witnesses: " << written << " witnesses, "
-            << migrated << " migrated from 12 to 13 columns, every line "
-            << "round-tripped\n";
-  return written;
 }
 
 } // namespace witnessstore

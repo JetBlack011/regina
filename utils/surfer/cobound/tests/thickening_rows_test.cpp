@@ -20,7 +20,7 @@ int main() {
          exactnaming::readTableRows(std::string(CASCADE_TEST_DATA) + "/" + file)) {
       ++rows;
       ThickenedLink t;
-      buildAmbient(row.pd, 2, 2, /*useCone=*/false, t);
+      buildAmbient(row.pd, 2, 2, t);
       CHECK_EQ(t.componentCount, cobordismgraph::componentsFromName(row.name),
                row.name + ": the edge walk counts the components the name states");
       CHECK_EQ(static_cast<size_t>(t.componentCount),

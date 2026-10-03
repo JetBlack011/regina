@@ -11,8 +11,7 @@
 //      gives each witness its line's offset and drops its pair signature.
 //   3. A torn last line (no newline) is ignored on load and truncated before
 //      the next append.
-//   4. A 12-column file is refused for appending, and --rewrite-witnesses
-//      migrates it, each line gaining the empty 13th field.
+//   4. A 12-column file is refused for appending.
 //
 
 #include <filesystem>
@@ -149,11 +148,6 @@ int main() {
       refused = true;
     }
     check(refused, "a 12-column file is refused for appending");
-    const size_t n = witnessstore::rewriteWitnessFile(old);
-    const std::string after = slurp(old);
-    check(n == 1 && after.find("cobordism,3_1,1,Unknot,Unknot,1,1,false,-cafoo,3_1,1,4,\n") !=
-                        std::string::npos,
-          "--rewrite-witnesses migrates a 12-column line by one empty field");
   }
 
   // 5. witnessIdentities(): loadWitnesses()'s identities, in byte ranges.

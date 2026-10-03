@@ -67,8 +67,8 @@ std::optional<std::vector<int>> WitnessRedrawer::pinned_(const regina::Triangula
 WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
-    // through every layer, no cone.
-    rowsearch::buildRow(rowPD, layers, layers, /*useCone=*/false, rb_);
+    // through every layer.
+    rowsearch::buildRow(rowPD, layers, layers, rb_);
     const regina::Triangulation<4> &W = rb_.tri;
     outgoing_ = std::make_unique<OutgoingMap>(rb_.link.tri, *rb_.cob);
     drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(rb_.link.tri, rb_.pdcode.size());

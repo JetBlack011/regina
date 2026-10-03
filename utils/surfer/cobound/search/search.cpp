@@ -68,24 +68,8 @@ RowWatchdog::RowWatchdog(WatchdogLimits limits,
                 endRow_("surface-target");
                 break;
             }
-            const auto now = std::chrono::steady_clock::now();
-            if (limits_.rowSeconds && now >= rowDeadline) {
+            if (limits_.rowSeconds && std::chrono::steady_clock::now() >= rowDeadline) {
                 endRow_("timeout");
-                break;
-            }
-            if (limits_.sweepSeconds &&
-                now - limits_.sweepStart >
-                    std::chrono::duration<double>(*limits_.sweepSeconds)) {
-                endRow_("timeout");
-                break;
-            }
-            // Quiescence: this row has stopped teaching us anything new.
-            // Meaningful during the drain too, which is where witnesses are
-            // actually identified.
-            if (limits_.quiescenceSeconds &&
-                limits_.idleMillis() >
-                    static_cast<long long>(*limits_.quiescenceSeconds * 1000)) {
-                endRow_("quiescent");
                 break;
             }
         }
@@ -118,7 +102,6 @@ SearchShape searchShape(const HopShape &shape) {
   s.iddfsIterations = *shape.iddfsIterations;
   s.iddfsStep = *shape.iddfsStep;
   s.iddfsStart = *shape.iddfsStart;
-  s.iddfsFinalThreads = std::nullopt;
   s.maxFaces = *shape.maxFaces;
   s.rootBudgetStart = *shape.rootBudgetStart;
   s.rootBudgetGrowth = *shape.rootBudgetGrowth;
@@ -197,7 +180,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   const bool resolveUnlinked = *shape.resolveUnlinked;
   const SweepInputs &sweep = request.sweep;
   const SearchOutputs &outputs = request.outputs;
-  if (rb.seedFaces.empty() && !request.unseeded)
+  if (rb.seedFaces.empty())
     throw SearchRefused("hop: the row has no collar seed");
   if (!request.row)
     throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
@@ -206,12 +189,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // boundary is named by its complement unless the row draws its far sides.
   const farside::ComplementNamer complementNamer{};
   std::optional<farside::DiagramNamer> namer;
-  std::optional<SurfaceSearch> eOpt;
-  if (rb.seedFaces.empty())
-    eOpt.emplace(rb.tri);
-  else
-    eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
-  SurfaceSearch &e = *eOpt;
+  SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
   e.configureLimits(shape.limits);
   // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
   e.setSigintHandling(false);
@@ -239,7 +217,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   if (request.pairSigCacheDir)
     e.setPairSigCacheDir(*request.pairSigCacheDir);
   e.setBoundaryNamer(complementNamer);
-  if (signatures_ && request.diagramNaming) {
+  if (signatures_) {
     // A row whose far sides cannot be drawn is refused (divergence 2): its
     // T does not read back, and naming it some other way would hide that.
     try {
@@ -251,7 +229,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     e.setBoundaryNamer(*namer);
   }
 
-  if (!rb.seedFaces.empty()) {
+  {
     // The invariant that makes the search side fixed: no searchable
     // triangle other than the seed has an edge on it. Checked once here
     // rather than re-derived for every surface found.
@@ -343,15 +321,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // database a run loaded already holds.
   std::mutex keptMutex;
   std::unordered_set<std::string> keys;
-  // Distinct identities among them (under keptMutex), and when the last new
-  // one was kept: the quiescence clock.
+  // Distinct identities among them (under keptMutex).
   std::unordered_set<std::string> newIdentities;
-  auto nowMillis = [] {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
-        .count();
-  };
-  std::atomic<long long> lastNewMillis{nowMillis()};
   // The search's pending file (divergence 7): every kept surface, appended
   // and fsynced as the search runs.
   std::optional<PendingWriter> pending;
@@ -401,15 +372,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // The equalising rule, checked where each surface is counted, so a search
   // stops at the target rather than a progress tick later (see
   // SearchCallbacks::surfaceTarget). The watchdog below still checks it
-  // too, as a backstop. As there, the drain is let finish unless
-  // skipDrainOnTimeout.
+  // too, as a backstop. As there, the drain is let finish.
   if (request.surfaceTarget) {
     callbacks.surfaceTarget = *request.surfaceTarget;
-    callbacks.onSurfaceTarget = [&] {
-      noteStop("surface-target");
-      if (request.skipDrainOnTimeout)
-        e.skipRemainingBoundaryProcessing();
-    };
+    callbacks.onSurfaceTarget = [&] { noteStop("surface-target"); };
   }
   // For the `search profile:` line: petal-cache counters as root filtering
   // ends.
@@ -558,8 +524,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         acct.duplicate.fetch_add(1, std::memory_order_relaxed);
         return;
       }
-      if (newIdentities.insert(std::move(identity)).second)
-        lastNewMillis.store(nowMillis(), std::memory_order_relaxed);
+      newIdentities.insert(std::move(identity));
     }
     acct.recorded.fetch_add(1, std::memory_order_relaxed);
     KeptSurface k{.link = std::move(*link),
@@ -594,28 +559,14 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // The cost is that a search overruns its nominal limit by however long the
   // queue takes to drain, which can be minutes. That is the right trade:
   // waiting is cheaper than searching a region and then refusing to look at
-  // what it found. skipDrainOnTimeout restores the old behaviour for when
-  // throughput genuinely matters more.
-  {
-    rowsearch::WatchdogLimits watchdogLimits{
-        .surfaceTarget = request.surfaceTarget,
-        .rowSeconds = request.seconds,
-        .sweepSeconds = request.sweepSeconds,
-        .sweepStart = request.sweepStart,
-        // Quiescence: this search has stopped teaching us anything new, so
-        // spending the rest of its budget enumerating more of the same is
-        // worse than moving on to one we know nothing about.
-        .quiescenceSeconds = request.quiescenceSeconds};
-    watchdogLimits.idleMillis = [&] {
-      return nowMillis() - lastNewMillis.load(std::memory_order_relaxed);
-    };
-    watchdog.emplace(std::move(watchdogLimits), [&](const char *why) {
-      noteStop(why);
-      e.requestStop();
-      if (request.skipDrainOnTimeout)
-        e.skipRemainingBoundaryProcessing();
-    });
-  }
+  // what it found.
+  watchdog.emplace(
+      rowsearch::WatchdogLimits{.surfaceTarget = request.surfaceTarget,
+                                .rowSeconds = request.seconds},
+      [&](const char *why) {
+        noteStop(why);
+        e.requestStop();
+      });
   if (request.judge)
     judging.thread = std::thread([&] {
       for (;;) {
@@ -687,7 +638,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.setup = std::chrono::duration<double>(searchStart - wall0).count();
   const SearchStats stats = e.search(
       threads_, shape.condition, callbacks, shape.iddfsIterations,
-      shape.iddfsStep, shape.iddfsStart, shape.iddfsFinalThreads,
+      shape.iddfsStep, shape.iddfsStart, std::nullopt,
       /*orientableOnly=*/true, shape.maxFaces, shape.rootBudgetStart,
       shape.rootBudgetGrowth);
   out.search = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();

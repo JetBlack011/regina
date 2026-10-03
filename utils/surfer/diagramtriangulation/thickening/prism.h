@@ -84,19 +84,6 @@ class SimplicialPrism {
      */
     void stitchTop(SimplicialPrism<dim> &next);
 
-    /**
-     * Glues this prism's top facet (the base simplex x {1}) directly onto
-     * `coneSimplex`, a single dim-simplex representing the base simplex
-     * coned to a new apex point.
-     *
-     * `coneSimplex`'s local vertex i (for i = 0,...,dim-1) is assumed to
-     * equal the base simplex's own vertex i, with local vertex dim the
-     * apex -- the convention used by CobordismBuilder::cone(). This caps
-     * the top off in one step, using the same decode_() as glue()/
-     * stitchTop() rather than a further layer of prism structure.
-     */
-    void capTop(regina::Simplex<dim> *coneSimplex);
-
   private:
     /**
      * The unique order-preserving bijection from {0,...,dim} with `a`

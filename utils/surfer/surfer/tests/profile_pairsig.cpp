@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     const int samples = argc > 3 ? std::stoi(argv[3]) : 5;
 
     ThickenedLink row; // as the search builds it: the collar through every layer
-    buildAmbient(pd, layers, layers, /*useCone=*/false, row);
+    buildAmbient(pd, layers, layers, row);
     const regina::Triangulation<4> &tri = row.tri;
     const std::vector<int> &seed = row.seedFaces;
 

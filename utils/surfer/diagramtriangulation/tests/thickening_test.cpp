@@ -1,8 +1,8 @@
 // cobordismbuilder_test.cpp
-// Tests for CobordismBuilder::thicken() and cone() — verifies SimplicialPrism
-// construction and gluing produce a valid product cobordism and that it can
-// be capped into a ball. See knotbuilder_test.cpp for integration with
-// knotbuilder's PD-code -> triangulated-S³ pipeline.
+// Tests for CobordismBuilder::thicken() — verifies SimplicialPrism
+// construction and gluing produce a valid product cobordism. See
+// knotbuilder_test.cpp for integration with knotbuilder's PD-code ->
+// triangulated-S³ pipeline.
 
 #include <iostream>
 #include <string>
@@ -197,151 +197,6 @@ void test_doubled_tetrahedra_thicken_two_layers() {
     EXPECT_EQ(
         result.boundaryComponent(1)->build().isIsomorphicTo(s3).has_value(),
         true, "bc(1) ≅ S³");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// cone() on its own (no thicken() calls first): Cone(S³) should be a valid
-// B⁴ with a single boundary component ≅ the original S³, and one pentachoron
-// per base tetrahedron (2 tets -> 2 pentachora). eulerCharManifold() == 1
-// is an independent check that this is genuinely contractible, i.e.
-// actually a ball and not just "some valid closed-up thing".
-// ─────────────────────────────────────────────────────────────────────────────
-void test_cone_alone() {
-    std::cout << "\n--- cone() alone, no thicken(): Cone(S³) ---\n";
-
-    auto s3 = doubledTetrahedra();
-
-    CobordismBuilder<3> cob(s3);
-    auto &result = cob.cone();
-
-    EXPECT_EQ((int)result.size(), 2, "1 cone pentachoron per base tet = 2");
-    EXPECT_EQ(result.isValid(), true, "Cone(S³) triangulation is valid");
-    EXPECT_EQ(result.isConnected(), true,
-              "Cone(S³) triangulation is connected");
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              "Cone(S³) has exactly 1 boundary component");
-    EXPECT_EQ(result.eulerCharManifold(), 1L,
-              "Cone(S³) is contractible (Euler characteristic 1)");
-    EXPECT_EQ(
-        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-        true, "bc(0) ≅ S³");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Regression test: cone() previously decided whether to "start fresh" or
-// "glue onto existing content" by checking cob_.isConnected() — but a
-// cobordism that already has one or more thickened layers is *also*
-// connected, so this check incorrectly took the "start fresh" branch and
-// silently discarded everything thicken() had built (cone() would just
-// overwrite cob_ with a bare 2-pentachoron cone, losing the 8 pentachora
-// from thicken(1)). The fix uses capTop(), which glues the cone directly
-// onto the most recent layer the same way stitchTop() glues layers to each
-// other. Checking the *size* here is essential: a size of 2 instead of 10
-// is exactly the failure signature of the original bug.
-// ─────────────────────────────────────────────────────────────────────────────
-void test_cone_after_one_thicken() {
-    std::cout << "\n--- thicken(1) then cone(): must not discard the "
-                 "thickened layer ---\n";
-
-    auto s3 = doubledTetrahedra();
-
-    CobordismBuilder<3> cob(s3);
-    cob.thicken(1);
-    auto &result = cob.cone();
-
-    EXPECT_EQ((int)result.size(), 10,
-              "8 pentachora (thicken) + 2 (cone) = 10, not just the cone's 2");
-    EXPECT_EQ(result.isValid(), true,
-              "thicken(1)+cone() triangulation is valid");
-    EXPECT_EQ(result.isConnected(), true,
-              "thicken(1)+cone() triangulation is connected");
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              "capping the top leaves exactly 1 boundary component (the "
-              "original bottom S³)");
-    EXPECT_EQ(result.eulerCharManifold(), 1L,
-              "thicken(1)+cone() is contractible (Euler characteristic 1)");
-    EXPECT_EQ(
-        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-        true, "the remaining boundary component ≅ the original S³");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Multiple thickenings capped by a single cone() — this is the actual shape
-// of the pipeline the knotbuilder integration tests use: thicken(n) to get
-// some combinatorial room, then cone() once at the end to cap the cobordism
-// into a ball whose boundary is the untouched bottom layer.
-// ─────────────────────────────────────────────────────────────────────────────
-void test_cone_after_multiple_thickens() {
-    std::cout << "\n--- thicken(3) then cone() ---\n";
-
-    auto s3 = doubledTetrahedra();
-
-    CobordismBuilder<3> cob(s3);
-    cob.thicken(3);
-    auto &result = cob.cone();
-
-    EXPECT_EQ((int)result.size(), 26,
-              "3 layers × 8 pentachora + 2 (cone) = 26");
-    EXPECT_EQ(result.isValid(), true,
-              "thicken(3)+cone() triangulation is valid");
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              "thicken(3)+cone() has exactly 1 boundary component");
-    EXPECT_EQ(result.eulerCharManifold(), 1L,
-              "thicken(3)+cone() is contractible (Euler characteristic 1)");
-    EXPECT_EQ(
-        result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-        true, "the remaining boundary component ≅ the original S³");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// thicken()+cone() on the self-glued-tetrahedron S³ and on the 5-tet ∂Δ⁴ S³,
-// to make sure capTop() (like glue() and stitchTop() before it) holds up on
-// triangulations that aren't the simple 2-distinct-tets case: self-gluing,
-// and a mix of matching/non-matching facet pairs.
-// ─────────────────────────────────────────────────────────────────────────────
-void test_cone_after_thicken_selfglued_and_bdy_delta4() {
-    std::cout
-        << "\n--- thicken()+cone() on the self-glued tet and ∂Δ⁴ S³s ---\n";
-
-    {
-        auto s3 = regina::Example<3>::threeSphere();
-        CobordismBuilder<3> cob(s3);
-        cob.thicken(2);
-        auto &result = cob.cone();
-
-        EXPECT_EQ((int)result.size(), 9,
-                  "self-glued tet: 2 layers × 4 + 1 (cone) = 9 pentachora");
-        EXPECT_EQ(result.isValid(), true,
-                  "self-glued tet: thicken(2)+cone() is valid");
-        EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-                  "self-glued tet: thicken(2)+cone() has 1 boundary component");
-        EXPECT_EQ(result.eulerCharManifold(), 1L,
-                  "self-glued tet: thicken(2)+cone() is contractible");
-        EXPECT_EQ(
-            result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-            true, "self-glued tet: remaining boundary ≅ S³");
-    }
-
-    {
-        regina::Triangulation<4> fourBall;
-        fourBall.newSimplex();
-        auto s3 = fourBall.boundaryComponent(0)->build();
-
-        CobordismBuilder<3> cob(s3);
-        cob.thicken(1);
-        auto &result = cob.cone();
-
-        EXPECT_EQ((int)result.size(), 25,
-                  "∂Δ⁴: 1 layer × 20 + 5 (cone) = 25 pentachora");
-        EXPECT_EQ(result.isValid(), true, "∂Δ⁴: thicken(1)+cone() is valid");
-        EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-                  "∂Δ⁴: thicken(1)+cone() has 1 boundary component");
-        EXPECT_EQ(result.eulerCharManifold(), 1L,
-                  "∂Δ⁴: thicken(1)+cone() is contractible");
-        EXPECT_EQ(
-            result.boundaryComponent(0)->build().isIsomorphicTo(s3).has_value(),
-            true, "∂Δ⁴: remaining boundary ≅ S³");
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -541,37 +396,6 @@ void test_dim2_doubled_triangle() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// cone() in dim=2 as well, so capTop() (like glue() and stitchTop()) is
-// checked across dimensions rather than only for the dim=4 pentachora used
-// everywhere else in this file.
-// ─────────────────────────────────────────────────────────────────────────────
-void test_dim2_cone_after_thicken() {
-    std::cout << "\n--- Doubled triangle (S²), thicken(2)+cone(): "
-                 "CobordismBuilder<2> capTop() ---\n";
-
-    regina::Triangulation<2> tri;
-    auto a = tri.newTriangle();
-    auto b = tri.newTriangle();
-    for (int f = 0; f < 3; ++f)
-        a->join(f, b, regina::Perm<3>());
-
-    CobordismBuilder<2> cob(tri);
-    cob.thicken(2);
-    auto &result = cob.cone();
-
-    EXPECT_EQ((int)result.size(), 14,
-              "2 layers × 6 tets + 2 (cone) = 14 tetrahedra");
-    EXPECT_EQ(result.isValid(), true, "S²: thicken(2)+cone() is valid");
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              "S²: thicken(2)+cone() has exactly 1 boundary component");
-    EXPECT_EQ(result.eulerCharManifold(), 1L,
-              "S²: thicken(2)+cone() is contractible (Euler characteristic 1)");
-    EXPECT_EQ(
-        result.boundaryComponent(0)->build().isIsomorphicTo(tri).has_value(),
-        true, "S²: remaining boundary component ≅ S²");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // baseBoundaryComponent(): identifies the bottom (untouched) boundary
 // component, not the top -- the hard case, since thicken() literally builds
 // (base) x [0,1], so bottom and top are always combinatorially *identical*
@@ -642,28 +466,6 @@ void test_base_boundary_component_identifies_bottom_not_top() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// baseBoundaryComponent() with --cone (only one boundary component left):
-// the base is the sole remaining component, and cone() itself is already
-// proven (by the existing cone tests above) to cap the *top* specifically
-// -- so this is a simpler, confirmatory case rather than the hard one above.
-// ─────────────────────────────────────────────────────────────────────────────
-void test_base_boundary_component_with_cone() {
-    std::cout << "\n--- baseBoundaryComponent() after thicken()+cone() ---\n";
-
-    auto s3 = doubledTetrahedra();
-    CobordismBuilder<3> cob(s3);
-    cob.thicken(2);
-    auto &result = cob.cone();
-
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              "thicken(2)+cone() leaves exactly 1 boundary component");
-    EXPECT_EQ(cob.baseBoundaryComponent()->index(),
-              result.boundaryComponent(0)->index(),
-              "baseBoundaryComponent() agrees with the sole remaining "
-              "boundary component");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // buildAmbient()'s collar seed comes in index order (phase 3.0), never in the
 // order of CollarBuilder::resolve()'s pointer set: a search numbers its
 // surfaces' triangles from the seed's, so each component's orientation, and
@@ -675,7 +477,7 @@ void test_build_ambient_seed_in_index_order() {
                          "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]"};
     for (const char *pd : pds) {
         ThickenedLink row;
-        buildAmbient(pd, 2, 2, /*useCone=*/false, row);
+        buildAmbient(pd, 2, 2, row);
         bool increasing = !row.seedFaces.empty();
         for (size_t i = 1; i < row.seedFaces.size(); ++i)
             if (row.seedFaces[i - 1] >= row.seedFaces[i]) increasing = false;
@@ -705,20 +507,12 @@ int main() {
         test_doubled_tetrahedra_thicken_one_layer);
     run("test_doubled_tetrahedra_thicken_two_layers",
         test_doubled_tetrahedra_thicken_two_layers);
-    run("test_cone_alone", test_cone_alone);
-    run("test_cone_after_one_thicken", test_cone_after_one_thicken);
-    run("test_cone_after_multiple_thickens", test_cone_after_multiple_thickens);
-    run("test_cone_after_thicken_selfglued_and_bdy_delta4",
-        test_cone_after_thicken_selfglued_and_bdy_delta4);
     run("test_bdy_delta4_thicken_one_layer", test_bdy_delta4_thicken_one_layer);
     run("test_all_facet_pairs_two_tets", test_all_facet_pairs_two_tets);
     run("test_isOrdered_checks_every_facet", test_isOrdered_checks_every_facet);
     run("test_dim2_doubled_triangle", test_dim2_doubled_triangle);
-    run("test_dim2_cone_after_thicken", test_dim2_cone_after_thicken);
     run("test_base_boundary_component_identifies_bottom_not_top",
         test_base_boundary_component_identifies_bottom_not_top);
-    run("test_base_boundary_component_with_cone",
-        test_base_boundary_component_with_cone);
     run("test_build_ambient_seed_in_index_order",
         test_build_ambient_seed_in_index_order);
 

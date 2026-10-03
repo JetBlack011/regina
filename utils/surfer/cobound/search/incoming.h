@@ -115,7 +115,7 @@ struct RowBuild : ThickenedLink {
  * \throws regina::InvalidArgument as either does.
  */
 void buildRow(const std::string &pdNotation, int thickenLayers,
-              int collarLayers, bool useCone, RowBuild &row);
+              int collarLayers, RowBuild &row);
 
 /**
  * The row map for an ambient built by buildAmbient(). Checks, once, that the

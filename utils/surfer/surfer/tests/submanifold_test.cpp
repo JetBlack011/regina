@@ -24,7 +24,7 @@
 //      via the same ConnectedInducedSubgraphEnumerator machinery
 //      EmbeddingSearch uses in production (see EmbeddednessAuditor below).
 //   2. A boundary-link homology check: for triangulations capped by
-//      CobordismBuilder<3>::cone() (so their boundary is S^3), any proper
+//      coneOver() (coneover.h; so their boundary is S^3), any proper
 //      connected embedded surface's boundary is a knot/link in that S^3, and
 //      an n-component link complement always has H_1 = Z^n -- an algebraic
 //      invariant with nothing to do with addFace()'s internals. Only
@@ -52,6 +52,7 @@
 #include <triangulation/example4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
+#include "surfer/tests/coneover.h"
 #include "surfer/submanifold/submanifold.h"
 #include "surfer/enumeration/inducedsubgraphs.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -903,7 +904,7 @@ constexpr int kDerivedMaxDepth = 5;
 
 void auditCobordismSurface(const std::string &label,
                            const regina::Triangulation<2> &surface,
-                           int layers2, int layers3, bool cap) {
+                           int layers2, int layers3) {
     std::cout << "\n--- " << label << " ---\n";
 
     if (!CobordismBuilder<2>::isOrdered(surface)) {
@@ -918,8 +919,6 @@ void auditCobordismSurface(const std::string &label,
     CobordismBuilder<3> cob3(tri3);
     if (layers3 > 0)
         cob3.thicken(layers3);
-    if (cap)
-        cob3.cone();
 
     auto result = auditAllEmbeddings(cob3.getCobordism(), kDerivedMaxDepth,
                                      /*checkBoundaryHomology=*/false,
@@ -930,17 +929,17 @@ void auditCobordismSurface(const std::string &label,
 
 void test_cobordism_disc() {
     auditCobordismSurface("CobordismBuilder: disc, thicken(1)x2",
-                          regina::Example<2>::disc(), 1, 1, false);
+                          regina::Example<2>::disc(), 1, 1);
 }
 
 void test_cobordism_mobius() {
     auditCobordismSurface("CobordismBuilder: mobius, thicken(1)x2",
-                          regina::Example<2>::mobius(), 1, 1, false);
+                          regina::Example<2>::mobius(), 1, 1);
 }
 
 void test_cobordism_annulus() {
     auditCobordismSurface("CobordismBuilder: annulus, thicken(1)x2",
-                          regina::Example<2>::annulus(), 1, 1, false);
+                          regina::Example<2>::annulus(), 1, 1);
 }
 
 // Example<2>::orientable(genus,punctures)/nonOrientable(...) are NOT ordered
@@ -953,12 +952,12 @@ void test_cobordism_annulus() {
 // punctured) topology to the coverage here.
 void test_cobordism_torus() {
     auditCobordismSurface("CobordismBuilder: torus, thicken(1)x2",
-                          regina::Example<2>::torus(), 1, 1, false);
+                          regina::Example<2>::torus(), 1, 1);
 }
 
 void test_cobordism_kb() {
     auditCobordismSurface("CobordismBuilder: Klein bottle, thicken(1)x2",
-                          regina::Example<2>::kb(), 1, 1, false);
+                          regina::Example<2>::kb(), 1, 1);
 }
 
 // Calibrated empirically: knotbuilder's block-based construction produces
@@ -981,10 +980,9 @@ void auditKnotSurface(const std::string &label, const std::string &pdCode,
         reduce ? knotbuilder::reduceVertices(result0.tri, result0.edges)
               : result0;
 
-    CobordismBuilder<3> cob(result.tri);
-    cob.cone();
+    auto coned = coneOver(result.tri);
 
-    auto audit = auditAllEmbeddings(cob.getCobordism(), kKnotMaxDepth,
+    auto audit = auditAllEmbeddings(coned, kKnotMaxDepth,
                                     /*checkBoundaryHomology=*/true,
                                     /*violationCap=*/25,
                                     /*checkOrientability=*/false,
@@ -1105,8 +1103,8 @@ void test_linking_number_whitehead() {
 // Reconstructs the "coning surface" bounded by `edges` in coned -- one
 // triangle {apex, i, j} per edge {i, j}, in whichever original tetrahedron
 // each edge fronts -- and returns their ambient Skeleton<4,2> face indices,
-// in the same order as `edges`. Relies on CobordismBuilder<3>::cone()'s own
-// construction (see cobordismbuilder.cpp): one new pentachoron per original
+// in the same order as `edges`. Relies on coneOver()'s own
+// construction (see coneover.h): one new pentachoron per original
 // tetrahedron, in matching index order, with local vertices 0..3 preserved
 // verbatim from the original tetrahedron and local vertex 4 always the
 // single shared apex.
@@ -1141,8 +1139,7 @@ void test_cone_on_trefoil_rejected() {
     auto pd = knotbuilder::parsePDCode(kTrefoilPD);
     auto result = knotbuilder::buildLink(pd);
 
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
 
     Skeleton<4, 2> skeleton(coned);
     KnottedSurface embedding(skeleton);
@@ -1176,8 +1173,7 @@ void test_cone_on_unknot_accepted() {
     auto pd = knotbuilder::parsePDCode("1 2 2 1");
     auto result = knotbuilder::buildLink(pd);
 
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
 
     Skeleton<4, 2> skeleton(coned);
     KnottedSurface embedding(skeleton);
@@ -1231,8 +1227,7 @@ void expectConeOnUnlinkResolvable(const char *label, const char *pdCode,
     std::cout << "\n--- Coning the " << label
               << ": a resolvable self-intersection at the apex ---\n";
     auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(pdCode));
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
     PetalCache cache;
@@ -1297,8 +1292,7 @@ void test_cone_on_whitehead_not_resolvable() {
     std::cout << "\n--- Coning the Whitehead link: passes every prune, but "
                  "is not resolvable ---\n";
     auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kWhiteheadPD));
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
     PetalCache cache;
@@ -1322,8 +1316,7 @@ void test_cone_on_hopf_still_pruned() {
     std::cout << "\n--- Coning the Hopf link: still pruned by "
                  "P_transverse ---\n";
     auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kHopfLinkPD));
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
     PetalCache cache;
@@ -1337,8 +1330,7 @@ void test_boundary_vertex_self_intersection_not_resolvable() {
     std::cout << "\n--- Two petals at a BOUNDARY vertex are never "
                  "resolvable ---\n";
     auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kUnlink2PD));
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
     // Two boundary triangles sharing a vertex but no edge: each is its own
@@ -1496,8 +1488,7 @@ void test_boundary_filter_rejects_knotted_boundary_petal() {
         if (!ball)
             continue;
 
-        CobordismBuilder<3> cob(*ball);
-        auto &coned = cob.cone();
+        auto coned = coneOver(*ball);
         Skeleton<4, 2> skeleton(coned);
         PetalCache cache;
         SelfIntersectionCensus census;
@@ -1567,8 +1558,7 @@ void test_boundary_vertex_closed_unlinked_petals_not_resolvable() {
     if (!ball)
         return;
 
-    CobordismBuilder<3> cob(*ball);
-    auto &coned = cob.cone();
+    auto coned = coneOver(*ball);
     Skeleton<4, 2> skeleton(coned);
 
     PetalCache cache;
@@ -1617,8 +1607,7 @@ void test_hereditariness_stress() {
     auto pd = knotbuilder::parsePDCode("1 2 2 1");
     auto result = knotbuilder::buildLink(pd);
 
-    CobordismBuilder<3> cob(result.tri);
-    auto &coned = cob.cone();
+    auto coned = coneOver(result.tri);
 
     Skeleton<4, 2> skeleton(coned);
     Graph graph = buildTestGraph(skeleton);

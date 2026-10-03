@@ -198,20 +198,8 @@ void test_watchdog() {
     expect(r.size() == 1 && r[0] == "timeout",
            "short of the target: the deadline");
 
-    r = watch({.sweepSeconds = 0.0,
-               .sweepStart = std::chrono::steady_clock::now()},
-              0, 450ms);
-    expect(r.size() == 1 && r[0] == "timeout", "the sweep's deadline");
-
-    r = watch({.quiescenceSeconds = 1.0,
-               .idleMillis = [] { return 5000LL; }},
-              0, 450ms);
-    expect(r.size() == 1 && r[0] == "quiescent", "quiescence");
-
-    r = watch({.quiescenceSeconds = 10.0,
-               .idleMillis = [] { return 5000LL; }},
-              0, 450ms);
-    expect(r.empty(), "not yet quiescent");
+    r = watch({.rowSeconds = 10.0}, 0, 450ms);
+    expect(r.empty(), "before the deadline: nothing");
 }
 
 // Names every far side "far", so a search needs no tables and no complement
@@ -243,12 +231,12 @@ struct GateRun {
 };
 
 // An exhaustive search at face cap 3 on the canaries' shape: two layers,
-// collared through both, no cone, `proper`. Every accepted surface is gated;
+// collared through both, `proper`. Every accepted surface is gated;
 // the first few also have their deferred pair signature compared.
 void gateRun(const std::string &pd, const std::string &name, GateRun &out,
              int signatures) {
     RowBuild rb;
-    buildRow(pd, 2, 2, false, rb);
+    buildRow(pd, 2, 2, rb);
     SurfaceSearchLimits limits;
     limits.capturePairSig = true;
     SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);

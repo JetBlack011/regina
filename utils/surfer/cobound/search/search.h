@@ -76,21 +76,13 @@ BoundaryCondition conditionFor(BoundaryConditionMode mode, int componentCount);
 struct WatchdogLimits {
     std::optional<long long> surfaceTarget;
     std::optional<double> rowSeconds;
-    std::optional<double> sweepSeconds;
-    std::chrono::steady_clock::time_point sweepStart{};
-    std::optional<double> quiescenceSeconds;
-    /** Milliseconds since the row last taught us something new; read only
-     *  with `quiescenceSeconds`. */
-    std::function<long long()> idleMillis;
 
-    bool any() const {
-        return surfaceTarget || rowSeconds || sweepSeconds || quiescenceSeconds;
-    }
+    bool any() const { return surfaceTarget || rowSeconds; }
 };
 
 /**
  * Polls every 200 ms, while the search and its drain run, and calls
- * `endRow(why)` at most once: "surface-target", "timeout" or "quiescent".
+ * `endRow(why)` at most once: "surface-target" or "timeout".
  * stop() wakes it at once rather than waiting out its poll.
  * The surface target is checked before the clocks, so a row reaching it in
  * the same tick as a deadline records "surface-target": the two mean
@@ -163,7 +155,6 @@ struct SearchShape {
   unsigned iddfsIterations = 0;
   long long iddfsStep = 0;
   std::optional<long long> iddfsStart;
-  std::optional<unsigned> iddfsFinalThreads;
   std::optional<long long> maxFaces; ///< none: unbounded
   long long rootBudgetStart = 0;
   long long rootBudgetGrowth = 2;
@@ -238,17 +229,11 @@ struct SearchRequest {
   const farside::WitnessRedrawer *row = nullptr;
   SearchShape shape;
 
-  /// When to stop: at this many surfaces satisfying the condition, after
-  /// `seconds` of this search, after `sweepSeconds` since `sweepStart`, or
-  /// once no surface with a new cobordism identity has been kept for
-  /// `quiescenceSeconds`. The drain then finishes, unless
-  /// `skipDrainOnTimeout`.
+  /// When to stop: at this many surfaces satisfying the condition, or
+  /// after `seconds` of this search (a wall-clock backstop). The drain then
+  /// finishes: every surface the search found is examined.
   std::optional<long long> surfaceTarget;
   std::optional<double> seconds;
-  std::optional<double> sweepSeconds;
-  std::chrono::steady_clock::time_point sweepStart{};
-  std::optional<double> quiescenceSeconds;
-  bool skipDrainOnTimeout = false;
 
   /// An earlier search's frontier to carry on from (if it is this
   /// search's, and its finds are signed: see `runDirectory`), and whether
@@ -265,17 +250,10 @@ struct SearchRequest {
   /// (SurfaceSearch::setPairSigCacheDir()).
   std::optional<std::string> pairSigCacheDir;
 
-  /// Name outgoing curves by their drawing when the searcher has signature
-  /// tables (else every boundary by its complement).
-  bool diagramNaming = true;
   /// The incoming knot's table name: after its search, its complement goes
   /// into the census under it, when census writes are on
   /// (census::censusUpdates). Unset, or a link: no insert.
   std::optional<std::string> censusName;
-  /// Search a row without a collar seed (verifyslicegenus's --cone and
-  /// --collar-layers 0, retired with coning); otherwise such a row is
-  /// refused.
-  bool unseeded = false;
 
   /// The search's pending file (cobordisms/pending.h, PendingWriter): every
   /// surface it keeps is appended there with its faces -- fsynced once a
@@ -459,7 +437,7 @@ public:
    * through it.
    *
    * \throws SeedInvariantFailure when the seed invariant fails;
-   * SearchRefused for a row with no seed (unless `request.unseeded`), or
+   * SearchRefused for a row with no seed, or
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */

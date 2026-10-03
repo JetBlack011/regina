@@ -321,7 +321,6 @@ int run(const config::Config &cfg) {
   searchShape.iddfsIterations = iddfsIterations;
   searchShape.iddfsStep = iddfsStep;
   searchShape.iddfsStart = iddfsStart;
-  searchShape.iddfsFinalThreads = std::nullopt;
   searchShape.maxFaces = maxFaces;
   searchShape.rootBudgetStart = rootBudgetStart;
   searchShape.rootBudgetGrowth = rootBudgetGrowth;
@@ -414,8 +413,6 @@ int run(const config::Config &cfg) {
     request.resume = resumeFrom ? &*resumeFrom : nullptr;
     request.recordFrontier = frontierDir.has_value();
     request.pairSigCacheDir = pairSigCacheDir;
-    request.diagramNaming = true;
-    request.unseeded = true;
     // A knot row's complement goes into the census after its search (when
     // census writes are on).
     request.censusName = cobordismgraph::baseName(row.name);

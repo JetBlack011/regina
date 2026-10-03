@@ -69,7 +69,7 @@ void writeTables() {
 // The row thickened as verifyslicegenus does it (buildAmbient(): two
 // layers, the collar through both).
 struct Row : ThickenedLink {
-    explicit Row(const std::string &pd) { buildAmbient(pd, 2, 2, /*useCone=*/false, *this); }
+    explicit Row(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }
 };
 
 void test_collar_far_side_is_the_row(const std::string &name, const std::string &pd,

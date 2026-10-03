@@ -42,7 +42,7 @@
  * further modified and its skeleton recomputed. So CollarBuilder never
  * stores a Triangle<4>*; it stores (Simplex<4>*, local vertex triple)
  * descriptors, and only resolves them to actual Triangle<4>* pointers in
- * resolve(), which must be called after every thicken()/cone() call on
+ * resolve(), which must be called after every thicken() call on
  * the CobordismBuilder is done.
  */
 class CollarBuilder {
@@ -81,7 +81,7 @@ class CollarBuilder {
      * Resolves every accumulated face descriptor into an actual
      * Triangle<4>*.
      *
-     * \pre All thicken()/cone() calls on `cob` are complete (see the
+     * \pre All thicken() calls on `cob` are complete (see the
      * second class-level \warning above).
      */
     std::unordered_set<regina::Triangle<4> *> resolve() const;

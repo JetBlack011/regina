@@ -80,7 +80,7 @@ int main() {
     // serial isoSigDetail() of one takes seconds and ctest allows 60.
     for (const auto &[name, pd] : rows) {
         ThickenedLink rb;
-        buildAmbient(pd, 2, 2, false, rb);
+        buildAmbient(pd, 2, 2, rb);
         checkWithRelabellings(name + " T", rb.link.tri);
         if (name == "L2a1{0}")
             checkWithRelabellings(name + " thickening", rb.tri, {3, 8}, 1);

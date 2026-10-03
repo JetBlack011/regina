@@ -115,57 +115,6 @@ regina::Triangulation<d> CobordismBuilder<dim>::glueTriangulations(
 }
 
 template <int dim>
-regina::Triangulation<dim + 1> &CobordismBuilder<dim>::cone() {
-    std::unordered_map<const regina::Simplex<dim> *,
-                       regina::Simplex<dim + 1> *>
-        coneSimplices;
-    coneSimplices.reserve(tri_.size());
-    for (const auto *s : tri_.simplices()) {
-        coneSimplices.emplace(s, cob_.newSimplex());
-    }
-
-    for (const auto *s : tri_.simplices()) {
-        regina::Simplex<dim + 1> *coneSimplex = coneSimplices.at(s);
-
-        for (int f = 0; f <= dim; ++f) {
-            const regina::Simplex<dim> *adj = s->adjacentSimplex(f);
-            if (adj == nullptr ||
-                coneSimplex->adjacentSimplex(f) != nullptr)
-                continue;
-
-            regina::Perm<dim + 1> bdryGluing = s->adjacentGluing(f);
-            regina::Simplex<dim + 1> *adjConeSimplex =
-                coneSimplices.at(adj);
-            std::array<int, dim + 2> coneGluing;
-            for (int i = 0; i <= dim; ++i) {
-                coneGluing[i] = bdryGluing[i];
-            }
-            coneGluing[dim + 1] = dim + 1;
-
-            coneSimplex->join(f, adjConeSimplex, coneGluing);
-        }
-    }
-
-    if (hasPreviousLayer_) {
-        for (const auto *s : tri_.simplices()) {
-            topPrisms_.at(s).capTop(coneSimplices.at(s));
-        }
-    }
-
-    // Validity here is guaranteed by construction (coning a valid,
-    // ordered triangulation, glued face-for-face onto a valid previous
-    // layer, cannot produce an invalid result) -- checking it costs a
-    // full vertex-link recognition pass (Triangulation<3>::isSphere()/
-    // isBall() per vertex, i.e. real 3-manifold simplification), which
-    // dominates runtime on triangulations of any size. Debug-only.
-    assert(cob_.isValid() &&
-           "CobordismBuilder::cone(): resulting triangulation is not "
-           "valid.");
-
-    return cob_;
-}
-
-template <int dim>
 regina::Triangulation<dim + 1> &CobordismBuilder<dim>::thicken_() {
     // Make a new prism for each simplex in the triangulation. This is
     // its own layer: it gets fully glued together internally below,
@@ -219,10 +168,11 @@ regina::Triangulation<dim + 1> &CobordismBuilder<dim>::thicken_() {
     topPrisms_ = std::move(newPrisms);
     hasPreviousLayer_ = true;
 
-    // See the identical comment in cone(): validity is guaranteed by
-    // construction, and checking it here is the dominant cost of
-    // thicken() (a full vertex-link recognition pass over the whole
-    // accumulated cobordism, on every single layer). Debug-only.
+    // Validity is guaranteed by construction (a layer of prisms over a
+    // valid, ordered triangulation, glued face-for-face onto the previous
+    // layer), and checking it here is the dominant cost of thicken() (a
+    // full vertex-link recognition pass over the whole accumulated
+    // cobordism, on every single layer). Debug-only.
     assert(cob_.isValid() &&
            "CobordismBuilder::thicken(): resulting triangulation is not "
            "valid.");
@@ -352,7 +302,7 @@ int countLinkComponents(const std::vector<const regina::Edge<3> *> &edges) {
 } // namespace
 
 void buildAmbient(const std::string &pdNotation, int thickenLayers,
-                  int collarLayers, bool useCone, ThickenedLink &row) {
+                  int collarLayers, ThickenedLink &row) {
     row.pdcode = knotbuilder::parsePDCode(pdNotation);
     row.link = knotbuilder::buildLink(row.pdcode);
 
@@ -377,8 +327,6 @@ void buildAmbient(const std::string &pdNotation, int thickenLayers,
         if (i < collarLayers)
             collarBuilder.addLayer(cob);
     }
-    if (useCone)
-        cob.cone();
 
     row.searchSideBC = cob.baseBoundaryComponent()->index();
     row.tri = cob.getCobordism();

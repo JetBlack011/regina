@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
+#include "surfer/tests/coneover.h"
 #include "diagramtriangulation/thickening/collar.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -544,7 +545,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
 
     const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3";
     ThickenedLink row; // two layers, the collar through both, no cone
-    buildAmbient(TREFOIL_PD, 2, 2, /*useCone=*/false, row);
+    buildAmbient(TREFOIL_PD, 2, 2, row);
 
     size_t searchSideBC = row.searchSideBC;
     const regina::Triangulation<4> &tri = row.tri;
@@ -1014,7 +1015,7 @@ void test_deepest_exhausted_cap_reported() {
 
 // The cone-triangles over `edges` in `coned`, as Skeleton<4,2> face indices.
 // A copy of embeddedsubmanifold_test.cpp's helper of the same name, which
-// relies on CobordismBuilder<3>::cone() keeping each tetrahedron's index and
+// relies on coneOver() (coneover.h) keeping each tetrahedron's index and
 // local vertices 0..3, with local vertex 4 the apex.
 std::vector<int>
 coneTriangleIndices(const Skeleton<4, 2> &skeleton,
@@ -1040,8 +1041,7 @@ void test_resolve_unlinked_seeded_search() {
     std::cout << "\n--- SurfaceSearch: --resolve-unlinked accepts the "
                  "resolvable seed, and only adds resolvable surfaces ---\n";
     auto result = knotbuilder::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
-    CobordismBuilder<3> cob(result.tri);
-    const regina::Triangulation<4> &coned = cob.cone();
+    const regina::Triangulation<4> coned = coneOver(result.tri);
     Skeleton<4, 2> probeSkeleton(coned);
     std::vector<int> seed =
         coneTriangleIndices(probeSkeleton, coned, result.edges);

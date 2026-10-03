@@ -1,7 +1,7 @@
 // knotbuilder_test.cpp
 // Tests for knotbuilder's PD-code -> triangulated-S³ pipeline (Block,
 // Block::glue(), buildLink()), and its integration with CobordismBuilder's
-// thicken()/cone(). See cobordismbuilder_test.cpp for CobordismBuilder's own
+// thicken(). See cobordismbuilder_test.cpp for CobordismBuilder's own
 // tests independent of knotbuilder.
 
 #include <iostream>
@@ -646,55 +646,50 @@ void test_knotbuilder_output_is_orderable() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 3: the full pipeline requested — knotbuilder builds S³ with the
-// link as an edge circuit, CobordismBuilder thickens it (giving room for
-// surfer to later search in), then cone() caps the top into a
-// genuine triangulated 4-ball. The one boundary component left afterward
-// must be combinatorially identical to knotbuilder's original S³ — that's
-// what will let a future surfer test locate the link's edges inside
-// the boundary of this B⁴.
+// Layer 3: the full pipeline — knotbuilder builds S³ with the link as an edge
+// circuit, and CobordismBuilder thickens it into S³ × I, the ambient a search
+// runs in. Both boundary components must be combinatorially identical to
+// knotbuilder's original S³: that is what lets a search locate the link's
+// edges on the incoming side and read the outgoing side back as T.
 // ─────────────────────────────────────────────────────────────────────────────
-void checkKnotToBallPipeline(const char *name, const char *pd, int layers) {
+void checkKnotThickeningPipeline(const char *name, const char *pd, int layers) {
     std::vector<const regina::Edge<3> *> edges;
     auto tri = buildFromPD(pd, edges);
 
     CobordismBuilder<3> cob(tri);
-    if (layers > 0)
-        cob.thicken(layers);
-    auto &result = cob.cone();
+    auto &result = cob.thicken(layers);
+    const std::string what =
+        std::string(name) + ": thicken(" + std::to_string(layers) + ")";
 
-    EXPECT_EQ(result.isValid(), true,
-              std::string(name) + ": thicken(" + std::to_string(layers) +
-                  ")+cone() triangulation is valid");
-    EXPECT_EQ((int)result.countBoundaryComponents(), 1,
-              std::string(name) + ": thicken(" + std::to_string(layers) +
-                  ")+cone() has exactly 1 boundary component");
-    EXPECT_EQ(result.eulerCharManifold(), 1L,
-              std::string(name) + ": thicken(" + std::to_string(layers) +
-                  ")+cone() is contractible (Euler characteristic 1)");
-    EXPECT_EQ(
-        result.boundaryComponent(0)->build().isIsomorphicTo(tri).has_value(),
-        true,
-        std::string(name) + ": remaining boundary ≅ knotbuilder's original S³");
+    EXPECT_EQ(result.isValid(), true, what + " triangulation is valid");
+    EXPECT_EQ((int)result.countBoundaryComponents(), 2,
+              what + " has exactly 2 boundary components");
+    EXPECT_EQ(result.eulerCharManifold(), 0L,
+              what + " has Euler characteristic 0, as S³ × I does");
+    for (size_t b = 0; b < result.countBoundaryComponents(); ++b)
+        EXPECT_EQ(
+            result.boundaryComponent(b)->build().isIsomorphicTo(tri).has_value(),
+            true,
+            what + ": boundary component " + std::to_string(b) +
+                " ≅ knotbuilder's original S³");
 }
 
-void test_knotbuilder_trefoil_to_ball_pipeline() {
-    std::cout << "\n--- knotbuilder trefoil -> thicken(n)+cone() -> B⁴ ---\n";
-    checkKnotToBallPipeline("trefoil (0 layers)", TREFOIL_PD, 0);
-    checkKnotToBallPipeline("trefoil (1 layer)", TREFOIL_PD, 1);
-    checkKnotToBallPipeline("trefoil (3 layers)", TREFOIL_PD, 3);
+void test_knotbuilder_trefoil_thickening_pipeline() {
+    std::cout << "\n--- knotbuilder trefoil -> thicken(n) -> S³ × I ---\n";
+    checkKnotThickeningPipeline("trefoil (1 layer)", TREFOIL_PD, 1);
+    checkKnotThickeningPipeline("trefoil (3 layers)", TREFOIL_PD, 3);
 }
 
-void test_knotbuilder_hopf_link_to_ball_pipeline() {
-    std::cout << "\n--- knotbuilder Hopf link -> thicken(n)+cone() -> B⁴ ---\n";
-    checkKnotToBallPipeline("Hopf link (1 layer)", HOPF_LINK_PD, 1);
-    checkKnotToBallPipeline("Hopf link (2 layers)", HOPF_LINK_PD, 2);
+void test_knotbuilder_hopf_link_thickening_pipeline() {
+    std::cout << "\n--- knotbuilder Hopf link -> thicken(n) -> S³ × I ---\n";
+    checkKnotThickeningPipeline("Hopf link (1 layer)", HOPF_LINK_PD, 1);
+    checkKnotThickeningPipeline("Hopf link (2 layers)", HOPF_LINK_PD, 2);
 }
 
-void test_knotbuilder_figure_eight_to_ball_pipeline() {
-    std::cout << "\n--- knotbuilder figure-8 -> thicken(n)+cone() -> B⁴ ---\n";
-    checkKnotToBallPipeline("figure-8 (1 layer)", FIGURE_EIGHT_PD, 1);
-    checkKnotToBallPipeline("figure-8 (2 layers)", FIGURE_EIGHT_PD, 2);
+void test_knotbuilder_figure_eight_thickening_pipeline() {
+    std::cout << "\n--- knotbuilder figure-8 -> thicken(n) -> S³ × I ---\n";
+    checkKnotThickeningPipeline("figure-8 (1 layer)", FIGURE_EIGHT_PD, 1);
+    checkKnotThickeningPipeline("figure-8 (2 layers)", FIGURE_EIGHT_PD, 2);
 }
 
 template <typename F>
@@ -723,12 +718,12 @@ int main() {
     run("test_knotbuilder_many_named_knots", test_knotbuilder_many_named_knots);
     run("test_knotbuilder_output_is_orderable",
         test_knotbuilder_output_is_orderable);
-    run("test_knotbuilder_trefoil_to_ball_pipeline",
-        test_knotbuilder_trefoil_to_ball_pipeline);
-    run("test_knotbuilder_hopf_link_to_ball_pipeline",
-        test_knotbuilder_hopf_link_to_ball_pipeline);
-    run("test_knotbuilder_figure_eight_to_ball_pipeline",
-        test_knotbuilder_figure_eight_to_ball_pipeline);
+    run("test_knotbuilder_trefoil_thickening_pipeline",
+        test_knotbuilder_trefoil_thickening_pipeline);
+    run("test_knotbuilder_hopf_link_thickening_pipeline",
+        test_knotbuilder_hopf_link_thickening_pipeline);
+    run("test_knotbuilder_figure_eight_thickening_pipeline",
+        test_knotbuilder_figure_eight_thickening_pipeline);
 
     std::cout << "\n"
               << bold << (failed_count > 0 ? red : green) << "=== " << passed

@@ -55,7 +55,7 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
     try {
       const auto &[row, indices] = *rows[r];
       rowsearch::RowBuild rb;
-      rowsearch::buildRow(row.first, row.second, row.second, /*useCone=*/false, rb);
+      rowsearch::buildRow(row.first, row.second, row.second, rb);
       const std::unique_ptr<PairSigContext<4, 2>> context =
           pairSigContextFor(rb.tri, cacheDir, inner);
       for (size_t i : indices) out[i] = context->sig(requests[i].faces);

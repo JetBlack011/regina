@@ -87,10 +87,10 @@ std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
 }
 
 void checkRow(const std::string &name, const std::string &pd) {
-    // The campaign shape: two layers, collared through both, no cone.
+    // The campaign shape: two layers, collared through both.
     rowsearch::RowBuild rb;
     try {
-        rowsearch::buildRow(pd, 2, 2, false, rb);
+        rowsearch::buildRow(pd, 2, 2, rb);
     } catch (const regina::InvalidArgument &e) {
         std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
                   << "\n";
@@ -174,7 +174,7 @@ void test_row_map_battery() {
 
 void test_row_map_refuses_foreign_edges() {
     ThickenedLink built; // two layers, no collar
-    buildAmbient("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 0, /*useCone=*/false, built);
+    buildAmbient("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 0, built);
     auto &[t2, edges2, reversed2] = built.link;
     const regina::Triangulation<4> &tri = built.tri;
     const size_t bc = built.searchSideBC;

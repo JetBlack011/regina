@@ -31,6 +31,7 @@
 #include <triangulation/example4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
+#include "surfer/tests/coneover.h"
 #include "surfer/enumeration/submanifoldsearch.h"
 #include "surfer/enumeration/surfacesearch.h"
 #include "diagramtriangulation/fromdiagram.h"
@@ -635,6 +636,17 @@ const UnlinkBoundaryNamer kNamer{};
 
 } // namespace
 
+// The pipeline modes' ambient: T x [0, layers], the thickening a search runs
+// in, or with 0 layers the cone over T, a 4-ball. (They capped the
+// thickening with a cone until coning was retired from the search.)
+regina::Triangulation<4> pipelineAmbient(const regina::Triangulation<3> &t,
+                                         int layers) {
+  if (layers == 0)
+    return coneOver(t);
+  CobordismBuilder<3> cob(t);
+  return cob.thicken(layers);
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     std::cerr << "Usage:\n"
@@ -716,10 +728,7 @@ int main(int argc, char *argv[]) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
     auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
-    CobordismBuilder<3> cob(t2);
-    if (layers > 0)
-      cob.thicken(layers);
-    regina::Triangulation<4> tri = cob.cone();
+    regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
     std::cerr << "[driver] dim4 pentachora = " << tri.size()
               << ", triangles = " << tri.countTriangles() << "\n";
@@ -749,10 +758,7 @@ int main(int argc, char *argv[]) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
     auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
-    CobordismBuilder<3> cob(t2);
-    if (layers > 0)
-      cob.thicken(layers);
-    regina::Triangulation<4> tri = cob.cone();
+    regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
     std::cerr << "[driver] dim4 pentachora = " << tri.size()
               << ", triangles = " << tri.countTriangles() << "\n";
@@ -770,10 +776,7 @@ int main(int argc, char *argv[]) {
     knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
     auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
-    CobordismBuilder<3> cob(t2);
-    if (layers > 0)
-      cob.thicken(layers);
-    regina::Triangulation<4> tri = cob.cone();
+    regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
     std::cerr << "[driver] dim4 pentachora = " << tri.size()
               << ", triangles = " << tri.countTriangles() << "\n";
@@ -813,10 +816,7 @@ int main(int argc, char *argv[]) {
       knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
       auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
 
-      CobordismBuilder<3> cob(t2);
-      if (layers > 0)
-        cob.thicken(layers);
-      regina::Triangulation<4> tri = cob.cone();
+      regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
       std::cerr << "[driver] dim4 pentachora = " << tri.size()
                 << ", triangles = " << tri.countTriangles() << "\n";

@@ -33,7 +33,7 @@
 /**
  * Incrementally builds a (dim+1)-dimensional triangulation "cobordism"
  * from a dim-dimensional base triangulation, by stacking prism layers
- * (thicken()) and/or capping with a cone (cone()).
+ * (thicken()).
  *
  * \tparam dim the dimension of the base triangulation; the cobordism
  * itself lives in dimension dim+1.
@@ -57,7 +57,7 @@ class CobordismBuilder {
     regina::Simplex<dim + 1> *baseBoundaryFacetSimplex_ = nullptr;
         /**< Captured on the first thicken() call only; see
              baseBoundaryComponent(). A raw Simplex<dim+1>* stays valid
-             across every later thicken()/cone() call (unlike
+             across every later thicken() call (unlike
              Face<dim,subdim>* -- see CollarBuilder's identical warning),
              so it is safe to resolve into an actual boundary component
              lazily, on demand, after construction is otherwise complete. */
@@ -71,7 +71,7 @@ class CobordismBuilder {
     CobordismBuilder(const regina::Triangulation<dim> &tri);
 
     /**
-     * Returns the triangulation thicken()/cone() actually build against.
+     * Returns the triangulation thicken() actually builds against.
      *
      * \warning This is *not* the same object passed to the constructor:
      * the constructor takes a copy (and may reorder it), so a
@@ -135,20 +135,6 @@ class CobordismBuilder {
                        const regina::Triangulation<d> &tri2, int bdryIndex2,
                        const regina::Isomorphism<d - 1> &iso);
 
-    /**
-     * Caps off the current top of the cobordism with a cone on the base
-     * triangulation: one new simplex per base simplex, each with a single
-     * new apex vertex, glued together mirroring the base triangulation's
-     * own gluings.
-     *
-     * If thicken() has not yet been called, the cone alone becomes the
-     * whole cobordism (the cone over the base triangulation, e.g. a ball
-     * when the base triangulation is a sphere). Otherwise the cone is
-     * glued directly onto the most recent layer's top via
-     * SimplicialPrism::capTop().
-     */
-    regina::Triangulation<dim + 1> &cone();
-
     /** Adds one thickening layer (a prism per base simplex) to the cobordism. */
     inline regina::Triangulation<dim + 1> &thicken() { return thicken_(); }
 
@@ -167,9 +153,8 @@ class CobordismBuilder {
     /**
      * Returns the boundary component of getCobordism() corresponding to
      * the original base triangulation -- thicken()'s "bottom", untouched
-     * by any thicken()/cone() call -- distinguishing it from any other
-     * boundary component the cobordism may have (e.g. a --no-cone
-     * cobordism's "top").
+     * by any thicken() call -- distinguishing it from the cobordism's
+     * other boundary component, its "top".
      *
      * Since thicken() literally builds (base triangulation) x [0,1],
      * every boundary component this cobordism could ever have is
@@ -231,7 +216,7 @@ class OutgoingMap {
      * \param knotT knotbuilder::buildLink()'s triangulation, unmodified.
      * \param cob built from `knotT` (CobordismBuilder takes an ordered copy,
      *        relabelling vertices within tetrahedra), after its last
-     *        thicken() and with no cone().
+     *        thicken().
      */
     OutgoingMap(const regina::Triangulation<3> &knotT,
                 const CobordismBuilder<3> &cob);
@@ -286,12 +271,12 @@ struct ThickenedLink {
 };
 
 /**
- * Builds `out` for PD code `pdNotation`: T, `thickenLayers` thickenings with
- * a collar through the first `collarLayers`, and an optional cone.
+ * Builds `out` for PD code `pdNotation`: T, and `thickenLayers` thickenings
+ * with a collar through the first `collarLayers`.
  *
  * \throws regina::InvalidArgument for an unparseable or unbuildable PD code.
  */
 void buildAmbient(const std::string &pdNotation, int thickenLayers,
-                  int collarLayers, bool useCone, ThickenedLink &out);
+                  int collarLayers, ThickenedLink &out);
 
 #endif // COBORDISM_BUILDER_H

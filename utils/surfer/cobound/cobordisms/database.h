@@ -130,8 +130,4 @@ void appendWitnesses(const std::filesystem::path &path,
                      std::vector<cobordismgraph::Witness> &witnesses,
                      size_t from);
 
-/// --rewrite-witnesses: the one full rewrite (the 12->13 column
-/// migration), verifying that every line round-trips. Returns the count.
-size_t rewriteWitnessFile(const std::filesystem::path &path);
-
 } // namespace witnessstore

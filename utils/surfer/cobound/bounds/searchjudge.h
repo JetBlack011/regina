@@ -36,7 +36,7 @@ namespace cascade {
  * cobordism is not judged so here (plan divergence 10, intended).
  *
  * The search runs in row().rowBuild(), the row this judge reads its finds'
- * outgoing links from (rowsearch::buildRow(pd, layers, layers, no cone)).
+ * outgoing links from (rowsearch::buildRow(pd, layers, layers)).
  */
 class SearchJudge {
 public:

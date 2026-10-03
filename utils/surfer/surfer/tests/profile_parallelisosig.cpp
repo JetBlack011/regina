@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     if (counts.empty()) counts = {1, 2, 4, 6, 8, 12};
 
     ThickenedLink rb;
-    buildAmbient(argv[1], 2, 2, false, rb);
+    buildAmbient(argv[1], 2, 2, rb);
     std::cout << "thickening: " << rb.tri.size() << " pentachora\n";
 
     std::string reference;

@@ -424,8 +424,8 @@ own (`SearchRequest::judge`). A contradiction ends the search, the row's
 witnesses are written, and the run halts with 2 (the FATAL banner). That graph
 replaces the old in-search check (a witness's implied upper bound below the
 row's literature lower bound). It reads finds on the row collared through
-every layer, so a search needs `--collar-layers` equal to `--thicken-layers`
-and no `--cone`, and it needs the knot and link tables.
+every layer (the only shape `cobound run` builds), and it needs the knot and
+link tables.
 
 The same graph says when a depth-0 search is constructive (plan divergence
 10): once a proof of the searched link's literature lower bound rests on no

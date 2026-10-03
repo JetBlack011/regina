@@ -73,21 +73,6 @@ void SimplicialPrism<dim>::stitchTop(SimplicialPrism<dim> &next) {
 }
 
 template <int dim>
-void SimplicialPrism<dim>::capTop(regina::Simplex<dim> *coneSimplex) {
-    std::array<int, dim + 1> image;
-    for (int m = 0; m <= dim; ++m) {
-        if (m == dim - 1) {
-            image[m] = dim;
-            continue;
-        }
-        image[m] = decode_(dim - 1, m).first;
-    }
-
-    simplices_[dim - 1]->join(dim - 1, coneSimplex,
-                              regina::Perm<dim + 1>(image));
-}
-
-template <int dim>
 int SimplicialPrism<dim>::mapExcluding_(int x, int a, int b) {
     // Re-rank x within {0,...,dim} with a removed (closing the gap left by
     // a), then re-open a gap at b in the target set.

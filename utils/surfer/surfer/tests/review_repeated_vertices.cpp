@@ -3,7 +3,7 @@
 //
 //  Review utility (not a CTest test): for every row of one or more PD-code
 //  tables, builds the ambient triangulation exactly as verifyslicegenus does
-//  (buildAmbient(): the collar through every layer, no cone) and counts
+//  (buildAmbient(): the collar through every layer) and counts
 //    - loop edges of T (an edge whose two ends are the same vertex);
 //    - loop edges of the thickening;
 //    - triangles of the thickening with a repeated vertex, and among them
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
             ++c.rows;
             try {
                 ThickenedLink row;
-                buildAmbient(pd, layers, layers, /*useCone=*/false, row);
+                buildAmbient(pd, layers, layers, row);
                 const regina::Triangulation<3> &t = row.link.tri;
 
                 long loopT = 0;

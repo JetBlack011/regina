@@ -186,8 +186,8 @@ void orientRow(RowBuild &row) {
 }
 
 void buildRow(const std::string &pdNotation, int thickenLayers,
-              int collarLayers, bool useCone, RowBuild &row) {
-    buildAmbient(pdNotation, thickenLayers, collarLayers, useCone, row);
+              int collarLayers, RowBuild &row) {
+    buildAmbient(pdNotation, thickenLayers, collarLayers, row);
     orientRow(row);
 }
 } // namespace rowsearch
