@@ -14,6 +14,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -97,9 +98,14 @@ void flagFatalBug(std::string message) {
 // Must only be called from the main thread with no search worker threads
 // still running -- see fatalBugDetected_'s own comment. Call this after
 // every e.search() this driver runs.
+// What a halt writes first (the run's pending cobordisms, signed).
+std::function<void()> beforeHalt_;
+
 void haltIfFatalBugDetected() {
   if (!fatalBugDetected_.load())
     return;
+  if (beforeHalt_)
+    beforeHalt_();
   std::string message;
   {
     std::lock_guard<std::mutex> lock(fatalBugMutex_);
@@ -1148,6 +1154,13 @@ void usage(const char *progName, const std::string &error = std::string()) {
                "                     is skipped, not re-searched. May be the same "
                "directory as\n"
                "                     --frontier-dir (default: off).\n";
+  std::cerr << "    --work <dir> : The run directory: each search's pending "
+               "cobordisms go to\n"
+               "                     <dir>/hop_<k>_n0/kept.csv as it runs, and the "
+               "run's end signs\n"
+               "                     every pending file there into --cobordisms "
+               "(default:\n"
+               "                     <cobordisms>.pending).\n";
   std::cerr << "    --no-census-updates : Never write the census: neither a "
                "knot row's own\n"
                "                     complement after its search nor a Pachner "
@@ -1284,6 +1297,8 @@ int main(int argc, char *argv[]) {
   // One explicit full rewrite of the witness file (the 12->13 column
   // migration); otherwise the file is only ever appended to.
   bool rewriteWitnesses = false;
+  // The run directory, for its searches' pending cobordisms (--work).
+  std::optional<std::string> workArg;
 
   unsigned numThreads = std::thread::hardware_concurrency();
   if (numThreads == 0)
@@ -1491,6 +1506,10 @@ int main(int argc, char *argv[]) {
       rejectionSampleLogPath = argv[++i];
     } else if (arg == "--rewrite-witnesses") {
       rewriteWitnesses = true;
+    } else if (arg == "--work") {
+      if (i + 1 >= argc)
+        usage(argv[0], "--work requires a value.");
+      workArg = argv[++i];
     } else if (arg == "--retriangulate-height") {
       if (i + 1 >= argc)
         usage(argv[0], "--retriangulate-height requires a value.");
@@ -1860,6 +1879,58 @@ int main(int argc, char *argv[]) {
             << " previously-recorded witnesses from " << cobordismsPath
             << "\n";
 
+  // The run directory (plan divergence 7): each search's pending cobordisms
+  // go to <work>/hop_<k>_n0/kept.csv, as a goal run's hops' do, and the run's
+  // end signs every pending file there into --cobordisms, on all the run's
+  // threads (`cascadesearch --sign-only --work <work> --witness-store
+  // <cobordisms>` does the same for a run that was killed).
+  const std::string workDir = workArg.value_or(cobordismsPath + ".pending");
+  int nextHop = 0;
+  if (std::filesystem::is_directory(workDir))
+    for (const auto &d : std::filesystem::directory_iterator(workDir)) {
+      const std::string n = d.path().filename().string();
+      if (n.rfind("hop_", 0) != 0) continue;
+      try {
+        nextHop = std::max(nextHop, std::stoi(n.substr(4)) + 1);
+      } catch (const std::exception &) {
+      }
+    }
+  size_t signedAppended = 0;
+  bool signedPending = false;
+  auto signPending = [&] {
+    if (signedPending || !std::filesystem::is_directory(workDir)) return;
+    signedPending = true;
+    // A cobordism searched on its subject's table PD as written needs no
+    // `.rows.csv` line (plan, "The .rows.csv sidecar"): every row of a
+    // table-driven run.
+    std::unordered_map<std::string, std::string> tablePD;
+    for (const std::string &table : {knotTablePath, linkTablePath})
+      if (!table.empty() && std::filesystem::exists(table))
+        for (const exactnaming::TableRow &r : exactnaming::readTableRows(table))
+          tablePD.emplace(r.name, r.pd);
+    const auto sidecarLine = [&](const cascade::PendingWitness &p) {
+      auto it = tablePD.find(p.witness.subject);
+      return it == tablePD.end() || it->second != p.rowPD;
+    };
+    const cascade::StoreResult s = cascade::storeKept(
+        cascade::readKept(workDir), cobordismsPath, {}, names, numThreads,
+        pairSigCacheDir.value_or(""), recorded.loaded(), sidecarLine);
+    signedAppended = s.appended;
+    std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+              << s.appended << " appended to " << cobordismsPath << " (signed in "
+              << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n"
+              << std::defaultfloat;
+  };
+  // A halt writes what was found first: the pending cobordisms are signed.
+  beforeHalt_ = [&] {
+    try {
+      signPending();
+    } catch (const std::exception &e) {
+      std::cerr << "[!] the pending cobordisms were not signed (" << e.what()
+                << "); `cascadesearch --sign-only --work " << workDir << "` signs them\n";
+    }
+  };
+
   std::unordered_map<std::string, std::string> nameAliases;
   if (!nameAliasPath.empty()) {
     try {
@@ -2160,7 +2231,6 @@ int main(int argc, char *argv[]) {
   // divergence the plan removes in phase 4(b) (search/search.h, SearchPolicy).
   cascade::SearchPolicy policy;
   policy.frontierNeedsExamined = true;
-  policy.signing = cascade::SearchPolicy::Signing::duringSearch;
 
   // Every row's search shape, but for its boundary condition (per row,
   // below).
@@ -2289,11 +2359,15 @@ int main(int argc, char *argv[]) {
     // A knot row's complement goes into the census after its search (when
     // census writes are on).
     request.censusName = cobordismgraph::baseName(row.name);
-    request.sweep = {.record = &recorded,
-                     .names = &names,
-                     .literatureLo = row.lo,
-                     .literatureHi = row.hi,
-                     .thickenLayers = thickenLayers};
+    request.sweep = {.literatureLo = row.lo, .literatureHi = row.hi};
+    // Its finds: kept one per cobordism (none the database holds), written to
+    // its pending file as it runs, and signed at the run's end (divergence 7).
+    const std::string hopDir = workDir + "/hop_" + std::to_string(nextHop++) + "_n0";
+    std::filesystem::create_directories(hopDir);
+    request.pending = hopDir + "/kept.csv";
+    request.rowPD = row.pdNotation;
+    request.layers = thickenLayers;
+    request.knownIdentities = &recorded.identities();
     // Each find, judged by the row's own cobordism graph as it is kept.
     request.row = &judge->row();
     long long judged = 0;
@@ -2375,13 +2449,12 @@ int main(int argc, char *argv[]) {
         out.status = "unresolved";
     }
 
-    recorded.flush();
     writeOutputCsv(*outputPath, rows, outputRows);
 
     // The row's breadth, and its frontier: written only now that every
-    // witness of the prefix it covers is on disk, and only when the row can
-    // vouch for having examined every surface in it -- else a later run
-    // would skip surfaces nobody looked at.
+    // cobordism of the prefix it covers is in its pending file, fsynced, and
+    // only when the row can vouch for having examined every surface in it --
+    // else a later run would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
       rowsearch::printSweepBreadth(std::cout, row.name, run);
       if (frontierDir && run.recordedFrontier) {
@@ -2447,8 +2520,10 @@ int main(int argc, char *argv[]) {
   if (solveOnly)
     for (const std::string &reason : resolveAll())
       flagFatalBug(reason);
-  recorded.flush();
   writeOutputCsv(*outputPath, rows, outputRows);
+  // The run's pending cobordisms, signed into the database (divergence 7).
+  if (!solveOnly)
+    signPending();
   haltIfFatalBugDetected();
 
   size_t verified = 0, verifiedAssisted = 0, improved = 0,
@@ -2469,8 +2544,8 @@ int main(int argc, char *argv[]) {
   std::cout << "\n[+] Done. Searched " << searchedThisRun << " of "
             << processedThisRun << " rows visited this run"
             << (sweepTimedOut ? " (sweep time limit reached)" : "") << ".\n";
-  std::cout << "[+] Witness file: " << witnesses.size() << " witnesses in "
-            << cobordismsPath << "\n";
+  std::cout << "[+] Witness file: " << witnesses.size() + signedAppended
+            << " witnesses in " << cobordismsPath << "\n";
   if (solveOnly)
     std::cout << "[+] Totals across " << outputRows.size()
               << " tracked names: " << verified << " verified ("

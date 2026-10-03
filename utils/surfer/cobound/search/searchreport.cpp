@@ -153,20 +153,6 @@ void printBoundaryProgress(size_t processed, size_t total,
   progressBlock.draw(report.str());
 }
 
-void printPairSignatures(std::ostream &out, const std::string &name,
-                         const cascade::HopRun &run) {
-  out << "[+] " << name << ": pair signatures: " << run.pairSigsSigned
-      << " signed in " << std::fixed << std::setprecision(1)
-      << run.pairSigMillis / 1000.0 << "s of thread time; context ";
-  if (run.pairSigsSigned > 0)
-    out << (run.pairSigContextLoaded ? "loaded from the cache, " : "built, ") << "ready "
-        << run.pairSigContextSeconds << "s after the search began";
-  else
-    out << "not needed";
-  out << "; " << run.pairSigFinishSeconds << "s after the drain finishing\n"
-      << std::defaultfloat;
-}
-
 void printSweepBreadth(std::ostream &out, const std::string &name,
                        const cascade::HopRun &run) {
   out << "[+] " << name << ": breadth: ";
@@ -185,7 +171,7 @@ void printSweepBreadth(std::ostream &out, const std::string &name,
 }
 
 void printOutcome(std::ostream &out, const std::string &name, const cascade::HopRun &run) {
-  out << "[+] " << name << ": " << run.recorded << " new witnesses, outcome "
+  out << "[+] " << name << ": " << run.newWitnesses << " new witnesses, outcome "
       << run.outcome;
   if (run.otherOrientation > 0)
     out << ", " << run.otherOrientation << " surfaces rejected on orientation mismatch";

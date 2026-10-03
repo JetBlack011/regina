@@ -142,13 +142,9 @@ constexpr int REJECTION_SAMPLES_PER_REASON = 20;
 /*
  * verifyslicegenus's per-row lines, from what the search returned
  * (cascade::HopRun) and nothing else. Each writes to `out` exactly as the
- * row loop did, stream state included (the pair-signature and breadth lines
- * leave `out` in std::fixed's precision, as they always have).
+ * row loop did, stream state included (the breadth line leaves `out` in
+ * std::fixed's precision, as it always has).
  */
-
-/** `pair signatures:`, for a search that signed during the search. */
-void printPairSignatures(std::ostream &out, const std::string &name,
-                         const cascade::HopRun &run);
 
 /** `breadth:` (the atlas's search_breadth.py parses it): the recorded
  *  frontier, whether the frontier the search was offered was carried on

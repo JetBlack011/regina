@@ -19,6 +19,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -40,8 +41,8 @@
  *  that ends it at its surface target or deadline (RowWatchdog), and what
  *  each caller still does its own way (SearchPolicy).
  *
- *  verifyslicegenus searches each table row through it (one witness per
- *  identity across the whole database, signed during the search), and the
+ *  verifyslicegenus searches each table row through it (its finds written to
+ *  the row's pending file and signed at the run's end), and the
  *  cascade runs each hop through it in process: the row's own thickening
  *  (the one its HopAssembler certified and reads from), the campaign's
  *  search shape, and the gates and accounting of preconditions.h, with the
@@ -207,33 +208,12 @@ struct SearchPolicy {
   /// when something was examined (verifyslicegenus's rule; the cascade
   /// lacks that check).
   bool frontierNeedsExamined = false;
-
-  /// Divergence 7, signing. `duringSearch` (verifyslicegenus): one witness
-  /// per identity across the whole database (SweepInputs::record), each new
-  /// one signed off the drain threads (WitnessSigner) and appended at the
-  /// 60 s checkpoints. `deferred` (the cascade): one kept surface per
-  /// keptKey() within the search, its faces kept (HopRun::kept), signed
-  /// later.
-  enum class Signing { duringSearch, deferred };
-  Signing signing = Signing::deferred;
 };
 
-/**
- * What a search that signs during the search, or judges its finds itself,
- * reads and writes beyond its row: verifyslicegenus's (SearchPolicy).
- * Pointers outlive the search.
- */
+/** The searched link's literature interval, as a search reports it: the
+ *  CONSTRUCTIVE line and the progress block (verifyslicegenus's). */
 struct SweepInputs {
-  /// Signing::duringSearch: where new witnesses are claimed and published.
-  RecordedWitnesses *record = nullptr;
-  /// The literature, for each witness's other_candidates (re-derived per
-  /// witness, as every reader of the field does).
-  const cobordismgraph::NameTable *names = nullptr;
-  /// The row's literature interval: the CONSTRUCTIVE line, and the progress
-  /// block.
   int literatureLo = 0, literatureHi = 0;
-  /// The witnesses' thicken_layers (provenance).
-  int thickenLayers = 1;
 };
 
 /// What a search writes besides what it returns: verifyslicegenus's
@@ -270,9 +250,9 @@ struct KeptSurface {
   std::string farName;        ///< the namer's name; "" for no far side
   std::vector<int> faces;     ///< triangles of the row's thickening
   std::string key;            ///< its dedupe key (see HopSearcher::run())
-  /// The witness verifyslicegenus would record for it, every column but the
-  /// pair signature, other_candidates and the provenance (source row,
-  /// layers, face cap): its subject is the hop's rowName.
+  /// The cobordism as the database will record it, every column but the
+  /// pair signature and other_candidates (both made when it is signed): its
+  /// subject is the search's name.
   cobordismgraph::Witness witness;
 };
 
@@ -281,15 +261,15 @@ struct SearchRequest {
   /// The incoming link's name: the subject of every witness, the name the
   /// incoming curves are primed with, and the name in every report line.
   std::string name;
-  /// The row's redrawer: Signing::deferred orients each kept surface's
-  /// outgoing link on it and keys it by its row components.
+  /// The row's redrawer (required): each kept surface's outgoing link is
+  /// oriented on it and keyed by its row components.
   const farside::WitnessRedrawer *row = nullptr;
   SearchShape shape;
 
   /// When to stop: at this many surfaces satisfying the condition, after
   /// `seconds` of this search, after `sweepSeconds` since `sweepStart`, or
-  /// once no new witness has been recorded for `quiescenceSeconds`
-  /// (SweepInputs::record). The drain then finishes, unless
+  /// once no surface with a new cobordism identity has been kept for
+  /// `quiescenceSeconds`. The drain then finishes, unless
   /// `skipDrainOnTimeout`.
   std::optional<long long> surfaceTarget;
   std::optional<double> seconds;
@@ -318,8 +298,24 @@ struct SearchRequest {
   /// refused.
   bool unseeded = false;
 
-  /// Signing::deferred: polled with each newly kept surface (from drain
-  /// threads, one at a time); the search ends when it returns true.
+  /// The search's pending file (cobordisms/pending.h, PendingWriter): every
+  /// surface it keeps is appended there with its faces -- fsynced once a
+  /// minute while the search and its drain run, at the first constructive
+  /// find, and the rest when the search ends -- for `sign` to sign into the
+  /// database (plan divergence 7). Unset: nothing is written (a goal run
+  /// without a witness store keeps its finds in memory only).
+  std::optional<std::string> pending;
+  /// The row's PD and layers, as a pending line and a cobordism's
+  /// provenance record them (`sign` rebuilds the row from them).
+  std::string rowPD;
+  int layers = 2;
+  /// The identities of the database the run loaded (RecordedWitnesses): a
+  /// find with one of them is a duplicate, one cobordism per identity
+  /// across the database. Unset: no database loaded.
+  const std::unordered_set<std::string> *knownIdentities = nullptr;
+
+  /// Polled with each newly kept surface (from drain threads, one at a
+  /// time); the search ends when it returns true.
   std::function<bool(const KeptSurface &)> stop;
   /// The cobordism graph's judgement of each find, as it is kept (plan
   /// divergences 6 and 10): called on a thread of its own, one find at a
@@ -383,7 +379,14 @@ struct HopRun {
   // What verifyslicegenus's row report reads besides (searchreport.h).
   SearchStats stats;               ///< the search's own, as it returned them
   long long described = 0;         ///< surfaces the drain described
-  long long recorded = 0;          ///< new witnesses (or kept surfaces)
+  long long recorded = 0;          ///< kept surfaces
+  /// Distinct cobordism identities among them: the outcome line's "N new
+  /// witnesses" (the database gains these when they are signed).
+  long long newWitnesses = 0;
+  /// The pending file, and its fsynced length when the search ended; -1
+  /// when none was written.
+  std::string pendingPath;
+  long long pendingBytes = -1;
   long long otherOrientation = 0;  ///< rejected as another oriented variant
   bool drainSkipped = false;
   bool nothingExamined = false;    ///< RowAccounting::nothingExamined()
@@ -403,14 +406,10 @@ struct HopRun {
   std::pair<long long, long long> censusWritesAfter;
   bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves
   long long nonPlanar = 0;         ///< its non-planar drawings
-  long long pairSigsSigned = 0;    ///< Signing::duringSearch
+  /// Pair signatures made during the search: none since divergence 7 (they
+  /// are made when the run signs its pending files).
+  long long pairSigsSigned = 0;
   long long pairSigMillis = 0;
-  /// The signer's context: when it was ready (seconds after the search
-  /// began; 0 if never needed), whether the cache held it, and what
-  /// waiting for the last signatures added after the drain.
-  double pairSigContextSeconds = 0;
-  bool pairSigContextLoaded = false;
-  double pairSigFinishSeconds = 0;
   /// The `runs` of the frontier this search was offered to resume, if any.
   std::optional<unsigned> resumeOfferedRuns;
   bool linkingAudit = false;       ///< petal linking numbers were audited
@@ -464,19 +463,25 @@ public:
              const SearchFrontier *resume = nullptr,
              std::optional<std::string> censusName = std::nullopt) const;
 
+  /// The request run(row, rowName, ...) makes: a hop's search of `row`
+  /// (searchShape() of this searcher's HopShape, its frontier always
+  /// recorded), for a caller that adds to it (its pending file, say).
+  SearchRequest hopRequest(const farside::WitnessRedrawer &row, const std::string &rowName,
+                           long long surfaceTarget, double seconds) const;
+
   /**
    * THE search: one search from `rb`'s incoming link, as `request` and this
    * searcher's SearchPolicy say. It builds the search over `rb`'s
    * thickening (seeded with its collar), names boundaries, checks the seed
    * invariant, runs the search with the watchdog, gates every surface the
-   * drain describes (preconditions.h), records what passes (SearchPolicy::
-   * Signing), and accounts for every surface. run(row, ...) above is the
-   * cascade's hop through it.
+   * drain describes (preconditions.h), keeps what passes (one per
+   * keptKey(), written to the pending file), and accounts for every
+   * surface. run(row, ...) above is the cascade's hop through it.
    *
    * \throws SeedInvariantFailure when the seed invariant fails;
    * SearchRefused for a row with no seed (unless `request.unseeded`), or
-   * whose diagram namer cannot be built; a signer's failure
-   * (Signing::duringSearch).
+   * whose diagram namer cannot be built; std::runtime_error when the
+   * pending file cannot be written at the search's end.
    */
   HopRun run(const rowsearch::RowBuild &rb, const SearchRequest &request) const;
 

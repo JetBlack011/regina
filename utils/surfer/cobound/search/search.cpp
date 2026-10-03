@@ -16,7 +16,7 @@
 
 #include <sys/resource.h>
 
-#include "cobound/cobordisms/pairsigner.h"
+#include "cobound/cobordisms/pending.h"
 #include "cobound/driver/timers.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
@@ -157,6 +157,16 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
                         const std::function<bool(const KeptSurface &)> &stop,
                         const SearchFrontier *resume,
                         std::optional<std::string> censusName) const {
+  SearchRequest request = hopRequest(row, rowName, surfaceTarget, seconds);
+  request.resume = resume;
+  request.stop = stop;
+  request.censusName = std::move(censusName);
+  return run(row.rowBuild(), request);
+}
+
+SearchRequest HopSearcher::hopRequest(const farside::WitnessRedrawer &row,
+                                      const std::string &rowName, long long surfaceTarget,
+                                      double seconds) const {
   SearchRequest request;
   request.name = rowName;
   request.row = &row;
@@ -166,10 +176,8 @@ HopRun HopSearcher::run(const farside::WitnessRedrawer &row,
   // Always recorded (it costs one fingerprint): a later hop from this node
   // carries on from it instead of searching this prefix again.
   request.recordFrontier = true;
-  request.resume = resume;
-  request.stop = stop;
-  request.censusName = std::move(censusName);
-  return run(row.rowBuild(), request);
+  request.layers = shape_.layers;
+  return request;
 }
 
 HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
@@ -183,17 +191,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   const bool resolveUnlinked = *shape.resolveUnlinked;
   const SweepInputs &sweep = request.sweep;
   const SearchOutputs &outputs = request.outputs;
-  // Divergence 7: a witness per identity across the database, signed during
-  // the search (verifyslicegenus); else a kept surface per keptKey().
-  const bool signDuringSearch =
-      policy_.signing == SearchPolicy::Signing::duringSearch;
   if (rb.seedFaces.empty() && !request.unseeded)
     throw SearchRefused("hop: the row has no collar seed");
-  if (signDuringSearch ? !sweep.record || !sweep.names : !request.row)
-    throw std::logic_error("HopSearcher::run(): the request lacks what its "
-                           "signing needs");
-  if (request.judge && !request.row)
-    throw std::logic_error("HopSearcher::run(): the graph reads finds on the request's row");
+  if (!request.row)
+    throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
 
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the row draws its far sides.
@@ -313,9 +314,24 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     outputs.rejectionSamples->flush();
   };
 
-  // Signing::deferred: one kept surface per keptKey().
+  // One kept surface per keptKey() (divergence 7), none whose identity the
+  // database a run loaded already holds.
   std::mutex keptMutex;
   std::unordered_set<std::string> keys;
+  // Distinct identities among them (under keptMutex), and when the last new
+  // one was kept: the quiescence clock.
+  std::unordered_set<std::string> newIdentities;
+  auto nowMillis = [] {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  };
+  std::atomic<long long> lastNewMillis{nowMillis()};
+  // The search's pending file (divergence 7): every kept surface, appended
+  // and fsynced as the search runs.
+  std::optional<PendingWriter> pending;
+  if (request.pending)
+    pending.emplace(*request.pending);
   std::atomic<bool> stopped{false};
   // request.judge: whether the graph has judged a find constructive.
   std::atomic<bool> constructive{false};
@@ -338,13 +354,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     }
     judging.wake.notify_one();
   };
-  // Signing::duringSearch: the search's new witnesses are signed off the
-  // drain threads, the pair-signature context built by the signer at the
-  // first of them (WitnessSigner). Started just before the search.
-  std::optional<WitnessSigner> signer;
-  if (signDuringSearch)
-    sweep.record->markActivity();
-
   // Started just before the search (below). It polls at 200ms but has no
   // access to SearchStats; onProgress is the only place the live count is
   // handed to us, so it publishes it there.
@@ -355,6 +364,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   callbacks.onProgress = [&](const SearchStats &stats) {
     if (watchdog) watchdog->publishSatisfying(stats.satisfyingCount);
     if (outputs.progress) rowsearch::printProgress(stats, e);
+    // The pending file's 60 s writes run through the enumeration too, not
+    // only the post-search drain (below): the drain describes surfaces while
+    // the search runs, so a kill during enumeration loses at most a minute.
+    if (pending) pending->checkpoint(/*force=*/false);
   };
   // The equalising rule, checked where each surface is counted, so a search
   // stops at the target rather than a progress tick later (see
@@ -380,7 +393,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                 << threads << " threads\n";
     }
   };
-  if (outputs.progress || signDuringSearch)
+  if (outputs.progress || pending)
     callbacks.onBoundaryProcessingProgress =
         [&](size_t processed, size_t total,
             std::chrono::steady_clock::duration elapsed) {
@@ -391,9 +404,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                                     : std::nullopt,
                 sweep.literatureHi);
           // The drain is the long pole of a search and the phase most likely
-          // to be interrupted, so checkpoint from here.
-          if (signDuringSearch)
-            sweep.record->checkpoint(/*force=*/false);
+          // to be interrupted, so checkpoint from here: a kill loses at most
+          // a minute of found surfaces.
+          if (pending)
+            pending->checkpoint(/*force=*/false);
         };
   callbacks.onBoundaryProcessingComplete =
       [&](size_t total, std::chrono::steady_clock::duration elapsed) {
@@ -446,12 +460,11 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       sampleRejection(rowsearch::gateReason(g.gate), info);
       return;
     }
-    // Signing::deferred keeps the oriented outgoing link, and the graph
-    // judges by it: oriented by the gate's own judgement of the incoming
-    // curves (g.flips: the row is rb's, request.row->row() is
-    // *rb.orientation).
+    // The oriented outgoing link, kept and judged by: oriented by the gate's
+    // own judgement of the incoming curves (g.flips: the row is rb's,
+    // request.row->row() is *rb.orientation).
     std::optional<farside::OutgoingLink> link;
-    if (!signDuringSearch || request.judge) {
+    {
       link = farside::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.row->outgoing(), g.flips,
                                            rb.searchSideBC);
@@ -476,12 +489,10 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     w.genus = info.tubedGenus;
     w.tubed = !info.connected;
     w.resolvedVertices = info.resolvedVertices;
-    if (signDuringSearch) {
-      // The witness as the database records it: its provenance now.
-      w.sourceRow = request.name;
-      w.thickenLayers = sweep.thickenLayers;
-      w.maxFaces = shape.maxFaces.value_or(0);
-    }
+    // The cobordism as the database will record it: its provenance now.
+    w.sourceRow = request.name;
+    w.thickenLayers = request.layers;
+    w.maxFaces = shape.maxFaces.value_or(0);
     std::string farName;
     if (g.split.otherSides.empty()) {
       w.kind = cobordismgraph::WitnessKind::direct;
@@ -499,59 +510,47 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       w.kind = cobordismgraph::WitnessKind::cobordism;
       w.other = farName;
       w.otherComponents = far.components;
-      // Re-derived from the name, as every reader of other_candidates does.
-      if (signDuringSearch)
-        w.otherCandidates = sweep.names->candidates(farName, far.components);
+      // other_candidates is derived from the name when it is signed, as every
+      // reader of the field re-derives it.
     }
 
-    if (!signDuringSearch) {
-      std::string key = rowsearch::keptKey(w, *link, *request.row);
-      {
-        std::lock_guard<std::mutex> lock(keptMutex);
-        if (!keys.insert(key).second) {
-          acct.duplicate.fetch_add(1, std::memory_order_relaxed);
-          return;
-        }
-      }
-      acct.recorded.fetch_add(1, std::memory_order_relaxed);
-      KeptSurface k{.link = std::move(*link),
-                    .genus = info.tubedGenus,
-                    .resolvedVertices = info.resolvedVertices,
-                    .farName = std::move(farName),
-                    .faces = info.captureFaces(),
-                    .key = std::move(key),
-                    .witness = std::move(w)};
-      std::lock_guard<std::mutex> lock(keptMutex);
-      if (request.stop && !stopped.load() && request.stop(k)) {
-        stopped.store(true);
-        noteStop("stopped");
-        e.requestStop();
-        e.skipRemainingBoundaryProcessing();
-      }
-      judgeFind(k);
-      out.kept.push_back(std::move(k));
-      return;
-    }
-
-    // Signing::duringSearch. The dedup matters a lot, since every search
-    // harvests: a single search reports thousands of near-identical
-    // surfaces, and signing each would dominate the run. The signer takes the witness's
-    // faces and signs it off this (drain) thread; its identity is claimed
-    // now, so the dedup stays exact.
-    if (!sweep.record->claim(w)) {
+    // The dedup matters a lot, since every search harvests: a single search
+    // reports thousands of near-identical surfaces. One kept surface per
+    // keptKey(), and none the loaded database holds already.
+    std::string identity = cobordismgraph::witnessIdentity(w);
+    if (request.knownIdentities && request.knownIdentities->count(identity)) {
       acct.duplicate.fetch_add(1, std::memory_order_relaxed);
       return;
     }
-    signer->add(w, info.captureFaces());
+    std::string key = rowsearch::keptKey(w, *link, *request.row);
+    {
+      std::lock_guard<std::mutex> lock(keptMutex);
+      if (!keys.insert(key).second) {
+        acct.duplicate.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (newIdentities.insert(std::move(identity)).second)
+        lastNewMillis.store(nowMillis(), std::memory_order_relaxed);
+    }
     acct.recorded.fetch_add(1, std::memory_order_relaxed);
-    if (request.judge)
-      judgeFind(KeptSurface{.link = *link,
-                            .genus = info.tubedGenus,
-                            .resolvedVertices = info.resolvedVertices,
-                            .farName = farName,
-                            .faces = {},
-                            .key = {},
-                            .witness = w});
+    KeptSurface k{.link = std::move(*link),
+                  .genus = info.tubedGenus,
+                  .resolvedVertices = info.resolvedVertices,
+                  .farName = std::move(farName),
+                  .faces = info.captureFaces(),
+                  .key = std::move(key),
+                  .witness = std::move(w)};
+    std::lock_guard<std::mutex> lock(keptMutex);
+    if (pending)
+      pending->add(PendingWitness{k.witness, request.rowPD, request.layers, k.faces});
+    if (request.stop && !stopped.load() && request.stop(k)) {
+      stopped.store(true);
+      noteStop("stopped");
+      e.requestStop();
+      e.skipRemainingBoundaryProcessing();
+    }
+    judgeFind(k);
+    out.kept.push_back(std::move(k));
   };
 
   // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
@@ -578,8 +577,9 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         // spending the rest of its budget enumerating more of the same is
         // worse than moving on to one we know nothing about.
         .quiescenceSeconds = request.quiescenceSeconds};
-    if (sweep.record)
-      watchdogLimits.idleMillis = [&] { return sweep.record->millisSinceNew(); };
+    watchdogLimits.idleMillis = [&] {
+      return nowMillis() - lastNewMillis.load(std::memory_order_relaxed);
+    };
     watchdog.emplace(std::move(watchdogLimits), [&](const char *why) {
       noteStop(why);
       e.requestStop();
@@ -587,11 +587,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         e.skipRemainingBoundaryProcessing();
     });
   }
-  if (signDuringSearch)
-    signer.emplace(
-        [&e]() -> const PairSigContext<4, 2> & { return e.pairSigContext(); },
-        [&](cobordismgraph::Witness &&w) { sweep.record->publish(std::move(w)); });
-
   if (request.judge)
     judging.thread = std::thread([&] {
       for (;;) {
@@ -623,8 +618,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                     << " (literature [" << sweep.literatureLo << ", " << sweep.literatureHi
                     << "]). Checkpointing now.\n"
                     << std::flush;
-          if (signDuringSearch)
-            sweep.record->checkpoint(/*force=*/true);
+          if (pending)
+            pending->checkpoint(/*force=*/true);
         }
         if (j.contradiction.empty()) continue;
         // The graph's gates: something the search or the naming computed is
@@ -668,18 +663,15 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       shape.rootBudgetGrowth);
   out.search = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
   for (auto r : stats.profile.rounds) out.rounds.push_back(std::chrono::duration<double>(r).count());
-  if (signer) {
-    // Every surface is described; sign what is still queued, with every
-    // thread, before anything reads or writes this search's witnesses.
-    signer->finish(threads_);
-    out.pairSigsSigned = signer->signedCount();
-    out.pairSigMillis = signer->signMillis();
-    out.pairSigContextSeconds = signer->contextSeconds();
-    out.pairSigContextLoaded = e.pairSigContextLoaded();
-    out.pairSigFinishSeconds = signer->finishSeconds();
-    rowsearch::printPairSignatures(std::cout, request.name, out);
-  }
   finishJudging();
+  // Every kept surface is described and judged: the rest of the pending
+  // file, fsynced, before anything reads this search's record. A failure
+  // here throws: what the search kept would otherwise never be signed.
+  if (pending) {
+    pending->flush();
+    out.pendingPath = pending->path().string();
+    out.pendingBytes = pending->syncedBytes();
+  }
   watchdog->stop();
   if (surfaceLog)
     surfaceLog->finalize();
@@ -705,6 +697,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   out.accountingFailure = acct.failure(out.accepted, e.rebuildFailures(), drainSkipped);
   out.described = acct.described.load();
   out.recorded = acct.recorded.load();
+  out.newWitnesses = static_cast<long long>(newIdentities.size());
   out.otherOrientation = acct.orientation.load();
   out.drainSkipped = drainSkipped;
   // Surfaces were accepted, yet not one reached the record. That can be

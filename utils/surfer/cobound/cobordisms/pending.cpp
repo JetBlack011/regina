@@ -43,6 +43,24 @@ void identitiesOf(const std::string &path, std::unordered_set<std::string> &into
   else into.merge(ids);
 }
 
+// The identities of the witness lines appended to `path` after its first
+// `from` bytes (complete lines only, as loadWitnesses() reads them).
+void identitiesSince(const std::string &path, std::uintmax_t from,
+                     std::unordered_set<std::string> &into) {
+  if (!fs::exists(path) || fs::file_size(path) <= from) return;
+  std::ifstream in(path, std::ios::binary);
+  in.seekg(static_cast<std::streamoff>(from));
+  std::string line;
+  if (from == 0) std::getline(in, line); // the header
+  while (std::getline(in, line)) {
+    if (in.eof()) break; // no newline: a torn last line
+    if (line.empty()) continue;
+    cobordismgraph::Witness w;
+    if (witnessstore::parseWitnessLine(line, w, false, false, path))
+      into.insert(cobordismgraph::witnessIdentity(w));
+  }
+}
+
 int hopNumber(const fs::path &dir) {
   // hop_<k>_n<node>
   const std::string name = dir.filename().string();
@@ -55,15 +73,17 @@ int hopNumber(const fs::path &dir) {
 
 } // namespace
 
+std::string formatKept(const PendingWitness &p) {
+  std::ostringstream faces;
+  for (size_t i = 0; i < p.faces.size(); ++i) faces << (i ? " " : "") << p.faces[i];
+  return witnessstore::formatWitness(p.witness) + ',' + csvField(faces.str()) + ',' +
+         csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
+}
+
 void appendKept(const std::string &hopDir, const std::vector<PendingWitness> &kept) {
   if (kept.empty()) return;
   std::string buffer;
-  for (const PendingWitness &p : kept) {
-    std::ostringstream faces;
-    for (size_t i = 0; i < p.faces.size(); ++i) faces << (i ? " " : "") << p.faces[i];
-    buffer += witnessstore::formatWitness(p.witness) + ',' + csvField(faces.str()) + ',' +
-              csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
-  }
+  for (const PendingWitness &p : kept) buffer += formatKept(p);
   appendonly::append(hopDir + "/kept.csv", buffer, appendonly::Sync::yes);
 }
 
@@ -105,10 +125,22 @@ std::vector<PendingWitness> readKept(const std::string &work) {
 StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
                       const cobordismgraph::NameTable &names, unsigned threads,
-                      const std::string &pairSigCache) {
+                      const std::string &pairSigCache, const LoadedStore &loaded,
+                      const std::function<bool(const PendingWitness &)> &sidecarLine) {
   StoreResult r;
   r.kept = pending.size();
   if (pending.empty()) return r;
+
+  // The store's identities as they stand: the run's own copy of what it
+  // loaded and what was appended since, or the whole file.
+  auto storeIdentities = [&](std::unordered_set<std::string> &into) {
+    if (!loaded.identities) {
+      identitiesOf(store, into);
+      return;
+    }
+    for (const std::string &id : *loaded.identities) into.insert(id);
+    identitiesSince(store, loaded.bytes, into);
+  };
 
   // Fresh against the read-only stores (once) and the store as it stands.
   const auto tDedupe = std::chrono::steady_clock::now();
@@ -116,7 +148,7 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   for (const std::string &path : dedupeAgainst) identitiesOf(path, seen, threads);
   {
     StoreLock lock(store);
-    identitiesOf(store, seen);
+    storeIdentities(seen);
   }
   r.dedupeSeconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - tDedupe).count();
@@ -135,10 +167,13 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
   std::vector<cobordismgraph::Witness> out;
-  std::vector<std::pair<std::string, int>> rowOf; // parallel to out: row PD, layers
+  // parallel to out: row PD, layers, and whether the sidecar records it
+  std::vector<std::pair<std::string, int>> rowOf;
+  std::vector<char> sidecar;
   out.reserve(fresh.size());
   for (size_t i = 0; i < fresh.size(); ++i) {
     rowOf.emplace_back(fresh[i].rowPD, fresh[i].layers);
+    sidecar.push_back(!sidecarLine || sidecarLine(fresh[i]));
     cobordismgraph::Witness w = std::move(fresh[i].witness);
     w.pairSig = std::move(sigs[i]);
     if (w.pairSig.empty())
@@ -154,13 +189,15 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   // appended since), and append only what is still new.
   StoreLock lock(store);
   std::unordered_set<std::string> now;
-  identitiesOf(store, now);
+  storeIdentities(now);
   std::vector<cobordismgraph::Witness> append;
   std::vector<std::pair<std::string, int>> appendRows;
+  std::vector<char> appendSidecar;
   for (size_t i = 0; i < out.size(); ++i)
     if (!now.count(cobordismgraph::witnessIdentity(out[i]))) {
       append.push_back(std::move(out[i]));
       appendRows.push_back(rowOf[i]);
+      appendSidecar.push_back(sidecar[i]);
     }
   witnessstore::appendWitnesses(store, append, 0);
   r.appended = append.size();
@@ -168,15 +205,16 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   // is a node's own diagram, not a table PD, so the atlas's farsidename
   // (which rebuilds the row to redraw a far side) needs it. witness key
   // (sha1(pairsig)[:12]), layers, row PD; appended beside the store.
-  if (!append.empty()) {
-    std::string buffer;
-    const std::string sidecar = store + ".rows.csv";
-    if (!fs::exists(sidecar)) buffer += "witness,layers,row_pd\n";
-    for (size_t i = 0; i < append.size(); ++i)
-      buffer += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
-                csvField(appendRows[i].first) + '\n';
+  std::string lines;
+  for (size_t i = 0; i < append.size(); ++i)
+    if (appendSidecar[i])
+      lines += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
+               csvField(appendRows[i].first) + '\n';
+  if (!lines.empty()) {
+    const std::string sidecarPath = store + ".rows.csv";
+    if (!fs::exists(sidecarPath)) lines = "witness,layers,row_pd\n" + lines;
     // fsynced like the store it describes (it was not, before phase 3).
-    appendonly::append(sidecar, buffer, appendonly::Sync::yes);
+    appendonly::append(sidecarPath, lines, appendonly::Sync::yes);
   }
   return r;
 }
@@ -193,77 +231,85 @@ long long tickNow() {
 
 } // namespace
 
-RecordedWitnesses::RecordedWitnesses(fs::path path,
-                                     std::vector<cobordismgraph::Witness> loaded)
-    : path_(std::move(path)), witnesses_(std::move(loaded)),
-      lastCheckpointedCount_(witnesses_.size()) {
-  identities_.reserve(witnesses_.size() * 2 + 1024);
-  for (const cobordismgraph::Witness &w : witnesses_)
-    identities_.insert(cobordismgraph::witnessIdentity(w));
+PendingWriter::PendingWriter(fs::path path) : path_(std::move(path)) {
+  std::error_code ec;
+  const auto size = fs::file_size(path_, ec);
+  synced_ = ec ? 0 : static_cast<long long>(size);
+  lastWriteTick_.store(tickNow(), std::memory_order_relaxed);
 }
 
-bool RecordedWitnesses::claim(const cobordismgraph::Witness &w) {
-  std::string identity = cobordismgraph::witnessIdentity(w);
+void PendingWriter::add(const PendingWitness &p) {
+  std::string line = formatKept(p);
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!identities_.insert(std::move(identity)).second)
-    return false;
-  lastNewTick_.store(tickNow(), std::memory_order_relaxed);
-  return true;
+  queued_ += line;
 }
 
-void RecordedWitnesses::publish(cobordismgraph::Witness &&w) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  witnesses_.push_back(std::move(w));
+void PendingWriter::write_() {
+  if (queued_.empty()) return;
+  appendonly::append(path_.string(), queued_, appendonly::Sync::yes);
+  queued_.clear();
+  synced_ = static_cast<long long>(fs::file_size(path_));
 }
 
-void RecordedWitnesses::checkpoint(bool force) {
+void PendingWriter::checkpoint(bool force) {
   const long long now = tickNow();
   if (!force &&
-      now - lastCheckpointTick_.load(std::memory_order_relaxed) <
-          CHECKPOINT_INTERVAL_MS)
+      now - lastWriteTick_.load(std::memory_order_relaxed) < CHECKPOINT_INTERVAL_MS)
     return;
   std::lock_guard<std::mutex> lock(mutex_);
-  // Re-check under the lock so concurrent callers don't each rewrite.
   if (!force &&
-      now - lastCheckpointTick_.load(std::memory_order_relaxed) <
-          CHECKPOINT_INTERVAL_MS)
+      now - lastWriteTick_.load(std::memory_order_relaxed) < CHECKPOINT_INTERVAL_MS)
     return;
-  lastCheckpointTick_.store(now, std::memory_order_relaxed);
-  // The gate below is only sound while witnesses_ is append-only. If this
-  // ever fires, the count is no longer an exact dirty flag and must be
-  // replaced by a real flag set in publish().
-  assert(witnesses_.size() >= lastCheckpointedCount_ &&
-         "witnesses must be append-only for the checkpoint gate to be sound");
-  // Nothing new since the last successful write, so the file already holds
-  // exactly what we would write. A forced checkpoint still writes: callers
-  // pass force=true at points where the file must be current regardless.
-  if (!force && witnesses_.size() == lastCheckpointedCount_)
-    return;
+  lastWriteTick_.store(now, std::memory_order_relaxed);
   try {
-    witnessstore::appendWitnesses(path_, witnesses_, lastCheckpointedCount_);
-    // Only on success -- a checkpoint that threw has NOT reached disk, and
-    // marking it clean here would suppress every later attempt to write the
-    // same witnesses, turning a transient write failure into silent loss.
-    lastCheckpointedCount_ = witnesses_.size();
+    write_();
   } catch (const std::exception &e) {
-    // A failed checkpoint must not kill a running search: the search's own
-    // end-of-search write is still to come, and that one is allowed to throw.
-    std::cerr << "[!] witness checkpoint failed: " << e.what() << "\n";
+    // A failed checkpoint must not kill a running search: what is queued
+    // stays queued, and the next write (the search's end, at the latest)
+    // tries again and may throw.
+    std::cerr << "[!] pending checkpoint failed: " << e.what() << "\n";
   }
 }
 
-void RecordedWitnesses::flush() {
+void PendingWriter::flush() {
   std::lock_guard<std::mutex> lock(mutex_);
-  witnessstore::appendWitnesses(path_, witnesses_, lastCheckpointedCount_);
-  lastCheckpointedCount_ = witnesses_.size();
+  write_();
 }
 
-void RecordedWitnesses::markActivity() {
-  lastNewTick_.store(tickNow(), std::memory_order_relaxed);
+long long PendingWriter::syncedBytes() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return synced_;
 }
 
-long long RecordedWitnesses::millisSinceNew() const {
-  return tickNow() - lastNewTick_.load(std::memory_order_relaxed);
+namespace {
+
+// The length of `path` up to the end of its last complete line: a torn last
+// line is not loaded (loadWitnesses()), and the next append cuts it.
+std::uintmax_t completeBytes(const fs::path &path) {
+  std::error_code ec;
+  const std::uintmax_t size = fs::file_size(path, ec);
+  if (ec || size == 0) return 0;
+  std::ifstream in(path, std::ios::binary);
+  std::uintmax_t end = size;
+  char c = 0;
+  while (end > 0) {
+    in.seekg(static_cast<std::streamoff>(end - 1));
+    if (!in.get(c)) return 0;
+    if (c == '\n') return end;
+    --end;
+  }
+  return 0;
+}
+
+} // namespace
+
+RecordedWitnesses::RecordedWitnesses(fs::path path,
+                                     std::vector<cobordismgraph::Witness> loaded)
+    : path_(std::move(path)), witnesses_(std::move(loaded)) {
+  bytes_ = completeBytes(path_);
+  identities_.reserve(witnesses_.size() * 2 + 1024);
+  for (const cobordismgraph::Witness &w : witnesses_)
+    identities_.insert(cobordismgraph::witnessIdentity(w));
 }
 
 } // namespace cascade

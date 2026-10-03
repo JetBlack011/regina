@@ -145,6 +145,17 @@ guard against that whole class of fault:
   `--solve-only` never writes. `--rewrite-witnesses` is the one explicit
   rewrite (the 12→13 column migration), and it verifies every line. A torn last
   line is ignored on load and truncated before the next append.
+- **Pending files, signed at the run's end** (plan divergence 7). A search
+  signs nothing while it runs: every surface it keeps (one per `keptKey()`,
+  none whose identity the loaded database holds) goes to its pending file,
+  `<work>/hop_<k>_n0/kept.csv` (`--work`, default `<cobordisms>.pending`),
+  fsynced once a minute while the search and its drain run, at once at the
+  first constructive find, and the rest when the search ends. The run's end (a
+  FATAL halt included) signs every pending file into `cobordisms.csv`, rows
+  in parallel, one witness per identity; `cascadesearch --sign-only --work
+  <work> --witness-store <cobordisms>` signs a killed run's. So a row's
+  witnesses reach `cobordisms.csv` when its run ends, not at 60 s
+  checkpoints, and `-- ACHIEVED` means they are in the pending file.
 
 ## Search frontiers (since 2026-09-29)
 

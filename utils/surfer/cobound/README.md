@@ -122,10 +122,17 @@ propagation may use even when this run's goal is not met. With
 recorded it (13 columns, `witnessstore.h`, the same code the sweep appends
 through):
 
-- **When.** Each hop appends its kept surfaces to `hop_<k>_n<node>/kept.csv`
-  at once: every witness column but the pair signature, then the faces, row
-  PD and layers. The run's end (every exit, a contradiction included) signs
-  the ones whose witness identity is new and appends them to the store.
+- **When.** Each hop's search appends its kept surfaces to
+  `hop_<k>_n<node>/kept.csv` as it runs (`cobordisms/pending.h`,
+  PendingWriter: fsynced once a minute while the search and its drain
+  run, at once at a first constructive find, and the rest when the search
+  ends; plan
+  divergence 7): every witness column but the pair signature, then the
+  faces, row PD and layers. The run's end (every exit, a contradiction
+  included) signs the ones whose witness identity is new and appends them to
+  the store. `verifyslicegenus` does the same since divergence 7: each row's
+  pending file is `<work>/hop_<k>_n0/kept.csv` (`--work`, default
+  `<cobordisms>.pending`), signed into `--cobordisms` at the run's end.
   Signing is almost all the row's ambient (one `PairSigContext` per hop row,
   ~50 s for a 10-crossing row), so it is done once per row, rows in
   parallel, after the search. A killed run keeps its `kept.csv`, and

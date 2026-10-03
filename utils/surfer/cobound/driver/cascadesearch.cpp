@@ -1176,10 +1176,15 @@ void Cascade::expand(NodeId n, long surfaces) {
   if (searcher_) {
     HopRun run;
     try {
-      run = searcher_->run(hop->redrawer(), rowName, surfaces, 7200, {}, resume,
-                           tables_.entry(rowName)
-                               ? std::optional<std::string>(cobordismgraph::baseName(rowName))
-                               : std::nullopt);
+      SearchRequest request = searcher_->hopRequest(hop->redrawer(), rowName, surfaces, 7200);
+      request.resume = resume;
+      if (tables_.entry(rowName)) request.censusName = cobordismgraph::baseName(rowName);
+      // Every kept surface, durably, as the search runs (divergence 7): the
+      // hop's pending file, signed at the run's end (storeWitnesses()).
+      request.rowPD = row.pd;
+      request.layers = row.layers;
+      if (!cfg_.witnessStore.empty()) request.pending = dir + "/kept.csv";
+      run = searcher_->run(hop->redrawer().rowBuild(), request);
     } catch (const SeedInvariantFailure &e) {
       // Divergence 2: an impossible state halts the run, once what it found
       // is written (run()).
@@ -1254,19 +1259,6 @@ void Cascade::expand(NodeId n, long surfaces) {
       frontiers_[n] = std::move(*run.frontier);
     } else {
       frontiers_.erase(n); // not vouched for: the next search starts afresh
-    }
-    if (!cfg_.witnessStore.empty()) {
-      // Every kept surface, durably, before the graph takes its faces.
-      std::vector<PendingWitness> pending;
-      pending.reserve(run.kept.size());
-      for (const KeptSurface &ks : run.kept) {
-        PendingWitness p{ks.witness, row.pd, row.layers, ks.faces};
-        p.witness.sourceRow = rowName;
-        p.witness.thickenLayers = row.layers;
-        p.witness.maxFaces = cfg_.hopShape.maxFaces;
-        pending.push_back(std::move(p));
-      }
-      appendKept(dir, pending);
     }
     driver_.kept += secondsSince(tKept);
     t0 = std::chrono::steady_clock::now();
