@@ -202,9 +202,14 @@ stops before it starts.
 - `verifyslicegenus --frontier-dir D` writes `D/<row>.frontier`, and
   `--resume-frontier-dir D` carries each row on from one. They may be the same
   directory.
-- A frontier is written only after the row's witnesses are on disk, and only
-  when its accounting balanced, something was examined, and its drain ran to the
-  end. Otherwise a later run would skip surfaces nobody looked at.
+- A frontier is kept only when its accounting balanced, something was
+  examined, its drain ran to the end and its pending file is fsynced (plan
+  divergence 1). It records that file and its fsynced length (format 2's
+  `pending` line); a later search skips its prefix only once `sign` has
+  signed the file that far (`<pending>.signed`), or when the file lies in
+  that search's own run directory, which its own sign step signs. Otherwise a
+  later run would skip surfaces nobody looked at, or whose cobordisms nobody
+  signed.
 - Each row then prints `breadth:`: the round and cap, roots done and part-walked,
   cumulative counts, the fingerprint, whether it resumed, and what the frontier
   cost.

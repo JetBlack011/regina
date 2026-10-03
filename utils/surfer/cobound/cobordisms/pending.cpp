@@ -18,6 +18,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 
+#include "surfer/report/atomicwrite.h"
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/appendonly.h"
 #include "cobound/cobordisms/pairsigner.h"
@@ -87,7 +88,15 @@ void appendKept(const std::string &hopDir, const std::vector<PendingWitness> &ke
   appendonly::append(hopDir + "/kept.csv", buffer, appendonly::Sync::yes);
 }
 
-std::vector<PendingWitness> readKept(const std::string &work) {
+long long signedThrough(const std::string &path) {
+  std::ifstream in(path + ".signed");
+  long long bytes = 0;
+  if (in >> bytes) return bytes;
+  return 0;
+}
+
+std::vector<PendingWitness> readKept(const std::string &work,
+                                     std::vector<std::pair<std::string, long long>> *readTo) {
   std::vector<fs::path> dirs;
   if (fs::exists(work))
     for (const auto &e : fs::directory_iterator(work))
@@ -101,9 +110,13 @@ std::vector<PendingWitness> readKept(const std::string &work) {
   for (const fs::path &dir : dirs) {
     const fs::path path = dir / "kept.csv";
     std::ifstream in(path, std::ios::binary);
+    const long long from = signedThrough(path.string());
+    long long to = from;
+    in.seekg(from);
     std::string line;
     while (std::getline(in, line)) {
       if (in.eof()) break; // no newline: a torn last line
+      to += static_cast<long long>(line.size()) + 1;
       if (line.empty()) continue;
       std::vector<std::string> f = parseCsvLine(line);
       if (f.size() != 16)
@@ -118,8 +131,27 @@ std::vector<PendingWitness> readKept(const std::string &work) {
       p.layers = std::stoi(f[15]);
       out.push_back(std::move(p));
     }
+    if (readTo) readTo->emplace_back(path.string(), to);
   }
   return out;
+}
+
+StoreResult signPending(const std::string &work, const std::string &store,
+                        const std::vector<std::string> &dedupeAgainst,
+                        const cobordismgraph::NameTable &names, unsigned threads,
+                        const std::string &pairSigCache, const LoadedStore &loaded,
+                        const std::function<bool(const PendingWitness &)> &sidecarLine) {
+  std::vector<std::pair<std::string, long long>> readTo;
+  std::vector<PendingWitness> pending = readKept(work, &readTo);
+  StoreResult r = storeKept(std::move(pending), store, dedupeAgainst, names, threads,
+                            pairSigCache, loaded, sidecarLine);
+  // Signed (or already in the store): recorded only once the store holds
+  // them, so a failure leaves the file to be signed again.
+  for (const auto &[path, bytes] : readTo)
+    if (bytes > signedThrough(path))
+      report::atomicWrite(path + ".signed",
+                          [&](std::ostream &out) { out << bytes << '\n'; });
+  return r;
 }
 
 StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,

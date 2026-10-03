@@ -1912,9 +1912,9 @@ int main(int argc, char *argv[]) {
       auto it = tablePD.find(p.witness.subject);
       return it == tablePD.end() || it->second != p.rowPD;
     };
-    const cascade::StoreResult s = cascade::storeKept(
-        cascade::readKept(workDir), cobordismsPath, {}, names, numThreads,
-        pairSigCacheDir.value_or(""), recorded.loaded(), sidecarLine);
+    const cascade::StoreResult s = cascade::signPending(
+        workDir, cobordismsPath, {}, names, numThreads, pairSigCacheDir.value_or(""),
+        recorded.loaded(), sidecarLine);
     signedAppended = s.appended;
     std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
               << s.appended << " appended to " << cobordismsPath << " (signed in "
@@ -2227,11 +2227,6 @@ int main(int argc, char *argv[]) {
     return contradictions;
   };
 
-  // How this run's searches differ from the cascade's: one field per
-  // divergence the plan removes in phase 4(b) (search/search.h, SearchPolicy).
-  cascade::SearchPolicy policy;
-  policy.frontierNeedsExamined = true;
-
   // Every row's search shape, but for its boundary condition (per row,
   // below).
   cascade::SearchShape searchShape;
@@ -2368,6 +2363,7 @@ int main(int argc, char *argv[]) {
     request.rowPD = row.pdNotation;
     request.layers = thickenLayers;
     request.knownIdentities = &recorded.identities();
+    request.runDirectory = workDir;
     // Each find, judged by the row's own cobordism graph as it is kept.
     request.row = &judge->row();
     long long judged = 0;
@@ -2391,7 +2387,7 @@ int main(int argc, char *argv[]) {
     // table caches, as they always have.
     const cascade::HopSearcher searcher(
         signatureTable ? &*signatureTable : nullptr,
-        exactTables ? &*exactTables : nullptr, policy, numThreads);
+        exactTables ? &*exactTables : nullptr, numThreads);
     cascade::HopRun run;
     try {
       run = searcher.run(rb, request);

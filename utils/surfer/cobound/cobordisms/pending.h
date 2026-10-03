@@ -80,15 +80,6 @@ private:
   std::atomic<long long> lastWriteTick_{0};
 };
 
-/// What a store already holds, as a run loaded it: the identities of its
-/// first `bytes` bytes. storeKept() then reads only what was appended since.
-struct LoadedStore {
-  const std::unordered_set<std::string> *identities = nullptr;
-  std::uintmax_t bytes = 0;
-};
-
-/// Every <work>/hop_*/kept.csv, in hop order. A torn last line is skipped.
-std::vector<PendingWitness> readKept(const std::string &work);
 
 struct StoreResult {
   size_t kept = 0;     ///< surfaces offered
@@ -97,6 +88,37 @@ struct StoreResult {
   double dedupeSeconds = 0; ///< reading the stores' identities (--dedupe-against too)
   double signSeconds = 0;
 };
+
+/// What a store already holds, as a run loaded it: the identities of its
+/// first `bytes` bytes. storeKept() then reads only what was appended since.
+struct LoadedStore {
+  const std::unordered_set<std::string> *identities = nullptr;
+  std::uintmax_t bytes = 0;
+};
+
+/// Every <work>/hop_*/kept.csv, in hop order, from where `sign` last signed
+/// it (signedThrough()) to its last complete line (a torn last line is
+/// skipped). `readTo`, if given, gets each file read and the byte it was
+/// read to.
+std::vector<PendingWitness>
+readKept(const std::string &work,
+         std::vector<std::pair<std::string, long long>> *readTo = nullptr);
+
+/// How far `sign` has signed the pending file `path` (its <path>.signed
+/// record): 0 if never.
+long long signedThrough(const std::string &path);
+
+/// `sign`: storeKept() over readKept(work), then each pending file's
+/// <path>.signed record set to what was read (plan divergence 1: a frontier
+/// whose pending file is signed at least as far as it recorded may be
+/// resumed). Returns storeKept()'s result.
+StoreResult signPending(const std::string &work, const std::string &store,
+                        const std::vector<std::string> &dedupeAgainst,
+                        const cobordismgraph::NameTable &names, unsigned threads,
+                        const std::string &pairSigCache = "",
+                        const LoadedStore &loaded = {},
+                        const std::function<bool(const PendingWitness &)> &sidecarLine = {});
+
 
 /**
  * Signs and stores kept surfaces. A surface is fresh when its

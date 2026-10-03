@@ -36,8 +36,10 @@
  *
  * Soundness for a caller that skips a prefix: the prefix's surfaces were
  * reported by the run that recorded it, so only a frontier written after
- * that run's witnesses were durable may be resumed (the drivers write it
- * last).
+ * that run's finds were durable may be resumed. A caller that keeps its
+ * finds in a file records it in the frontier (`pending`), with its durable
+ * length, and checks it before resuming (cobound: `sign` must have signed
+ * that far).
  */
 
 #ifndef SEARCHFRONTIER_H
@@ -75,6 +77,18 @@ struct SearchFrontier {
         ConnectedInducedSubgraphEnumerator::Position position; /**< Where its walk stopped. */
     };
     std::vector<Root> roots; /**< Every root of the round (all done when complete). */
+
+    /**
+     * Where the caller recorded this search's finds, when it keeps them in a
+     * file (cobound: the search's pending file), and that file's fsynced
+     * byte length when the frontier was taken. Format 2 writes it; a
+     * format-1 frontier has none.
+     */
+    struct Pending {
+        std::string path;
+        long long bytes = 0;
+    };
+    std::optional<Pending> pending;
 
     // Cumulative over the run that recorded this and every run it resumed.
     unsigned runs = 0;

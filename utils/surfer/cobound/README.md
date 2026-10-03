@@ -509,8 +509,13 @@ per node.
 - **Nodes with nothing new to search.** A node already searched past the budget
   (a hub's wide hop, say) is skipped at that budget. One whose frontier is
   complete is never chosen again.
-- **When a frontier is kept.** Only if its hop's accounting balanced and its
-  drain ran to the end; otherwise the node's next hop starts afresh.
+- **When a frontier is kept.** Only if its hop's accounting balanced,
+  something was examined, its drain ran to the end and its pending file is
+  fsynced (plan divergence 1, every search's rule); otherwise the node's next
+  hop starts afresh. The frontier records the pending file and its length;
+  a later search resumes it only once `sign` has signed that far
+  (`<pending>.signed`), unless the file is in its own run directory, which
+  its own sign step signs.
 - **The log.** Each hop prints `[+] hop k <subject>: breadth: ...; resumed
   yes|no|none`.
 

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <filesystem>
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -144,9 +145,8 @@ HopSearcher::HopSearcher(const farside::SignatureTable &signatures,
 }
 
 HopSearcher::HopSearcher(const farside::SignatureTable *signatures,
-                         const exactnaming::ExactTables *exact, SearchPolicy policy,
-                         unsigned threads)
-    : signatures_(signatures), exact_(exact), policy_(policy), threads_(threads) {
+                         const exactnaming::ExactTables *exact, unsigned threads)
+    : signatures_(signatures), exact_(exact), threads_(threads) {
   if (exact_)
     exactCaches_ = std::make_shared<exactnaming::TableCaches>(*exact_);
 }
@@ -207,8 +207,25 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
   SurfaceSearch &e = *eOpt;
   e.configureLimits(shape.limits);
-  // The search's frontier: carried on from, and recorded.
-  if (request.resume)
+  // The search's frontier: carried on from, and recorded. A frontier whose
+  // finds may not be signed yet is refused first (divergence 1): skipping
+  // its prefix would leave them nowhere but a pending file nobody signs.
+  std::string pendingRefusal;
+  if (request.resume && request.resume->pending) {
+    const SearchFrontier::Pending &p = *request.resume->pending;
+    const auto under = [](const std::string &file, const std::string &dir) {
+      const std::string f = std::filesystem::weakly_canonical(file).string();
+      const std::string d = std::filesystem::weakly_canonical(dir).string();
+      return f.size() > d.size() && f.compare(0, d.size(), d) == 0 && f[d.size()] == '/';
+    };
+    const bool ours = request.runDirectory && under(p.path, *request.runDirectory);
+    const long long signedTo = signedThrough(p.path);
+    if (!ours && signedTo < p.bytes)
+      pendingRefusal = "its pending file " + p.path + " is signed through " +
+                       std::to_string(signedTo) + " of the " + std::to_string(p.bytes) +
+                       " bytes its prefix needs (sign it first)";
+  }
+  if (request.resume && pendingRefusal.empty())
     e.setResumeFrontier(request.resume);
   e.setRecordFrontier(request.recordFrontier);
   if (request.pairSigCacheDir)
@@ -724,16 +741,21 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     noteStop("unaccounted");
   out.outcome = outcome;
   out.resumed = e.resumedFrontier();
-  out.resumeRefusal = e.resumeRefusal();
+  out.resumeRefusal = pendingRefusal.empty() ? e.resumeRefusal() : pendingRefusal;
   if (request.resume)
     out.resumeOfferedRuns = request.resume->runs;
   out.recordedFrontier = e.frontier();
+  // It records the pending file and its fsynced length (above: flushed).
+  if (out.recordedFrontier && pending)
+    out.recordedFrontier->pending = SearchFrontier::Pending{
+        std::filesystem::absolute(pending->path()).string(), out.pendingBytes};
   out.frontierSeconds = e.frontierSeconds();
   // Only a prefix whose every surface was examined may be skipped later
-  // (divergence 1: and, by verifyslicegenus's rule, only when something was).
-  if (out.accountingFailure.empty() && !drainSkipped &&
-      !(policy_.frontierNeedsExamined && out.nothingExamined))
-    out.frontier = e.frontier();
+  // (divergence 1): the accounting balanced, something was examined, the
+  // drain completed, and the pending file is fsynced (it was, above, or the
+  // search threw).
+  if (out.accountingFailure.empty() && !drainSkipped && !out.nothingExamined)
+    out.frontier = out.recordedFrontier;
   out.stats = stats;
   out.petals = e.petalCacheStats();
   out.boundaryCache = e.boundarySignatureCacheStats();

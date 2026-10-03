@@ -1325,6 +1325,25 @@ void test_frontier_file_round_trip() {
         threw = true;
     }
     EXPECT_EQ(threw, true, "a truncated file is refused");
+
+    // Without a pending record it is format 1, exactly as before; with one,
+    // format 2, the path read back whole (spaces included).
+    EXPECT_EQ(a.str().rfind("surfer-search-frontier 1\n", 0), size_t{0},
+              "no pending record: format 1");
+    f.pending = SearchFrontier::Pending{"/a dir/hop_0_n0/kept.csv", 4321};
+    std::stringstream withPending;
+    f.write(withPending);
+    EXPECT_EQ(withPending.str().rfind("surfer-search-frontier 2\n", 0), size_t{0},
+              "a pending record: format 2");
+    const SearchFrontier h = SearchFrontier::read(withPending);
+    EXPECT_EQ(h.pending.has_value(), true, "the pending record is read");
+    EXPECT_EQ(h.pending ? h.pending->path : std::string(), std::string("/a dir/hop_0_n0/kept.csv"),
+              "its path");
+    EXPECT_EQ(h.pending ? h.pending->bytes : -1LL, 4321LL, "its byte length");
+    std::ostringstream c, d;
+    f.write(c);
+    h.write(d);
+    EXPECT_EQ(d.str(), c.str(), "format 2 round-trips");
 }
 
 template <typename F> void run(const char *name, F fn) {

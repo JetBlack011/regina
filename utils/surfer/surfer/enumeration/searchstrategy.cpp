@@ -5,15 +5,17 @@
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
+#include <istream>
 #include <sstream>
 #include <stdexcept>
 
 // The file format, one record per line:
 //
-//   surfer-search-frontier 1
+//   surfer-search-frontier <1|2>
 //   fingerprint <hex>
 //   round <r> <R> cap <c|-> suppress_below <s> deepest_exhausted <e|-> complete <0|1>
 //   runs <n> satisfying <S> found <F> attempts <A>
+//   pending <bytes> <path>                      (format 2 only)
 //   roots <N>
 //   r <idx> <done> <level> <deepest> <levels> {<childIndex> <child> <npruned> <pruned>...}
 //   ...
@@ -25,7 +27,9 @@
 namespace {
 
 const char *kMagic = "surfer-search-frontier";
-constexpr int kFormat = 1;
+// 1: no pending line; 2: a pending line. A frontier without one is written
+// as format 1, byte for byte as before.
+constexpr int kFormatPlain = 1, kFormatPending = 2;
 
 std::string optionalField(const std::optional<long long> &v) {
     return v ? std::to_string(*v) : std::string("-");
@@ -91,15 +95,17 @@ std::string SearchFrontier::summary() const {
 }
 
 void SearchFrontier::write(std::ostream &out) const {
-    out << kMagic << ' ' << kFormat << '\n'
+    out << kMagic << ' ' << (pending ? kFormatPending : kFormatPlain) << '\n'
         << "fingerprint " << fingerprint << '\n'
         << "round " << round << ' ' << rounds << " cap " << optionalField(cap)
         << " suppress_below " << suppressBelow << " deepest_exhausted "
         << optionalField(deepestExhausted) << " complete " << (complete ? 1 : 0)
         << '\n'
         << "runs " << runs << " satisfying " << satisfying << " found " << found
-        << " attempts " << attempts << '\n'
-        << "roots " << roots.size() << '\n';
+        << " attempts " << attempts << '\n';
+    if (pending)
+        out << "pending " << pending->bytes << ' ' << pending->path << '\n';
+    out << "roots " << roots.size() << '\n';
     if (!complete)
         for (size_t i = 0; i < roots.size(); ++i) {
             const Root &r = roots[i];
@@ -120,10 +126,10 @@ void SearchFrontier::write(std::ostream &out) const {
 
 SearchFrontier SearchFrontier::read(std::istream &in) {
     SearchFrontier f;
+    int format = 0;
     {
         auto fields = expectLine(in, kMagic);
-        int format = 0;
-        if (!(fields >> format) || format != kFormat)
+        if (!(fields >> format) || (format != kFormatPlain && format != kFormatPending))
             bad("unsupported format");
     }
     {
@@ -151,6 +157,16 @@ SearchFrontier SearchFrontier::read(std::istream &in) {
               f.attempts) ||
             k1 != "satisfying" || k2 != "found" || k3 != "attempts")
             bad("malformed runs line");
+    }
+    if (format == kFormatPending) {
+        auto fields = expectLine(in, "pending");
+        Pending p;
+        if (!(fields >> p.bytes))
+            bad("malformed pending line");
+        std::getline(fields >> std::ws, p.path);
+        if (p.path.empty())
+            bad("malformed pending line");
+        f.pending = std::move(p);
     }
     {
         auto fields = expectLine(in, "roots");

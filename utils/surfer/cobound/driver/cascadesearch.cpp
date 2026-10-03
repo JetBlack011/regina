@@ -474,9 +474,9 @@ void Cascade::storeWitnesses() {
             << csvField(gauss.str()) << ",node " << n << '\n';
     }
   }
-  const StoreResult s = storeKept(readKept(cfg_.work), cfg_.witnessStore, cfg_.dedupeAgainst,
-                                  names_, static_cast<unsigned>(cfg_.threads),
-                                  cfg_.pairSigCache);
+  const StoreResult s = signPending(cfg_.work, cfg_.witnessStore, cfg_.dedupeAgainst,
+                                    names_, static_cast<unsigned>(cfg_.threads),
+                                    cfg_.pairSigCache);
   storedAppended_ = s.appended;
   storeResult_ = s;
   std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
@@ -1184,6 +1184,7 @@ void Cascade::expand(NodeId n, long surfaces) {
       request.rowPD = row.pd;
       request.layers = row.layers;
       if (!cfg_.witnessStore.empty()) request.pending = dir + "/kept.csv";
+      request.runDirectory = cfg_.work;
       run = searcher_->run(hop->redrawer().rowBuild(), request);
     } catch (const SeedInvariantFailure &e) {
       // Divergence 2: an impossible state halts the run, once what it found
@@ -2197,9 +2198,9 @@ int main(int argc, char **argv) {
     }
     try {
       const cobordismgraph::NameTable names = loadTableNames(c.knotTable, c.linkTable, "");
-      const StoreResult s = storeKept(readKept(c.work), c.witnessStore, c.dedupeAgainst,
-                                      names, static_cast<unsigned>(c.threads),
-                                      c.pairSigCache);
+      const StoreResult s = signPending(c.work, c.witnessStore, c.dedupeAgainst,
+                                        names, static_cast<unsigned>(c.threads),
+                                        c.pairSigCache);
       std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
                 << s.appended << " appended to " << c.witnessStore << "\n";
       return 0;
