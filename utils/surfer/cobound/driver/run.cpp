@@ -21,14 +21,18 @@
 // goal. Without one each target is searched once (sweep.h); with one the
 // scheduler searches outwards from the target until the goal has a proof or
 // the limits are spent (scheduler.h). The configuration it ran with is
-// written to <work>/cobound.conf first.
+// written to <work>/cobound.conf first: atomically, but not fsynced. It is a
+// record of the run, rewritten by every run, and nothing reads it back to
+// resume; an fsync before the search can stall for a second or more while
+// the system writes back other data (phase 5's C2 measurement).
 int commands::run(const std::vector<std::string> &args) {
   try {
     const config::Config cfg = config::forCommand("run", std::nullopt, args);
     const std::string work = cfg.text("work");
     std::filesystem::create_directories(work);
-    report::atomicWrite(work + "/cobound.conf",
-                        [&](std::ostream &out) { cfg.writeEffective(out, "run"); });
+    report::atomicWrite(
+        work + "/cobound.conf", [&](std::ostream &out) { cfg.writeEffective(out, "run"); },
+        report::Durability::cache);
     if (cfg.context() == config::Context::run)
       return sweep::run(cfg);
     cascade::GoalOptions options = cascade::goalOptions(cfg);
