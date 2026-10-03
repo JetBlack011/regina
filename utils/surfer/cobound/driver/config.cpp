@@ -32,11 +32,6 @@ Key key(std::string name, Type type, std::vector<std::pair<Context, Rule>> rules
     return k;
 }
 
-// The atlas tables' file names, which verifyslicegenus took from its working
-// directory when it was given none.
-const char *const kKnotTable = "4d_smooth_slice_genus_13_crossings_pd_codes.csv";
-const char *const kLinkTable = "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv";
-
 std::string trim(const std::string &s) {
     size_t a = 0, b = s.size();
     while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
@@ -156,14 +151,14 @@ const std::vector<Key> &schema() {
     static const std::vector<Key> keys = {
         // ---- the tables and the files a command reads or writes ----
         key("knot_table", Type::path,
-            {{C::run, def(kKnotTable)}, {C::goal, required}, {C::solve, def(kKnotTable)},
+            {{C::run, required}, {C::goal, required}, {C::solve, required},
              {C::sign, required}, {C::name, required}},
             "--knot-table (verifyslicegenus, cascadesearch), --knots (farsidename)",
             "The knot table (Name,PD Notation,Genus-4D): literature bounds, table PDs, names. "
-            "Without a goal, verifyslicegenus's default: the file's name, in the working "
-            "directory."),
+            "Required everywhere: verifyslicegenus's default, the file's name in the working "
+            "directory, would read whatever CSV of that name happens to be there."),
         key("link_table", Type::path,
-            {{C::run, def(kLinkTable)}, {C::goal, required}, {C::solve, def(kLinkTable)},
+            {{C::run, required}, {C::goal, required}, {C::solve, required},
              {C::sign, required}, {C::name, required}},
             "--link-table (verifyslicegenus, cascadesearch), --links (farsidename)",
             "The link table, as knot_table."),
@@ -172,11 +167,12 @@ const std::vector<Key> &schema() {
             "--knot-symmetry (verifyslicegenus, cascadesearch), --symmetry (farsidename)",
             "Knot symmetry types (data/knot_symmetry.csv): slice composites beyond 3_1#m3_1 "
             "and 4_1#4_1 are anchors only with them."),
-        key("targets", Type::path, {{C::run, def(kKnotTable)}, {C::solve, def(kKnotTable)}},
+        key("targets", Type::path, {{C::run, required}, {C::solve, required}},
             "--input (verifyslicegenus)",
             "Without a goal: the table rows to search, each once, those within max_crossings, "
-            "in crossing order (unless target_pd names one diagram). For solve: the rows the "
-            "verdicts list first."),
+            "in crossing order. For solve: the rows the verdicts list first. Required (no "
+            "working-directory default), except by a run whose target_pd names its one "
+            "diagram."),
         key("target_pd", Type::text, {{C::run, unset}, {C::goal, required}},
             "--target-pd (cascadesearch)",
             "One diagram to search from, as a PD code. Without a goal it is searched once, "
@@ -504,7 +500,12 @@ Config::Config(Context context, const std::vector<Assignment> &assignments)
             }
         } else {
             v.source = "default";
-            if (r->kind == Rule::Kind::required)
+            // targets names the rows a run searches; a run given one diagram
+            // (target_pd) searches that instead and needs none.
+            const auto pd = last.find("target_pd");
+            const bool oneDiagram = k.name == "targets" && context == Context::run &&
+                                    pd != last.end() && pd->second->value != "none";
+            if (r->kind == Rule::Kind::required && !oneDiagram)
                 throw Error(k.name + " is required for " + std::string(contextName(context)) +
                             " (it has no default)");
             if (r->kind == Rule::Kind::value) v.text = r->value;

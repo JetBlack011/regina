@@ -50,7 +50,9 @@ value` lines from `--config FILE` (any number), then `--set key=value` (any
 number; the last wins). One schema serves every command; each key's default
 reproduces the retired tool's (without a goal verifyslicegenus's, with one
 cascadesearch's; `config_test` checks every one), and `resolve_unlinked`
-(with or without a goal) and `work` have none. `cobound help keys` lists
+(with or without a goal), `work`, `knot_table`, `link_table` and `targets`
+(unless `target_pd` names the one diagram) have none: the tables' old
+defaults were bare file names in the working directory. `cobound help keys` lists
 every key with its type, its default in each command and the option it
 replaces. A run writes the configuration it ran with to `<work>/cobound.conf`;
 read back with `--config`, it runs the same search.

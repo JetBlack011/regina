@@ -41,6 +41,9 @@ std::vector<Assignment> minimal(Context c) {
     set("resolve_unlinked", "0");
     set("work", "/w");
     set("verdicts", "/v.csv");
+    set("targets", "/t.csv");
+    set("knot_table", "/k.csv");
+    set("link_table", "/l.csv");
     break;
   case Context::goal:
     set("goal_genus", "0");
@@ -53,6 +56,9 @@ std::vector<Assignment> minimal(Context c) {
     break;
   case Context::solve:
     set("verdicts", "/v.csv");
+    set("targets", "/t.csv");
+    set("knot_table", "/k.csv");
+    set("link_table", "/l.csv");
     break;
   case Context::sign:
     set("work", "/w");
@@ -108,22 +114,10 @@ std::vector<Reference> references() {
   using C = Context;
   return {
       // the tables and files
-      {"knot_table", C::run, "4d_smooth_slice_genus_13_crossings_pd_codes.csv",
-       "verifyslicegenus knotTablePath"},
-      {"knot_table", C::solve, "4d_smooth_slice_genus_13_crossings_pd_codes.csv",
-       "verifyslicegenus knotTablePath"},
-      {"link_table", C::run, "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv",
-       "verifyslicegenus linkTablePath"},
-      {"link_table", C::solve, "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv",
-       "verifyslicegenus linkTablePath"},
       {"knot_symmetry", C::run, "none", "verifyslicegenus knotSymmetryPath"},
       {"knot_symmetry", C::goal, "none", "cascadesearch Config::knotSymmetry"},
       {"knot_symmetry", C::solve, "none", "verifyslicegenus knotSymmetryPath"},
       {"knot_symmetry", C::name, "none", "farsidename symmetry"},
-      {"targets", C::run, "4d_smooth_slice_genus_13_crossings_pd_codes.csv",
-       "verifyslicegenus inputPath"},
-      {"targets", C::solve, "4d_smooth_slice_genus_13_crossings_pd_codes.csv",
-       "verifyslicegenus inputPath"},
       {"target_pd", C::run, "none", "(a run without a goal searches the targets' rows)"},
       {"target_name", C::run, "target", "cascadesearch: an unnamed target is `target`"},
       {"target_name", C::goal, "target", "cascadesearch: an unnamed target is `target`"},
@@ -265,6 +259,9 @@ void testDefaults() {
            {"work", Context::run},              {"work", Context::goal},
            {"work", Context::sign},             {"verdicts", Context::run},
            {"verdicts", Context::solve},        {"target_pd", Context::goal},
+           {"knot_table", Context::run},        {"link_table", Context::run},
+           {"knot_table", Context::solve},      {"link_table", Context::solve},
+           {"targets", Context::run},           {"targets", Context::solve},
            {"knot_table", Context::goal},       {"link_table", Context::goal},
            {"knot_table", Context::sign},       {"link_table", Context::sign},
            {"knot_table", Context::name},       {"link_table", Context::name},
@@ -279,6 +276,22 @@ void testDefaults() {
       threw = std::string(e.what()).find(q.key) != std::string::npos;
     }
     CHECK(threw, std::string(q.key) + " is required in " + config::contextName(q.ctx));
+  }
+  // targets is required without a goal unless target_pd names the one
+  // diagram the run searches instead.
+  {
+    std::vector<Assignment> a;
+    for (const Assignment &m : minimal(Context::run))
+      if (m.key != "targets") a.push_back(m);
+    a.push_back({"target_pd", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", "test"});
+    bool built = false, hasTargets = true;
+    try {
+      const Config c(Context::run, a);
+      built = true;
+      hasTargets = c.has("targets");
+    } catch (const config::Error &) {
+    }
+    CHECK(built && !hasTargets, "targets: not required by a run given target_pd");
   }
   // goal_genus's own default (0, cascadesearch's), with a run made
   // goal-directed by goal_lower alone.
@@ -317,7 +330,8 @@ void testParsing() {
   const std::string file = tempFile("# a comment\n\nwork = /from/file\n"
                                     "resolve_unlinked = yes\n"
                                     "target_pd = PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]\n"
-                                    "max_faces = 3\nverdicts = /v.csv\n");
+                                    "max_faces = 3\nverdicts = /v.csv\n"
+                                    "knot_table = /k.csv\nlink_table = /l.csv\n");
   config::CommandLine cl = config::parseCommandLine(
       {"--config", file, "--set", "max_faces=4", "--set", "work = /from/set", "positional"});
   CHECK_EQ(cl.positional.size(), size_t(1), "one positional argument");

@@ -9,7 +9,8 @@
 #     a surface target and is part of every frontier's fingerprint, so a run
 #     that does not say which is refused, with a goal and without. Nor has
 #     `work` (a run's pending files go there). A solve builds no search and
-#     needs neither;
+#     needs neither. Nor have the tables and `targets`, run or solve: their
+#     old defaults were file names in the working directory;
 #   - the retired options are refused: the config replaces them;
 #   - every run writes the configuration it ran with to <work>/cobound.conf,
 #     and that file, read back, runs the same search.
@@ -54,7 +55,22 @@ rc=0; run nowork --set resolve_unlinked=0 || rc=$?
 if [ "$rc" -eq 0 ] || ! grep -q 'work is required' "$T/nowork/err"; then
   echo "FAIL: a run searched without work (exit $rc)"; exit 1
 fi
-# ... but a solve needs neither.
+# The tables and targets have no default either, run or solve.
+for k in knot_table link_table targets; do
+  grep -v "^$k = " "$T/base.conf" > "$T/no-$k.conf"
+  rc=0
+  "$C" run --config "$T/no-$k.conf" --set resolve_unlinked=0 --set "work=$T/no-$k" \
+       --set "verdicts=$T/no-$k.csv" > "$T/no-$k.log" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ] || ! grep -q "$k is required" "$T/no-$k.log"; then
+    echo "FAIL: a run went ahead without $k (exit $rc)"; cat "$T/no-$k.log"; exit 1
+  fi
+  rc=0
+  "$C" solve --config "$T/no-$k.conf" --set "verdicts=$T/no-$k.csv" > "$T/no-$k.solve.log" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ] || ! grep -q "$k is required" "$T/no-$k.solve.log"; then
+    echo "FAIL: a solve went ahead without $k (exit $rc)"; cat "$T/no-$k.solve.log"; exit 1
+  fi
+done
+# ... but a solve needs neither resolve_unlinked nor work.
 mkdir -p "$T/solve"; echo "$HDR" > "$T/solve/cobordisms.csv"
 if ! "$C" solve --set "targets=$T/rows.csv" --set "verdicts=$T/solve/out.csv" \
      --set "cobordisms=$T/solve/cobordisms.csv" --set "knot_table=$DATA/knots_to_6.csv" \
@@ -107,4 +123,4 @@ if [ "$rc" -eq 0 ] || ! grep -q 'resolve_unlinked is required' "$T/goal.log"; th
   echo "FAIL: a goal run ran without resolve_unlinked (exit $rc)"
   exit 1
 fi
-echo "PASS: one set of search defaults, resolve_unlinked and work required, the retired options refused, and the written configuration runs the same search"
+echo "PASS: one set of search defaults, resolve_unlinked, work, the tables and targets required, the retired options refused, and the written configuration runs the same search"
