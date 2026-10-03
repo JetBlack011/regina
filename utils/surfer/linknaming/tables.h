@@ -164,8 +164,10 @@ class ExactTables {
     /** A knot's symmetry type, or nullopt when knot_symmetry.csv has none. */
     std::optional<SymmetryType> symmetry(const std::string &knot) const;
     size_t size() const { return entries_.size(); }
-    /** Every entry, in load order. */
+    /** Every entry, in load order: the knot table's rows, then the link table's. */
     const std::vector<TableEntry> &entries() const { return entries_; }
+    /** How many of entries() came from the knot table (they come first). */
+    size_t knotEntries() const { return knotEntries_; }
 
     /**
      * The name that stands for this entry's link. Entries whose diagrams
@@ -181,6 +183,7 @@ class ExactTables {
 
   private:
     std::vector<TableEntry> entries_;
+    size_t knotEntries_ = 0;
     std::unordered_map<std::string, size_t> byName_;
     std::unordered_map<std::string, std::string> canonical_;
     std::vector<std::string> inconsistent_;
@@ -217,12 +220,23 @@ class SignatureTable {
      */
     static SignatureTable fromTables(const std::string &knotTable,
                                      const std::string &linkTable);
+    /**
+     * The same table from the tables a process has already loaded (one table
+     * load, shared with the cobordism graph's exact tables): the entries'
+     * diagrams are the ones fromTables() would parse, in the same order, so
+     * the signatures, and which name each keeps, are identical; no file is
+     * read and no PD code parsed again.
+     * \exception regina::InvalidArgument either table yielded no entries.
+     */
+    static SignatureTable fromTables(const exactnaming::ExactTables &tables);
 
     const std::string *knot(const std::string &knotSig) const;
     const std::string *link(const std::string &linkSig) const;
     bool isKnotName(const std::string &name) const { return knotNames_.contains(name); }
     size_t knots() const { return knots_.size(); }
     size_t links() const { return links_.size(); }
+    /** The same signatures, names and knot names. */
+    bool operator==(const SignatureTable &) const = default;
 
   private:
     std::unordered_map<std::string, std::string> knots_, links_;

@@ -206,8 +206,9 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
         t.byName_.emplace(name, t.entries_.size());
         t.entries_.push_back(std::move(e));
     };
-    for (const std::string &table : {knotTable, linkTable})
-        for (const TableRow &row : readTableRows(table)) add(row.name, row.pd, row.g4);
+    for (const TableRow &row : readTableRows(knotTable)) add(row.name, row.pd, row.g4);
+    t.knotEntries_ = t.entries_.size();
+    for (const TableRow &row : readTableRows(linkTable)) add(row.name, row.pd, row.g4);
     if (t.entries_.empty()) throw regina::InvalidArgument("the tables yielded no entries");
 
     // Indices, only once entries_ no longer moves.
@@ -318,6 +319,27 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
                                  cobordismgraph::stripOrientationTag(row.name));
     if ((!knotTable.empty() && t.knots_.empty()) ||
         (!linkTable.empty() && t.links_.empty()))
+        throw regina::InvalidArgument("a table yielded no signatures");
+    return t;
+}
+
+SignatureTable SignatureTable::fromTables(const exactnaming::ExactTables &tables) {
+    // Exactly fromTables(knotTable, linkTable) over the same files: each
+    // entry's diagram is linkFromTablePD() of its row's PD, in file order,
+    // the knot table's first, so every signature and every first-wins name
+    // is the same.
+    SignatureTable t;
+    const std::vector<exactnaming::TableEntry> &entries = tables.entries();
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const exactnaming::TableEntry &e = entries[i];
+        if (i < tables.knotEntries()) {
+            t.knots_.try_emplace(e.diagram.knotSig(true, true), e.name);
+            t.knotNames_.insert(e.name);
+        } else {
+            t.links_.try_emplace(e.diagram.sig<2>(true, true, true), e.base);
+        }
+    }
+    if (t.knots_.empty() || t.links_.empty())
         throw regina::InvalidArgument("a table yielded no signatures");
     return t;
 }

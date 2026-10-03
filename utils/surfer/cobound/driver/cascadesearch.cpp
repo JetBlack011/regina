@@ -1746,7 +1746,8 @@ int Cascade::run() {
     census::censusUpdates.store(false);
     identify::recognitionCacheLimit.store(cfg_.hopShape.recognitionCacheLimit);
     const auto t0 = std::chrono::steady_clock::now();
-    signatures_ = farside::SignatureTable::fromTables(cfg_.knotTable, cfg_.linkTable);
+    // From the node namer's tables: one table load (phase 5).
+    signatures_ = farside::SignatureTable::fromTables(tables_);
     // The hops' far-side namers share the node namer's table caches.
     searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, cfg_.hopShape,
                                               static_cast<unsigned>(cfg_.threads),

@@ -1845,8 +1845,8 @@ int main(int argc, char *argv[]) {
   if (diagramNaming && !solveOnly) {
     const auto t0 = std::chrono::steady_clock::now();
     try {
-      signatureTable = farside::SignatureTable::fromTables(knotTablePath,
-                                                           linkTablePath);
+      // From the tables the graph already loaded: one table load (phase 5).
+      signatureTable = farside::SignatureTable::fromTables(*graphTables);
       std::cout << "[+] diagram naming: " << signatureTable->knots()
                 << " knot and " << signatureTable->links()
                 << " link diagram signatures ("
