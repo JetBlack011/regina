@@ -8,7 +8,7 @@ add_library(cobound_lib STATIC
   cobordisms/cobordism.cpp search/incoming.cpp search/preconditions.cpp
   outgoing/outgoinglink.cpp outgoing/outgoingnamer.cpp
   bounds/partition.cpp bounds/partitiongenera.cpp bounds/cobordismgraph.cpp
-  bounds/links.cpp bounds/searchcobordisms.cpp bounds/axioms.cpp
+  bounds/links.cpp bounds/searchcobordisms.cpp bounds/axioms.cpp bounds/searchjudge.cpp
   cobordisms/pairsigner.cpp cobordisms/pending.cpp outgoing/fromdatabase.cpp
   cobordisms/appendonly.cpp)
 target_link_libraries(cobound_lib PUBLIC ${ENGINE_LIBRARY} surfer_lib

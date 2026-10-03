@@ -96,6 +96,15 @@ add_test(NAME unaccounted_search_test
 set_tests_properties(unaccounted_search_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
+# A contradiction halts every run, with its code: 2 at depth 0, 3 with a goal
+# (plan divergence 6). See the script's header.
+add_test(NAME contradiction_halt_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/contradiction_halt_test.sh
+                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(contradiction_halt_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # --surface-log over two rows on one thread must not reuse the previous
 # row's (destroyed) CsvWriter shard. See the script's header.
 add_test(NAME surface_log_rows_test

@@ -22,12 +22,14 @@ cat > "$T/rows.csv" <<'EOF'
 Name,PD Notation,Genus-4D
 6_1,[[1;7;2;6];[3;10;4;11];[5;3;6;2];[7;1;8;12];[9;4;10;5];[11;9;12;8]],0
 EOF
+# The tables the search's cobordism graph names by (no link is needed here).
+printf 'Name,PD Notation,Genus-4D\n' > "$T/links.csv"
 printf 'kind,subject,subject_components,other,other_candidates,other_components,genus,tubed,pairsig,source_row,thicken_layers,max_faces,resolved_vertices\n' \
   > "$T/cobordisms.csv"
 
 "$V" --input "$T/rows.csv" --output "$T/out.csv" \
      --cobordisms "$T/cobordisms.csv" --census-db "$T/none.sqlite" \
-     --knot-table "$T/rows.csv" \
+     --knot-table "$T/rows.csv" --link-table "$T/links.csv" \
      --no-census-updates --no-retriangulate-on-miss \
      --thicken-layers 2 --collar-layers 2 --max-faces 5 \
      --no-cone --harvest --boundary-condition proper --research-settled \

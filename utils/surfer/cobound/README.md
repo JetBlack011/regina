@@ -366,6 +366,20 @@ that says nothing about K.
 - a genus below a proved lower bound;
 - a partition the linking numbers forbid.
 
+They run in every run (plan divergence 6), with literature lower bounds always
+loaded. A goal run judges each hop's finds in its own graph once the hop
+returns, and halts with 3, even when the same find meets the goal. A search
+without a goal (`verifyslicegenus`) gets a graph of its own
+(`bounds/searchjudge.h`, the outside facts by `bounds/axioms.h`'s
+`NodeAxioms`, shared with the cascade): the searched link with its literature
+lower bound, and each new witness entered as it is kept, on a thread of its
+own (`SearchRequest::judge`). A contradiction ends the search, the row's
+witnesses are written, and the run halts with 2 (the FATAL banner). That graph
+replaces the old in-search check (a witness's implied upper bound below the
+row's literature lower bound). It reads finds on the row collared through
+every layer, so a search needs `--collar-layers` equal to `--thicken-layers`
+and no `--cone`, and it needs the knot and link tables.
+
 ## Assumptions and their tests
 
 | # | assumption | test |

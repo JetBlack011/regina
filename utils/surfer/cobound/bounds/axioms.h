@@ -1,11 +1,19 @@
 // leaves.h
 //
-// Which outside facts may become proof-graph leaves. See README.md, "Leaf
-// facts".
+// Which outside facts may become proof-graph leaves, and the links that
+// receive them. See README.md, "Leaf facts".
 
 #pragma once
 
+#include <map>
+#include <ostream>
 #include <string>
+#include <vector>
+
+#include "cobound/bounds/cobordismgraph.h"
+#include "cobound/bounds/links.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/tables.h"
 
 namespace cascade {
 
@@ -23,5 +31,80 @@ namespace cascade {
 bool mayUseLiteratureUpperBound(const std::string &nodeClass,
                                 const std::string &targetClass,
                                 bool literatureAllowed);
+
+/**
+ * The outside facts a cobordism graph's links rest on, attached as each link
+ * joins the graph: the link named exactly (ExactNamer::identify(); a knot
+ * the tables hold only summand by summand, by the whole-diagram namer), and
+ * given what its name proves -- its literature lower bound always (the
+ * contradiction gates read it), its literature upper bound as a leaf unless
+ * it is the target's own class, and the unknot's disc when it is a slice
+ * composite (an anchor). An untabulated link with visible sum spheres is cut
+ * into its prime summands, each a link of its own, joined to it by a sum
+ * edge and named in turn.
+ *
+ * A goal run (cascadesearch) and a depth-0 search's own graph (SearchJudge)
+ * name their links this one way.
+ */
+class NodeAxioms {
+public:
+  struct Options {
+    /// Literature upper bounds may be leaves (cascadesearch --literature).
+    bool literature = true;
+    /// Compare table names by their link class (ExactNamer::canonicalName(),
+    /// computed lazily per base); false, by the name itself, which costs
+    /// nothing at depth 0 (plan, "Startup per process").
+    bool classes = true;
+    unsigned threads = 1;
+    /// Where sums found and slice composites anchored are announced; none
+    /// for a graph that is only a search's judge.
+    std::ostream *log = nullptr;
+  };
+
+  /// The limits every graph's link naming runs under: the cheap ones
+  /// (no Reidemeister searches; a few simplification tries).
+  static exactnaming::NamerLimits namerLimits();
+
+  /// All references must outlive this. `symmetries` may change content
+  /// later (cascadesearch fills its NameTable after constructing this).
+  NodeAxioms(ProofGraph &graph, NodeRegistry &nodes, const exactnaming::ExactTables &tables,
+             const exactnaming::ExactNamer &namer,
+             const exactnaming::SymmetryTable &symmetries, Options options);
+  NodeAxioms(const NodeAxioms &) = delete;
+  NodeAxioms &operator=(const NodeAxioms &) = delete;
+
+  /// Names every node of `ns` (on the threads: names are independent of
+  /// each other), then records each at `depth` with its table name and
+  /// outside facts, in node order, as one at a time would; summands of a
+  /// sum are named at depth + 1.
+  void name(const std::vector<NodeId> &ns, int depth);
+
+  /// The class a table name stands for (Options::classes), else the name.
+  std::string classOf(const std::string &tableName) const;
+
+  /// The target: never anchored as a composite, and its class's literature
+  /// upper bound is no leaf, even of a duplicate node of it.
+  NodeId target = -1;
+  std::string targetClass;
+
+  // What naming found.
+  std::map<NodeId, std::string> tableName; ///< a table (or composite) name
+  std::map<NodeId, int> depth;             ///< hops from the target when met
+  std::map<NodeId, std::vector<NodeId>> sumOf; ///< each sum node's summands
+  int anchors = 0;
+
+private:
+  void applyName(NodeId n, const exactnaming::PieceName &pn);
+  void applyComposite(NodeId n, const exactnaming::FarSideName &fs);
+  void applySum(NodeId n, const std::vector<exactnaming::GaussDiagram> &primes, int depth);
+  std::vector<NodeId> nodesSince(size_t first) const;
+
+  ProofGraph &g_;
+  NodeRegistry &reg_;
+  const exactnaming::ExactTables &tables_;
+  const exactnaming::ExactNamer &namer_;
+  const exactnaming::SymmetryTable &symmetries_;
+  Options options_;
+};
 
 } // namespace cascade

@@ -30,6 +30,8 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
+#include "cobound/bounds/axioms.h"
+#include "cobound/bounds/searchjudge.h"
 #include "cobound/cobordisms/cobordism.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
@@ -1629,6 +1631,14 @@ int main(int argc, char *argv[]) {
 
   if (!outputPath)
     usage(argv[0], "--output is required.");
+  // The cobordism graph judges every search (divergence 6), reading each
+  // find on its row as a goal run reads a stored row's: collared through
+  // every layer, not coned.
+  if (!solveOnly && (useCone || collarLayers != thickenLayers))
+    usage(argv[0],
+          "a search runs in a row collared through every layer, not coned (the "
+          "cobordism graph reads each find on it): --collar-layers must equal "
+          "--thicken-layers, and --cone is retired.");
   if (!solveOnly && !resolveUnlinked)
     usage(argv[0],
           "a search needs --resolve-unlinked or --no-resolve-unlinked: "
@@ -1785,6 +1795,23 @@ int main(int argc, char *argv[]) {
                 << " ms)\n";
     } catch (const std::exception &e) {
       std::cerr << "[!] exact far-side names off: " << e.what() << "\n";
+    }
+  }
+  // The tables a search's own cobordism graph names its links by
+  // (divergence 6): the exact tables (shared with --exact-far-side-names's,
+  // when loaded) and a namer over them, as a goal run names its nodes.
+  std::optional<exactnaming::ExactTables> graphTablesOwn;
+  const exactnaming::ExactTables *graphTables = exactTables ? &*exactTables : nullptr;
+  std::optional<exactnaming::ExactNamer> graphNamer;
+  if (!solveOnly) {
+    try {
+      if (!graphTables)
+        graphTables = &graphTablesOwn.emplace(
+            exactnaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath));
+      graphNamer.emplace(*graphTables, cascade::NodeAxioms::namerLimits());
+    } catch (const std::exception &e) {
+      std::cerr << "[!] the cobordism graph cannot load the tables: " << e.what() << "\n";
+      return 1;
     }
   }
   if (diagramNaming && !solveOnly) {
@@ -2161,28 +2188,29 @@ int main(int argc, char *argv[]) {
               << ", " << row.hi << "], " << row.crossings
               << " crossings)...\n";
 
-    // Declared before the search, which holds pointers into it.
-    rowsearch::RowBuild rb;
+    // The row's own cobordism graph (divergence 6), which judges its finds,
+    // and the row the search runs in: rowsearch::buildRow() of its PD,
+    // collared through every layer. buildRow() and the graph's row
+    // certification throw for a bad PD, a row map that cannot be built or
+    // checked, or a triangulated link that does not redraw as its diagram;
+    // letting that escape would abort the whole sweep over one bad row.
+    std::unique_ptr<cascade::SearchJudge> judge;
     bool buildFailed = false;
-
-    // buildRow() throws regina::InvalidArgument for a bad PD code and for a
-    // row map it cannot build or check (empty edge set, a boundary component
-    // that isn't isomorphic to the row's own triangulation, or a link image
-    // that doesn't chain); letting that escape would abort the entire sweep
-    // over one bad row rather than skipping it.
     try {
-      rowsearch::buildRow(row.pdNotation, thickenLayers, collarLayers, useCone,
-                          rb);
-      if (rb.orientation->divergedFromDefaultIsomorphism)
+      judge = std::make_unique<cascade::SearchJudge>(
+          row.name, row.pdNotation, thickenLayers, row.lo, *graphTables, *graphNamer,
+          names.symmetries(), numThreads);
+      if (judge->row().rowBuild().orientation->divergedFromDefaultIsomorphism)
         std::cerr << "[i] " << row.name
                   << ": the diagram's triangulation has a symmetry moving "
                      "L; using the map that takes L onto its own seed "
                      "(isIsomorphicTo() would not have)\n";
-    } catch (const regina::InvalidArgument &e) {
+    } catch (const std::exception &e) {
       std::cerr << "[!] " << row.name << ": failed to build (" << e.what()
                 << "), skipping\n";
       buildFailed = true;
     }
+    const rowsearch::RowBuild *rbp = judge ? &judge->row().rowBuild() : nullptr;
 
     // A row that cannot be built, or that the search refuses: recorded as
     // such, and the run goes on.
@@ -2234,6 +2262,7 @@ int main(int argc, char *argv[]) {
     // zero knot-to-link edges, while link rows produced 62 link-to-knot
     // ones. --boundary-condition proper lifts that, at the cost of much
     // weaker pruning.
+    const rowsearch::RowBuild &rb = *rbp;
     request.shape.condition =
         rowsearch::conditionFor(boundaryConditionMode, rb.componentCount);
     // The search stops at the surface target, the per-row or sweep time
@@ -2260,6 +2289,17 @@ int main(int argc, char *argv[]) {
                      .literatureLo = row.lo,
                      .literatureHi = row.hi,
                      .thickenLayers = thickenLayers};
+    // Each find, judged by the row's own cobordism graph as it is kept.
+    request.row = &judge->row();
+    long long judged = 0;
+    request.judge = [&](const cascade::KeptSurface &k) {
+      const cascade::SearchJudge::Verdict v =
+          judge->add(k.link, k.genus, "find#" + std::to_string(judged++));
+      cascade::FindJudgement j;
+      if (!v.contradictions.empty())
+        j.contradiction = v.contradictions.front();
+      return j;
+    };
     request.outputs = {.progress = true,
                        .surfaceStats = surfaceStatsPath,
                        .surfaceLog = surfaceLogPath,
@@ -2286,8 +2326,11 @@ int main(int argc, char *argv[]) {
       recordBuildFailure();
       continue;
     }
-    // A find below the literature (the search's own check): halts once the
-    // row's witnesses are written, below.
+    // A contradiction in the row's own cobordism graph: halts once the row's
+    // witnesses are written, below.
+    if (judge->failures() > 0)
+      std::cout << "[!] " << row.name << ": " << judge->failures() << " of "
+                << judge->finds() << " finds could not enter the cobordism graph\n";
     if (!run.fatal.empty())
       flagFatalBug(run.fatal);
 

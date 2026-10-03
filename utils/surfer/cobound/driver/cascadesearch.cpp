@@ -259,21 +259,16 @@ public:
       : cfg_(std::move(c)), reg_(g_),
         tables_(exactnaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
                                                cfg_.knotSymmetry)),
-        namer_(tables_, cheapLimits()) {}
+        namer_(tables_, NodeAxioms::namerLimits()),
+        axioms_(g_, reg_, tables_, namer_, names_.symmetries(),
+                {.literature = cfg_.literature,
+                 .classes = true,
+                 .threads = static_cast<unsigned>(std::max(cfg_.threads, 1)),
+                 .log = &std::cout}) {}
 
   int run();
 
 private:
-  static exactnaming::NamerLimits cheapLimits() {
-    exactnaming::NamerLimits l;
-    l.simplifyTries = 4;
-    l.exhaustiveHeight = 0;
-    l.searchHeight = -1;
-    l.maxDeepCrossings = 0;
-    l.tableSideHeight = -1;
-    return l;
-  }
-
   Partition goalPartition(NodeId n) const {
     const int k = g_.node(n).components;
     return cfg_.goalDisjoint ? Partition::singletons(k) : Partition::coarsest(k);
@@ -291,21 +286,12 @@ private:
   }
   bool goalMet() const { return upperMet() || lowerMet(); }
 
-  void onNewNode(NodeId n, int depth);
+  void onNewNode(NodeId n, int depth) { onNewNodes({n}, depth); }
   /// Names every node in `ns` (in parallel), then records each at `depth`
-  /// with its table name, literature leaf and lower bound (in order).
-  void onNewNodes(const std::vector<NodeId> &ns, int depth);
-  void applyName(NodeId n, const exactnaming::PieceName &pn);
-  /// A knot the whole-diagram namer proved to be a connected sum of table
-  /// knots, chirality pinned: named, and anchored (a genus-0 leaf) when its
-  /// summands cancel in concordance.
-  void applyComposite(NodeId n, const exactnaming::FarSideName &fs);
-  /// An untabulated node cut at its visible sum spheres into prime
-  /// summands: each interned as a node, joined to n by a sum edge.
-  void applySum(NodeId n, const std::vector<GaussDiagram> &primes, int depth);
-  std::map<NodeId, std::vector<NodeId>> sumOf_; ///< each sum node's summands
+  /// with its table name, literature leaf and lower bound (in order):
+  /// NodeAxioms::name().
+  void onNewNodes(const std::vector<NodeId> &ns, int depth) { axioms_.name(ns, depth); }
   cobordismgraph::NameTable names_; ///< table names and symmetry types
-  int anchors_ = 0;
   std::vector<NodeId> nodesSince(size_t first) const {
     std::vector<NodeId> ns;
     for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
@@ -367,10 +353,14 @@ private:
   NodeRegistry reg_;
   exactnaming::ExactTables tables_;
   exactnaming::ExactNamer namer_;
-  NodeId target_ = -1;
-  std::string targetCanonical_;
-  std::map<NodeId, int> depth_;
-  std::map<NodeId, std::string> tableName_;
+  /// Each link's name and outside facts (bounds/axioms.h), shared with a
+  /// depth-0 search's own graph; the target, its class, each node's depth
+  /// and table name are its.
+  NodeAxioms axioms_;
+  NodeId &target_ = axioms_.target;
+  std::string &targetCanonical_ = axioms_.targetClass;
+  std::map<NodeId, int> &depth_ = axioms_.depth;
+  std::map<NodeId, std::string> &tableName_ = axioms_.tableName;
   std::map<NodeId, std::vector<long>> expansions_;
   std::set<NodeId> refused_;
   /// Why the run must halt (an impossible state, divergence 2); empty if not.
@@ -407,10 +397,7 @@ private:
   /// by diagram OR by a meridian-carrying isometry (ExactNamer::
   /// canonicalName(), data/table_link_classes.csv). ExactTables::canonical()
   /// joins by diagram only, so it must never be compared with a node's name.
-  std::string classOf(const std::string &name) const {
-    const exactnaming::TableEntry *e = tables_.entry(name);
-    return e ? namer_.canonicalName(*e) : name;
-  }
+  std::string classOf(const std::string &name) const { return axioms_.classOf(name); }
   std::map<EdgeId, EdgeInfo> edgeInfo_;
   std::map<std::string, EdgeInfo> directInfo_; // by witness key
   double cpuSpent_ = 0, wallSpent_ = 0;
@@ -495,126 +482,6 @@ void Cascade::storeWitnesses() {
   std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
             << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
-}
-
-void Cascade::onNewNode(NodeId n, int depth) { onNewNodes({n}, depth); }
-
-void Cascade::onNewNodes(const std::vector<NodeId> &ns, int depth) {
-  // Naming is most of what a hop does outside its search, and each node's
-  // name is independent of the others', so the names are found on a pool
-  // (ExactNamer is safe to share: its caches are locked, and its SnapPea
-  // calls serialised) and applied here in node order, as one at a time would.
-  std::vector<std::optional<exactnaming::PieceName>> names(ns.size());
-  // A knot identify() leaves untabulated may be a connected sum the tables
-  // hold only summand by summand: the whole-diagram namer cuts it at its
-  // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
-  std::vector<std::optional<exactnaming::FarSideName>> composites(ns.size());
-  // Any untabulated node (knot or link) with visible sum spheres is cut into
-  // its prime summands, which become nodes joined to it by a sum edge
-  // (applySum; paper lem:sum-partitions): the tables list prime links only,
-  // and most far sides of small links are sums of smaller ones.
-  std::vector<std::vector<GaussDiagram>> summands(ns.size());
-  parallelFor(ns.size(), static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t i) {
-    const NodeId n = ns[i];
-    if (!reg_.known(n) || n == reg_.unknot()) return;
-    try {
-      const GaussDiagram &d = reg_.info(n).diagram;
-      names[i] = namer_.identify(d);
-      if (names[i]->by == exactnaming::PieceName::By::untabulated && d.crossings() > 0) {
-        if (d.components() == 1) {
-          exactnaming::FarSideName fs = namer_.name(d.link());
-          if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
-              fs.name.find('#') != std::string::npos)
-            composites[i] = std::move(fs);
-        }
-        GaussDiagram own = d;
-        own.origin.resize(own.components());
-        std::iota(own.origin.begin(), own.origin.end(), 0);
-        std::vector<GaussDiagram> primes;
-        namer_.decompose(own, primes);
-        if (primes.size() >= 2) summands[i] = std::move(primes);
-      }
-    } catch (const std::exception &) {
-    }
-  });
-  for (size_t i = 0; i < ns.size(); ++i) {
-    depth_.emplace(ns[i], depth);
-    if (composites[i]) applyComposite(ns[i], *composites[i]);
-    else if (names[i]) applyName(ns[i], *names[i]);
-  }
-  for (size_t i = 0; i < ns.size(); ++i)
-    if (!summands[i].empty()) applySum(ns[i], summands[i], depth);
-}
-
-void Cascade::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int depth) {
-  // Each prime is interned as a node (a duplicate costs search, never
-  // soundness), and its components are mapped to the whole's through the
-  // registry's component map and the prime's origins. The new summand
-  // nodes are then named like any other (literature leaves included), so
-  // the sum rule can combine their bounds.
-  const size_t before = g_.nodeCount();
-  std::vector<NodeId> pieces;
-  std::vector<std::vector<int>> maps;
-  for (size_t k = 0; k < primes.size(); ++k) {
-    const GaussDiagram &p = primes[k];
-    NodeMatch m = reg_.intern(p, "summand " + std::to_string(k) + " of node " + std::to_string(n));
-    std::vector<int> map(p.components(), -1);
-    for (size_t c = 0; c < p.components(); ++c)
-      map[static_cast<size_t>(m.componentMap[c])] = static_cast<int>(p.origin[c]);
-    pieces.push_back(m.node);
-    maps.push_back(std::move(map));
-  }
-  try {
-    g_.addSum(n, pieces, maps);
-  } catch (const std::exception &e) {
-    std::cout << "[!] node " << n << ": summands not recorded: " << e.what() << "\n";
-    return;
-  }
-  sumOf_[n] = pieces;
-  onNewNodes(nodesSince(before), depth + 1);
-  std::ostringstream o;
-  o << "[+] node " << n << " is a sum along components of";
-  for (NodeId p : pieces) {
-    auto t = tableName_.find(p);
-    o << " node " << p << (t == tableName_.end() ? "" : " (" + t->second + ")");
-  }
-  std::cout << o.str() << "\n";
-}
-
-void Cascade::applyComposite(NodeId n, const exactnaming::FarSideName &fs) {
-  // The composite's name is recorded (certificates, node bounds, the
-  // subject name stays cascade:, since no table row holds it). It is an
-  // ANCHOR when its summands cancel in concordance (cobordismgraph.h
-  // isElementarySlice: the explicit allowlist, or symmetry types from
-  // --knot-symmetry): K # m(K^r) bounds a ribbon disc, so the node gets the
-  // unknot's leaf, constructive like the unknot's, never for the target.
-  tableName_[n] = fs.name;
-  if (n == target_) return;
-  if (!exactnaming::isElementarySlice(fs.name, names_.symmetries())) return;
-  g_.addLeaf(n, Partition::coarsest(1), 0, "anchor " + fs.name);
-  ++anchors_;
-  std::cout << "[+] node " << n << " is " << fs.name << " (" << fs.proof()
-            << "): a slice composite, anchored\n";
-}
-
-void Cascade::applyName(NodeId n, const exactnaming::PieceName &pn) {
-  if (pn.by == exactnaming::PieceName::By::untabulated || !pn.pinned() || pn.names.size() != 1)
-    return;
-  const std::string &name = pn.names.front();
-  tableName_[n] = name;
-  const exactnaming::TableEntry *e = tables_.entry(name);
-  if (!e) return;
-  auto g4 = exactnaming::parseTableG4(e->g4);
-  if (!g4) return;
-  const auto [lo, hi] = *g4;
-  g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
-  // Never let the target's own literature value prove the target, even
-  // through a duplicate node of it (README.md, "Leaf facts").
-  if (!mayUseLiteratureUpperBound(classOf(name), targetCanonical_,
-                                  cfg_.literature))
-    return;
-  g_.addLeaf(n, Partition::coarsest(g_.node(n).components), hi,
-             "literature " + name + " " + e->g4);
 }
 
 bool Cascade::masterRowsFor(NodeId n, std::vector<std::string> *rows) const {
@@ -1907,7 +1774,7 @@ int Cascade::run() {
   printProfile();
   loadLowerSources();
   // Table names and symmetry types, for the slice-composite anchors
-  // (applyComposite) and the store step: as verifyslicegenus loads them.
+  // (NodeAxioms) and the store step: as verifyslicegenus loads them.
   size_t symmetryTypes = 0;
   names_ = loadTableNames(cfg_.knotTable, cfg_.linkTable, cfg_.knotSymmetry, &symmetryTypes);
   if (!cfg_.knotSymmetry.empty())
@@ -1943,7 +1810,7 @@ int Cascade::run() {
       named = true;
     } else if (simp.components() == 1) {
       // A composite target: its whole-diagram name (never an anchor for
-      // itself, applyComposite skips the target), reported and recorded.
+      // itself: NodeAxioms skips the target), reported and recorded.
       exactnaming::FarSideName fs = namer_.name(simp.link());
       if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
           fs.name.find('#') != std::string::npos)
@@ -1992,7 +1859,6 @@ int Cascade::run() {
       printOutcome("halted");
       return 2;
     }
-    if (goalMet()) break;
     if (!g_.contradictions().empty()) {
       for (const auto &c : g_.contradictions()) std::cout << "[!!] CONTRADICTION: " << c << "\n";
       // The surfaces are real whatever the contradiction's cause (a naming
@@ -2003,6 +1869,9 @@ int Cascade::run() {
       printOutcome("contradiction");
       return 3;
     }
+    // Checked after the gates (divergence 6): a contradiction met together
+    // with the goal still halts the run, never certifies through it.
+    if (goalMet()) break;
     // Free edges first (no search, so no budget): the target's own master
     // rows, if it is a table entry the atlas searched.
     if (master_ && !masterDone_.count(target_) && masterRowsFor(target_)) {

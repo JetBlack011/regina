@@ -5,7 +5,9 @@
 #include "cobound/search/search.h"
 
 #include <algorithm>
+#include <condition_variable>
 #include <cstdlib>
+#include <deque>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -192,6 +194,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                            "signing needs");
   if (policy_.judgeInSearch && (!sweep.bounds || !sweep.names))
     throw std::logic_error("HopSearcher::run(): judging needs bounds and names");
+  if (request.judge && !request.row)
+    throw std::logic_error("HopSearcher::run(): the graph reads finds on the request's row");
 
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the row draws its far sides.
@@ -318,6 +322,24 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // judgeInSearch: whether this search has found a constructive witness.
   std::atomic<bool> constructive{false};
   std::mutex fatalMutex;
+  // request.judge: the cobordism graph's judgement of each find, on its own
+  // thread, finds queued in the order they were kept (the drain never waits
+  // for the graph). Started just before the search; drained after it.
+  struct JudgeQueue {
+    std::mutex mutex;
+    std::condition_variable wake;
+    std::deque<KeptSurface> finds;
+    bool closing = false;
+    std::thread thread;
+  } judging;
+  auto judgeFind = [&](const KeptSurface &k) {
+    if (!request.judge) return;
+    {
+      std::lock_guard<std::mutex> lock(judging.mutex);
+      judging.finds.push_back(k);
+    }
+    judging.wake.notify_one();
+  };
   // Signing::duringSearch: the search's new witnesses are signed off the
   // drain threads, the pair-signature context built by the signer at the
   // first of them (WitnessSigner). Started just before the search.
@@ -426,11 +448,12 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
       sampleRejection(rowsearch::gateReason(g.gate), info);
       return;
     }
-    // Signing::deferred keeps the oriented outgoing link: oriented by the
-    // gate's own judgement of the incoming curves (g.flips: the row is rb's,
-    // request.row->row() is *rb.orientation).
+    // Signing::deferred keeps the oriented outgoing link, and the graph
+    // judges by it: oriented by the gate's own judgement of the incoming
+    // curves (g.flips: the row is rb's, request.row->row() is
+    // *rb.orientation).
     std::optional<farside::OutgoingLink> link;
-    if (!signDuringSearch) {
+    if (!signDuringSearch || request.judge) {
       link = farside::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.row->outgoing(), g.flips,
                                            rb.searchSideBC);
@@ -507,6 +530,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         e.requestStop();
         e.skipRemainingBoundaryProcessing();
       }
+      judgeFind(k);
       out.kept.push_back(std::move(k));
       return;
     }
@@ -522,6 +546,14 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     }
     signer->add(w, info.captureFaces());
     acct.recorded.fetch_add(1, std::memory_order_relaxed);
+    if (request.judge)
+      judgeFind(KeptSurface{.link = *link,
+                            .genus = info.tubedGenus,
+                            .resolvedVertices = info.resolvedVertices,
+                            .farName = farName,
+                            .faces = {},
+                            .key = {},
+                            .witness = w});
     if (!policy_.judgeInSearch)
       return;
 
@@ -536,20 +568,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     const cobordismgraph::UpperBoundVia via =
         cobordismgraph::upperBoundVia(w, *sweep.bounds, *sweep.names);
     const int implied = via.genus;
-    if (implied != cobordismgraph::NO_UPPER_BOUND && implied < sweep.literatureLo) {
-      std::ostringstream msg;
-      msg << request.name << ": witness implies an upper bound of " << implied
-          << ", BELOW the literature lower bound " << sweep.literatureLo << ".";
-      {
-        std::lock_guard<std::mutex> lock(fatalMutex);
-        if (out.fatal.empty())
-          out.fatal = msg.str();
-      }
-      noteStop("fatal-bug");
-      e.requestStop();
-      e.skipRemainingBoundaryProcessing();
-      return;
-    }
     if (implied != cobordismgraph::NO_UPPER_BOUND && implied <= sweep.literatureLo &&
         !via.assisted) {
       // Only a CONSTRUCTIVE result settles a row. An assisted one is a
@@ -611,6 +629,56 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
         [&e]() -> const PairSigContext<4, 2> & { return e.pairSigContext(); },
         [&](cobordismgraph::Witness &&w) { sweep.record->publish(std::move(w)); });
 
+  if (request.judge)
+    judging.thread = std::thread([&] {
+      for (;;) {
+        KeptSurface k;
+        {
+          std::unique_lock<std::mutex> lock(judging.mutex);
+          judging.wake.wait(lock, [&] { return judging.closing || !judging.finds.empty(); });
+          if (judging.finds.empty()) return;
+          k = std::move(judging.finds.front());
+          judging.finds.pop_front();
+        }
+        FindJudgement j;
+        try {
+          j = request.judge(k);
+        } catch (const std::exception &ex) {
+          j.contradiction = std::string("the cobordism graph failed: ") + ex.what();
+        }
+        if (j.contradiction.empty()) continue;
+        // The graph's gates: something the search or the naming computed is
+        // wrong. Nothing more is judged; the search stops at once.
+        {
+          std::lock_guard<std::mutex> lock(fatalMutex);
+          if (out.fatal.empty())
+            out.fatal = request.name + ": the cobordism graph's gates: " + j.contradiction;
+        }
+        noteStop("fatal-bug");
+        e.requestStop();
+        e.skipRemainingBoundaryProcessing();
+        std::lock_guard<std::mutex> lock(judging.mutex);
+        judging.finds.clear();
+        judging.closing = true;
+        return;
+      }
+    });
+  // The judge's last finds are judged before anything reads this search's
+  // outcome; on every way out, its thread is joined.
+  auto finishJudging = [&] {
+    if (!judging.thread.joinable()) return;
+    {
+      std::lock_guard<std::mutex> lock(judging.mutex);
+      judging.closing = true;
+    }
+    judging.wake.notify_all();
+    judging.thread.join();
+  };
+  struct JudgeJoin {
+    std::function<void()> f;
+    ~JudgeJoin() { f(); }
+  } judgeJoin{finishJudging};
+
   const auto searchStart = std::chrono::steady_clock::now();
   out.setup = std::chrono::duration<double>(searchStart - wall0).count();
   const SearchStats stats = e.search(
@@ -631,6 +699,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     out.pairSigFinishSeconds = signer->finishSeconds();
     rowsearch::printPairSignatures(std::cout, request.name, out);
   }
+  finishJudging();
   watchdog->stop();
   if (surfaceLog)
     surfaceLog->finalize();
