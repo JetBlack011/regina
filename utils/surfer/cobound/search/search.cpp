@@ -192,8 +192,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   if (signDuringSearch ? !sweep.record || !sweep.names : !request.row)
     throw std::logic_error("HopSearcher::run(): the request lacks what its "
                            "signing needs");
-  if (policy_.judgeInSearch && (!sweep.bounds || !sweep.names))
-    throw std::logic_error("HopSearcher::run(): judging needs bounds and names");
   if (request.judge && !request.row)
     throw std::logic_error("HopSearcher::run(): the graph reads finds on the request's row");
 
@@ -319,7 +317,7 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   std::mutex keptMutex;
   std::unordered_set<std::string> keys;
   std::atomic<bool> stopped{false};
-  // judgeInSearch: whether this search has found a constructive witness.
+  // request.judge: whether the graph has judged a find constructive.
   std::atomic<bool> constructive{false};
   std::mutex fatalMutex;
   // request.judge: the cobordism graph's judgement of each find, on its own
@@ -554,41 +552,6 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
                             .faces = {},
                             .key = {},
                             .witness = w});
-    if (!policy_.judgeInSearch)
-      return;
-
-    // Does this witness alone already settle the row? Checked cheaply
-    // against the bounds as of the last full solve rather than by
-    // re-running the solver here: the far side's own bound can only have
-    // improved since, so this under-reports at worst, and the next solve
-    // picks up anything it missed. Whether the bound leans on a literature
-    // value decides whether the row may be considered settled: stopping the
-    // search on an assisted one would forfeit the chance of finding the
-    // surface that upgrades it.
-    const cobordismgraph::UpperBoundVia via =
-        cobordismgraph::upperBoundVia(w, *sweep.bounds, *sweep.names);
-    const int implied = via.genus;
-    if (implied != cobordismgraph::NO_UPPER_BOUND && implied <= sweep.literatureLo &&
-        !via.assisted) {
-      // Only a CONSTRUCTIVE result settles a row. An assisted one is a
-      // correct deduction but not an independent verification.
-      // Announce on stdout, once, the first time this row resolves.
-      // Previously the only sign was "-- ACHIEVED" appearing in the
-      // redrawn stderr progress block, which is invisible to any log filter
-      // and vanishes as soon as the next block overwrites it -- so a row
-      // could sit verified-but-unwritten for hours with nothing in the log
-      // to say so. Checkpoint immediately too: this is the single most
-      // valuable moment in a row, and every search harvests, so the row may
-      // keep running for hours afterwards.
-      if (!constructive.exchange(true, std::memory_order_relaxed)) {
-        std::cout << "[+] " << request.name
-                  << ": CONSTRUCTIVE witness found -- reaches genus " << implied
-                  << " (literature [" << sweep.literatureLo << ", "
-                  << sweep.literatureHi << "]). Checkpointing now.\n"
-                  << std::flush;
-        sweep.record->checkpoint(/*force=*/true);
-      }
-    }
   };
 
   // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
@@ -645,6 +608,23 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
           j = request.judge(k);
         } catch (const std::exception &ex) {
           j.contradiction = std::string("the cobordism graph failed: ") + ex.what();
+        }
+        // Only a CONSTRUCTIVE result settles a row: an assisted one is a
+        // correct deduction but not an independent verification. Announced
+        // on stdout, once, the first time: otherwise the only sign is "--
+        // ACHIEVED" in the redrawn stderr progress block, invisible to any
+        // log filter, and a row could sit verified-but-unwritten for hours
+        // with nothing in the log to say so. Checkpointed at once too: this
+        // is the single most valuable moment in a row, and every search
+        // harvests, so the row may keep running for hours afterwards.
+        if (j.constructive && !constructive.exchange(true, std::memory_order_relaxed)) {
+          std::cout << "[+] " << request.name
+                    << ": CONSTRUCTIVE witness found -- reaches genus " << *j.constructive
+                    << " (literature [" << sweep.literatureLo << ", " << sweep.literatureHi
+                    << "]). Checkpointing now.\n"
+                    << std::flush;
+          if (signDuringSearch)
+            sweep.record->checkpoint(/*force=*/true);
         }
         if (j.contradiction.empty()) continue;
         // The graph's gates: something the search or the naming computed is

@@ -208,14 +208,6 @@ struct SearchPolicy {
   /// lacks that check).
   bool frontierNeedsExamined = false;
 
-  /// Divergence 10, who judges whether a find is constructive: the search
-  /// itself, each new witness against the solver's bounds as of the last
-  /// solve (cobordismgraph::upperBoundVia(); verifyslicegenus). It prints
-  /// the CONSTRUCTIVE line and forces a checkpoint at the first constructive
-  /// find. Needs SweepInputs. (Contradictions are the cobordism graph's in
-  /// every run since divergence 6: SearchRequest::judge.)
-  bool judgeInSearch = false;
-
   /// Divergence 7, signing. `duringSearch` (verifyslicegenus): one witness
   /// per identity across the whole database (SweepInputs::record), each new
   /// one signed off the drain threads (WitnessSigner) and appended at the
@@ -235,11 +227,10 @@ struct SweepInputs {
   /// Signing::duringSearch: where new witnesses are claimed and published.
   RecordedWitnesses *record = nullptr;
   /// The literature, for each witness's other_candidates (re-derived per
-  /// witness, as every reader of the field does) and for judging.
+  /// witness, as every reader of the field does).
   const cobordismgraph::NameTable *names = nullptr;
-  /// judgeInSearch: the solver's bounds as of the last solve.
-  const std::unordered_map<std::string, cobordismgraph::Bounds> *bounds = nullptr;
-  /// The row's literature interval: judging, and the progress block.
+  /// The row's literature interval: the CONSTRUCTIVE line, and the progress
+  /// block.
   int literatureLo = 0, literatureHi = 0;
   /// The witnesses' thicken_layers (provenance).
   int thickenLayers = 1;
@@ -264,6 +255,11 @@ struct FindJudgement {
   /// A contradiction the find brought into the graph (its gates): the search
   /// ends, and HopRun::fatal says why. Empty, normally.
   std::string contradiction;
+  /// The searched link's least genus, once a proof resting on no literature
+  /// value reaches its literature lower bound (divergence 10): the first
+  /// time, the search announces it (the CONSTRUCTIVE line, `-- ACHIEVED` in
+  /// the progress block) and checkpoints at once.
+  std::optional<int> constructive;
 };
 
 /// A surface a hop kept.
@@ -326,12 +322,13 @@ struct SearchRequest {
   /// threads, one at a time); the search ends when it returns true.
   std::function<bool(const KeptSurface &)> stop;
   /// The cobordism graph's judgement of each find, as it is kept (plan
-  /// divergence 6): called on a thread of its own, one find at a time, in
-  /// the order they were kept, so the drain never waits for it; the search
-  /// waits for the last one before it returns. A contradiction ends the
-  /// search. Needs `row` (each find's outgoing link is read on it). Unset:
-  /// the caller's graph judges the search's finds once it returns (a goal
-  /// run's, which spans every search of the run).
+  /// divergences 6 and 10): called on a thread of its own, one find at a
+  /// time, in the order they were kept, so the drain never waits for it;
+  /// the search waits for the last one before it returns. A contradiction
+  /// ends the search; the first constructive find is announced. Needs `row`
+  /// (each find's outgoing link is read on it). Unset: the caller's graph
+  /// judges the search's finds once it returns (a goal run's, which spans
+  /// every search of the run).
   std::function<FindJudgement(const KeptSurface &)> judge;
 
   SweepInputs sweep;

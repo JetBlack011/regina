@@ -806,12 +806,14 @@ void usage(const char *progName, const std::string &error = std::string()) {
          "--input: rows\n"
          "                     already here from a different --input (e.g. "
          "a knots run's\n"
-         "                     --output reused for a links run) are kept "
-         "and can still be\n"
-         "                     resolved by cobordism propagation this run "
-         "even though\n"
-         "                     they're never re-searched -- point multiple "
-         "runs with\n"
+         "                     --output reused for a links run) are kept, "
+         "and --solve-only\n"
+         "                     re-derives them from --cobordisms even though "
+         "they're never\n"
+         "                     re-searched (a search run writes each row's "
+         "search record,\n"
+         "                     its status and bounds left as they were) -- "
+         "point multiple runs with\n"
          "                     different --input tables at the same "
          "--output to build one\n"
          "                     shared knot+link genus table over time.\n";
@@ -2038,6 +2040,13 @@ int main(int argc, char *argv[]) {
   // A resolution/alias contradiction is a data error, not a bug, so it exits
   // rather than aborting; caught here because the table is static -- if it
   // contradicts at all, it does so on this first solve.
+  //
+  // The solver serves --solve-only alone (plan divergence 10): a search run
+  // judges each search's finds by the search's own cobordism graph, and
+  // writes each row's search record, leaving its status and bounds as they
+  // were (merge_cobordisms.py reads only the search record from a shard).
+  std::unordered_map<std::string, cobordismgraph::Bounds> bounds;
+  if (solveOnly) {
   std::vector<cobordismgraph::Witness> initialWitnesses;
   try {
     initialWitnesses = solverWitnesses();
@@ -2045,7 +2054,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "[!] " << e.what() << "\n";
     return 1;
   }
-  auto bounds = cobordismgraph::propagate(initialWitnesses, names, externalProofs);
+  bounds = cobordismgraph::propagate(initialWitnesses, names, externalProofs);
   // Release it now: it is a full witness set, pair signatures included, and
   // held for the rest of the run it raised peak memory by ~45% -- enough for
   // a full-master --solve-only to be OOM-killed on yoga (2026-09-24).
@@ -2065,6 +2074,7 @@ int main(int argc, char *argv[]) {
               << "\n";
   std::cout << "[+] Solver: derived bounds for " << bounds.size()
             << " names\n\n";
+  }
 
   std::vector<InputRow> pending;
   pending.reserve(rows.size());
@@ -2100,10 +2110,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Re-solves from the full witness set and rewrites every affected output
-  // row. Cheap (pure integer relaxation over the witness list), so it runs
-  // after every row rather than only at the end -- which is what lets one
-  // row's harvested cobordisms settle a later row before it is ever
-  // searched.
+  // row: --solve-only's one solve (a search run never solves: divergence 10).
   auto resolveAll = [&]() -> std::vector<std::string> {
     bounds = cobordismgraph::propagate(solverWitnesses(), names, externalProofs);
     std::vector<std::string> contradictions;
@@ -2153,7 +2160,6 @@ int main(int argc, char *argv[]) {
   // divergence the plan removes in phase 4(b) (search/search.h, SearchPolicy).
   cascade::SearchPolicy policy;
   policy.frontierNeedsExamined = true;
-  policy.judgeInSearch = true;
   policy.signing = cascade::SearchPolicy::Signing::duringSearch;
 
   // Every row's search shape, but for its boundary condition (per row,
@@ -2285,7 +2291,6 @@ int main(int argc, char *argv[]) {
     request.censusName = cobordismgraph::baseName(row.name);
     request.sweep = {.record = &recorded,
                      .names = &names,
-                     .bounds = &bounds,
                      .literatureLo = row.lo,
                      .literatureHi = row.hi,
                      .thickenLayers = thickenLayers};
@@ -2298,6 +2303,7 @@ int main(int argc, char *argv[]) {
       cascade::FindJudgement j;
       if (!v.contradictions.empty())
         j.contradiction = v.contradictions.front();
+      j.constructive = v.constructive;
       return j;
     };
     request.outputs = {.progress = true,
@@ -2369,13 +2375,6 @@ int main(int argc, char *argv[]) {
         out.status = "unresolved";
     }
 
-    std::vector<std::string> contradictions = resolveAll();
-    {
-      OutputRow &out = outputRows[row.name];
-      out.searchedFaces = maxFaces.value_or(0);
-      out.searchOutcome = run.outcome;
-    }
-
     recorded.flush();
     writeOutputCsv(*outputPath, rows, outputRows);
 
@@ -2401,8 +2400,6 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    for (const std::string &reason : contradictions)
-      flagFatalBug(reason);
     // Divergence 2: a state that cannot occur halts the run, now that this
     // row's witnesses are written; any other accounting failure ends only
     // this search (its outcome is `unaccounted`; no frontier, no exhaustion
@@ -2443,36 +2440,13 @@ int main(int argc, char *argv[]) {
                 << " accepted surfaces have unlinked self-intersections "
                    "(--resolve-unlinked)\n";
 
-    auto verdict = outputRows.find(row.name);
-    if (verdict != outputRows.end()) {
-      const OutputRow &out = verdict->second;
-      if (out.status == "verified")
-        std::cout << "\x1b[1;32m[+] " << row.name << ": VERIFIED at genus "
-                  << out.resolvedGenus << " (constructive)\x1b[0m\n";
-      else if (out.status == "verified-assisted")
-        std::cout << "\x1b[1;36m[+] " << row.name << ": reaches genus "
-                  << out.resolvedGenus
-                  << ", but via another name's literature value -- NOT an "
-                     "independent verification\x1b[0m\n";
-      else if (out.status == "improved")
-        std::cout << "\x1b[1;33m[!!] " << row.name
-                  << ": IMPROVED upper bound to " << out.resolvedGenus
-                  << ", beating the literature's " << out.literatureHi
-                  << " (" << out.witnessBasis << ")\x1b[0m\n";
-      else
-        std::cout << "[+] " << row.name << ": " << out.status
-                  << (out.derivedHi.empty() ? "" : " (upper bound " +
-                                                       out.derivedHi + ")")
-                  << "\n";
-    }
-
     ++processedThisRun;
   }
 
-  // One last solve, so a run that searched nothing (or was cut short) still
-  // reflects everything its witness file knows.
-  for (const std::string &reason : resolveAll())
-    flagFatalBug(reason);
+  // --solve-only: the solve, from everything the witness file knows.
+  if (solveOnly)
+    for (const std::string &reason : resolveAll())
+      flagFatalBug(reason);
   recorded.flush();
   writeOutputCsv(*outputPath, rows, outputRows);
   haltIfFatalBugDetected();
@@ -2497,11 +2471,12 @@ int main(int argc, char *argv[]) {
             << (sweepTimedOut ? " (sweep time limit reached)" : "") << ".\n";
   std::cout << "[+] Witness file: " << witnesses.size() << " witnesses in "
             << cobordismsPath << "\n";
-  std::cout << "[+] Totals across " << outputRows.size()
-            << " tracked names: " << verified << " verified ("
-            << verifiedAssisted << " more only with literature help), "
-            << improved << " improved, " << pinnedCount << " pinned, "
-            << unresolvedCount << " unresolved.\n";
+  if (solveOnly)
+    std::cout << "[+] Totals across " << outputRows.size()
+              << " tracked names: " << verified << " verified ("
+              << verifiedAssisted << " more only with literature help), "
+              << improved << " improved, " << pinnedCount << " pinned, "
+              << unresolvedCount << " unresolved.\n";
   if (!unaccounted.empty()) {
     std::cerr << "[!] " << unaccounted.size()
               << " search(es) failed their surface accounting (first: "

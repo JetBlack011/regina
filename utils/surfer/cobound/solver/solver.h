@@ -225,29 +225,6 @@ std::string
 buildDependsOn(const std::string &via,
                const std::unordered_map<std::string, Bounds> &bounds);
 
-/** What one witness implies, on its own, for its subject's upper bound
- *  (upperBoundVia()). */
-struct UpperBoundVia {
-    int genus = NO_UPPER_BOUND; /**< NO_UPPER_BOUND when it implies nothing. */
-    bool assisted = false;
-    /**< Whether that bound leans on a literature value anywhere: a
-         conclusion resting on someone else's literature number is not an
-         independent verification (Basis::literatureAssisted). */
-};
-
-/**
- * The upper bound witness `w` alone implies for its subject, from `bounds`
- * (as of the last propagate()) and the literature in `names`: the search's
- * own check of each new witness (verifyslicegenus's in-search check, moved
- * here unchanged). A weaker hand copy of propagate()'s witness rule -- the
- * worse of `w.otherCandidates`' bounds rather than the better, and no split
- * or composite rules -- so it under-reports at worst, and the next
- * propagate() picks up what it missed. The plan's divergence 10 replaces it
- * with the cobordism graph's judgement.
- */
-UpperBoundVia upperBoundVia(const Witness &w,
-                            const std::unordered_map<std::string, Bounds> &bounds,
-                            const NameTable &names);
 } // namespace cobordismgraph
 
 #endif // SURFER_COBOUND_SOLVER_H

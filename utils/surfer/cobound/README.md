@@ -380,6 +380,17 @@ row's literature lower bound). It reads finds on the row collared through
 every layer, so a search needs `--collar-layers` equal to `--thicken-layers`
 and no `--cone`, and it needs the knot and link tables.
 
+The same graph says when a depth-0 search is constructive (plan divergence
+10): once a proof of the searched link's literature lower bound rests on no
+literature value, the search prints `[+] X: CONSTRUCTIVE witness found --
+reaches genus g (literature [lo, hi]). Checkpointing now.` (the text is
+frozen; `-- ACHIEVED` in the progress block with it) and checkpoints at once.
+It reads no database, so a link constructive only through another row's
+cobordisms is not announced; that is the solve's to find. The atlas solver
+runs only for `--solve-only`: a search run writes each row's search record
+(`exhausted_depth`, `searched_faces`, `search_outcome`) and leaves its status
+and bounds as they were, and prints no verdict line and no totals.
+
 ## Assumptions and their tests
 
 | # | assumption | test |
