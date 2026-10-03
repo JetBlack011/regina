@@ -34,6 +34,7 @@
 #include "cobound/bounds/axioms.h"
 #include "cobound/bounds/searchjudge.h"
 #include "cobound/cobordisms/cobordism.h"
+#include "cobound/driver/signals.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
 #include "cobound/solver/literature.h"
@@ -1748,6 +1749,12 @@ int main(int argc, char *argv[]) {
           << "row,reason,tubed_genus,connected,boundary,pairsig\n";
   }
 
+  // One policy for SIGINT and SIGTERM (divergence 8): the first ends the
+  // current row's search cleanly and the run searches no further row; a
+  // second ends the process. A solve keeps the default (it only computes).
+  if (!solveOnly)
+    runsignals::install();
+
   std::cout << "------ verifyslicegenus \U0001F30A ------\n\n";
   std::cout << (censusLoaded ? "[+] census: loaded from "
                             : "[+] census: not found at ")
@@ -2248,6 +2255,11 @@ int main(int argc, char *argv[]) {
   bool sweepTimedOut = false;
 
   for (const auto &row : pending) {
+    if (runsignals::interrupted()) {
+      std::cout << "[!] " << runsignals::name()
+                << ": the run searches no further row\n";
+      break;
+    }
     if (sweepTimeLimit &&
         std::chrono::steady_clock::now() - sweepStart >
             std::chrono::duration<double>(*sweepTimeLimit)) {

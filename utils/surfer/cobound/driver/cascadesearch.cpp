@@ -69,6 +69,7 @@
 #include <link/link.h>
 
 #include "surfer/report/csvwriter.h"
+#include "cobound/driver/signals.h"
 #include "cobound/driver/timers.h"
 #include "cobound/json.h"
 #include "cobound/parallelfor.h"
@@ -1865,6 +1866,13 @@ int Cascade::run() {
     // Checked after the gates (divergence 6): a contradiction met together
     // with the goal still halts the run, never certifies through it.
     if (goalMet()) break;
+    // A first SIGINT or SIGTERM ended the search that was running, cleanly
+    // (divergence 8): no further search.
+    if (runsignals::interrupted()) {
+      std::cout << "[!] " << runsignals::name() << ": the run searches no further\n";
+      stopReason_ = "interrupted";
+      break;
+    }
     // Free edges first (no search, so no budget): the target's own master
     // rows, if it is a table entry the atlas searched.
     if (master_ && !masterDone_.count(target_) && masterRowsFor(target_)) {
@@ -2236,6 +2244,10 @@ int main(int argc, char **argv) {
   }
   if (c.targetName.empty()) c.targetName = "target";
   try {
+    // One policy for SIGINT and SIGTERM (divergence 8): the first ends the
+    // running search cleanly and the run searches no further; a second ends
+    // the process.
+    runsignals::install();
     Cascade cascade(c);
     return cascade.run();
   } catch (const std::exception &e) {

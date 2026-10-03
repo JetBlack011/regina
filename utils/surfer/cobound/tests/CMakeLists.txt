@@ -51,13 +51,16 @@ add_test(NAME name_independence_test
 set_tests_properties(name_independence_test PROPERTIES
   LABELS "surfer" TIMEOUT 600)
 
-# A search stopped by SIGINT must not be recorded as having run out of
-# candidates. See the script's header.
+# SIGINT and SIGTERM end the running search cleanly and the run searches no
+# further, at depth 0 and with a goal; an interrupted search is never
+# recorded as having run out of candidates (plan divergence 8). See the
+# script's header.
 add_test(NAME interrupted_outcome_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/interrupted_outcome_test.sh
-                 $<TARGET_FILE:verifyslicegenus>)
+                 $<TARGET_FILE:verifyslicegenus> $<TARGET_FILE:cascadesearch>
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set_tests_properties(interrupted_outcome_test PROPERTIES
-  LABELS "surfer" TIMEOUT 300 SKIP_RETURN_CODE 77)
+  LABELS "surfer" TIMEOUT 600 SKIP_RETURN_CODE 77)
 
 # A goal run must explore the same links whatever the heap layout (phase
 # 3.0). Needs the atlas's tables; skipped without them. See the script's

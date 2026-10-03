@@ -553,6 +553,15 @@ public:
   void setRecordFrontier(bool record) { recordFrontier_ = record; }
 
   /**
+   * Whether search() handles SIGINT itself, for its duration: the first
+   * stops the search (as requestStop() does), a second ends the process. On
+   * by default (surfer.cpp). A program with its own process-level policy
+   * (cobound's: SIGINT and SIGTERM alike) turns it off and stops a search
+   * through requestStop().
+   */
+  void setSigintHandling(bool handle) { handleSigint_ = handle; }
+
+  /**
    * The last search()'s frontier, if it recorded one: cumulative over the
    * frontier it resumed, if it resumed one.
    */
@@ -602,6 +611,7 @@ protected:
 private:
   const SearchFrontier *resumeFrontier_ = nullptr;
   bool recordFrontier_ = false;
+  bool handleSigint_ = true;
   std::optional<SearchFrontier> frontier_;
   bool resumed_ = false;
   std::string resumeRefusal_;

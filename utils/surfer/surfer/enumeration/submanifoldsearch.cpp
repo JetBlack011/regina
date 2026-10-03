@@ -213,7 +213,9 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     stopRequested_.store(false, std::memory_order_relaxed);
     pauseRequested_.store(false, std::memory_order_relaxed);
-    SigintScope sigintScope(stopRequested_);
+    std::optional<SigintScope> sigintScope;
+    if (handleSigint_)
+        sigintScope.emplace(stopRequested_);
 
     // Shared dynamic work queue over roots. Unseeded: every graph vertex,
     // unconditionally (matches the old s = 1..n sweep exactly). Seeded:

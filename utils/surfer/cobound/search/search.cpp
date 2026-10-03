@@ -18,6 +18,7 @@
 #include <sys/resource.h>
 
 #include "cobound/cobordisms/pending.h"
+#include "cobound/driver/signals.h"
 #include "cobound/driver/timers.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
@@ -207,6 +208,8 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
     eOpt.emplace(rb.tri, rb.seedFaces, rb.searchSideBC);
   SurfaceSearch &e = *eOpt;
   e.configureLimits(shape.limits);
+  // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
+  e.setSigintHandling(false);
   // The search's frontier: carried on from, and recorded. A frontier whose
   // finds may not be signed yet is refused first (divergence 1): skipping
   // its prefix would leave them nowhere but a pending file nobody signs.
@@ -376,9 +379,13 @@ HopRun HopSearcher::run(const rowsearch::RowBuild &rb,
   // handed to us, so it publishes it there.
   std::optional<rowsearch::RowWatchdog> watchdog;
   SurfaceSearchCallbacks callbacks;
-  // A stop nobody else noted (SIGINT) is not running out of candidates.
+  // A stop nobody else noted (a signal: divergence 8) is not running out of
+  // candidates.
   callbacks.onInterrupted = [&] { noteStop("interrupted"); };
   callbacks.onProgress = [&](const SearchStats &stats) {
+    // The process's signal policy (driver/signals.h): a first SIGINT or
+    // SIGTERM stops this search within a tick; its drain still finishes.
+    if (runsignals::interrupted()) e.requestStop();
     if (watchdog) watchdog->publishSatisfying(stats.satisfyingCount);
     if (outputs.progress) rowsearch::printProgress(stats, e);
     // The pending file's 60 s writes run through the enumeration too, not
