@@ -27,6 +27,7 @@
 
 #include "surfer/report/csvwriter.h"
 #include "cobound/cobordisms/cobordismkey.h"
+#include "cobound/frozen.h"
 #include "linknaming/names.h"
 
 namespace cobordisms {
@@ -246,7 +247,7 @@ DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
   // The row-PD sidecar (pending.cpp: witness,layers,row_pd), if any: a
   // cobordism recorded by a cascade hop was searched on its node's
   // simplified diagram, and can only be read back on that row.
-  if (std::ifstream side(path + ".rows.csv"); side) {
+  if (std::ifstream side(path + kFrozenRowsSidecarSuffix); side) {
     std::getline(side, line);
     while (std::getline(side, line)) {
       auto f = parseCsvLine(line);

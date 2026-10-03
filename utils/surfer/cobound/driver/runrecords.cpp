@@ -14,6 +14,7 @@
 #include "cobound/bounds/searchcobordisms.h"
 #include "cobound/json.h"
 #include "cobound/parallelfor.h"
+#include "cobound/frozen.h"
 #include "linknaming/complement/unlinknaming.h"
 #include "linknaming/diagrams/gaussdiagram.h"
 #include "surfer/report/csvwriter.h"
@@ -23,7 +24,7 @@ namespace runrecords {
 using namespace bounds;
 
 void append(const std::string &work, const std::string &line) {
-  std::ofstream(work + "/cascade.jsonl", std::ios::app) << line << "\n";
+  std::ofstream(work + "/" + kFrozenCascadeJsonl, std::ios::app) << line << "\n";
 }
 
 void writeProfiles(const std::string &work, const GraphView &v,
@@ -31,7 +32,7 @@ void writeProfiles(const std::string &work, const GraphView &v,
                    const std::function<bool(NodeId)> &searched) {
   const ProofGraph &g = v.g;
   const NodeRegistry &reg = v.reg;
-  std::ofstream out(work + "/profiles.jsonl");
+  std::ofstream out(work + "/" + kFrozenProfilesJsonl);
   for (NodeId n = 0; n < static_cast<NodeId>(g.nodeCount()); ++n) {
     // A crossingless node is named as the store names it (cascade_record.py):
     // it is never a hop's subject, so subjectName() has no better name.
@@ -59,12 +60,12 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
   using Kind = ProofGraph::LowerReason::Kind;
   const ProofGraph &g = v.g;
   const NodeRegistry &reg = v.reg;
-  std::ofstream o(work + "/node_bounds.jsonl");
+  std::ofstream o(work + "/" + kFrozenNodeBoundsJsonl);
   auto kindName = [](Kind k) {
     switch (k) {
     case Kind::literature: return "literature";
     case Kind::linking: return "linking";
-    case Kind::witness: return "witness";
+    case Kind::witness: return kFrozenLowerKindWitness;
     case Kind::splitWhole: return "split-whole";
     case Kind::splitPiece: return "split-piece";
     case Kind::seed: return "seed";
@@ -219,10 +220,10 @@ void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> 
                    const NodeRegistry &reg) {
   // The cascade: subjects, as the atlas's results/cascade/nodes.csv lists
   // them (cascade_record.py), so a later identity can be attached to each.
-  std::ofstream nodes(work + "/nodes.csv");
+  std::ofstream nodes(work + "/" + kFrozenNodesCsv);
   nodes << "name,components,crossings,pd,signs,gauss,label\n";
   for (const auto &[n, name] : subjects) {
-    if (name.rfind("cascade:", 0) != 0) continue;
+    if (name.rfind(kFrozenCascadeSubjectPrefix, 0) != 0) continue;
     const linknaming::GaussDiagram &d = reg.info(n).diagram;
     std::ostringstream signs, gauss;
     signs << '[';
@@ -237,7 +238,7 @@ void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> 
     gauss << ']';
     nodes << csvField(name) << ',' << d.components() << ',' << d.crossings() << ','
           << csvField(rowPD(d)) << ',' << csvField(signs.str()) << ','
-          << csvField(gauss.str()) << ",node " << n << '\n';
+          << csvField(gauss.str()) << ',' << kFrozenNodesCsvLabel << n << '\n';
   }
 }
 

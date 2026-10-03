@@ -60,6 +60,7 @@
 #include "cobound/cobordisms/cobordismkey.h"
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"
+#include "cobound/frozen.h"
 
 namespace scheduler {
 
@@ -265,7 +266,8 @@ std::string Cascade::subjectName(NodeId n) const {
   if (n == target_ && cfg_.targetName != "target") return cfg_.targetName;
   if (auto it = tableName_.find(n); it != tableName_.end() && tables_.entry(it->second))
     return it->second;
-  return "cascade:" + cfg_.runName + "/" + cfg_.targetName + "/n" + std::to_string(n);
+  return kFrozenCascadeSubjectPrefix + cfg_.runName + "/" + cfg_.targetName +
+         kFrozenCascadeSubjectNodeMark + std::to_string(n);
 }
 
 void Cascade::storeWitnesses() {
@@ -277,7 +279,7 @@ void Cascade::storeWitnesses() {
                                     cfg_.pairSigCache);
   storedAppended_ = s.appended;
   storeResult_ = s;
-  std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+  std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
             << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
 }
@@ -499,7 +501,8 @@ void Cascade::expand(NodeId n, long surfaces) {
     return;
   }
   const int k = hops_++;
-  const std::string dir = cfg_.work + "/hop_" + std::to_string(k) + "_n" + std::to_string(n);
+  const std::string dir = cfg_.work + "/" + kFrozenHopDirPrefix + std::to_string(k) +
+                          kFrozenHopDirNodeMark + std::to_string(n);
   fs::create_directories(dir);
   const GaussDiagram &d = reg_.info(n).diagram;
   HopRow row;
@@ -642,23 +645,24 @@ void Cascade::expand(NodeId n, long surfaces) {
     // Every hop's accounting in the driver log too, in verifyslicegenus's
     // shape after the hop number, so a campaign audits each hop as it
     // audits a row (tools/orchestrate/audit_rows.py).
-    std::cout << "[+] hop " << k << " " << rowName << ": accounting: " << run.accounting
-              << "\n[+] hop " << k << " " << rowName << ": diagram naming: " << run.naming
+    std::cout << "[+] " << kFrozenHopLine << k << " " << rowName << ": accounting: "
+              << run.accounting << "\n[+] " << kFrozenHopLine << k << " " << rowName
+              << ": diagram naming: " << run.naming
               << "\n";
     if (run.impossible > 0) {
       // Divergence 2: a state that cannot occur halts the run, once this
       // hop's finds are recorded (below) and stored (run()), even if they
       // meet the goal.
-      halt_ = "hop " + std::to_string(k) + ": surface accounting failed -- " +
+      halt_ = kFrozenHopLine + std::to_string(k) + ": surface accounting failed -- " +
               std::to_string(run.impossible) + " surfaces hit a state that cannot occur";
       std::cout << "[!!] HALT: " << halt_ << "\n";
     } else if (!run.accountingFailure.empty()) {
-      std::cout << "[!!] hop " << k << ": surface accounting failed -- "
+      std::cout << "[!!] " << kFrozenHopLine << k << ": surface accounting failed -- "
                 << run.accountingFailure << " (completeness only: nothing unsound "
                 << "is recorded)\n";
     }
     // The node's breadth so far, and where its next hop carries on from.
-    std::cout << "[+] hop " << k << " " << rowName << ": breadth: "
+    std::cout << "[+] " << kFrozenHopLine << k << " " << rowName << ": breadth: "
               << (run.frontier ? run.frontier->summary() : std::string("not recorded"))
               << "; resumed "
               << (!resume ? std::string("none")
@@ -671,7 +675,8 @@ void Cascade::expand(NodeId n, long surfaces) {
       try {
         run.frontier->save(dir + "/frontier.txt");
       } catch (const std::exception &e) {
-        std::cout << "[!] hop " << k << ": frontier not written: " << e.what() << "\n";
+        std::cout << "[!] " << kFrozenHopLine << k << ": frontier not written: " << e.what()
+                  << "\n";
       }
       frontiers_[n] = std::move(*run.frontier);
     } else {
@@ -682,7 +687,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     witnesses = run.kept.size();
     for (size_t i = 0; i < run.kept.size(); ++i) {
       KeptSurface &ks = run.kept[i];
-      const std::string key = "hop" + std::to_string(k) + "#" + std::to_string(i);
+      const std::string key = kFrozenHopKeyPrefix + std::to_string(k) + "#" + std::to_string(i);
       take(key, ks.farName, [&] { return hop->addRead(ks.link, ks.genus, key); },
            std::move(ks.faces));
     }
@@ -727,7 +732,8 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"kept_s\":" << driver_.kept - driverAtLastHop_.kept << "}";
   driverAtLastHop_ = driver_;
   log(o.str());
-  std::cout << "[+] hop " << k << ": node " << n << " (" << d.crossings() << " crossings, "
+  std::cout << "[+] " << kFrozenHopLine << k << ": node " << n << " (" << d.crossings()
+            << " crossings, "
             << d.components() << " components): " << witnesses << " witnesses, "
             << assembled << " assembled, " << (g_.nodeCount() - nodesBefore)
             << " new nodes; " << std::fixed << std::setprecision(0) << r.wall << " s wall, "
@@ -994,12 +1000,17 @@ void Cascade::printOutcome(const std::string &outcome) const {
   // The line a campaign's runner parses, in verifyslicegenus's own shape
   // (dispatch.py RE_OUTCOME): witnesses newly recorded, and why the run ended.
   std::cout << "[+] " << cfg_.targetName << ": " << storedAppended_
-            << " new witnesses, outcome " << outcome << "\n";
+            << kFrozenNewWitnessesOutcome << outcome << "\n";
 }
 
 void Cascade::printProfile() const {
   // Everything that decides what a run covers, as key=value, so a campaign
   // records what actually ran rather than what its configuration asked for.
+  // The keys are cascadesearch's option names (frozen: campaigns record
+  // them), not the config's: hop_surfaces is surface_target,
+  // max_hop_surfaces max_surface_target, max_expansions max_searches,
+  // recognition_cache_limit complement_cache_limit, master_witnesses and
+  // witness_store the databases read and signed into.
   const HopShape &s = cfg_.hopShape;
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
             << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower

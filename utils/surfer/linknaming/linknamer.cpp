@@ -722,6 +722,11 @@ std::string NamingStats::slowest() const {
     return slowest_;
 }
 
+// The count of curve sets drawn, as the `diagram naming:` line has always
+// spelled it (name_independence_test.sh reads it): frozen until the atlas
+// task's format change.
+constexpr char kFrozenFarSidesDrawn[] = " far sides drawn: unknot ";
+
 std::string NamingStats::summary() const {
     auto secs = [](long long micros) {
         std::ostringstream o;
@@ -729,7 +734,7 @@ std::string NamingStats::summary() const {
         return o.str();
     };
     std::ostringstream o;
-    o << calls << " far sides drawn: unknot " << unknots << ", unlink " << unlinks
+    o << calls << kFrozenFarSidesDrawn << unknots << ", unlink " << unlinks
       << ", table knot " << tableKnots << ", learned knot " << learnedKnots
       << ", table link " << tableLinks << ", other link " << diagramLinks << " (+"
       << jonesLinks << " by Jones), learned link " << learnedLinks

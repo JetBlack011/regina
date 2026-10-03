@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "cobound/parallelfor.h"
+#include "cobound/frozen.h"
 
 using linknaming::GaussDiagram;
 
@@ -107,7 +108,8 @@ void NodeAxioms::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int
   std::vector<std::vector<int>> maps;
   for (size_t k = 0; k < primes.size(); ++k) {
     const GaussDiagram &p = primes[k];
-    NodeMatch m = reg_.intern(p, "summand " + std::to_string(k) + " of node " + std::to_string(n));
+    NodeMatch m = reg_.intern(p, "summand " + std::to_string(k) + kFrozenSummandOfNodeLabel +
+                                        std::to_string(n));
     std::vector<int> map(p.components(), -1);
     for (size_t c = 0; c < p.components(); ++c)
       map[static_cast<size_t>(m.componentMap[c])] = static_cast<int>(p.origin[c]);

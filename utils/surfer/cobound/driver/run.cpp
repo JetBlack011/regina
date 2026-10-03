@@ -33,6 +33,7 @@
 #include "cobound/search/searchreport.h"
 #include "cobound/solver/literature.h"
 #include "cobound/solver/verdicts.h"
+#include "cobound/frozen.h"
 #include "linknaming/names.h"
 #include "linknaming/tables.h"
 #include "surfer/report/atomicwrite.h"
@@ -153,7 +154,7 @@ int runWithoutGoal(const config::Config &cfg) {
                        std::filesystem::file_size(*rejectionSampleLogPath, ec) == 0;
     rejectionSampleLog.emplace(*rejectionSampleLogPath, std::ios::app);
     if (!*rejectionSampleLog) refuse("rejection_sample_log: cannot open " + *rejectionSampleLogPath);
-    if (fresh) *rejectionSampleLog << "row,reason,tubed_genus,connected,boundary,pairsig\n";
+    if (fresh) *rejectionSampleLog << kFrozenRejectionSampleHeader;
   }
 
   // One policy for SIGINT and SIGTERM (divergence 8): the first ends the
@@ -207,13 +208,13 @@ int runWithoutGoal(const config::Config &cfg) {
     try {
       exactTables =
           linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath);
-      std::cout << "[+] exact far-side names: " << exactTables->size() << " table entries ("
+      std::cout << kFrozenExactFarSideNamesLine << exactTables->size() << " table entries ("
                 << std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::steady_clock::now() - t0)
                        .count()
                 << " ms)\n";
     } catch (const std::exception &e) {
-      std::cerr << "[!] exact far-side names off: " << e.what() << "\n";
+      std::cerr << kFrozenExactFarSideNamesOff << e.what() << "\n";
     }
   }
   std::optional<linknaming::ExactTables> graphTablesOwn;
@@ -264,9 +265,9 @@ int runWithoutGoal(const config::Config &cfg) {
   if (std::filesystem::is_directory(workDir))
     for (const auto &d : std::filesystem::directory_iterator(workDir)) {
       const std::string n = d.path().filename().string();
-      if (n.rfind("hop_", 0) != 0) continue;
+      if (n.rfind(kFrozenHopDirPrefix, 0) != 0) continue;
       try {
-        nextHop = std::max(nextHop, std::stoi(n.substr(4)) + 1);
+        nextHop = std::max(nextHop, std::stoi(n.substr(sizeof kFrozenHopDirPrefix - 1)) + 1);
       } catch (const std::exception &) {
       }
     }
@@ -277,7 +278,7 @@ int runWithoutGoal(const config::Config &cfg) {
   auto anyPending = [&] {
     if (std::filesystem::is_directory(workDir))
       for (const auto &d : std::filesystem::directory_iterator(workDir))
-        if (d.is_directory() && d.path().filename().string().rfind("hop_", 0) == 0) return true;
+        if (d.is_directory() && d.path().filename().string().rfind(kFrozenHopDirPrefix, 0) == 0) return true;
     return false;
   };
   auto signPending = [&] {
@@ -299,7 +300,7 @@ int runWithoutGoal(const config::Config &cfg) {
         workDir, cobordismsPath, {}, names, numThreads, pairSigCacheDir.value_or(""),
         recorded.loaded(), sidecarLine);
     signedAppended = s.appended;
-    std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+    std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
               << s.appended << " appended to " << cobordismsPath << " (signed in "
               << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n"
               << std::defaultfloat;
@@ -443,7 +444,8 @@ int runWithoutGoal(const config::Config &cfg) {
     request.sweep = {.literatureLo = row.lo, .literatureHi = row.hi};
     // Its finds: kept one per cobordism (none the database holds), written to
     // its pending file as it runs, and signed at the run's end (divergence 7).
-    const std::string hopDir = workDir + "/hop_" + std::to_string(nextHop++) + "_n0";
+    const std::string hopDir = workDir + "/" + kFrozenHopDirPrefix +
+                               std::to_string(nextHop++) + kFrozenHopDirNodeMark + "0";
     std::filesystem::create_directories(hopDir);
     request.pending = hopDir + "/kept.csv";
     request.rowPD = row.pdNotation;

@@ -91,6 +91,7 @@
 #include "surfer/submanifold/vertexlinks.h"
 #include "cobound/driver/commands.h"
 #include "cobound/driver/config.h"
+#include "cobound/frozen.h"
 
 namespace {
 
@@ -179,7 +180,7 @@ int commands::draw(const std::vector<std::string> &args) {
             componentOfRowEdge[i] = compOfT.at(built.edges[i]->index());
     }
     const knotbuilder::Diagram rowDiagram = redraw.drawer().draw(rowCycles);
-    std::cout << "ROW components=" << rowCycles.size() << " lk=" << matrix(rowDiagram)
+    std::cout << kFrozenDrawRowLine << rowCycles.size() << " lk=" << matrix(rowDiagram)
               << (gauss ? gaussFields(rowDiagram) + " build=" + redraw.buildChecksum()
                         : std::string())
               << "\n";

@@ -18,6 +18,7 @@
 #include "cobound/driver/timers.h"
 #include "cobound/json.h"
 #include "cobound/outgoing/fromdatabase.h"
+#include "cobound/frozen.h"
 #include "linknaming/diagrams/simplification.h"
 
 namespace bounds {
@@ -278,10 +279,11 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
       RowNode rn;
       if (r.pd == tablePD_.at(r.name)) {
         rn.diagram = GaussDiagram::of(tables.entry(r.name)->diagram);
-        rn.match = reg.intern(linknaming::simplifyKeepingComponents(rn.diagram), "row " + r.name);
+        rn.match = reg.intern(linknaming::simplifyKeepingComponents(rn.diagram),
+                              kFrozenRowLabel + r.name);
       } else {
         rn.diagram = GaussDiagram::of(linknaming::linkFromTablePD(r.pd));
-        rn.match = reg.intern(rn.diagram, "row " + r.name + " (recorded diagram)");
+        rn.match = reg.intern(rn.diagram, kFrozenRowLabel + r.name + " (recorded diagram)");
       }
       seen = interned.emplace(r.pd, std::move(rn)).first;
       if (ownRows.count(r.name) && seen->second.match.node != n) {

@@ -3,6 +3,7 @@
 #include "cobound/bounds/cobordismgraph.h"
 
 #include "cobound/json.h"
+#include "cobound/frozen.h"
 
 #include <algorithm>
 #include <functional>
@@ -16,8 +17,8 @@ namespace bounds {
 const char *kindName(RecordKind k) {
   switch (k) {
   case RecordKind::leaf: return "leaf";
-  case RecordKind::witnessForward: return "witness-forward";
-  case RecordKind::witnessReverse: return "witness-reverse";
+  case RecordKind::witnessForward: return kFrozenKindWitnessForward;
+  case RecordKind::witnessReverse: return kFrozenKindWitnessReverse;
   case RecordKind::splitCombine: return "split-combine";
   case RecordKind::splitRestrict: return "split-restrict";
   case RecordKind::sumCombine: return "sum-combine";

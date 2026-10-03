@@ -9,6 +9,7 @@
 
 #include "cobound/outgoing/outgoingnamer.h"
 #include "cobound/outgoing/outgoinglink.h"
+#include "cobound/frozen.h"
 #include "linknaming/names.h"
 
 namespace search {
@@ -97,10 +98,10 @@ const char *gateReason(Gate gate) {
     case Gate::accepted: return "accepted";
     case Gate::nonOrientable: return "non-orientable";
     case Gate::unnamedSide: return "unnamed-side";
-    case Gate::searchSideBroken: return "search-side-broken";
+    case Gate::searchSideBroken: return kFrozenReasonSearchSideBroken;
     case Gate::orientation: return "orientation";
     case Gate::orientationBroken: return "orientation-broken";
-    case Gate::multiFarSide: return "multi-far-side";
+    case Gate::multiFarSide: return kFrozenReasonMultiFarSide;
     }
     return "unknown";
 }
@@ -224,12 +225,6 @@ std::string RowAccounting::failure(long long accepted, long long rebuildFailed,
                std::to_string(unnamedSide.load()) + ")";
     return {};
 }
-
-// The accounting line keeps the bucket of the retired unseeded search, whose
-// count is always 0: a frozen token (dispatch.py's RE_ACCOUNTING, the
-// canaries' expected lines).
-static constexpr const char *kFrozenSearchSideElsewhere =
-    ", search-side-elsewhere 0";
 
 std::string RowAccounting::summary(long long accepted, bool drainSkipped) const {
     return "accepted " + std::to_string(accepted) + ", described " +

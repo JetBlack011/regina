@@ -3,6 +3,7 @@
 //
 
 #include "cobound/search/searchreport.h"
+#include "cobound/frozen.h"
 
 #include <fstream>
 #include <iomanip>
@@ -28,8 +29,7 @@ void appendSurfaceStats(const std::filesystem::path &path,
     return;
   }
   if (needHeader)
-    out << "row,max_faces,triangles,orientable,genus,punctures,tubed_genus,"
-           "closed_components,connected,count\n";
+    out << kFrozenSurfaceStatsHeader;
   for (const auto &[key, n] : counts)
     out << csvField(rowName) << ',' << maxFaces << ',' << key.triangles << ','
         << (key.orientable ? "true" : "false") << ',' << key.genus << ','
@@ -51,12 +51,7 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
     return;
   }
   if (needHeader)
-    out << "row,max_faces,resolve_unlinked,satisfying,embedded,resolved,"
-           "singular,interior_unlinked,interior_uncertified,"
-           "boundary_unlinked,boundary_uncertified,multi_open,"
-           "multi_open_search_side,multi_open_far,multi_open_far_clean,"
-           "multi_open_far_simple,far_configs,far_clean_configs,"
-           "configs_saturated,audited,audit_knotted,knotted_pairsigs\n";
+    out << kFrozenSelfIntersectionCensusHeader;
   size_t farConfigs, farCleanConfigs;
   bool saturated;
   {
@@ -171,7 +166,7 @@ void printSweepBreadth(std::ostream &out, const std::string &name,
 }
 
 void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run) {
-  out << "[+] " << name << ": " << run.newWitnesses << " new witnesses, outcome "
+  out << "[+] " << name << ": " << run.newWitnesses << kFrozenNewWitnessesOutcome
       << run.outcome;
   if (run.otherOrientation > 0)
     out << ", " << run.otherOrientation << " surfaces rejected on orientation mismatch";
@@ -193,7 +188,7 @@ void printIdentification(std::ostream &out, const std::string &name,
   };
   const long long censusOk = run.censusWritesAfter.first - run.censusWritesBefore.first;
   const long long censusFailed = run.censusWritesAfter.second - run.censusWritesBefore.second;
-  out << "[+] " << name << ": identification: boundary cache " << b.hits << "/"
+  out << "[+] " << name << kFrozenIdentificationLine << "boundary cache " << b.hits << "/"
       << b.checks << " hits, census checks " << (r.censusChecks - before.censusChecks)
       << " (local hits " << (r.localCensusHits - before.localCensusHits)
       << "), Pachner knots " << (r.pachnerKnots.attempts - before.pachnerKnots.attempts)

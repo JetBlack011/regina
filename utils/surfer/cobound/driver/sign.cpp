@@ -11,6 +11,7 @@
 #include "cobound/driver/commands.h"
 #include "cobound/driver/config.h"
 #include "cobound/solver/literature.h"
+#include "cobound/frozen.h"
 
 // `sign` (was cascadesearch --sign-only): every pending file under `work`
 // (hop_*/kept.csv), from where it was last signed, signed and appended to
@@ -26,7 +27,7 @@ int commands::sign(const std::vector<std::string> &args) {
     const cobordisms::StoreResult s =
         cobordisms::signPending(cfg.text("work"), store, cfg.paths("dedupe_against"), names,
                              cfg.threads(), cfg.text("pair_sig_cache"));
-    std::cout << "[+] witness store: " << s.kept << " kept, " << s.fresh << " new, "
+    std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
               << s.appended << " appended to " << store << "\n";
     return 0;
   } catch (const std::exception &e) {

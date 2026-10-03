@@ -23,6 +23,7 @@
 #include "cobound/cobordisms/appendonly.h"
 #include "cobound/cobordisms/pairsigner.h"
 #include "cobound/cobordisms/database.h"
+#include "cobound/frozen.h"
 
 namespace fs = std::filesystem;
 
@@ -66,7 +67,7 @@ int hopNumber(const fs::path &dir) {
   // hop_<k>_n<node>
   const std::string name = dir.filename().string();
   try {
-    return std::stoi(name.substr(4));
+    return std::stoi(name.substr(sizeof kFrozenHopDirPrefix - 1));
   } catch (const std::exception &) {
     return 1 << 30;
   }
@@ -100,7 +101,7 @@ std::vector<PendingWitness> readKept(const std::string &work,
   std::vector<fs::path> dirs;
   if (fs::exists(work))
     for (const auto &e : fs::directory_iterator(work))
-      if (e.is_directory() && e.path().filename().string().rfind("hop_", 0) == 0 &&
+      if (e.is_directory() && e.path().filename().string().rfind(kFrozenHopDirPrefix, 0) == 0 &&
           fs::exists(e.path() / "kept.csv"))
         dirs.push_back(e.path());
   std::sort(dirs.begin(), dirs.end(), [](const fs::path &a, const fs::path &b) {
@@ -243,8 +244,8 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
       lines += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
                csvField(appendRows[i].first) + '\n';
   if (!lines.empty()) {
-    const std::string sidecarPath = store + ".rows.csv";
-    if (!fs::exists(sidecarPath)) lines = "witness,layers,row_pd\n" + lines;
+    const std::string sidecarPath = store + kFrozenRowsSidecarSuffix;
+    if (!fs::exists(sidecarPath)) lines = kFrozenRowsSidecarHeader + lines;
     // fsynced like the store it describes (it was not, before phase 3).
     appendonly::append(sidecarPath, lines, appendonly::Sync::yes);
   }

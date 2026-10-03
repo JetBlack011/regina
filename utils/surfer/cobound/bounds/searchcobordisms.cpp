@@ -12,6 +12,7 @@
 #include "linknaming/diagrams/diagramiso.h"
 #include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoinglink.h"
+#include "cobound/frozen.h"
 
 using linknaming::GaussDiagram;
 
@@ -163,7 +164,7 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
     std::vector<int> labels(n);
     for (size_t i = 0; i < n; ++i) labels[i] = shape.inComponent[i];
     g_.addLeaf(row_.node, Partition::fromLabels(labels), genus,
-               "direct witness " + key);
+               kFrozenDirectWitnessSource + key);
     out.ok = true;
     out.direct = true;
     return out;
@@ -181,7 +182,7 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
     // simplify() can make a piece split further (a component unlinked by
     // Reidemeister moves): intern each resulting piece separately.
     for (const GaussDiagram &q : linknaming::splitPieces(s)) {
-      out.pieces.push_back(nodes_.intern(q, "far side of " + key));
+      out.pieces.push_back(nodes_.intern(q, kFrozenFarSideLabel + key));
       pieceOrigins.push_back(q.origin);
     }
   }
@@ -194,7 +195,7 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
   } else {
     // A split far side: a fresh whole node (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
-    out.farNode = g_.addNode(static_cast<int>(m), "split far side of " + key,
+    out.farNode = g_.addNode(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
                              linknaming::linkingMatrix(whole));
     std::vector<NodeId> pn;
     std::vector<std::vector<int>> pmap;

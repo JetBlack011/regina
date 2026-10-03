@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "cobound/json.h"
+#include "cobound/frozen.h"
 
 namespace bounds {
 
@@ -95,8 +96,8 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
         c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
     }
-    if (rec.kind == RecordKind::leaf && rec.source.rfind("direct witness ", 0) == 0) {
-      const std::string key = rec.source.substr(15);
+    if (rec.kind == RecordKind::leaf && rec.source.rfind(kFrozenDirectWitnessSource, 0) == 0) {
+      const std::string key = rec.source.substr(sizeof kFrozenDirectWitnessSource - 1);
       if (auto it = edges_.direct.find(key); it != edges_.direct.end()) {
         c << ",\"witness\":\"" << json::escape(it->second.key)
           << "\",\"hop_dir\":\"" << json::escape(it->second.hopDir) << "\",\"row_pd\":\""
@@ -205,7 +206,8 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
       break;
     case Kind::witness: {
       const WitnessEdge &e = g_.witness(fact.f.reason.edge);
-      c << ",\"kind\":\"witness\",\"to_is_in\":" << (fact.f.reason.toIsIn ? "true" : "false")
+      c << ",\"kind\":\"" << kFrozenLowerKindWitness
+        << "\",\"to_is_in\":" << (fact.f.reason.toIsIn ? "true" : "false")
         << ",\"from\":" << fact.from << ",\"from_partition\":\""
         << Partition::fromLabels(fact.f.reason.fromPartition).str() << "\",\"from_value\":"
         << value(fact.f.reason.from) << ",\"addition\":" << fact.f.reason.addition;

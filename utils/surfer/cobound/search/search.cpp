@@ -23,6 +23,7 @@
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
 #include "cobound/search/searchreport.h"
+#include "cobound/frozen.h"
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "surfer/submanifold/linkingnumber.h"
@@ -593,8 +594,8 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
         // is the single most valuable moment in a row, and every search
         // harvests, so the row may keep running for hours afterwards.
         if (j.constructive && !constructive.exchange(true, std::memory_order_relaxed)) {
-          std::cout << "[+] " << request.name
-                    << ": CONSTRUCTIVE witness found -- reaches genus " << *j.constructive
+          std::cout << "[+] " << request.name << kFrozenConstructiveWitnessFound
+                    << *j.constructive
                     << " (literature [" << sweep.literatureLo << ", " << sweep.literatureHi
                     << "]). Checkpointing now.\n"
                     << std::flush;
