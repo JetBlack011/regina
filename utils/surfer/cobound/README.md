@@ -901,7 +901,12 @@ written. Frozen:
   `breadth:`, `[+] hop <k> ...`, `[!!] hop <k>: surface accounting failed --
   ...`, `[+] profile:`, `hop shape:`, `EXHAUSTIVE to`, `boundary processing:`,
   `Target best:`, `GOAL MET`, `[+] Searching X`, the `diagram naming:` line's
-  `far sides drawn` and counters, and the progress block;
+  `far sides drawn` and counters, and the progress block; and a goal run's
+  lines read by the atlas's `cascade_layer.py`: `[+] raising the hop budget to
+  S`, `[+] hub: node N has K witness edges; expanding it at S`, `[!] node N
+  refused: ...`, `[+] master rows of node N (name): K witnesses assembled`,
+  the target line's `goal genus G (connected)` or `(disjoint pieces)`, and
+  the refusal `the target PD is X, not Y`;
 - `surface_stats.csv`'s columns and the surface log's;
 - `cobound draw`'s `ROW` and `W` lines, `cobound name`'s lines, and
   `cobound meridians`' records;

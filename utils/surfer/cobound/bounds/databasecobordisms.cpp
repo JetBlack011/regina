@@ -363,8 +363,8 @@ double DatabaseCobordisms::load(LinkId n, DatabaseLoad &ld) {
     << ",\"nodes\":" << g.linkCount() << ",\"target_best\":"
     << (best ? std::to_string(best->genus) : "null") << "}";
   ld.log(o.str());
-  std::cout << "[+] master rows of node " << n << " (" << tableName[n] << "): "
-            << assembled << " witnesses assembled, " << failed << " failed, " << skippedGenus
+  std::cout << kFrozenMasterRowsLine << n << " (" << tableName[n] << "): "
+            << assembled << kFrozenWitnessesAssembled << failed << " failed, " << skippedGenus
             << " skipped by genus; target best " << (best ? std::to_string(best->genus) : "none")
             << "\n";
   return loadSeconds;

@@ -599,7 +599,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
         ",\"refused\":\"" + json::escape(e.what()) + "\",\"pd\":\"" + json::escape(searched.pd) +
         "\",\"pd_ambiguous\":" + (d.link().pdAmbiguous() ? "true" : "false") +
         ",\"diagram\":" + gauss.str() + "}");
-    std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
+    std::cout << kFrozenNodeRefusedLine << n << kFrozenNodeRefusedMark << e.what() << "\n";
     return;
   }
   // Where a search's time goes, logged per search: the thickening's build and
@@ -676,7 +676,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
       refused_.insert(n);
       log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
           ",\"refused\":\"" + json::escape(e.what()) + "\"}");
-      std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
+      std::cout << kFrozenNodeRefusedLine << n << kFrozenNodeRefusedMark << e.what() << "\n";
       return;
     }
     r.status = run.accountingFailure.empty() ? 0 : 1;
@@ -1044,7 +1044,7 @@ int Scheduler::run() {
       }
       budget *= 2;
       for (auto &[m, v] : expansions_) v.clear();
-      std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
+      std::cout << kFrozenRaiseHopBudgetLine << budget << " surfaces\n";
       continue;
     }
     if (database_ && !masterDone(*n) && masterSubjectsFor(*n)) {
@@ -1060,8 +1060,8 @@ int Scheduler::run() {
       // more first-level candidates than another narrow one elsewhere.
       surfaces = cfg_.hubSurfaces;
       boosted_.insert(*n);
-      std::cout << "[+] hub: node " << *n << " has " << g_.link(*n).cobordisms.size()
-                << " witness edges; expanding it at " << surfaces << " surfaces\n";
+      std::cout << kFrozenHubLine << *n << " has " << g_.link(*n).cobordisms.size()
+                << kFrozenHubWitnessEdges << surfaces << " surfaces\n";
     }
     expand(*n, surfaces);
   }

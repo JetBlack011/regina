@@ -122,5 +122,17 @@ inline constexpr char kFrozenConstructiveWitnessFound[] =
 /// `cobound draw`'s incoming-link line (the atlas's checker, cascade_check.py,
 /// reads it).
 inline constexpr char kFrozenDrawRowLine[] = "ROW components=";
+/// A goal run's lines the atlas's cascade_layer.py parses (its RAISE, HUB,
+/// REFUSED and MASTER): `[+] raising the hop budget to S surfaces`, `[+] hub:
+/// node N has K witness edges; expanding it at S surfaces`, `[!] node N
+/// refused: ...`, `[+] master rows of node N (name): K witnesses assembled,
+/// ...`.
+inline constexpr char kFrozenRaiseHopBudgetLine[] = "[+] raising the hop budget to ";
+inline constexpr char kFrozenHubLine[] = "[+] hub: node ";
+inline constexpr char kFrozenHubWitnessEdges[] = " witness edges; expanding it at ";
+inline constexpr char kFrozenNodeRefusedLine[] = "[!] node ";
+inline constexpr char kFrozenNodeRefusedMark[] = " refused: ";
+inline constexpr char kFrozenMasterRowsLine[] = "[+] master rows of node ";
+inline constexpr char kFrozenWitnessesAssembled[] = " witnesses assembled, ";
 
 #endif // SURFER_COBOUND_FROZEN_H
