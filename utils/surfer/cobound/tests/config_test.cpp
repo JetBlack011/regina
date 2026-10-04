@@ -169,7 +169,7 @@ std::vector<Reference> references() {
        "SurfaceSearchLimits::boundarySignatureCacheLimit"},
       {"boundary_signature_cache_limit", C::goal, "1000000",
        "HopShape::boundarySignatureCacheLimit"},
-      {"complement_cache_limit", C::run, std::to_string(complement::recognitionCacheLimit.load()),
+      {"complement_cache_limit", C::run, std::to_string(complement::cacheLimit.load()),
        "identify::recognitionCacheLimit"},
       {"complement_cache_limit", C::goal, "1500000", "HopShape::recognitionCacheLimit"},
       {"exact_far_side_names", C::run, "0", "verifyslicegenus exactFarSideNames"},

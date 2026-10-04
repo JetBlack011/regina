@@ -206,11 +206,11 @@ class OutgoingStubNamer : public BoundaryNamer {
     explicit OutgoingStubNamer(size_t incoming) : incoming_(incoming) {}
     std::string nameLink(size_t bc, const Link &curves) const override {
         if (bc != incoming_) return "far";
-        return curves.comps_.size() == 1 ? census::identify(curves.comps_.front())
-                                         : census::identify(curves);
+        return curves.comps_.size() == 1 ? census::nameComplement(curves.comps_.front())
+                                         : census::nameComplement(curves);
     }
     std::string nameCurve(size_t, const Knot &curve) const override {
-        return census::identify(curve);
+        return census::nameComplement(curve);
     }
 
   private:

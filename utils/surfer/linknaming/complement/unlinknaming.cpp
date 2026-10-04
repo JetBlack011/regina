@@ -62,10 +62,10 @@ namespace complement {
 // recogniseHandlebody() same as before.
 ssize_t cachedGenus(const regina::Triangulation<3> &complement,
                     const std::string &sig) {
-    if (auto hit = checkRecognition(
-            sig, &RecognitionCacheStats::genusChecks,
-            &RecognitionCacheStats::genusCacheHits,
-            [](const RecognitionResult &r) { return r.genus.has_value(); }))
+    if (auto hit = checkAnswer(
+            sig, &ComplementCacheStats::genusChecks,
+            &ComplementCacheStats::genusCacheHits,
+            [](const ComplementAnswer &r) { return r.genus.has_value(); }))
         return *hit->genus;
 
     ssize_t genus;
@@ -81,7 +81,7 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
         path = Path::Fallback;
     }
 
-    countRecognition([path](RecognitionCacheStats &s) {
+    countInCache([path](ComplementCacheStats &s) {
         if (path == Path::Group)
             ++s.groupFastPathHits;
         else if (path == Path::SnapPea)
@@ -89,7 +89,7 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
         else
             ++s.recogniseHandlebodyFallbacks;
     });
-    return *storeRecognition(sig, RecognitionResult{.genus = genus}).genus;
+    return *cacheAnswer(sig, ComplementAnswer{.genus = genus}).genus;
 }
 
 // Fast, sound, one-sided proof that `t` (a LINK complement, possibly

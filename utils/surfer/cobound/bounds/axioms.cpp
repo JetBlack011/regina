@@ -70,7 +70,7 @@ void LinkAxioms::name(const std::vector<LinkId> &ns, int atDepth) {
     if (!reg_.known(n) || n == reg_.unknot()) return;
     try {
       const GaussDiagram &d = reg_.info(n).diagram;
-      names[i] = namer_.identify(d);
+      names[i] = namer_.namePiece(d);
       if (names[i]->by == linknaming::PieceName::By::untabulated && d.crossings() > 0) {
         if (d.components() == 1) {
           linknaming::LinkName fs = namer_.name(d.link());

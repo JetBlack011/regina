@@ -62,7 +62,7 @@ std::string BoundarySignatureCache::canonicalKey_(
     return out.str();
 }
 
-std::string BoundarySignatureCache::identifyCached(
+std::string BoundarySignatureCache::nameCached(
         const std::vector<size_t> &edgeIndices,
         const std::function<std::string()> &compute) {
     std::string key = canonicalKey_(edgeIndices);

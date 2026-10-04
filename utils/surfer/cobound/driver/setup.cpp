@@ -16,7 +16,7 @@ namespace setup {
 
 bool applyRunSettings(const config::Config &cfg) {
   const bool goal = cfg.context() == config::Context::goal;
-  complement::recognitionCacheLimit.store(
+  complement::cacheLimit.store(
       static_cast<size_t>(cfg.integer("complement_cache_limit")), std::memory_order_relaxed);
   census::censusUpdates.store(cfg.flag("census_updates"), std::memory_order_relaxed);
   census::retriangulateOnMiss.store(cfg.flag("retriangulate_on_miss"),

@@ -204,7 +204,7 @@ class LinkNamer {
     LinkName name(const regina::Link &drawn) const;
 
     /** Piece identification alone (exposed for tests). */
-    PieceName identify(const GaussDiagram &piece) const;
+    PieceName namePiece(const GaussDiagram &piece) const;
 
     /** An entry's canonical name: one per class of variants of its base that
      *  are the same oriented link up to mirror and global reversal, whether

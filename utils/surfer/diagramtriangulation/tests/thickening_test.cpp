@@ -416,7 +416,7 @@ void test_dim2_doubled_triangle() {
 // dim>(dim+1) on a facet), so an indexing bug in either would show up as a
 // mismatch here.
 // ─────────────────────────────────────────────────────────────────────────────
-void test_base_boundary_component_identifies_bottom_not_top() {
+void test_base_boundary_component_is_the_bottom_not_top() {
     std::cout << "\n--- baseBoundaryComponent(): identifies bottom, not top, "
                  "across multiple thickenings ---\n";
 
@@ -512,7 +512,7 @@ int main() {
     run("test_isOrdered_checks_every_facet", test_isOrdered_checks_every_facet);
     run("test_dim2_doubled_triangle", test_dim2_doubled_triangle);
     run("test_base_boundary_component_identifies_bottom_not_top",
-        test_base_boundary_component_identifies_bottom_not_top);
+        test_base_boundary_component_is_the_bottom_not_top);
     run("test_build_ambient_seed_in_index_order",
         test_build_ambient_seed_in_index_order);
 

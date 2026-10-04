@@ -59,7 +59,7 @@ DatabaseCobordisms::DatabaseCobordisms(const std::string &database,
 
 bool DatabaseCobordisms::subjectsFor(LinkId n, const LinkAxioms &axioms,
                                  const linknaming::Tables &tables,
-                                 std::vector<std::string> *subjects) const {
+                                 std::vector<std::string> *variants) const {
   auto it = axioms.tableName.find(n);
   if (it == axioms.tableName.end()) return false;
   // Every table entry of this link's class (one oriented link up to mirror
@@ -71,7 +71,7 @@ bool DatabaseCobordisms::subjectsFor(LinkId n, const LinkAxioms &axioms,
   for (const linknaming::TableEntry *v : tables.variants(e->base))
     if (axioms.classOf(v->name) == canon && index_.has(v->name)) {
       any = true;
-      if (subjects) subjects->push_back(v->name);
+      if (variants) variants->push_back(v->name);
     }
   return any;
 }

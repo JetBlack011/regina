@@ -70,7 +70,7 @@ public:
   /// of its class's table entries (named into `rows`), or cobordisms of other
   /// rows whose outgoing link has its base name.
   bool subjectsFor(LinkId n, const LinkAxioms &axioms, const linknaming::Tables &tables,
-               std::vector<std::string> *subjects = nullptr) const;
+               std::vector<std::string> *variants = nullptr) const;
   /// Whether `n`'s cobordisms were loaded already.
   bool loaded(LinkId n) const { return done_.count(n) > 0; }
 

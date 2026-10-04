@@ -221,7 +221,7 @@ void test_search_then_invariants(const Tables &t) {
     for (const std::string &name : {std::string("L7n1{1}"), std::string("L7n1{0}"), std::string("5_2")}) {
         regina::Link l = table(name);
         l.r1(l.component(0), 0, 1); // a kink: no longer the table diagram
-        PieceName p = searchOnly.identify(gauss(l));
+        PieceName p = searchOnly.namePiece(gauss(l));
         EXPECT_EQ(p.by == PieceName::By::searchAndInvariants, true,
                   name + " with a kink is found by search, not by its diagram");
         EXPECT_EQ(p.display(), t.canonical(name),
@@ -230,7 +230,7 @@ void test_search_then_invariants(const Tables &t) {
     // Reversing one component after the search: the other variant.
     regina::Link l = reversedComponent(table("L7n1{0}"), 1);
     l.r1(l.component(0), 0, 1);
-    EXPECT_EQ(searchOnly.identify(gauss(l)).display(), t.canonical("L7n1{1}"),
+    EXPECT_EQ(searchOnly.namePiece(gauss(l)).display(), t.canonical("L7n1{1}"),
               "L7n1{0}, one component reversed, with a kink: L7n1{1}");
 }
 
@@ -253,11 +253,11 @@ void test_table_side(const Tables &t) {
     LinkNamer withTableSide(t, on), without(t, off);
     for (const auto &[sig, knot] : cases) {
         const regina::Link l = regina::Link::fromSig(sig);
-        const PieceName p = withTableSide.identify(gauss(l));
+        const PieceName p = withTableSide.namePiece(gauss(l));
         EXPECT_EQ(p.display(), knot, "a gap diagram of " + knot + " is named from the table side");
         EXPECT_EQ(p.by == PieceName::By::searchAndInvariants, true,
                   knot + ": proved by search, the variant by invariants");
-        EXPECT_EQ(without.identify(gauss(l)).by == PieceName::By::untabulated, true,
+        EXPECT_EQ(without.namePiece(gauss(l)).by == PieceName::By::untabulated, true,
                   knot + ": untabulated without the table-side step");
     }
 }
@@ -279,11 +279,11 @@ void test_isometry(const Tables &t) {
     LinkNamer withIsometry(t, on), without(t, off);
     for (const auto &[sig, knot] : cases) {
         const regina::Link l = regina::Link::fromSig(sig);
-        const PieceName p = withIsometry.identify(gauss(l));
+        const PieceName p = withIsometry.namePiece(gauss(l));
         EXPECT_EQ(p.display(), knot, "a gap diagram of " + knot + " is named by isometry");
         EXPECT_EQ(p.by == PieceName::By::isometry, true,
                   knot + ": proved by isometry, the variant by invariants");
-        EXPECT_EQ(without.identify(gauss(l)).by == PieceName::By::untabulated, true,
+        EXPECT_EQ(without.namePiece(gauss(l)).by == PieceName::By::untabulated, true,
                   knot + ": untabulated with every step off");
     }
     // A torus knot's complement is not hyperbolic: its kinked diagram is left
@@ -293,7 +293,7 @@ void test_isometry(const Tables &t) {
     NamerLimits noSimplify = on;
     noSimplify.simplifyTries = 0;
     noSimplify.exhaustiveHeight = 0;
-    EXPECT_EQ(LinkNamer(t, noSimplify).identify(gauss(kinked)).by == PieceName::By::untabulated,
+    EXPECT_EQ(LinkNamer(t, noSimplify).namePiece(gauss(kinked)).by == PieceName::By::untabulated,
               true, "a kinked 3_1 is not named by isometry");
 }
 
@@ -316,9 +316,9 @@ void test_shared_caches(const Tables &t) {
     EXPECT_EQ(alone.caches() == first.caches(), false, "a namer given none makes its own");
     for (const auto &[sig, knot] : cases) {
         const regina::Link l = regina::Link::fromSig(sig);
-        const PieceName a = first.identify(gauss(l));
-        const PieceName b = second.identify(gauss(l));
-        const PieceName c = alone.identify(gauss(l));
+        const PieceName a = first.namePiece(gauss(l));
+        const PieceName b = second.namePiece(gauss(l));
+        const PieceName c = alone.namePiece(gauss(l));
         EXPECT_EQ(a.display(), knot, knot + ": named by the first namer");
         EXPECT_EQ(b.display(), a.display(), knot + ": the same name through shared caches");
         EXPECT_EQ(b.by == PieceName::By::isometry, true, knot + ": by isometry through shared caches");

@@ -821,7 +821,7 @@ int Scheduler::run() {
   bool named = false;
   std::string composite;
   try {
-    auto pn = namer_.identify(simp);
+    auto pn = namer_.namePiece(simp);
     if (pn.names.size() == 1 && pn.by != linknaming::PieceName::By::untabulated) {
       targetCanonical_ = classOf(pn.names.front());
       named = true;

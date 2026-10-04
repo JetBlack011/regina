@@ -30,11 +30,11 @@ std::atomic<long long> census::retriangulateTimeBudgetSeconds{20};
 namespace {
 
 using complement::cachedGenus;
-using complement::checkRecognition;
-using complement::countRecognition;
-using complement::lookupRecognition;
-using complement::RecognitionCacheStats;
-using complement::storeRecognition;
+using complement::checkAnswer;
+using complement::countInCache;
+using complement::lookupAnswer;
+using complement::ComplementCacheStats;
+using complement::cacheAnswer;
 
 // The actual (uncached) Census::lookup() call, serialized under
 // censusLookupMutex per its documented contract. No memoization here --
@@ -124,16 +124,16 @@ struct CensusConnection_ {
 // (local census, then the real Census::lookup(), then -- if
 // retriangulateOnMiss, and for a link complement only if
 // retriangulateLinks too -- census::retriangulateAndLookup()).
-complement::RecognitionResult
-resolveRecognition(const regina::Triangulation<3> &complement,
+complement::ComplementAnswer
+resolveAnswer(const regina::Triangulation<3> &complement,
                    const std::string &sig) {
     ssize_t genus = cachedGenus(complement, sig);
     if (genus != -1) {
         // Fully resolved; census never applies. Another thread may have
         // cleared the cache since cachedGenus() stored the genus.
-        if (auto cached = lookupRecognition(sig))
+        if (auto cached = lookupAnswer(sig))
             return *cached;
-        return complement::RecognitionResult{.genus = genus};
+        return complement::ComplementAnswer{.genus = genus};
     }
 
     // The Pachner search is the expensive rung. A knot's name can bear a
@@ -149,20 +149,20 @@ resolveRecognition(const regina::Triangulation<3> &complement,
     // An entry is final once the census was checked and either named it,
     // or the Pachner search was tried, or is not wanted for it at all --
     // otherwise every repeat would redo the census lookups.
-    if (auto hit = checkRecognition(
-            sig, &RecognitionCacheStats::censusChecks,
-            &RecognitionCacheStats::censusCacheHits,
-            [mayRetriangulate](const complement::RecognitionResult &r) {
+    if (auto hit = checkAnswer(
+            sig, &ComplementCacheStats::censusChecks,
+            &ComplementCacheStats::censusCacheHits,
+            [mayRetriangulate](const complement::ComplementAnswer &r) {
                 return r.censusChecked &&
                        (r.censusName || r.retriangulateAttempted ||
                         !mayRetriangulate);
             }))
         return *hit;
 
-    countRecognition([](RecognitionCacheStats &s) { ++s.localCensusChecks; });
+    countInCache([](ComplementCacheStats &s) { ++s.localCensusChecks; });
     auto name = census::localCensusLookup(sig);
     if (name) {
-        countRecognition([](RecognitionCacheStats &s) { ++s.localCensusHits; });
+        countInCache([](ComplementCacheStats &s) { ++s.localCensusHits; });
     } else {
         name = censusLookupName(complement);
     }
@@ -182,7 +182,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - pachnerStart)
                 .count();
-        countRecognition([&](RecognitionCacheStats &s) {
+        countInCache([&](ComplementCacheStats &s) {
             auto &counts = multiComponent ? s.pachnerLinks : s.pachnerKnots;
             ++counts.attempts;
             counts.successes += name ? 1 : 0;
@@ -190,8 +190,8 @@ resolveRecognition(const regina::Triangulation<3> &complement,
         });
     }
 
-    return storeRecognition(
-        sig, complement::RecognitionResult{
+    return cacheAnswer(
+        sig, complement::ComplementAnswer{
                  .genus = -1,
                  .censusChecked = true,
                  .censusName = name,
@@ -204,7 +204,7 @@ resolveRecognition(const regina::Triangulation<3> &complement,
 // out (rather than having identify(const Link&) just call identify(const
 // EdgeComplement&)) specifically so neither caller ever builds the same
 // complement twice -- buildComplement() is not cheap.
-std::string nameFromRecognition(const complement::RecognitionResult &result,
+std::string nameFromAnswer(const complement::ComplementAnswer &result,
                                 const std::string &sig) {
     if (result.genus == 1)
         return complement::unlinkName(1);
@@ -236,30 +236,30 @@ std::string perturbedForTesting(std::string name) { return perturbed(std::move(n
 namespace {
 // identify()'s answer for a built complement: the genus check, the census,
 // else the isoSig.
-std::string nameComplement(const regina::Triangulation<3> &complement) {
+std::string nameBuiltComplement(const regina::Triangulation<3> &complement) {
     std::string sig = complement.isoSig();
-    complement::RecognitionResult result = resolveRecognition(complement, sig);
-    return perturbed(nameFromRecognition(result, sig));
+    complement::ComplementAnswer result = resolveAnswer(complement, sig);
+    return perturbed(nameFromAnswer(result, sig));
 }
 } // namespace
 
-std::string identify(const EdgeComplement &e) {
-    return nameComplement(e.buildComplement());
+std::string nameComplement(const EdgeComplement &e) {
+    return nameBuiltComplement(e.buildComplement());
 }
 
-std::string identify(const Link &l) {
+std::string nameComplement(const Link &l) {
     auto complement = l.buildComplement();
 
     if (l.countComponents() > 1 && complement::groupProvesUnlink(complement))
         return perturbed(complement::unlinkName(l.countComponents()));
 
-    return nameComplement(complement);
+    return nameBuiltComplement(complement);
 }
 
-bool recognizeComplement(const EdgeComplement &e) {
+bool reportComplement(const EdgeComplement &e) {
     auto complement = e.buildComplement();
     std::string sig = complement.isoSig();
-    complement::RecognitionResult result = resolveRecognition(complement, sig);
+    complement::ComplementAnswer result = resolveAnswer(complement, sig);
 
     if (result.genus == 1) {
         std::cout << "      unknot, " << sig << "\n";
@@ -273,8 +273,8 @@ bool recognizeComplement(const EdgeComplement &e) {
     return false;
 }
 
-void recognizeComplement(const Link &l) {
-    if (recognizeComplement(static_cast<const EdgeComplement &>(l))) {
+void reportComplement(const Link &l) {
+    if (reportComplement(static_cast<const EdgeComplement &>(l))) {
         return;
     }
 
@@ -299,7 +299,7 @@ void recognizeComplement(const Link &l) {
         for (int i = 0; i < numComponents; ++i) {
             regina::Triangulation<3> compI = l.buildComplement(i);
             std::string sigI = compI.isoSig();
-            complement::RecognitionResult result = resolveRecognition(compI, sigI);
+            complement::ComplementAnswer result = resolveAnswer(compI, sigI);
 
             std::cout << "    Component " << i + 1 << ": ";
             if (result.genus == 1) {

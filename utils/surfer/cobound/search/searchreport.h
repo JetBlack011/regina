@@ -158,7 +158,7 @@ void printOutcome(std::ostream &out, const std::string &name, const search::Sear
 
 /** `identification:` (the census and recognition counters as the search ended, against
  *  the search's start), `diagram naming:` and their warnings. */
-void printIdentification(std::ostream &out, const std::string &name,
+void printComplementNaming(std::ostream &out, const std::string &name,
                          const search::SearchResult &run);
 
 /** `search profile:` (bench_search.sh parses it), with the linking audit

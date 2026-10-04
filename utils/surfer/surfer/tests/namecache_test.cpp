@@ -107,8 +107,8 @@ void test_memoization() {
         return std::string("result-A");
     };
 
-    std::string r1 = cache.identifyCached({0}, compute);
-    std::string r2 = cache.identifyCached({0}, compute);
+    std::string r1 = cache.nameCached({0}, compute);
+    std::string r2 = cache.nameCached({0}, compute);
 
     EXPECT_EQ(r1, std::string("result-A"),
               "first call for a new edge set returns compute()'s result");
@@ -156,10 +156,10 @@ void test_automorphism_invariance() {
     // isoSig stands in for one here.
     std::string realResult = real.buildComplement().isoSig();
 
-    std::string r1 = cache.identifyCached({0}, [&] { return realResult; });
+    std::string r1 = cache.nameCached({0}, [&] { return realResult; });
 
     bool sentinelCalled = false;
-    std::string r2 = cache.identifyCached({*movedEdge}, [&] {
+    std::string r2 = cache.nameCached({*movedEdge}, [&] {
         sentinelCalled = true;
         return std::string("SENTINEL_SHOULD_NOT_BE_CALLED");
     });
@@ -192,13 +192,13 @@ void test_boundary_signature_cache_clear_threshold() {
     // (automorphisms are bijections, so they preserve cardinality) -- a
     // simple, topology-agnostic way to force several genuinely distinct
     // cache entries regardless of this boundary's own automorphism group.
-    cache.identifyCached({0}, compute);       // 1 edge -- distinct key
-    cache.identifyCached({0, 1}, compute);    // 2 edges -- distinct key; cache now at its threshold
+    cache.nameCached({0}, compute);       // 1 edge -- distinct key
+    cache.nameCached({0, 1}, compute);    // 2 edges -- distinct key; cache now at its threshold
     EXPECT_EQ(cache.stats().cacheResets, 0LL,
               "no reset yet -- the threshold is only checked before "
               "admitting the NEXT new key");
 
-    cache.identifyCached({0, 1, 2}, compute); // 3 edges -- triggers the clear before inserting
+    cache.nameCached({0, 1, 2}, compute); // 3 edges -- triggers the clear before inserting
     EXPECT_EQ(cache.stats().cacheResets, 1LL,
               "exactly one reset after exceeding the threshold");
     EXPECT_EQ(cache.size(), static_cast<size_t>(1),
@@ -206,7 +206,7 @@ void test_boundary_signature_cache_clear_threshold() {
               "present");
 
     int callsBefore = computeCalls;
-    cache.identifyCached({0}, compute); // was evicted by the reset above
+    cache.nameCached({0}, compute); // was evicted by the reset above
     EXPECT_EQ(computeCalls, callsBefore + 1,
               "a pre-reset key is looked up as a fresh miss after the "
               "cache was cleared -- a clean miss, not a crash or a wrong "

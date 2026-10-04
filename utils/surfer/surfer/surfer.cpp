@@ -382,8 +382,8 @@ void runSearch(const regina::Triangulation<4> &tri,
   // complementcache.h) is actually avoiding -- shared process-wide, so this
   // is already the full aggregate across every search thread. Boundaries are
   // named without a census, so only the genus answers are cached.
-  auto recognitionCacheText = [] {
-    complement::RecognitionCacheStats s = complement::recognitionCacheStats();
+  auto complementCacheText = [] {
+    complement::ComplementCacheStats s = complement::cacheStats();
     auto hitRate = [](long long hits, long long checks) {
       return checks > 0 ? 100.0 * static_cast<double>(hits) /
                                static_cast<double>(checks)
@@ -395,7 +395,7 @@ void runSearch(const regina::Triangulation<4> &tri,
         << std::setprecision(1) << hitRate(s.genusCacheHits, s.genusChecks)
         << "% hit rate)\n";
     out << "[+] recognition cache entries (distinct isoSigs seen): "
-        << complement::recognitionCacheSize() << " | full resets: "
+        << complement::cacheSize() << " | full resets: "
         << s.cacheResets << "\n";
     long long misses = s.genusChecks - s.genusCacheHits;
     out << "[+] genus cache misses resolved via: group-is-Z check="
@@ -558,7 +558,7 @@ void runSearch(const regina::Triangulation<4> &tri,
     std::cerr << petalCacheText();
     if (wantLinks)
       std::cerr << pendingSurfaceQueueText();
-    std::cerr << recognitionCacheText();
+    std::cerr << complementCacheText();
     std::cerr << boundarySignatureCacheText();
   };
 
@@ -593,7 +593,7 @@ void runSearch(const regina::Triangulation<4> &tri,
                  << formatElapsed(std::chrono::seconds(etaSeconds)) << "\n";
         }
         report << boundarySignatureCacheText();
-        report << recognitionCacheText();
+        report << complementCacheText();
         boundaryReport.draw(report.str());
       };
 
@@ -608,7 +608,7 @@ void runSearch(const regina::Triangulation<4> &tri,
                   << formatElapsed(elapsed) << " (" << std::fixed
                   << std::setprecision(2) << avgRate
                   << " boundaries/sec average)\n";
-        std::cerr << recognitionCacheText();
+        std::cerr << complementCacheText();
         std::cerr << boundarySignatureCacheText();
       };
 
@@ -671,7 +671,7 @@ int main(int argc, char *argv[]) {
   long long rootBudgetGrowth = 2;
 
   SurfaceSearchLimits limits;
-  size_t recognitionCacheLimitArg = complement::recognitionCacheLimit.load();
+  size_t complementCacheLimitArg = complement::cacheLimit.load();
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -810,7 +810,7 @@ int main(int argc, char *argv[]) {
       if (i + 1 >= argc)
         usage(argv[0], "--recognition-cache-limit requires a value.");
       try {
-        recognitionCacheLimitArg = std::stoull(argv[++i]);
+        complementCacheLimitArg = std::stoull(argv[++i]);
       } catch (const std::exception &) {
         usage(argv[0], "--recognition-cache-limit requires an integer value.");
       }
@@ -862,13 +862,13 @@ int main(int argc, char *argv[]) {
     usage(argv[0], "--pending-surface-cap requires a value > 0.");
   if (limits.petalCacheLimit == 0)
     usage(argv[0], "--petal-cache-limit requires a value > 0.");
-  if (recognitionCacheLimitArg == 0)
+  if (complementCacheLimitArg == 0)
     usage(argv[0], "--recognition-cache-limit requires a value > 0.");
   if (limits.boundarySignatureCacheLimit == 0)
     usage(argv[0], "--boundary-signature-cache-limit requires a value > 0.");
   if (limits.boundaryTallyCap == 0)
     usage(argv[0], "--boundary-tally-cap requires a value > 0.");
-  complement::recognitionCacheLimit.store(recognitionCacheLimitArg,
+  complement::cacheLimit.store(complementCacheLimitArg,
                                         std::memory_order_relaxed);
   if (outputPath) {
     // Fail fast, before running a potentially long search, rather than

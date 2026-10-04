@@ -273,7 +273,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   };
 
   SearchResult out;
-  out.recognitionBefore = complement::recognitionCacheStats();
+  out.complementCacheBefore = complement::cacheStats();
   out.censusWritesBefore = census::insertCounts();
 
   // Every surface the drain describes lands in exactly one of its buckets
@@ -723,7 +723,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   out.stats = stats;
   out.petals = e.petalCacheStats();
   out.boundaryCache = e.boundarySignatureCacheStats();
-  out.recognitionAfter = complement::recognitionCacheStats();
+  out.complementCacheAfter = complement::cacheStats();
   out.censusWritesAfter = census::insertCounts();
   out.linkingAudit = linkingnumber::auditLinkingNumbers.load();
 

@@ -76,20 +76,20 @@ void test_base_name() {
     EXPECT_EQ(baseName("10_132"), std::string("10_132"), "no tag, unchanged");
 }
 
-void test_normalize_identified_name() {
+void test_normalize_complement_name() {
     // identify() decorates a translated census hit; the --input tables do
     // not. Left undecorated, "4_1 (m004 : #1)" would be a DIFFERENT graph
     // node from the "4_1" row for the very same knot, and nothing would
     // ever chain through it.
-    EXPECT_EQ(normalizeIdentifiedName("4_1 (m004 : #1)"), std::string("4_1"),
+    EXPECT_EQ(normalizeComplementName("4_1 (m004 : #1)"), std::string("4_1"),
               "the census annotation is stripped for node identity");
-    EXPECT_EQ(normalizeIdentifiedName("L6a1 (s780 : #6)"),
+    EXPECT_EQ(normalizeComplementName("L6a1 (s780 : #6)"),
               std::string("L6a1"), "same for links");
-    EXPECT_EQ(normalizeIdentifiedName("Unknot"), std::string("Unknot"),
+    EXPECT_EQ(normalizeComplementName("Unknot"), std::string("Unknot"),
               "an undecorated name is untouched");
-    EXPECT_EQ(normalizeIdentifiedName("3-component unlink"),
+    EXPECT_EQ(normalizeComplementName("3-component unlink"),
               std::string("3-component unlink"), "unlinks are untouched");
-    EXPECT_EQ(normalizeIdentifiedName("cPcbbbadu"), std::string("cPcbbbadu"),
+    EXPECT_EQ(normalizeComplementName("cPcbbbadu"), std::string("cPcbbbadu"),
               "a bare isoSig is untouched");
 }
 
@@ -205,7 +205,7 @@ void run(const std::string &name, void (*fn)()) {
 int main() {
     run("components_from_name", test_components_from_name);
     run("base_name", test_base_name);
-    run("normalize_identified_name", test_normalize_identified_name);
+    run("normalize_identified_name", test_normalize_complement_name);
     run("split_names", test_split_names);
     run("composite_parts", test_composite_parts);
     run("knot_marks", test_knot_marks);

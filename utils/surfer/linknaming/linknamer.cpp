@@ -367,7 +367,7 @@ void LinkNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &prim
     }
 }
 
-PieceName LinkNamer::identify(const GaussDiagram &piece) const {
+PieceName LinkNamer::namePiece(const GaussDiagram &piece) const {
     PieceName p;
     p.components = piece.components();
     p.origin = piece.origin;
@@ -582,7 +582,7 @@ LinkName LinkNamer::name(const regina::Link &drawn) const {
     LinkName out;
     std::vector<bool> covered(n, false);
     for (const GaussDiagram &g : primes) {
-        out.pieces.push_back(identify(g));
+        out.pieces.push_back(namePiece(g));
         for (size_t o : g.origin) covered[o] = true;
     }
     out.splitUnknots = static_cast<size_t>(std::count(covered.begin(), covered.end(), false));
@@ -837,7 +837,7 @@ std::string DiagramNamer::nameOnce(const Link &curves,
     // remembered against the diagram.
     const auto fb = std::chrono::steady_clock::now();
     ++stats_.fallbacks;
-    std::string name = census::identify(curves);
+    std::string name = census::nameComplement(curves);
     stats_.microsFallback += microsSince(fb);
     if (!key.empty()) {
         std::lock_guard<std::mutex> lock(learnedMutex_);

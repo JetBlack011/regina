@@ -571,7 +571,7 @@ int runWithoutGoal(const config::Config &cfg) {
       fatal::haltIfFlagged();
 
     search::printOutcome(std::cout, row.name, run);
-    search::printIdentification(std::cout, row.name, run);
+    search::printComplementNaming(std::cout, row.name, run);
     search::printSearchProfile(std::cout, row.name, run);
     // The audit exists to catch exactly this; a wrong linking number prunes
     // (or keeps) surfaces it should not.

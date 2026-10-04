@@ -253,7 +253,7 @@ SurfaceSearch::describeBoundary_(
             firstCurve = false;
             std::string name =
                 nameEachCurve
-                    ? cache.identifyCached(
+                    ? cache.nameCached(
                           curve.edgeIndices(),
                           [&curve, &link, namer, component] {
                               return link.comps_.size() == 1
@@ -267,7 +267,7 @@ SurfaceSearch::describeBoundary_(
         std::vector<size_t> edgeIndices = link.edgeIndices();
         std::optional<std::string> linkName;
         if (link.comps_.size() > 1) {
-            linkName = cache.identifyCached(edgeIndices, [&link, namer, component] {
+            linkName = cache.nameCached(edgeIndices, [&link, namer, component] {
                 return namer->nameLink(component, link);
             });
             out << " (" << *linkName << ")";

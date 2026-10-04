@@ -84,7 +84,7 @@ class BoundarySignatureCache {
      * cache miss and memoizing the result. `compute` is only invoked on a
      * miss; typically a call to the search's BoundaryNamer.
      */
-    std::string identifyCached(const std::vector<size_t> &edgeIndices,
+    std::string nameCached(const std::vector<size_t> &edgeIndices,
                                 const std::function<std::string()> &compute);
 
     /**

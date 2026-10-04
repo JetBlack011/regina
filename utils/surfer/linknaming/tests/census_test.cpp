@@ -320,20 +320,20 @@ void test_real_triangulation_isosig_key_matches_production_query() {
 
     buildSingleRowFixture(sig, "synthetic-name-for-fig8", "snappy");
     census::setCensusPath(FIXTURE_PATH);
-    complement::resetRecognitionCacheForTesting();
+    complement::resetCacheForTesting();
 
     EXPECT_EQ(census::localCensusLookup(sig).value_or("<MISS>"),
               std::string("synthetic-name-for-fig8"),
               "a fixture row keyed by a REAL triangulation's isoSig() is a "
               "direct census::localCensusLookup() hit");
 
-    EXPECT_EQ(census::identify(EdgeComplement(figureEight, {})),
+    EXPECT_EQ(census::nameComplement(EdgeComplement(figureEight, {})),
               std::string("synthetic-name-for-fig8"),
               "...and the SAME key is what identify::resolveRecognition()/"
               "identify::identify() actually queries with, end to end (not "
               "some other signature computed independently)");
 
-    complement::resetRecognitionCacheForTesting();
+    complement::resetCacheForTesting();
 }
 
 } // namespace

@@ -35,7 +35,7 @@ std::string stripCensusSuffix(const std::string &name) {
     return name.substr(0, name.find(" : "));
 }
 
-std::string normalizeIdentifiedName(const std::string &name) {
+std::string normalizeComplementName(const std::string &name) {
     if (name.size() < 4 || name.back() != ')')
         return name;
     size_t open = name.rfind(" (");

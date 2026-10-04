@@ -176,10 +176,10 @@ void printOutcome(std::ostream &out, const std::string &name, const search::Sear
   out << "[+] " << name << ": accounting: " << run.accounting << "\n";
 }
 
-void printIdentification(std::ostream &out, const std::string &name,
+void printComplementNaming(std::ostream &out, const std::string &name,
                          const search::SearchResult &run) {
-  const complement::RecognitionCacheStats &r = run.recognitionAfter;
-  const complement::RecognitionCacheStats &before = run.recognitionBefore;
+  const complement::ComplementCacheStats &r = run.complementCacheAfter;
+  const complement::ComplementCacheStats &before = run.complementCacheBefore;
   const namecache::BoundarySignatureCacheStats &b = run.boundaryCache;
   auto secs = [](long long ms) {
     std::ostringstream o;

@@ -35,7 +35,7 @@ namespace complement {
  * The outcome of recognizing a complement, memoized by isomorphism
  * signature (see the cache below).
  */
-struct RecognitionResult {
+struct ComplementAnswer {
     /**
      * Triangulation<3>::recogniseHandlebody()'s result, if it has been
      * computed for this isoSig: 1 means the unknot (a genus-1 handlebody),
@@ -69,7 +69,7 @@ struct RecognitionResult {
  * Counters for how much recomputation the recognition cache is actually
  * avoiding. See recognitionCacheStats().
  */
-struct RecognitionCacheStats {
+struct ComplementCacheStats {
     long long genusChecks = 0;
     long long genusCacheHits = 0;
     long long censusChecks = 0;
@@ -112,17 +112,17 @@ struct RecognitionCacheStats {
 };
 
 /** A snapshot of the recognition cache's current hit/miss counters. */
-RecognitionCacheStats recognitionCacheStats();
+ComplementCacheStats cacheStats();
 
 /** The recognition cache's current entry count (distinct isoSigs seen). */
-size_t recognitionCacheSize();
+size_t cacheSize();
 
 /**
  * Clears recognitionCache and its stats outright, ignoring
  * recognitionCacheLimit. Test-only: production code should only ever see
  * this cache clear itself automatically via recognitionCacheLimit.
  */
-void resetRecognitionCacheForTesting();
+void resetCacheForTesting();
 
 /**
  * Entry-count threshold past which recognitionCache (complementcache.cpp)
@@ -134,7 +134,7 @@ void resetRecognitionCacheForTesting();
  * Set once, before any search worker thread is spawned, same contract as
  * linkcomplement.h's simplifyComplements.
  */
-extern std::atomic<size_t> recognitionCacheLimit;
+extern std::atomic<size_t> cacheLimit;
 
 /**
  * Returns a snapshot of sig's current cache entry, or nullopt if unseen.
@@ -144,7 +144,7 @@ extern std::atomic<size_t> recognitionCacheLimit;
  * struct's fields even though the map itself never erases (and hence never
  * invalidates references to existing elements).
  */
-std::optional<RecognitionResult> lookupRecognition(const std::string &sig);
+std::optional<ComplementAnswer> lookupAnswer(const std::string &sig);
 
 /**
  * Merges `update` into sig's entry monotonically -- genus, once computed,
@@ -155,8 +155,8 @@ std::optional<RecognitionResult> lookupRecognition(const std::string &sig);
  * snapshot. Clears the whole cache first when sig is new and the cache is
  * at recognitionCacheLimit.
  */
-RecognitionResult storeRecognition(const std::string &sig,
-                                   const RecognitionResult &update);
+ComplementAnswer cacheAnswer(const std::string &sig,
+                                   const ComplementAnswer &update);
 
 /**
  * One counted lookup, under the cache's mutex: adds one to the counter
@@ -164,13 +164,13 @@ RecognitionResult storeRecognition(const std::string &sig,
  * -- when there is one and `answers` says it holds what the caller needs;
  * nullopt otherwise.
  */
-std::optional<RecognitionResult>
-checkRecognition(const std::string &sig, long long RecognitionCacheStats::*checks,
-                 long long RecognitionCacheStats::*hits,
-                 const std::function<bool(const RecognitionResult &)> &answers);
+std::optional<ComplementAnswer>
+checkAnswer(const std::string &sig, long long ComplementCacheStats::*checks,
+                 long long ComplementCacheStats::*hits,
+                 const std::function<bool(const ComplementAnswer &)> &answers);
 
 /** Applies `update` to the cache's counters, under its mutex. */
-void countRecognition(const std::function<void(RecognitionCacheStats &)> &update);
+void countInCache(const std::function<void(ComplementCacheStats &)> &update);
 
 } // namespace complement
 

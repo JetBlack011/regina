@@ -339,7 +339,7 @@ void test_triple_self_fold_excluded() {
 // final flush) should recognize its complement as the unknot and record it
 // bounding a Disc.
 // ─────────────────────────────────────────────────────────────────────────────
-void test_boundary_link_batch_recognizes_unknot() {
+void test_boundary_link_batch_names_unknot() {
     std::cout << "\n--- SurfaceSearch: batch boundary-link "
                  "recognition finds the unknot ---\n";
 
@@ -1505,7 +1505,7 @@ int main() {
     run("test_backpressure_does_not_drop_or_double_count_surfaces",
         test_backpressure_does_not_drop_or_double_count_surfaces);
     run("test_boundary_link_batch_recognizes_unknot",
-        test_boundary_link_batch_recognizes_unknot);
+        test_boundary_link_batch_names_unknot);
     run("test_seeded_enumerator_preserves_anchor",
         test_seeded_enumerator_preserves_anchor);
     run("test_seeded_search_tetrahedron", test_seeded_search_tetrahedron);

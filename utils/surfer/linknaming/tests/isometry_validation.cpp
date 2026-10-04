@@ -263,11 +263,11 @@ int main(int argc, char **argv) {
             c.ref = fullN.name(c.diagram).name;
             // identify() on the scrambled piece itself: no simplify() first,
             // so the complement is built from the scrambled diagram.
-            const PieceName iso = isoN.identify(gaussOf(c.scrambled));
+            const PieceName iso = isoN.namePiece(gaussOf(c.scrambled));
             c.iso = iso.display();
             c.isoBy = byOf(iso);
             if (withSearch) {
-                const PieceName sp = searchN.identify(gaussOf(c.scrambled));
+                const PieceName sp = searchN.namePiece(gaussOf(c.scrambled));
                 c.search = sp.display();
                 c.searchBy = byOf(sp);
             }
@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
         std::ofstream f(out + ".threads.tsv");
         f << "entry\ttransform\tthreaded\tsingle\n";
         for (const Case &c : cases) {
-            const std::string again = fresh.identify(gaussOf(c.scrambled)).display();
+            const std::string again = fresh.namePiece(gaussOf(c.scrambled)).display();
             if (again != c.iso) {
                 ++differ;
                 f << entries[c.entry].name << '\t' << c.transform << '\t' << c.iso << '\t' << again << '\n';

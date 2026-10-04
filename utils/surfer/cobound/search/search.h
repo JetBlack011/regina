@@ -359,8 +359,8 @@ struct SearchResult {
   std::optional<PetalCache::Stats> petalsAtRoots; ///< as root filtering ended
   PetalCache::Stats petals;                        ///< at the search's end
   namecache::BoundarySignatureCacheStats boundaryCache;
-  complement::RecognitionCacheStats recognitionBefore; ///< as the search began
-  complement::RecognitionCacheStats recognitionAfter;  ///< and as it ended
+  complement::ComplementCacheStats complementCacheBefore; ///< as the search began
+  complement::ComplementCacheStats complementCacheAfter;  ///< and as it ended
   std::pair<long long, long long> censusWritesBefore; ///< census::insertCounts()
   std::pair<long long, long long> censusWritesAfter;
   bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves

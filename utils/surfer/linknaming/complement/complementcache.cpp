@@ -7,7 +7,7 @@
 #include <mutex>
 #include <unordered_map>
 
-std::atomic<size_t> complement::recognitionCacheLimit{200'000};
+std::atomic<size_t> complement::cacheLimit{200'000};
 
 namespace {
 
@@ -23,33 +23,33 @@ namespace {
 // hit -- the common case once a search has been running a while, and the
 // only case isUnknot()'s hot path ever takes -- never blocks behind a slow
 // in-flight Census::lookup() on another thread.
-std::mutex recognitionCacheMutex;
-std::unordered_map<std::string, complement::RecognitionResult> recognitionCache;
-complement::RecognitionCacheStats recognitionStats;
+std::mutex cachedAnswersMutex;
+std::unordered_map<std::string, complement::ComplementAnswer> cachedAnswers;
+complement::ComplementCacheStats answerStats;
 
 } // namespace
 
 namespace complement {
 
-std::optional<RecognitionResult> lookupRecognition(const std::string &sig) {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    auto it = recognitionCache.find(sig);
-    if (it == recognitionCache.end())
+std::optional<ComplementAnswer> lookupAnswer(const std::string &sig) {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    auto it = cachedAnswers.find(sig);
+    if (it == cachedAnswers.end())
         return std::nullopt;
     return it->second;
 }
 
-RecognitionResult storeRecognition(const std::string &sig,
-                                   const RecognitionResult &update) {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    if (recognitionCache.find(sig) == recognitionCache.end() &&
-            recognitionCache.size() >=
-                complement::recognitionCacheLimit.load(
+ComplementAnswer cacheAnswer(const std::string &sig,
+                                   const ComplementAnswer &update) {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    if (cachedAnswers.find(sig) == cachedAnswers.end() &&
+            cachedAnswers.size() >=
+                complement::cacheLimit.load(
                     std::memory_order_relaxed)) {
-        recognitionCache.clear();
-        ++recognitionStats.cacheResets;
+        cachedAnswers.clear();
+        ++answerStats.cacheResets;
     }
-    RecognitionResult &entry = recognitionCache[sig];
+    ComplementAnswer &entry = cachedAnswers[sig];
     if (update.genus && !entry.genus)
         entry.genus = update.genus;
     if (update.censusChecked && !entry.censusChecked) {
@@ -64,39 +64,39 @@ RecognitionResult storeRecognition(const std::string &sig,
     return entry;
 }
 
-std::optional<RecognitionResult>
-checkRecognition(const std::string &sig, long long RecognitionCacheStats::*checks,
-                 long long RecognitionCacheStats::*hits,
-                 const std::function<bool(const RecognitionResult &)> &answers) {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    ++(recognitionStats.*checks);
-    auto it = recognitionCache.find(sig);
-    if (it != recognitionCache.end() && answers(it->second)) {
-        ++(recognitionStats.*hits);
+std::optional<ComplementAnswer>
+checkAnswer(const std::string &sig, long long ComplementCacheStats::*checks,
+                 long long ComplementCacheStats::*hits,
+                 const std::function<bool(const ComplementAnswer &)> &answers) {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    ++(answerStats.*checks);
+    auto it = cachedAnswers.find(sig);
+    if (it != cachedAnswers.end() && answers(it->second)) {
+        ++(answerStats.*hits);
         return it->second;
     }
     return std::nullopt;
 }
 
-void countRecognition(const std::function<void(RecognitionCacheStats &)> &update) {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    update(recognitionStats);
+void countInCache(const std::function<void(ComplementCacheStats &)> &update) {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    update(answerStats);
 }
 
-RecognitionCacheStats recognitionCacheStats() {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    return recognitionStats;
+ComplementCacheStats cacheStats() {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    return answerStats;
 }
 
-size_t recognitionCacheSize() {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    return recognitionCache.size();
+size_t cacheSize() {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    return cachedAnswers.size();
 }
 
-void resetRecognitionCacheForTesting() {
-    std::lock_guard<std::mutex> lock(recognitionCacheMutex);
-    recognitionCache.clear();
-    recognitionStats = RecognitionCacheStats{};
+void resetCacheForTesting() {
+    std::lock_guard<std::mutex> lock(cachedAnswersMutex);
+    cachedAnswers.clear();
+    answerStats = ComplementCacheStats{};
 }
 
 } // namespace complement

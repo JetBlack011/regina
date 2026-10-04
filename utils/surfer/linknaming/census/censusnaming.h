@@ -45,7 +45,7 @@ extern std::mutex censusLookupMutex;
  * recognized, "Unknot" if a genus-1 handlebody, or else the bare isoSig as
  * a fallback identifier.
  */
-std::string identify(const EdgeComplement &e);
+std::string nameComplement(const EdgeComplement &e);
 
 /**
  * Test-only. When set, identify() appends a fresh suffix to every name it
@@ -84,17 +84,17 @@ std::string perturbedForTesting(std::string name);
  * whenever the argument is a Link -- it only changes behavior for n > 1,
  * by trying the split-unlink fast path first.
  */
-std::string identify(const Link &l);
+std::string nameComplement(const Link &l);
 
 /**
  * Prints and returns whether `e`'s complement is recognized: either as a
  * genus-1 handlebody (the complement of a single unknotted component), or
  * as a census hit.
  */
-bool recognizeComplement(const EdgeComplement &e);
+bool reportComplement(const EdgeComplement &e);
 
 /** Prints whether each component of `l`'s complement is recognized; see recognizeComplement(const EdgeComplement&). */
-void recognizeComplement(const Link &l);
+void reportComplement(const Link &l);
 
 } // namespace census
 

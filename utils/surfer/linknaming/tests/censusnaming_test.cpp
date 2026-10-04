@@ -76,7 +76,7 @@ regina::Triangulation<3> testBoundary() {
     return pent.boundaryComponent(0)->build();
 }
 
-void test_recognition_cache_clear_threshold() {
+void test_complement_cache_clear_threshold() {
     // Unlike BoundarySignatureCache's pre-triangulation combinatorial key,
     // recognitionCache is keyed by the drilled complement's POST-simplify
     // isoSig -- a topological invariant of the resulting manifold, not of
@@ -91,22 +91,22 @@ void test_recognition_cache_clear_threshold() {
     regina::Triangulation<3> boundary = testBoundary();
     regina::Triangulation<3> figureEight = regina::Example<3>::figureEight();
 
-    complement::resetRecognitionCacheForTesting();
-    size_t defaultLimit = complement::recognitionCacheLimit.load();
-    complement::recognitionCacheLimit.store(1);
+    complement::resetCacheForTesting();
+    size_t defaultLimit = complement::cacheLimit.load();
+    complement::cacheLimit.store(1);
 
-    census::identify(EdgeComplement(boundary, {boundary.edge(0)}));
-    census::identify(EdgeComplement(figureEight, {}));
+    census::nameComplement(EdgeComplement(boundary, {boundary.edge(0)}));
+    census::nameComplement(EdgeComplement(figureEight, {}));
 
-    EXPECT_EQ(complement::recognitionCacheStats().cacheResets >= 1, true,
+    EXPECT_EQ(complement::cacheStats().cacheResets >= 1, true,
               "recognitionCache reset at least once after exceeding its "
               "(deliberately tiny) limit");
 
-    complement::recognitionCacheLimit.store(defaultLimit);
-    complement::resetRecognitionCacheForTesting();
+    complement::cacheLimit.store(defaultLimit);
+    complement::resetCacheForTesting();
 }
 
-void test_recognition_cache_clear_race() {
+void test_complement_cache_clear_race() {
     // resolveRecognition() takes the genus from cachedGenus(), which stores
     // it and releases recognitionCacheMutex, and then dereferences
     // lookupRecognition(sig) under a second lock. storeRecognition() clears
@@ -126,14 +126,14 @@ void test_recognition_cache_clear_race() {
         return EdgeComplement(t, {f->edge(0), f->edge(1), f->edge(2)});
     };
     regina::Triangulation<3> boundary = testBoundary();
-    complement::resetRecognitionCacheForTesting();
-    const std::string expected = census::identify(unknot(boundary));
+    complement::resetCacheForTesting();
+    const std::string expected = census::nameComplement(unknot(boundary));
     EXPECT_EQ(expected, std::string("Unknot"),
               "the quiet call takes the genus != -1 branch");
 
-    const size_t defaultLimit = complement::recognitionCacheLimit.load();
-    complement::recognitionCacheLimit.store(1);
-    complement::resetRecognitionCacheForTesting();
+    const size_t defaultLimit = complement::cacheLimit.load();
+    complement::cacheLimit.store(1);
+    complement::resetCacheForTesting();
 
     std::atomic<long> calls{0}, wrong{0};
     std::atomic<bool> stop{false};
@@ -142,7 +142,7 @@ void test_recognition_cache_clear_race() {
     auto namer = [&] {
         regina::Triangulation<3> own = testBoundary();
         for (int i = 0; i < 4000 && !stop.load(); ++i) {
-            std::string name = census::identify(unknot(own));
+            std::string name = census::nameComplement(unknot(own));
             ++calls;
             if (name != expected && ++wrong <= 5)
                 std::cout << "  wrong name: '" << name << "'\n";
@@ -153,9 +153,9 @@ void test_recognition_cache_clear_race() {
     auto churner = [&] {
         regina::Triangulation<3> own = regina::Example<3>::figureEight();
         while (!stop.load()) {
-            census::identify(EdgeComplement(own, {}));
+            census::nameComplement(EdgeComplement(own, {}));
             for (int k = 0; k < 1000 && !stop.load(); ++k)
-                complement::resetRecognitionCacheForTesting();
+                complement::resetCacheForTesting();
             if (std::chrono::steady_clock::now() > deadline)
                 stop.store(true);
         }
@@ -177,8 +177,8 @@ void test_recognition_cache_clear_race() {
               "every concurrent identification agrees with the quiet one, "
               "however often the cache is cleared underneath it");
 
-    complement::recognitionCacheLimit.store(defaultLimit);
-    complement::resetRecognitionCacheForTesting();
+    complement::cacheLimit.store(defaultLimit);
+    complement::resetCacheForTesting();
 }
 
 // census::identify(const Link&): the split-unlink fast path
@@ -189,7 +189,7 @@ void test_recognition_cache_clear_race() {
 // components, so -- unlike a solid torus -- it is never itself a
 // handlebody; recogniseHandlebody() correctly returns -1 for it, not n,
 // which is what makes a genus-based check wrong here).
-void test_identify_link_unlink() {
+void test_name_link_unlink() {
     // The 2-component unlink: the Hopf link's shadow with crossing 1's
     // tuple cyclically rotated by one position, flipping that crossing's
     // over/under role -- the exact fixture knotbuilder_test.cpp's own
@@ -202,7 +202,7 @@ void test_identify_link_unlink() {
 
     EXPECT_EQ(link.countComponents(), 2,
               "fixture sanity: the flipped Hopf shadow has 2 components");
-    EXPECT_EQ(census::identify(link), std::string("2-component unlink"),
+    EXPECT_EQ(census::nameComplement(link), std::string("2-component unlink"),
               "identify(const Link&) names a split 2-component unlink via "
               "the free-fundamental-group fast path, instead of falling "
               "back to a bare isoSig");
@@ -212,14 +212,14 @@ void test_identify_link_unlink() {
 // LINKED multi-component complement for a handlebody either. The
 // (unflipped) Hopf link has the same component count as the unlink fixture
 // above, but its complement (T^2 x I) is not a handlebody at all.
-void test_identify_link_hopf_not_unknot() {
+void test_name_link_hopf_not_unknot() {
     knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
     auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
     Link link(tri, edges);
 
     EXPECT_EQ(link.countComponents(), 2,
               "fixture sanity: the Hopf link has 2 components");
-    EXPECT_EQ(census::identify(link) != "Unknot", true,
+    EXPECT_EQ(census::nameComplement(link) != "Unknot", true,
               "the (linked) Hopf link's complement is not a handlebody, "
               "so identify() must not call it \"Unknot\"");
 }
@@ -232,7 +232,7 @@ void test_identify_link_hopf_not_unknot() {
 // Seifert-fibred complement misses it too.
 void test_pachner_search_policy() {
     census::resetCensusForTesting();
-    complement::resetRecognitionCacheForTesting();
+    complement::resetCacheForTesting();
     const bool oldOnMiss = census::retriangulateOnMiss.load();
     const bool oldLinks = census::retriangulateLinks.load();
     const long long oldBudget = census::retriangulateTimeBudgetSeconds.load();
@@ -244,10 +244,10 @@ void test_pachner_search_policy() {
         knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
         auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
         Link hopf(tri, edges);
-        census::identify(hopf);
-        census::identify(hopf); // a repeat must not retry either
+        census::nameComplement(hopf);
+        census::nameComplement(hopf); // a repeat must not retry either
     }
-    auto afterLink = complement::recognitionCacheStats();
+    auto afterLink = complement::cacheStats();
     EXPECT_EQ(afterLink.pachnerLinks.attempts, 0LL,
               "a link complement that misses the census is NOT sent to the "
               "Pachner search");
@@ -257,9 +257,9 @@ void test_pachner_search_policy() {
             knotbuilder::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
         auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
         Link trefoil(tri, edges);
-        census::identify(trefoil);
+        census::nameComplement(trefoil);
     }
-    auto afterKnot = complement::recognitionCacheStats();
+    auto afterKnot = complement::cacheStats();
     EXPECT_EQ(afterKnot.pachnerKnots.attempts >= 1, true,
               "a knot complement that misses the census still is: a knot's "
               "name can bear a bound");
@@ -269,7 +269,7 @@ void test_pachner_search_policy() {
     census::retriangulateOnMiss.store(oldOnMiss);
     census::retriangulateLinks.store(oldLinks);
     census::retriangulateTimeBudgetSeconds.store(oldBudget);
-    complement::resetRecognitionCacheForTesting();
+    complement::resetCacheForTesting();
 }
 
 } // namespace
@@ -281,10 +281,10 @@ void run(const std::string &name, void (*fn)()) {
 
 int main() {
     run("recognition_cache_clear_threshold",
-        test_recognition_cache_clear_threshold);
-    run("recognition_cache_clear_race", test_recognition_cache_clear_race);
-    run("identify_link_unlink", test_identify_link_unlink);
-    run("identify_link_hopf_not_unknot", test_identify_link_hopf_not_unknot);
+        test_complement_cache_clear_threshold);
+    run("recognition_cache_clear_race", test_complement_cache_clear_race);
+    run("identify_link_unlink", test_name_link_unlink);
+    run("identify_link_hopf_not_unknot", test_name_link_hopf_not_unknot);
     run("pachner_search_policy", test_pachner_search_policy);
 
 

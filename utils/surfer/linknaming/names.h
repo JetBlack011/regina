@@ -111,7 +111,7 @@ std::vector<std::string> nameCandidates(const std::string &name);
  * (`"Unknot"`, `"3-component unlink"`, a bare isoSig, an undecorated census
  * name) untouched.
  */
-std::string normalizeIdentifiedName(const std::string &name);
+std::string normalizeComplementName(const std::string &name);
 
 /**
  * The factors of a split name, "A u B u ...", or an empty vector if `name`

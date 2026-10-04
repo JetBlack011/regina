@@ -19,8 +19,8 @@ namespace outgoing {
 // required: a lone curve on its own (identify(const EdgeComplement&)),
 // several curves together (identify(const Link&)).
 ComplementNamer::ComplementNamer()
-    : ComplementBoundaryNamer(static_cast<KnotRoute>(&census::identify),
-                              static_cast<LinkRoute>(&census::identify)) {}
+    : ComplementBoundaryNamer(static_cast<KnotRoute>(&census::nameComplement),
+                              static_cast<LinkRoute>(&census::nameComplement)) {}
 
 OutgoingNamer::OutgoingNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                            const CobordismBuilder<3> &cob, const linknaming::SignatureTable &table)
