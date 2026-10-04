@@ -88,7 +88,7 @@ void test10_3() {
   SearchedLink searched = makeSearchedLink(reg, PD_10_3);
   CobordismAssembler assembler(g, reg, searched); // certifies the row (throws if not)
   CHECK(true, "10_3: the row is certified");
-  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_10_3_witnesses.csv");
+  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/search_10_3_cobordisms.csv");
   CHECK_EQ(static_cast<int>(ws.size()), 9, "10_3: nine witnesses");
   int ok = 0, selfLoops = 0, splits = 0;
   for (const StoredLine &r : ws) {
@@ -134,7 +134,7 @@ void testL11n33() {
   CobordismAssembler assembler(g, reg, searched);
   // The certificate's map: knotbuilder's component order onto the node's.
   CHECK_EQ(static_cast<int>(assembler.incomingToLink().size()), 2, "two row components");
-  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_L11n33_witnesses.csv");
+  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/search_L11n33_cobordisms.csv");
   int ok = 0;
   for (const StoredLine &r : ws) {
     AddedCobordism e = assembler.add({r.pairsig, std::stoi(r.genus), r.other});
@@ -165,8 +165,8 @@ void testFastMatchesReference() {
   // G1: the fast read (outgoingLinkFast, no KnottedSurface rebuild) and the
   // reference read give the same cobordism shape and the same far-side
   // pieces for every real witness.
-  for (auto [pd, file] : {std::pair{PD_10_3, "hop_10_3_witnesses.csv"},
-                          std::pair{PD_L11n33, "hop_L11n33_witnesses.csv"}}) {
+  for (auto [pd, file] : {std::pair{PD_10_3, "search_10_3_cobordisms.csv"},
+                          std::pair{PD_L11n33, "search_L11n33_cobordisms.csv"}}) {
     CobordismGraph gf, gr;
     LinkRegistry rf(gf), rr(gr);
     CobordismAssembler fast(gf, rf, makeSearchedLink(rf, pd), CobordismAssembler::Read::fast);

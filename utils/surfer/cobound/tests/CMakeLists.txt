@@ -2,7 +2,7 @@ set(TESTS
   solver_test
   cobordismkey_test
   database_test
-  rowmap_test
+  incomingmap_test
   preconditions_test
   outgoingnamer_test
 )
@@ -124,10 +124,10 @@ add_test(NAME canaries_test
 set_tests_properties(canaries_test PROPERTIES
   LABELS "surfer" TIMEOUT 600)
 
-# surface_log over two rows on one thread must not reuse the previous row's
-# (destroyed) CsvWriter shard. See the script's header.
-add_test(NAME surface_log_rows_test
-         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/surface_log_rows_test.sh
+# surface_log over two searches on one thread must not reuse the previous
+# search's (destroyed) CsvWriter shard. See the script's header.
+add_test(NAME surface_log_searches_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/surface_log_searches_test.sh
                  $<TARGET_FILE:cobound>)
-set_tests_properties(surface_log_rows_test PROPERTIES
+set_tests_properties(surface_log_searches_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)

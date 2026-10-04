@@ -10,7 +10,8 @@
 #     tools/orchestrate/canaries.expected, phase 0's numbers, byte for byte;
 #   - cascade_canaries.sh's two goal runs (3_1 goal 1 and L2a1{0} goal 0, one
 #     exhaustive search each): each search's accounting, the target's best
-#     genus and the run's outcome must be data/cascade_canaries.expected's.
+#     genus and the run's outcome must be data/goal_canaries.expected's (the
+#     atlas's cascade_canaries.expected, byte for byte).
 # Exhaustive and name-free, so the numbers are a function of the code alone:
 # they hold with the small tables here as with the atlas's (naming moves only
 # the recorded/duplicate split).
@@ -79,7 +80,7 @@ CONF
 pd31=$(grep '^3_1,' "$D/canaries.csv" | cut -d, -f2)
 pdhopf=$(grep -F 'L2a1{0},' "$D/canaries.csv" | cut -d, -f2)
 { goal 3_1 1 "$pd31"; goal 'L2a1{0}' 0 "$pdhopf"; } | LC_ALL=C sort > "$T/cascade.got"
-if ! diff -u "$D/cascade_canaries.expected" "$T/cascade.got"; then
+if ! diff -u "$D/goal_canaries.expected" "$T/cascade.got"; then
   echo "FAIL: the goal runs' accounting, best genus or outcome is not phase 0's"; exit 1
 fi
 echo "PASS: $(wc -l < "$T/got") canary rows and $(wc -l < "$T/cascade.got") goal-run lines are phase 0's"

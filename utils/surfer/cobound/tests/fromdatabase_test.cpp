@@ -78,7 +78,7 @@ std::string tempDir() {
 
 int main() {
   const std::vector<std::string> sigs =
-      pairsigs(std::string(COBOUND_TEST_DATA) + "/hop_10_3_witnesses.csv");
+      pairsigs(std::string(COBOUND_TEST_DATA) + "/search_10_3_cobordisms.csv");
   CHECK_EQ(static_cast<int>(sigs.size()), 9, "nine 10_3 witnesses");
   outgoing::OutgoingReader redraw(PD_10_3, 2);
   const std::string digest = redraw.buildChecksum();

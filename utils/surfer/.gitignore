@@ -8,9 +8,9 @@
 *.sqlite-wal
 __pycache__/
 
-# The cascade tests' fixtures are tracked and must stay sendable.
-!cobound/tests/data/hop_10_3_witnesses.csv
-!cobound/tests/data/hop_L11n33_witnesses.csv
+# The cobound tests' fixtures are tracked and must stay sendable.
+!cobound/tests/data/search_10_3_cobordisms.csv
+!cobound/tests/data/search_L11n33_cobordisms.csv
 !cobound/tests/data/knots_to_6.csv
 !cobound/tests/data/links_to_6.csv
 !cobound/tests/data/canaries.csv

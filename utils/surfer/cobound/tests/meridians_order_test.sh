@@ -11,7 +11,7 @@
 #     one process-wide generator, so a record's answer depended on how many
 #     draws the records before it had made.
 #
-# Inputs: the stored witnesses' pair signatures in data/hop_10_3_witnesses.csv
+# Inputs: the stored cobordisms' pair signatures in data/search_10_3_cobordisms.csv
 # (sig, dump) and the small tables' diagrams (dump-link).
 set -eu
 
@@ -21,7 +21,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 # "<id> <pairsig>": the first 12 witnesses (column 9 is the pair signature).
-awk -F, 'NR > 1 && NR <= 13 { print "w" NR, $9 }' "$D/hop_10_3_witnesses.csv" > "$T/pairsigs"
+awk -F, 'NR > 1 && NR <= 13 { print "w" NR, $9 }' "$D/search_10_3_cobordisms.csv" > "$T/pairsigs"
 # "<id> <pd>": every row of both small tables.
 for f in "$D/knots_to_6.csv" "$D/links_to_6.csv"; do
   awk -F, 'NR > 1 { print $1, $2 }' "$f"

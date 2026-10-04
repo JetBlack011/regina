@@ -1,5 +1,5 @@
 //
-//  rowmap_test.cpp
+//  incomingmap_test.cpp
 //
 //  The row's own link, as verifyslicegenus sets it up on the search side
 //  of a real collar-seeded search:
@@ -20,7 +20,7 @@
 //  -- a table CSV of Name,PD,... rows -- sweeps every row of it instead
 //  (slow; not part of ctest):
 //
-//    ./rowmap_test ../../../../cobordism-atlas/data/links_..._pd_codes.csv 8
+//    ./incomingmap_test ../../../../cobordism-atlas/data/links_..._pd_codes.csv 8
 //
 
 #include <fstream>

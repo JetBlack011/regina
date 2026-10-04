@@ -1,5 +1,5 @@
 #!/bin/sh
-# surface_log_rows_test.sh <cobound>
+# surface_log_searches_test.sh <cobound>
 #
 # surface_log makes one CsvWriter per row. CsvWriter caches each thread's
 # shard in a function-local thread_local pointer, shared by every CsvWriter
