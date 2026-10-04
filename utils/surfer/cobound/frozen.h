@@ -118,7 +118,8 @@ inline constexpr char kFrozenIdentificationLine[] = ": identification: ";
 /// `[+] <name>: CONSTRUCTIVE witness found -- reaches genus G ...`.
 inline constexpr char kFrozenConstructiveWitnessFound[] =
     ": CONSTRUCTIVE witness found -- reaches genus ";
-/// `cobound draw`'s incoming-link line (the cascade's checker reads it).
+/// `cobound draw`'s incoming-link line (the atlas's checker, cascade_check.py,
+/// reads it).
 inline constexpr char kFrozenDrawRowLine[] = "ROW components=";
 
 #endif // SURFER_COBOUND_FROZEN_H
