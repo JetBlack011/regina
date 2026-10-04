@@ -129,7 +129,7 @@ regina::Link mirrored(regina::Link l) { l.reflect(); return l; }
 regina::Link reversedAll(regina::Link l) { l.reverse(); return l; }
 regina::Link reversedComponent(regina::Link l, size_t c) { l.reverse(l.component(c)); return l; }
 
-void test_tables(const ExactTables &t) {
+void test_tables(const Tables &t) {
     EXPECT_EQ(t.size(), KNOT_ROWS.size() + LINK_ROWS.size(), "every row loaded");
     EXPECT_EQ(t.canonical("L2a1{1}"), t.canonical("L2a1{0}"),
               "the Hopf link's two orientations are mirror images: one class");
@@ -138,18 +138,18 @@ void test_tables(const ExactTables &t) {
     EXPECT_EQ(t.inconsistentClasses().size(), size_t(0), "no class has two literature values");
 }
 
-void test_each_entry_names_itself(const ExactNamer &namer, const ExactTables &t) {
+void test_each_entry_names_itself(const LinkNamer &namer, const Tables &t) {
     for (const auto &rows : {KNOT_ROWS, LINK_ROWS})
         for (const auto &[name, rest] : rows) {
             for (const regina::Link &l : {table(name), mirrored(table(name)), reversedAll(table(name))}) {
                 LinkName n = namer.name(l);
                 EXPECT_EQ(n.name, t.canonical(name), name + " (or its mirror or reverse) is named as itself");
-                EXPECT_EQ(n.exact, true, name + " is an exact name");
+                EXPECT_EQ(n.isName, true, name + " is an exact name");
             }
         }
 }
 
-void test_orientation_variant_is_pinned(const ExactNamer &namer, const ExactTables &t) {
+void test_orientation_variant_is_pinned(const LinkNamer &namer, const Tables &t) {
     EXPECT_EQ(namer.name(reversedComponent(table("L7n1{0}"), 1)).name, t.canonical("L7n1{1}"),
               "L7n1{0} with one component reversed is L7n1{1} (g4 0, not 2)");
     EXPECT_EQ(namer.name(reversedComponent(table("L7n1{1}"), 0)).name, t.canonical("L7n1{0}"),
@@ -158,13 +158,13 @@ void test_orientation_variant_is_pinned(const ExactNamer &namer, const ExactTabl
               "L4a1{0} with one component reversed is L4a1{1}");
 }
 
-void test_composite_knots(const ExactNamer &namer) {
+void test_composite_knots(const LinkNamer &namer) {
     const GaussDiagram t = gauss(table("3_1")), mt = gauss(mirrored(table("3_1")));
     LinkName granny = namer.name(sum(t, 0, t).link());
     LinkName square = namer.name(sum(t, 0, mt).link());
     EXPECT_EQ(granny.name, std::string("3_1#3_1"), "the granny knot");
     EXPECT_EQ(square.name, std::string("3_1#m3_1"), "the square knot");
-    EXPECT_EQ(granny.exact && square.exact, true, "both are exact names");
+    EXPECT_EQ(granny.isName && square.isName, true, "both are exact names");
     EXPECT_EQ(namer.name(sum(mt, 0, mt).link()).name, std::string("3_1#3_1"),
               "the mirror of the granny is named as the granny");
     EXPECT_EQ(namer.name(sum(gauss(table("4_1")), 0, t).link()).name, std::string("3_1#4_1"),
@@ -178,24 +178,24 @@ void test_composite_knots(const ExactNamer &namer) {
     EXPECT_EQ(three.name, std::string("3_1#3_1#5_2"), "three summands");
 }
 
-void test_splits_and_sums(const ExactNamer &namer, const ExactTables &t) {
+void test_splits_and_sums(const LinkNamer &namer, const Tables &t) {
     const GaussDiagram t31 = gauss(table("3_1")), f41 = gauss(table("4_1"));
     GaussDiagram unknot;
     unknot.comps = {{}};
     unknot.origin = {0};
     LinkName split = namer.name(unite(t31, f41).link());
     EXPECT_EQ(split.name, std::string("3_1 u 4_1"), "a split of two knots");
-    EXPECT_EQ(split.exact, false, "which is a description, not an identity");
+    EXPECT_EQ(split.isName, false, "which is a description, not an identity");
     LinkName withUnknot = namer.name(unite(t31, unknot).link());
     EXPECT_EQ(withUnknot.name, std::string("3_1 u Unknot"), "a knot and a split unknot");
-    EXPECT_EQ(withUnknot.exact, true, "which is an identity");
+    EXPECT_EQ(withUnknot.isName, true, "which is an identity");
     EXPECT_EQ(namer.name(unite(unknot, unknot).link()).name, std::string("2-component unlink"),
               "two split unknots");
     const GaussDiagram hopf = gauss(table("L2a1{0}"));
     LinkName knotIntoLink = namer.name(sum(hopf, 0, t31).link());
     EXPECT_EQ(knotIntoLink.name, "3_1 #_? " + t.canonical("L2a1{0}"),
               "a trefoil summed into a component of the Hopf link");
-    EXPECT_EQ(knotIntoLink.exact, false, "which is a description");
+    EXPECT_EQ(knotIntoLink.isName, false, "which is a description");
     // Two Hopf links summed along one component each: the 3-chain.
     GaussDiagram chain = unite(hopf, hopf);
     chain.comps[1].insert(chain.comps[1].end(), chain.comps[2].begin(), chain.comps[2].end());
@@ -211,13 +211,13 @@ void test_splits_and_sums(const ExactNamer &namer, const ExactTables &t) {
 // can reach the table diagram -- which proves the link only up to mirror and
 // orientations -- and the orientation variant must then come from the
 // invariants of the piece as drawn.
-void test_search_then_invariants(const ExactTables &t) {
+void test_search_then_invariants(const Tables &t) {
     NamerLimits limits;
     limits.isometry = false; // it would answer first (test_isometry)
     limits.simplifyTries = 0;
     limits.exhaustiveHeight = 0;
     limits.searchHeight = 1;
-    ExactNamer searchOnly(t, limits);
+    LinkNamer searchOnly(t, limits);
     for (const std::string &name : {std::string("L7n1{1}"), std::string("L7n1{0}"), std::string("5_2")}) {
         regina::Link l = table(name);
         l.r1(l.component(0), 0, 1); // a kink: no longer the table diagram
@@ -238,7 +238,7 @@ void test_search_then_invariants(const ExactTables &t) {
 // untabulated and the SnapPy pipeline named: each is another minimal diagram
 // of its table knot. The table-side step names them, and without it (or with
 // its forward-search-only limits) they stay untabulated.
-void test_table_side(const ExactTables &t) {
+void test_table_side(const Tables &t) {
     // 10_151 (non-alternating): reached by rewrite() outward from the table
     // diagram at height 2. 11a_18 (alternating): in the table diagram's
     // flype orbit.
@@ -250,7 +250,7 @@ void test_table_side(const ExactTables &t) {
     on.tableSideHeight = 2;
     NamerLimits off = on;
     off.tableSideHeight = -1;
-    ExactNamer withTableSide(t, on), without(t, off);
+    LinkNamer withTableSide(t, on), without(t, off);
     for (const auto &[sig, knot] : cases) {
         const regina::Link l = regina::Link::fromSig(sig);
         const PieceName p = withTableSide.identify(gauss(l));
@@ -267,7 +267,7 @@ void test_table_side(const ExactTables &t) {
 // isometry of complements carrying meridians to meridians, with every
 // Reidemeister search off. 8_16 shares its HOMFLY polynomial with 10_156,
 // which is in the test tables: the isometry must pick 8_16.
-void test_isometry(const ExactTables &t) {
+void test_isometry(const Tables &t) {
     const std::vector<std::pair<std::string, std::string>> cases = {
         {"k-LbSTpoqLnsCyc", "10_151"}, {"l3-aqR6Fa4qPEHyf", "11a_18"},
         {"k-ygSLpCidvGDyc", "8_16"}};
@@ -276,7 +276,7 @@ void test_isometry(const ExactTables &t) {
     on.tableSideHeight = -1;
     NamerLimits off = on;
     off.isometry = false;
-    ExactNamer withIsometry(t, on), without(t, off);
+    LinkNamer withIsometry(t, on), without(t, off);
     for (const auto &[sig, knot] : cases) {
         const regina::Link l = regina::Link::fromSig(sig);
         const PieceName p = withIsometry.identify(gauss(l));
@@ -293,7 +293,7 @@ void test_isometry(const ExactTables &t) {
     NamerLimits noSimplify = on;
     noSimplify.simplifyTries = 0;
     noSimplify.exhaustiveHeight = 0;
-    EXPECT_EQ(ExactNamer(t, noSimplify).identify(gauss(kinked)).by == PieceName::By::untabulated,
+    EXPECT_EQ(LinkNamer(t, noSimplify).identify(gauss(kinked)).by == PieceName::By::untabulated,
               true, "a kinked 3_1 is not named by isometry");
 }
 
@@ -303,15 +303,15 @@ void test_isometry(const ExactTables &t) {
 // namer with its own would. Caches built for other tables -- even loaded from
 // the same files -- are refused, since they are keyed by those tables'
 // entries.
-void test_shared_caches(const ExactTables &t) {
+void test_shared_caches(const Tables &t) {
     const std::vector<std::pair<std::string, std::string>> cases = {
         {"k-LbSTpoqLnsCyc", "10_151"}, {"l3-aqR6Fa4qPEHyf", "11a_18"},
         {"k-ygSLpCidvGDyc", "8_16"}};
     NamerLimits on;
     on.searchHeight = -1;
     on.tableSideHeight = -1;
-    ExactNamer first(t, on), alone(t, on);
-    ExactNamer second(t, on, first.caches());
+    LinkNamer first(t, on), alone(t, on);
+    LinkNamer second(t, on, first.caches());
     EXPECT_EQ(second.caches() == first.caches(), true, "the second namer holds the first's caches");
     EXPECT_EQ(alone.caches() == first.caches(), false, "a namer given none makes its own");
     for (const auto &[sig, knot] : cases) {
@@ -324,10 +324,10 @@ void test_shared_caches(const ExactTables &t) {
         EXPECT_EQ(b.by == PieceName::By::isometry, true, knot + ": by isometry through shared caches");
         EXPECT_EQ(c.display(), a.display(), knot + ": the same name through its own caches");
     }
-    const ExactTables other = ExactTables::load(KNOTS, LINKS, SYMMETRY);
+    const Tables other = Tables::load(KNOTS, LINKS, SYMMETRY);
     bool refused = false;
     try {
-        ExactNamer wrong(other, on, first.caches());
+        LinkNamer wrong(other, on, first.caches());
     } catch (const std::invalid_argument &) {
         refused = true;
     }
@@ -353,8 +353,8 @@ void test_visible_sum(void) {
 
 int main() {
     writeTables();
-    ExactTables tables = ExactTables::load(KNOTS, LINKS, SYMMETRY);
-    ExactNamer namer(tables);
+    Tables tables = Tables::load(KNOTS, LINKS, SYMMETRY);
+    LinkNamer namer(tables);
     test_tables(tables);
     test_each_entry_names_itself(namer, tables);
     test_orientation_variant_is_pinned(namer, tables);

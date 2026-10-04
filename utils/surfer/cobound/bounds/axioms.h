@@ -67,8 +67,8 @@ public:
 
   /// All references must outlive this. `symmetries` may change content
   /// later (cascadesearch fills its NameTable after constructing this).
-  LinkAxioms(CobordismGraph &graph, LinkRegistry &links, const linknaming::ExactTables &tables,
-             const linknaming::ExactNamer &namer,
+  LinkAxioms(CobordismGraph &graph, LinkRegistry &links, const linknaming::Tables &tables,
+             const linknaming::LinkNamer &namer,
              const linknaming::SymmetryTable &symmetries, Options options);
   LinkAxioms(const LinkAxioms &) = delete;
   LinkAxioms &operator=(const LinkAxioms &) = delete;
@@ -101,8 +101,8 @@ private:
 
   CobordismGraph &g_;
   LinkRegistry &reg_;
-  const linknaming::ExactTables &tables_;
-  const linknaming::ExactNamer &namer_;
+  const linknaming::Tables &tables_;
+  const linknaming::LinkNamer &namer_;
   const linknaming::SymmetryTable &symmetries_;
   Options options_;
 };

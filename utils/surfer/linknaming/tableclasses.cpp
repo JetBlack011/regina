@@ -38,8 +38,8 @@ int main(int argc, char **argv) {
         std::cerr << "usage: tableclasses --knots <csv> --links <csv> [--symmetry <csv>]\n";
         return 2;
     }
-    const linknaming::ExactTables tables = linknaming::ExactTables::load(knots, links, symmetry);
-    const linknaming::ExactNamer namer(tables);
+    const linknaming::Tables tables = linknaming::Tables::load(knots, links, symmetry);
+    const linknaming::LinkNamer namer(tables);
     std::cout << "name,canonical,proof\n";
     size_t merged = 0;
     for (const linknaming::TableEntry &e : tables.entries()) {

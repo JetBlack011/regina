@@ -45,7 +45,7 @@ public:
   /// \throws std::runtime_error when the row's own link does not redraw as
   /// its diagram (HopAssembler's certification).
   SearchJudge(const std::string &name, const std::string &pd, int layers, int literatureLo,
-              const linknaming::ExactTables &tables, const linknaming::ExactNamer &namer,
+              const linknaming::Tables &tables, const linknaming::LinkNamer &namer,
               const linknaming::SymmetryTable &symmetries, unsigned threads);
   SearchJudge(const SearchJudge &) = delete;
   SearchJudge &operator=(const SearchJudge &) = delete;

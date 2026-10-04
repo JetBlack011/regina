@@ -84,7 +84,7 @@ loadOutgoingNames(const std::filesystem::path &path, size_t &clashes) {
       continue;
     OutgoingName e{f[1], f[2] == "1", std::stoi(f[4])};
     auto [it, fresh] = out.try_emplace(f[0], e);
-    if (!fresh && (it->second.name != e.name || it->second.exact != e.exact))
+    if (!fresh && (it->second.name != e.name || it->second.isName != e.isName))
       clash.insert(f[0]);
   }
   for (const std::string &k : clash)
@@ -95,7 +95,7 @@ loadOutgoingNames(const std::filesystem::path &path, size_t &clashes) {
 
 std::vector<cobordisms::Cobordism>
 applyOutgoingNames(std::vector<cobordisms::Cobordism> cobordisms,
-                  const std::unordered_map<std::string, OutgoingName> &exact, size_t &applied,
+                  const std::unordered_map<std::string, OutgoingName> &outgoingNames, size_t &applied,
                   size_t &refused) {
   applied = refused = 0;
   for (cobordisms::Cobordism &w : cobordisms) {
@@ -103,17 +103,17 @@ applyOutgoingNames(std::vector<cobordisms::Cobordism> cobordisms,
       continue;
     if (w.pairSigKey.empty() && !w.pairSig.empty())
       w.pairSigKey = cobordisms::cobordismKey(w.pairSig);
-    auto it = exact.find(w.pairSigKey);
-    if (it == exact.end())
+    auto it = outgoingNames.find(w.pairSigKey);
+    if (it == outgoingNames.end())
       continue;
     if (it->second.components != w.otherComponents) {
       ++refused;
       continue;
     }
     w.other = it->second.name;
-    w.otherCandidates = linknaming::exactCandidates(it->second.name);
+    w.otherCandidates = linknaming::nameCandidates(it->second.name);
     w.outgoingProved = true;
-    w.outgoingNamed = it->second.exact;
+    w.outgoingNamed = it->second.isName;
     ++applied;
   }
   return cobordisms;

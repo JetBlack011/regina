@@ -114,10 +114,10 @@ int commands::name(const std::vector<std::string> &args) {
                      "(defaults: exactnaming::NamerLimits)\n";
         return 2;
     }
-    const linknaming::ExactTables tables = linknaming::ExactTables::load(knots, links, symmetry);
+    const linknaming::Tables tables = linknaming::Tables::load(knots, links, symmetry);
     for (const std::string &c : tables.inconsistentClasses())
         std::cerr << "[!] table classes with two literature values: " << c << "\n";
-    const linknaming::ExactNamer namer(tables, limits);
+    const linknaming::LinkNamer namer(tables, limits);
     std::unordered_map<std::string, std::string> pd = pdCodes(knots);
     for (auto &[k, v] : pdCodes(links)) pd.emplace(k, v);
 
@@ -200,7 +200,7 @@ int commands::name(const std::vector<std::string> &args) {
                        << '/' << n.pieces[i].crossings;
             const long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - start).count();
-            std::cout << id << '\t' << incoming << "\tok\t" << n.name << '\t' << n.exact << '\t'
+            std::cout << id << '\t' << incoming << "\tok\t" << n.name << '\t' << n.isName << '\t'
                       << n.pinned << '\t' << d.components << '\t' << n.splitUnknots << '\t'
                       << pieces.str() << '\t' << n.proof() << '\t' << drawn.size() << '\t'
                       << ms << '\n';

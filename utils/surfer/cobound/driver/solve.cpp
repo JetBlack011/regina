@@ -202,7 +202,7 @@ int solveWith(const config::Config &cfg) {
   // proved it to be, while `witnesses` keeps what the search observed.
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
-  size_t exactApplied = 0, exactRefused = 0;
+  size_t namesApplied = 0, namesRefused = 0;
   auto solverCobordisms = [&]() -> std::vector<cobordisms::Cobordism> {
     std::vector<cobordisms::Cobordism> out =
         nameAliases.empty()
@@ -212,8 +212,8 @@ int solveWith(const config::Config &cfg) {
       out = solverinputs::applyOutgoingResolutions(std::move(out), cobordisms, outgoingResolutions,
                                                   names, resolutionsApplied);
     if (!outgoingNamed.empty())
-      out = solverinputs::applyOutgoingNames(std::move(out), outgoingNamed, exactApplied,
-                                            exactRefused);
+      out = solverinputs::applyOutgoingNames(std::move(out), outgoingNamed, namesApplied,
+                                            namesRefused);
     // Last: whole names only. A name inside a sum or split is a piece,
     // bounded by its literature value, which is the same across a class.
     if (!linkClasses.empty())
@@ -253,8 +253,8 @@ int solveWith(const config::Config &cfg) {
     std::cout << "[+] Far-side resolutions: applied to " << resolutionsApplied
               << " witness edges\n";
   if (!outgoingNamed.empty())
-    std::cout << "[+] Far-side exact names: applied to " << exactApplied << " witness edges"
-              << (exactRefused ? " (" + std::to_string(exactRefused) +
+    std::cout << "[+] Far-side exact names: applied to " << namesApplied << " witness edges"
+              << (namesRefused ? " (" + std::to_string(namesRefused) +
                                      " refused: component count differs)"
                                : std::string())
               << "\n";

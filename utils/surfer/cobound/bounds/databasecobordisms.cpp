@@ -58,7 +58,7 @@ DatabaseCobordisms::DatabaseCobordisms(const std::string &database,
 }
 
 bool DatabaseCobordisms::subjectsFor(LinkId n, const LinkAxioms &axioms,
-                                 const linknaming::ExactTables &tables,
+                                 const linknaming::Tables &tables,
                                  std::vector<std::string> *subjects) const {
   auto it = axioms.tableName.find(n);
   if (it == axioms.tableName.end()) return false;
@@ -83,7 +83,7 @@ double DatabaseCobordisms::load(LinkId n, DatabaseLoad &ld) {
   if (!subjectsFor(n, ld.axioms, ld.tables, &own)) return secondsSince(tLoad);
   CobordismGraph &g = ld.g;
   LinkRegistry &reg = ld.reg;
-  const linknaming::ExactTables &tables = ld.tables;
+  const linknaming::Tables &tables = ld.tables;
   std::map<LinkId, std::string> &tableName = ld.axioms.tableName;
   double readSeconds = 0; // phase A: the assembly's waits for the readers
   const size_t linksBefore = g.linkCount();

@@ -234,7 +234,7 @@ void test_signature_table_from_loaded_tables() {
                       const char *what) {
         const linknaming::SignatureTable fromFiles =
             linknaming::SignatureTable::fromTables(k.string(), l.string());
-        const ExactTables tables = ExactTables::load(k.string(), l.string(), "");
+        const Tables tables = Tables::load(k.string(), l.string(), "");
         const linknaming::SignatureTable shared = linknaming::SignatureTable::fromTables(tables);
         EXPECT_EQ(shared.knots(), fromFiles.knots(), std::string(what) + ": knot signatures");
         EXPECT_EQ(shared.links(), fromFiles.links(), std::string(what) + ": link signatures");

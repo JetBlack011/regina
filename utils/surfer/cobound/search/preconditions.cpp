@@ -165,12 +165,12 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
     return g;
 }
 
-std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *namer) {
+std::string nameOutgoing(const GatedSurface &g, const outgoing::OutgoingNamer *namer) {
     const search::BoundarySide &outgoingSide = g.split.otherSides.front();
     std::string name = linknaming::normalizeIdentifiedName(outgoingSide.name);
     // An accepted surface's flips are the gate's (g.flips, its incoming
     // curves judged once).
-    if (outgoingSide.components > 1 && namer && namer->exactNamesOn()) {
+    if (outgoingSide.components > 1 && namer && namer->orientedNamesOn()) {
         for (const auto &[bc, curves] : g.orientedLinks)
             if (namer->handles(bc))
                 if (auto n = namer->orientedName(curves, g.surfaceOf, g.flips))

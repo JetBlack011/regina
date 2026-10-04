@@ -79,7 +79,7 @@ struct OutgoingResolution {
  *  pair signature, oriented by its surface and named with a proof (name). */
 struct OutgoingName {
   std::string name;
-  bool exact = false; // an identity (may receive a bound), not a description
+  bool isName = false; // an identity (may receive a bound), not a description
   int components = 0; // curves drawn: must equal the witness's observed count
 };
 
@@ -97,7 +97,7 @@ loadOutgoingNames(const std::filesystem::path &path, size_t &clashes);
  */
 std::vector<cobordisms::Cobordism>
 applyOutgoingNames(std::vector<cobordisms::Cobordism> cobordisms,
-                  const std::unordered_map<std::string, OutgoingName> &exact, size_t &applied,
+                  const std::unordered_map<std::string, OutgoingName> &outgoingNames, size_t &applied,
                   size_t &refused);
 
 /**

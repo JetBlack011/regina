@@ -52,7 +52,7 @@ LinkId CobordismGraph::addLink(int components, std::string label,
   n.components = components;
   n.label = std::move(label);
   n.linking = std::move(lk);
-  n.profile = Profile(components);
+  n.partitionGenera = PartitionGenera(components);
   links_.push_back(std::move(n));
   lower_.emplace_back();
   lowerReason_.emplace_back();
@@ -63,7 +63,7 @@ void CobordismGraph::setGenusLowerBound(LinkId n, int lo, std::string source) {
   GraphLink &link = links_.at(n);
   link.genusLowerBound = lo;
   link.lowerBoundSource = std::move(source);
-  for (const ProfileEntry &e : link.profile.entries())
+  for (const PartitionGenus &e : link.partitionGenera.entries())
     if (e.genus < lo)
       contradictions_.push_back(link.label + ": record " +
                                 std::to_string(e.derivation) + " has genus " +
@@ -102,7 +102,7 @@ RelationId CobordismGraph::addCobordism(LinkId in, LinkId out, CobordismShape sh
     links_[out].cobordisms.push_back(e.id);
   // Existing records at either end can now be pushed across it.
   for (LinkId x : {in, out})
-    for (const ProfileEntry &pe : links_[x].profile.entries())
+    for (const PartitionGenus &pe : links_[x].partitionGenera.entries())
       pending_.push_back(pe.derivation);
   return e.id;
 }
@@ -132,9 +132,9 @@ RelationId CobordismGraph::addSplit(LinkId whole, std::vector<LinkId> pieces,
     if (seen.insert(p).second)
       links_[p].splits.push_back(s.id);
   for (LinkId x : seen)
-    for (const ProfileEntry &pe : links_[x].profile.entries())
+    for (const PartitionGenus &pe : links_[x].partitionGenera.entries())
       pending_.push_back(pe.derivation);
-  for (const ProfileEntry &pe : links_[whole].profile.entries())
+  for (const PartitionGenus &pe : links_[whole].partitionGenera.entries())
     pending_.push_back(pe.derivation);
   return s.id;
 }
@@ -188,7 +188,7 @@ RelationId CobordismGraph::addSum(LinkId whole, std::vector<LinkId> pieces,
     if (seen.insert(p).second)
       links_[p].sums.push_back(s.id);
   for (LinkId x : seen)
-    for (const ProfileEntry &pe : links_[x].profile.entries())
+    for (const PartitionGenus &pe : links_[x].partitionGenera.entries())
       pending_.push_back(pe.derivation);
   return s.id;
 }
@@ -198,7 +198,7 @@ DerivationId CobordismGraph::insert(LinkId n, const Partition &p, int genus,
                             std::vector<DerivationId> children,
                             std::string source) {
   GraphLink &link = links_.at(n);
-  if (link.profile.implies(p, genus))
+  if (link.partitionGenera.implies(p, genus))
     return -1;
   const DerivationId id = static_cast<DerivationId>(derivations_.size());
   for (DerivationId c : children)
@@ -214,7 +214,7 @@ DerivationId CobordismGraph::insert(LinkId n, const Partition &p, int genus,
   r.children = std::move(children);
   r.source = std::move(source);
   derivations_.push_back(std::move(r));
-  link.profile.insert(p, genus, id);
+  link.partitionGenera.insert(p, genus, id);
   pending_.push_back(id);
 
   if (link.genusLowerBound && genus < *link.genusLowerBound)
@@ -346,7 +346,7 @@ void CobordismGraph::deriveFrom(DerivationId rid) {
           options[j] = {rid};
           continue;
         }
-        for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
+        for (const PartitionGenus &pe : links_[s.pieces[j]].partitionGenera.entries())
           options[j].push_back(pe.derivation);
         if (options[j].empty()) anyEmpty = true;
       }
@@ -405,7 +405,7 @@ void CobordismGraph::deriveFrom(DerivationId rid) {
           options[j] = {&derivations_[rid]};
           continue;
         }
-        for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
+        for (const PartitionGenus &pe : links_[s.pieces[j]].partitionGenera.entries())
           options[j].push_back(&derivations_[pe.derivation]);
         if (options[j].empty())
           anyEmpty = true;
@@ -549,15 +549,15 @@ int CobordismGraph::transportedLower(const LinkCobordism &e, bool toIsIn,
   return lo >= kNoSurface ? kNoSurface : lo - g->genus;
 }
 
-std::string CobordismGraph::profileFields(LinkId n) const {
+std::string CobordismGraph::partitionGeneraFields(LinkId n) const {
   const GraphLink &link = links_.at(n);
   std::ostringstream o;
   o << "\"components\":" << link.components;
   if (link.linking) o << ",\"linking\":" << json::matrix(*link.linking);
   if (link.genusLowerBound)
     o << ",\"genus_lower\":" << *link.genusLowerBound;
-  std::vector<ProfileEntry> es = link.profile.entries();
-  std::sort(es.begin(), es.end(), [](const ProfileEntry &a, const ProfileEntry &b) {
+  std::vector<PartitionGenus> es = link.partitionGenera.entries();
+  std::sort(es.begin(), es.end(), [](const PartitionGenus &a, const PartitionGenus &b) {
     return a.partition == b.partition ? a.genus < b.genus : a.partition < b.partition;
   });
   o << ",\"entries\":[";
@@ -682,11 +682,11 @@ long CobordismGraph::propagateLower() {
         if (pk.components > kMaxLowerComponents ||
             w.components > kMaxLowerComponents)
           continue;
-        std::vector<std::vector<const ProfileEntry *>> others(s.pieces.size());
+        std::vector<std::vector<const PartitionGenus *>> others(s.pieces.size());
         bool anyEmpty = false;
         for (size_t j = 0; j < s.pieces.size(); ++j) {
           if (j == k) continue;
-          for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
+          for (const PartitionGenus &pe : links_[s.pieces[j]].partitionGenera.entries())
             others[j].push_back(&pe);
           if (others[j].empty()) anyEmpty = true;
         }
@@ -695,7 +695,7 @@ long CobordismGraph::propagateLower() {
           int bestV = 0;
           LowerReason why;
           why.kind = LowerReason::Kind::splitPiece;
-          std::vector<const ProfileEntry *> pick(s.pieces.size(), nullptr);
+          std::vector<const PartitionGenus *> pick(s.pieces.size(), nullptr);
           std::function<void(size_t)> rec = [&](size_t j) {
             if (j == s.pieces.size()) {
               std::vector<int> labels(w.components, -1);
@@ -725,7 +725,7 @@ long CobordismGraph::propagateLower() {
               rec(j + 1);
               return;
             }
-            for (const ProfileEntry *pe : others[j]) {
+            for (const PartitionGenus *pe : others[j]) {
               pick[j] = pe;
               rec(j + 1);
             }
@@ -778,7 +778,7 @@ long CobordismGraph::propagateLower() {
         " passes: the facts are inconsistent");
   // Every proved surface must respect every lower bound.
   for (const GraphLink &n : links_)
-    for (const ProfileEntry &e : n.profile.entries()) {
+    for (const PartitionGenus &e : n.partitionGenera.entries()) {
       const int lo = lower(n.id, e.partition);
       if (e.genus < lo)
         contradictions_.push_back(
@@ -796,12 +796,12 @@ long CobordismGraph::saturate() {
   return propagate();
 }
 
-std::optional<ProfileEntry> CobordismGraph::best(LinkId n,
+std::optional<PartitionGenus> CobordismGraph::best(LinkId n,
                                              const Partition &target) const {
-  return links_.at(n).profile.best(target);
+  return links_.at(n).partitionGenera.best(target);
 }
 
-std::optional<ProfileEntry> CobordismGraph::bestConnected(LinkId n) const {
+std::optional<PartitionGenus> CobordismGraph::bestConnected(LinkId n) const {
   return best(n, Partition::coarsest(links_.at(n).components));
 }
 

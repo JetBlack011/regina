@@ -310,7 +310,7 @@ build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
   g.propagate();
   std::vector<std::set<std::pair<std::vector<int>, int>>> ans(rg.links);
   for (int i = 0; i < rg.links; ++i)
-    for (const ProfileEntry &e : g.link(i).profile.entries())
+    for (const PartitionGenus &e : g.link(i).partitionGenera.entries())
       ans[i].insert({e.partition.labels(), e.genus});
   if (out)
     *out = std::move(g);
@@ -739,7 +739,7 @@ void testLowerSoundOnRandomWorlds() {
     raised += g.propagateLower();
     CHECK(g.contradictions().empty(), "sound: no contradiction in a consistent world");
     for (int n = 0; n < rg.links; ++n)
-      for (const ProfileEntry &e : g.link(n).profile.entries())
+      for (const PartitionGenus &e : g.link(n).partitionGenera.entries())
         CHECK(g.lower(n, e.partition) <= e.genus,
               "no lower bound exceeds an achieved surface");
     ++worlds;
@@ -748,7 +748,7 @@ void testLowerSoundOnRandomWorlds() {
   CHECK(raised > 100, "lower bounds were actually transported");
 }
 
-void testProfileFields() {
+void testPartitionGeneraFields() {
   // P1: profiles.jsonl's fields. B1's graph: the band's Pareto sets (L's
   // disjoint discs dominate its annulus, K's disc its genus-1 surface), a
   // Hopf-linked node whose split partition the linking numbers forbid, and a
@@ -768,20 +768,20 @@ void testProfileFields() {
   g.propagateLower();
   const long rK = g.bestConnected(K)->derivation;
   const long rL = g.best(L, Partition::singletons(2))->derivation;
-  CHECK_EQ(g.profileFields(K),
+  CHECK_EQ(g.partitionGeneraFields(K),
            std::string("\"components\":1,\"entries\":[{\"p\":\"{0}\",\"g\":0,\"r\":") +
                std::to_string(rK) + "}],\"lower\":[]",
            "a slice knot: its disc alone, no lower bound");
-  CHECK_EQ(g.profileFields(L),
+  CHECK_EQ(g.partitionGeneraFields(L),
            std::string("\"components\":2,\"linking\":[[0,0],[0,0]],\"entries\":[{\"p\":"
                        "\"{0}{1}\",\"g\":0,\"r\":") +
                std::to_string(rL) + "}],\"lower\":[]",
            "disjoint discs dominate the annulus");
-  CHECK_EQ(g.profileFields(H),
+  CHECK_EQ(g.partitionGeneraFields(H),
            std::string("\"components\":2,\"linking\":[[0,1],[1,0]],\"genus_lower\":0,"
                        "\"entries\":[],\"lower\":[{\"p\":\"{0}{1}\",\"forbidden\":true}]"),
            "the Hopf link's components cannot bound disjoint surfaces");
-  CHECK_EQ(g.profileFields(X),
+  CHECK_EQ(g.partitionGeneraFields(X),
            std::string("\"components\":1,\"genus_lower\":2,\"entries\":[],"
                        "\"lower\":[{\"p\":\"{0}\",\"lo\":2}]"),
            "a literature bound, per partition");
@@ -790,7 +790,7 @@ void testProfileFields() {
 } // namespace
 
 int main() {
-  testProfileFields();
+  testPartitionGeneraFields();
   testLowerConcordance();
   testLowerPaperCases();
   testLowerNoPenaltyForAnnuli();

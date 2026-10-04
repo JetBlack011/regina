@@ -55,7 +55,7 @@ class ComplementNamer : public ComplementBoundaryNamer {
  * multi-curve component on its own, by the complement route as
  * ComplementNamer names them. One per row; thread-safe.
  */
-class DiagramNamer : public BoundaryNamer {
+class OutgoingNamer : public BoundaryNamer {
   public:
     /**
      * \param knotT knotbuilder's triangulation of the row, unmodified.
@@ -63,7 +63,7 @@ class DiagramNamer : public BoundaryNamer {
      * \param cob the row's thickening, after its last thicken() and not coned.
      * \param table outlives this namer.
      */
-    DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
+    OutgoingNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                  const CobordismBuilder<3> &cob, const linknaming::SignatureTable &table);
 
     /** Whether boundary component `bc` is the outgoing one, which this
@@ -75,7 +75,7 @@ class DiagramNamer : public BoundaryNamer {
 
     std::string nameLink(size_t bc, const Link &curves) const override;
     std::string nameCurve(size_t bc, const Knot &curve) const override;
-    const linknaming::NamingStats &stats() const { return namer_.stats(); }
+    const linknaming::NamingStats &stats() const { return diagramNamer_.stats(); }
 
     /**
      * Turns on orientedName() (verifyslicegenus --exact-far-side-names).
@@ -83,9 +83,9 @@ class DiagramNamer : public BoundaryNamer {
      * \param caches what naming learns about `tables`, shared with other
      *        namers over them (a cascade's hops share one); new when null.
      */
-    void enableExactNames(const linknaming::ExactTables &tables,
+    void enableOrientedNames(const linknaming::Tables &tables,
                           std::shared_ptr<linknaming::TableCaches> caches = nullptr);
-    bool exactNamesOn() const { return exact_ != nullptr; }
+    bool orientedNamesOn() const { return linkNamer_ != nullptr; }
 
     /**
      * The exact name (exactnaming/) of ONE surface's outgoing curves,
@@ -114,10 +114,10 @@ class DiagramNamer : public BoundaryNamer {
     ComplementNamer complement_; ///< everything name() does not draw
     OutgoingMap map_;
     knotbuilder::DiagramDrawer drawer_;
-    linknaming::LinkNamer namer_;
-    std::unique_ptr<linknaming::ExactNamer> exact_;
-    mutable std::mutex exactMutex_;
-    mutable std::unordered_map<std::string, std::string> exactCache_;
+    linknaming::DiagramNamer diagramNamer_;
+    std::unique_ptr<linknaming::LinkNamer> linkNamer_;
+    mutable std::mutex orientedMutex_;
+    mutable std::unordered_map<std::string, std::string> orientedCache_;
     /**< drawn diagram's exact signature -> its exact name. */
 };
 

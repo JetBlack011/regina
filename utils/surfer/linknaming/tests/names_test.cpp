@@ -152,8 +152,8 @@ void test_sum_pieces() {
               "every written occurrence is a piece (over-counts, which only weakens)");
     EXPECT_EQ(sumPieces("L2a1{0}#3_1").has_value(), false, "not a sum along components");
     EXPECT_EQ(sumPieces("3_1 #_? L2a1").has_value(), false, "an untagged link states no count");
-    EXPECT_EQ(exactCandidates("L8n2{0}|L8n2{1}").size(), size_t(2), "proved alternatives");
-    EXPECT_EQ(exactCandidates("3_1#3_1|3_1#m3_1 u Unknot").size(), size_t(1),
+    EXPECT_EQ(nameCandidates("L8n2{0}|L8n2{1}").size(), size_t(2), "proved alternatives");
+    EXPECT_EQ(nameCandidates("3_1#3_1|3_1#m3_1 u Unknot").size(), size_t(1),
               "a split is one candidate");
 }
 

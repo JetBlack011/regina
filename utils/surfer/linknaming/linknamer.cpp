@@ -58,7 +58,7 @@ std::string LinkName::proof() const {
     return o.str();
 }
 
-ExactNamer::ExactNamer(const ExactTables &tables, NamerLimits limits,
+LinkNamer::LinkNamer(const Tables &tables, NamerLimits limits,
                        std::shared_ptr<TableCaches> caches)
     : tables_(tables), limits_(limits),
       caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)) {
@@ -67,7 +67,7 @@ ExactNamer::ExactNamer(const ExactTables &tables, NamerLimits limits,
         throw std::invalid_argument("ExactNamer: table caches built for other tables");
 }
 
-const regina::Laurent2<regina::Integer> &ExactNamer::homfly(const TableEntry &e, bool mirror) const {
+const regina::Laurent2<regina::Integer> &LinkNamer::homfly(const TableEntry &e, bool mirror) const {
     std::lock_guard<std::mutex> lock(caches_->cacheMutex);
     auto &cache = caches_->homfly;
     auto it = cache.find({&e, mirror});
@@ -79,7 +79,7 @@ const regina::Laurent2<regina::Integer> &ExactNamer::homfly(const TableEntry &e,
     return it->second;
 }
 
-bool ExactNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) const {
+bool LinkNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) const {
     TableCaches &c = *caches_;
     {
         std::lock_guard<std::mutex> lock(c.cacheMutex);
@@ -111,7 +111,7 @@ bool ExactNamer::inFlypeOrbit(const TableEntry &e, const std::string &graph) con
     return c.flypeOrbits.emplace(&e, std::move(orbit)).first->second.contains(graph);
 }
 
-std::vector<const TableEntry *> ExactNamer::homflyCandidates(
+std::vector<const TableEntry *> LinkNamer::homflyCandidates(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const {
     TableCaches &c = *caches_;
     std::call_once(c.homflyIndexOnce, [this, &c] {
@@ -168,7 +168,7 @@ std::vector<const TableEntry *> ExactNamer::homflyCandidates(
     return candidates;
 }
 
-const KernelLink &ExactNamer::kernelLinkOf(const TableEntry &e) const {
+const KernelLink &LinkNamer::kernelLinkOf(const TableEntry &e) const {
     TableCaches &c = *caches_;
     {
         std::lock_guard<std::mutex> lock(c.kernelMutex);
@@ -181,7 +181,7 @@ const KernelLink &ExactNamer::kernelLinkOf(const TableEntry &e) const {
     return *c.kernelLinks.try_emplace(&e, std::move(k)).first->second;
 }
 
-const std::string &ExactNamer::canonicalName(const TableEntry &e) const {
+const std::string &LinkNamer::canonicalName(const TableEntry &e) const {
     TableCaches &c = *caches_;
     {
         std::lock_guard<std::mutex> lock(c.classMutex);
@@ -222,12 +222,12 @@ const std::string &ExactNamer::canonicalName(const TableEntry &e) const {
     return c.canonicalOf.at(&e);
 }
 
-std::vector<std::string> ExactNamer::classConflicts() const {
+std::vector<std::string> LinkNamer::classConflicts() const {
     std::lock_guard<std::mutex> lock(caches_->classMutex);
     return caches_->classConflicts;
 }
 
-std::set<std::string> ExactNamer::invariantSurvivors(const GaussDiagram &piece,
+std::set<std::string> LinkNamer::invariantSurvivors(const GaussDiagram &piece,
                                                      const regina::Laurent2<regina::Integer> &h,
                                                      const std::string &base,
                                                      std::set<bool> *mirrors) const {
@@ -252,7 +252,7 @@ std::set<std::string> ExactNamer::invariantSurvivors(const GaussDiagram &piece,
     return names;
 }
 
-std::optional<ExactNamer::IsometryMatch> ExactNamer::isometryMatch(
+std::optional<LinkNamer::IsometryMatch> LinkNamer::isometryMatch(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const {
     const std::vector<const TableEntry *> candidates = homflyCandidates(l, h);
     if (candidates.empty())
@@ -294,7 +294,7 @@ std::optional<ExactNamer::IsometryMatch> ExactNamer::isometryMatch(
     return std::nullopt;
 }
 
-std::optional<std::string> ExactNamer::tableSideBase(
+std::optional<std::string> LinkNamer::tableSideBase(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const {
     const std::vector<const TableEntry *> candidates = homflyCandidates(l, h);
     if (candidates.empty())
@@ -348,7 +348,7 @@ std::optional<std::string> ExactNamer::tableSideBase(
     return std::nullopt;
 }
 
-void ExactNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const {
+void LinkNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const {
     regina::Link l = g.link();
     l.simplify(); // never reflects or reverses
     if (limits_.exhaustiveHeight > 0 && l.size() > 0 && l.size() <= limits_.maxSearchCrossings)
@@ -367,7 +367,7 @@ void ExactNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &pri
     }
 }
 
-PieceName ExactNamer::identify(const GaussDiagram &piece) const {
+PieceName LinkNamer::identify(const GaussDiagram &piece) const {
     PieceName p;
     p.components = piece.components();
     p.origin = piece.origin;
@@ -501,7 +501,7 @@ namespace {
 // choices (a name does not see those). An unpinned mark that matters is
 // written as every alternative. Returns the alternatives, sorted.
 std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &summands,
-                                          const ExactTables &tables) {
+                                          const Tables &tables) {
     struct Bits { std::string name; std::optional<SymmetryType> sym; bool m, r; };
     // Every assignment of the unpinned bits.
     std::vector<std::vector<Bits>> assignments{{}};
@@ -572,7 +572,7 @@ std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &
 
 } // namespace
 
-LinkName ExactNamer::name(const regina::Link &drawn) const {
+LinkName LinkNamer::name(const regina::Link &drawn) const {
     const size_t n = drawn.countComponents();
     std::vector<size_t> origin(n);
     std::iota(origin.begin(), origin.end(), 0);
@@ -590,7 +590,7 @@ LinkName ExactNamer::name(const regina::Link &drawn) const {
                              [](const PieceName &p) { return p.pinned(); });
     if (primes.empty()) {
         out.name = complement::unlinkName(n);
-        out.exact = out.pinned = true;
+        out.isName = out.pinned = true;
         out.factors = n;
         return out;
     }
@@ -613,13 +613,13 @@ LinkName ExactNamer::name(const regina::Link &drawn) const {
     for (size_t i = 0; i < np; ++i) factors[find(i)].push_back(i);
 
     std::vector<std::string> factorNames;
-    bool allExact = true;
+    bool allNames = true;
     for (const auto &[root, members] : factors) {
         std::vector<const PieceName *> ps;
         for (size_t i : members) ps.push_back(&out.pieces[i]);
         if (ps.size() == 1) {
             factorNames.push_back(ps[0]->display());
-            allExact = allExact && ps[0]->pinned();
+            allNames = allNames && ps[0]->pinned();
             continue;
         }
         const bool allKnots = std::all_of(ps.begin(), ps.end(),
@@ -632,10 +632,10 @@ LinkName ExactNamer::name(const regina::Link &drawn) const {
             std::string s;
             for (const std::string &a : alts) s += (s.empty() ? "" : "|") + a;
             factorNames.push_back(s);
-            allExact = allExact && alts.size() == 1;
+            allNames = allNames && alts.size() == 1;
             continue;
         }
-        allExact = false;
+        allNames = false;
         if (allKnots) { // a composite knot with an untabulated summand
             std::vector<std::string> toks;
             for (const PieceName *p : ps) toks.push_back(p->display());
@@ -684,7 +684,7 @@ LinkName ExactNamer::name(const regina::Link &drawn) const {
     out.factors = factorNames.size() + out.splitUnknots;
     // A split union is an identity only when all but one factor are split
     // unknots (g_4(L u U) = g_4(L), and L u U is determined by L).
-    out.exact = allExact && factorNames.size() == 1;
+    out.isName = allNames && factorNames.size() == 1;
     for (size_t i = 0; i < out.splitUnknots; ++i) factorNames.push_back("Unknot");
     std::sort(factorNames.begin(), factorNames.end(), [](const std::string &a, const std::string &b) {
         return std::make_pair(a == "Unknot", a) < std::make_pair(b == "Unknot", b);
@@ -739,17 +739,17 @@ std::string NamingStats::summary() const {
       << ", table link " << tableLinks << ", other link " << diagramLinks << " (+"
       << jonesLinks << " by Jones), learned link " << learnedLinks
       << "; complement fallbacks " << fallbacks << " (" << learned << " learned, "
-      << nonPlanar << " non-planar drawings); exact oriented names " << exactNamed
-      << " (+" << exactCacheHits << " cached, " << exactFailed << " failed); diagrams "
+      << nonPlanar << " non-planar drawings); exact oriented names " << orientedNamed
+      << " (+" << orientedCacheHits << " cached, " << orientedFailed << " failed); diagrams "
       << secs(microsDiagram) << "s, fallbacks " << secs(microsFallback) << "s, exact "
-      << secs(microsExact) << "s; slowest " << secs(slowestMicros()) << "s";
+      << secs(microsOriented) << "s; slowest " << secs(slowestMicros()) << "s";
     if (const std::string s = slowest(); !s.empty()) o << " (" << s << ")";
     return o.str();
 }
 
-LinkNamer::LinkNamer(const SignatureTable &table) : table_(table) {}
+DiagramNamer::DiagramNamer(const SignatureTable &table) : table_(table) {}
 
-std::string LinkNamer::name(const Link &curves,
+std::string DiagramNamer::name(const Link &curves,
                             const std::function<DrawnCurves()> &draw) const {
     ++stats_.calls;
     const auto start = std::chrono::steady_clock::now();
@@ -761,7 +761,7 @@ std::string LinkNamer::name(const Link &curves,
     return census::perturbedForTesting(std::move(out));
 }
 
-std::string LinkNamer::nameOnce(const Link &curves,
+std::string DiagramNamer::nameOnce(const Link &curves,
                                 const std::function<DrawnCurves()> &draw) const {
     const auto start = std::chrono::steady_clock::now();
     const size_t n = curves.comps_.size();

@@ -298,9 +298,9 @@ void testLinking() {
     CHECK(linkingAllows(p, unlink), "unlink: every partition allowed");
 }
 
-void testProfile() {
+void testPartitionGenera() {
   // A12: the Pareto set keeps exactly the non-implied entries.
-  Profile pr(3);
+  PartitionGenera pr(3);
   CHECK(pr.insert(Partition::coarsest(3), 2, 0), "first entry");
   CHECK(!pr.insert(Partition::coarsest(3), 3, 1), "worse genus is implied");
   CHECK(pr.insert(Partition::fromLabels({0, 0, 1}), 2, 2),
@@ -316,7 +316,7 @@ void testProfile() {
   // every inserted pair is implied by the set.
   std::mt19937 rng(7);
   for (int t = 0; t < 300; ++t) {
-    Profile q(4);
+    PartitionGenera q(4);
     std::vector<std::pair<Partition, int>> inserted;
     for (int k = 0; k < 12; ++k) {
       Partition p = randomPartition(4, rng);
@@ -367,7 +367,7 @@ int main() {
   testGlueAgainstModel();
   testPaperSpecialCases();
   testLinking();
-  testProfile();
+  testPartitionGenera();
   testGlueMonotone();
   return checks::finish("profile_test");
 }

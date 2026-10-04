@@ -22,23 +22,23 @@ ComplementNamer::ComplementNamer()
     : ComplementBoundaryNamer(static_cast<KnotRoute>(&census::identify),
                               static_cast<LinkRoute>(&census::identify)) {}
 
-DiagramNamer::DiagramNamer(const regina::Triangulation<3> &knotT, size_t crossings,
+OutgoingNamer::OutgoingNamer(const regina::Triangulation<3> &knotT, size_t crossings,
                            const CobordismBuilder<3> &cob, const linknaming::SignatureTable &table)
-    : map_(knotT, cob), drawer_(knotT, crossings), namer_(table) {}
+    : map_(knotT, cob), drawer_(knotT, crossings), diagramNamer_(table) {}
 
-std::string DiagramNamer::name(const Link &curves) const {
-    return namer_.name(curves, [this, &curves] { return draw(curves); });
+std::string OutgoingNamer::name(const Link &curves) const {
+    return diagramNamer_.name(curves, [this, &curves] { return draw(curves); });
 }
 
-std::string DiagramNamer::nameLink(size_t bc, const Link &curves) const {
+std::string OutgoingNamer::nameLink(size_t bc, const Link &curves) const {
     return handles(bc) ? name(curves) : complement_.nameLink(bc, curves);
 }
 
-std::string DiagramNamer::nameCurve(size_t bc, const Knot &curve) const {
+std::string OutgoingNamer::nameCurve(size_t bc, const Knot &curve) const {
     return complement_.nameCurve(bc, curve);
 }
 
-linknaming::DrawnCurves DiagramNamer::draw(const Link &curves) const {
+linknaming::DrawnCurves OutgoingNamer::draw(const Link &curves) const {
     linknaming::DrawnCurves out;
     const size_t n = curves.comps_.size();
     try {
@@ -65,7 +65,7 @@ linknaming::DrawnCurves DiagramNamer::draw(const Link &curves) const {
     return out;
 }
 
-void DiagramNamer::enableExactNames(const linknaming::ExactTables &tables,
+void OutgoingNamer::enableOrientedNames(const linknaming::Tables &tables,
                                     std::shared_ptr<linknaming::TableCaches> caches) {
     linknaming::NamerLimits fast;
     fast.simplifyTries = 2;
@@ -78,14 +78,14 @@ void DiagramNamer::enableExactNames(const linknaming::ExactTables &tables,
     // name (a 50k-surface hop spent 57,000 thread-seconds there, 2026-09-29).
     // farsidename refines such names offline from the pair signature.
     fast.tableSideHeight = -1;
-    exact_ = std::make_unique<linknaming::ExactNamer>(tables, fast, std::move(caches));
+    linkNamer_ = std::make_unique<linknaming::LinkNamer>(tables, fast, std::move(caches));
 }
 
-std::optional<std::string> DiagramNamer::orientedName(
+std::optional<std::string> OutgoingNamer::orientedName(
     const std::vector<OrientedCurve> &outgoing,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
     const std::map<size_t, int> &flips) const {
-    if (!exact_) return std::nullopt;
+    if (!linkNamer_) return std::nullopt;
     try {
         std::vector<knotbuilder::EdgeCycle> cycles;
         for (const OrientedCurve &curve : outgoing) {
@@ -104,22 +104,22 @@ std::optional<std::string> DiagramNamer::orientedName(
         const regina::Link drawn = drawer_.draw(cycles).link();
         const std::string key = drawn.sig<2>(false, false, true);
         {
-            std::lock_guard<std::mutex> lock(exactMutex_);
-            if (auto it = exactCache_.find(key); it != exactCache_.end()) {
-                ++namer_.stats().exactCacheHits;
+            std::lock_guard<std::mutex> lock(orientedMutex_);
+            if (auto it = orientedCache_.find(key); it != orientedCache_.end()) {
+                ++diagramNamer_.stats().orientedCacheHits;
                 return it->second;
             }
         }
         const auto start = std::chrono::steady_clock::now();
-        std::string name = exact_->name(drawn).name;
+        std::string name = linkNamer_->name(drawn).name;
         const long long micros = timers::microsSince(start);
-        namer_.stats().microsExact += micros;
-        namer_.stats().noteDuration(micros, "exact", name);
-        ++namer_.stats().exactNamed;
-        std::lock_guard<std::mutex> lock(exactMutex_);
-        return exactCache_.try_emplace(key, std::move(name)).first->second;
+        diagramNamer_.stats().microsOriented += micros;
+        diagramNamer_.stats().noteDuration(micros, "exact", name);
+        ++diagramNamer_.stats().orientedNamed;
+        std::lock_guard<std::mutex> lock(orientedMutex_);
+        return orientedCache_.try_emplace(key, std::move(name)).first->second;
     } catch (const std::exception &) {
-        ++namer_.stats().exactFailed;
+        ++diagramNamer_.stats().orientedFailed;
         return std::nullopt;
     }
 }

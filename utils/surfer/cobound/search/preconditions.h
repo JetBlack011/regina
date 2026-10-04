@@ -132,7 +132,7 @@ OrientationVerdict classifyIncomingOrientation(
 } // namespace search
 
 namespace outgoing {
-class DiagramNamer;
+class OutgoingNamer;
 }
 
 namespace search {
@@ -187,7 +187,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
  *
  * \pre `g` is accepted with exactly one far side.
  */
-std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *namer);
+std::string nameOutgoing(const GatedSurface &g, const outgoing::OutgoingNamer *namer);
 
 /**
  * Every surface the drain describes lands in exactly one of these, and at

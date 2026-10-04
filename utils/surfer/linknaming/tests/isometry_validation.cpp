@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const ExactTables tables = ExactTables::load(knots, links, symmetry);
+    const Tables tables = Tables::load(knots, links, symmetry);
     const std::vector<TableEntry> &entries = tables.entries();
     std::vector<size_t> chosen;
     for (size_t i = 0; i < entries.size(); i += stride)
@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
     NamerLimits searchL;
     searchL.exactDiagram = false;
     searchL.isometry = false;
-    const ExactNamer fullN(tables, fullL), isoN(tables, isoL), searchN(tables, searchL);
+    const LinkNamer fullN(tables, fullL), isoN(tables, isoL), searchN(tables, searchL);
 
     std::vector<Case> cases;
     for (size_t i : chosen) {
@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
             nontrivial += c.nontrivial;
         std::cout << "table: " << cases.size() << " cases (" << nontrivial
                   << " scrambled to a diagram other than the table's), " << seconds(tt) << " s\n";
-        for (const ExactNamer *n : {&fullN, &isoN, &searchN})
+        for (const LinkNamer *n : {&fullN, &isoN, &searchN})
             for (const std::string &conflict : n->classConflicts())
                 std::cout << "  CLASS CONFLICT (literature g4 differs): " << conflict << "\n";
         for (const auto &[v, n] : isoV)
@@ -403,7 +403,7 @@ int main(int argc, char **argv) {
     // ---- 4. threads ------------------------------------------------------
     {
         const auto tt = std::chrono::steady_clock::now();
-        const ExactNamer fresh(tables, isoL);
+        const LinkNamer fresh(tables, isoL);
         size_t differ = 0;
         std::ofstream f(out + ".threads.tsv");
         f << "entry\ttransform\tthreaded\tsingle\n";

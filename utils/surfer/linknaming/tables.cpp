@@ -193,9 +193,9 @@ regina::Link linkFromTablePD(const std::string &pd) {
     return regina::Link::fromPD(code.begin(), code.end());
 }
 
-ExactTables ExactTables::load(const std::string &knotTable, const std::string &linkTable,
+Tables Tables::load(const std::string &knotTable, const std::string &linkTable,
                               const std::string &knotSymmetry) {
-    ExactTables t;
+    Tables t;
     auto add = [&](const std::string &name, const std::string &pd, const std::string &g4) {
         TableEntry e;
         e.name = name;
@@ -261,33 +261,33 @@ ExactTables ExactTables::load(const std::string &knotTable, const std::string &l
     return t;
 }
 
-const std::vector<VersionMatch> *ExactTables::exact(const std::string &sig) const {
+const std::vector<VersionMatch> *Tables::exact(const std::string &sig) const {
     auto it = exact_.find(sig);
     return it == exact_.end() ? nullptr : &it->second;
 }
 
-const std::string *ExactTables::base(const std::string &sig) const {
+const std::string *Tables::base(const std::string &sig) const {
     auto it = unoriented_.find(sig);
     return it == unoriented_.end() ? nullptr : &it->second;
 }
 
-const std::vector<const TableEntry *> &ExactTables::variants(const std::string &base) const {
+const std::vector<const TableEntry *> &Tables::variants(const std::string &base) const {
     static const std::vector<const TableEntry *> none;
     auto it = byBase_.find(base);
     return it == byBase_.end() ? none : it->second;
 }
 
-const TableEntry *ExactTables::entry(const std::string &name) const {
+const TableEntry *Tables::entry(const std::string &name) const {
     auto it = byName_.find(name);
     return it == byName_.end() ? nullptr : &entries_[it->second];
 }
 
-const std::string &ExactTables::canonical(const std::string &name) const {
+const std::string &Tables::canonical(const std::string &name) const {
     auto it = canonical_.find(name);
     return it == canonical_.end() ? name : it->second;
 }
 
-std::optional<SymmetryType> ExactTables::symmetry(const std::string &knot) const {
+std::optional<SymmetryType> Tables::symmetry(const std::string &knot) const {
     auto it = symmetry_.find(knot);
     if (it == symmetry_.end()) return std::nullopt;
     return it->second;
@@ -323,7 +323,7 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
     return t;
 }
 
-SignatureTable SignatureTable::fromTables(const linknaming::ExactTables &tables) {
+SignatureTable SignatureTable::fromTables(const linknaming::Tables &tables) {
     // Exactly fromTables(knotTable, linkTable) over the same files: each
     // entry's diagram is linkFromTablePD() of its row's PD, in file order,
     // the knot table's first, so every signature and every first-wins name

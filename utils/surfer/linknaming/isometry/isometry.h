@@ -34,8 +34,8 @@
  *  serialised by one mutex. Each takes milliseconds.
  */
 
-#ifndef SURFER_EXACTNAMING_SNAPPEAISOMETRY_H
-#define SURFER_EXACTNAMING_SNAPPEAISOMETRY_H
+#ifndef SURFER_LINKNAMING_ISOMETRY_H
+#define SURFER_LINKNAMING_ISOMETRY_H
 
 #include <utility>
 #include <vector>

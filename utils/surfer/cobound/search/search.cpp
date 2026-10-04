@@ -125,20 +125,20 @@ SeedInvariantFailure::SeedInvariantFailure(size_t touching)
       touching(touching) {}
 
 Searcher::Searcher(const linknaming::SignatureTable &signatures,
-                         const linknaming::ExactTables *exact, RunShape shape,
+                         const linknaming::Tables *tables, RunShape shape,
                          unsigned threads,
-                         std::shared_ptr<linknaming::TableCaches> exactCaches)
-    : signatures_(&signatures), exact_(exact), shape_(shape), threads_(threads),
-      exactCaches_(std::move(exactCaches)) {
-  if (exact_ && !exactCaches_)
-    exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
+                         std::shared_ptr<linknaming::TableCaches> tableCaches)
+    : signatures_(&signatures), tables_(tables), shape_(shape), threads_(threads),
+      tableCaches_(std::move(tableCaches)) {
+  if (tables_ && !tableCaches_)
+    tableCaches_ = std::make_shared<linknaming::TableCaches>(*tables_);
 }
 
 Searcher::Searcher(const linknaming::SignatureTable *signatures,
-                         const linknaming::ExactTables *exact, unsigned threads)
-    : signatures_(signatures), exact_(exact), threads_(threads) {
-  if (exact_)
-    exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
+                         const linknaming::Tables *tables, unsigned threads)
+    : signatures_(signatures), tables_(tables), threads_(threads) {
+  if (tables_)
+    tableCaches_ = std::make_shared<linknaming::TableCaches>(*tables_);
 }
 
 SearchResult Searcher::run(const outgoing::OutgoingReader &reader,
@@ -189,7 +189,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the row draws its far sides.
   const outgoing::ComplementNamer complementNamer{};
-  std::optional<outgoing::DiagramNamer> namer;
+  std::optional<outgoing::OutgoingNamer> namer;
   SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);
   e.configureLimits(shape.limits);
   // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
@@ -223,7 +223,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     // T does not read back, and naming it some other way would hide that.
     try {
       namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatures_);
-      if (exact_) namer->enableExactNames(*exact_, exactCaches_);
+      if (tables_) namer->enableOrientedNames(*tables_, tableCaches_);
     } catch (const std::exception &ex) {
       throw SearchRefused(ex.what());
     }
@@ -668,7 +668,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     out.naming = ns.summary();
     out.namingDiagramSeconds = ns.microsDiagram / 1e6;
     out.namingFallbackSeconds = ns.microsFallback / 1e6;
-    out.namingExactSeconds = ns.microsExact / 1e6;
+    out.namingOrientedSeconds = ns.microsOriented / 1e6;
     out.namingSlowestSeconds = ns.slowestMicros() / 1e6;
     out.diagramNamed = true;
     out.nonPlanar = ns.nonPlanar;

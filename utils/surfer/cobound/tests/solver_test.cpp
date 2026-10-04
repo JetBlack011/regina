@@ -1251,7 +1251,7 @@ void test_named_outgoing() {
     names.addLiterature("S", 0, 9);
     names.addLiterature("L7n1{0}", 2, 2);
     names.addLiterature("L7n1{1}", 0, 0);
-    Cobordism w = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    Cobordism w = cobordism("S", 1, "L7n1{1}", 2, 0, nameCandidates("L7n1{1}"));
     w.outgoingProved = true;
     w.outgoingNamed = true;
     auto bounds = propagate({w, direct("S", 1, 0)}, names);
@@ -1263,7 +1263,7 @@ void test_named_outgoing() {
     names2.addLiterature("S", 0, 9);
     names2.addLiterature("L7n1{0}", 2, 2);
     names2.addLiterature("L7n1{1}", 0, 0);
-    Cobordism v = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    Cobordism v = cobordism("S", 1, "L7n1{1}", 2, 0, nameCandidates("L7n1{1}"));
     v.outgoingProved = true; // proved but not an identity
     auto b2 = propagate({v}, names2);
     EXPECT_EQ(b2["S"].hi, 1, "forward: g4(L7n1{1}) + 0 + 2 - 1, not L7n1{0}'s 2 + 1");
@@ -1281,10 +1281,10 @@ void test_sum_rules() {
         names.addLiterature("L7n1{0}", 2, 2);
         names.addLiterature("L2a1{0}", 0, 0);
         Cobordism sum = cobordism("S", 1, "#{L2a1{0}[?] # L7n1{0}[?]}", 3, 0,
-                                exactCandidates("#{L2a1{0}[?] # L7n1{0}[?]}"));
+                                nameCandidates("#{L2a1{0}[?] # L7n1{0}[?]}"));
         sum.outgoingProved = true;
         Cobordism split = cobordism("T", 1, "L7n1{0} u L2a1{0}", 4, 0,
-                                  exactCandidates("L7n1{0} u L2a1{0}"));
+                                  nameCandidates("L7n1{0} u L2a1{0}"));
         split.outgoingProved = true;
         auto bounds = propagate({sum, split}, names);
         const std::string tag = on ? " (sum rules on)" : " (sum rules off)";

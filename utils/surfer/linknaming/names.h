@@ -102,7 +102,7 @@ std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::str
  * variants. A split or a sum is one candidate: its alternatives live inside
  * its factors and pieces.
  */
-std::vector<std::string> exactCandidates(const std::string &name);
+std::vector<std::string> nameCandidates(const std::string &name);
 
 /**
  * An identify() result reduced to the name the graph should key on.

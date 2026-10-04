@@ -40,7 +40,7 @@ struct DatabaseLoad {
   CobordismGraph &g;
   LinkRegistry &reg;
   LinkAxioms &axioms;
-  const linknaming::ExactTables &tables;
+  const linknaming::Tables &tables;
   CobordismSources &sources;
   /// Read-backs and assemblies that broke an invariant (reported, dropped).
   int &invariantFailures;
@@ -69,7 +69,7 @@ public:
   /// Whether the database holds cobordisms for link `n` (a table link): rows
   /// of its class's table entries (named into `rows`), or cobordisms of other
   /// rows whose outgoing link has its base name.
-  bool subjectsFor(LinkId n, const LinkAxioms &axioms, const linknaming::ExactTables &tables,
+  bool subjectsFor(LinkId n, const LinkAxioms &axioms, const linknaming::Tables &tables,
                std::vector<std::string> *subjects = nullptr) const;
   /// Whether `n`'s cobordisms were loaded already.
   bool loaded(LinkId n) const { return done_.count(n) > 0; }

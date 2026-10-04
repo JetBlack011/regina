@@ -29,8 +29,8 @@
  *  reflect or reverse, unlike rewrite()).
  */
 
-#ifndef SURFER_EXACTNAMING_GAUSSDIAGRAM_H
-#define SURFER_EXACTNAMING_GAUSSDIAGRAM_H
+#ifndef SURFER_LINKNAMING_GAUSSDIAGRAM_H
+#define SURFER_LINKNAMING_GAUSSDIAGRAM_H
 
 #include <optional>
 #include <utility>

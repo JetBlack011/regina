@@ -76,7 +76,7 @@ void test_collar_outgoing_is_the_incoming(const std::string &name, const std::st
                                      const std::string &want,
                                      const linknaming::SignatureTable &table) {
     Thickened thickened(pd);
-    outgoing::DiagramNamer namer(thickened.link.tri, knotbuilder::parsePDCode(pd).size(),
+    outgoing::OutgoingNamer namer(thickened.link.tri, knotbuilder::parsePDCode(pd).size(),
                                 *thickened.cob, table);
     Skeleton<4, 2> skeleton(thickened.tri);
     KnottedSurface collar(skeleton, thickened.seedFaces);
@@ -90,7 +90,7 @@ void test_collar_outgoing_is_the_incoming(const std::string &name, const std::st
 
 void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
     Thickened thickened("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-    outgoing::DiagramNamer namer(thickened.link.tri, 3, *thickened.cob, table);
+    outgoing::OutgoingNamer namer(thickened.link.tri, 3, *thickened.cob, table);
     size_t bc = thickened.tri.boundaryComponent(0)->index() == thickened.cob->baseBoundaryComponent()->index()
                     ? 1
                     : 0;

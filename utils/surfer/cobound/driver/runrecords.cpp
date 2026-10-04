@@ -27,7 +27,7 @@ void append(const std::string &work, const std::string &line) {
   std::ofstream(work + "/" + kFrozenCascadeJsonl, std::ios::app) << line << "\n";
 }
 
-void writeProfiles(const std::string &work, const GraphView &v,
+void writePartitionGenera(const std::string &work, const GraphView &v,
                    const std::function<std::string(LinkId)> &subjectName,
                    const std::function<bool(LinkId)> &searched) {
   const CobordismGraph &g = v.g;
@@ -52,7 +52,7 @@ void writeProfiles(const std::string &work, const GraphView &v,
     if (reg.known(n))
       out << ",\"crossings\":" << reg.info(n).diagram.signs.size();
     out << ",\"searched\":" << (searched(n) ? "true" : "false") << ','
-        << g.profileFields(n) << "}\n";
+        << g.partitionGeneraFields(n) << "}\n";
   }
 }
 
@@ -94,7 +94,7 @@ void writeLinkBounds(const std::string &work, const GraphView &v) {
     }
     o << ",\"upper\":[";
     bool first = true;
-    for (const ProfileEntry &e : link.profile.entries()) {
+    for (const PartitionGenus &e : link.partitionGenera.entries()) {
       bool constructive = true;
       for (DerivationId r : g.proof(e.derivation))
         if (g.derivation(r).kind == DerivationKind::leaf &&
@@ -124,7 +124,7 @@ void writeLinkBounds(const std::string &work, const GraphView &v) {
 }
 
 void writeLowerReport(const std::string &work, const GraphView &v,
-                      const linknaming::ExactTables &tables, const std::string &targetName,
+                      const linknaming::Tables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads) {
   // For every tabulated node Y: the least charge of carrying a lower bound
   // from Y to the target, over every path the graph holds. Measured by

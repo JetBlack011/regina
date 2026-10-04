@@ -32,8 +32,8 @@ linknaming::NamerLimits LinkAxioms::namerLimits() {
 }
 
 LinkAxioms::LinkAxioms(CobordismGraph &graph, LinkRegistry &links,
-                       const linknaming::ExactTables &tables,
-                       const linknaming::ExactNamer &namer,
+                       const linknaming::Tables &tables,
+                       const linknaming::LinkNamer &namer,
                        const linknaming::SymmetryTable &symmetries, Options options)
     : g_(graph), reg_(links), tables_(tables), namer_(namer), symmetries_(symmetries),
       options_(options) {}
@@ -74,7 +74,7 @@ void LinkAxioms::name(const std::vector<LinkId> &ns, int atDepth) {
       if (names[i]->by == linknaming::PieceName::By::untabulated && d.crossings() > 0) {
         if (d.components() == 1) {
           linknaming::LinkName fs = namer_.name(d.link());
-          if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+          if (fs.isName && fs.pinned && fs.pieces.size() >= 2 &&
               fs.name.find('#') != std::string::npos)
             composites[i] = std::move(fs);
         }

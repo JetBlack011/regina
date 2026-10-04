@@ -107,7 +107,7 @@ class Scheduler {
 public:
   explicit Scheduler(GoalOptions c)
       : cfg_(std::move(c)), reg_(g_),
-        tables_(linknaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
+        tables_(linknaming::Tables::load(cfg_.knotTable, cfg_.linkTable,
                                                cfg_.knotSymmetry)),
         namer_(tables_, LinkAxioms::namerLimits()),
         axioms_(g_, reg_, tables_, namer_, names_.symmetries(),
@@ -169,15 +169,15 @@ private:
   /// and writes <work>/nodes.csv for the cascade: subjects. Idempotent.
   void signIntoDatabase();
   void printOutcome(const std::string &outcome) const;
-  void printProfile() const;
+  void printShape() const;
   /// The run's records' view of its graph.
   runrecords::GraphView view() const {
     return {g_, reg_, tableName_, depth_, target_, goalPartition(target_)};
   }
   /// <work>/profiles.jsonl, for the atlas page; written at every exit that
   /// writes the run's other files.
-  void writeProfiles() const {
-    runrecords::writeProfiles(
+  void writePartitionGenera() const {
+    runrecords::writePartitionGenera(
         cfg_.work, view(), [this](LinkId n) { return subjectName(n); },
         [this](LinkId n) { return searchSubject_.count(n) > 0; });
   }
@@ -191,8 +191,8 @@ private:
   GoalOptions cfg_;
   CobordismGraph g_;
   LinkRegistry reg_;
-  linknaming::ExactTables tables_;
-  linknaming::ExactNamer namer_;
+  linknaming::Tables tables_;
+  linknaming::LinkNamer namer_;
   /// Each link's name and outside facts (bounds/axioms.h), shared with a
   /// depth-0 search's own graph; the target, its class, each node's depth
   /// and table name are its.
@@ -638,7 +638,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
       std::ostringstream o;
       o << std::fixed << std::setprecision(1) << ",\"naming_diagram_s\":"
         << run.namingDiagramSeconds << ",\"naming_fallback_s\":" << run.namingFallbackSeconds
-        << ",\"naming_exact_s\":" << run.namingExactSeconds
+        << ",\"naming_exact_s\":" << run.namingOrientedSeconds
         << ",\"naming_slowest_s\":" << run.namingSlowestSeconds;
       return o.str();
     }();
@@ -787,7 +787,7 @@ int Scheduler::run() {
               << " from " << *s.iddfsStart << " step " << *s.iddfsStep << ", root budget "
               << *s.rootBudgetStart << " x" << *s.rootBudgetGrowth << "\n";
   }
-  printProfile();
+  printShape();
   loadLowerSources();
   // Table names and symmetry types, for the slice-composite anchors
   // (NodeAxioms) and the store step: as verifyslicegenus loads them.
@@ -829,7 +829,7 @@ int Scheduler::run() {
       // A composite target: its whole-diagram name (never an anchor for
       // itself: NodeAxioms skips the target), reported and recorded.
       linknaming::LinkName fs = namer_.name(simp.link());
-      if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
+      if (fs.isName && fs.pinned && fs.pieces.size() >= 2 &&
           fs.name.find('#') != std::string::npos)
         composite = fs.name;
     }
@@ -872,7 +872,7 @@ int Scheduler::run() {
     if (!halt_.empty()) {
       // The surfaces found are real whatever broke, so they are kept.
       signIntoDatabase();
-      writeProfiles();
+      writePartitionGenera();
       printOutcome("halted");
       return 2;
     }
@@ -882,7 +882,7 @@ int Scheduler::run() {
       // or solver bug), so they are kept, as verifyslicegenus writes its
       // witnesses before its fatal-bug halt.
       signIntoDatabase();
-      writeProfiles();
+      writePartitionGenera();
       printOutcome("contradiction");
       return 3;
     }
@@ -965,7 +965,7 @@ int Scheduler::run() {
   const double reportSeconds = secondsSince(tReport);
   const auto tBounds = Clock::now();
   runrecords::writeLinkBounds(cfg_.work, view());
-  writeProfiles();
+  writePartitionGenera();
   logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, storeSeconds,
          reportSeconds, secondsSince(tBounds));
   if (lowerMet() && !upperMet()) {
@@ -1003,7 +1003,7 @@ void Scheduler::printOutcome(const std::string &outcome) const {
             << kFrozenNewWitnessesOutcome << outcome << "\n";
 }
 
-void Scheduler::printProfile() const {
+void Scheduler::printShape() const {
   // Everything that decides what a run covers, as key=value, so a campaign
   // records what actually ran rather than what its configuration asked for.
   // The keys are cascadesearch's option names (frozen: campaigns record

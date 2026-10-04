@@ -323,7 +323,7 @@ struct SearchResult {
   /// (linknaming::NamingStats::summary()), its times by route, and the slowest
   /// single name, which is what can hold a drain's last thread alone.
   std::string naming;
-  double namingDiagramSeconds = 0, namingFallbackSeconds = 0, namingExactSeconds = 0;
+  double namingDiagramSeconds = 0, namingFallbackSeconds = 0, namingOrientedSeconds = 0;
   double namingSlowestSeconds = 0;
   /// Where the search stopped (searchfrontier.h), cumulative over the
   /// frontier it resumed, with its pending file and that file's fsynced
@@ -386,14 +386,14 @@ public:
   /// naming learns about the tables -- the HOMFLY index above all -- is
   /// built once, not once per hop. The cascade's.
   Searcher(const linknaming::SignatureTable &signatures,
-              const linknaming::ExactTables *exact, RunShape shape,
+              const linknaming::Tables *tables, RunShape shape,
               unsigned threads,
-              std::shared_ptr<linknaming::TableCaches> exactCaches = nullptr);
+              std::shared_ptr<linknaming::TableCaches> tableCaches = nullptr);
 
   /// Any caller's. Without `signatures`, every boundary is named by its
   /// complement. Exact names use this searcher's own caches.
   Searcher(const linknaming::SignatureTable *signatures,
-              const linknaming::ExactTables *exact, unsigned threads);
+              const linknaming::Tables *tables, unsigned threads);
 
   /**
    * Searches `row`'s thickening, seeded with its collar, under `proper`,
@@ -445,10 +445,10 @@ public:
 
 private:
   const linknaming::SignatureTable *signatures_;
-  const linknaming::ExactTables *exact_;
+  const linknaming::Tables *tables_;
   RunShape shape_;
   unsigned threads_;
-  std::shared_ptr<linknaming::TableCaches> exactCaches_;
+  std::shared_ptr<linknaming::TableCaches> tableCaches_;
 };
 
 } // namespace search

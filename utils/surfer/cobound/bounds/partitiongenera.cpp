@@ -113,28 +113,28 @@ bool linkingAllows(const Partition &p,
   return true;
 }
 
-bool Profile::implies(const Partition &p, int g) const {
-  for (const ProfileEntry &e : entries_)
+bool PartitionGenera::implies(const Partition &p, int g) const {
+  for (const PartitionGenus &e : entries_)
     if (e.genus <= g && e.partition.refines(p))
       return true;
   return false;
 }
 
-bool Profile::insert(const Partition &p, int g, long derivation) {
+bool PartitionGenera::insert(const Partition &p, int g, long derivation) {
   if (p.size() != n_)
     throw std::invalid_argument("Profile::insert: partition size != link");
   if (implies(p, g))
     return false;
-  std::erase_if(entries_, [&](const ProfileEntry &e) {
+  std::erase_if(entries_, [&](const PartitionGenus &e) {
     return g <= e.genus && p.refines(e.partition);
   });
   entries_.push_back({p, g, derivation});
   return true;
 }
 
-std::optional<ProfileEntry> Profile::best(const Partition &target) const {
-  std::optional<ProfileEntry> ans;
-  for (const ProfileEntry &e : entries_)
+std::optional<PartitionGenus> PartitionGenera::best(const Partition &target) const {
+  std::optional<PartitionGenus> ans;
+  for (const PartitionGenus &e : entries_)
     if (e.partition.refines(target) && (!ans || e.genus < ans->genus))
       ans = e;
   return ans;

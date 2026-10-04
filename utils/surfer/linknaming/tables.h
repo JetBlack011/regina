@@ -24,8 +24,8 @@
  *  other, inside a sum or a split.
  */
 
-#ifndef SURFER_EXACTNAMING_EXACTTABLES_H
-#define SURFER_EXACTNAMING_EXACTTABLES_H
+#ifndef SURFER_LINKNAMING_TABLES_H
+#define SURFER_LINKNAMING_TABLES_H
 
 #include <filesystem>
 #include <optional>
@@ -136,13 +136,13 @@ struct VersionMatch {
     bool reverse = false;  /**< every component of the entry reversed */
 };
 
-class ExactTables {
+class Tables {
   public:
-    ExactTables() = default;
-    ExactTables(ExactTables &&) noexcept = default;
-    ExactTables &operator=(ExactTables &&) noexcept = default;
-    ExactTables(const ExactTables &) = delete; // the indices point into entries_
-    ExactTables &operator=(const ExactTables &) = delete;
+    Tables() = default;
+    Tables(Tables &&) noexcept = default;
+    Tables &operator=(Tables &&) noexcept = default;
+    Tables(const Tables &) = delete; // the indices point into entries_
+    Tables &operator=(const Tables &) = delete;
 
     /**
      * \param knotTable, linkTable "Name,PD,Genus-4D" CSVs (the atlas tables).
@@ -151,7 +151,7 @@ class ExactTables {
      * \exception regina::InvalidArgument a table cannot be read, or two
      *        different bases share an unoriented diagram.
      */
-    static ExactTables load(const std::string &knotTable, const std::string &linkTable,
+    static Tables load(const std::string &knotTable, const std::string &linkTable,
                             const std::string &knotSymmetry);
 
     /** The versions whose exact signature (Link::sig<2>(false, false, true)) this is. */
@@ -228,7 +228,7 @@ class SignatureTable {
      * read and no PD code parsed again.
      * \exception regina::InvalidArgument either table yielded no entries.
      */
-    static SignatureTable fromTables(const linknaming::ExactTables &tables);
+    static SignatureTable fromTables(const linknaming::Tables &tables);
 
     const std::string *knot(const std::string &knotSig) const;
     const std::string *link(const std::string &linkSig) const;

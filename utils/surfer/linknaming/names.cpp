@@ -288,7 +288,7 @@ std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::str
     return out;
 }
 
-std::vector<std::string> exactCandidates(const std::string &name) {
+std::vector<std::string> nameCandidates(const std::string &name) {
     if (name.find(kSplitSeparator) != std::string::npos ||
         name.find(" #_") != std::string::npos || name.find("#{") != std::string::npos)
         return {name};

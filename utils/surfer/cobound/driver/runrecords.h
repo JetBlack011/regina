@@ -50,7 +50,7 @@ void append(const std::string &work, const std::string &line);
  * than the target), table name, label, depth, crossings and whether it was
  * searched (`searched`).
  */
-void writeProfiles(const std::string &work, const GraphView &v,
+void writePartitionGenera(const std::string &work, const GraphView &v,
                    const std::function<std::string(LinkId)> &subjectName,
                    const std::function<bool(LinkId)> &searched);
 
@@ -66,7 +66,7 @@ void writeLinkBounds(const std::string &work, const GraphView &v);
  * run's `threads`; prints the `[+] lower report:` line.
  */
 void writeLowerReport(const std::string &work, const GraphView &v,
-                      const linknaming::ExactTables &tables, const std::string &targetName,
+                      const linknaming::Tables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads);
 
 /// <work>/nodes.csv: the cascade: subjects searched (`subjects`, by node),

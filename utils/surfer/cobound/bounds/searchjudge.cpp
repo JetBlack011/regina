@@ -30,8 +30,8 @@ LinkAxioms::Options judgeOptions(unsigned threads) {
 } // namespace
 
 SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int layers,
-                         int literatureLo, const linknaming::ExactTables &tables,
-                         const linknaming::ExactNamer &namer,
+                         int literatureLo, const linknaming::Tables &tables,
+                         const linknaming::LinkNamer &namer,
                          const linknaming::SymmetryTable &symmetries, unsigned threads)
     : reg_(g_), axioms_(g_, reg_, tables, namer, symmetries, judgeOptions(threads)),
       literatureLo_(literatureLo) {

@@ -107,7 +107,7 @@ std::optional<Glued> glue(const CobordismShape &c, Side glued,
 bool linkingAllows(const Partition &p, const std::vector<std::vector<int>> &lk);
 
 /// One achievable (partition, total genus) and the proof record behind it.
-struct ProfileEntry {
+struct PartitionGenus {
   Partition partition;
   int genus = 0;
   long derivation = -1;
@@ -116,13 +116,13 @@ struct ProfileEntry {
 /**
  * The Pareto set of achievable (partition, genus) pairs for one link.
  */
-class Profile {
+class PartitionGenera {
 public:
-  Profile() = default;
-  explicit Profile(int components) : n_(components) {}
+  PartitionGenera() = default;
+  explicit PartitionGenera(int components) : n_(components) {}
 
   int components() const { return n_; }
-  const std::vector<ProfileEntry> &entries() const { return entries_; }
+  const std::vector<PartitionGenus> &entries() const { return entries_; }
   bool empty() const { return entries_.empty(); }
 
   /// Whether some entry already implies (p, g): its partition refines p and
@@ -136,11 +136,11 @@ public:
   /// The least genus known for a surface whose partition refines `target`
   /// (and the record proving it), or nullopt. For the one-block partition
   /// this is the connected slice genus bound.
-  std::optional<ProfileEntry> best(const Partition &target) const;
+  std::optional<PartitionGenus> best(const Partition &target) const;
 
 private:
   int n_ = 0;
-  std::vector<ProfileEntry> entries_;
+  std::vector<PartitionGenus> entries_;
 };
 
 } // namespace bounds

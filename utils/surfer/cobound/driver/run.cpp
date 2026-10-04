@@ -202,13 +202,13 @@ int runWithoutGoal(const config::Config &cfg) {
   // cobordism graph names its links by (divergence 6) and its outgoing links
   // are named exactly by (exact_far_side_names), and diagram naming's
   // signature table, drawn from them.
-  std::optional<linknaming::ExactTables> exactTables;
+  std::optional<linknaming::Tables> outgoingTables;
   if (outgoingNames) {
     const auto t0 = std::chrono::steady_clock::now();
     try {
-      exactTables =
-          linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath);
-      std::cout << kFrozenExactFarSideNamesLine << exactTables->size() << " table entries ("
+      outgoingTables =
+          linknaming::Tables::load(knotTablePath, linkTablePath, knotSymmetryPath);
+      std::cout << kFrozenExactFarSideNamesLine << outgoingTables->size() << " table entries ("
                 << std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::steady_clock::now() - t0)
                        .count()
@@ -217,13 +217,13 @@ int runWithoutGoal(const config::Config &cfg) {
       std::cerr << kFrozenExactFarSideNamesOff << e.what() << "\n";
     }
   }
-  std::optional<linknaming::ExactTables> graphTablesOwn;
-  const linknaming::ExactTables *graphTables = exactTables ? &*exactTables : nullptr;
-  std::optional<linknaming::ExactNamer> graphNamer;
+  std::optional<linknaming::Tables> graphTablesOwn;
+  const linknaming::Tables *graphTables = outgoingTables ? &*outgoingTables : nullptr;
+  std::optional<linknaming::LinkNamer> graphNamer;
   try {
     if (!graphTables)
       graphTables = &graphTablesOwn.emplace(
-          linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath));
+          linknaming::Tables::load(knotTablePath, linkTablePath, knotSymmetryPath));
     graphNamer.emplace(*graphTables, bounds::LinkAxioms::namerLimits());
   } catch (const std::exception &e) {
     std::cerr << "[!] the cobordism graph cannot load the tables: " << e.what() << "\n";
@@ -472,7 +472,7 @@ int runWithoutGoal(const config::Config &cfg) {
     // One searcher per row, so each row's exact names start from fresh
     // table caches, as they always have.
     const search::Searcher searcher(signatureTable ? &*signatureTable : nullptr,
-                                        exactTables ? &*exactTables : nullptr, numThreads);
+                                        outgoingTables ? &*outgoingTables : nullptr, numThreads);
     search::SearchResult run;
     try {
       run = searcher.run(rb, request);

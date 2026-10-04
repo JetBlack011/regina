@@ -64,8 +64,8 @@
  *  that bound its slice genus from its pieces' but not for an identity.
  */
 
-#ifndef SURFER_EXACTNAMING_EXACTNAMER_H
-#define SURFER_EXACTNAMING_EXACTNAMER_H
+#ifndef SURFER_LINKNAMING_LINKNAMER_H
+#define SURFER_LINKNAMING_LINKNAMER_H
 
 #include <atomic>
 #include <functional>
@@ -146,7 +146,7 @@ struct PieceName {
 /** A far side's name, with how it was proved. */
 struct LinkName {
     std::string name;
-    bool exact = false;             /**< an identity; see the file comment */
+    bool isName = false;             /**< an identity; see the file comment */
     bool pinned = false;            /**< every piece's variant pinned */
     size_t factors = 0;             /**< split factors, split unknots included */
     size_t splitUnknots = 0;
@@ -165,8 +165,8 @@ struct LinkName {
  * own locks.
  */
 struct TableCaches {
-    explicit TableCaches(const ExactTables &t) : tables(&t) {}
-    const ExactTables *tables; /**< the tables these entries belong to */
+    explicit TableCaches(const Tables &t) : tables(&t) {}
+    const Tables *tables; /**< the tables these entries belong to */
 
     std::mutex cacheMutex; /**< homfly and flypeOrbits */
     std::map<std::pair<const TableEntry *, bool>, regina::Laurent2<regina::Integer>> homfly;
@@ -186,11 +186,11 @@ struct TableCaches {
     std::vector<std::string> classConflicts;
 };
 
-class ExactNamer {
+class LinkNamer {
   public:
     /** \param caches shared with other namers over the same `tables`
      *         (caches()); a new one when null. */
-    explicit ExactNamer(const ExactTables &tables, NamerLimits limits = {},
+    explicit LinkNamer(const Tables &tables, NamerLimits limits = {},
                         std::shared_ptr<TableCaches> caches = nullptr);
 
     /** This namer's table caches, to share with another namer over the same
@@ -255,7 +255,7 @@ class ExactNamer {
      *  in the flype orbit of an entry's table diagram's graph. */
     bool inFlypeOrbit(const TableEntry &e, const std::string &graph) const;
 
-    const ExactTables &tables_;
+    const Tables &tables_;
     NamerLimits limits_;
     std::shared_ptr<TableCaches> caches_; /**< never null */
 
@@ -286,10 +286,10 @@ struct NamingStats {
     std::atomic<long long> nonPlanar{0};
     /**< Drawings the drawer refused as not planar (knotbuilder::NonPlanar):
          each is a drawer defect, named by the complement route instead. */
-    std::atomic<long long> exactNamed{0}, exactCacheHits{0}, exactFailed{0};
+    std::atomic<long long> orientedNamed{0}, orientedCacheHits{0}, orientedFailed{0};
     /**< orientedName(): names computed, answered from the cache, and
          drawings that failed (the witness then keeps its unoriented name). */
-    std::atomic<long long> microsExact{0};
+    std::atomic<long long> microsOriented{0};
     /**< Time in the exact namer itself (computed names only, not cache hits). */
 
     /** The slowest single naming so far: which route, what it named, how
@@ -350,10 +350,10 @@ struct DrawnCurves {
  * of it get the same name. Names are perturbed as identify()'s are under
  * census::perturbNamesForTesting.
  */
-class LinkNamer {
+class DiagramNamer {
   public:
     /** \param table outlives this namer. */
-    explicit LinkNamer(const SignatureTable &table);
+    explicit DiagramNamer(const SignatureTable &table);
 
     /**
      * The name of `curves` -- all the curves of one boundary component --

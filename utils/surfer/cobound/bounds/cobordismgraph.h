@@ -109,7 +109,7 @@ struct GraphLink {
   /// to a connected one of the same genus). Used only as a contradiction gate.
   std::optional<int> genusLowerBound;
   std::string lowerBoundSource;
-  Profile profile;
+  PartitionGenera partitionGenera;
   std::vector<RelationId> cobordisms; ///< Edges with this node at either end.
   std::vector<RelationId> splits;   ///< As whole or as a piece.
   std::vector<RelationId> sums;     ///< As whole or as a summand.
@@ -154,9 +154,9 @@ public:
   size_t cobordismCount() const { return cobordisms_.size(); }
 
   /// The least genus known for node n with a partition refining `target`.
-  std::optional<ProfileEntry> best(LinkId n, const Partition &target) const;
+  std::optional<PartitionGenus> best(LinkId n, const Partition &target) const;
   /// The connected slice genus bound for node n.
-  std::optional<ProfileEntry> bestConnected(LinkId n) const;
+  std::optional<PartitionGenus> bestConnected(LinkId n) const;
 
   /// Every record `r` rests on, children before parents, `r` last.
   std::vector<DerivationId> proof(DerivationId r) const;
@@ -272,7 +272,7 @@ public:
   ///   components, "lower": [{"p": Q, "lo": lower(n, Q)}] for every
   ///   partition Q with a positive bound, or {"p": Q, "forbidden": true}
   ///   where no surface can have partition Q (kNoSurface).
-  std::string profileFields(LinkId n) const;
+  std::string partitionGeneraFields(LinkId n) const;
 
 private:
   DerivationId insert(LinkId n, const Partition &p, int genus, DerivationKind kind,
