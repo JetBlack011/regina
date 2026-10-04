@@ -4,11 +4,12 @@
 //  A goal run: chained searches for one target over its cobordism graph.
 //  See ../README.md.
 //
-//  Each expansion is one search, in this process (search.h), on a node's
-//  diagram with the run's search shape. Its surfaces become edges of the
-//  cobordism graph (searchcobordisms.h), far sides become nodes (links.h),
+//  Each expansion is one search, in this process (search.h), on a link's
+//  diagram with the run's search shape. Its surfaces become cobordisms of
+//  the cobordism graph (searchcobordisms.h), outgoing links become graph
+//  links (links.h),
 //  and bounds are relaxed to a fixed point (cobordismgraph.h) after every
-//  hop. The run stops when the target's goal has a proof, or the budget is
+//  search. The run stops when the target's goal has a proof, or the budget is
 //  spent.
 
 #include "cobound/driver/scheduler.h"
@@ -137,9 +138,9 @@ private:
   bool goalMet() const { return upperMet() || lowerMet(); }
 
   void onNewLink(LinkId n, int depth) { onNewLinks({n}, depth); }
-  /// Names every node in `ns` (in parallel), then records each at `depth`
+  /// Names every link in `ns` (in parallel), then records each at `depth`
   /// with its table name, literature leaf and lower bound (in order):
-  /// NodeAxioms::name().
+  /// LinkAxioms::name().
   void onNewLinks(const std::vector<LinkId> &ns, int depth) { axioms_.name(ns, depth); }
   solver::NameTable names_; ///< table names and symmetry types
   std::vector<LinkId> linksSince(size_t first) const {
@@ -154,7 +155,7 @@ private:
   /// than the goal it would carry (charge still affordable).
   bool usefulLower(LinkId n, int *slack = nullptr) const;
   /// What n could carry to the target at best, cached per graph version;
-  /// computed for every node of `ns` on the run's threads.
+  /// computed for every link of `ns` on the run's threads.
   void lowerSlacks(const std::vector<LinkId> &ns) const;
   std::optional<int> lowerSlack(LinkId n) const;
   /// --lower-sources: which table names are special sources (their lower
@@ -162,11 +163,11 @@ private:
   void loadLowerSources();
   std::optional<LinkId> choose();
   void expand(LinkId n, long surfaces);
-  /// The name node n's hop records its witnesses under: the target's own
+  /// The name link n's search records its cobordisms under: the target's own
   /// name, a proved table name, or cascade:<run>/<target>/n<n>.
   std::string subjectName(LinkId n) const;
-  /// With --witness-store: signs and stores every kept surface of the run,
-  /// and writes <work>/nodes.csv for the cascade: subjects. Idempotent.
+  /// With a database (`cobordisms`): signs every kept surface of the run into
+  /// it, and writes <work>/nodes.csv for the `cascade:` subjects. Idempotent.
   void signIntoDatabase();
   void printOutcome(const std::string &outcome) const;
   void printShape() const;
@@ -194,7 +195,7 @@ private:
   linknaming::Tables tables_;
   linknaming::LinkNamer namer_;
   /// Each link's name and outside facts (bounds/axioms.h), shared with a
-  /// depth-0 search's own graph; the target, its class, each node's depth
+  /// depth-0 search's own graph; the target, its class, each link's depth
   /// and table name are its.
   LinkAxioms axioms_;
   LinkId &target_ = axioms_.target;
@@ -205,59 +206,59 @@ private:
   std::set<LinkId> refused_;
   /// Why the run must halt (an impossible state, divergence 2); empty if not.
   std::string halt_;
-  /// What a checker needs to replay each witness edge (certificate.json).
+  /// What a checker needs to replay each cobordism (certificate.json).
   CobordismSources sources_;
   std::optional<linknaming::SignatureTable> signatures_;
   std::unique_ptr<Searcher> searcher_;
-  /// The database's cobordisms as free edges (master_witnesses).
+  /// The database's cobordisms as free cobordisms (master_cobordisms).
   std::unique_ptr<DatabaseCobordisms> database_;
   bool masterSubjectsFor(LinkId n) const {
     return database_ && database_->subjectsFor(n, axioms_, tables_);
   }
   bool masterDone(LinkId n) const { return database_ && database_->loaded(n); }
   void loadMaster(LinkId n, bool countsAsExpansion = true);
-  /// The class a table name stands for, as the namer names nodes: its base's
+  /// The class a table name stands for, as the namer names links: its base's
   /// variants that are one oriented link up to mirror and global reversal,
-  /// by diagram OR by a meridian-carrying isometry (ExactNamer::
-  /// canonicalName(), data/table_link_classes.csv). ExactTables::canonical()
-  /// joins by diagram only, so it must never be compared with a node's name.
+  /// by diagram OR by a meridian-carrying isometry (LinkNamer::
+  /// canonicalName(), data/table_link_classes.csv). Tables::canonical()
+  /// joins by diagram only, so it must never be compared with a link's name.
   std::string classOf(const std::string &name) const { return axioms_.classOf(name); }
   double cpuSpent_ = 0, wallSpent_ = 0;
   int searches_ = 0;
   int invariantFailures_ = 0;
-  std::map<LinkId, std::string> searchSubject_; ///< each searched node's subject name
+  std::map<LinkId, std::string> searchSubject_; ///< each searched link's subject name
   bool signed_ = false;
-  size_t appended_ = 0;             ///< witnesses the store gained
+  size_t appended_ = 0;             ///< cobordisms the database gained
   std::set<LinkId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
   std::map<std::string, bool> special_;   ///< --lower-sources: name -> special
   int lowerLMax_ = 0;                     ///< the largest special lower bound
-  /// Lower what-ifs by node, valid for one (witnesses, records, lower
+  /// Lower what-ifs by link, valid for one (cobordisms, derivations, lower
   /// version) of the graph: nullopt when the what-if was inconsistent.
   struct LowerCache {
     std::tuple<size_t, size_t, long> version;
     std::map<LinkId, std::optional<int>> carried;
   };
   mutable LowerCache lowerCache_;
-  /// Each searched node's latest usable frontier (searchfrontier.h): its next
-  /// hop carries on from there instead of searching the prefix again.
+  /// Each searched link's latest usable frontier (searchfrontier.h): its next
+  /// search carries on from there instead of searching the prefix again.
   std::map<LinkId, SearchFrontier> frontiers_;
-  /// Nodes whose search ran to the end at the hop shape: nothing is left.
+  /// Links whose search ran to the end at the search shape: nothing is left.
   std::set<LinkId> searchedOut_;
-  /// The driver's own time, outside what a hop record's timers cover
+  /// The driver's own time, outside what a search record's timers cover
   /// (README.md, "Where a run's time goes"): wall seconds, summed over the
-  /// run. Each hop record carries what accrued since the previous one.
+  /// run. Each search record carries what accrued since the previous one.
   struct DriverTimes {
     double choose = 0;     ///< choose(), whole
     double useful = 0;     ///< of which the upper gate's what-ifs
     double lowerSlack = 0; ///< of which the lower gate's what-ifs
     double master = 0;     ///< loadMaster(), whole
-    double kept = 0;       ///< kept.csv (fsynced) and frontier.txt per hop
+    double kept = 0;       ///< kept.csv (fsynced) and frontier.txt per search
   };
   DriverTimes driver_, driverAtLastSearch_;
-  SignResult signResult_; ///< storeWitnesses()'s counts and times
+  SignResult signResult_; ///< signIntoDatabase()'s counts and times
   /// Writes the run's own record to cascade.jsonl: its whole wall and CPU,
-  /// and where the time outside the hops went.
+  /// and where the time outside the searches went.
   void logRun(double wall, double cpu, double startup, double loop, double databaseSeconds,
               double lowerReport, double linkBounds);
 };
@@ -285,7 +286,7 @@ void Scheduler::signIntoDatabase() {
 }
 
 void Scheduler::loadMaster(LinkId n, bool countsAsExpansion) {
-  // A witness can be on an upper proof only if its genus is at most the
+  // A cobordism can be on an upper proof only if its genus is at most the
   // goal (glue() never lowers a genus), and on a lower proof only if the
   // charge it costs, at least its genus, is affordable: at most the largest
   // special source's bound minus the lower goal.
@@ -302,13 +303,14 @@ void Scheduler::loadMaster(LinkId n, bool countsAsExpansion) {
                     goalPartition(target_),
                     [this](const std::string &line) { log(line); }};
   driver_.master += database_->load(n, load);
-  // The target's own rows stand in for its first hop at this budget level;
-  // a node loaded lazily is expanded right after, so its load counts nothing.
+  // The target's own database cobordisms stand in for its first search at
+  // this budget level;
+  // a link loaded lazily is expanded right after, so its load counts nothing.
   if (countsAsExpansion && masterSubjectsFor(n)) expansions_[n].push_back(0);
 }
 
 bool Scheduler::useful(LinkId n) const {
-  // What-if: give n the best profile it could conceivably have (every
+  // What-if: give n the best partition genera it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
   // whether the target's goal would follow over the edges found so far.
   CobordismGraph what = g_;
@@ -348,7 +350,7 @@ void Scheduler::loadLowerSources() {
 }
 
 void Scheduler::lowerSlacks(const std::vector<LinkId> &ns) const {
-  // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
+  // One what-if per link (CobordismGraph::lowerIf copies the graph and relaxes
   // it, so they are independent), on the run's threads, cached until the
   // graph changes.
   const std::tuple<size_t, size_t, long> version{g_.cobordismCount(), g_.derivationCount(),
@@ -428,7 +430,7 @@ std::optional<LinkId> Scheduler::choose() {
     if (!expansions_[n].empty()) continue; // one expansion per budget level
     eligible.push_back(n);
   }
-  // The upper gate first; the lower what-ifs for every node it rejects run
+  // The upper gate first; the lower what-ifs for every link it rejects run
   // as one parallel batch (each is a graph copy relaxed to a fixed point).
   std::map<LinkId, bool> upper;
   std::vector<LinkId> needLower;
@@ -458,12 +460,12 @@ std::optional<LinkId> Scheduler::choose() {
     cands.push_back({n, lowerOnly, slack, {order, crossings, dep, static_cast<size_t>(n)}});
   }
   if (cands.empty()) return std::nullopt;
-  // best: fewest crossings; among equals a node the upper gate keeps before
+  // best: fewest crossings; among equals a link the upper gate keeps before
   // one only the lower gate keeps, and among those the most slack (the
   // charge it can still spend reaches more sources); then lower volume,
-  // then shallower, then the older node; dfs/bfs: by depth first. Volumes
+  // then shallower, then the older link; dfs/bfs: by depth first. Volumes
   // are compared to 1e-6: SnapPea computes them on randomly retriangulated
-  // complements, so two nodes of one volume (a link and its mirror, say)
+  // complements, so two graph links of one volume (a link and its mirror, say)
   // differed in the last bits from run to run, and the order they were
   // chosen in -- and so the whole run -- was not reproducible (2026-09-30).
   auto roundedVolume = [&](LinkId n) {
@@ -488,9 +490,9 @@ std::optional<LinkId> Scheduler::choose() {
 }
 
 void Scheduler::expand(LinkId n, long surfaces) {
-  // A node searched before carries on from where that search stopped (the
-  // hop's surface target is its breadth, so it adds only what is new); one
-  // already searched this far (a hub's wide hop, say) has nothing new at
+  // A link searched before carries on from where that search stopped (the
+  // search's surface target is its breadth, so it adds only what is new); one
+  // already searched this far (a hub's wide search, say) has nothing new at
   // this budget.
   const SearchFrontier *resume = nullptr;
   if (auto f = frontiers_.find(n); f != frontiers_.end()) resume = &f->second;
@@ -522,8 +524,8 @@ void Scheduler::expand(LinkId n, long surfaces) {
     assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched);
   } catch (const std::exception &e) {
     refused_.insert(n);
-    // The row as given, to diagnose the refusal: its PD, whether Regina can
-    // recover every orientation from that PD, and the node's own diagram.
+    // The diagram as given, to diagnose the refusal: its PD, whether Regina can
+    // recover every orientation from that PD, and the link's own diagram.
     std::ostringstream gauss;
     gauss << "{\"signs\":[";
     for (size_t i = 0; i < d.signs.size(); ++i) gauss << (i ? "," : "") << d.signs[i];
@@ -541,22 +543,22 @@ void Scheduler::expand(LinkId n, long surfaces) {
     std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
     return;
   }
-  // Where a hop's time goes, logged per hop: the row's build and
+  // Where a search's time goes, logged per search: the thickening's build and
   // certification, the search's setup and the search itself, adding its
-  // surfaces, naming new nodes, and relaxing the graph.
+  // surfaces, naming new links, and relaxing the graph.
   double buildSeconds = seconds(tBuild, clock::now()), setupSeconds = 0, searchSeconds = 0;
   std::string roundsJson = "[]";
   size_t drainTail = 0;
   double drainTailSeconds = 0;
   std::string namingJson; // the drain's naming times
-  // The hop's subject: what its witnesses are recorded under, and what its
+  // The search's subject: what its cobordisms are recorded under, and what its
   // log lines are named by (subjectName()).
   const std::string subject = subjectName(n);
   searchSubject_[n] = subject;
   const size_t linksBefore = g_.linkCount();
   int assembled = 0, failed = 0;
   size_t cobordisms = 0;
-  // One kept surface into the graph. Its edge's key is its provenance:
+  // One kept surface into the graph. Its cobordism's key is its provenance:
   // hop<k>#<i> (it has no pair signature).
   const std::string build = assembler->redrawer().buildChecksum();
   auto take = [&](const std::string &key, const std::string &label,
@@ -566,7 +568,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
       e = add();
     } catch (const std::logic_error &ex) {
       // A broken invariant (e.g. simplify changed a linking number): never
-      // silently. The witness is dropped, which is sound; the run goes on.
+      // silently. The cobordism is dropped, which is sound; the run goes on.
       ++invariantFailures_;
       e.why = std::string("INVARIANT: ") + ex.what();
       std::cout << "[!!] witness " << key << " (" << label << "): " << e.why << "\n";
@@ -599,7 +601,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
       request.resume = resume;
       if (tables_.entry(subject)) request.censusName = linknaming::baseName(subject);
       // Every kept surface, durably, as the search runs (divergence 7): the
-      // hop's pending file, signed at the run's end (storeWitnesses()).
+      // search's pending file, signed at the run's end (signIntoDatabase()).
       request.incomingPD = searched.pd;
       request.layers = searched.layers;
       if (!cfg_.cobordismsPath.empty()) request.pending = dir + "/kept.csv";
@@ -642,16 +644,16 @@ void Scheduler::expand(LinkId n, long surfaces) {
         << ",\"naming_slowest_s\":" << run.namingSlowestSeconds;
       return o.str();
     }();
-    // Every hop's accounting in the driver log too, in verifyslicegenus's
-    // shape after the hop number, so a campaign audits each hop as it
-    // audits a row (tools/orchestrate/audit_rows.py).
+    // Every search's accounting in the driver log too, in verifyslicegenus's
+    // shape after the search number, so a campaign audits each search as it
+    // audits a depth-0 run's (tools/orchestrate/audit_rows.py).
     std::cout << "[+] " << kFrozenHopLine << k << " " << subject << ": accounting: "
               << run.accounting << "\n[+] " << kFrozenHopLine << k << " " << subject
               << ": diagram naming: " << run.naming
               << "\n";
     if (run.impossible > 0) {
       // Divergence 2: a state that cannot occur halts the run, once this
-      // hop's finds are recorded (below) and stored (run()), even if they
+      // search's finds are recorded (below) and signed (run()), even if they
       // meet the goal.
       halt_ = kFrozenHopLine + std::to_string(k) + ": surface accounting failed -- " +
               std::to_string(run.impossible) + " surfaces hit a state that cannot occur";
@@ -661,7 +663,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
                 << run.accountingFailure << " (completeness only: nothing unsound "
                 << "is recorded)\n";
     }
-    // The node's breadth so far, and where its next hop carries on from.
+    // The link's breadth so far, and where its next search carries on from.
     std::cout << "[+] " << kFrozenHopLine << k << " " << subject << ": breadth: "
               << (run.frontier ? run.frontier->summary() : std::string("not recorded"))
               << "; resumed "
@@ -723,8 +725,8 @@ void Scheduler::expand(LinkId n, long surfaces) {
     << ",\"target_lower\":" << targetLower
     << ",\"contradictions\":" << g_.contradictions().size()
     << ",\"invariant_failures\":" << invariantFailures_
-    // The driver's time since the previous hop record: choosing this node
-    // (and the loads before it), and this hop's kept.csv and frontier.
+    // The driver's time since the previous search record: choosing this link
+    // (and the loads before it), and this search's kept.csv and frontier.
     << ",\"choose_s\":" << driver_.choose - driverAtLastSearch_.choose
     << ",\"useful_s\":" << driver_.useful - driverAtLastSearch_.useful
     << ",\"lower_slack_s\":" << driver_.lowerSlack - driverAtLastSearch_.lowerSlack
@@ -769,9 +771,9 @@ int Scheduler::run() {
     std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
   {
     const auto t0 = std::chrono::steady_clock::now();
-    // From the node namer's tables: one table load (phase 5).
+    // From the link namer's tables: one table load (phase 5).
     signatures_ = linknaming::SignatureTable::fromTables(tables_);
-    // The searches' outgoing namers share the node namer's table caches.
+    // The searches' outgoing namers share the link namer's table caches.
     searcher_ = std::make_unique<Searcher>(*signatures_, &tables_, cfg_.runShape,
                                               static_cast<unsigned>(cfg_.threads),
                                               namer_.caches());
@@ -790,7 +792,7 @@ int Scheduler::run() {
   printShape();
   loadLowerSources();
   // Table names and symmetry types, for the slice-composite anchors
-  // (NodeAxioms) and the store step: as verifyslicegenus loads them.
+  // (LinkAxioms) and the sign step: as a depth-0 run loads them.
   size_t symmetryTypes = 0;
   names_ = solver::loadTableNames(cfg_.knotTable, cfg_.linkTable, cfg_.knotSymmetry,
                                         &symmetryTypes);
@@ -827,7 +829,7 @@ int Scheduler::run() {
       named = true;
     } else if (simp.components() == 1) {
       // A composite target: its whole-diagram name (never an anchor for
-      // itself: NodeAxioms skips the target), reported and recorded.
+      // itself: LinkAxioms skips the target), reported and recorded.
       linknaming::LinkName fs = namer_.name(simp.link());
       if (fs.isName && fs.pinned && fs.pieces.size() >= 2 &&
           fs.name.find('#') != std::string::npos)
@@ -836,9 +838,9 @@ int Scheduler::run() {
   } catch (...) {
   }
   if (tables_.entry(cfg_.targetName)) {
-    // The PD must be the entry it is run as: its witnesses are recorded
-    // under that name (--witness-store), so an alternative diagram, or a PD
-    // copied wrongly, that the exact namer proves to be another link is
+    // The PD must be the entry it is run as: its cobordisms are recorded
+    // under that name (in `cobordisms`), so an alternative diagram, or a PD
+    // copied wrongly, that the namer proves to be another link is
     // refused outright. A namer that cannot tell (cheap limits) is not a
     // refusal; the table's own PD needs no proof.
     const std::string claimed = classOf(cfg_.targetName);
@@ -867,7 +869,7 @@ int Scheduler::run() {
   const double startupSeconds = secondsSince(tRun);
   long budget = cfg_.surfaceTarget;
   while (true) {
-    // A halt first (divergence 2): even a goal met by the hop that found an
+    // A halt first (divergence 2): even a goal met by the search that found an
     // impossible state is not reported as met.
     if (!halt_.empty()) {
       // The surfaces found are real whatever broke, so they are kept.
@@ -880,7 +882,7 @@ int Scheduler::run() {
       for (const auto &c : g_.contradictions()) std::cout << "[!!] CONTRADICTION: " << c << "\n";
       // The surfaces are real whatever the contradiction's cause (a naming
       // or solver bug), so they are kept, as verifyslicegenus writes its
-      // witnesses before its fatal-bug halt.
+      // cobordisms before its fatal-bug halt.
       signIntoDatabase();
       writePartitionGenera();
       printOutcome("contradiction");
@@ -896,17 +898,17 @@ int Scheduler::run() {
       stopReason_ = "interrupted";
       break;
     }
-    // Free edges first (no search, so no budget): the target's own master
-    // rows, if it is a table entry the atlas searched.
+    // Free cobordisms first (no search, so no budget): the target's own
+    // master cobordisms, if it is a table entry the atlas searched.
     if (database_ && !masterDone(target_) && masterSubjectsFor(target_)) {
       loadMaster(target_);
       continue;
     }
-    // Any other node's stored rows are loaded only when that node is the
-    // one about to be expanded (below): a proof can run through a node only
-    // when the search picks it, and reading every table node's rows as it
-    // was met cost more than the hops (2026-09-30, close1: 35-45 loads and
-    // ~2,500 read-backs per row).
+    // Any other link's master cobordisms are loaded only when that link is the
+    // one about to be expanded (below): a proof can run through a link only
+    // when the search picks it, and reading every table link's cobordisms as it
+    // was met cost more than the searches (2026-09-30, close1: 35-45 loads and
+    // ~2,500 read-backs per link).
     auto n = choose();
     if (searches_ >= cfg_.maxSearches) {
       std::cout << "[-] expansion limit\n";
@@ -919,7 +921,7 @@ int Scheduler::run() {
       break;
     }
     if (!n) {
-      // Every useful node searched at this budget: search them again deeper
+      // Every useful link searched at this budget: search them again deeper
       // (a surface-target round only covers a prefix of the roots).
       if (budget * 2 > cfg_.maxSurfaceTarget) {
         std::cout << "[-] nothing useful left\n";
@@ -932,15 +934,15 @@ int Scheduler::run() {
       continue;
     }
     if (database_ && !masterDone(*n) && masterSubjectsFor(*n)) {
-      // Its stored rows first: free edges, which may close the proof
-      // without the hop, and are in any case what the hop would refind.
+      // Its master cobordisms first: free cobordisms, which may close the proof
+      // without the search, and are in any case what the search would refind.
       loadMaster(*n, /*countsAsExpansion=*/false);
       if (goalMet() || !g_.contradictions().empty()) continue;
     }
     long surfaces = budget;
     if (cfg_.hubDegree > 0 && !boosted_.count(*n) &&
         g_.link(*n).cobordisms.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
-      // A hub: many routes meet here, so one wide hop from it buys many
+      // A hub: many routes meet here, so one wide search from it buys many
       // more first-level candidates than another narrow one elsewhere.
       surfaces = cfg_.hubSurfaces;
       boosted_.insert(*n);
@@ -998,7 +1000,7 @@ int Scheduler::run() {
 
 void Scheduler::printOutcome(const std::string &outcome) const {
   // The line a campaign's runner parses, in verifyslicegenus's own shape
-  // (dispatch.py RE_OUTCOME): witnesses newly recorded, and why the run ended.
+  // (dispatch.py RE_OUTCOME): cobordisms newly recorded, and why the run ended.
   std::cout << "[+] " << cfg_.targetName << ": " << appended_
             << kFrozenNewWitnessesOutcome << outcome << "\n";
 }
@@ -1006,11 +1008,12 @@ void Scheduler::printOutcome(const std::string &outcome) const {
 void Scheduler::printShape() const {
   // Everything that decides what a run covers, as key=value, so a campaign
   // records what actually ran rather than what its configuration asked for.
-  // The keys are cascadesearch's option names (frozen: campaigns record
-  // them), not the config's: hop_surfaces is surface_target,
-  // max_hop_surfaces max_surface_target, max_expansions max_searches,
-  // recognition_cache_limit complement_cache_limit, master_witnesses and
-  // witness_store the databases read and signed into.
+  // The keys are the retired cascadesearch's option names (frozen:
+  // campaigns record them), not the config's: hop_surfaces is
+  // surface_target, max_hop_surfaces max_surface_target, max_expansions
+  // max_searches, recognition_cache_limit complement_cache_limit,
+  // master_witnesses master_cobordisms and witness_store cobordisms (the
+  // databases read and signed into).
   const RunShape &s = cfg_.runShape;
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
             << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower

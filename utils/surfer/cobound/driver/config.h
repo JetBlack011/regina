@@ -108,7 +108,7 @@ struct Assignment {
  * assignments (files first, in order, then every --set in order, so --set
  * wins), each of `aliases`' flags into its key, and the rest positional.
  * `draw` and `name` keep their reference tools' flags as aliases: they are
- * stdin tools the atlas and the cascade's checker drive.
+ * stdin tools the atlas and its checker (cascade_check.py) drive.
  */
 struct Alias {
     std::string flag;  ///< "--knots"

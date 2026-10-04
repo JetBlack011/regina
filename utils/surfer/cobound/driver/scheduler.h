@@ -45,8 +45,8 @@ struct GoalOptions {
   size_t maxCrossings = 0;
   std::string strategy;
   bool literature = true;
-  /// A read-only database (the atlas's master): a node that IS a table
-  /// entry the database holds rows of gets those cobordisms as free edges.
+  /// A read-only database (the atlas's master): a link that IS a table
+  /// entry the database holds cobordisms of gets them as free cobordisms.
   std::string masterCobordisms;
   /// Each search's shape.
   search::RunShape runShape;
@@ -54,11 +54,11 @@ struct GoalOptions {
   /// process-wide: setup::applyRunSettings() sets it).
   size_t complementCacheLimit = 0;
   /// The database every kept surface is signed into at the run's end
-  /// (pending.h); empty for none. Read-only stores to deduplicate against
-  /// (the master, say), and the run's name for cascade: subjects.
+  /// (pending.h); empty for none. Read-only databases to deduplicate against
+  /// (the master, say), and the run's name for `cascade:` subjects.
   std::string cobordismsPath, runName;
   std::string pairSigCache; ///< stored pair-signature contexts
-  /// The database cobordisms' read-backs kept across runs (RowReadBacks);
+  /// The database cobordisms' read-backs kept across runs (ReadBacks);
   /// empty for none.
   std::string readBackCache;
   std::vector<std::string> dedupeAgainst;
@@ -70,10 +70,10 @@ struct GoalOptions {
   /// Also stop once lower(target, goal partition) >= goalLower (README.md,
   /// "Lower-bound mode"); -1 for no lower goal. Needs lowerSources.
   int goalLower = -1;
-  /// A node kept only for the lower goal is never expanded above this many
+  /// A link kept only for the lower goal is never expanded above this many
   /// crossings: the chain must come back to a table entry.
   size_t lowerMaxCrossings = 0;
-  /// Hub breadth (John, 2026-09-29): a node with at least hubDegree witness
+  /// Hub breadth (John, 2026-09-29): a link with at least hubDegree cobordism
   /// edges is expanded once at hubSurfaces or more. 0: off.
   size_t hubDegree = 0;
   long hubSurfaces = 0;
@@ -87,7 +87,7 @@ GoalOptions goalOptions(const config::Config &cfg);
  * Runs `options`' goal-directed run in its work directory and returns its
  * exit code (above). Writes, under the work directory: hop_<k>_n<node>/
  * (each search's log, frontier and pending file), cascade.jsonl,
- * profiles.jsonl, node_bounds.jsonl, nodes.csv (with a witness store),
+ * profiles.jsonl, node_bounds.jsonl, nodes.csv (with a database),
  * lower_report.jsonl (lowerReport), and certificate.json or
  * lower_certificate.json when the goal is met.
  * \throws std::exception for a run that cannot start (a split target, a

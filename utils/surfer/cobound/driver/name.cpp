@@ -1,7 +1,7 @@
 //
 //  name.cpp
 //
-//  cobound name (was farsidename): exact names for stored cobordisms'
+//  cobound name (was farsidename): names for stored cobordisms'
 //  outgoing links, from their pair signatures.
 //
 //  Usage:
@@ -9,32 +9,33 @@
 //                 [--search-height H] [--search-visits N] [--simplify-tries N]
 //                 [--exhaustive-height H] [--max-search-crossings N]
 //                 [--deep-height H] [--deep-visits N] [--max-deep-crossings N]
-//                 [--profile] [--reference] < witnesses
+//                 [--profile] [--reference] < cobordisms
 //
 //  The flags are farsidename's, which the atlas's run_farsidename.py passes;
 //  each is a config key (knot_table, link_table, knot_symmetry, namer_*,
 //  name_profile, name_reference), so --config and --set work too. The limits
 //  default to linknaming::NamerLimits.
 //
-//  stdin: one "<id>\t<row>\t<thicken_layers>\t<pair signature>" per line,
-//  grouped by row (each row's thickening is built once). <row> is a table
-//  name, or a PD code itself ("[...]" or "PD[...]": a cascade hop's row,
-//  which is a node's own diagram). stdout, one line
-//  per witness, tab-separated:
+//  stdin: one "<id>\t<incoming>\t<thicken_layers>\t<pair signature>" per
+//  line, grouped by incoming diagram (each one's thickening is built once).
+//  <incoming> is a table name, or a PD code itself ("[...]" or "PD[...]":
+//  a goal run's search is on a graph link's own diagram). stdout, one line
+//  per cobordism, tab-separated:
 //
-//    <id> <row> ok <name> <exact> <pinned> <components> <split_unknots>
+//    <id> <incoming> ok <name> <exact> <pinned> <components> <split_unknots>
 //        <pieces> <proof> <drawn_crossings> <ms>
-//    <id> <row> FAILED <reason>
+//    <id> <incoming> FAILED <reason>
 //
-//  The far side is recovered exactly as the search saw it
-//  (outgoing::WitnessRedrawer: the pair carried onto the row's own
-//  thickening by an isomorphism pinned by L x {0}), oriented as a cobordism
-//  from the row's oriented link, drawn (knotbuilder::DiagramDrawer, which
-//  refuses any non-planar drawing) and named by linknaming::ExactNamer.
+//  The outgoing link is recovered exactly as the search saw it
+//  (outgoing::OutgoingReader: the pair carried onto the incoming
+//  diagram's own thickening by an isomorphism pinned by L x {0}), oriented as a cobordism
+//  from the oriented incoming link, drawn (knotbuilder::DiagramDrawer, which
+//  refuses any non-planar drawing) and named by linknaming::LinkNamer.
 //  <exact> is 1 when the name is an identity, <pinned> when every piece's
 //  oriented variant is proved; <pieces> lists "display/by/crossings" per
-//  piece, joined by " & " (a link tag contains ';'). Names are cached per drawn diagram (its exact signature), so a far
-//  side seen again costs one drawing.
+//  piece, joined by " & " (a link tag contains ';'). Names are cached per
+//  drawn diagram (its exact signature), so an outgoing link seen again costs
+//  one drawing.
 //
 
 #include <chrono>
@@ -137,7 +138,7 @@ int commands::name(const std::vector<std::string> &args) {
     };
     std::unique_ptr<outgoing::OutgoingReader> redraw;
     std::string redrawKey;
-    std::unordered_map<std::string, linknaming::LinkName> cache; // per row
+    std::unordered_map<std::string, linknaming::LinkName> cache; // per incoming diagram
     std::string line;
     while (std::getline(std::cin, line)) {
         std::istringstream in(line);
@@ -148,9 +149,10 @@ int commands::name(const std::vector<std::string> &args) {
         const auto start = std::chrono::steady_clock::now();
         try {
             if (redrawKey != incoming + "\t" + layers) {
-                // A row is a table name, or the PD code itself: a cascade
-                // hop's row is a node's own diagram, which no table holds
-                // (its witnesses' <store>.rows.csv gives it; cascade/keptstore.h).
+                // The incoming diagram is a table name, or the PD code itself: a
+                // goal run's search is on a graph link's own diagram, which no
+                // table holds (its database's <cobordisms>.rows.csv gives it;
+                // cobordisms/pending.h).
                 std::string code;
                 if (!incoming.empty() && (incoming.front() == '[' || incoming.rfind("PD[", 0) == 0)) {
                     code = incoming;

@@ -56,14 +56,14 @@ BoundaryConditionMode boundaryCondition(const std::string &mode) {
  * `target_pd` -- searched once, each by the one search (search/search.h),
  * judged by its own cobordism graph (SearchJudge), its finds written to its
  * pending file (<work>/hop_<k>_n0/kept.csv) and all of them signed into
- * `cobordisms` at the run's end. Each searched row's search record goes to
- * the verdicts file; its status and bounds are `solve`'s (plan divergence
+ * `cobordisms` at the run's end. Each target's search record goes to its
+ * row of the verdicts file; its status and bounds are `solve`'s (plan divergence
  * 10). The log lines are verifyslicegenus's, every one (frozen).
  *
  * Returns the exit code: 0 (a first SIGINT or SIGTERM included: the run
- * searches no further row, records `interrupted` and ends as usual), 1 when
+ * searches no further target, records `interrupted` and ends as usual), 1 when
  * its tables or symmetry types cannot be read, or 2 when any search failed
- * its accounting (after the run's other rows) or the run halted (fatal.h).
+ * its accounting (after the run's other targets) or the run halted (fatal.h).
  * \throws config::Error for a configuration a search cannot run with.
  */
 int runWithoutGoal(const config::Config &cfg) {
@@ -81,11 +81,11 @@ int runWithoutGoal(const config::Config &cfg) {
   // Stop the SEARCH once this many boundary-satisfying surfaces exist.
   //
   // A wall-clock limit equalises WALL TIME, which only equalises coverage if
-  // every host explores roots at the same rate. Measured over 52 rows, they
-  // do not: at an identical 3600 thread-seconds one host yielded a median
-  // 972,655 qualifying surfaces per row and another 295,178 -- a 3.3x gap,
+  // every host explores roots at the same rate. Measured over 52 searches,
+  // they do not: at an identical 3600 thread-seconds one host yielded a median
+  // 972,655 qualifying surfaces per search and another 295,178 -- a 3.3x gap,
   // tight on both sides (+/-15%), and a property of the machine rather than of
-  // the row. Targeting the surface count instead equalises the thing a
+  // the link searched. Targeting the surface count instead equalises the thing a
   // negative actually rests on: how much of the root ordering was covered.
   const std::optional<long long> surfaceTarget = cfg.optionalInteger("surface_target");
   const std::optional<std::string> surfaceLogPath = cfg.optionalText("surface_log");
@@ -104,7 +104,8 @@ int runWithoutGoal(const config::Config &cfg) {
   const std::string workDir = cfg.text("work");
   const unsigned numThreads = cfg.threads();
   // Thickened and collared through every layer (divergence 6: the cobordism
-  // graph reads each find on its row as a goal run reads a stored row's).
+  // graph reads each find on its thickening as a goal run reads a stored
+  // cobordism's).
   const int thickenLayers = static_cast<int>(cfg.integer("layers"));
   const BoundaryConditionMode boundaryConditionMode =
       boundaryCondition(cfg.text("boundary_condition"));
@@ -158,7 +159,7 @@ int runWithoutGoal(const config::Config &cfg) {
   }
 
   // One policy for SIGINT and SIGTERM (divergence 8): the first ends the
-  // current row's search cleanly and the run searches no further row; a
+  // current target's search cleanly and the run searches no further target; a
   // second ends the process.
   runsignals::install();
 
@@ -177,7 +178,7 @@ int runWithoutGoal(const config::Config &cfg) {
 
   // Literature metadata for every name that could ever appear in the
   // graph, not just this run's targets. A knots run needs the links table
-  // to expand an orientation-blind far-side name like "L6a3" into the
+  // to expand an orientation-blind outgoing name like "L6a3" into the
   // oriented variants it might be (see NameTable::candidates), and a links
   // run needs the knots table for the same reason in reverse -- so both
   // are always loaded, regardless of which one is being searched.
@@ -198,9 +199,9 @@ int runWithoutGoal(const config::Config &cfg) {
   std::cout << "[+] Name table: " << names.size() << " names (" << metadataRows
             << " from tables other than --input)\n";
 
-  // The tables, loaded once: the exact tables, which a search's own
+  // The tables, loaded once: the tables, which a search's own
   // cobordism graph names its links by (divergence 6) and its outgoing links
-  // are named exactly by (exact_far_side_names), and diagram naming's
+  // are named by (outgoing_names), and diagram naming's
   // signature table, drawn from them.
   std::optional<linknaming::Tables> outgoingTables;
   if (outgoingNames) {
@@ -258,7 +259,7 @@ int runWithoutGoal(const config::Config &cfg) {
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
 
   // The run directory (plan divergence 7): each search's pending cobordisms
-  // go to <work>/hop_<k>_n0/kept.csv, as a goal run's hops' do, and the run's
+  // go to <work>/hop_<k>_n0/kept.csv, as a goal run's searches' do, and the run's
   // end signs every pending file there into the database, on all the run's
   // threads (`cobound sign` does the same for a run that was killed).
   int nextSearch = 0;
@@ -285,7 +286,7 @@ int runWithoutGoal(const config::Config &cfg) {
     if (signedPending || !anyPending()) return;
     signedPending = true;
     // A cobordism searched on its subject's table PD as written needs no
-    // `.rows.csv` line (plan, "The .rows.csv sidecar"): every row of a
+    // `.rows.csv` line (plan, "The .rows.csv sidecar"): every target of a
     // table-driven run.
     std::unordered_map<std::string, std::string> tablePD;
     for (const std::string &table : {knotTablePath, linkTablePath})
@@ -331,8 +332,8 @@ int runWithoutGoal(const config::Config &cfg) {
 
   std::vector<InputRow> pending = targets::searchOrder(rows, maxCrossings, outputRows);
 
-  // Every row's search shape, but for its boundary condition (per row,
-  // below).
+  // Every target's search shape, but for its boundary condition (per
+  // target, below).
   search::SearchShape searchShape;
   searchShape.iddfsIterations = iddfsIterations;
   searchShape.iddfsStep = iddfsStep;
@@ -357,12 +358,13 @@ int runWithoutGoal(const config::Config &cfg) {
     std::cout << "[+] Searching " << row.name << " (literature [" << row.lo << ", " << row.hi
               << "], " << row.crossings << " crossings)...\n";
 
-    // The row's own cobordism graph (divergence 6), which judges its finds,
-    // and the row the search runs in: search::buildRow() of its PD,
-    // collared through every layer. buildRow() and the graph's row
-    // certification throw for a bad PD, a row map that cannot be built or
-    // checked, or a triangulated link that does not redraw as its diagram;
-    // letting that escape would abort the whole sweep over one bad row.
+    // The target's own cobordism graph (divergence 6), which judges its finds,
+    // and the thickening the search runs in: search::buildIncoming() of its
+    // PD, collared through every layer. buildIncoming() and the graph's
+    // certification of the incoming link throw for a bad PD, an incoming map
+    // that cannot be built or checked, or a triangulated link that does not
+    // redraw as its diagram; letting that escape would abort the whole run
+    // over one bad target.
     std::unique_ptr<bounds::SearchJudge> judge;
     bool buildFailed = false;
     try {
@@ -380,7 +382,7 @@ int runWithoutGoal(const config::Config &cfg) {
     }
     const search::IncomingThickening *thickenedOrNull = judge ? &judge->reader().thickened() : nullptr;
 
-    // A row that cannot be built, or that the search refuses: recorded as
+    // A target that cannot be built, or that the search refuses: recorded as
     // such, and the run goes on.
     auto recordBuildFailure = [&] {
       OutputRow out;
@@ -398,7 +400,7 @@ int runWithoutGoal(const config::Config &cfg) {
       continue;
     }
 
-    // The row's frontier: carried on from, and recorded (see frontier_dir).
+    // The search's frontier: carried on from, and recorded (see frontier_dir).
     //
     // INVARIANT: a torn, partial or unparsable frontier loads as ABSENT. The
     // search starts fresh and the log names the reason; it never resumes from
@@ -423,22 +425,22 @@ int runWithoutGoal(const config::Config &cfg) {
     request.name = row.name;
     request.shape = searchShape;
     // A multi-component link's own boundary necessarily puts more than one
-    // of the surface's boundary curves on the single search-side ambient
+    // of the surface's boundary curves on the single incoming ambient
     // component -- impossible under `connected`'s one-curve-per-ambient-
     // component rule, but exactly what `proper` allows. `connected` caps the
-    // curve count on EVERY ambient boundary component, the far side
-    // included, so a knot row searched under it can only ever discover
-    // single-curve far sides: proper, the default, lifts that.
+    // curve count on EVERY ambient boundary component, the outgoing link
+    // included, so a knot searched under it can only ever discover
+    // single-curve outgoing links: proper, the default, lifts that.
     const search::IncomingThickening &thickened = *thickenedOrNull;
     request.shape.condition = search::conditionFor(boundaryConditionMode, thickened.componentCount);
-    // The search stops at the surface target or the per-row time limit; the
+    // The search stops at the surface target or the per-search time limit; the
     // boundary drain then finishes.
     request.surfaceTarget = surfaceTarget;
     request.seconds = perKnotTimeLimit;
     request.resume = resumeFrom ? &*resumeFrom : nullptr;
     request.recordFrontier = frontierDir.has_value();
     request.pairSigCacheDir = pairSigCacheDir;
-    // A knot row's complement goes into the census after its search (when
+    // A knot target's complement goes into the census after its search (when
     // census writes are on).
     request.censusName = linknaming::baseName(row.name);
     request.literature = {.literatureLo = row.lo, .literatureHi = row.hi};
@@ -452,7 +454,7 @@ int runWithoutGoal(const config::Config &cfg) {
     request.layers = thickenLayers;
     request.knownIdentities = &recorded.identities();
     request.runDirectory = workDir;
-    // Each find, judged by the row's own cobordism graph as it is kept.
+    // Each find, judged by the target's own cobordism graph as it is kept.
     request.reader = &judge->reader();
     long long judged = 0;
     request.judge = [&](const search::KeptSurface &k) {
@@ -469,7 +471,7 @@ int runWithoutGoal(const config::Config &cfg) {
                        .rejectionSamples = rejectionSampleLog ? &*rejectionSampleLog : nullptr,
                        .selfIntersectionCensus = selfIntersectionCensusPath};
 
-    // One searcher per row, so each row's exact names start from fresh
+    // One searcher per target, so each search's names start from fresh
     // table caches, as they always have.
     const search::Searcher searcher(signatureTable ? &*signatureTable : nullptr,
                                         outgoingTables ? &*outgoingTables : nullptr, numThreads);
@@ -486,16 +488,16 @@ int runWithoutGoal(const config::Config &cfg) {
       recordBuildFailure();
       continue;
     }
-    // A contradiction in the row's own cobordism graph: halts once the row's
-    // witnesses are written, below.
+    // A contradiction in the target's own cobordism graph: halts once the
+    // search's cobordisms are written, below.
     if (judge->failures() > 0)
       std::cout << "[!] " << row.name << ": " << judge->failures() << " of " << judge->finds()
                 << " finds could not enter the cobordism graph\n";
     if (!run.fatal.empty())
       fatal::flag(run.fatal);
 
-    // Surfaces were accepted, yet not one reached the witness record. That
-    // can be genuine (every one witnesses another oriented variant), but it
+    // Surfaces were accepted, yet not one reached the cobordism record. That
+    // can be genuine (every one bounds another oriented variant), but it
     // is also exactly what a broken gate looks like, so it never licenses a
     // negative.
     if (run.nothingExamined)
@@ -529,9 +531,9 @@ int runWithoutGoal(const config::Config &cfg) {
 
     verdicts::writeOutputCsv(outputPath, rows, outputRows);
 
-    // The row's breadth, and its frontier: written only now that every
+    // The search's breadth, and its frontier: written only now that every
     // cobordism of the prefix it covers is in its pending file, fsynced, and
-    // only when the row can vouch for having examined every surface in it --
+    // only when the search can vouch for having examined every surface in it --
     // else a later run would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
       search::printBreadth(std::cout, row.name, run);
@@ -552,9 +554,9 @@ int runWithoutGoal(const config::Config &cfg) {
     }
 
     // Divergence 2: a state that cannot occur halts the run, now that this
-    // row's witnesses are written; any other accounting failure ends only
+    // search's cobordisms are written; any other accounting failure ends only
     // this search (its outcome is `unaccounted`; no frontier, no exhaustion
-    // claim, above) and the run goes on to its other rows; completeness is
+    // claim, above) and the run goes on to its other targets; completeness is
     // what a run without a goal is for, so the run then exits 2.
     if (run.impossible > 0) {
       fatal::flag(row.name + ": surface accounting failed -- " + std::to_string(run.impossible) +

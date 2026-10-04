@@ -7,51 +7,52 @@
 //  Usage:
 //    cobound draw [--layers N] [--gauss] [--faces] '<row PD code>' < pairsigs
 //
-//  The flags are farsidediagram's, which the cascade's checker and recorder
-//  pass; each is a config key (layers, draw_gauss, draw_faces, draw_pairsig,
-//  pair_sig_cache), so --config and --set work too.
+//  The flags are farsidediagram's, which the atlas's checker and recorder
+//  (cascade_check.py, cascade_record.py) pass; each is a config key (layers,
+//  draw_gauss, draw_faces, draw_pairsig, pair_sig_cache), so --config and
+//  --set work too.
 //
 //  --gauss appends each diagram's signed Gauss data (signs=, gauss=) to the
 //  ROW line and to every W line: per component, in curve order, the
 //  crossings it passes. cascade_check.py reads it; without the flag the
 //  output is unchanged. The ROW line then also carries build=, the
-//  thickening's digest (WitnessRedrawer::buildChecksum()).
+//  thickening's digest (OutgoingReader::buildChecksum()).
 //
 //  --faces reads "<id> <f1,f2,...>" lines instead: a surface given by its
-//  triangles in this row's thickening, as a cascade certificate records an
-//  in-process witness. It is rebuilt face by face with the search's own
-//  checks (WitnessRedrawer::rebuild()) before anything is read from it.
+//  triangles in the incoming diagram's thickening, as a goal run's
+//  certificate records an in-process cobordism. It is rebuilt face by face with the search's own
+//  checks (OutgoingReader::rebuild()) before anything is read from it.
 //
 //  --pairsig (with --faces) appends each rebuilt surface's pair signature,
-//  as verifyslicegenus would record it (pairsig=, over the row's own
+//  as a search records it (pairsig=, over the incoming diagram's own
 //  thickening), whether it is connected (connected=) and its resolved
-//  vertices (resolved=): what turns a certificate's in-process witness into
+//  vertices (resolved=): what turns a certificate's in-process cobordism into
 //  an ordinary cobordisms.csv row. --sig-cache DIR (with --pairsig) keeps the
 //  thickening's own part of the signature -- 99.8% of its cost -- in DIR by
 //  the thickening's digest, checked on every use (pairsig.h, Detail), so a
-//  row met again costs a fraction of a second instead of tens.
+//  diagram met again costs a fraction of a second instead of tens.
 //
-//  --layers is the witnesses' thicken_layers (cobordisms.csv): 2, the
+//  --layers is the cobordisms' thicken_layers (cobordisms.csv): 2, the
 //  default, for everything since early September; 1 for the earliest runs.
 //
-//  stdin: one "<id> <pair signature>" per line, every witness from the same
-//  row (the row whose PD code is the argument). stdout, one line per
-//  witness, plus a ROW line first:
+//  stdin: one "<id> <pair signature>" per line, every cobordism searched on
+//  the same incoming diagram (the one whose PD code is the argument). stdout, one line per
+//  cobordism, plus a ROW line first:
 //
 //    ROW components=<n> lk=<matrix>
 //    W <id> ok components=<m> crossingless=<list> pd=<[[a,b,c,d],...]>
 //        lk=<m x m matrix> surface=<surface component of each outgoing curve>
-//        incoming=<for each surface component: the row components it meets>
+//        incoming=<for each surface component: the incoming components it meets>
 //    W <id> FAILED <reason>
 //
-//  The row's link is knotbuilder's, oriented as its PD code says; `lk` of
+//  The incoming link is knotbuilder's, oriented as its PD code says; `lk` of
 //  the ROW line is its linking matrix in DiagramDrawer::cyclesOf()'s
 //  component order, which is also the order `incoming` refers to.
 //
-//  How: the row is thickened exactly as verifyslicegenus thickens it
-//  (knotbuilder, CobordismBuilder x2, CollarBuilder), the witness's decoded
+//  How: the incoming diagram is thickened exactly as a search thickens it
+//  (knotbuilder, CobordismBuilder x2, CollarBuilder), the cobordism's decoded
 //  pair is carried onto that thickening by an isomorphism sending its
-//  incoming curve onto the row's L x {0}, and from there on everything is
+//  incoming curve onto L x {0}, and from there on everything is
 //  what the search itself would have had: outgoing::orientedOutgoingLink()
 //  and knotbuilder::DiagramDrawer. The isomorphism is the only search in
 //  the pipeline, and it is pinned by L x {0}, so the outgoing side is read
@@ -120,7 +121,7 @@ std::string gaussFields(const knotbuilder::Diagram &d) {
     return o.str() + "]";
 }
 
-// Each far-side curve's edges of T, sorted (--gauss): what identifies a curve
+// Each outgoing curve's edges of T, sorted (--gauss): what identifies a curve
 // across two reads that list the curves in different orders.
 std::string curveEdges(const std::vector<knotbuilder::EdgeCycle> &curves) {
     std::ostringstream o;
@@ -169,7 +170,7 @@ int commands::draw(const std::vector<std::string> &args) {
     const outgoing::OutgoingReader redraw(positional.front(), layers);
     const knotbuilder::TriangulationWithLink &built = redraw.built();
 
-    // The row's own components, in cyclesOf() order, and each row edge's component.
+    // The incoming link's components, in cyclesOf() order, and each of its edges' component.
     const auto &incomingCycles = redraw.incomingCycles();
     std::vector<size_t> componentOfIncomingEdge(built.edges.size());
     {
@@ -202,7 +203,7 @@ int commands::draw(const std::vector<std::string> &args) {
     };
     std::vector<int> currentFaces;
 
-    // One witness's W line, from its surface in the thickening.
+    // One cobordism's W line, from its surface in the thickening.
     auto describe = [&](const std::string &id, KnottedSurface &surface) {
             auto link = outgoing::orientedOutgoingLink(surface, redraw.outgoing(), redraw.orientation(),
                                                       redraw.incomingBC());
@@ -212,7 +213,7 @@ int commands::draw(const std::vector<std::string> &args) {
             }
             knotbuilder::Diagram d = redraw.drawer().draw(link->curves);
 
-            // Which row components each surface component meets.
+            // Which incoming components each surface component meets.
             std::map<size_t, std::vector<size_t>> incoming;
             const auto surfaceOf = surface.boundaryEdgeSurfaceComponent();
             for (const auto &[bc, curves] : surface.orientedBoundaryLinks()) {

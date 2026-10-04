@@ -20,7 +20,7 @@
  *    search is thinner, not failed), 1 with one unless it is met.
  *  - A second signal ends the process at once: _Exit(128 + the signal).
  *
- *  SIGTERM is what stopping a scope, `timeout` or a manual kill sends. A row
+ *  SIGTERM is what stopping a scope, `timeout` or a manual kill sends. A run
  *  over remote_run.sh's MemoryMax is killed by the cgroup's OOM killer with
  *  SIGKILL, which nothing catches: the pending file's fsyncs are what bound
  *  that loss. The library's own per-search SIGINT handling (SigintScope) is

@@ -44,9 +44,9 @@ struct GraphView {
 void append(const std::string &work, const std::string &line);
 
 /**
- * <work>/profiles.jsonl: every node's Pareto (partition, genus) entries and
- * per-partition lower bounds (ProofGraph::profileFields()), with its name
- * (`subjectName`, or the unlink's spelling for a crossingless node other
+ * <work>/profiles.jsonl: every link's Pareto (partition, genus) entries and
+ * per-partition lower bounds (CobordismGraph::partitionGeneraFields()), with its name
+ * (`subjectName`, or the unlink's spelling for a crossingless link other
  * than the target), table name, label, depth, crossings and whether it was
  * searched (`searched`).
  */
@@ -55,13 +55,13 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
                    const std::function<bool(LinkId)> &searched);
 
 /**
- * <work>/node_bounds.jsonl at a run's end: every node's identity, diagram,
- * proved profile entries and lower bounds (README.md, "Lower-bound mode").
+ * <work>/node_bounds.jsonl at a run's end: every link's identity, diagram,
+ * proved partition genera and lower bounds (README.md, "Lower-bound mode").
  */
 void writeLinkBounds(const std::string &work, const GraphView &v);
 
 /**
- * <work>/lower_report.jsonl (lower_report): for every tabulated node, what
+ * <work>/lower_report.jsonl (lower_report): for every tabulated link, what
  * its literature lower bound carries to the target, as what-ifs on the
  * run's `threads`; prints the `[+] lower report:` line.
  */
@@ -69,7 +69,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
                       const linknaming::Tables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads);
 
-/// <work>/nodes.csv: the cascade: subjects searched (`subjects`, by node),
+/// <work>/nodes.csv: the `cascade:` subjects searched (`subjects`, by link),
 /// with their diagrams, for the atlas's results/cascade/nodes.csv.
 void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> &subjects,
                    const bounds::LinkRegistry &reg);

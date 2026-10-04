@@ -36,7 +36,7 @@ std::vector<solver::InputRow> loadInputCsv(const std::filesystem::path &path);
 /**
  * One diagram as a row: its name, PD and crossings, and its literature
  * interval from `tables` when the name is a table row there, else [0, 99]
- * (as the retired child hop wrote an untabulated row).
+ * (as the retired child search wrote an untabulated row).
  */
 solver::InputRow oneDiagram(const std::string &name, const std::string &pd,
                                     const std::vector<std::filesystem::path> &tables);

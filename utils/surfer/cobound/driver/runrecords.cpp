@@ -34,8 +34,8 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
   const LinkRegistry &reg = v.reg;
   std::ofstream out(work + "/" + kFrozenProfilesJsonl);
   for (LinkId n = 0; n < static_cast<LinkId>(g.linkCount()); ++n) {
-    // A crossingless node is named as the store names it (cascade_record.py):
-    // it is never a hop's subject, so subjectName() has no better name.
+    // A crossingless link is named as the atlas's recorder names it (cascade_record.py):
+    // it is never a search's subject, so subjectName() has no better name.
     std::string name = subjectName(n);
     if (reg.known(n) && reg.info(n).diagram.signs.empty() && n != v.target) {
       const int k = g.link(n).components;
@@ -47,7 +47,7 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
     out << ",\"label\":\"" << json::escape(g.link(n).label) << '"';
     if (auto it = v.depth.find(n); it != v.depth.end())
       out << ",\"depth\":" << it->second;
-    // A split far side's whole is added to the graph, not the registry,
+    // A split outgoing link's whole is added to the graph, not the registry,
     // and has no diagram of its own.
     if (reg.known(n))
       out << ",\"crossings\":" << reg.info(n).diagram.signs.size();
@@ -126,7 +126,7 @@ void writeLinkBounds(const std::string &work, const GraphView &v) {
 void writeLowerReport(const std::string &work, const GraphView &v,
                       const linknaming::Tables &tables, const std::string &targetName,
                       const std::map<std::string, bool> &special, unsigned threads) {
-  // For every tabulated node Y: the least charge of carrying a lower bound
+  // For every tabulated link Y: the least charge of carrying a lower bound
   // from Y to the target, over every path the graph holds. Measured by
   // seeding Y alone at a large M in a copy and reading what reaches the
   // target (propagateLower() takes the maximum over sources, and M dwarfs
@@ -145,9 +145,9 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   std::ofstream out(work + "/lower_report.jsonl");
   out << "{\"target\":\"" << json::escape(targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g.linkCount() << "}\n";
-  // What node n's lower bound `seed` alone carries to the target: every other
+  // What link n's lower bound `seed` alone carries to the target: every other
   // lower bound forgotten (clearLowerBounds()), n seeded, relaxed. Only
-  // consistent facts are ever seeded -- a value the node could really have,
+  // consistent facts are ever seeded -- a value the link could really have,
   // at most its best proved genus -- or the split rules, which read proved
   // surfaces, would pump bounds without limit. -1 when the what-if itself
   // meets a contradiction (then nothing it says is used).
@@ -218,7 +218,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
 
 void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> &subjects,
                    const LinkRegistry &reg) {
-  // The cascade: subjects, as the atlas's results/cascade/nodes.csv lists
+  // The `cascade:` subjects, as the atlas's results/cascade/nodes.csv lists
   // them (cascade_record.py), so a later identity can be attached to each.
   std::ofstream links(work + "/" + kFrozenNodesCsv);
   links << "name,components,crossings,pd,signs,gauss,label\n";

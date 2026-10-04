@@ -83,11 +83,11 @@ int solveWith(const config::Config &cfg) {
 
   std::unordered_map<std::string, OutputRow> outputRows = verdicts::loadOutputCsv(outputPath);
 
-  // A bound's witness pair signature, read back from its line when the
+  // A bound's cobordism pair signature, read back from its line when the
   // verdicts print it.
   cobordisms::PairSigReader pairSigReader;
   pairSigReader.setPath(cobordismsPath);
-  // Both per-witness tables are keyed on the pair signature's key, which is
+  // Both per-cobordism tables are keyed on the pair signature's key, which is
   // hashed at load only when one of them will be looked up.
   const std::vector<cobordisms::Cobordism> cobordisms = cobordisms::loadCobordisms(
       cobordismsPath, !outgoingResolutionsPath.empty() || !outgoingNamesPath.empty());
@@ -154,7 +154,7 @@ int solveWith(const config::Config &cfg) {
   // global reversal (tableclasses: a version of one table diagram is the
   // other, or an isometry of the complements carries meridians to meridians
   // with a uniform orientation sign). Every member is read as its class's
-  // canonical name, so a class is one node; tableclasses refuses a class
+  // canonical name, so a class is one name to the solver; tableclasses refuses a class
   // whose members' literature values differ.
   std::unordered_map<std::string, std::string> linkClasses;
   if (!linkClassesPath.empty()) {
@@ -177,9 +177,9 @@ int solveWith(const config::Config &cfg) {
     std::cout << "[+] Sum rules: sums along components and splits with link "
                  "factors are bounded from their pieces\n";
 
-  // cascade_proofs: only CERTIFIED proofs of the connected goal bound g4;
-  // names (the target and every literature leaf) read through the link
-  // classes, as witnesses'.
+  // certified_bounds (the atlas's cascade_proofs.csv): only CERTIFIED proofs
+  // of the connected goal bound g4; names (the target and every literature
+  // leaf) read through the link classes, as cobordisms'.
   std::vector<solver::ExternalProof> externalProofs;
   if (!certifiedBoundsPath.empty()) {
     solverinputs::CertifiedBounds certified;
@@ -197,9 +197,9 @@ int solveWith(const config::Config &cfg) {
     std::cout << "\n";
   }
 
-  // The witness list the SOLVER sees, which is not the database's: aliases,
-  // resolutions and exact names resolve a far side to what we have since
-  // proved it to be, while `witnesses` keeps what the search observed.
+  // The cobordism list the SOLVER sees, which is not the database's: aliases,
+  // resolutions and names resolve an outgoing link to what we have since
+  // proved it to be, while `cobordisms` keeps what the search observed.
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
   size_t namesApplied = 0, namesRefused = 0;
@@ -226,7 +226,7 @@ int solveWith(const config::Config &cfg) {
     return out;
   };
 
-  // Every conclusion is re-derived from the witness set on every run, so a
+  // Every conclusion is re-derived from the cobordism set on every run, so a
   // solver fix or a literature-table update takes effect on rows that were
   // searched long ago without re-searching any of them. A resolution/alias
   // contradiction is a data error, not a bug, so it exits rather than
@@ -242,7 +242,7 @@ int solveWith(const config::Config &cfg) {
       return 1;
     }
     bounds = solver::propagate(initialCobordisms, names, externalProofs);
-    // Release it now: it is a full witness set, pair signatures included, and
+    // Release it now: it is a full cobordism set, pair signatures included, and
     // held for the rest of the run it raised peak memory by ~45% -- enough for
     // a full-master solve to be OOM-killed on yoga (2026-09-24).
     std::vector<cobordisms::Cobordism>().swap(initialCobordisms);
@@ -281,14 +281,14 @@ int solveWith(const config::Config &cfg) {
   for (const auto &[name, unused] : outputRows)
     if (!bounds.contains(name))
       toJudge.push_back(name);
-  // link_classes: a member is its class's node, so it is judged whenever
-  // that node has bounds, row or no row yet.
+  // link_classes: a member reads as its class's canonical name, so it is
+  // judged whenever that name has bounds, row or no row yet.
   for (const auto &[member, canonical] : linkClasses)
     if (bounds.contains(canonical) && !bounds.contains(member) && !outputRows.contains(member))
       toJudge.push_back(member);
   for (const std::string &name : toJudge) {
     solver::Bounds b; // default = nothing derived
-    // A class member's row reads its class's node (link_classes).
+    // A class member's row reads its class's canonical name (link_classes).
     if (auto it = bounds.find(classOf(name)); it != bounds.end())
       b = it->second;
     solver::Verdict v = solver::judge(name, b, names);
@@ -296,7 +296,7 @@ int solveWith(const config::Config &cfg) {
       fatal::flag(v.reason);
     auto existing = outputRows.find(name);
     // Only names we actually track get a row: the graph is full of
-    // incidental nodes (bare isoSigs, unlinks) that are useful for
+    // incidental names (bare isoSigs, unlinks) that are useful for
     // chaining but aren't results in their own right.
     if (existing == outputRows.end() && !names.find(name))
       continue;

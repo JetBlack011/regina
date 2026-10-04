@@ -15,8 +15,8 @@
  *  the command word and returning the process's exit code. run, solve and
  *  sign take their configuration from `--config FILE` and `--set
  *  key=value` (driver/config.h); draw and name also take their reference
- *  tools' flags (farsidediagram's, farsidename's), which the atlas and the
- *  cascade's checker pass; meridians takes peripheral_slopes's one
+ *  tools' flags (farsidediagram's, farsidename's), which the atlas and its
+ *  checker (cascade_check.py) pass; meridians takes peripheral_slopes's one
  *  subcommand word.
  *
  *  | command   | was                               | does |

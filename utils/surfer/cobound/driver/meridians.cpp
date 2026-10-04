@@ -6,13 +6,13 @@
 //  cobound meridians <sig|dump|dump-link|dump-subset|slope>: peripheral_slopes's
 //  five subcommands, byte-compatible.
 //
-//  The C++ half of the far-side identification pass (see peripheral.h and
+//  The C++ half of the outgoing naming pass (see peripheral.h and
 //  cobordism-atlas/tools/identify_far_sides.py). Everything topological
 //  happens here; the SnapPy half only installs a basis and asks whether two
 //  manifolds are isometric.
 //
 //  Two subcommands, both batch (one process for a whole run, not one per
-//  witness), reading and writing the record format described below:
+//  cobordism), reading and writing the record format described below:
 //
 //    dump    stdin:  "<id> <pairsig>" per line
 //            stdout: one RECORD per boundary component of each surface,
@@ -22,8 +22,8 @@
 //    dump-link
 //            stdin:  "<id> <pd code>" per line
 //            stdout: the same records, built from a diagram instead of from a
-//                    witness surface -- so the reference table and the far
-//                    sides are drilled by one code path with one sign
+//                    cobordism's surface -- so the reference table and the
+//                    outgoing links are drilled by one code path with one sign
 //                    convention, and no comparison rests on the two agreeing
 //                    by luck
 //
@@ -32,8 +32,8 @@
 //            stdout: one RECORD for just those components of that boundary
 //                    component -- a split factor is a SUBLINK, and its
 //                    exterior has to be drilled directly rather than cut out
-//                    of the whole far side's, since a cut piece loses which
-//                    cusp came from which curve
+//                    of the whole outgoing link's, since a cut piece loses
+//                    which cusp came from which curve
 //
 //    slope   stdin:  those records, with SnapPea's basis now installed in the
 //                    TRI block (the Python half round-trips them through
@@ -117,10 +117,10 @@ void writeTri(std::ostream &out, const std::string &text) {
 // Emits the isomorphism signature of each boundary component's complement,
 // as "SIG <id> <boundary-component> <components> <isosig>".
 //
-// A far side reaches cobordisms.csv as a NAME -- often a census name that no
+// An outgoing link reaches cobordisms.csv as a NAME -- often a census name that no
 // literature table knows -- and a name is not a signature, so it cannot be
 // looked up in a table of complements we built ourselves. This recovers the
-// signature from the pair signature, which every witness carries, so a far
+// signature from the pair signature, which every cobordism carries, so a far
 // side named only "L109021" or "m129 : #3" can still be matched against
 // cobordism-atlas/results/reference_complements.json.
 //
@@ -336,13 +336,13 @@ int runDump() {
  * As dump, but drilling only a chosen SUBSET of one boundary component's
  * curves.
  *
- * Naming a split far side means naming each split factor, and a factor is a
- * sublink of the whole. Its exterior therefore has to be drilled out of the
+ * Naming a split outgoing link means naming each split factor, and a
+ * factor is a sublink of the whole. Its exterior therefore has to be drilled out of the
  * ambient triangulation directly rather than recovered by cutting the whole
- * far side's exterior: cutAlong relabels, simplify() renumbers and coning
+ * outgoing link's exterior: cutAlong relabels, simplify() renumbers and coning
  * adds tetrahedra, so a cut piece no longer knows which cusp came from which
  * curve -- and that correspondence IS the meridian labelling, without which a
- * multi-component factor cannot be identified at all. See
+ * multi-component factor cannot be named at all. See
  * peripheral::buildComplementWithPeripheral(link, components, directions).
  *
  * stdin:  "<id> <boundary component> <comma-separated component indices>
@@ -443,10 +443,10 @@ int runDumpSubset() {
 }
 
 /**
- * Records built from a diagram rather than from a witness surface.
+ * Records built from a diagram rather than from a cobordism surface.
  *
  * The reference table has to be drilled by the same code with the same sign
- * convention as the far sides it will be compared against, or the comparison
+ * convention as the outgoing links it will be compared against, or the comparison
  * measures the difference between two conventions rather than between two
  * links. A PD code directs every component outright (knotbuilder returns the
  * traversal direction per edge), so nothing here is independently flippable
