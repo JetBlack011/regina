@@ -505,10 +505,10 @@ void test_knotbuilder_nonalternating_regression() {
 // beyond "didn't crash", especially for the larger examples where an exact
 // isomorphism/retriangulation check would be too slow to run routinely.
 //
-// (This is a curated sample. utils/surfer/pd_codes.csv has PD codes
-// for every knot up to 13 crossings -- all 12,467 of them pass the same
-// valid/closed/sphere checks, verified separately as a one-off sweep; that
-// full run is too slow (~13 minutes) to bake into the routine suite.)
+// (This is a curated sample. triangulate_knot_table runs the same
+// valid/closed/sphere checks over a whole table -- the atlas's knot table
+// holds every knot through 13 crossings -- which is too slow (minutes) to
+// bake into the routine suite.)
 // ─────────────────────────────────────────────────────────────────────────────
 struct NamedKnot {
     const char *name;
