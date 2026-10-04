@@ -150,7 +150,7 @@ private:
     return ns;
   }
   bool useful(LinkId n) const;
-  /// The lower gate (README.md, "Lower-bound mode"): whether n, given the
+  /// The lower gate (README.md, "Lower goals"): whether n, given the
   /// best lower bounds it could ever have, would carry the lower goal to
   /// the target over the cobordisms found so far. `slack` gets how much more
   /// than the goal it would carry (charge still affordable).
@@ -254,7 +254,7 @@ private:
   /// Links whose search ran to the end at the search shape: nothing is left.
   std::set<LinkId> searchedOut_;
   /// The driver's own time, outside what a search record's timers cover
-  /// (README.md, "Where a run's time goes"): wall seconds, summed over the
+  /// (README.md, "The run directory"): wall seconds, summed over the
   /// run. Each search record carries what accrued since the previous one.
   struct DriverTimes {
     double choose = 0;     ///< choose(), whole

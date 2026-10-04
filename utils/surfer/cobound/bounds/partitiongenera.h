@@ -1,7 +1,7 @@
 // partitiongenera.h
 //
 // What a goal run knows about how a link bounds surfaces in B^4, and how a
-// cobordism transports that knowledge. See README.md, "Profiles".
+// cobordism transports that knowledge. See README.md, "Partition genera".
 //
 // Conventions. A link's components are numbered 0, ..., n-1. A surface F in
 // B^4 bounded by it (smooth or locally flat, oriented, proper, with no closed
@@ -11,7 +11,7 @@
 // A link's partition genera record the pairs (partition, total genus) that
 // surfaces we can exhibit achieve.
 //
-// Two facts make a link's partition genera a Pareto set (README.md, "Profiles"):
+// Two facts make a link's partition genera a Pareto set (README.md, "Partition genera"):
 //   - tubing two pieces together keeps the total genus and merges their blocks
 //     (paper lem:tubing), so (P, g) achievable implies (Q, g) achievable for
 //     every Q coarser than P;

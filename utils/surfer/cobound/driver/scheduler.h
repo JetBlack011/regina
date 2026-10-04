@@ -68,7 +68,7 @@ struct GoalOptions {
   bool lowerReport = false;
   std::string lowerSources;
   /// Also stop once lower(target, goal partition) >= goalLower (README.md,
-  /// "Lower-bound mode"); -1 for no lower goal. Needs lowerSources.
+  /// "Lower goals"); -1 for no lower goal. Needs lowerSources.
   int goalLower = -1;
   /// A link kept only for the lower goal is never expanded above this many
   /// crossings: the chain must come back to a table entry.

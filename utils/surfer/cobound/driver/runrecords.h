@@ -56,7 +56,7 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
 
 /**
  * <work>/node_bounds.jsonl at a run's end: every link's identity, diagram,
- * proved partition genera and lower bounds (README.md, "Lower-bound mode").
+ * proved partition genera and lower bounds (README.md, "Lower goals").
  */
 void writeLinkBounds(const std::string &work, const GraphView &v);
 

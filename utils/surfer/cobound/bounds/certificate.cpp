@@ -113,7 +113,7 @@ void CertificateWriter::writeDerivations(std::ostream &c, const std::vector<Deri
 
 void CertificateWriter::writeLower(const std::string &path, const CertificateGoal &goal) const {
   // The proof of lower(target, goal) as a tree of facts, children before
-  // parents (README.md, "Lower-bound mode"): each fact is a link, a
+  // parents (README.md, "Lower goals"): each fact is a link, a
   // partition, the value the bound holds there, and its reason. A cobordism
   // fact carries the cobordism exactly as an upper derivation does, so the checker
   // replays the surface the same way, then recomputes the cap's addition

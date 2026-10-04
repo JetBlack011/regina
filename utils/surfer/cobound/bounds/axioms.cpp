@@ -164,7 +164,7 @@ void LinkAxioms::applyName(LinkId n, const linknaming::PieceName &pn) {
   const auto [lo, hi] = *g4;
   g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
   // Never let the target's own literature value prove the target, even
-  // through a duplicate link of it (README.md, "Leaf facts").
+  // through a duplicate link of it (README.md, "Axioms").
   if (!mayUseLiteratureUpperBound(classOf(name), targetClass, options_.literature))
     return;
   g_.addLeaf(n, Partition::coarsest(g_.link(n).components), hi,

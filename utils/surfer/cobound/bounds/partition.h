@@ -1,7 +1,7 @@
 // partition.h
 //
 // A partition of the components {0, ..., n-1} of a link: which components of
-// the link bound the same piece of a surface. See README.md, "Profiles".
+// the link bound the same piece of a surface. See README.md, "Partition genera".
 
 #pragma once
 

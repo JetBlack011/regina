@@ -266,7 +266,7 @@ public:
   void clearLowerBounds();
 
   /// Link n's partition genera as JSON object fields, without the enclosing braces,
-  /// for the driver's profiles.jsonl (README.md, "Profiles"):
+  /// for the driver's profiles.jsonl (README.md, "Partition genera"):
   ///   "components", "linking" (when known), "genus_lower" (when seeded),
   ///   "entries": its Pareto set, [{"p": partition, "g": genus, "r": derivation}]
   ///   sorted by partition then genus, and, for at most kMaxLowerComponents

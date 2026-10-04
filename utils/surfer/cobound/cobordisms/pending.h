@@ -1,7 +1,7 @@
 // pending.h
 //
 // Every surface a search keeps, into the atlas's database, as a run without
-// a goal would record it (README.md, "Witnesses for the atlas").
+// a goal would record it (README.md, "The database and signing").
 //
 // An in-process search keeps each surface's faces, not its pair signature: a
 // signature's cost is almost all the thickening's own (~50 s for a 10-crossing
