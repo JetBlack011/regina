@@ -1,5 +1,5 @@
 //
-//  rowsearch_test.cpp
+//  preconditions_test.cpp
 //
 //  A search's preconditions and gates (search/preconditions.h), each piece
 //  pinned on its own:

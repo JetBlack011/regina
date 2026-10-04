@@ -1,4 +1,4 @@
-// leaves.h
+// axioms.h
 //
 // Which outside facts may become cobordism-graph leaves, and the links that
 // receive them. See README.md, "Leaf facts".

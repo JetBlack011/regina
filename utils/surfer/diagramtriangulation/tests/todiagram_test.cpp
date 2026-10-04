@@ -1,5 +1,5 @@
 //
-//  diagramdrawer_test.cpp
+//  todiagram_test.cpp
 //
 //  knotbuilder::DiagramDrawer, against independent answers:
 //

@@ -309,7 +309,7 @@ struct SearchRefused : std::runtime_error {
 struct SearchResult {
   std::vector<KeptSurface> kept;
   long long accepted = 0;
-  std::string accounting;        ///< the `accounting:` body (rowsearch.h)
+  std::string accounting;        ///< the `accounting:` body (preconditions.h, SearchAccounting)
   std::string accountingFailure; ///< empty iff every surface is accounted for
   std::string outcome;           ///< surface-target, exhausted, timeout, stopped
   double wall = 0;               ///< seconds

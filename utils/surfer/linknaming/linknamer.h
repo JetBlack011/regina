@@ -16,7 +16,7 @@
  *  2. Name each prime-looking piece:
  *     - exactly: its diagram, after further simplify() tries, IS one version
  *       (as written, mirrored, reversed, both) of a table entry
- *       (exacttables.h) -- this pins the oriented variant, and the mirror
+ *       (tables.h) -- this pins the oriented variant, and the mirror
  *       and reversal relative to the drawing;
  *     - by isometry, for hyperbolic pieces: among the table entries sharing
  *       the piece's HOMFLY polynomial (a hint), one whose complement is
@@ -131,7 +131,7 @@ struct PieceName {
     size_t crossings = 0;           /**< of its simplified diagram */
     std::vector<size_t> origin;     /**< outgoing component of each of its components */
     std::string base;               /**< table base, when tabulated */
-    /** Canonical names (exacttables.h) the piece may be; exactly one when
+    /** Canonical names (tables.h) the piece may be; exactly one when
      *  its oriented variant is pinned. */
     std::vector<std::string> names;
     std::optional<bool> mirror;     /**< relative to the drawing, when pinned */

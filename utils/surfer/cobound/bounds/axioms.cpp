@@ -1,4 +1,4 @@
-// leaves.cpp
+// axioms.cpp
 
 #include "cobound/bounds/axioms.h"
 

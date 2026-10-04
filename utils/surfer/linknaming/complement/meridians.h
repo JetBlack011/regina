@@ -1,5 +1,5 @@
 //
-//  peripheral.h
+//  meridians.h
 //
 //  Created by John Teague on 09/03/2026.
 //

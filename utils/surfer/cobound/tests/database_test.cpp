@@ -1,5 +1,5 @@
 //
-//  witnessstore_test.cpp
+//  database_test.cpp
 //
 //  The database (cobordisms/database.h), which every run and `sign`
 //  append to and every merge and solve reads:

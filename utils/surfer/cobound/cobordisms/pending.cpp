@@ -1,4 +1,4 @@
-// keptstore.cpp
+// pending.cpp
 
 #include "cobound/cobordisms/pending.h"
 

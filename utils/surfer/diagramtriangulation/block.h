@@ -1,5 +1,5 @@
 //
-//  blockgeometry.h
+//  block.h
 //
 //  The linear geometry of knotbuilder's crossing block.
 //

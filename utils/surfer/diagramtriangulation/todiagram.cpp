@@ -1,5 +1,5 @@
 //
-//  diagramdrawer.cpp
+//  todiagram.cpp
 //
 //  See diagramdrawer.h for the construction and why it is an isotopy.
 //

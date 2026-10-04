@@ -128,7 +128,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
     }
 
     // Orientation: a surface component whose curves induce a pattern no flip
-    // of that component can fix cobordisms a DIFFERENT oriented variant of
+    // of that component can fix bounds a DIFFERENT oriented variant of
     // this link -- the L6a3{0}/L6a3{1} misattribution. Judged per surface
     // component, since each can be oriented independently
     // (classifyIncomingOrientation()).

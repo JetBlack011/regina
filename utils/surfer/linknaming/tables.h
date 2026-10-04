@@ -1,5 +1,5 @@
 //
-//  exacttables.h
+//  tables.h
 //
 //  The knot and link tables as oriented diagrams, for naming outgoing links
 //  exactly.

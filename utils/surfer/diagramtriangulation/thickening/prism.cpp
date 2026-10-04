@@ -1,5 +1,5 @@
 //
-//  simplicialprism.cpp
+//  prism.cpp
 //
 //  Created by John Teague on 07/21/2026.
 //

@@ -1,5 +1,5 @@
 //
-//  enumerator_test.cpp
+//  inducedsubgraphs_test.cpp
 //
 //  ConnectedInducedSubgraphEnumerator against brute force.
 //

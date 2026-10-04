@@ -1,5 +1,5 @@
 //
-//  knotbuilder.cpp
+//  fromdiagram.cpp
 //
 //  Created by John Teague on 05/10/2025.
 //

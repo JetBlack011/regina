@@ -1,5 +1,5 @@
 //
-//  embeddingsearch.cpp
+//  submanifoldsearch.cpp
 //
 //  Created by John Teague on 07/15/2026.
 //

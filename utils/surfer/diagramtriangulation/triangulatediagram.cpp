@@ -1,5 +1,5 @@
 //
-//  triangulateknot.cpp
+//  triangulatediagram.cpp
 //
 //  Created by John Teague on 11/09/2025.
 //

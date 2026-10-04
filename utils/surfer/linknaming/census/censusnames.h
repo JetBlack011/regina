@@ -1,5 +1,5 @@
 //
-//  linknames.h
+//  censusnames.h
 //
 //  GENERATED FILE -- do not edit by hand.
 //  Produced by tests/gen_knot_census_names.cpp + tests/gen_knot_names_header.py

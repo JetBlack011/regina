@@ -1,5 +1,5 @@
 //
-//  witnesskey_test.cpp
+//  cobordismkey_test.cpp
 //
 //  Checks cobordisms::cobordismKey() against values produced by Python's
 //  hashlib, which is what the cobordism-atlas tooling keys outgoing

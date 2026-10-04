@@ -682,7 +682,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   out.otherOrientation = acct.orientation.load();
   out.drainSkipped = drainSkipped;
   // Surfaces were accepted, yet not one reached the record. That can be
-  // genuine (every one cobordisms another oriented variant), but it is also
+  // genuine (every one bounds another oriented variant), but it is also
   // exactly what a broken gate looks like, so it never licenses a negative.
   out.nothingExamined = acct.nothingExamined();
   out.impossible = acct.impossible();

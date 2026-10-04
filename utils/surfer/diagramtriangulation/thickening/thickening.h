@@ -1,5 +1,5 @@
 //
-//  cobordismbuilder.h
+//  thickening.h
 //
 //  Created by John Teague on 05/10/2024.
 //

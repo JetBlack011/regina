@@ -1,5 +1,5 @@
 //
-//  farsidenaming_test.cpp
+//  outgoingnamer_test.cpp
 //
 //  outgoing::OutgoingNamer on real thickenings, the way verifyslicegenus uses
 //  it:

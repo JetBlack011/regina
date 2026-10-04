@@ -1,4 +1,4 @@
-// knotbuilder_test.cpp
+// fromdiagram_test.cpp
 // Tests for knotbuilder's PD-code -> triangulated-S³ pipeline (Block,
 // Block::glue(), buildLink()), and its integration with CobordismBuilder's
 // thicken(). See cobordismbuilder_test.cpp for CobordismBuilder's own

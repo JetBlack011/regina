@@ -1,4 +1,4 @@
-// embeddingsearch_test.cpp
+// submanifoldsearch_test.cpp
 // Tests for the BoundaryCondition-based output filtering added to
 // EmbeddedSubmanifold/EmbeddingSearch (isClosed(), isProper(),
 // boundaryComponentsMapInjectively(), satisfies()) -- see embeddingsearch.h.

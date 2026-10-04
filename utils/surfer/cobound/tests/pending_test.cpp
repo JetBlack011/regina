@@ -1,4 +1,4 @@
-// keptstore_test.cpp
+// pending_test.cpp
 //
 // A search's kept surfaces into the atlas's database (cobordisms/pending.h),
 // on a real exhaustive search (3_1 at face cap 3, the canaries' shape):

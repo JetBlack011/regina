@@ -1,5 +1,5 @@
 //
-//  embeddedsubmanifold.h
+//  submanifold.h
 //
 //  Created by John Teague on 07/21/2026.
 //

@@ -1,4 +1,4 @@
-// hopedges_test.cpp
+// searchcobordisms_test.cpp
 //
 // End to end on real cobordisms (tests/data, from the 2026-09-28 Phase 0
 // searches): a search's incoming link is certified, every cobordism becomes

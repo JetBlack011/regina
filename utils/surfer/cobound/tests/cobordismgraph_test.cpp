@@ -1,4 +1,4 @@
-// proofgraph_test.cpp
+// cobordismgraph_test.cpp
 //
 // Tests for bounds/cobordismgraph.h: the fixed point over a graph with cycles,
 // both directions of every cobordism, splits, component maps, derivations,

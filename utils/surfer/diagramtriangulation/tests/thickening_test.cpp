@@ -1,4 +1,4 @@
-// cobordismbuilder_test.cpp
+// thickening_test.cpp
 // Tests for CobordismBuilder::thicken() — verifies SimplicialPrism
 // construction and gluing produce a valid product cobordism. See
 // knotbuilder_test.cpp for integration with knotbuilder's PD-code ->

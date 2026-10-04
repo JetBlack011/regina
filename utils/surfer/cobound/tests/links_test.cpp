@@ -1,4 +1,4 @@
-// nodes_test.cpp
+// links_test.cpp
 //
 // Tests for bounds/links.h: graph link identity is exact, and the component map
 // it returns is right (README.md, "Component maps").

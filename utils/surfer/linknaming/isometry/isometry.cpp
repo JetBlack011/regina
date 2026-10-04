@@ -1,5 +1,5 @@
 //
-//  snappeaisometry.cpp
+//  isometry.cpp
 //
 
 #include "linknaming/isometry/isometry.h"

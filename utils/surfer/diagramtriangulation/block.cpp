@@ -1,5 +1,5 @@
 //
-//  blockgeometry.cpp
+//  block.cpp
 //
 
 #include "diagramtriangulation/block.h"

@@ -1,5 +1,5 @@
 //
-//  simplicialprism.h
+//  prism.h
 //
 //  Created by John Teague on 06/10/2025.
 //

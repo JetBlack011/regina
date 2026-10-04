@@ -1,5 +1,5 @@
 //
-//  snappeaisometry.h
+//  isometry.h
 //
 //  Link complements in Regina's copy of the SnapPea kernel, compared as
 //  SnapPy's Manifold.is_isometric_to() compares them.

@@ -1,4 +1,4 @@
-// embeddedsubmanifold_test.cpp
+// submanifold_test.cpp
 //
 // Tests whether EmbeddedSubmanifold<4,2>::isEmbedded() (inherited verbatim
 // by KnottedSurface) accurately tracks whether the realization map from

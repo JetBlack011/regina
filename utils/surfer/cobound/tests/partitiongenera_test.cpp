@@ -1,4 +1,4 @@
-// profile_test.cpp
+// partitiongenera_test.cpp
 //
 // Tests for bounds/partition.h and bounds/partitiongenera.h. Each block names the
 // assumption it pins (README.md, "Assumptions and their tests").

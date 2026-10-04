@@ -1,5 +1,5 @@
 //
-//  exacttables.cpp
+//  tables.cpp
 //
 
 #include "linknaming/tables.h"

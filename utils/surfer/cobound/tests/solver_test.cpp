@@ -1,4 +1,4 @@
-// cobordismgraph_test.cpp
+// solver_test.cpp
 //
 // Tests for ../solver/solver.h/.cpp: the interval solver `cobound solve`
 // runs over the database's cobordisms (componentsFromName(), NameTable,

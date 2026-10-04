@@ -1,5 +1,5 @@
 //
-//  diagramdrawer.h
+//  todiagram.h
 //
 //  Draws curves in knotbuilder's triangulation of S^3 as link diagrams.
 //

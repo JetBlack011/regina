@@ -1,4 +1,4 @@
-// peripheral_test.cpp
+// meridians_test.cpp
 //
 // Tests for peripheral.h: drilling a link while retaining its meridians, and
 // reading those meridians as slopes in SnapPea's peripheral basis.

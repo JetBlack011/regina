@@ -1,5 +1,5 @@
 //
-//  gen_knot_census_names.cpp
+//  gen_census_names.cpp
 //
 //  Standalone generation utility (not a CTest test -- see CMakeLists.txt):
 //  for every knot in a KnotInfo-style PD code CSV ("Name,PD Notation" rows)

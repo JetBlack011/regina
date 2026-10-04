@@ -1,5 +1,5 @@
 //
-//  snappeaisometry_test.cpp
+//  isometry_test.cpp
 //
 //  KernelLink (../snappeaisometry.h): outgoing links from the master that the
 //  diagram searches could not reach, against their table entries, and two

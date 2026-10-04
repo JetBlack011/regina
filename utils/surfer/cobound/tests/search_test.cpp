@@ -1,4 +1,4 @@
-// hoprunner_test.cpp
+// search_test.cpp
 //
 // An in-process search (search/search.h) against reading its finds back
 // from their pair signatures. On

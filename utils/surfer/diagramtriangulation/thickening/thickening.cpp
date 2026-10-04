@@ -1,5 +1,5 @@
 //
-//  cobordismbuilder.cpp
+//  thickening.cpp
 //
 //  Created by John Teague on 04/12/2025.
 //
