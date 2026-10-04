@@ -995,7 +995,7 @@ EmbeddingSearch<dim, subdim>::buildGraph_(
                 nodes[i].gluings)
             // hasUnexplainedSelfCollision() filters codimension >= 2
             // (vertex-level) self-collisions -- disabled along with Phase 2
-            // in addFace() (embeddedsubmanifold.cpp), per the conjecture
+            // in addFace() (submanifold.cpp), per the conjecture
             // that these are always resolvable cusp intersections. Only
             // the codimension-1 (facet-level) exclusion above remains.
             //

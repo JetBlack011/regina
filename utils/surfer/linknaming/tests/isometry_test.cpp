@@ -1,7 +1,7 @@
 //
 //  isometry_test.cpp
 //
-//  KernelLink (../snappeaisometry.h): outgoing links from the master that the
+//  KernelLink (../isometry/isometry.h): outgoing links from the master that the
 //  diagram searches could not reach, against their table entries, and two
 //  kinds of pair that must NOT match -- a HOMFLY coincidence, and three outgoing
 //  links whose complement is L11n353's while the links are not (an isometry

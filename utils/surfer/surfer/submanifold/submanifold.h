@@ -28,7 +28,7 @@
 // Forward-declared rather than included: pairsig.h includes THIS header (for
 // its Skeleton/EmbeddedSubmanifold convenience overload), so including it
 // here would be circular. Only pairSig()'s out-of-line definition in
-// embeddedsubmanifold.cpp needs the complete type, and a non-owning pointer
+// submanifold.cpp needs the complete type, and a non-owning pointer
 // needs nothing more than this declaration.
 template <int dim, int subdim>
 class LazyPairSigContext;

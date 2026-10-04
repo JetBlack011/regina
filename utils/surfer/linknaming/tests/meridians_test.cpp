@@ -1,6 +1,6 @@
 // meridians_test.cpp
 //
-// Tests for peripheral.h: drilling a link while retaining its meridians, and
+// Tests for ../complement/meridians.h: drilling a link while retaining its meridians, and
 // reading those meridians as slopes in SnapPea's peripheral basis.
 //
 // The ground truth is the one case where the whole loop closes without
@@ -8,10 +8,10 @@
 // ideal triangulation of the unknot exterior whose meridian is (1,-1) in
 // SnapPea's basis, up to sign. That case has *no finite vertices*, which is
 // why regina::SnapPeaTriangulation may be used on it here and nowhere else --
-// see peripheral.h's warning, and the explicit assertion below that keeps the
+// see meridians.h's warning, and the explicit assertion below that keeps the
 // two situations from being confused.
 //
-// Realistic inputs (a knot built by knotbuilder, drilled out of a triangulated
+// Realistic inputs (a knot built by buildLink(), drilled out of a triangulated
 // S^3 that keeps its other vertices) cannot get a SnapPea basis in-process for
 // exactly that reason, so for those we check the meridian is a structurally
 // valid closed curve on the right cusp, and leave the slope round trip to

@@ -266,7 +266,7 @@ private:
     std::map<LinkId, std::optional<int>> carried;
   };
   mutable LowerCache lowerCache_;
-  /// Each searched link's latest usable frontier (searchfrontier.h): its next
+  /// Each searched link's latest usable frontier (surfer/enumeration/searchstrategy.h): its next
   /// search carries on from there instead of searching the prefix again.
   std::map<LinkId, SearchFrontier> frontiers_;
   /// Links whose search ran to the end at the search shape: nothing is left.

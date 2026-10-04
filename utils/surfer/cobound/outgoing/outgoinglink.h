@@ -1,12 +1,12 @@
 //
 //  outgoinglink.h
 //
-//  A cobordism's outgoing link, as oriented curves in knotbuilder's own
-//  triangulation of the incoming link.
+//  A cobordism's outgoing link, as oriented curves in the diagram's own
+//  triangulation T of the incoming link.
 //
 
 /*! \file utils/surfer/cobound/outgoing/outgoinglink.h
- *  \brief Carries a surface's outgoing boundary curves onto knotbuilder's
+ *  \brief Carries a surface's outgoing boundary curves onto the diagram's
  *  triangulation T of the incoming link (OutgoingMap, diagramtriangulation/thickening),
  *  oriented as a cobordism from the oriented incoming link -- ready for
  *  diagramtriangulation::DiagramDrawer.
@@ -59,7 +59,7 @@ std::optional<std::map<size_t, int>> incomingFlips(
 
 /** A surface's outgoing link, oriented as a cobordism from the incoming link. */
 struct OutgoingLink {
-    std::vector<diagramtriangulation::EdgeCycle> curves; /**< In knotbuilder's T. */
+    std::vector<diagramtriangulation::EdgeCycle> curves; /**< In the diagram's triangulation T. */
     std::vector<size_t> surfaceComponent;       /**< Per curve. */
     /** The incoming side, per incoming curve: the index of its first edge in
      *  the incoming boundary component's built triangulation, and the surface

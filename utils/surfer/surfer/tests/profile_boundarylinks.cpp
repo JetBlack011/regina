@@ -11,7 +11,7 @@
 //  short-circuited by BoundarySignatureCache on repeat boundaries, they cannot
 //  be the bulk of it.
 //
-//  The suspect is KnottedSurface::boundaryLinks() (embeddedsubmanifold.cpp),
+//  The suspect is KnottedSurface::boundaryLinks() (submanifold.cpp),
 //  which for every boundary facet of every surface does
 //
 //      for (int k = 0; k < ambientBC->countEdges(); ++k)

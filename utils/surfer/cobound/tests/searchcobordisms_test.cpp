@@ -133,7 +133,7 @@ void testL11n33() {
   LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_L11n33);
   CobordismAssembler assembler(g, reg, searched);
-  // The certificate's map: knotbuilder's component order onto the link's.
+  // The certificate's map: T's component order onto the link's.
   CHECK_EQ(static_cast<int>(assembler.incomingToLink().size()), 2, "two row components");
   auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/search_L11n33_cobordisms.csv");
   int ok = 0;

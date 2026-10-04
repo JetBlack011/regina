@@ -26,7 +26,7 @@
  * layers, producing the collar of triangles connecting the edges'
  * original position to wherever thickening has pushed them.
  *
- * This is a fixed base for seeding SurfaceSearch (see embeddingsearch.h),
+ * This is a fixed base for seeding SurfaceSearch (see surfer/enumeration/surfacesearch.h),
  * so the search only has to find a cap rather than rediscovering the
  * collar itself from scratch among everything else in the cobordism.
  *

@@ -167,7 +167,7 @@ bool isGenuinelyEmbedded(const Correspondence &correspondence,
 
 // Independent ground truth for isProper(), which is now tracked
 // incrementally (see the class comments on facetIsAmbientBoundary_/
-// badProperCount_ in embeddedsubmanifold.h) rather than recomputed from
+// badProperCount_ in submanifold.h) rather than recomputed from
 // scratch on every call. This is literally the O(size-of-ambient-
 // triangulation) sweep the class used to perform, rewritten against
 // `correspondence` instead of the class's private faces_/skeleton_ -- an
@@ -316,8 +316,8 @@ Graph buildTestGraph(const Skeleton<4, 2> &skeleton) {
                 nodes[i].gluings)
             // hasUnexplainedSelfCollision() filters codimension >= 2
             // (vertex-level) self-collisions -- disabled along with Phase 2
-            // in addFace() (embeddedsubmanifold.cpp), so it no longer
-            // exists to call. Mirrors buildGraph_() in embeddingsearch.cpp,
+            // in addFace() (submanifold.cpp), so it no longer
+            // exists to call. Mirrors buildGraph_() in submanifoldsearch.cpp,
             // which drops the same disjunct.
             //
             // || EmbeddedSubmanifold<4, 2>::hasUnexplainedSelfCollision(
@@ -734,7 +734,7 @@ void test_single_face_internal_vertex_collision() {
 // search graph at all.
 //
 // Disabled along with hasUnexplainedSelfCollision() itself, which is
-// commented out in embeddedsubmanifold.cpp (Phase 2 of addFace()). Kept
+// commented out in submanifold.cpp (Phase 2 of addFace()). Kept
 // here rather than deleted so it can be restored with the routine.
 //
 // void test_has_unexplained_self_collision() {
@@ -889,7 +889,7 @@ void test_isembedded_lifo_add_remove_add() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section D: CobordismBuilder/knotbuilder-derived 4-manifolds. Depth-capped,
+// Section D: CobordismBuilder/buildLink()-derived 4-manifolds. Depth-capped,
 // but generously -- correctness coverage takes priority over speed here.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -960,7 +960,7 @@ void test_cobordism_kb() {
                           regina::Example<2>::kb(), 1, 1);
 }
 
-// Calibrated empirically: knotbuilder's block-based construction produces
+// Calibrated empirically: buildLink()'s block-based construction produces
 // noticeably larger, denser triangulations than the cobordism-only examples
 // above (e.g. the trefoil's cone() has 237 candidate 2-faces at average
 // graph degree ~18, vs. disc's 64 faces at degree ~12) -- connected-subgraph
@@ -990,7 +990,7 @@ void auditKnotSurface(const std::string &label, const std::string &pdCode,
     reportAudit(label, audit);
 }
 
-// PD codes reused verbatim from knotbuilder_test.cpp, where they're already
+// PD codes reused verbatim from fromdiagram_test.cpp, where they're already
 // validated (checked to produce a valid, closed triangulation of S^3 with
 // the expected number of link components) before being used in any
 // CobordismBuilder pipeline test there.
@@ -1169,7 +1169,7 @@ void test_cone_on_unknot_accepted() {
                  "accepted (locally flat) ---\n";
 
     // A single-crossing unknot diagram (a Reidemeister-1 kink), reusing
-    // knotbuilder's own PD-code conventions.
+    // buildLink()'s own PD-code conventions.
     auto pd = diagramtriangulation::parsePDCode("1 2 2 1");
     auto result = diagramtriangulation::buildLink(pd);
 
@@ -1416,7 +1416,7 @@ void test_boundary_vertex_self_intersection_not_resolvable() {
 // isAcceptable() applies at boundary vertices, which addFace() never checks.
 //
 // Ambient: the cone on a 3-ball B, whose apex lies on the boundary of the
-// resulting 4-ball. B is knotbuilder's S^3 for a knot K minus one tetrahedron
+// resulting 4-ball. B is buildLink()'s S^3 for a knot K minus one tetrahedron
 // containing an edge e of K, so K \ e is a proper arc in B, knotted exactly
 // when K is. The cone on that arc is proper (the arc lies in B, part of the
 // boundary, and its end cone-edges in the cone on dB), embedded, and passes
@@ -1516,7 +1516,7 @@ void test_boundary_filter_rejects_knotted_boundary_petal() {
 // refuses them): CLOSED petals whose traces form an unlink, at a BOUNDARY
 // vertex.
 //
-// Ambient: the cone on a 3-ball B -- knotbuilder's S^3 for the 2-component
+// Ambient: the cone on a 3-ball B -- buildLink()'s S^3 for the 2-component
 // unlink, punctured (Triangulation<3>::puncture(): a triangle is thickened
 // into a pillow and a ball removed from inside it, so the new boundary sphere
 // has only new vertices and the link stays in the interior). The cone on a
@@ -1584,7 +1584,7 @@ void test_boundary_vertex_closed_unlinked_petals_not_resolvable() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section F: hereditariness stress test for the new checks. enumerate_cis.h's
+// Section F: hereditariness stress test for the new checks. inducedsubgraphs.h's
 // filtered DFS *requires* the predicate be genuinely hereditary (for every
 // connected U* satisfying it, every connected subset of U* must too) --
 // a violation would silently drop results rather than just misclassify one

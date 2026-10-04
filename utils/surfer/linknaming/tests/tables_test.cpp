@@ -218,10 +218,7 @@ void test_round_trip_every_table_pd() {
               "the formatter spells every knot table PD as the table does, up to spaces");
 }
 
-// The signature table diagram naming reads, from the tables the process
-// already loaded (one table load, phase 5), is the one fromTables() reads
-// from the files: the same signatures and the same first-wins names. On a
-// small table (always), and on the atlas's whole tables when present.
+// The symmetry types the anchor cases read.
 SymmetryTable symmetryTable() {
     SymmetryTable names;
     names["3_1"] = SymmetryType::reversible;

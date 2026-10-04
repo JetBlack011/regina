@@ -2,7 +2,7 @@
 //  review_repeated_vertices.cpp
 //
 //  Review utility (not a CTest test): for every row of one or more PD-code
-//  tables, builds the ambient triangulation exactly as verifyslicegenus does
+//  tables, builds the ambient triangulation exactly as a search does
 //  (buildAmbient(): the collar through every layer) and counts
 //    - loop edges of T (an edge whose two ends are the same vertex);
 //    - loop edges of the thickening;

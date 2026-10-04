@@ -2,7 +2,7 @@
 //  isometry_validation.cpp
 //
 //  Whole-table validation of the isometry step of linknaming::LinkNamer
-//  (../snappeaisometry.h), as the drawer was validated on every table row.
+//  (../isometry/isometry.h), as the drawer was validated on every table row.
 //  Not a ctest target: it takes minutes on the full tables.
 //
 //  isometry_validation --knots K --links L --symmetry S --out PREFIX

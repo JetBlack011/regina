@@ -60,7 +60,7 @@ void printBoundaryProgress(size_t processed, size_t total,
  *
  * The face histogram answers whether --max-faces is actually binding. IDDFS
  * reports each surface once, at the round where it first fits (see
- * suppressBelow/prevCap in embeddingsearch.cpp), so a surface's `triangles`
+ * suppressBelow/prevCap in surfer/enumeration/submanifoldsearch.cpp), so a surface's `triangles`
  * is its true face count and the population sitting at exactly --max-faces
  * is precisely what the cap is truncating.
  *

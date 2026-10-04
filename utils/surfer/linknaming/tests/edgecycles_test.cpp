@@ -5,7 +5,7 @@
 // undirected edges (tolerant and one-closed-curve), and counting closed
 // curves. Hand-made edge lists for the shapes that matter (closed curves,
 // two curves, an arc, a branching, a loop edge, a repeated edge), and a real
-// link's edges from knotbuilder.
+// link's edges from buildLink().
 
 #include <algorithm>
 #include <iostream>

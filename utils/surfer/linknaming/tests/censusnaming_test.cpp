@@ -192,7 +192,7 @@ void test_complement_cache_clear_race() {
 void test_name_link_unlink() {
     // The 2-component unlink: the Hopf link's shadow with crossing 1's
     // tuple cyclically rotated by one position, flipping that crossing's
-    // over/under role -- the exact fixture knotbuilder_test.cpp's own
+    // over/under role -- the exact fixture fromdiagram_test.cpp's own
     // "non-alternating regression" test uses, already independently
     // checked there (isSphere(), 2 components) to be two split, unknotted
     // loops.

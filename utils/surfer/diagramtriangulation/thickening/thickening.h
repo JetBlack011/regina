@@ -114,7 +114,7 @@ class CobordismBuilder {
      * otherwise eagerly require regina::Isomorphism<1>, which doesn't
      * exist. Nothing in the codebase currently calls either this or
      * glueTriangulations() below, so no explicit instantiation of either
-     * exists yet -- add one in cobordismbuilder.cpp for whatever `d` a
+     * exists yet -- add one in thickening.cpp for whatever `d` a
      * future caller needs.
      */
     template <int d>
@@ -198,9 +198,9 @@ struct OutgoingEdge {
 using OutgoingCurve = std::vector<OutgoingEdge>;
 
 /**
- * The outgoing boundary of a thickening, edge by edge, as knotbuilder's T.
+ * The outgoing boundary of a thickening, edge by edge, as the diagram's triangulation T.
  *
- * A search runs in S^3 x [0,2] = T x [0,2], thickened from knotbuilder's
+ * A search runs in S^3 x [0,2] = T x [0,2], thickened from the diagram's
  * triangulation T by CobordismBuilder. Its outgoing boundary is literally
  * T x {2}: over each base tetrahedron sigma, the top prism piece
  * P_3(sigma) has sigma x {2} as a facet, with base vertex v's top copy at
@@ -250,7 +250,7 @@ class OutgoingMap {
 };
 
 /**
- * A link's diagram triangulated -- knotbuilder's T, with L's edges --
+ * A link's diagram triangulated -- the diagram's triangulation T, with L's edges --
  * thickened into S^3 x I, and seeded with the collar L x [0, collarLayers]:
  * what a search runs in. Filled in place by buildAmbient() and never moved:
  * a namer and a search built from it hold pointers into `link.tri` and

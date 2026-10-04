@@ -12,7 +12,7 @@
 //  name differs from its own. `proof` is `diagram` when a version of one
 //  table diagram is the other (Tables::canonical()), or `isometry` when
 //  an isometry of the complements carries meridians to meridians with a
-//  uniform orientation sign (snappeaisometry.h): either way the two entries
+//  uniform orientation sign (isometry/isometry.h): either way the two entries
 //  are one oriented link up to mirror and global reversal, so one link of
 //  the graph. The solvers read the file opt-in (C++ --link-classes, frontier.py
 //  --link-classes). A class whose members' literature 4-genera differ is a

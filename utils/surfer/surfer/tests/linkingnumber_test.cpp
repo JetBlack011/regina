@@ -4,7 +4,7 @@
 //  linkingnumber::linkingNumber() (see ../linkingnumber.h) against two
 //  independent references:
 //
-//    1. Diagrams. knotbuilder draws a 2-component link into a triangulated
+//    1. Diagrams. buildLink() builds a 2-component link into a triangulated
 //       S^3; its components' linking number must equal the diagram's, which
 //       Regina reads straight off the PD code's crossing signs
 //       (Link::linking()). Covers |lk| = 0, 1, 2, 3.
@@ -21,7 +21,7 @@
 //
 //    ./linkingnumber_test [--full] [../../../../cobordism-atlas/data/links_..._pd_codes.csv]
 //
-//  The heavy check on real vertex links is verifyslicegenus --audit-linking.
+//  The heavy check on real vertex links is `cobound run` with audit_linking = 1.
 //
 
 #include <algorithm>
@@ -88,7 +88,7 @@ struct Case {
 };
 
 // The diagram as Regina's own parser reads the table's PD string, so the
-// expected answer never passes through knotbuilder. That parser takes the
+// expected answer never passes through buildLink(). That parser takes the
 // table's 1-based labels as they are, but not its ';' separators.
 regina::Link reginaLink(std::string pd) {
     std::replace(pd.begin(), pd.end(), ';', ',');

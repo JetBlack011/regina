@@ -204,7 +204,7 @@ void test_non_automorphism_invariant_marked_set() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test 4: KnottedSurface-specific round trip, reusing the two-pentachora
-// triangulation from embeddedsubmanifold_test.cpp's known-good {6,7} pair
+// triangulation from submanifold_test.cpp's known-good {6,7} pair
 // (see test_buildgraph_known_incompleteness there).
 // ─────────────────────────────────────────────────────────────────────────────
 void test_knotted_surface_round_trip() {
@@ -340,7 +340,7 @@ void test_malformed_input() {
 
     // A triple self-fold (all 3 edges of a triangle identified together):
     // both of its 2 triangles are irreparably self-folded (see
-    // embeddingsearch_test.cpp's test_triple_self_fold_excluded), so
+    // submanifoldsearch_test.cpp's test_triple_self_fold_excluded), so
     // whichever one fromSig()'s reconstruction happens to number 0, marking
     // it alone is not addable at all, let alone jointly.
     regina::Triangulation<3> foldTri;
@@ -376,7 +376,7 @@ void test_malformed_input() {
 //
 // This is the entire contract of the context: it is a cheaper ROUTE to the
 // same string, never a different encoding. results/cobordisms.csv stores
-// these strings and peripheral_slopes reconstructs surfaces from them, so
+// these strings and `cobound meridians` reconstructs surfaces from them, so
 // any divergence here would silently invalidate recorded cobordisms.
 //
 // Reusing one context across every marked set is deliberate -- it is how the
@@ -557,7 +557,7 @@ void test_context_cache() {
 //
 // Byte equality with the old path (test 7) proves the encoding did not
 // change; it does not prove the result is still a usable signature. This is
-// the property peripheral_slopes.cpp relies on when it rebuilds a surface
+// the property `cobound meridians` relies on when it rebuilds a surface
 // from a recorded pairsig, so exercise the real decoders.
 // ─────────────────────────────────────────────────────────────────────────────
 void test_context_output_decodes() {

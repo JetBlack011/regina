@@ -3,7 +3,7 @@
 #define ENUMERATE_CIS_H
 
 //
-//  enumerate_cis.h
+//  inducedsubgraphs.h
 //
 //  C++ implementation of a modified algorithm from:
 //    M. Alokshiya, S. Salem, F. Abed,

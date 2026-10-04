@@ -421,7 +421,7 @@ PieceName LinkNamer::namePiece(const GaussDiagram &piece) const {
     };
 
     // Hyperbolic: an isometry of complements carrying meridians to meridians
-    // (snappeaisometry.h). Milliseconds, indifferent to which diagram of the
+    // (isometry/isometry.h). Milliseconds, indifferent to which diagram of the
     // piece was drawn -- what the Reidemeister searches below depend on --
     // and its action on the oriented meridians pins the variant too.
     if (limits_.isometry && l.size() > 0) {

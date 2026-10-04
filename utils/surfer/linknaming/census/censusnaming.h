@@ -144,7 +144,8 @@ extern std::atomic<long long> retriangulateTimeBudgetSeconds;
  * result) in the local SQLite census -- a copy of the 3 census databases
  * that can ever match a cusped boundary complement, plus any
  * SnapPy-named isoSigs Regina's own census misses, plus anything
- * inserted directly via insertCensusEntry() (see tools/gen_census.py).
+ * inserted directly via insertCensusEntry() (cobound: a knot target's
+ * complement, and Pachner hits).
  * Unlike the real regina::Census::lookup(), needs no mutex: each thread
  * lazily opens its own read-only connection, and SQLite supports many
  * concurrent readers natively.
@@ -195,7 +196,7 @@ extern std::atomic<bool> censusUpdates;
  * cached read connections pick up the change on their next lookup.
  * Thread-safe (its own mutex-guarded read-write connection, opened
  * lazily, WAL + busy_timeout enabled for robustness against another
- * concurrently-running surfer/verifyslicegenus instance sharing the same
+ * concurrently-running cobound instance sharing the same
  * file). No-op (returns false) if the path can't be opened for writing, and
  * with censusUpdates off (counted neither ok nor failed: nothing was tried).
  */

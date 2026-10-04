@@ -104,13 +104,16 @@ SymmetryTable readSymmetryTable(const std::filesystem::path &path);
  *
  * `K # -K` bounds a ribbon disc for every K, where `-K = m(K^r)` is the
  * concordance inverse, and a sum of slice knots is slice. So a composite knot
- * is elementarily slice when its summands pair off into inverse pairs. The
- * inverse depends on the summand's symmetry: for an invertible K, `-K = mK`;
- * if K is also amphicheiral, `-K = K`. Summands without a certified symmetry
- * (absent from `symmetry`), and every NON-invertible summand, are refused:
- * our names record chirality but not reversal, so for a non-invertible K the
- * name cannot say whether its neighbour is -K or its reverse (8_17 is the
- * trap).
+ * is elementarily slice when its summands pair off into inverse pairs, each
+ * summand read with its marks (`m` mirrored, `r` reversed, relative to the
+ * table's diagram) and its symmetry type, which says which marks change the
+ * knot: for a reversible K, `-K = mK` (`3_1#m3_1`, the `r` meaningless); for a
+ * fully amphicheiral one, `-K = K`; for a negative amphicheiral one `-K = K`
+ * (`8_17#8_17`, while `8_17#m8_17` = `8_17 # 8_17^r` is not slice: the
+ * trap); for a positive amphicheiral one `-K = K^r` (`12a_1#r12a_1`); and for
+ * a chiral one only the mark `mr` gives the inverse (`9_32#mr9_32`, never
+ * `9_32#m9_32`). A summand without a symmetry type (absent from `symmetry`)
+ * is refused, never guessed.
  *
  * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
  * with no symmetry data loaded, so a run without --knot-symmetry loses

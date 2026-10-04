@@ -122,7 +122,7 @@ size_t resolveFaceIndex(const regina::Triangulation<dim> &codomain,
  * sig() is byte-for-byte identical to pairSig<dim,subdim>(ambient, ...) --
  * it is the same code reading precomputed members. That equality is the
  * whole contract: `results/cobordisms.csv` stores these strings and
- * peripheral_slopes reconstructs surfaces from them, so a context must never
+ * `cobound meridians` reconstructs surfaces from them, so a context must never
  * be a different encoding, only a cheaper route to the same one.
  *
  * Not copyable: `autos_` are isomorphisms *of* `canon_`, so copying the

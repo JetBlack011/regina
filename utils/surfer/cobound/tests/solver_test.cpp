@@ -306,7 +306,7 @@ void test_knot_outgoing_named_as_a_link_bounds_nothing() {
     // every link variant, and a one-curve outgoing link bears a bound
     // (outgoingBearsBound), so the subject would be bounded by a LINK's g4 as
     // if it were this knot's. The cobordism is built as the driver builds it
-    // (verifyslicegenus.cpp: otherCandidates = candidates(name, observed)).
+    // (cobordisms/pending.cpp: otherCandidates = candidates(name, observed)).
     NameTable names;
     names.addLiterature("K", 0, 3);
     names.addLiterature("L2a1{0}", 0, 0);

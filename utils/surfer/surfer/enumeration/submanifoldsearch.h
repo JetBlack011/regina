@@ -222,7 +222,7 @@ struct SearchCallbacks {
  * KnottedSurface, so there's no correctness reason for this to be a
  * template parameter. Making it virtual instead is what lets runSearch_()
  * itself be templated on EmbeddingT alone (see its own doc comment) and
- * hence explicitly instantiated in embeddingsearch.cpp for the small, fixed
+ * hence explicitly instantiated in submanifoldsearch.cpp for the small, fixed
  * set of concrete embedding types actually used -- a real declaration in
  * the header, a real definition in the .cpp, no lambda-closure-type
  * visibility problem. The extra indirect call this costs only happens once
@@ -290,7 +290,7 @@ protected:
    * still never need to name EmbeddingT explicitly.
    *
    * \note The members below are defined inline here, deliberately, rather
-   * than out-of-line in embeddingsearch.cpp. Being a member template, its
+   * than out-of-line in submanifoldsearch.cpp. Being a member template, its
    * specializations are *not* produced by that file's explicit
    * instantiations of EmbeddingSearch<dim,subdim> (explicitly instantiating
    * a class template does not instantiate its member templates), and the
@@ -633,7 +633,7 @@ protected:
    * requires EmbeddingT to already be the derived type at compile time.
    * This is also runSearch_()'s *only* template parameter: declared here,
    * defined (and explicitly instantiated for every EmbeddingT actually
-   * used) in embeddingsearch.cpp, exactly like any other member function
+   * used) in submanifoldsearch.cpp, exactly like any other member function
    * of an explicitly-instantiated class template -- unlike the hook
    * parameters below, EmbeddingT is a nameable, fixed set of concrete
    * types, so this doesn't have the lambda-closure-visibility problem
@@ -737,7 +737,7 @@ extern template class EmbeddingSearch<4, 2>;
 // Explicit instantiations of runSearch_(), one per concrete EmbeddingT
 // actually used (see runSearch_()'s own doc comment for why this is
 // possible despite it being a member template): defined in
-// embeddingsearch.cpp, so any other translation unit calling search() --
+// submanifoldsearch.cpp, so any other translation unit calling search() --
 // e.g. surfacesearch.cpp, for SurfaceSearch<KnottedSurface> -- just needs
 // these declarations, not the ~350-line definition itself.
 extern template SearchStats

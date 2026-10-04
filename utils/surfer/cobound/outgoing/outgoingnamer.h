@@ -10,7 +10,7 @@
  *  link namer (linknaming::LinkNamer::nameDrawing()).
  *
  *  The outgoing boundary of the search's thickening is a copy of
- *  knotbuilder's triangulation T of the incoming link (OutgoingMap, thickening.h), so
+ *  the diagram's triangulation T of the incoming link (OutgoingMap, thickening.h), so
  *  its curves draw straight into a diagram: microseconds, where drilling,
  *  simplifying and naming a complement -- with a Pachner search behind
  *  a census miss -- took tens of milliseconds and was nearly all of the
@@ -57,7 +57,7 @@ class ComplementNamer : public ComplementBoundaryNamer {
 class OutgoingNamer : public BoundaryNamer {
   public:
     /**
-     * \param knotT knotbuilder's triangulation of the incoming link, unmodified.
+     * \param knotT the diagram's triangulation T of the incoming link, unmodified.
      * \param crossings the incoming diagram's crossing count.
      * \param cob the incoming link's thickening, after its last thicken() and not coned.
      * \param tables outlives this namer.

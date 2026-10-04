@@ -45,12 +45,12 @@
 //        incoming=<for each surface component: the incoming components it meets>
 //    W <id> FAILED <reason>
 //
-//  The incoming link is knotbuilder's, oriented as its PD code says; `lk` of
+//  The incoming link is buildLink()'s, oriented as its PD code says; `lk` of
 //  the ROW line is its linking matrix in DiagramDrawer::cyclesOf()'s
 //  component order, which is also the order `incoming` refers to.
 //
 //  How: the incoming diagram is thickened exactly as a search thickens it
-//  (knotbuilder, CobordismBuilder x2, CollarBuilder), the cobordism's decoded
+//  (buildLink(), CobordismBuilder x2, CollarBuilder), the cobordism's decoded
 //  pair is carried onto that thickening by an isomorphism sending its
 //  incoming curve onto L x {0}, and from there on everything is
 //  what the search itself would have had: outgoing::orientedOutgoingLink()

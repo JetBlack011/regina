@@ -1,14 +1,14 @@
 // submanifoldsearch_test.cpp
 // Tests for the BoundaryCondition-based output filtering added to
 // EmbeddedSubmanifold/EmbeddingSearch (isClosed(), isProper(),
-// boundaryComponentsMapInjectively(), satisfies()) -- see embeddingsearch.h.
+// boundaryComponentsMapInjectively(), satisfies()) -- see submanifoldsearch.h.
 // Cases exercise: a trivial "everything is boundary" ball (K4 gluing graph),
 // a "proper but not connected" thickened annulus (two of its own boundary
 // components map into a single ambient one), an engineered ambient-interior
 // edge that makes a lone face fail isProper(), and a triangle whose three
 // edges are all identified together (irreparably self-folded, excluded from
 // the DFS graph entirely -- see hasIrreparableSelfFold() in
-// embeddingsearch.h).
+// submanifoldsearch.h).
 
 #include <algorithm>
 #include <exception>
@@ -191,7 +191,7 @@ void test_thickened_annulus_proper_not_connected() {
 // embedded results than an otherwise-identical unrestricted search, rather
 // than re-deriving which specific subsets should vanish (that correctness
 // is already exhaustively cross-checked against Regina's own
-// Triangulation<2>::isOrientable() in embeddedsubmanifold_test.cpp).
+// Triangulation<2>::isOrientable() in submanifold_test.cpp).
 // ─────────────────────────────────────────────────────────────────────────────
 void test_orientable_only_prunes_mobius() {
     std::cout << "\n--- orientableOnly=true prunes a thickened Mobius band "
@@ -266,7 +266,7 @@ void test_engineered_interior_edge_not_proper() {
 // flag both, EmbeddingSearch should exclude both from its DFS graph, and a
 // full search() over this triangulation should complete instantly and safely
 // instead of crashing (the original bug: Regina's own join() throwing
-// "cannot join facets... already joined" -- see embeddingsearch.h).
+// "cannot join facets... already joined" -- see submanifoldsearch.h).
 // ─────────────────────────────────────────────────────────────────────────────
 void test_triple_self_fold_excluded() {
     std::cout << "\n--- Triple self-fold (all 3 edges of a triangle "
@@ -531,7 +531,7 @@ void test_seeded_search_rejects_invalid_seed() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // protectedBoundaryComponent (see EmbeddingSearch's own doc comment), built
-// on the real production pipeline (knotbuilder -> CobordismBuilder<3>
+// on the real production pipeline (buildLink() -> CobordismBuilder<3>
 // thicken() -> CollarBuilder) rather than a hand-rolled triangulation, so
 // this exercises the exact scenario caught in review: CollarBuilder's own
 // seed triangles touch the protected boundary component via a single edge
@@ -621,7 +621,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
 // maxDepth and reject any attempt to grow one larger -- this is the
 // mechanism EmbeddingSearch::runSearch_'s iterative-deepening round loop
 // relies on to guarantee every capped pass finishes quickly regardless of
-// thread count (see enumerate_cis.h).
+// thread count (see inducedsubgraphs.h).
 // ─────────────────────────────────────────────────────────────────────────────
 namespace {
 class AlwaysTruePredicate : public ConditionalPredicate {
@@ -1007,14 +1007,14 @@ void test_deepest_exhausted_cap_reported() {
 // ─────────────────────────────────────────────────────────────────────────────
 // --resolve-unlinked end to end (SurfaceSearch::configureSelfIntersections()).
 //
-// Ambient: B^4 = cone over knotbuilder's S^3 for the 2-component unlink.
+// Ambient: B^4 = cone over buildLink()'s S^3 for the 2-component unlink.
 // Seed: the cone over that link -- two discs meeting at the interior apex,
 // proper but not 2-embedded, and resolvable (paper §4.5). Capped at one added
 // face so the search stays tiny.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // The cone-triangles over `edges` in `coned`, as Skeleton<4,2> face indices.
-// A copy of embeddedsubmanifold_test.cpp's helper of the same name, which
+// A copy of submanifold_test.cpp's helper of the same name, which
 // relies on coneOver() (coneover.h) keeping each tetrahedron's index and
 // local vertices 0..3, with local vertex 4 the apex.
 std::vector<int>

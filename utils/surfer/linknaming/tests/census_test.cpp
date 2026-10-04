@@ -4,8 +4,8 @@
 // the SQLite-backed local census that census::resolveAnswer() checks
 // before falling back to the real, mutex-guarded regina::Census::lookup().
 // These tests build a small scratch .sqlite fixture directly (rather than
-// the real, multi-hundred-thousand-row census tools/gen_census.py
-// produces), so they exercise the lookup/formatting/fallthrough logic in
+// the real local census, hundreds of thousands of rows), so they exercise
+// the lookup/formatting/fallthrough logic in
 // isolation, independent of whether the real census has been generated on
 // this machine.
 
@@ -300,7 +300,7 @@ void buildSingleRowFixture(const std::string &sig, const std::string &name,
     sqlite3_close(db);
 }
 
-// Guards against the exact bug this census once had: tools/gen_census.py
+// Guards against the exact bug this census once had: its generator
 // originally keyed regina-sourced rows by Triangulation<3>::neoSig() (what
 // the real census databases -- and regina::Census::lookup() -- actually use,
 // see census-impl.h), while every runtime query uses Triangulation<3>::

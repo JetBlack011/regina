@@ -16,8 +16,8 @@
 //       comparing their signs globally (D2) rejected it for some variants.
 //    4. certifyIncoming() (phase 7.2): T, drawn back, is the PD's own diagram,
 //       its component map a permutation; T does not carry the mirror of a
-//       chiral row, nor a diagram with a nugatory crossing (which knotbuilder's
-//       drawer cannot draw), and says so.
+//       chiral row, nor a diagram with a nugatory crossing (which the drawer
+//       cannot draw), and says so.
 //
 //  Built from real PD codes by search::buildIncoming(), the build
 //  every search uses. An optional argument

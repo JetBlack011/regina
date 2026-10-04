@@ -6,7 +6,7 @@
 //  cobound meridians <sig|dump|dump-link|dump-subset|slope>: peripheral_slopes's
 //  five subcommands, byte-compatible.
 //
-//  The C++ half of the outgoing naming pass (see peripheral.h and
+//  The C++ half of the outgoing naming pass (see linknaming/complement/meridians.h and
 //  cobordism-atlas/tools/identify_far_sides.py). Everything topological
 //  happens here; the SnapPy half only installs a basis and asks whether two
 //  manifolds are isometric.
@@ -448,7 +448,7 @@ int runDumpSubset() {
  * The reference table has to be drilled by the same code with the same sign
  * convention as the outgoing links it will be compared against, or the comparison
  * measures the difference between two conventions rather than between two
- * links. A PD code directs every component outright (knotbuilder returns the
+ * links. A PD code directs every component outright (buildLink() returns the
  * traversal direction per edge), so nothing here is independently flippable
  * and every ORIENT line reads 0.
  */
@@ -470,7 +470,7 @@ int runDumpLink() {
                 diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
             Link link(built.tri, built.edges);
 
-            // knotbuilder hands back edges and their traversal directions as
+            // buildLink() hands back edges and their traversal directions as
             // parallel arrays over the whole diagram; regroup them into Link's
             // own component order by edge identity.
             std::map<const regina::Edge<3> *, bool> reversedOf;

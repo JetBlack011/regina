@@ -8,7 +8,7 @@
 //  Genus-4D" rows, deduped to one row per base name -- see
 //  linknaming::stripOrientationTag()'s use below, since component
 //  orientation doesn't change the complement), builds the complement the same way
-//  surfer.cpp/verifyslicegenus.cpp does at runtime (diagramtriangulation::buildLink()
+//  a search does at runtime (diagramtriangulation::buildLink()
 //  -> Knot/Link -> buildComplement()) and records every
 //  regina::Census::lookup() hit against it.
 //
@@ -144,8 +144,8 @@ int crossingsFromName(const std::string &name) {
 
 // Thistlethwaite link names have no leading digit run to parse a crossing
 // count from (see crossingsFromName()'s doc comment) -- derive it from the
-// PD code itself instead, the same pattern verifyslicegenus.cpp's
-// loadInputCsv() uses for link input rows.
+// PD code itself instead, the same pattern cobound's
+// targets::loadInputCsv() uses for link input rows.
 int crossingsFromPDCode(const diagramtriangulation::PDCode &pdcode) {
     return static_cast<int>(pdcode.size());
 }

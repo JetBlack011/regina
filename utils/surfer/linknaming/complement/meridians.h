@@ -136,7 +136,7 @@ struct DrilledWithMeridians {
  *
  * \a reversed means the traversal runs `edge->vertex(1)` -> `edge->vertex(0)`,
  * the same convention as diagramtriangulation::TriangulationWithLink::reversed and
- * OrientedEdge in embeddedsubmanifold.h, so a PD-tagged diagram edge or a
+ * OrientedEdge in surfer/submanifold/submanifold.h, so a PD-tagged diagram edge or a
  * surface's own induced boundary direction can be handed here unchanged.
  */
 struct DirectedEdge {
@@ -314,7 +314,7 @@ std::pair<long, long> completeBasis(long a, long b);
  * Unlike Link::buildComplement(), which hands Census::lookup() a bare
  * triangulation and so cannot tell a link from any of its Rolfsen
  * twists, this retains the peripheral data that pins the link down. See
- * peripheral.h for why the result must not be fed to
+ * this file's warning for why the result must not be fed to
  * regina::SnapPeaTriangulation.
  *
  * The components carry no direction, so the meridians are signed only up

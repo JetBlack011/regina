@@ -522,7 +522,7 @@ void SurfaceSearch::processBatchParallel_(
     std::atomic<bool> done{false};
 
     // Once a second, and woken the moment the batch is done (see the
-    // enumeration's reporter in embeddingsearch.cpp).
+    // enumeration's reporter in submanifoldsearch.cpp).
     std::mutex reporterMutex;
     std::condition_variable reporterWake;
     std::thread reporter([&]() {

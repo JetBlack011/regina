@@ -1,5 +1,5 @@
 /**
- * @file searchfrontier.h
+ * @file utils/surfer/surfer/enumeration/searchstrategy.h
  * @brief How far one search got, exactly: its breadth, and a place to resume.
  *
  * A search's traversal is a function of its search graph, its roots and its
@@ -57,7 +57,7 @@ struct SearchFrontier {
      * The traversal's version, part of every fingerprint. Bump it with any
      * change to which candidates the enumeration visits, in what order, or
      * what a Position means -- a frontier from another version must never
-     * resume. embeddingsearch_test's test_traversal_pinned pins a small
+     * resume. submanifoldsearch_test's test_traversal_pinned pins a small
      * search's visit order to this number, so an unbumped change fails it.
      */
     static constexpr int kTraversalVersion = 1;

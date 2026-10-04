@@ -22,7 +22,7 @@
  *     - by isometry, for hyperbolic pieces: among the table entries sharing
  *       the piece's HOMFLY polynomial (a hint), one whose complement is
  *       isometric to the piece's by an isometry carrying meridians to
- *       meridians (snappeaisometry.h: the SnapPea kernel's own test, whose
+ *       meridians (isometry/isometry.h: the SnapPea kernel's own test, whose
  *       positive answer is a combinatorial isomorphism, hence exact). Filling
  *       along the meridians, the piece is that link up to mirror and
  *       orientations; its variant is then pinned as for a search;
@@ -101,7 +101,7 @@ struct NamerLimits {
      *  steps (tests/isometry_validation.cpp). */
     bool exactDiagram = true;
     /** Hyperbolic pieces: an isometry of complements carrying meridians to
-     *  meridians (snappeaisometry.h), against a HOMFLY shortlist, tried
+     *  meridians (isometry/isometry.h), against a HOMFLY shortlist, tried
      *  before any Reidemeister search. */
     bool isometry = true;
     /** Check every variant the isometry pins against the HOMFLY polynomial

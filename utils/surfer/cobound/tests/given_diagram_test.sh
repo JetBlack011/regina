@@ -10,7 +10,7 @@
 #      error and never searched on another diagram (that would silently
 #      change T): at depth 0 recorded as a build failure, with a goal the run
 #      ends with exit 2. The fixture is 3_1 with a nugatory kink (a fourth
-#      crossing [5;7;6;6]): knotbuilder's drawer cannot draw a nugatory
+#      crossing [5;7;6;6]): the drawer (todiagram.h) cannot draw a nugatory
 #      crossing, so its T never redraws as its diagram.
 #   3. Only an untabulated target under a goal may fall back to its
 #      simplified diagram, and the run says so.

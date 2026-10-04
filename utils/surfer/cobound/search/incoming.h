@@ -33,7 +33,7 @@ namespace search {
  * The incoming diagram's PD-tagged edges (diagramtriangulation::TriangulationWithLink's
  * `edges`/`reversed`), translated into directed pairs of *vertex indices*
  * within some triangulation combinatorially isomorphic to the diagram's own
- * knotbuilder triangulation -- normally the ambient incoming boundary
+ * diagram triangulation -- normally the ambient incoming boundary
  * component, rebuilt via `BoundaryComponent<4>::build()` (see
  * buildIncomingOrientation()).
  */
@@ -142,7 +142,7 @@ struct IncomingNotCertified : std::runtime_error {
 /**
  * The certification that a search's triangulation carries the diagram it was
  * given (plan, phase 7.2): the incoming link as T holds it -- `cycles`, the
- * incoming link's edge cycles in knotbuilder's component order -- drawn back
+ * incoming link's edge cycles in T's component order -- drawn back
  * from T by `drawer` (diagramtriangulation::DiagramDrawer on T) is
  * isomorphic to `given` as a diagram, orientation kept and no mirror
  * (linknaming::findDiagramIsomorphism()). Returns that isomorphism's

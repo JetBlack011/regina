@@ -328,7 +328,7 @@ struct SearchResult {
   std::string naming;
   double namingDiagramSeconds = 0, namingFallbackSeconds = 0, namingOrientedSeconds = 0;
   double namingSlowestSeconds = 0;
-  /// Where the search stopped (searchfrontier.h), cumulative over the
+  /// Where the search stopped (surfer/enumeration/searchstrategy.h), cumulative over the
   /// frontier it resumed, with its pending file and that file's fsynced
   /// length; unset when the search cannot vouch for every surface in it
   /// (its accounting failed, nothing was examined, or its drain was cut

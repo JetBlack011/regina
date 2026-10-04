@@ -1,7 +1,7 @@
 //
 //  todiagram.cpp
 //
-//  See diagramdrawer.h for the construction and why it is an isotopy.
+//  See todiagram.h for the construction and why it is an isotopy.
 //
 
 #include "diagramtriangulation/todiagram.h"

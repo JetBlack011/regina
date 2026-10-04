@@ -56,7 +56,7 @@ class Complex;
  * The lock's critical sections are all tiny (a hash-map lookup/insert), so
  * a single mutex -- rather than sharding -- matches this codebase's own
  * convention for shared accumulators (see SurfaceSearch::SurfaceTypeTally
- * and friends in embeddingsearch.h) and keeps contention low relative to
+ * and friends in surfacesearch.h) and keeps contention low relative to
  * what it replaces (Regina calls costing milliseconds or more per miss).
  */
 class PetalCache {

@@ -1,8 +1,8 @@
 // fromdiagram_test.cpp
-// Tests for knotbuilder's PD-code -> triangulated-S³ pipeline (Block,
+// Tests for the PD-code -> triangulated-S³ pipeline (Block,
 // Block::glue(), buildLink()), and its integration with CobordismBuilder's
-// thicken(). See cobordismbuilder_test.cpp for CobordismBuilder's own
-// tests independent of knotbuilder.
+// thicken(). See thickening_test.cpp for CobordismBuilder's own
+// tests independent of buildLink().
 
 #include <iostream>
 #include <link/link.h>
@@ -249,9 +249,9 @@ void checkEdgesFormDirectedClosedLoops(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 1: knotbuilder's raw output, on its own, independent of
+// Layer 1: buildLink()'s raw output, on its own, independent of
 // CobordismBuilder. If buildLink() ever stops producing a valid closed S³
-// (e.g. a knotbuilder change breaks the block gluing pattern), this should
+// (e.g. a change to buildLink() breaks the block gluing pattern), this should
 // fail here rather than surfacing as a confusing CobordismBuilder/glue()
 // failure downstream.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ void checkReduceVertices(const char *name, const char *pd,
     // Fixpoint check: reduceVertices() must never pinch an edge incident to
     // a preserved edge's endpoint (doing so could turn the preserved edge
     // into a loop, or otherwise disturb the knot/link it traces -- see the
-    // "protected vertices" logic in knotbuilder.cpp). So the loop is only
+    // "protected vertices" logic in fromdiagram.cpp). So the loop is only
     // guaranteed to reach a fixpoint where every remaining non-preserved
     // edge is *either* a loop *or* touches a preserved edge's vertex --
     // not necessarily a loop on its own.
@@ -598,12 +598,12 @@ void test_knotbuilder_many_named_knots() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 2: the specific property the user asked to check. knotbuilder's raw
+// Layer 2: the specific property the user asked to check. buildLink()'s raw
 // output is *not* ordered (block construction doesn't aim for that), but it
 // must be orderable, since that's what CobordismBuilder<3>'s constructor
 // relies on (it calls Triangulation<3>::order() itself when needed — see
-// cobordismbuilder.h). Recording the raw isOrdered() value directly here,
-// rather than assuming it, means a future knotbuilder change that breaks
+// thickening/thickening.h). Recording the raw isOrdered() value directly here,
+// rather than assuming it, means a future change to buildLink() that breaks
 // orderability entirely (as opposed to just not ordering by default) gets
 // caught right here instead of as a mysterious CobordismBuilder exception.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -632,7 +632,7 @@ void test_knotbuilder_output_is_orderable() {
 
         // The property that matters end to end: CobordismBuilder<3>'s
         // constructor requires isOrdered() and calls order() itself, so it
-        // must accept knotbuilder's raw (unordered) output without throwing.
+        // must accept buildLink()'s raw (unordered) output without throwing.
         bool constructedOk = true;
         try {
             CobordismBuilder<3> cob(tri);
@@ -646,10 +646,10 @@ void test_knotbuilder_output_is_orderable() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 3: the full pipeline — knotbuilder builds S³ with the link as an edge
+// Layer 3: the full pipeline — buildLink() builds S³ with the link as an edge
 // circuit, and CobordismBuilder thickens it into S³ × I, the ambient a search
 // runs in. Both boundary components must be combinatorially identical to
-// knotbuilder's original S³: that is what lets a search locate the link's
+// buildLink()'s original S³: that is what lets a search locate the link's
 // edges on the incoming side and read the outgoing side back as T.
 // ─────────────────────────────────────────────────────────────────────────────
 void checkKnotThickeningPipeline(const char *name, const char *pd, int layers) {

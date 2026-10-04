@@ -55,10 +55,10 @@ struct AddedCobordism {
  * Turns cobordisms of one search into cobordisms of the graph.
  *
  * Construction certifies the incoming link (search::certifyIncoming()): the
- * link drawn from knotbuilder's triangulation of `searched.pd` must be
+ * link drawn from the diagram's triangulation T of `searched.pd` must be
  * isomorphic as a diagram to `searched.diagram` (orientation kept, no
  * mirror). That isomorphism is the map from the cobordisms' incoming curves
- * (knotbuilder's component order) to the link's components, and it is the
+ * (T's component order) to the link's components, and it is the
  * per-link certificate that the triangulation searched carries the link's
  * oriented link. Throws std::runtime_error (search::IncomingNotCertified) if
  * it does not exist: a search whose incoming link cannot be certified
@@ -88,7 +88,7 @@ public:
   AddedCobordism addRead(const outgoing::OutgoingLink &link, int genus,
                   const std::string &key);
 
-  /// knotbuilder's incoming component i is the link's component incomingToLink()[i].
+  /// T's incoming component i is the link's component incomingToLink()[i].
   const std::vector<int> &incomingToLink() const { return incomingToLink_; }
 
   /// The searched link's thickening and everything read from it.
@@ -97,7 +97,7 @@ public:
 private:
   std::optional<outgoing::OutgoingLink> readBack(const std::string &pairsig,
                                                 std::string &why) const;
-  /// Per knotbuilder incoming component, the surface component it lies on.
+  /// Per incoming component of T, the surface component it lies on.
   std::optional<std::vector<size_t>>
   surfaceOfIncomingComponents(const outgoing::OutgoingLink &link, std::string &why) const;
   void certifyIncoming_();

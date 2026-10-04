@@ -71,7 +71,7 @@ add_executable(replay_pairsigs replay_pairsigs.cpp)
 target_link_libraries(replay_pairsigs surfer_lib diagramtriangulation_lib surfer_mimalloc)
 
 # Review utility: counts triangles with a repeated vertex in each table row's
-# thickening, built as verifyslicegenus builds it. Not a CTest test:
+# thickening, built as a search builds it. Not a CTest test:
 #
 #   review_repeated_vertices knots.csv links.csv
 add_executable(review_repeated_vertices review_repeated_vertices.cpp)

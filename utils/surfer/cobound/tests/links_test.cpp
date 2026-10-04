@@ -133,7 +133,7 @@ void testUnknot() {
 }
 
 // Why reduction matters: a search's incoming link is certified by drawing
-// knotbuilder's link back (CobordismAssembler), and knotbuilder's drawer
+// T's link back (CobordismAssembler), and the drawer (todiagram.h)
 // cannot draw a diagram with a nugatory crossing. The reduced diagram
 // certifies.
 void testReducedDiagramsCertify() {

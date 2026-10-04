@@ -1,15 +1,15 @@
 //
 //  todiagram.h
 //
-//  Draws curves in knotbuilder's triangulation of S^3 as link diagrams.
+//  Draws curves in the diagram's triangulation of S^3 as link diagrams.
 //
 
 /*! \file utils/surfer/diagramtriangulation/todiagram.h
- *  \brief Draws edge curves of knotbuilder's triangulation of S^3 as oriented
+ *  \brief Draws edge curves of the diagram's triangulation of S^3 as oriented
  *  link diagrams, directly from the triangulation's own geometry.
  *
  *  diagramtriangulation::buildLink()'s triangulation T of S^3 is one block per
- *  crossing, each linearly the box [-1,1]^2 x [0,1] (blockgeometry.h), glued
+ *  crossing, each linearly the box [-1,1]^2 x [0,1] (block.h), glued
  *  along walls into S^2 x I, plus two cones. So any edge cycle of T -- in
  *  particular every outgoing link of a cobordism built on T, whose outgoing
  *  boundary is a copy of T -- can be drawn by projecting each edge inside
@@ -131,10 +131,10 @@ class NonPlanar : public std::runtime_error {
 };
 
 /**
- * Draws edge cycles of one knotbuilder triangulation as oriented diagrams.
+ * Draws edge cycles of one diagram triangulation as oriented diagrams.
  *
  * Construction precomputes the block structure (checking that `tri` really
- * is knotbuilder's: 14 tetrahedra per crossing first, every block oriented
+ * is buildLink()'s: 14 tetrahedra per crossing first, every block oriented
  * alike, every vertex at one point per block); draw() is then cheap, and
  * const, so one DiagramDrawer may serve many threads.
  */

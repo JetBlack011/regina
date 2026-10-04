@@ -388,7 +388,7 @@ namespace {
 // insertCensusEntry() -- distinct from CensusConnection_'s per-thread
 // read-only connections above. A single shared connection (rather than
 // one per thread) is fine here: writes are low-volume (at most one per
-// knot processed by verifyslicegenus, not a hot search-path operation),
+// knot a search processed, not a hot search-path operation),
 // so serializing them costs nothing measurable.
 std::mutex writeConnMutex_;
 sqlite3 *writeConn_ = nullptr;

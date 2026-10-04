@@ -148,7 +148,7 @@ using Strands = std::vector<std::vector<std::pair<int, int>>>;
 using PDPos = std::pair<int, int>;
 
 // Mirrors regina::Link::fromPD's own dir[]/occ[] walk
-// (engine/link/pd-impl.h), adapted to run directly against knotbuilder's
+// (engine/link/pd-impl.h), adapted to run directly against buildLink()'s
 // own already-computed `strands` occurrences rather than building a
 // regina::Link. strands[label] plays the role of pd-impl.h's occ[label]
 // (occ[label].first/.second are strands[label][0]/[1]).

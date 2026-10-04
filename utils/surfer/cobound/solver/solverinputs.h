@@ -71,7 +71,7 @@ applyNameAliases(const std::vector<cobordisms::Cobordism> &cobordisms,
 
 /** One proved outgoing identity, keyed on the cobordism rather than the name. */
 struct OutgoingResolution {
-  std::string boundaryComponent; // "0" or "1", as peripheral_slopes reports it
+  std::string boundaryComponent; // "0" or "1", as `cobound meridians` reports it
   std::string name;              // the ORIENTED name we have proved it to be
 };
 

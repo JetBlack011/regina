@@ -3,8 +3,8 @@
 //
 //  diagramtriangulation::DiagramDrawer, against independent answers:
 //
-//    1. The block model is an exact embedding of knotbuilder's block.
-//    2. Drawing knotbuilder's own link from its triangulation gives back
+//    1. The block model is an exact embedding of the crossing block.
+//    2. Drawing T's own link from its triangulation gives back
 //       the input diagram exactly -- same signature, with neither mirror
 //       nor reversal allowed -- for knots and for several orientations of
 //       links, and the drawn linking numbers are the input's.
@@ -14,7 +14,7 @@
 //
 //  An optional argument sweeps a whole table instead (slow; not in ctest):
 //
-//    ./diagramdrawer_test ../../../../../cobordism-atlas/data/<table>.csv [max crossings]
+//    ./todiagram_test ../../../../../cobordism-atlas/data/<table>.csv [max crossings]
 //
 
 #include <fstream>
@@ -357,7 +357,7 @@ void test_every_short_cycle_draws_planar() {
         {"L4a1{0}", "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]"},
     };
     // Longer curves, or drilling every curve, for a manual deep run:
-    //   SHORT_CYCLES_MAX_LEN=7 SHORT_CYCLES_DRILL_EVERY=1 ./diagramdrawer_test
+    //   SHORT_CYCLES_MAX_LEN=7 SHORT_CYCLES_DRILL_EVERY=1 ./todiagram_test
     auto envOr = [](const char *var, size_t dflt) {
         const char *v = std::getenv(var);
         return v ? static_cast<size_t>(std::stoul(v)) : dflt;

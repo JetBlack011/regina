@@ -55,7 +55,7 @@ CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &link
 }
 
 void CobordismAssembler::certifyIncoming_() {
-  // Certify the incoming link: knotbuilder's link, drawn back, is searched.diagram
+  // Certify the incoming link: T's link, drawn back, is searched.diagram
   // (search::certifyIncoming(), which every search runs on its own PD too).
   const std::vector<int> map = search::certifyIncoming(
       redraw_->drawer(), redraw_->incomingCycles(), searched_.diagram);

@@ -1,7 +1,7 @@
 // thickening_test.cpp
 // Tests for CobordismBuilder::thicken() — verifies SimplicialPrism
 // construction and gluing produce a valid product cobordism. See
-// knotbuilder_test.cpp for integration with knotbuilder's PD-code ->
+// fromdiagram_test.cpp for integration with the PD-code ->
 // triangulated-S³ pipeline.
 
 #include <iostream>
@@ -404,7 +404,7 @@ void test_dim2_doubled_triangle() {
 // apart from "happened to return a component isomorphic to the base" (both
 // would pass). This instead cross-checks against an ambient VERTEX
 // independently known to lie on the bottom: SimplicialPrism's own encoding
-// (see decode_()/encode_() in simplicialprism.cpp) places the bottom copy
+// (see decode_()/encode_() in thickening/prism.cpp) places the bottom copy
 // of any base vertex v at local index v within simplex(v) of a layer's own
 // prism, and thicken_()'s wall-gluing never touches that specific local
 // vertex (only facets) -- so the *first* layer's own simplex(0)'s local

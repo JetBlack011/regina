@@ -26,7 +26,7 @@ std::vector<std::vector<int>> linkingMatrix(const linknaming::GaussDiagram &d);
  * only: never reflects or reverses, and keeps component indices, a zero-
  * crossing component in its slot), keeping `origin`, then removes every
  * nugatory crossing left (removeNugatoryCrossings()): a searched link's diagram
- * must be reduced for knotbuilder's drawer to certify it. Throws std::logic_error
+ * must be reduced for the drawer (todiagram.h) to certify it. Throws std::logic_error
  * if the component count or any pairwise linking number changed: component
  * identity is what every link's partition genera are indexed by, so a violation must stop
  * everything rather than mislabel components.

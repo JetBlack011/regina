@@ -66,7 +66,7 @@ namespace {
 // PD codes from Regina (Link::pdData()), each checked there, independently of
 // anything in utils/surfer, via Link::complement().group():
 //  - kUnlink3PD: Link(3) with two classical R2 moves (component 0 over 1, then
-//    1 over 2), so a CONNECTED 4-crossing diagram -- knotbuilder needs one --
+//    1 over 2), so a CONNECTED 4-crossing diagram -- buildLink() needs one --
 //    of the 3-component unlink. Its group simplifies to Free(3).
 //  - Whitehead, Borromean: ExampleLink::whitehead()/borromean(). Groups with
 //    2 generators/1 relation and 3 generators/2 relations. Both have
@@ -146,7 +146,7 @@ void test_certifies_unlink_malformed() {
               "the empty link is refused");
 }
 
-// A 3-ball containing a proper arc: `sphere` (from knotbuilder) with one
+// A 3-ball containing a proper arc: `sphere` (from buildLink()) with one
 // tetrahedron containing a knot edge removed. That edge now lies in the
 // boundary sphere, so the rest of the knot is an arc whose capping -- by
 // that very edge -- recovers the original knot. So the arc is knotted

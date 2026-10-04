@@ -1,11 +1,11 @@
 //
 //  block.h
 //
-//  The linear geometry of knotbuilder's crossing block.
+//  The linear geometry of the crossing block.
 //
 
 /*! \file utils/surfer/diagramtriangulation/block.h
- *  \brief knotbuilder's 14-tetrahedron crossing block, as the box
+ *  \brief The 14-tetrahedron crossing block, as the box
  *  [-1,1]^2 x [0,1].
  *
  *  diagramtriangulation::buildLink() builds its triangulation T of S^3 from a
@@ -28,7 +28,7 @@
  *
  *  blockCoordinates() gives every (tetrahedron, vertex) of the block its
  *  point; verifyBlockModel() proves the embedding exactly. See
- *  diagramdrawer.h for what this is used for.
+ *  todiagram.h for what this is used for.
  */
 
 #ifndef SURFER_KNOTBUILDER_BLOCKGEOMETRY_H
@@ -51,7 +51,7 @@ struct BlockPoint {
 };
 
 /**
- * The box coordinates of knotbuilder's crossing block: entry [j][i] is the
+ * The box coordinates of the crossing block: entry [j][i] is the
  * point of vertex i of the block's j-th tetrahedron (Block's order: cores
  * 0-5, then walls 0-7). Derived from a freshly built Block by the vertices'
  * combinatorial roles (strand points from getLinkEdges(), top corners as

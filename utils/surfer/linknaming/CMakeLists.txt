@@ -24,7 +24,7 @@ target_link_libraries(linknaming_lib PUBLIC ${ENGINE_LIBRARY} linknaming_complem
 surfer_include_view(linknaming_lib linknaming)
 
 # Default path census::localCensusLookup() opens, overridable at runtime
-# via --census-db. Untracked: extended live by verifyslicegenus's
+# by cobound's `census` key. Untracked: extended live by searches through
 # census::insertCensusEntry(), and moved by hand with the tree; not part of
 # the default build.
 target_compile_definitions(linknaming_lib PUBLIC

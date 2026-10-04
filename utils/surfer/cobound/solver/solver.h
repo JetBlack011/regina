@@ -200,7 +200,7 @@ enum class Status {
     unresolved, /**< Nothing derived. */
     contradiction,
     /**< Derived bounds are inconsistent with the literature. Mathematically
-       impossible, so it means a bug -- see verifyslicegenus.cpp's fatal-bug
+       impossible, so it means a bug -- see driver/fatal.h's fatal-bug
        halt. */
 };
 

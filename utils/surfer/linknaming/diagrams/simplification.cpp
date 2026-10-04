@@ -171,7 +171,7 @@ GaussDiagram liftSplitComponents(GaussDiagram d) {
 GaussDiagram simplifyKeepingComponents(const GaussDiagram &d) {
   regina::Link l = d.link();
   l.simplify();
-  // Reduced as well: knotbuilder's drawer cannot draw a diagram with a
+  // Reduced as well: the drawer (todiagram.h) cannot draw a diagram with a
   // nugatory crossing back (a block's corners meet), so a search on one could
   // not be certified. Regina's simplify() removes kinks but not every
   // nugatory crossing. And with every component that lies above (or below)

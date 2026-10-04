@@ -37,7 +37,7 @@
  *      <cobordism key>\tfail\t<why>  a read-back that fails (it always will)
  *
  *  A file whose digest is not the thickening's as built now is ignored and replaced:
- *  knotbuilder or the thickening changed, so its edge numbers mean nothing.
+ *  the construction or the thickening changed, so its edge numbers mean nothing.
  *  Appends hold an flock on the file; a torn last line is ignored.
  */
 

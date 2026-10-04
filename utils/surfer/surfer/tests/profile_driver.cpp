@@ -2,7 +2,7 @@
 //  profile_driver.cpp
 //
 //  Standalone driver for profiling EmbeddingSearch<dim,2>/SurfaceSearch
-//  (embeddingsearch.h) against a range of target triangulations. Not part
+//  (submanifoldsearch.h, surfacesearch.h) against a range of target triangulations. Not part
 //  of CTest -- build and run manually, typically under `perf record`:
 //
 //    ./profile_driver bary3 <subdivisions> <cond> <threads>
@@ -67,7 +67,7 @@ void runTimed(Search &search, unsigned threads, BoundaryCondition cond) {
 // EmbeddednessPredicate so we can drive the DFS single-threaded ourselves and
 // count, at fine grain, how many visited nodes actually satisfy a given
 // BoundaryCondition (i.e. how often surfaceTypeKey()/boundaryComponentsMap-
-// Injectively() actually fire) -- independent of embeddingsearch.cpp's own
+// Injectively() actually fire) -- independent of submanifoldsearch.cpp's own
 // FLUSH_EVERY-batched reporting, which is too coarse-grained when the hit
 // rate is low.
 class DiagSearch : public EmbeddingSearch<4, 2> {
