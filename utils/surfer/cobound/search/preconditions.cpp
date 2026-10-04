@@ -244,7 +244,7 @@ namespace {
 // carries, as a canonical string: surface components are unlabelled, so the
 // per-component entries are sorted.
 std::string groupingOf(const outgoing::OutgoingLink &link,
-                       const outgoing::WitnessRedrawer &row) {
+                       const outgoing::OutgoingReader &row) {
   std::map<size_t, std::pair<std::vector<size_t>, int>> bySurface;
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i)
     bySurface[link.incomingSurfaceComponent[i]].first.push_back(
@@ -265,9 +265,9 @@ std::string groupingOf(const outgoing::OutgoingLink &link,
 
 } // namespace
 
-std::string keptKey(const cobordisms::Witness &w, const outgoing::OutgoingLink &link,
-                    const outgoing::WitnessRedrawer &row) {
-    return cobordisms::witnessIdentity(w) + '\x1f' + groupingOf(link, row);
+std::string keptKey(const cobordisms::Cobordism &w, const outgoing::OutgoingLink &link,
+                    const outgoing::OutgoingReader &row) {
+    return cobordisms::cobordismIdentity(w) + '\x1f' + groupingOf(link, row);
 }
 
 } // namespace search

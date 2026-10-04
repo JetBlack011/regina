@@ -10,7 +10,7 @@
 
 namespace cobordisms {
 
-std::string witnessKey(const std::string &pairSig) {
+std::string cobordismKey(const std::string &pairSig) {
     return pairsig::sha1Hex(pairSig).substr(0, 12);
 }
 

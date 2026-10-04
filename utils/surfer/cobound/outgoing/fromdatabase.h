@@ -62,15 +62,15 @@
 
 namespace outgoing {
 
-class WitnessRedrawer {
+class OutgoingReader {
   public:
     /**
      * \param rowPD the row's PD code, as the tables write it.
      * \param layers the witnesses' thicken_layers (cobordisms.csv).
      */
-    WitnessRedrawer(const std::string &rowPD, int layers);
-    WitnessRedrawer(const WitnessRedrawer &) = delete;
-    WitnessRedrawer &operator=(const WitnessRedrawer &) = delete;
+    OutgoingReader(const std::string &rowPD, int layers);
+    OutgoingReader(const OutgoingReader &) = delete;
+    OutgoingReader &operator=(const OutgoingReader &) = delete;
 
     /**
      * The witness's surface as triangle indices of the thickening, or
@@ -219,9 +219,9 @@ public:
   RowReadBacks(const std::string &dir, const std::string &rowPD, int layers,
                const std::string &buildDigest);
 
-  const CachedReadBack *get(const std::string &witnessKey) const;
+  const CachedReadBack *get(const std::string &cobordismKey) const;
   /// Records one read-back, in memory and (buffered) for the file.
-  void put(const std::string &witnessKey, const CachedReadBack &r);
+  void put(const std::string &cobordismKey, const CachedReadBack &r);
   /// Appends what put() recorded since the last flush, under the file's lock.
   void flush();
 

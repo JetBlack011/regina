@@ -166,7 +166,7 @@ void printSweepBreadth(std::ostream &out, const std::string &name,
 }
 
 void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run) {
-  out << "[+] " << name << ": " << run.newWitnesses << kFrozenNewWitnessesOutcome
+  out << "[+] " << name << ": " << run.newCobordisms << kFrozenNewWitnessesOutcome
       << run.outcome;
   if (run.otherOrientation > 0)
     out << ", " << run.otherOrientation << " surfaces rejected on orientation mismatch";

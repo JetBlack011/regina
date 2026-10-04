@@ -73,7 +73,7 @@ std::string content(const ProofGraph &g, const HopEdge &e, const std::vector<int
                     const std::vector<int> &farPerm) {
   if (!e.ok) return "not ok: " + e.why;
   if (e.direct) return "direct";
-  const WitnessEdge &w = g.witness(e.edge);
+  const LinkCobordism &w = g.cobordism(e.edge);
   std::map<int, std::pair<std::vector<int>, std::vector<int>>> bySurface;
   for (size_t c = 0; c < w.shape.inComponent.size(); ++c)
     bySurface[w.shape.inComponent[c]].first.push_back(rowPerm[c]);
@@ -175,7 +175,7 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
 
   std::set<std::string> keys;
   int same = 0, compared = 0, fromFaces = 0;
-  const outgoing::WitnessRedrawer &redraw = inProcess.redrawer();
+  const outgoing::OutgoingReader &redraw = inProcess.redrawer();
   const std::vector<int> seed = redraw.rowBuild().seedFaces;
   for (size_t i = 0; i < run.kept.size(); ++i) {
     const KeptSurface &k = run.kept[i];
@@ -240,9 +240,9 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
 // different for another row or another number of layers.
 void testBuildChecksum() {
   const char *trefoil = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
-  const outgoing::WitnessRedrawer a(trefoil, 2), b(trefoil, 2);
-  const outgoing::WitnessRedrawer hopf("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 2);
-  const outgoing::WitnessRedrawer oneLayer(trefoil, 1);
+  const outgoing::OutgoingReader a(trefoil, 2), b(trefoil, 2);
+  const outgoing::OutgoingReader hopf("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 2);
+  const outgoing::OutgoingReader oneLayer(trefoil, 1);
   CHECK_EQ(a.buildChecksum(), b.buildChecksum(), "digest: two builds of one row agree");
   CHECK(a.buildChecksum() != hopf.buildChecksum(), "digest: another row differs");
   CHECK(a.buildChecksum() != oneLayer.buildChecksum(), "digest: another layer count differs");

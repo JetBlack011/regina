@@ -90,7 +90,7 @@ public:
 
 private:
   static void writeSurface(std::ostream &c, const EdgeInfo &info);
-  void writeWitnessEdge(std::ostream &c, EdgeId e, std::set<NodeId> &nodes) const;
+  void writeCobordism(std::ostream &c, EdgeId e, std::set<NodeId> &nodes) const;
   void writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
                     std::set<NodeId> &nodes) const;
   void writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const;

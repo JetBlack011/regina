@@ -17,8 +17,8 @@ namespace bounds {
 const char *kindName(RecordKind k) {
   switch (k) {
   case RecordKind::leaf: return "leaf";
-  case RecordKind::witnessForward: return kFrozenKindWitnessForward;
-  case RecordKind::witnessReverse: return kFrozenKindWitnessReverse;
+  case RecordKind::cobordismForward: return kFrozenKindWitnessForward;
+  case RecordKind::cobordismReverse: return kFrozenKindWitnessReverse;
   case RecordKind::splitCombine: return "split-combine";
   case RecordKind::splitRestrict: return "split-restrict";
   case RecordKind::sumCombine: return "sum-combine";
@@ -79,7 +79,7 @@ RecordId ProofGraph::addLeaf(NodeId n, const Partition &p, int genus,
   return insert(n, p, genus, RecordKind::leaf, -1, {}, std::move(source));
 }
 
-EdgeId ProofGraph::addWitness(NodeId in, NodeId out, CobordismShape shape,
+EdgeId ProofGraph::addCobordism(NodeId in, NodeId out, CobordismShape shape,
                               std::vector<int> inMap, std::vector<int> outMap,
                               std::string key) {
   shape.validate();
@@ -88,18 +88,18 @@ EdgeId ProofGraph::addWitness(NodeId in, NodeId out, CobordismShape shape,
   if (inMap.size() != shape.inComponent.size() ||
       outMap.size() != shape.outComponent.size())
     throw std::invalid_argument("addWitness: map size != curve count");
-  WitnessEdge e;
-  e.id = static_cast<EdgeId>(witnesses_.size());
+  LinkCobordism e;
+  e.id = static_cast<EdgeId>(cobordisms_.size());
   e.in = in;
   e.out = out;
   e.shape = std::move(shape);
   e.inMap = std::move(inMap);
   e.outMap = std::move(outMap);
   e.key = std::move(key);
-  witnesses_.push_back(e);
-  nodes_[in].witnessEdges.push_back(e.id);
+  cobordisms_.push_back(e);
+  nodes_[in].cobordisms.push_back(e.id);
   if (out != in)
-    nodes_[out].witnessEdges.push_back(e.id);
+    nodes_[out].cobordisms.push_back(e.id);
   // Existing records at either end can now be pushed across it.
   for (NodeId x : {in, out})
     for (const ProfileEntry &pe : nodes_[x].profile.entries())
@@ -233,7 +233,7 @@ RecordId ProofGraph::insert(NodeId n, const Partition &p, int genus,
 }
 
 std::optional<std::pair<Partition, int>>
-ProofGraph::throughWitness(const WitnessEdge &e, bool forward,
+ProofGraph::throughCobordism(const LinkCobordism &e, bool forward,
                            const Partition &p, int genus) const {
   // forward: p partitions node `out`; glue on the outgoing side and read the
   // result on the incoming curves. reverse: the other way round.
@@ -330,7 +330,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
   // Copy: insert() may reallocate records_ and nodes_ entries' vectors.
   const Record r = records_[rid];
   const Node &n = nodes_[r.node];
-  const std::vector<EdgeId> wEdges = n.witnessEdges;
+  const std::vector<EdgeId> wEdges = n.cobordisms;
   const std::vector<EdgeId> sEdges = n.splitEdges;
   const std::vector<EdgeId> mEdges = n.sumEdges;
 
@@ -374,14 +374,14 @@ void ProofGraph::deriveFrom(RecordId rid) {
   }
 
   for (EdgeId eid : wEdges) {
-    const WitnessEdge e = witnesses_[eid];
+    const LinkCobordism e = cobordisms_[eid];
     if (e.out == r.node)
-      if (auto d = throughWitness(e, /*forward=*/true, r.partition, r.genus))
-        insert(e.in, d->first, d->second, RecordKind::witnessForward, eid,
+      if (auto d = throughCobordism(e, /*forward=*/true, r.partition, r.genus))
+        insert(e.in, d->first, d->second, RecordKind::cobordismForward, eid,
                {rid}, "");
     if (e.in == r.node)
-      if (auto d = throughWitness(e, /*forward=*/false, r.partition, r.genus))
-        insert(e.out, d->first, d->second, RecordKind::witnessReverse, eid,
+      if (auto d = throughCobordism(e, /*forward=*/false, r.partition, r.genus))
+        insert(e.out, d->first, d->second, RecordKind::cobordismReverse, eid,
                {rid}, "");
   }
 
@@ -518,7 +518,7 @@ ProofGraph::LowerFact ProofGraph::lowerWhy(NodeId n, const Partition &q) const {
   return f;
 }
 
-int ProofGraph::transportedLower(const WitnessEdge &e, bool toIsIn,
+int ProofGraph::transportedLower(const LinkCobordism &e, bool toIsIn,
                                  const Partition &p, Transport *detail) const {
   // A surface F for the `to` end with partition p, capped onto e, gives a
   // surface for the other end whose partition we compute, of genus at most
@@ -586,7 +586,7 @@ std::string ProofGraph::profileFields(NodeId n) const {
   return o.str();
 }
 
-int ProofGraph::lowerAcross(const WitnessEdge &e, bool toIsIn,
+int ProofGraph::lowerAcross(const LinkCobordism &e, bool toIsIn,
                             const Partition &q) const {
   // Every surface refining q is bounded by the minimum of transportedLower
   // over the refinements of q, and that minimum is at q itself
@@ -626,7 +626,7 @@ long ProofGraph::propagateLower() {
   int pass = 0;
   for (; changed && pass < maxPasses; ++pass) {
     changed = false;
-    for (const WitnessEdge &e : witnesses_)
+    for (const LinkCobordism &e : cobordisms_)
       for (bool toIsIn : {true, false}) {
         const NodeId to = toIsIn ? e.in : e.out;
         if (nodes_[to].components > kMaxLowerComponents)
@@ -637,7 +637,7 @@ long ProofGraph::propagateLower() {
           if (v <= lower(to, q))
             continue;
           LowerReason why;
-          why.kind = LowerReason::Kind::witness;
+          why.kind = LowerReason::Kind::cobordism;
           why.edge = e.id;
           why.toIsIn = toIsIn;
           why.fromPartition = t.otherPartition.labels();
@@ -826,16 +826,16 @@ std::string ProofGraph::recheck(RecordId rid) const {
   switch (r.kind) {
   case RecordKind::leaf:
     return r.children.empty() ? "" : "a leaf with children";
-  case RecordKind::witnessForward:
-  case RecordKind::witnessReverse: {
+  case RecordKind::cobordismForward:
+  case RecordKind::cobordismReverse: {
     if (r.children.size() != 1)
       return "a witness record needs exactly one child";
-    const WitnessEdge &e = witnesses_.at(r.edge);
+    const LinkCobordism &e = cobordisms_.at(r.edge);
     const Record &c = records_.at(r.children[0]);
-    const bool fwd = r.kind == RecordKind::witnessForward;
+    const bool fwd = r.kind == RecordKind::cobordismForward;
     if (c.node != (fwd ? e.out : e.in) || r.node != (fwd ? e.in : e.out))
       return "endpoints do not match the edge";
-    d = throughWitness(e, fwd, c.partition, c.genus);
+    d = throughCobordism(e, fwd, c.partition, c.genus);
     break;
   }
   case RecordKind::splitCombine: {

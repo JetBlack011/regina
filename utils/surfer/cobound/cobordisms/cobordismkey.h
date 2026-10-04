@@ -4,9 +4,9 @@
 //  Created by John Teague on 09/08/2026.
 //
 
-#ifndef WITNESSKEY_H
+#ifndef SURFER_COBOUND_COBORDISMKEY_H
 
-#define WITNESSKEY_H
+#define SURFER_COBOUND_COBORDISMKEY_H
 
 #include <string>
 
@@ -51,7 +51,7 @@ namespace cobordisms {
  * would have to additionally survive the component-count check in
  * applyFarSideResolutions() to do any harm.
  */
-std::string witnessKey(const std::string &pairSig);
+std::string cobordismKey(const std::string &pairSig);
 
 } // namespace cobordisms
 

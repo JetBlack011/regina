@@ -141,7 +141,7 @@ HopSearcher::HopSearcher(const linknaming::SignatureTable *signatures,
     exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-HopRun HopSearcher::run(const outgoing::WitnessRedrawer &row,
+HopRun HopSearcher::run(const outgoing::OutgoingReader &row,
                         const std::string &rowName, long long surfaceTarget,
                         double seconds,
                         const std::function<bool(const KeptSurface &)> &stop,
@@ -154,7 +154,7 @@ HopRun HopSearcher::run(const outgoing::WitnessRedrawer &row,
   return run(row.rowBuild(), request);
 }
 
-SearchRequest HopSearcher::hopRequest(const outgoing::WitnessRedrawer &row,
+SearchRequest HopSearcher::hopRequest(const outgoing::OutgoingReader &row,
                                       const std::string &rowName, long long surfaceTarget,
                                       double seconds) const {
   SearchRequest request;
@@ -479,7 +479,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     // is what makes multi-component links tractable at all: their seeded
     // collar starts as one disjoint annulus per component, and nothing
     // forces the DFS to ever bridge them.
-    cobordisms::Witness w;
+    cobordisms::Cobordism w;
     w.subject = request.name;
     w.subjectComponents = rb.componentCount;
     w.genus = info.tubedGenus;
@@ -491,7 +491,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     w.maxFaces = shape.maxFaces.value_or(0);
     std::string farName;
     if (g.split.otherSides.empty()) {
-      w.kind = cobordisms::WitnessKind::direct;
+      w.kind = cobordisms::CobordismKind::direct;
     } else {
       // Exactly one: the gate turns away more (multi-far-side). A
       // genuinely-linked far side is recorded but, unless it is a knot or a
@@ -503,7 +503,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
       // Normalized, so a census hit and the table name are one graph node,
       // and oriented where exact names are on (search::farSideName()).
       farName = search::farSideName(g, namer ? &*namer : nullptr);
-      w.kind = cobordisms::WitnessKind::cobordism;
+      w.kind = cobordisms::CobordismKind::cobordism;
       w.other = farName;
       w.otherComponents = far.components;
       // other_candidates is derived from the name when it is signed, as every
@@ -513,7 +513,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     // The dedup matters a lot, since every search harvests: a single search
     // reports thousands of near-identical surfaces. One kept surface per
     // keptKey(), and none the loaded database holds already.
-    std::string identity = cobordisms::witnessIdentity(w);
+    std::string identity = cobordisms::cobordismIdentity(w);
     if (request.knownIdentities && request.knownIdentities->count(identity)) {
       acct.duplicate.fetch_add(1, std::memory_order_relaxed);
       return;
@@ -534,10 +534,10 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
                   .farName = std::move(farName),
                   .faces = info.captureFaces(),
                   .key = std::move(key),
-                  .witness = std::move(w)};
+                  .cobordism = std::move(w)};
     std::lock_guard<std::mutex> lock(keptMutex);
     if (pending)
-      pending->add(cobordisms::PendingWitness{k.witness, request.rowPD, request.layers, k.faces});
+      pending->add(cobordisms::PendingCobordism{k.cobordism, request.rowPD, request.layers, k.faces});
     if (request.stop && !stopped.load() && request.stop(k)) {
       stopped.store(true);
       noteStop("stopped");
@@ -678,7 +678,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
   out.accountingFailure = acct.failure(out.accepted, e.rebuildFailures(), drainSkipped);
   out.described = acct.described.load();
   out.recorded = acct.recorded.load();
-  out.newWitnesses = static_cast<long long>(newIdentities.size());
+  out.newCobordisms = static_cast<long long>(newIdentities.size());
   out.otherOrientation = acct.orientation.load();
   out.drainSkipped = drainSkipped;
   // Surfaces were accepted, yet not one reached the record. That can be

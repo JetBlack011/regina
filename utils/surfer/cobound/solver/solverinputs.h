@@ -64,8 +64,8 @@ std::string aliasKey(const std::string &name);
  * would let a witness claim a far side of one name and the variants of
  * another.
  */
-std::vector<cobordisms::Witness>
-applyNameAliases(const std::vector<cobordisms::Witness> &witnesses,
+std::vector<cobordisms::Cobordism>
+applyNameAliases(const std::vector<cobordisms::Cobordism> &cobordisms,
                  const std::unordered_map<std::string, std::string> &aliases,
                  const solver::NameTable &names, size_t &appliedOut);
 
@@ -95,8 +95,8 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes);
  * is not the count the search observed. The candidates are the name alone,
  * or its proved alternatives -- never a base's variants.
  */
-std::vector<cobordisms::Witness>
-applyFarSideExact(std::vector<cobordisms::Witness> witnesses,
+std::vector<cobordisms::Cobordism>
+applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
                   const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
                   size_t &refused);
 
@@ -137,9 +137,9 @@ loadFarSideResolutions(const std::filesystem::path &path);
  * load_witnesses(); the two implementations are deliberately independent,
  * and `frontier.py --check` is only a check while they stay that way.
  */
-std::vector<cobordisms::Witness> applyFarSideResolutions(
-    std::vector<cobordisms::Witness> resolved,
-    const std::vector<cobordisms::Witness> &observed,
+std::vector<cobordisms::Cobordism> applyFarSideResolutions(
+    std::vector<cobordisms::Cobordism> resolved,
+    const std::vector<cobordisms::Cobordism> &observed,
     const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut);
 

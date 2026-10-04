@@ -27,8 +27,8 @@ namespace cobordisms {
 
 /// A kept surface bound for the witness store: its witness (every column
 /// but the pair signature), and what its signature is computed from.
-struct PendingWitness {
-  cobordisms::Witness witness;
+struct PendingCobordism {
+  cobordisms::Cobordism cobordism;
   std::string rowPD;
   int layers = 2;
   std::vector<int> faces;
@@ -36,10 +36,10 @@ struct PendingWitness {
 
 /// One kept.csv line (with its newline): the witness's store line (pair
 /// signature empty), then its faces (space-separated), its row PD and layers.
-std::string formatKept(const PendingWitness &p);
+std::string formatKept(const PendingCobordism &p);
 
 /// Appends `kept` to <hopDir>/kept.csv and fsyncs (formatKept()).
-void appendKept(const std::string &hopDir, const std::vector<PendingWitness> &kept);
+void appendKept(const std::string &hopDir, const std::vector<PendingCobordism> &kept);
 
 /**
  * A search's pending file (kept.csv), written while the search runs: every
@@ -58,7 +58,7 @@ public:
   PendingWriter &operator=(const PendingWriter &) = delete;
 
   /// Queues one kept surface's line. Thread-safe.
-  void add(const PendingWitness &p);
+  void add(const PendingCobordism &p);
   /// Appends and fsyncs what was added since the last write, unless the
   /// last write was under 60 s ago; `force` writes at once. A failure is
   /// reported on stderr, never thrown (the next write retries: nothing
@@ -100,7 +100,7 @@ struct LoadedStore {
 /// it (signedThrough()) to its last complete line (a torn last line is
 /// skipped). `readTo`, if given, gets each file read and the byte it was
 /// read to.
-std::vector<PendingWitness>
+std::vector<PendingCobordism>
 readKept(const std::string &work,
          std::vector<std::pair<std::string, long long>> *readTo = nullptr);
 
@@ -117,7 +117,7 @@ StoreResult signPending(const std::string &work, const std::string &store,
                         const solver::NameTable &names, unsigned threads,
                         const std::string &pairSigCache = "",
                         const LoadedStore &loaded = {},
-                        const std::function<bool(const PendingWitness &)> &sidecarLine = {});
+                        const std::function<bool(const PendingCobordism &)> &sidecarLine = {});
 
 
 /**
@@ -134,12 +134,12 @@ StoreResult signPending(const std::string &work, const std::string &store,
  * `sidecarLine`, when given, says which appended cobordisms get a
  * `.rows.csv` line (by default every one).
  */
-StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
+StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
                       const solver::NameTable &names, unsigned threads,
                       const std::string &pairSigCache = "",
                       const LoadedStore &loaded = {},
-                      const std::function<bool(const PendingWitness &)> &sidecarLine = {});
+                      const std::function<bool(const PendingCobordism &)> &sidecarLine = {});
 
 /**
  * The cobordism database as a run loaded it: its witnesses (the solver's
@@ -148,15 +148,15 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
  * file's length when read (what storeKept() need not read again). A search
  * never writes it: its finds go to its pending file, and `sign` appends them.
  */
-class RecordedWitnesses {
+class LoadedDatabase {
 public:
   /// `loaded`: the witnesses of the database file at `path` (loadWitnesses()).
-  RecordedWitnesses(std::filesystem::path path, std::vector<cobordisms::Witness> loaded);
-  RecordedWitnesses(const RecordedWitnesses &) = delete;
-  RecordedWitnesses &operator=(const RecordedWitnesses &) = delete;
+  LoadedDatabase(std::filesystem::path path, std::vector<cobordisms::Cobordism> loaded);
+  LoadedDatabase(const LoadedDatabase &) = delete;
+  LoadedDatabase &operator=(const LoadedDatabase &) = delete;
 
   /// Every witness, as loaded.
-  const std::vector<cobordisms::Witness> &all() const { return witnesses_; }
+  const std::vector<cobordisms::Cobordism> &all() const { return cobordisms_; }
   /// cobordisms::witnessIdentity() of each.
   const std::unordered_set<std::string> &identities() const { return identities_; }
   /// The store's first bytes() bytes are what was loaded.
@@ -164,7 +164,7 @@ public:
 
 private:
   std::filesystem::path path_;
-  std::vector<cobordisms::Witness> witnesses_;
+  std::vector<cobordisms::Cobordism> cobordisms_;
   std::unordered_set<std::string> identities_;
   std::uintmax_t bytes_ = 0;
 };

@@ -15,7 +15,7 @@
 
 namespace solver {
 
-bool farSideBearsBound(const cobordisms::Witness &w) {
+bool farSideBearsBound(const cobordisms::Cobordism &w) {
     // The observed count, never the name: componentsFromName() is an
     // inference from a string, and an alias could make a two-curve far side
     // read like a knot.
@@ -483,7 +483,7 @@ LowerContribution lowerOf(const std::string &name,
 /** Applies `hi[name] <- min(hi[name], value)`, returning whether it changed. */
 bool relaxUpper(std::unordered_map<std::string, Bounds> &bounds,
                 const NameTable &names, const std::string &name, int value,
-                std::vector<std::string> support, const cobordisms::Witness &w,
+                std::vector<std::string> support, const cobordisms::Cobordism &w,
                 const std::string &via) {
     if (value == NO_UPPER_BOUND)
         return false;
@@ -538,20 +538,20 @@ bool relaxLower(std::unordered_map<std::string, Bounds> &bounds,
 
 /** Seeds the bounds that need neither a search nor the literature. */
 void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
-                const std::vector<cobordisms::Witness> &witnesses,
+                const std::vector<cobordisms::Cobordism> &cobordisms,
                 const NameTable &names) {
     auto axiom = [&bounds](const std::string &name) {
         Bounds &b = bounds[name];
         b.hi = 0;
         b.lo = 0;
         b.basis = Basis::constructive;
-        b.kind = cobordisms::WitnessKind::direct;
+        b.kind = cobordisms::CobordismKind::direct;
     };
     axiom("Unknot");
     // Every "<n>-component unlink" actually mentioned anywhere: it bounds
     // n disks, which tube into a connected planar surface of genus 0.
     // Likewise every slice composite mentioned anywhere: it bounds a disk.
-    for (const cobordisms::Witness &w : witnesses)
+    for (const cobordisms::Cobordism &w : cobordisms)
         for (const std::string &side : {w.other, w.subject})
             if (complement::isMultiComponentUnlinkName(side) ||
                 linknaming::isElementarySlice(side, names.symmetries()))
@@ -561,15 +561,15 @@ void seedAxioms(std::unordered_map<std::string, Bounds> &bounds,
 } // namespace
 
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &names,
+propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable &names,
           const std::vector<ExternalProof> &external) {
     std::unordered_map<std::string, Bounds> bounds;
-    seedAxioms(bounds, witnesses, names);
+    seedAxioms(bounds, cobordisms, names);
 
     // Direct witnesses are the constructive base case (surfaces that straight
     // up bound the link)
-    for (const cobordisms::Witness &w : witnesses)
-        if (w.kind == cobordisms::WitnessKind::direct)
+    for (const cobordisms::Cobordism &w : cobordisms)
+        if (w.kind == cobordisms::CobordismKind::direct)
             relaxUpper(bounds, names, w.subject, w.genus, /*support=*/{}, w,
                        "");
 
@@ -577,8 +577,8 @@ propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &na
     // constructive as their leaves. Recorded as direct, via the proof's
     // source, so a report names where the bound came from.
     for (const ExternalProof &p : external) {
-        cobordisms::Witness w;
-        w.kind = cobordisms::WitnessKind::direct;
+        cobordisms::Cobordism w;
+        w.kind = cobordisms::CobordismKind::direct;
         w.subject = p.name;
         w.genus = p.genus;
         relaxUpper(bounds, names, p.name, p.genus, p.support, w, p.source);
@@ -589,8 +589,8 @@ propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &na
     bool changed = true;
     while (changed) {
         changed = false;
-        for (const cobordisms::Witness &w : witnesses) {
-            if (w.kind != cobordisms::WitnessKind::cobordism)
+        for (const cobordisms::Cobordism &w : cobordisms) {
+            if (w.kind != cobordisms::CobordismKind::cobordism)
                 continue;
             // A multi-component far side that is not a proven unlink bounds
             // nothing in either direction -- its complement does not

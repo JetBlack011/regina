@@ -29,13 +29,13 @@ inline constexpr const char *COBORDISMS_HEADER =
 // ---- the witness file ----
 
 /// One witness as a line of the witness file (no newline).
-std::string formatWitness(const cobordisms::Witness &w);
+std::string formatCobordism(const cobordisms::Cobordism &w);
 
 /// A witness from the first 12 or 13 fields of a witness line (split by
 /// parseCsvLine()); fields past the 13th are ignored. The pair signature is
 /// kept only if `keepPairSig`; `path` is for messages. False if malformed.
-bool witnessFromFields(std::vector<std::string> fields,
-                       cobordisms::Witness &w, bool keepPairSig,
+bool cobordismFromFields(std::vector<std::string> fields,
+                       cobordisms::Cobordism &w, bool keepPairSig,
                        bool wantPairSigKey, const std::filesystem::path &path);
 
 /// The other_candidates field split into names: at every ';' outside a
@@ -45,19 +45,19 @@ std::vector<std::string> splitCandidates(const std::string &field);
 
 /// One witness line (12 or 13 fields, parseCsvLine()) into `w`, as
 /// witnessFromFields(); false if malformed.
-bool parseWitnessLine(const std::string &line, cobordisms::Witness &w,
+bool parseCobordismLine(const std::string &line, cobordisms::Cobordism &w,
                       bool keepPairSig, bool wantPairSigKey,
                       const std::filesystem::path &path);
 
 /// Every complete witness line of `path`, WITHOUT pair signatures: each
 /// keeps its line's byte offset (Witness::fileOffset). A torn last line is
 /// ignored. A missing file is an empty store.
-std::vector<cobordisms::Witness>
-loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys);
+std::vector<cobordisms::Cobordism>
+loadCobordisms(const std::filesystem::path &path, bool wantPairSigKeys);
 
 /// As loadWitnesses(), but every witness keeps its pair signature: for a
 /// small file read whole (a child hop's cob.csv).
-std::vector<cobordisms::Witness> readWitnesses(const std::filesystem::path &path);
+std::vector<cobordisms::Cobordism> readCobordisms(const std::filesystem::path &path);
 
 /// A witness's pair signature read back from its line (Witness::fileOffset),
 /// memoized: the few places that print one ask for the same few repeatedly.
@@ -77,7 +77,7 @@ class PairSigReader {
 /// kept) and, when the database's `.rows.csv` sidecar records one, the
 /// diagram its search ran on (empty: the subject's table PD).
 struct StoredCobordism {
-    cobordisms::Witness witness;
+    cobordisms::Cobordism cobordism;
     std::string rowPD;
 };
 
@@ -119,15 +119,15 @@ class DatabaseIndex {
 /// store's dedupe needs only this, and the atlas's master is ~3 GB, so a
 /// run's store step spent 8-12 s of one thread here (2026-09-30).
 std::unordered_set<std::string>
-witnessIdentities(const std::filesystem::path &path, unsigned threads,
+cobordismIdentities(const std::filesystem::path &path, unsigned threads,
                   std::streamoff minRangeBytes = 64 << 20);
 
 /// Appends witnesses[from..] to `path` and fsyncs; creates it with the
 /// header if absent, truncates a torn last line first, and refuses a file
 /// with any other header. Each appended witness gets its fileOffset and
 /// drops its pair signature. Throws on failure, leaving them untouched.
-void appendWitnesses(const std::filesystem::path &path,
-                     std::vector<cobordisms::Witness> &witnesses,
+void appendCobordisms(const std::filesystem::path &path,
+                     std::vector<cobordisms::Cobordism> &cobordisms,
                      size_t from);
 
 } // namespace cobordisms

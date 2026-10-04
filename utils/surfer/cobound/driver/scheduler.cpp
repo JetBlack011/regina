@@ -167,7 +167,7 @@ private:
   std::string subjectName(NodeId n) const;
   /// With --witness-store: signs and stores every kept surface of the run,
   /// and writes <work>/nodes.csv for the cascade: subjects. Idempotent.
-  void storeWitnesses();
+  void signIntoDatabase();
   void printOutcome(const std::string &outcome) const;
   void printProfile() const;
   /// The run's records' view of its graph.
@@ -270,17 +270,17 @@ std::string Cascade::subjectName(NodeId n) const {
          kFrozenCascadeSubjectNodeMark + std::to_string(n);
 }
 
-void Cascade::storeWitnesses() {
-  if (cfg_.witnessStore.empty() || stored_) return;
+void Cascade::signIntoDatabase() {
+  if (cfg_.cobordismsPath.empty() || stored_) return;
   stored_ = true;
   runrecords::writeNodesCsv(cfg_.work, hopSubject_, reg_);
-  const StoreResult s = signPending(cfg_.work, cfg_.witnessStore, cfg_.dedupeAgainst,
+  const StoreResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
                                     names_, static_cast<unsigned>(cfg_.threads),
                                     cfg_.pairSigCache);
   storedAppended_ = s.appended;
   storeResult_ = s;
   std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
-            << s.appended << " appended to " << cfg_.witnessStore << " (signed in "
+            << s.appended << " appended to " << cfg_.cobordismsPath << " (signed in "
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
 }
 
@@ -351,7 +351,7 @@ void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
   // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
   // it, so they are independent), on the run's threads, cached until the
   // graph changes.
-  const std::tuple<size_t, size_t, long> version{g_.witnessCount(), g_.recordCount(),
+  const std::tuple<size_t, size_t, long> version{g_.cobordismCount(), g_.recordCount(),
                                                  g_.lowerVersion()};
   if (lowerCache_.version != version) {
     lowerCache_.version = version;
@@ -555,7 +555,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   hopSubject_[n] = rowName;
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
-  size_t witnesses = 0;
+  size_t cobordisms = 0;
   // One kept surface into the graph. Its edge's key is its provenance:
   // hop<k>#<i> (it has no pair signature).
   const std::string build = hop->redrawer().buildChecksum();
@@ -602,7 +602,7 @@ void Cascade::expand(NodeId n, long surfaces) {
       // hop's pending file, signed at the run's end (storeWitnesses()).
       request.rowPD = row.pd;
       request.layers = row.layers;
-      if (!cfg_.witnessStore.empty()) request.pending = dir + "/kept.csv";
+      if (!cfg_.cobordismsPath.empty()) request.pending = dir + "/kept.csv";
       request.runDirectory = cfg_.work;
       run = searcher_->run(hop->redrawer().rowBuild(), request);
     } catch (const SeedInvariantFailure &e) {
@@ -684,7 +684,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     }
     driver_.kept += secondsSince(tKept);
     t0 = std::chrono::steady_clock::now();
-    witnesses = run.kept.size();
+    cobordisms = run.kept.size();
     for (size_t i = 0; i < run.kept.size(); ++i) {
       KeptSurface &ks = run.kept[i];
       const std::string key = kFrozenHopKeyPrefix + std::to_string(k) + "#" + std::to_string(i);
@@ -715,7 +715,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
     << ",\"propagate\":" << propagateSeconds << ",\"rounds\":" << roundsJson
     << ",\"drain_tail\":" << drainTail << ",\"drain_tail_s\":" << drainTailSeconds
-    << namingJson << ",\"witnesses\":" << witnesses
+    << namingJson << ",\"witnesses\":" << cobordisms
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
     << ",\"records\":" << g_.recordCount()
@@ -734,7 +734,7 @@ void Cascade::expand(NodeId n, long surfaces) {
   log(o.str());
   std::cout << "[+] " << kFrozenHopLine << k << ": node " << n << " (" << d.crossings()
             << " crossings, "
-            << d.components() << " components): " << witnesses << " witnesses, "
+            << d.components() << " components): " << cobordisms << " witnesses, "
             << assembled << " assembled, " << (g_.nodeCount() - nodesBefore)
             << " new nodes; " << std::fixed << std::setprecision(0) << r.wall << " s wall, "
             << r.cpu << " s CPU; target best " << (best ? std::to_string(best->genus) : "none")
@@ -804,10 +804,10 @@ int Cascade::run() {
                                [](const auto &kv) { return kv.second; })
               << " special, largest special lower bound " << lowerLMax_
               << " (caps what any node could carry)\n";
-  if (!cfg_.masterWitnesses.empty()) {
+  if (!cfg_.masterCobordisms.empty()) {
     const auto t0 = std::chrono::steady_clock::now();
     database_ = std::make_unique<DatabaseCobordisms>(
-        cfg_.masterWitnesses, std::vector<std::string>{cfg_.knotTable, cfg_.linkTable});
+        cfg_.masterCobordisms, std::vector<std::string>{cfg_.knotTable, cfg_.linkTable});
     std::cout << "[+] master witnesses: " << database_->subjects() << " subjects indexed in "
               << std::fixed << std::setprecision(0)
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
@@ -871,7 +871,7 @@ int Cascade::run() {
     // impossible state is not reported as met.
     if (!halt_.empty()) {
       // The surfaces found are real whatever broke, so they are kept.
-      storeWitnesses();
+      signIntoDatabase();
       writeProfiles();
       printOutcome("halted");
       return 2;
@@ -881,7 +881,7 @@ int Cascade::run() {
       // The surfaces are real whatever the contradiction's cause (a naming
       // or solver bug), so they are kept, as verifyslicegenus writes its
       // witnesses before its fatal-bug halt.
-      storeWitnesses();
+      signIntoDatabase();
       writeProfiles();
       printOutcome("contradiction");
       return 3;
@@ -939,12 +939,12 @@ int Cascade::run() {
     }
     long surfaces = budget;
     if (cfg_.hubDegree > 0 && !boosted_.count(*n) &&
-        g_.node(*n).witnessEdges.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
+        g_.node(*n).cobordisms.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
       // A hub: many routes meet here, so one wide hop from it buys many
       // more first-level candidates than another narrow one elsewhere.
       surfaces = cfg_.hubSurfaces;
       boosted_.insert(*n);
-      std::cout << "[+] hub: node " << *n << " has " << g_.node(*n).witnessEdges.size()
+      std::cout << "[+] hub: node " << *n << " has " << g_.node(*n).cobordisms.size()
                 << " witness edges; expanding it at " << surfaces << " surfaces\n";
     }
     expand(*n, surfaces);
@@ -956,7 +956,7 @@ int Cascade::run() {
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
   const auto tStore = Clock::now();
-  storeWitnesses();
+  signIntoDatabase();
   const double storeSeconds = secondsSince(tStore);
   const auto tReport = Clock::now();
   if (cfg_.lowerReport)
@@ -1031,8 +1031,8 @@ void Cascade::printProfile() const {
             << " petal_cache_limit=" << *s.petalCacheLimit
             << " boundary_signature_cache_limit=" << *s.boundarySignatureCacheLimit
             << " recognition_cache_limit=" << cfg_.complementCacheLimit
-            << " master_witnesses=" << (cfg_.masterWitnesses.empty() ? "none" : cfg_.masterWitnesses)
-            << " witness_store=" << (cfg_.witnessStore.empty() ? "none" : cfg_.witnessStore)
+            << " master_witnesses=" << (cfg_.masterCobordisms.empty() ? "none" : cfg_.masterCobordisms)
+            << " witness_store=" << (cfg_.cobordismsPath.empty() ? "none" : cfg_.cobordismsPath)
             << " run_name=" << (cfg_.runName.empty() ? "none" : cfg_.runName) << "\n";
 }
 
@@ -1058,7 +1058,7 @@ GoalOptions goalOptions(const config::Config &cfg) {
   o.maxCrossings = static_cast<size_t>(cfg.integer("max_crossings"));
   o.strategy = cfg.text("strategy");
   o.literature = cfg.flag("literature");
-  o.masterWitnesses = cfg.text("master_witnesses");
+  o.masterCobordisms = cfg.text("master_witnesses");
   HopShape &h = o.hopShape;
   h.layers = static_cast<int>(cfg.integer("layers"));
   h.maxFaces = cfg.integer("max_faces");
@@ -1073,7 +1073,7 @@ GoalOptions goalOptions(const config::Config &cfg) {
   h.boundarySignatureCacheLimit =
       static_cast<size_t>(cfg.integer("boundary_signature_cache_limit"));
   o.complementCacheLimit = static_cast<size_t>(cfg.integer("complement_cache_limit"));
-  o.witnessStore = cfg.text("cobordisms");
+  o.cobordismsPath = cfg.text("cobordisms");
   o.runName = cfg.text("run_name");
   o.pairSigCache = cfg.text("pair_sig_cache");
   o.readBackCache = cfg.text("read_back_cache");
@@ -1088,7 +1088,7 @@ GoalOptions goalOptions(const config::Config &cfg) {
   if (!cfg.flag("exact_far_side_names"))
     throw config::Error("exact_far_side_names cannot be 0 in a run with a goal (its "
                         "searches always name outgoing links exactly)");
-  if (!o.witnessStore.empty() && o.runName.empty())
+  if (!o.cobordismsPath.empty() && o.runName.empty())
     throw config::Error("cobordisms needs run_name in a run with a goal");
   if (o.goalLower >= 0 && o.lowerSources.empty())
     throw config::Error("goal_lower needs lower_sources (the special sources' largest bound "

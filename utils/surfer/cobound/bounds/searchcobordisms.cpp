@@ -53,12 +53,12 @@ std::string rowPD(const GaussDiagram &d) {
 HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
                            Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
-  redraw_ = std::make_unique<outgoing::WitnessRedrawer>(row_.pd, row_.layers);
+  redraw_ = std::make_unique<outgoing::OutgoingReader>(row_.pd, row_.layers);
   certifyRow_();
 }
 
 HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
-                           std::unique_ptr<outgoing::WitnessRedrawer> built, Read read)
+                           std::unique_ptr<outgoing::OutgoingReader> built, Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
   certifyRow_();
@@ -107,7 +107,7 @@ HopAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
   return of;
 }
 
-HopEdge HopAssembler::add(const HopWitness &w) {
+HopEdge HopAssembler::add(const SignedCobordism &w) {
   std::string why;
   auto link = readBack(w.pairsig, why);
   if (!link) {
@@ -212,7 +212,7 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addWitness(row_.node, out.farNode, shape, inMap, outMap, key);
+  out.edge = g_.addCobordism(row_.node, out.farNode, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

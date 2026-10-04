@@ -244,8 +244,8 @@ struct RowAccounting {
  * how many outgoing curves each surface component carries, as a canonical
  * string (surface components are unlabelled, so the entries are sorted).
  */
-std::string keptKey(const cobordisms::Witness &w, const outgoing::OutgoingLink &link,
-                    const outgoing::WitnessRedrawer &row);
+std::string keptKey(const cobordisms::Cobordism &w, const outgoing::OutgoingLink &link,
+                    const outgoing::OutgoingReader &row);
 } // namespace search
 
 #endif // SURFER_COBOUND_PRECONDITIONS_H

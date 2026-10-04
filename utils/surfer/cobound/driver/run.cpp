@@ -251,10 +251,10 @@ int runWithoutGoal(const config::Config &cfg) {
 
   // The database the run signs into, loaded: a search keeps no cobordism
   // whose identity it holds (one per identity across the database).
-  cobordisms::RecordedWitnesses recorded(cobordismsPath,
-                                      cobordisms::loadWitnesses(cobordismsPath, false));
-  const std::vector<cobordisms::Witness> &witnesses = recorded.all();
-  std::cout << "[+] Resuming with " << witnesses.size()
+  cobordisms::LoadedDatabase recorded(cobordismsPath,
+                                      cobordisms::loadCobordisms(cobordismsPath, false));
+  const std::vector<cobordisms::Cobordism> &cobordisms = recorded.all();
+  std::cout << "[+] Resuming with " << cobordisms.size()
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
 
   // The run directory (plan divergence 7): each search's pending cobordisms
@@ -292,8 +292,8 @@ int runWithoutGoal(const config::Config &cfg) {
       if (!table.empty() && std::filesystem::exists(table))
         for (const linknaming::TableRow &r : linknaming::readTableRows(table))
           tablePD.emplace(r.name, r.pd);
-    const auto sidecarLine = [&](const cobordisms::PendingWitness &p) {
-      auto it = tablePD.find(p.witness.subject);
+    const auto sidecarLine = [&](const cobordisms::PendingCobordism &p) {
+      auto it = tablePD.find(p.cobordism.subject);
       return it == tablePD.end() || it->second != p.rowPD;
     };
     const cobordisms::StoreResult s = cobordisms::signPending(
@@ -386,7 +386,7 @@ int runWithoutGoal(const config::Config &cfg) {
       OutputRow out;
       out.knot = row.name;
       out.status = "unresolved";
-      out.witnessKind = "none";
+      out.cobordismKind = "none";
       out.literatureLo = row.lo;
       out.literatureHi = row.hi;
       out.searchOutcome = "build-failed";
@@ -599,7 +599,7 @@ int runWithoutGoal(const config::Config &cfg) {
 
   std::cout << "\n[+] Done. Searched " << searchedThisRun << " of " << processedThisRun
             << " rows visited this run.\n";
-  std::cout << "[+] Witness file: " << witnesses.size() + signedAppended << " witnesses in "
+  std::cout << "[+] Witness file: " << cobordisms.size() + signedAppended << " witnesses in "
             << cobordismsPath << "\n";
   if (!unaccounted.empty()) {
     std::cerr << "[!] " << unaccounted.size()

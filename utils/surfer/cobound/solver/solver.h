@@ -96,7 +96,7 @@ constexpr int NO_LOWER_BOUND = INT_MIN;
  * spelling of the name, so an alias that renames a two-component far side to
  * something knot-shaped cannot slip through.
  */
-bool farSideBearsBound(const cobordisms::Witness &w);
+bool farSideBearsBound(const cobordisms::Cobordism &w);
 
 /* Solving */
 
@@ -120,7 +120,7 @@ struct Bounds {
     Basis basis = Basis::constructive;
 
     // Provenance of whichever witness last improved `hi`.
-    cobordisms::WitnessKind kind = cobordisms::WitnessKind::direct;
+    cobordisms::CobordismKind kind = cobordisms::CobordismKind::direct;
     std::string viaName;
     int viaGenus = 0;
     std::string pairSig;
@@ -179,7 +179,7 @@ struct ExternalProof {
 };
 
 std::unordered_map<std::string, Bounds>
-propagate(const std::vector<cobordisms::Witness> &witnesses, const NameTable &names,
+propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable &names,
           const std::vector<ExternalProof> &external = {});
 
 /* Reporting */

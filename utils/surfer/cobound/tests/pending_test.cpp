@@ -73,8 +73,8 @@ HopShape capThree() {
   return s;
 }
 
-bool sameWitness(const cobordisms::Witness &a, const cobordisms::Witness &b) {
-  return cobordisms::formatWitness(a) == cobordisms::formatWitness(b);
+bool sameCobordism(const cobordisms::Cobordism &a, const cobordisms::Cobordism &b) {
+  return cobordisms::formatCobordism(a) == cobordisms::formatCobordism(b);
 }
 
 } // namespace
@@ -97,14 +97,14 @@ int main() {
   CHECK_EQ(run.accepted, 1752LL, "the canaries' count for 3_1 at cap 3");
 
   // What cascadesearch does with them (expand()).
-  std::vector<PendingWitness> pending;
+  std::vector<PendingCobordism> pending;
   std::map<std::string, std::string> sigOfIdentity; // first surface of each identity
   for (const KeptSurface &ks : run.kept) {
-    PendingWitness p{ks.witness, row.pd, row.layers, ks.faces};
-    p.witness.sourceRow = "3_1";
-    p.witness.thickenLayers = row.layers;
-    p.witness.maxFaces = 3;
-    sigOfIdentity.emplace(cobordisms::witnessIdentity(p.witness),
+    PendingCobordism p{ks.cobordism, row.pd, row.layers, ks.faces};
+    p.cobordism.sourceRow = "3_1";
+    p.cobordism.thickenLayers = row.layers;
+    p.cobordism.maxFaces = 3;
+    sigOfIdentity.emplace(cobordisms::cobordismIdentity(p.cobordism),
                           pairSigOf(hop.redrawer().thickening(), ks.faces));
     pending.push_back(std::move(p));
   }
@@ -114,11 +114,11 @@ int main() {
   const size_t half = pending.size() / 2;
   appendKept(hopDir.string(), {pending.begin(), pending.begin() + half});
   appendKept(hopDir.string(), {pending.begin() + half, pending.end()});
-  std::vector<PendingWitness> back = readKept(dir.string());
+  std::vector<PendingCobordism> back = readKept(dir.string());
   CHECK_EQ(back.size(), pending.size(), "kept.csv: every kept surface comes back");
   int same = 0;
   for (size_t i = 0; i < back.size() && i < pending.size(); ++i)
-    if (sameWitness(back[i].witness, pending[i].witness) && back[i].faces == pending[i].faces &&
+    if (sameCobordism(back[i].cobordism, pending[i].cobordism) && back[i].faces == pending[i].faces &&
         back[i].rowPD == pending[i].rowPD && back[i].layers == pending[i].layers)
       ++same;
   CHECK_EQ(same, static_cast<int>(pending.size()), "kept.csv: every field and face round-trips");
@@ -129,13 +129,13 @@ int main() {
   solver::loadNameTable(links, names);
   const std::string store = (dir / "cobordisms.csv").string();
   // Every surface offered twice: within one batch, an identity is recorded once.
-  std::vector<PendingWitness> twice = back;
+  std::vector<PendingCobordism> twice = back;
   twice.insert(twice.end(), back.begin(), back.end());
   StoreResult s = storeKept(twice, store, {}, names, 3);
   CHECK_EQ(s.kept, 2 * pending.size(), "store: every surface offered");
   CHECK_EQ(s.fresh, sigOfIdentity.size(), "store: one fresh surface per witness identity");
   CHECK_EQ(s.appended, sigOfIdentity.size(), "store: all of them appended");
-  std::vector<cobordisms::Witness> stored = cobordisms::loadWitnesses(store, false);
+  std::vector<cobordisms::Cobordism> stored = cobordisms::loadCobordisms(store, false);
   CHECK_EQ(stored.size(), sigOfIdentity.size(), "store: one line per identity");
   int sigOk = 0, provenanceOk = 0, candidatesOk = 0;
   {
@@ -144,13 +144,13 @@ int main() {
     std::getline(in, line);
     CHECK_EQ(line, std::string(cobordisms::COBORDISMS_HEADER), "store: the header");
     while (std::getline(in, line)) {
-      cobordisms::Witness w;
-      cobordisms::witnessFromFields(parseCsvLine(line), w, true, false, store);
-      auto it = sigOfIdentity.find(cobordisms::witnessIdentity(w));
+      cobordisms::Cobordism w;
+      cobordisms::cobordismFromFields(parseCsvLine(line), w, true, false, store);
+      auto it = sigOfIdentity.find(cobordisms::cobordismIdentity(w));
       if (it != sigOfIdentity.end() && it->second == w.pairSig) ++sigOk;
       if (w.subject == "3_1" && w.sourceRow == "3_1" && w.thickenLayers == 2 && w.maxFaces == 3)
         ++provenanceOk;
-      if (w.kind == cobordisms::WitnessKind::direct ||
+      if (w.kind == cobordisms::CobordismKind::direct ||
           w.otherCandidates == names.candidates(w.other, w.otherComponents))
         ++candidatesOk;
     }
@@ -175,7 +175,7 @@ int main() {
     }
     CHECK_EQ(rows.size(), stored.size(), "rows sidecar: one line per stored witness");
     int keyed = 0;
-    for (const auto &w : cobordisms::loadWitnesses(store, true))
+    for (const auto &w : cobordisms::loadCobordisms(store, true))
       if (rows.count(w.pairSigKey) && rows[w.pairSigKey] == pd) ++keyed;
     CHECK_EQ(keyed, static_cast<int>(stored.size()),
              "rows sidecar: every stored witness keyed to its hop row's PD");

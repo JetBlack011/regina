@@ -40,7 +40,7 @@ struct StoreLock : appendonly::FileLock {
 void identitiesOf(const std::string &path, std::unordered_set<std::string> &into,
                   unsigned threads = 1) {
   if (!fs::exists(path)) return;
-  std::unordered_set<std::string> ids = cobordisms::witnessIdentities(path, threads);
+  std::unordered_set<std::string> ids = cobordisms::cobordismIdentities(path, threads);
   if (into.empty()) into.swap(ids);
   else into.merge(ids);
 }
@@ -57,9 +57,9 @@ void identitiesSince(const std::string &path, std::uintmax_t from,
   while (std::getline(in, line)) {
     if (in.eof()) break; // no newline: a torn last line
     if (line.empty()) continue;
-    cobordisms::Witness w;
-    if (cobordisms::parseWitnessLine(line, w, false, false, path))
-      into.insert(cobordisms::witnessIdentity(w));
+    cobordisms::Cobordism w;
+    if (cobordisms::parseCobordismLine(line, w, false, false, path))
+      into.insert(cobordisms::cobordismIdentity(w));
   }
 }
 
@@ -75,17 +75,17 @@ int hopNumber(const fs::path &dir) {
 
 } // namespace
 
-std::string formatKept(const PendingWitness &p) {
+std::string formatKept(const PendingCobordism &p) {
   std::ostringstream faces;
   for (size_t i = 0; i < p.faces.size(); ++i) faces << (i ? " " : "") << p.faces[i];
-  return cobordisms::formatWitness(p.witness) + ',' + csvField(faces.str()) + ',' +
+  return cobordisms::formatCobordism(p.cobordism) + ',' + csvField(faces.str()) + ',' +
          csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
 }
 
-void appendKept(const std::string &hopDir, const std::vector<PendingWitness> &kept) {
+void appendKept(const std::string &hopDir, const std::vector<PendingCobordism> &kept) {
   if (kept.empty()) return;
   std::string buffer;
-  for (const PendingWitness &p : kept) buffer += formatKept(p);
+  for (const PendingCobordism &p : kept) buffer += formatKept(p);
   appendonly::append(hopDir + "/kept.csv", buffer, appendonly::Sync::yes);
 }
 
@@ -96,7 +96,7 @@ long long signedThrough(const std::string &path) {
   return 0;
 }
 
-std::vector<PendingWitness> readKept(const std::string &work,
+std::vector<PendingCobordism> readKept(const std::string &work,
                                      std::vector<std::pair<std::string, long long>> *readTo) {
   std::vector<fs::path> dirs;
   if (fs::exists(work))
@@ -107,7 +107,7 @@ std::vector<PendingWitness> readKept(const std::string &work,
   std::sort(dirs.begin(), dirs.end(), [](const fs::path &a, const fs::path &b) {
     return hopNumber(a) < hopNumber(b);
   });
-  std::vector<PendingWitness> out;
+  std::vector<PendingCobordism> out;
   for (const fs::path &dir : dirs) {
     const fs::path path = dir / "kept.csv";
     std::ifstream in(path, std::ios::binary);
@@ -123,8 +123,8 @@ std::vector<PendingWitness> readKept(const std::string &work,
       if (f.size() != 16)
         throw std::runtime_error(path.string() + ": a kept line has " +
                                  std::to_string(f.size()) + " fields, not 16");
-      PendingWitness p;
-      if (!cobordisms::witnessFromFields(f, p.witness, false, false, path))
+      PendingCobordism p;
+      if (!cobordisms::cobordismFromFields(f, p.cobordism, false, false, path))
         throw std::runtime_error(path.string() + ": a malformed kept witness");
       std::istringstream faces(f[13]);
       for (int t; faces >> t;) p.faces.push_back(t);
@@ -141,9 +141,9 @@ StoreResult signPending(const std::string &work, const std::string &store,
                         const std::vector<std::string> &dedupeAgainst,
                         const solver::NameTable &names, unsigned threads,
                         const std::string &pairSigCache, const LoadedStore &loaded,
-                        const std::function<bool(const PendingWitness &)> &sidecarLine) {
+                        const std::function<bool(const PendingCobordism &)> &sidecarLine) {
   std::vector<std::pair<std::string, long long>> readTo;
-  std::vector<PendingWitness> pending = readKept(work, &readTo);
+  std::vector<PendingCobordism> pending = readKept(work, &readTo);
   StoreResult r = storeKept(std::move(pending), store, dedupeAgainst, names, threads,
                             pairSigCache, loaded, sidecarLine);
   // Signed (or already in the store): recorded only once the store holds
@@ -155,11 +155,11 @@ StoreResult signPending(const std::string &work, const std::string &store,
   return r;
 }
 
-StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &store,
+StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &store,
                       const std::vector<std::string> &dedupeAgainst,
                       const solver::NameTable &names, unsigned threads,
                       const std::string &pairSigCache, const LoadedStore &loaded,
-                      const std::function<bool(const PendingWitness &)> &sidecarLine) {
+                      const std::function<bool(const PendingCobordism &)> &sidecarLine) {
   StoreResult r;
   r.kept = pending.size();
   if (pending.empty()) return r;
@@ -185,21 +185,21 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   }
   r.dedupeSeconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - tDedupe).count();
-  std::vector<PendingWitness> fresh;
-  for (PendingWitness &p : pending)
-    if (seen.insert(cobordisms::witnessIdentity(p.witness)).second)
+  std::vector<PendingCobordism> fresh;
+  for (PendingCobordism &p : pending)
+    if (seen.insert(cobordisms::cobordismIdentity(p.cobordism)).second)
       fresh.push_back(std::move(p));
   r.fresh = fresh.size();
   if (fresh.empty()) return r;
 
   std::vector<SignRequest> requests;
   requests.reserve(fresh.size());
-  for (const PendingWitness &p : fresh) requests.push_back({p.rowPD, p.layers, p.faces});
+  for (const PendingCobordism &p : fresh) requests.push_back({p.rowPD, p.layers, p.faces});
   const auto t0 = std::chrono::steady_clock::now();
   std::vector<std::string> sigs = pairSigsOf(requests, threads, pairSigCache);
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
-  std::vector<cobordisms::Witness> out;
+  std::vector<cobordisms::Cobordism> out;
   // parallel to out: row PD, layers, and whether the sidecar records it
   std::vector<std::pair<std::string, int>> rowOf;
   std::vector<char> sidecar;
@@ -207,13 +207,13 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   for (size_t i = 0; i < fresh.size(); ++i) {
     rowOf.emplace_back(fresh[i].rowPD, fresh[i].layers);
     sidecar.push_back(!sidecarLine || sidecarLine(fresh[i]));
-    cobordisms::Witness w = std::move(fresh[i].witness);
+    cobordisms::Cobordism w = std::move(fresh[i].cobordism);
     w.pairSig = std::move(sigs[i]);
     if (w.pairSig.empty())
       throw std::runtime_error("storeKept: an empty pair signature for a " + w.subject +
                                " witness");
     w.otherCandidates.clear();
-    if (w.kind == cobordisms::WitnessKind::cobordism)
+    if (w.kind == cobordisms::CobordismKind::cobordism)
       w.otherCandidates = names.candidates(w.other, w.otherComponents);
     out.push_back(std::move(w));
   }
@@ -223,16 +223,16 @@ StoreResult storeKept(std::vector<PendingWitness> pending, const std::string &st
   StoreLock lock(store);
   std::unordered_set<std::string> now;
   storeIdentities(now);
-  std::vector<cobordisms::Witness> append;
+  std::vector<cobordisms::Cobordism> append;
   std::vector<std::pair<std::string, int>> appendRows;
   std::vector<char> appendSidecar;
   for (size_t i = 0; i < out.size(); ++i)
-    if (!now.count(cobordisms::witnessIdentity(out[i]))) {
+    if (!now.count(cobordisms::cobordismIdentity(out[i]))) {
       append.push_back(std::move(out[i]));
       appendRows.push_back(rowOf[i]);
       appendSidecar.push_back(sidecar[i]);
     }
-  cobordisms::appendWitnesses(store, append, 0);
+  cobordisms::appendCobordisms(store, append, 0);
   r.appended = append.size();
   // Which diagram each pair signature's ambient was built from: a hop's row
   // is a node's own diagram, not a table PD, so the atlas's farsidename
@@ -271,7 +271,7 @@ PendingWriter::PendingWriter(fs::path path) : path_(std::move(path)) {
   lastWriteTick_.store(tickNow(), std::memory_order_relaxed);
 }
 
-void PendingWriter::add(const PendingWitness &p) {
+void PendingWriter::add(const PendingCobordism &p) {
   std::string line = formatKept(p);
   std::lock_guard<std::mutex> lock(mutex_);
   queued_ += line;
@@ -336,13 +336,13 @@ std::uintmax_t completeBytes(const fs::path &path) {
 
 } // namespace
 
-RecordedWitnesses::RecordedWitnesses(fs::path path,
-                                     std::vector<cobordisms::Witness> loaded)
-    : path_(std::move(path)), witnesses_(std::move(loaded)) {
+LoadedDatabase::LoadedDatabase(fs::path path,
+                                     std::vector<cobordisms::Cobordism> loaded)
+    : path_(std::move(path)), cobordisms_(std::move(loaded)) {
   bytes_ = completeBytes(path_);
-  identities_.reserve(witnesses_.size() * 2 + 1024);
-  for (const cobordisms::Witness &w : witnesses_)
-    identities_.insert(cobordisms::witnessIdentity(w));
+  identities_.reserve(cobordisms_.size() * 2 + 1024);
+  for (const cobordisms::Cobordism &w : cobordisms_)
+    identities_.insert(cobordisms::cobordismIdentity(w));
 }
 
 } // namespace cobordisms

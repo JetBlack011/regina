@@ -65,7 +65,7 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
     switch (k) {
     case Kind::literature: return "literature";
     case Kind::linking: return "linking";
-    case Kind::witness: return kFrozenLowerKindWitness;
+    case Kind::cobordism: return kFrozenLowerKindWitness;
     case Kind::splitWhole: return "split-whole";
     case Kind::splitPiece: return "split-piece";
     case Kind::seed: return "seed";

@@ -27,12 +27,12 @@ void CertificateWriter::writeSurface(std::ostream &c, const EdgeInfo &info) {
   }
 }
 
-void CertificateWriter::writeWitnessEdge(std::ostream &c, EdgeId eid,
+void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
                                          std::set<NodeId> &nodes) const {
   // A witness edge as a checker replays it: its key, ends, shape and maps,
   // and (for an edge with a hop or master row) the row, the surface (faces
   // and build digest, or pair signature) and each far-side piece's match.
-  const WitnessEdge &we = g_.witness(eid);
+  const LinkCobordism &we = g_.cobordism(eid);
   nodes.insert(we.in);
   nodes.insert(we.out);
   const auto it = edges_.byEdge.find(eid);
@@ -76,8 +76,8 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
     for (size_t i = 0; i < rec.children.size(); ++i)
       c << (i ? "," : "") << rec.children[i];
     c << "]";
-    if (rec.kind == RecordKind::witnessForward || rec.kind == RecordKind::witnessReverse)
-      writeWitnessEdge(c, rec.edge, nodes);
+    if (rec.kind == RecordKind::cobordismForward || rec.kind == RecordKind::cobordismReverse)
+      writeCobordism(c, rec.edge, nodes);
     if (rec.kind == RecordKind::splitCombine || rec.kind == RecordKind::splitRestrict) {
       const SplitEdge &se = g_.split(rec.edge);
       nodes.insert(se.whole);
@@ -138,8 +138,8 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
       throw std::logic_error("a lower bound's reasons cycle: node " + std::to_string(n));
     Fact fact{n, f.storedFor, f};
     switch (f.reason.kind) {
-    case Kind::witness: {
-      const WitnessEdge &e = g_.witness(f.reason.edge);
+    case Kind::cobordism: {
+      const LinkCobordism &e = g_.cobordism(f.reason.edge);
       fact.from = visit(f.reason.toIsIn ? e.out : e.in,
                         Partition::fromLabels(f.reason.fromPartition));
       break;
@@ -204,14 +204,14 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
     case Kind::linking:
       c << ",\"kind\":\"linking\"";
       break;
-    case Kind::witness: {
-      const WitnessEdge &e = g_.witness(fact.f.reason.edge);
+    case Kind::cobordism: {
+      const LinkCobordism &e = g_.cobordism(fact.f.reason.edge);
       c << ",\"kind\":\"" << kFrozenLowerKindWitness
         << "\",\"to_is_in\":" << (fact.f.reason.toIsIn ? "true" : "false")
         << ",\"from\":" << fact.from << ",\"from_partition\":\""
         << Partition::fromLabels(fact.f.reason.fromPartition).str() << "\",\"from_value\":"
         << value(fact.f.reason.from) << ",\"addition\":" << fact.f.reason.addition;
-      writeWitnessEdge(c, e.id, nodes);
+      writeCobordism(c, e.id, nodes);
       break;
     }
     case Kind::splitWhole: {
@@ -348,8 +348,8 @@ void CertificateWriter::describeLower(std::ostream &o, NodeId n, const Partition
     describeLower(o, piece, Partition::coarsest(g_.node(piece).components), indent + 1);
     return;
   }
-  case Kind::witness: {
-    const WitnessEdge &e = g_.witness(fact.reason.edge);
+  case Kind::cobordism: {
+    const LinkCobordism &e = g_.cobordism(fact.reason.edge);
     const NodeId other = fact.reason.toIsIn ? e.out : e.in;
     const Partition op = Partition::fromLabels(fact.reason.fromPartition);
     o << ": across witness " << e.key << " (genus " << e.shape.genus << ", "

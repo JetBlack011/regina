@@ -47,7 +47,7 @@ namespace cobordisms {
 // written before the column existed, or merged in by a Python DictWriter
 // (which fills a missing field with ""), byte-identical after a --solve-only
 // round trip -- the invariant merge_cobordisms.py relies on.
-std::string formatWitness(const cobordisms::Witness &w) {
+std::string formatCobordism(const cobordisms::Cobordism &w) {
   std::ostringstream candidates;
   for (size_t i = 0; i < w.otherCandidates.size(); ++i) {
     if (i)
@@ -55,7 +55,7 @@ std::string formatWitness(const cobordisms::Witness &w) {
     candidates << w.otherCandidates[i];
   }
   std::ostringstream out;
-  out << (w.kind == cobordisms::WitnessKind::direct ? "direct"
+  out << (w.kind == cobordisms::CobordismKind::direct ? "direct"
                                                         : "cobordism")
       << ',' << csvField(w.subject) << ',' << w.subjectComponents << ','
       << csvField(w.other) << ',' << csvField(candidates.str()) << ','
@@ -75,13 +75,13 @@ constexpr const char *COBORDISMS_HEADER_12 =
 
 // Reads the first 12 or 13 fields of a witness line into `w`, keeping the
 // pair signature only if `keepPairSig`. Returns false for a malformed line.
-bool witnessFromFields(std::vector<std::string> f, cobordisms::Witness &w,
+bool cobordismFromFields(std::vector<std::string> f, cobordisms::Cobordism &w,
                        bool keepPairSig, bool wantPairSigKey,
                        const std::filesystem::path &path) {
   if (f.size() < 12)
     return false;
-  w.kind = f[0] == "direct" ? cobordisms::WitnessKind::direct
-                            : cobordisms::WitnessKind::cobordism;
+  w.kind = f[0] == "direct" ? cobordisms::CobordismKind::direct
+                            : cobordisms::CobordismKind::cobordism;
   w.subject = f[1];
   try {
     w.subjectComponents = std::stoi(f[2]);
@@ -96,7 +96,7 @@ bool witnessFromFields(std::vector<std::string> f, cobordisms::Witness &w,
   w.otherCandidates = splitCandidates(f[4]);
   w.tubed = f[7] == "true";
   if (wantPairSigKey && !f[8].empty())
-    w.pairSigKey = cobordisms::witnessKey(f[8]);
+    w.pairSigKey = cobordisms::cobordismKey(f[8]);
   if (keepPairSig)
     w.pairSig = std::move(f[8]);
   w.sourceRow = f[9];
@@ -138,10 +138,10 @@ std::vector<std::string> splitCandidates(const std::string &field) {
 
 // Parses one witness line (12 or 13 fields) into `w`, keeping the pair
 // signature only if `keepPairSig`. Returns false for a malformed line.
-bool parseWitnessLine(const std::string &line, cobordisms::Witness &w,
+bool parseCobordismLine(const std::string &line, cobordisms::Cobordism &w,
                       bool keepPairSig, bool wantPairSigKey,
                       const std::filesystem::path &path) {
-  return witnessFromFields(parseCsvLine(line), w, keepPairSig, wantPairSigKey,
+  return cobordismFromFields(parseCsvLine(line), w, keepPairSig, wantPairSigKey,
                            path);
 }
 
@@ -149,9 +149,9 @@ namespace {
 
 // Every complete witness line of `path` (a torn last line ignored, malformed
 // lines counted and skipped), each with its line's byte offset.
-std::vector<cobordisms::Witness>
+std::vector<cobordisms::Cobordism>
 readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSigKeys) {
-  std::vector<cobordisms::Witness> result;
+  std::vector<cobordisms::Cobordism> result;
   std::ifstream in(path, std::ios::binary);
   if (!in)
     return result;
@@ -174,8 +174,8 @@ readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSig
     }
     if (line.empty())
       continue;
-    cobordisms::Witness w;
-    if (!parseWitnessLine(line, w, keepPairSigs, wantPairSigKeys, path)) {
+    cobordisms::Cobordism w;
+    if (!parseCobordismLine(line, w, keepPairSigs, wantPairSigKeys, path)) {
       ++malformed;
       continue;
     }
@@ -199,12 +199,12 @@ readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSig
 // A final line with no terminating newline is a torn append (the process
 // died mid-write) and is ignored here; appendWitnesses() truncates it away
 // before it next appends.
-std::vector<cobordisms::Witness>
-loadWitnesses(const std::filesystem::path &path, bool wantPairSigKeys) {
+std::vector<cobordisms::Cobordism>
+loadCobordisms(const std::filesystem::path &path, bool wantPairSigKeys) {
   return readLines(path, /*keepPairSigs=*/false, wantPairSigKeys);
 }
 
-std::vector<cobordisms::Witness> readWitnesses(const std::filesystem::path &path) {
+std::vector<cobordisms::Cobordism> readCobordisms(const std::filesystem::path &path) {
   return readLines(path, /*keepPairSigs=*/true, /*wantPairSigKeys=*/false);
 }
 
@@ -295,12 +295,12 @@ std::vector<StoredCobordism> DatabaseIndex::read(const std::vector<std::streamof
     if (!std::getline(in, line))
       continue;
     StoredCobordism s;
-    if (!parseWitnessLine(line, s.witness, /*keepPairSig=*/true, /*wantPairSigKey=*/false,
+    if (!parseCobordismLine(line, s.cobordism, /*keepPairSig=*/true, /*wantPairSigKey=*/false,
                           path_))
       continue;
-    s.witness.fileOffset = static_cast<long long>(off);
+    s.cobordism.fileOffset = static_cast<long long>(off);
     if (!rowPD_.empty())
-      if (auto r = rowPD_.find(cobordisms::witnessKey(s.witness.pairSig)); r != rowPD_.end())
+      if (auto r = rowPD_.find(cobordisms::cobordismKey(s.cobordism.pairSig)); r != rowPD_.end())
         s.rowPD = r->second;
     out.push_back(std::move(s));
   }
@@ -308,7 +308,7 @@ std::vector<StoredCobordism> DatabaseIndex::read(const std::vector<std::streamof
 }
 
 std::unordered_set<std::string>
-witnessIdentities(const std::filesystem::path &path, unsigned threads,
+cobordismIdentities(const std::filesystem::path &path, unsigned threads,
                   std::streamoff minRangeBytes) {
   std::unordered_set<std::string> result;
   std::ifstream in(path, std::ios::binary);
@@ -362,12 +362,12 @@ witnessIdentities(const std::filesystem::path &path, unsigned threads,
       }
       if (l.empty())
         continue;
-      cobordisms::Witness w;
-      if (!parseWitnessLine(l, w, /*keepPairSig=*/false, /*wantPairSigKey=*/false, path)) {
+      cobordisms::Cobordism w;
+      if (!parseCobordismLine(l, w, /*keepPairSig=*/false, /*wantPairSigKey=*/false, path)) {
         ++malformed[k];
         continue;
       }
-      sets[k].insert(cobordisms::witnessIdentity(w));
+      sets[k].insert(cobordisms::cobordismIdentity(w));
     }
   };
   parallelFor(n, static_cast<unsigned>(n), work);
@@ -420,10 +420,10 @@ std::string readHeader(int fd) {
 // On success each appended witness gets its fileOffset and drops its pair
 // signature from memory. Throws on any failure, leaving those witnesses
 // untouched in memory for the next attempt.
-void appendWitnesses(const std::filesystem::path &path,
-                     std::vector<cobordisms::Witness> &witnesses,
+void appendCobordisms(const std::filesystem::path &path,
+                     std::vector<cobordisms::Cobordism> &cobordisms,
                      size_t from) {
-  if (from >= witnesses.size())
+  if (from >= cobordisms.size())
     return;
   const std::string what = path.string();
   int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
@@ -456,21 +456,21 @@ void appendWitnesses(const std::filesystem::path &path,
   off_t pos = ::lseek(fd, 0, SEEK_END);
   std::string buffer;
   std::vector<long long> offsets;
-  offsets.reserve(witnesses.size() - from);
-  for (size_t i = from; i < witnesses.size(); ++i) {
+  offsets.reserve(cobordisms.size() - from);
+  for (size_t i = from; i < cobordisms.size(); ++i) {
     offsets.push_back(static_cast<long long>(pos) +
                       static_cast<long long>(buffer.size()));
-    buffer += formatWitness(witnesses[i]);
+    buffer += formatCobordism(cobordisms[i]);
     buffer += '\n';
   }
   writeAll(fd, buffer, what);
   appendonly::sync(fd, what);
 
-  for (size_t i = from; i < witnesses.size(); ++i) {
-    cobordisms::Witness &w = witnesses[i];
+  for (size_t i = from; i < cobordisms.size(); ++i) {
+    cobordisms::Cobordism &w = cobordisms[i];
     w.fileOffset = offsets[i - from];
     if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = cobordisms::witnessKey(w.pairSig);
+      w.pairSigKey = cobordisms::cobordismKey(w.pairSig);
     std::string().swap(w.pairSig);
   }
 }

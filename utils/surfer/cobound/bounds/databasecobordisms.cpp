@@ -32,7 +32,7 @@ namespace {
 // A database line as a goal run carries it (cobordisms/database's reader
 // parses it): the outgoing name, the pair signature, genus, outgoing
 // components, layers and the searched row's PD.
-struct Witness {
+struct Cobordism {
   std::string other, pairsig;
   int genus = 0, otherComponents = 0, layers = 2;
   /// The PD its row was searched on, when the file's `.rows.csv` sidecar
@@ -41,9 +41,9 @@ struct Witness {
   std::string rowPD;
 };
 
-Witness carried(const cobordisms::StoredCobordism &s) {
-  return {s.witness.other, s.witness.pairSig, s.witness.genus, s.witness.otherComponents,
-          s.witness.thickenLayers, s.rowPD};
+Cobordism carried(const cobordisms::StoredCobordism &s) {
+  return {s.cobordism.other, s.cobordism.pairSig, s.cobordism.genus, s.cobordism.otherComponents,
+          s.cobordism.thickenLayers, s.rowPD};
 }
 
 } // namespace
@@ -95,7 +95,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   // skipped before it is read back (the genus is in the CSV line).
   const int maxGenus = ld.maxGenus;
   size_t skippedGenus = 0;
-  auto keep = [&](const Witness &w) {
+  auto keep = [&](const Cobordism &w) {
     if (w.genus <= maxGenus) return true;
     ++skippedGenus;
     return false;
@@ -103,16 +103,16 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   // Witnesses by subject row: this node's own rows (every witness), and
   // other rows whose recorded far side names this node's base (a hint: the
   // far side is redrawn and identified exactly like any other).
-  std::map<std::string, std::vector<Witness>> bySubject;
+  std::map<std::string, std::vector<Cobordism>> bySubject;
   std::set<std::string> ownRows(own.begin(), own.end());
   for (const std::string &name : own)
     for (const cobordisms::StoredCobordism &s : index_.rows(name))
-      if (const Witness w = carried(s); keep(w)) bySubject[s.witness.subject].push_back(w);
+      if (const Cobordism w = carried(s); keep(w)) bySubject[s.cobordism.subject].push_back(w);
   size_t reverse = 0;
   for (const cobordisms::StoredCobordism &s :
        index_.byOutgoing(cobordisms::DatabaseIndex::base(tableName[n]), 300))
-    if (const Witness w = carried(s); !ownRows.count(s.witness.subject) && keep(w)) {
-      bySubject[s.witness.subject].push_back(w);
+    if (const Cobordism w = carried(s); !ownRows.count(s.cobordism.subject) && keep(w)) {
+      bySubject[s.cobordism.subject].push_back(w);
       ++reverse;
     }
   // Two phases. First every subject row's witnesses are read back, rows in
@@ -125,8 +125,8 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   struct RowRead {
     std::string name, pd;
     int layers = 2;
-    std::vector<const Witness *> ws;
-    std::unique_ptr<outgoing::WitnessRedrawer> redraw;
+    std::vector<const Cobordism *> ws;
+    std::unique_ptr<outgoing::OutgoingReader> redraw;
     std::string buildError; // the redrawer could not be built
     std::vector<std::optional<outgoing::OutgoingLink>> links;
     std::vector<std::string> why;
@@ -140,8 +140,8 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     if (!e || pdIt == tablePD_.end()) continue;
     // One read per (row PD, layers): the table's PD unless the sidecar
     // recorded the row the witness was really searched on.
-    std::map<std::pair<std::string, int>, std::vector<const Witness *>> byRow;
-    for (const Witness &w : ws)
+    std::map<std::pair<std::string, int>, std::vector<const Cobordism *>> byRow;
+    for (const Cobordism &w : ws)
       byRow[{w.rowPD.empty() ? pdIt->second : w.rowPD, w.layers}].push_back(&w);
     for (const auto &[key, group] : byRow) {
       RowRead r;
@@ -163,7 +163,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   auto readRow = [&](size_t i) {
     RowRead &r = reads[i];
     try {
-      r.redraw = std::make_unique<outgoing::WitnessRedrawer>(r.pd, r.layers);
+      r.redraw = std::make_unique<outgoing::OutgoingReader>(r.pd, r.layers);
     } catch (const std::exception &ex) {
       r.buildError = ex.what();
       return;
@@ -174,7 +174,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     r.why.resize(r.ws.size());
     r.invariant.assign(r.ws.size(), 0);
     for (size_t k = 0; k < r.ws.size(); ++k) {
-      const std::string key = cobordisms::witnessKey(r.ws[k]->pairsig);
+      const std::string key = cobordisms::cobordismKey(r.ws[k]->pairsig);
       if (const outgoing::CachedReadBack *c = cache.get(key)) {
         r.links[k] = c->link;
         r.why[k] = c->why;
@@ -310,8 +310,8 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
       continue;
     }
     for (size_t k = 0; k < r.ws.size(); ++k) {
-      const Witness *w = r.ws[k];
-      const std::string key = cobordisms::witnessKey(w->pairsig);
+      const Cobordism *w = r.ws[k];
+      const std::string key = cobordisms::cobordismKey(w->pairsig);
       HopEdge he;
       if (r.invariant[k]) {
         ++ld.invariantFailures;

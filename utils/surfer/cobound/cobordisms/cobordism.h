@@ -19,13 +19,13 @@ namespace cobordisms {
 
 /** Whether a witness bounds its subject on its own, or only relative to
  * another name. */
-enum class WitnessKind { direct, cobordism };
+enum class CobordismKind { direct, cobordism };
 
 /**
  * One surface we actually found.
  */
-struct Witness {
-    WitnessKind kind = WitnessKind::cobordism;
+struct Cobordism {
+    CobordismKind kind = CobordismKind::cobordism;
 
     std::string
         subject; /**< The name whose own boundary this surface realizes. */
@@ -115,12 +115,12 @@ struct Witness {
  * has found such a collapse in 21 of 228,580 witnesses, and those far sides
  * bear nothing in the solvers. A cheap invariant of the far-side LINK
  * (per-curve knot types, linking numbers) would separate them boundedly. */
-std::string witnessIdentity(const Witness &w);
+std::string cobordismIdentity(const Cobordism &w);
 
 /** Whether `witnesses` already contains a witness with `w`'s
  * witnessIdentity(). Linear; the search keeps a hashed set of identities
  * instead, and this remains for tests and small callers. */
-bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w);
+bool haveCobordism(const std::vector<Cobordism> &cobordisms, const Cobordism &w);
 } // namespace cobordisms
 
 #endif // SURFER_COBOUND_COBORDISM_H

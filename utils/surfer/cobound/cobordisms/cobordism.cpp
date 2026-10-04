@@ -8,12 +8,12 @@
 
 namespace cobordisms {
 
-std::string witnessIdentity(const Witness &w) {
+std::string cobordismIdentity(const Cobordism &w) {
     // Unit separators: no field (names, keys, numbers) can contain one.
     constexpr char SEP = '\x1f';
     std::string key;
     key.reserve(w.subject.size() + w.other.size() + 32);
-    key += w.kind == WitnessKind::direct ? 'd' : 'c';
+    key += w.kind == CobordismKind::direct ? 'd' : 'c';
     key += SEP;
     key += w.subject;
     key += SEP;
@@ -31,11 +31,11 @@ std::string witnessIdentity(const Witness &w) {
     return key;
 }
 
-bool haveWitness(const std::vector<Witness> &witnesses, const Witness &w) {
-    const std::string key = witnessIdentity(w);
-    return std::any_of(witnesses.begin(), witnesses.end(),
-                       [&key](const Witness &existing) {
-                           return witnessIdentity(existing) == key;
+bool haveCobordism(const std::vector<Cobordism> &cobordisms, const Cobordism &w) {
+    const std::string key = cobordismIdentity(w);
+    return std::any_of(cobordisms.begin(), cobordisms.end(),
+                       [&key](const Cobordism &existing) {
+                           return cobordismIdentity(existing) == key;
                        });
 }
 } // namespace cobordisms

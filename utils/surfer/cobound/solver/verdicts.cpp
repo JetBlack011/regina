@@ -23,11 +23,11 @@ const char *const OUTPUT_HEADER =
 std::string formatOutputRow(const OutputRow &r) {
   std::ostringstream out;
   out << csvField(r.knot) << ',' << r.resolvedGenus << ',' << r.status << ','
-      << r.witnessKind << ',' << csvField(r.witnessPairSig) << ','
+      << r.cobordismKind << ',' << csvField(r.cobordismPairSig) << ','
       << csvField(r.viaKnot) << ',' << r.viaEdgeGenus << ','
       << csvField(r.dependsOn) << ',' << r.literatureLo << ','
       << r.literatureHi << ',' << r.derivedLo << ',' << r.derivedHi << ','
-      << r.witnessBasis << ',' << (r.tubed ? "true" : "false") << ','
+      << r.cobordismBasis << ',' << (r.tubed ? "true" : "false") << ','
       << r.searchedFaces << ',' << r.searchOutcome << ',' << r.exhaustedDepth;
   return out.str();
 }
@@ -55,8 +55,8 @@ loadOutputCsv(const std::filesystem::path &path) {
       continue;
     }
     r.status = f[2];
-    r.witnessKind = f[3];
-    r.witnessPairSig = f[4];
+    r.cobordismKind = f[3];
+    r.cobordismPairSig = f[4];
     r.viaKnot = f[5];
     try {
       r.viaEdgeGenus = f[6].empty() ? 0 : std::stoi(f[6]);
@@ -78,7 +78,7 @@ loadOutputCsv(const std::filesystem::path &path) {
     if (f.size() > 11)
       r.derivedHi = f[11];
     if (f.size() > 12)
-      r.witnessBasis = f[12];
+      r.cobordismBasis = f[12];
     if (f.size() > 13)
       r.tubed = f[13] == "true";
     if (f.size() > 14) {
@@ -164,18 +164,18 @@ OutputRow rowFromVerdict(
   const auto &b = v.bounds;
   if (b.haveUpper()) {
     out.derivedHi = std::to_string(b.hi);
-    out.witnessKind =
-        b.kind == cobordisms::WitnessKind::direct ? "direct" : "cobordism";
-    out.witnessPairSig = !b.pairSig.empty() ? b.pairSig : reader.at(b.pairSigOffset);
+    out.cobordismKind =
+        b.kind == cobordisms::CobordismKind::direct ? "direct" : "cobordism";
+    out.cobordismPairSig = !b.pairSig.empty() ? b.pairSig : reader.at(b.pairSigOffset);
     out.viaKnot = b.viaName;
     out.viaEdgeGenus = b.viaGenus;
     out.dependsOn = solver::buildDependsOn(b.viaName, bounds);
-    out.witnessBasis = b.basis == solver::Basis::constructive
+    out.cobordismBasis = b.basis == solver::Basis::constructive
                            ? "constructive"
                            : "literature-assisted";
     out.tubed = b.tubed;
   } else {
-    out.witnessKind = "none";
+    out.cobordismKind = "none";
   }
   if (b.haveLower())
     out.derivedLo = std::to_string(b.lo);

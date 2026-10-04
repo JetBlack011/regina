@@ -166,7 +166,7 @@ int commands::draw(const std::vector<std::string> &args) {
         std::cerr << usage;
         return 2;
     }
-    const outgoing::WitnessRedrawer redraw(positional.front(), layers);
+    const outgoing::OutgoingReader redraw(positional.front(), layers);
     const knotbuilder::TriangulationWithLink &built = redraw.built();
 
     // The row's own components, in cyclesOf() order, and each row edge's component.

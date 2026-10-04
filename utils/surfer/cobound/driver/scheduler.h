@@ -47,7 +47,7 @@ struct GoalOptions {
   bool literature = true;
   /// A read-only database (the atlas's master): a node that IS a table
   /// entry the database holds rows of gets those cobordisms as free edges.
-  std::string masterWitnesses;
+  std::string masterCobordisms;
   /// Each search's shape.
   search::HopShape hopShape;
   /// The complement cache's limit, as the profile line prints it (it is
@@ -56,7 +56,7 @@ struct GoalOptions {
   /// The database every kept surface is signed into at the run's end
   /// (pending.h); empty for none. Read-only stores to deduplicate against
   /// (the master, say), and the run's name for cascade: subjects.
-  std::string witnessStore, runName;
+  std::string cobordismsPath, runName;
   std::string pairSigCache; ///< stored pair-signature contexts
   /// The database cobordisms' read-backs kept across runs (RowReadBacks);
   /// empty for none.

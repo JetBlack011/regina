@@ -27,7 +27,7 @@
 #include "cobound/cobordisms/database.h"
 
 namespace fs = std::filesystem;
-using cobordisms::Witness;
+using cobordisms::Cobordism;
 
 namespace {
 
@@ -45,9 +45,9 @@ std::string slurp(const fs::path &p) {
   return s.str();
 }
 
-Witness sample(const std::string &subject, int genus, int resolved) {
-  Witness w;
-  w.kind = cobordisms::WitnessKind::cobordism;
+Cobordism sample(const std::string &subject, int genus, int resolved) {
+  Cobordism w;
+  w.kind = cobordisms::CobordismKind::cobordism;
   w.subject = subject;
   w.subjectComponents = 2;
   w.other = "#{L2a1{0},L2a1{1}}"; // a name with a comma
@@ -63,7 +63,7 @@ Witness sample(const std::string &subject, int genus, int resolved) {
   return w;
 }
 
-bool same(const Witness &a, const Witness &b) {
+bool same(const Cobordism &a, const Cobordism &b) {
   return a.kind == b.kind && a.subject == b.subject &&
          a.subjectComponents == b.subjectComponents && a.other == b.other &&
          a.otherCandidates == b.otherCandidates && a.otherComponents == b.otherComponents &&
@@ -83,16 +83,16 @@ int main() {
 
   // 1. Round trip of a line.
   {
-    const Witness w = sample("cascade:run/L6a5{0;1}/n3", 1, 0);
-    const std::string line = cobordisms::formatWitness(w);
-    Witness back;
-    check(cobordisms::witnessFromFields(parseCsvLine(line), back, true, false, store) &&
+    const Cobordism w = sample("cascade:run/L6a5{0;1}/n3", 1, 0);
+    const std::string line = cobordisms::formatCobordism(w);
+    Cobordism back;
+    check(cobordisms::cobordismFromFields(parseCsvLine(line), back, true, false, store) &&
               same(w, back) && back.pairSig == w.pairSig,
           "a witness round-trips through its line");
     check(line.back() == ',', "resolved_vertices 0 is written empty");
-    const Witness r = sample("L6a5{0;1}", 0, 2);
-    Witness backR;
-    cobordisms::witnessFromFields(parseCsvLine(cobordisms::formatWitness(r)), backR, false,
+    const Cobordism r = sample("L6a5{0;1}", 0, 2);
+    Cobordism backR;
+    cobordisms::cobordismFromFields(parseCsvLine(cobordisms::formatCobordism(r)), backR, false,
                                     false, store);
     check(backR.resolvedVertices == 2 && backR.pairSig.empty(),
           "resolved_vertices 2 round-trips; the pair signature is dropped when not kept");
@@ -100,19 +100,19 @@ int main() {
 
   // 2. Appends.
   {
-    std::vector<Witness> ws = {sample("a", 0, 0), sample("b", 1, 0)};
-    cobordisms::appendWitnesses(store, ws, 0);
+    std::vector<Cobordism> ws = {sample("a", 0, 0), sample("b", 1, 0)};
+    cobordisms::appendCobordisms(store, ws, 0);
     const std::string first = slurp(store);
     check(first.rfind(std::string(cobordisms::COBORDISMS_HEADER) + "\n", 0) == 0,
           "a new store starts with the header");
     check(ws[0].pairSig.empty() && ws[0].fileOffset > 0 && ws[1].fileOffset > ws[0].fileOffset,
           "appended witnesses get their offsets and drop their pair signatures");
-    std::vector<Witness> more = {sample("c", 2, 1)};
-    cobordisms::appendWitnesses(store, more, 0);
+    std::vector<Cobordism> more = {sample("c", 2, 1)};
+    cobordisms::appendCobordisms(store, more, 0);
     const std::string second = slurp(store);
     check(second.compare(0, first.size(), first) == 0 && second.size() > first.size(),
           "a second append keeps every earlier byte");
-    const auto loaded = cobordisms::loadWitnesses(store, true);
+    const auto loaded = cobordisms::loadCobordisms(store, true);
     check(loaded.size() == 3 && loaded[2].subject == "c" && loaded[2].resolvedVertices == 1 &&
               !loaded[0].pairSigKey.empty(),
           "the store loads back, keys computed");
@@ -121,11 +121,11 @@ int main() {
   // 3. A torn last line.
   {
     std::ofstream(store, std::ios::app | std::ios::binary) << "cobordism,torn,1,Unknot";
-    check(cobordisms::loadWitnesses(store, false).size() == 3,
+    check(cobordisms::loadCobordisms(store, false).size() == 3,
           "a torn last line is ignored on load");
-    std::vector<Witness> d = {sample("d", 0, 0)};
-    cobordisms::appendWitnesses(store, d, 0);
-    const auto loaded = cobordisms::loadWitnesses(store, false);
+    std::vector<Cobordism> d = {sample("d", 0, 0)};
+    cobordisms::appendCobordisms(store, d, 0);
+    const auto loaded = cobordisms::loadCobordisms(store, false);
     check(loaded.size() == 4 && loaded.back().subject == "d" &&
               slurp(store).find("torn") == std::string::npos,
           "the next append truncates it first");
@@ -140,10 +140,10 @@ int main() {
              "genus,tubed,pairsig,source_row,thicken_layers,max_faces\n";
       out << "cobordism,3_1,1,Unknot,Unknot,1,1,false,-cafoo,3_1,1,4\n";
     }
-    std::vector<Witness> e = {sample("e", 0, 0)};
+    std::vector<Cobordism> e = {sample("e", 0, 0)};
     bool refused = false;
     try {
-      cobordisms::appendWitnesses(old, e, 0);
+      cobordisms::appendCobordisms(old, e, 0);
     } catch (const std::exception &) {
       refused = true;
     }
@@ -153,28 +153,28 @@ int main() {
   // 5. witnessIdentities(): loadWitnesses()'s identities, in byte ranges.
   {
     const fs::path big = dir / "identities.csv";
-    std::vector<Witness> ws;
+    std::vector<Cobordism> ws;
     for (int i = 0; i < 400; ++i)
       ws.push_back(sample("row" + std::to_string(i % 97), i % 5, i % 3));
-    cobordisms::appendWitnesses(big, ws, 0);
+    cobordisms::appendCobordisms(big, ws, 0);
     {
       std::ofstream out(big, std::ios::app | std::ios::binary);
       out << "\n"                            // an empty line
           << "cobordism,not,a,witness\n"     // a malformed line
-          << cobordisms::formatWitness(sample("late", 4, 0)) << "\n"
+          << cobordisms::formatCobordism(sample("late", 4, 0)) << "\n"
           << "cobordism,torn,1,Unknot";      // a torn last line
     }
     std::unordered_set<std::string> serial;
-    for (const Witness &w : cobordisms::loadWitnesses(big, false))
-      serial.insert(cobordisms::witnessIdentity(w));
+    for (const Cobordism &w : cobordisms::loadCobordisms(big, false))
+      serial.insert(cobordisms::cobordismIdentity(w));
     bool allSame = true;
     for (unsigned threads : {1u, 2u, 3u, 7u, 16u})
       for (std::streamoff range : {1, 100, 4096, 64 << 20})
-        allSame = allSame && cobordisms::witnessIdentities(big, threads, range) == serial;
-    check(allSame && serial.size() > 100 && serial.count(cobordisms::witnessIdentity(
+        allSame = allSame && cobordisms::cobordismIdentities(big, threads, range) == serial;
+    check(allSame && serial.size() > 100 && serial.count(cobordisms::cobordismIdentity(
                                                sample("late", 4, 0))),
           "witnessIdentities() equals loadWitnesses()'s identities at every range split");
-    check(cobordisms::witnessIdentities(dir / "absent.csv", 4).empty(),
+    check(cobordisms::cobordismIdentities(dir / "absent.csv", 4).empty(),
           "a missing file has no identities");
   }
 
@@ -189,10 +189,10 @@ int main() {
     check(splitCandidates("") .empty(), "an empty field has no candidates");
     check(splitCandidates(";L2a1{0};;") == std::vector<std::string>{"L2a1{0}"},
           "empty pieces are dropped, as before");
-    Witness w = sample("tagged", 1, 0);
+    Cobordism w = sample("tagged", 1, 0);
     w.otherCandidates = {"L8a4{0;1}", "L8a4{1;0}"};
-    Witness back;
-    check(cobordisms::parseWitnessLine(cobordisms::formatWitness(w), back, false, false,
+    Cobordism back;
+    check(cobordisms::parseCobordismLine(cobordisms::formatCobordism(w), back, false, false,
                                          "x") &&
               back.otherCandidates == w.otherCandidates,
           "a three-component candidate list round-trips");
@@ -203,27 +203,27 @@ int main() {
   //    all leave a torn last line out.
   {
     const fs::path db = dir / "indexed.csv";
-    std::vector<Witness> ws = {sample("K", 1, 0), sample("L", 2, 0), sample("K", 3, 0)};
+    std::vector<Cobordism> ws = {sample("K", 1, 0), sample("L", 2, 0), sample("K", 3, 0)};
     ws[1].other = "m3_1";
     ws[1].otherCandidates = {"m3_1"};
-    cobordisms::appendWitnesses(db, ws, 0);
+    cobordisms::appendCobordisms(db, ws, 0);
     std::ofstream(db, std::ios::app | std::ios::binary) << "cobordism,K,2,torn";
-    const std::vector<Witness> all = cobordisms::readWitnesses(db);
+    const std::vector<Cobordism> all = cobordisms::readCobordisms(db);
     check(all.size() == 3 && all[0].pairSig == "-cabcdef1" && all[2].pairSig == "-cabcdef3",
           "readWitnesses(): every complete line, pair signatures kept, the torn one left out");
     const cobordisms::DatabaseIndex index(db.string());
     check(index.subjects() == 2 && index.has("K") && !index.has("torn"),
           "the index: two subjects, the torn line left out");
     const auto k = index.rows("K");
-    check(k.size() == 2 && k[0].witness.genus == 1 && k[1].witness.genus == 3 &&
-              k[1].witness.pairSig == "-cabcdef3" && k[0].rowPD.empty(),
+    check(k.size() == 2 && k[0].cobordism.genus == 1 && k[1].cobordism.genus == 3 &&
+              k[1].cobordism.pairSig == "-cabcdef3" && k[0].rowPD.empty(),
           "rows(): a subject's lines, in file order, pair signatures kept");
     const auto byBase = index.byOutgoing(cobordisms::DatabaseIndex::base("3_1"), 10);
-    check(byBase.size() == 1 && byBase[0].witness.subject == "L",
+    check(byBase.size() == 1 && byBase[0].cobordism.subject == "L",
           "byOutgoing(): the outgoing base, mirror mark dropped");
     cobordisms::PairSigReader reader;
     reader.setPath(db);
-    check(reader.at(k[1].witness.fileOffset) == "-cabcdef3" && reader.at(-1).empty(),
+    check(reader.at(k[1].cobordism.fileOffset) == "-cabcdef3" && reader.at(-1).empty(),
           "PairSigReader reads a line's pair signature back by offset");
   }
 

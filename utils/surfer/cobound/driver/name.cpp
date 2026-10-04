@@ -124,18 +124,18 @@ int commands::name(const std::vector<std::string> &args) {
     // --profile: cumulative ms per step, printed to stderr at the end.
     double msRow = 0, msOrient = 0, msDraw = 0, msName = 0, msDecode = 0, msIso = 0;
     double msSurface = 0, msRead = 0, msBoundaryBuild = 0;
-    long witnesses = 0, rows = 0, named = 0;
+    long cobordisms = 0, rows = 0, named = 0;
     auto ms = [](std::chrono::steady_clock::time_point t) {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
     };
-    auto flushRow = [&](const outgoing::WitnessRedrawer *r) {
+    auto flushRow = [&](const outgoing::OutgoingReader *r) {
         if (r) {
             msDecode += r->msDecode(); msIso += r->msIsomorphism();
             msSurface += r->msSurfaceBuild(); msRead += r->msBoundaryRead();
             msBoundaryBuild += r->msBoundaryBuild();
         }
     };
-    std::unique_ptr<outgoing::WitnessRedrawer> redraw;
+    std::unique_ptr<outgoing::OutgoingReader> redraw;
     std::string redrawKey;
     std::unordered_map<std::string, linknaming::FarSideName> cache; // per row
     std::string line;
@@ -164,13 +164,13 @@ int commands::name(const std::vector<std::string> &args) {
                 flushRow(redraw.get());
                 redraw.reset();
                 const auto tr = std::chrono::steady_clock::now();
-                redraw = std::make_unique<outgoing::WitnessRedrawer>(code, std::stoi(layers));
+                redraw = std::make_unique<outgoing::OutgoingReader>(code, std::stoi(layers));
                 msRow += ms(tr);
                 ++rows;
                 redrawKey = row + "\t" + layers;
                 cache.clear();
             }
-            ++witnesses;
+            ++cobordisms;
             std::string why;
             const double before = redraw->msDecode() + redraw->msIsomorphism();
             const auto to = std::chrono::steady_clock::now();
@@ -210,7 +210,7 @@ int commands::name(const std::vector<std::string> &args) {
     }
     flushRow(redraw.get());
     if (profile)
-        std::cerr << "profile: " << witnesses << " witnesses, " << rows << " rows, "
+        std::cerr << "profile: " << cobordisms << " witnesses, " << rows << " rows, "
                   << named << " distinct diagrams named; ms: build row " << msRow
                   << ", decode pairsig " << msDecode << ", isomorphism search " << msIso
                   << ", surface+orient " << msOrient << " (KnottedSurface build " << msSurface

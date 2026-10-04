@@ -89,9 +89,9 @@ int solveWith(const config::Config &cfg) {
   pairSigReader.setPath(cobordismsPath);
   // Both per-witness tables are keyed on the pair signature's key, which is
   // hashed at load only when one of them will be looked up.
-  const std::vector<cobordisms::Witness> witnesses = cobordisms::loadWitnesses(
+  const std::vector<cobordisms::Cobordism> cobordisms = cobordisms::loadCobordisms(
       cobordismsPath, !farSideResolutionPath.empty() || !farSideExactPath.empty());
-  std::cout << "[+] Resuming with " << witnesses.size()
+  std::cout << "[+] Resuming with " << cobordisms.size()
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
 
   std::unordered_map<std::string, std::string> nameAliases;
@@ -203,13 +203,13 @@ int solveWith(const config::Config &cfg) {
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
   size_t exactApplied = 0, exactRefused = 0;
-  auto solverWitnesses = [&]() -> std::vector<cobordisms::Witness> {
-    std::vector<cobordisms::Witness> out =
+  auto solverCobordisms = [&]() -> std::vector<cobordisms::Cobordism> {
+    std::vector<cobordisms::Cobordism> out =
         nameAliases.empty()
-            ? witnesses
-            : solverinputs::applyNameAliases(witnesses, nameAliases, names, aliasesApplied);
+            ? cobordisms
+            : solverinputs::applyNameAliases(cobordisms, nameAliases, names, aliasesApplied);
     if (!farSideResolutions.empty())
-      out = solverinputs::applyFarSideResolutions(std::move(out), witnesses, farSideResolutions,
+      out = solverinputs::applyFarSideResolutions(std::move(out), cobordisms, farSideResolutions,
                                                   names, resolutionsApplied);
     if (!farSideExact.empty())
       out = solverinputs::applyFarSideExact(std::move(out), farSideExact, exactApplied,
@@ -217,7 +217,7 @@ int solveWith(const config::Config &cfg) {
     // Last: whole names only. A name inside a sum or split is a piece,
     // bounded by its literature value, which is the same across a class.
     if (!linkClasses.empty())
-      for (cobordisms::Witness &w : out) {
+      for (cobordisms::Cobordism &w : out) {
         w.subject = classOf(w.subject);
         w.other = classOf(w.other);
         for (std::string &c : w.otherCandidates)
@@ -234,18 +234,18 @@ int solveWith(const config::Config &cfg) {
   // at all, it does so on this first solve.
   std::unordered_map<std::string, solver::Bounds> bounds;
   {
-    std::vector<cobordisms::Witness> initialWitnesses;
+    std::vector<cobordisms::Cobordism> initialCobordisms;
     try {
-      initialWitnesses = solverWitnesses();
+      initialCobordisms = solverCobordisms();
     } catch (const std::exception &e) {
       std::cerr << "[!] " << e.what() << "\n";
       return 1;
     }
-    bounds = solver::propagate(initialWitnesses, names, externalProofs);
+    bounds = solver::propagate(initialCobordisms, names, externalProofs);
     // Release it now: it is a full witness set, pair signatures included, and
     // held for the rest of the run it raised peak memory by ~45% -- enough for
     // a full-master solve to be OOM-killed on yoga (2026-09-24).
-    std::vector<cobordisms::Witness>().swap(initialWitnesses);
+    std::vector<cobordisms::Cobordism>().swap(initialCobordisms);
   }
   if (!nameAliases.empty())
     std::cout << "[+] Name aliases: applied to " << aliasesApplied << " witness edges\n";
@@ -263,12 +263,12 @@ int solveWith(const config::Config &cfg) {
   // Rows above max_crossings that the verdicts do not hold yet are recorded
   // as skipped; nothing is searched.
   targets::searchOrder(rows, maxCrossings, outputRows);
-  std::cout << "[+] --solve-only: re-deriving from " << witnesses.size()
+  std::cout << "[+] --solve-only: re-deriving from " << cobordisms.size()
             << " witnesses, no searching.\n\n";
 
   // The solve, from everything the database knows: every affected verdict
   // rewritten.
-  bounds = solver::propagate(solverWitnesses(), names, externalProofs);
+  bounds = solver::propagate(solverCobordisms(), names, externalProofs);
   // Every name that could need its row rewritten -- crucially including
   // rows that currently HAVE a row but no longer have any derived bound.
   // Iterating `bounds` alone would leave such a row frozen at whatever a
@@ -322,7 +322,7 @@ int solveWith(const config::Config &cfg) {
       ++unresolvedCount;
   }
   std::cout << "\n[+] Done. Searched 0 of 0 rows visited this run.\n";
-  std::cout << "[+] Witness file: " << witnesses.size() << " witnesses in " << cobordismsPath
+  std::cout << "[+] Witness file: " << cobordisms.size() << " witnesses in " << cobordismsPath
             << "\n";
   std::cout << "[+] Totals across " << outputRows.size() << " tracked names: " << verified
             << " verified (" << verifiedAssisted << " more only with literature help), "

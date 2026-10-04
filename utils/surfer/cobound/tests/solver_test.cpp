@@ -79,11 +79,11 @@ namespace {
 
 // Builds a cobordism witness between `subject` (with `nA` components) and
 // `other` (with `nB`), at genus `g`. `candidates` defaults to just `other`.
-Witness cobordism(const std::string &subject, int nA, const std::string &other,
+Cobordism cobordism(const std::string &subject, int nA, const std::string &other,
                   int nB, int g,
                   std::vector<std::string> candidates = {}) {
-    Witness w;
-    w.kind = WitnessKind::cobordism;
+    Cobordism w;
+    w.kind = CobordismKind::cobordism;
     w.subject = subject;
     w.subjectComponents = nA;
     w.other = other;
@@ -95,9 +95,9 @@ Witness cobordism(const std::string &subject, int nA, const std::string &other,
     return w;
 }
 
-Witness direct(const std::string &subject, int nA, int g, bool tubed = false) {
-    Witness w;
-    w.kind = WitnessKind::direct;
+Cobordism direct(const std::string &subject, int nA, int g, bool tubed = false) {
+    Cobordism w;
+    w.kind = CobordismKind::direct;
     w.subject = subject;
     w.subjectComponents = nA;
     w.genus = g;
@@ -148,7 +148,7 @@ void test_candidates_filtered_by_observed_component_count() {
 // propagate(): the cobordism inequality
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_direct_witness_gives_upper_bound() {
+void test_direct_cobordism_gives_upper_bound() {
     NameTable names;
     names.addLiterature("K", 1, 1);
     auto bounds = propagate({direct("K", 1, 1)}, names);
@@ -311,7 +311,7 @@ void test_knot_far_side_named_as_a_link_bounds_nothing() {
     names.addLiterature("K", 0, 3);
     names.addLiterature("L2a1{0}", 0, 0);
     names.addLiterature("L2a1{1}", 0, 0);
-    Witness w = cobordism("K", 1, "L2a1", 1, 0,
+    Cobordism w = cobordism("K", 1, "L2a1", 1, 0,
                           names.candidates("L2a1", 1));
     auto bounds = propagate({w}, names);
 
@@ -458,12 +458,12 @@ void test_chains_through_an_unnamed_isosig_node() {
     names.addLiterature("X", 0, 9);
     names.addLiterature("Y", 0, 0);
 
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         direct("Y", 1, 0),
         cobordism("Y", 1, "gLLMQacdefeffhhnkxk", 1, 0),
         cobordism("X", 1, "gLLMQacdefeffhhnkxk", 1, 1),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
 
     EXPECT_EQ(bounds["gLLMQacdefeffhhnkxk"].hi, 0,
               "the unnamed node picks up Y's own bound through their "
@@ -474,7 +474,7 @@ void test_chains_through_an_unnamed_isosig_node() {
               "every step rested on a surface we actually found");
 }
 
-void test_tubed_witness_genus_is_taken_at_face_value() {
+void test_tubed_cobordism_genus_is_taken_at_face_value() {
     // A disconnected find is recorded with its TUBED genus, so the solver
     // needs no special case: two disjoint discs bounding a 2-component
     // unlink tube into a connected planar surface of genus 0.
@@ -497,13 +497,13 @@ void test_propagation_terminates_on_a_cycle() {
     names.addLiterature("A", 0, 9);
     names.addLiterature("B", 0, 9);
     names.addLiterature("C", 0, 9);
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         direct("A", 1, 1),
         cobordism("A", 1, "B", 1, 0),
         cobordism("B", 1, "C", 1, 0),
         cobordism("C", 1, "A", 1, 0),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
     EXPECT_EQ(bounds["B"].hi, 1, "the cycle settles at A's own bound");
     EXPECT_EQ(bounds["C"].hi, 1, "");
 }
@@ -658,11 +658,11 @@ void test_unregistered_multicomponent_far_side_gets_no_reverse_bound() {
     names.addLiterature("L6a3{1}", 0, 0);
     // L204001 deliberately unregistered -- that is the whole point.
 
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         cobordism("6_1", 1, "L204001", 2, 0),
         cobordism("L6a3{0}", 2, "L204001", 2, 0),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
 
     EXPECT_EQ(bounds["L204001"].haveUpper(), false,
               "an unregistered multi-component far side is a complement, "
@@ -683,12 +683,12 @@ void test_unregistered_SINGLE_component_far_side_still_chains() {
     NameTable names;
     names.addLiterature("Y", 0, 0);
     names.addLiterature("X", 0, 9);
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         direct("Y", 1, 0),
         cobordism("Y", 1, "gLLMQacdefeffhhnkxk", 1, 0),
         cobordism("X", 1, "gLLMQacdefeffhhnkxk", 1, 1),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
     EXPECT_EQ(bounds["gLLMQacdefeffhhnkxk"].hi, 0,
               "a one-component unnamed node still receives a bound");
     EXPECT_EQ(bounds["X"].hi, 1, "and still passes it on");
@@ -704,12 +704,12 @@ void test_two_component_isosig_node_does_not_chain() {
     NameTable names;
     names.addLiterature("Y", 0, 0);
     names.addLiterature("X", 0, 9);
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         direct("Y", 1, 0),
         cobordism("Y", 1, "m129", 2, 0),
         cobordism("X", 1, "m129", 2, 1),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
     EXPECT_EQ(bounds["m129"].haveUpper(), false,
               "a two-curve exterior receives no bound from Y");
     EXPECT_EQ(bounds["X"].haveUpper(), false,
@@ -806,15 +806,15 @@ void test_judge_unresolved() {
 // Bookkeeping
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_have_witness_dedup() {
-    std::vector<Witness> witnesses = {cobordism("K", 1, "J", 1, 2)};
-    EXPECT_EQ(haveWitness(witnesses, cobordism("K", 1, "J", 1, 2)), true,
+void test_have_cobordism_dedup() {
+    std::vector<Cobordism> cobordisms = {cobordism("K", 1, "J", 1, 2)};
+    EXPECT_EQ(haveCobordism(cobordisms, cobordism("K", 1, "J", 1, 2)), true,
               "an identical witness is a duplicate -- this is what keeps a "
               "harvest run from capturing thousands of pair signatures for "
               "the same fact");
-    EXPECT_EQ(haveWitness(witnesses, cobordism("K", 1, "J", 1, 3)), false,
+    EXPECT_EQ(haveCobordism(cobordisms, cobordism("K", 1, "J", 1, 3)), false,
               "a different genus is a different fact");
-    EXPECT_EQ(haveWitness(witnesses, cobordism("K", 1, "L", 1, 2)), false,
+    EXPECT_EQ(haveCobordism(cobordisms, cobordism("K", 1, "L", 1, 2)), false,
               "a different far side is a different fact");
 }
 
@@ -822,11 +822,11 @@ void test_build_depends_on_chain() {
     NameTable names;
     names.addLiterature("X", 0, 9);
     names.addLiterature("Y", 0, 9);
-    std::vector<Witness> witnesses = {
+    std::vector<Cobordism> cobordisms = {
         cobordism("Y", 1, "Unknot", 1, 0),
         cobordism("X", 1, "Y", 1, 0),
     };
-    auto bounds = propagate(witnesses, names);
+    auto bounds = propagate(cobordisms, names);
     EXPECT_EQ(buildDependsOn("Y", bounds), std::string("Y;Unknot"),
               "the chain bottoms out at the Unknot");
 }
@@ -1032,27 +1032,27 @@ void test_classify_row_orientation() {
               true, "a match's flips are the judgement's");
 }
 
-void test_witness_identity() {
-    Witness a = cobordism("K", 2, "L6a3", 2, 0);
-    Witness b = a;
-    EXPECT_EQ(witnessIdentity(a) == witnessIdentity(b), true,
+void test_cobordism_identity() {
+    Cobordism a = cobordism("K", 2, "L6a3", 2, 0);
+    Cobordism b = a;
+    EXPECT_EQ(cobordismIdentity(a) == cobordismIdentity(b), true,
               "identical witnesses share an identity");
 
     b.resolvedVertices = 1;
-    EXPECT_EQ(witnessIdentity(a) == witnessIdentity(b), false,
+    EXPECT_EQ(cobordismIdentity(a) == cobordismIdentity(b), false,
               "the D5 fix: an embedded witness is never a duplicate of a "
               "resolved one");
 
-    Witness c = a;
+    Cobordism c = a;
     c.genus = 1;
-    EXPECT_EQ(witnessIdentity(a) == witnessIdentity(c), false,
+    EXPECT_EQ(cobordismIdentity(a) == cobordismIdentity(c), false,
               "a different genus is a different witness");
 
-    std::vector<Witness> witnesses = {a};
-    EXPECT_EQ(haveWitness(witnesses, b), false, "haveWitness() agrees");
-    EXPECT_EQ(haveWitness(witnesses, c), false, "haveWitness() agrees");
-    witnesses.push_back(b);
-    EXPECT_EQ(haveWitness(witnesses, b), true, "haveWitness() agrees");
+    std::vector<Cobordism> cobordisms = {a};
+    EXPECT_EQ(haveCobordism(cobordisms, b), false, "haveWitness() agrees");
+    EXPECT_EQ(haveCobordism(cobordisms, c), false, "haveWitness() agrees");
+    cobordisms.push_back(b);
+    EXPECT_EQ(haveCobordism(cobordisms, b), true, "haveWitness() agrees");
 }
 
 } // namespace
@@ -1072,7 +1072,7 @@ void test_proved_link_far_side_bears_bound() {
     names.addLiterature("K", 0, 9);
     names.addLiterature("L4a1{0}", 0, 0);
     names.addLiterature("L4a1{1}", 0, 0);
-    Witness w = cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"});
+    Cobordism w = cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"});
     EXPECT_EQ(farSideBearsBound(w), false, "unproved: the gate refuses it");
     w.farSideProved = true;
     EXPECT_EQ(farSideBearsBound(w), true, "proved: the gate accepts it");
@@ -1094,14 +1094,14 @@ void test_split_far_side_upper_bound() {
     names.addLiterature("K", 0, 9);
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("m3_1", 1, 1);
-    Witness w = cobordism("K", 1, "3_1 u Unknot", 2, 0);
+    Cobordism w = cobordism("K", 1, "3_1 u Unknot", 2, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
     EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
               "it rests on 3_1's literature value, so it is assisted");
 
-    Witness m = cobordism("K", 1, "3_1|m3_1 u Unknot", 2, 0);
+    Cobordism m = cobordism("K", 1, "3_1|m3_1 u Unknot", 2, 0);
     m.farSideProved = true;
     auto mb = propagate({m}, names);
     EXPECT_EQ(mb["K"].hi, 2,
@@ -1115,7 +1115,7 @@ void test_split_far_side_upper_bound() {
 //     lo(K) = lo(F) - 0 - 1 + 1 = lo(F),    hi(K) = hi(F) + 0 + (n_F - 1).
 Bounds probeFarSide(const std::string &far, int nFar, NameTable names) {
     names.addLiterature("K", 0, 9);
-    Witness w = cobordism("K", 1, far, nFar, 0);
+    Cobordism w = cobordism("K", 1, far, nFar, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     return bounds["K"];
@@ -1152,7 +1152,7 @@ void test_split_lower_bound_is_not_additive() {
     // genus-0 witness to a proved 4_1 u 4_1 is not pushed above its
     // literature value, and nothing is judged a contradiction.
     names.addLiterature("S{0}", 0, 0);
-    Witness w = cobordism("S{0}", 2, "4_1 u 4_1", 2, 0);
+    Cobordism w = cobordism("S{0}", 2, "4_1 u 4_1", 2, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["S{0}"].haveLower() && bounds["S{0}"].lo > 0, false,
@@ -1251,7 +1251,7 @@ void test_exact_far_side() {
     names.addLiterature("S", 0, 9);
     names.addLiterature("L7n1{0}", 2, 2);
     names.addLiterature("L7n1{1}", 0, 0);
-    Witness w = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    Cobordism w = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
     w.farSideProved = true;
     w.farSideExact = true;
     auto bounds = propagate({w, direct("S", 1, 0)}, names);
@@ -1263,7 +1263,7 @@ void test_exact_far_side() {
     names2.addLiterature("S", 0, 9);
     names2.addLiterature("L7n1{0}", 2, 2);
     names2.addLiterature("L7n1{1}", 0, 0);
-    Witness v = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
+    Cobordism v = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
     v.farSideProved = true; // proved but not an identity
     auto b2 = propagate({v}, names2);
     EXPECT_EQ(b2["S"].hi, 1, "forward: g4(L7n1{1}) + 0 + 2 - 1, not L7n1{0}'s 2 + 1");
@@ -1280,10 +1280,10 @@ void test_sum_rules() {
         names.addLiterature("T", 0, 9);
         names.addLiterature("L7n1{0}", 2, 2);
         names.addLiterature("L2a1{0}", 0, 0);
-        Witness sum = cobordism("S", 1, "#{L2a1{0}[?] # L7n1{0}[?]}", 3, 0,
+        Cobordism sum = cobordism("S", 1, "#{L2a1{0}[?] # L7n1{0}[?]}", 3, 0,
                                 exactCandidates("#{L2a1{0}[?] # L7n1{0}[?]}"));
         sum.farSideProved = true;
-        Witness split = cobordism("T", 1, "L7n1{0} u L2a1{0}", 4, 0,
+        Cobordism split = cobordism("T", 1, "L7n1{0} u L2a1{0}", 4, 0,
                                   exactCandidates("L7n1{0} u L2a1{0}"));
         split.farSideProved = true;
         auto bounds = propagate({sum, split}, names);
@@ -1309,7 +1309,7 @@ void test_composite_far_side_upper_bound() {
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("L2a1{0}", 0, 0);
     names.addLiterature("L2a1{1}", 0, 0);
-    Witness w = cobordism("K", 1, "m3_1 #_0 L2a1", 2, 0);
+    Cobordism w = cobordism("K", 1, "m3_1 #_0 L2a1", 2, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
@@ -1324,7 +1324,7 @@ void test_composite_takes_the_worst_orientation() {
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("L4a1{0}", 0, 0);
     names.addLiterature("L4a1{1}", 1, 1);
-    Witness w = cobordism("K", 1, "3_1 #_0 L4a1", 2, 0);
+    Cobordism w = cobordism("K", 1, "3_1 #_0 L4a1", 2, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 3, "g_4(K) <= 1 + max(0, 1) + 0 + 1 = 3");
@@ -1400,7 +1400,7 @@ void test_composite_link_lower_bound() {
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("L7a1{0}", 2, 2);
     names.addLiterature("L7a1{1}", 2, 2);
-    Witness w = cobordism("S", 1, "3_1 #_0 L7a1", 2, 0);
+    Cobordism w = cobordism("S", 1, "3_1 #_0 L7a1", 2, 0);
     w.farSideProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["S"].lo, 1, "g_4(S) >= (2 - 1) - 0 - 1 + 1 = 1, by hand");
@@ -1449,7 +1449,7 @@ int main() {
     run("candidates_filtered_by_observed_component_count",
         test_candidates_filtered_by_observed_component_count);
     run("direct_witness_gives_upper_bound",
-        test_direct_witness_gives_upper_bound);
+        test_direct_cobordism_gives_upper_bound);
     run("knot_cobordism_reduces_to_the_classic_rule",
         test_knot_cobordism_reduces_to_the_classic_rule);
     run("component_correction_on_the_upper_bound",
@@ -1470,7 +1470,7 @@ int main() {
     run("chains_through_an_unnamed_isosig_node",
         test_chains_through_an_unnamed_isosig_node);
     run("tubed_witness_genus_is_taken_at_face_value",
-        test_tubed_witness_genus_is_taken_at_face_value);
+        test_tubed_cobordism_genus_is_taken_at_face_value);
     run("propagation_terminates_on_a_cycle",
         test_propagation_terminates_on_a_cycle);
     run("self_cobordism_cannot_confirm_the_literature",
@@ -1500,7 +1500,7 @@ int main() {
     run("judge_improved", test_judge_improved);
     run("judge_contradiction", test_judge_contradiction);
     run("judge_unresolved", test_judge_unresolved);
-    run("have_witness_dedup", test_have_witness_dedup);
+    run("have_witness_dedup", test_have_cobordism_dedup);
     run("build_depends_on_chain", test_build_depends_on_chain);
     run("build_depends_on_is_cycle_safe", test_build_depends_on_is_cycle_safe);
     run("split_boundary_single_curve_is_safe",
@@ -1516,7 +1516,7 @@ int main() {
     run("split_boundary_unnamed_side_flagged",
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
-    run("witness_identity", test_witness_identity);
+    run("witness_identity", test_cobordism_identity);
     run("exact_far_side", test_exact_far_side);
     run("sum_rules", test_sum_rules);
 

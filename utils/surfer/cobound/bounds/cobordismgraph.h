@@ -34,8 +34,8 @@ using RecordId = long;
 
 enum class RecordKind {
   leaf,            ///< A fact from outside: a table, an anchor, a certificate.
-  witnessForward,  ///< A witness's incoming link, from its outgoing link.
-  witnessReverse,  ///< A witness's outgoing link, from its incoming link.
+  cobordismForward,  ///< A witness's incoming link, from its outgoing link.
+  cobordismReverse,  ///< A witness's outgoing link, from its incoming link.
   splitCombine,    ///< A split link, from surfaces for its pieces.
   splitRestrict,   ///< A piece of a split link, from a surface for the whole.
   sumCombine,      ///< A sum along components, from surfaces for its summands.
@@ -61,7 +61,7 @@ struct Record {
  * (identity with orientation up to global reversal and mirror, README.md) is
  * the caller's job and is what soundness rests on.
  */
-struct WitnessEdge {
+struct LinkCobordism {
   EdgeId id = -1;
   NodeId in = -1, out = -1;
   CobordismShape shape;
@@ -110,7 +110,7 @@ struct Node {
   std::optional<int> genusLowerBound;
   std::string lowerBoundSource;
   Profile profile;
-  std::vector<EdgeId> witnessEdges; ///< Edges with this node at either end.
+  std::vector<EdgeId> cobordisms; ///< Edges with this node at either end.
   std::vector<EdgeId> splitEdges;   ///< As whole or as a piece.
   std::vector<EdgeId> sumEdges;     ///< As whole or as a summand.
 };
@@ -126,7 +126,7 @@ public:
   RecordId addLeaf(NodeId n, const Partition &p, int genus,
                    std::string source);
   /// Adds a witness edge (validated); call propagate() afterwards.
-  EdgeId addWitness(NodeId in, NodeId out, CobordismShape shape,
+  EdgeId addCobordism(NodeId in, NodeId out, CobordismShape shape,
                     std::vector<int> inMap, std::vector<int> outMap,
                     std::string key);
   /// Adds a split edge (validated); call propagate() afterwards.
@@ -146,12 +146,12 @@ public:
 
   const Node &node(NodeId n) const { return nodes_.at(n); }
   const Record &record(RecordId r) const { return records_.at(r); }
-  const WitnessEdge &witness(EdgeId e) const { return witnesses_.at(e); }
+  const LinkCobordism &cobordism(EdgeId e) const { return cobordisms_.at(e); }
   const SplitEdge &split(EdgeId e) const { return splits_.at(e); }
   const SumEdge &sum(EdgeId e) const { return sums_.at(e); }
   size_t nodeCount() const { return nodes_.size(); }
   size_t recordCount() const { return records_.size(); }
-  size_t witnessCount() const { return witnesses_.size(); }
+  size_t cobordismCount() const { return cobordisms_.size(); }
 
   /// The least genus known for node n with a partition refining `target`.
   std::optional<ProfileEntry> best(NodeId n, const Partition &target) const;
@@ -199,7 +199,7 @@ public:
   /// of its pieces'), so following reasons from any bound reaches literature
   /// or linking leaves and never cycles: a lower bound's proof is a tree.
   struct LowerReason {
-    enum class Kind { none, literature, linking, witness, splitWhole, splitPiece, seed, sumPiece };
+    enum class Kind { none, literature, linking, cobordism, splitWhole, splitPiece, seed, sumPiece };
     Kind kind = Kind::none;
     /// witness: the edge and which end this is; the other end's partition
     /// (labels) whose bound `from` was read, and what the cap added.
@@ -241,7 +241,7 @@ public:
   /// has no curves. Monotone under refinement of p (README.md, "Lower
   /// bounds": lem:transport-monotone), which is why lowerAcross() need not
   /// minimise over refinements; proofgraph_test checks that on random graphs.
-  int transportedLower(const WitnessEdge &e, bool toIsIn, const Partition &p,
+  int transportedLower(const LinkCobordism &e, bool toIsIn, const Partition &p,
                        Transport *detail = nullptr) const;
   /// Changes whenever a lower bound is raised or cleared: a cheap key for
   /// caching what-ifs across calls.
@@ -283,7 +283,7 @@ private:
   // What glue() and the maps give for a witness edge from one entry; used by
   // both deriveFrom() and recheck().
   std::optional<std::pair<Partition, int>>
-  throughWitness(const WitnessEdge &e, bool forward, const Partition &p,
+  throughCobordism(const LinkCobordism &e, bool forward, const Partition &p,
                  int genus) const;
   std::optional<std::pair<Partition, int>>
   combineSplit(const SplitEdge &s,
@@ -303,11 +303,11 @@ private:
                   const LowerReason &why);
   // The bound transported to `to` for surfaces refining q across witness e:
   // transportedLower() at q itself, since that is monotone under refinement.
-  int lowerAcross(const WitnessEdge &e, bool toIsIn, const Partition &q) const;
+  int lowerAcross(const LinkCobordism &e, bool toIsIn, const Partition &q) const;
 
   std::vector<Node> nodes_;
   std::vector<Record> records_;
-  std::vector<WitnessEdge> witnesses_;
+  std::vector<LinkCobordism> cobordisms_;
   std::vector<SplitEdge> splits_;
   std::vector<SumEdge> sums_;
   std::vector<RecordId> pending_;

@@ -80,7 +80,7 @@ int main() {
   const std::vector<std::string> sigs =
       pairsigs(std::string(CASCADE_TEST_DATA) + "/hop_10_3_witnesses.csv");
   CHECK_EQ(static_cast<int>(sigs.size()), 9, "nine 10_3 witnesses");
-  outgoing::WitnessRedrawer redraw(PD_10_3, 2);
+  outgoing::OutgoingReader redraw(PD_10_3, 2);
   const std::string digest = redraw.buildChecksum();
   std::vector<std::optional<outgoing::OutgoingLink>> fresh;
   for (const std::string &s : sigs) {
@@ -105,7 +105,7 @@ int main() {
     RowReadBacks c(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(c.loaded()), 0, "a new cache is empty");
     for (size_t i = 0; i < sigs.size(); ++i)
-      c.put(cobordisms::witnessKey(sigs[i]), {fresh[i], ""});
+      c.put(cobordisms::cobordismKey(sigs[i]), {fresh[i], ""});
     c.put("feedfacecafe", {std::nullopt, "no isomorphism carries its incoming curve"});
     c.flush();
   }
@@ -114,7 +114,7 @@ int main() {
     CHECK_EQ(static_cast<int>(c.loaded()), 10, "every entry comes back");
     bool all = true;
     for (size_t i = 0; i < sigs.size(); ++i) {
-      const CachedReadBack *r = c.get(cobordisms::witnessKey(sigs[i]));
+      const CachedReadBack *r = c.get(cobordisms::cobordismKey(sigs[i]));
       all = all && r && r->link && fresh[i] && sameLink(*r->link, *fresh[i]);
     }
     CHECK(all, "every cached read-back equals a fresh one");
@@ -131,7 +131,7 @@ int main() {
   {
     RowReadBacks c(dir, PD_10_3, 2, "not-this-build");
     CHECK_EQ(static_cast<int>(c.loaded()), 0, "a stale digest's entries are not used");
-    c.put(cobordisms::witnessKey(sigs[0]), {fresh[0], ""});
+    c.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
     c.flush();
     RowReadBacks again(dir, PD_10_3, 2, "not-this-build");
     CHECK_EQ(static_cast<int>(again.loaded()), 1, "the file was started afresh for that build");
@@ -144,7 +144,7 @@ int main() {
     fs::remove_all(dir);
     {
       RowReadBacks c(dir, PD_10_3, 2, digest);
-      c.put(cobordisms::witnessKey(sigs[0]), {fresh[0], ""});
+      c.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
       c.flush();
     }
     std::string path;
@@ -152,24 +152,24 @@ int main() {
       if (e.path().extension() == ".readback") path = e.path().string();
     {
       std::ofstream f(path, std::ios::app | std::ios::binary);
-      f << cobordisms::witnessKey(sigs[1]) << "\tok\t" << serialiseLink(*fresh[1]).substr(0, 5);
+      f << cobordisms::cobordismKey(sigs[1]) << "\tok\t" << serialiseLink(*fresh[1]).substr(0, 5);
     }
     RowReadBacks c(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(c.loaded()), 1, "the torn line is skipped");
-    c.put(cobordisms::witnessKey(sigs[2]), {fresh[2], ""});
+    c.put(cobordisms::cobordismKey(sigs[2]), {fresh[2], ""});
     c.flush();
     RowReadBacks after(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(after.loaded()), 2, "the torn line was cut, the new one kept");
-    const CachedReadBack *r = after.get(cobordisms::witnessKey(sigs[2]));
+    const CachedReadBack *r = after.get(cobordisms::cobordismKey(sigs[2]));
     CHECK(r && r->link && sameLink(*r->link, *fresh[2]), "the appended read-back is intact");
   }
 
   // 5. No cache.
   {
     RowReadBacks none("", PD_10_3, 2, digest);
-    none.put(cobordisms::witnessKey(sigs[0]), {fresh[0], ""});
+    none.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
     none.flush();
-    CHECK(none.get(cobordisms::witnessKey(sigs[0])) == nullptr, "an empty dir keeps nothing");
+    CHECK(none.get(cobordisms::cobordismKey(sigs[0])) == nullptr, "an empty dir keeps nothing");
   }
   fs::remove_all(dir);
   return checks::finish("readbackcache_test");

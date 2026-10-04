@@ -65,7 +65,7 @@ searchOrder(const std::vector<solver::InputRow> &rows, int maxCrossings,
         verdicts::OutputRow out;
         out.knot = row.name;
         out.status = "skipped";
-        out.witnessKind = "none";
+        out.cobordismKind = "none";
         out.literatureLo = row.lo;
         out.literatureHi = row.hi;
         outputRows[row.name] = std::move(out);

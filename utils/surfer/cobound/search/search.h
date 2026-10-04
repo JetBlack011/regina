@@ -216,7 +216,7 @@ struct KeptSurface {
   /// The cobordism as the database will record it, every column but the
   /// pair signature and other_candidates (both made when it is signed): its
   /// subject is the search's name.
-  cobordisms::Witness witness;
+  cobordisms::Cobordism cobordism;
 };
 
 /// One search's inputs besides its row.
@@ -226,7 +226,7 @@ struct SearchRequest {
   std::string name;
   /// The row's redrawer (required): each kept surface's outgoing link is
   /// oriented on it and keyed by its row components.
-  const outgoing::WitnessRedrawer *row = nullptr;
+  const outgoing::OutgoingReader *row = nullptr;
   SearchShape shape;
 
   /// When to stop: at this many surfaces satisfying the condition, or
@@ -341,7 +341,7 @@ struct HopRun {
   long long recorded = 0;          ///< kept surfaces
   /// Distinct cobordism identities among them: the outcome line's "N new
   /// witnesses" (the database gains these when they are signed).
-  long long newWitnesses = 0;
+  long long newCobordisms = 0;
   /// The pending file, and its fsynced length when the search ended; -1
   /// when none was written.
   std::string pendingPath;
@@ -415,7 +415,7 @@ public:
   /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   /// `censusName`, if any, is SearchRequest::censusName.
-  HopRun run(const outgoing::WitnessRedrawer &row, const std::string &rowName,
+  HopRun run(const outgoing::OutgoingReader &row, const std::string &rowName,
              long long surfaceTarget, double seconds,
              const std::function<bool(const KeptSurface &)> &stop = {},
              const SearchFrontier *resume = nullptr,
@@ -424,7 +424,7 @@ public:
   /// The request run(row, rowName, ...) makes: a hop's search of `row`
   /// (searchShape() of this searcher's HopShape, its frontier always
   /// recorded), for a caller that adds to it (its pending file, say).
-  SearchRequest hopRequest(const outgoing::WitnessRedrawer &row, const std::string &rowName,
+  SearchRequest hopRequest(const outgoing::OutgoingReader &row, const std::string &rowName,
                            long long surfaceTarget, double seconds) const;
 
   /**

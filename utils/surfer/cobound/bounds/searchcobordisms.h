@@ -28,7 +28,7 @@ struct HopRow {
   int layers = 2;   ///< thicken_layers of the witnesses
 };
 
-struct HopWitness {
+struct SignedCobordism {
   std::string pairsig;
   int genus = 0; ///< the witness's tubed genus (cobordisms.csv `genus`)
   std::string key; ///< provenance (witness key)
@@ -75,10 +75,10 @@ public:
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
   HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
-               std::unique_ptr<outgoing::WitnessRedrawer> built, Read read = Read::fast);
+               std::unique_ptr<outgoing::OutgoingReader> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
-  HopEdge add(const HopWitness &w);
+  HopEdge add(const SignedCobordism &w);
 
   /// A surface already read: its oriented far side and incoming side, as
   /// outgoing::orientedOutgoingLink() gives them for a surface in
@@ -90,7 +90,7 @@ public:
   const std::vector<int> &rowToNode() const { return rowToNode_; }
 
   /// The row's thickening and everything read from it.
-  const outgoing::WitnessRedrawer &redrawer() const { return *redraw_; }
+  const outgoing::OutgoingReader &redrawer() const { return *redraw_; }
 
 private:
   std::optional<outgoing::OutgoingLink> readBack(const std::string &pairsig,
@@ -103,7 +103,7 @@ private:
   ProofGraph &g_;
   NodeRegistry &nodes_;
   HopRow row_;
-  std::unique_ptr<outgoing::WitnessRedrawer> redraw_;
+  std::unique_ptr<outgoing::OutgoingReader> redraw_;
   std::vector<int> rowToNode_;
 };
 

@@ -48,7 +48,7 @@ int carryTriangle(const regina::Triangle<4> *t, const regina::Isomorphism<4> &is
 
 } // namespace
 
-std::optional<std::vector<int>> WitnessRedrawer::pinned_(const regina::Triangulation<4> &ambient,
+std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulation<4> &ambient,
                                                          const std::vector<int> &faces,
                                                          const IsoSource &isos) const {
     const regina::Triangulation<4> &W = thickening();
@@ -64,7 +64,7 @@ std::optional<std::vector<int>> WitnessRedrawer::pinned_(const regina::Triangula
     return carried;
 }
 
-WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
+OutgoingReader::OutgoingReader(const std::string &rowPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
     // through every layer.
@@ -92,7 +92,7 @@ WitnessRedrawer::WitnessRedrawer(const std::string &rowPD, int layers) {
     }
 }
 
-std::optional<std::vector<int>> WitnessRedrawer::carry(const std::string &pairsig,
+std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig,
                                                        std::string &why) const {
     const regina::Triangulation<4> &W = thickening();
     auto t0 = std::chrono::steady_clock::now();
@@ -147,7 +147,7 @@ std::vector<OrientedCurve> chain(const std::vector<OrientedEdge> &directed) {
 
 } // namespace
 
-std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string &pairsig,
+std::optional<OutgoingLink> OutgoingReader::outgoingLinkFast(const std::string &pairsig,
                                                               std::string &why) const {
     const regina::Triangulation<4> &W = thickening();
     auto t0 = std::chrono::steady_clock::now();
@@ -253,7 +253,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFast(const std::string 
     return out;
 }
 
-std::optional<OutgoingLink> WitnessRedrawer::outgoingLink(const std::string &pairsig,
+std::optional<OutgoingLink> OutgoingReader::outgoingLink(const std::string &pairsig,
                                                           std::string &why) const {
     std::optional<std::vector<int>> carried = carry(pairsig, why);
     if (!carried) return std::nullopt;
@@ -273,7 +273,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLink(const std::string &pai
     return link;
 }
 
-bool WitnessRedrawer::rebuild(const std::vector<int> &faces, KnottedSurface &surface,
+bool OutgoingReader::rebuild(const std::vector<int> &faces, KnottedSurface &surface,
                               std::string &why) const {
     const regina::Triangulation<4> &W = rb_.tri;
     for (int f : faces)
@@ -302,7 +302,7 @@ bool WitnessRedrawer::rebuild(const std::vector<int> &faces, KnottedSurface &sur
     return true;
 }
 
-std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFromFaces(const std::vector<int> &faces,
+std::optional<OutgoingLink> OutgoingReader::outgoingLinkFromFaces(const std::vector<int> &faces,
                                                                    std::string &why) const {
     PetalCache cache;
     KnottedSurface::SelfIntersectionOptions options;
@@ -314,7 +314,7 @@ std::optional<OutgoingLink> WitnessRedrawer::outgoingLinkFromFaces(const std::ve
     return link;
 }
 
-std::string WitnessRedrawer::buildChecksum() const {
+std::string OutgoingReader::buildChecksum() const {
     const regina::Triangulation<4> &W = rb_.tri;
     std::string data = std::to_string(W.size()) + '|';
     for (size_t i = 0; i < W.size(); ++i) {
@@ -427,7 +427,7 @@ RowReadBacks::RowReadBacks(const std::string &dir, const std::string &rowPD, int
     : digest_(buildDigest) {
   if (dir.empty()) return;
   fs::create_directories(dir);
-  path_ = dir + "/" + cobordisms::witnessKey(rowPD + "|" + std::to_string(layers)) + ".readback";
+  path_ = dir + "/" + cobordisms::cobordismKey(rowPD + "|" + std::to_string(layers)) + ".readback";
   std::ifstream in(path_, std::ios::binary);
   std::string line;
   if (!in || !std::getline(in, line) || in.eof()) {
@@ -457,20 +457,20 @@ RowReadBacks::RowReadBacks(const std::string &dir, const std::string &rowPD, int
   }
 }
 
-const CachedReadBack *RowReadBacks::get(const std::string &witnessKey) const {
-  auto it = entries_.find(witnessKey);
+const CachedReadBack *RowReadBacks::get(const std::string &cobordismKey) const {
+  auto it = entries_.find(cobordismKey);
   if (it == entries_.end()) return nullptr;
   ++hits_;
   return &it->second;
 }
 
-void RowReadBacks::put(const std::string &witnessKey, const CachedReadBack &r) {
+void RowReadBacks::put(const std::string &cobordismKey, const CachedReadBack &r) {
   if (path_.empty()) return;
-  if (!entries_.emplace(witnessKey, r).second) return;
+  if (!entries_.emplace(cobordismKey, r).second) return;
   std::string why = r.why;
   for (char &ch : why)
     if (ch == '\n' || ch == '\t') ch = ' ';
-  pending_ += witnessKey + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
+  pending_ += cobordismKey + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
 }
 
 void RowReadBacks::flush() {

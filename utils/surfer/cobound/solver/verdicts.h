@@ -39,8 +39,8 @@ struct OutputRow {
            derived upper bound, or 0. */
   std::string status;
       // verified | improved | pinned | bounded | unresolved | skipped
-  std::string witnessKind; // direct | cobordism | none
-  std::string witnessPairSig;
+  std::string cobordismKind; // direct | cobordism | none
+  std::string cobordismPairSig;
   std::string viaKnot;
   int viaEdgeGenus = 0;
   std::string dependsOn;
@@ -50,7 +50,7 @@ struct OutputRow {
   // Added alongside the interval solver.
   std::string derivedLo; // empty when no lower bound was derived
   std::string derivedHi; // empty when no upper bound was derived
-  std::string witnessBasis; // constructive | literature-assisted | empty
+  std::string cobordismBasis; // constructive | literature-assisted | empty
   bool tubed = false;
       /**< Whether the witness surface was disconnected as found, with the
            recorded genus being its tubed genus. */

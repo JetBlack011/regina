@@ -49,13 +49,13 @@ std::string aliasKey(const std::string &name) {
   return linknaming::stripCensusSuffix(name);
 }
 
-std::vector<cobordisms::Witness>
-applyNameAliases(const std::vector<cobordisms::Witness> &witnesses,
+std::vector<cobordisms::Cobordism>
+applyNameAliases(const std::vector<cobordisms::Cobordism> &cobordisms,
                  const std::unordered_map<std::string, std::string> &aliases,
                  const solver::NameTable &names, size_t &appliedOut) {
-  std::vector<cobordisms::Witness> resolved = witnesses;
+  std::vector<cobordisms::Cobordism> resolved = cobordisms;
   size_t applied = 0;
-  for (cobordisms::Witness &w : resolved) {
+  for (cobordisms::Cobordism &w : resolved) {
     if (w.other.empty())
       continue;
     auto it = aliases.find(aliasKey(w.other));
@@ -93,16 +93,16 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
   return out;
 }
 
-std::vector<cobordisms::Witness>
-applyFarSideExact(std::vector<cobordisms::Witness> witnesses,
+std::vector<cobordisms::Cobordism>
+applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
                   const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
                   size_t &refused) {
   applied = refused = 0;
-  for (cobordisms::Witness &w : witnesses) {
-    if (w.kind != cobordisms::WitnessKind::cobordism)
+  for (cobordisms::Cobordism &w : cobordisms) {
+    if (w.kind != cobordisms::CobordismKind::cobordism)
       continue;
     if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = cobordisms::witnessKey(w.pairSig);
+      w.pairSigKey = cobordisms::cobordismKey(w.pairSig);
     auto it = exact.find(w.pairSigKey);
     if (it == exact.end())
       continue;
@@ -116,7 +116,7 @@ applyFarSideExact(std::vector<cobordisms::Witness> witnesses,
     w.farSideExact = it->second.exact;
     ++applied;
   }
-  return witnesses;
+  return cobordisms;
 }
 
 std::unordered_map<std::string, std::vector<FarSideResolution>>
@@ -139,9 +139,9 @@ loadFarSideResolutions(const std::filesystem::path &path) {
   return resolutions;
 }
 
-std::vector<cobordisms::Witness> applyFarSideResolutions(
-    std::vector<cobordisms::Witness> resolved,
-    const std::vector<cobordisms::Witness> &observed,
+std::vector<cobordisms::Cobordism> applyFarSideResolutions(
+    std::vector<cobordisms::Cobordism> resolved,
+    const std::vector<cobordisms::Cobordism> &observed,
     const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut) {
   // Taken by value and rewritten in place. (A loaded witness no longer
@@ -150,11 +150,11 @@ std::vector<cobordisms::Witness> applyFarSideResolutions(
   size_t linkAliasesOverridden = 0;
   std::vector<std::string> conflicts;
 
-  for (cobordisms::Witness &w : resolved) {
+  for (cobordisms::Cobordism &w : resolved) {
     if (w.other.empty())
       continue;
     if (w.pairSigKey.empty() && !w.pairSig.empty())
-      w.pairSigKey = cobordisms::witnessKey(w.pairSig);
+      w.pairSigKey = cobordisms::cobordismKey(w.pairSig);
     if (w.pairSigKey.empty())
       continue;
     auto it = resolutions.find(w.pairSigKey);

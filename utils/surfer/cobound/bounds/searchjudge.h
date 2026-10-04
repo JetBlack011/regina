@@ -51,7 +51,7 @@ public:
   SearchJudge &operator=(const SearchJudge &) = delete;
 
   /// The row the search runs in, and reads its finds' outgoing links from.
-  const outgoing::WitnessRedrawer &row() const { return hop_->redrawer(); }
+  const outgoing::OutgoingReader &row() const { return hop_->redrawer(); }
 
   struct Verdict {
     /// The graph's contradictions so far (each a sentence); none, normally.
