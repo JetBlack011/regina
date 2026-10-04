@@ -65,7 +65,7 @@ except `run`, `solve` and `sign`.
 | `draw`, `name` | done (a cobordism that cannot be read is a `FAILED` line) | · | a usage or configuration error | · |
 | `meridians` | done (`FAILED` records) | a usage error | · | · |
 
-A second SIGINT or SIGTERM ends any command at once, `_Exit(128 + signal)`.
+During a run, a second SIGINT or SIGTERM ends the process at once, `_Exit(128 + signal)` (below, "Signals").
 
 ## Configuration
 
@@ -205,7 +205,7 @@ path and whether it is written, Pachner searches on a census miss and their
 time budget, the complement cache's limit, and (without a goal) the linking
 audit. The tables are loaded once and shared by the search's namer and the
 graph's. Nothing else is loaded unless asked for: a database's cobordisms as
-free graph edges only with a goal (`master_cobordisms`), and link classes
+free cobordisms of the graph only with a goal (`master_cobordisms`), and link classes
 lazily, per base, only by a goal run's namer.
 
 ## A search's life
@@ -275,7 +275,8 @@ expands.
    whose identity the loaded database already holds is a duplicate.
 7. **Pending.** Each kept surface is appended to the search's pending file,
    `<work>/hop_<k>_n<link>/kept.csv` (the directory name is frozen), with its
-   faces, incoming PD and layers. The file is fsynced at most once a minute
+   faces, incoming PD and layers. (A goal run without a database keeps its
+   finds in its graph only.) The file is fsynced at most once a minute
    while the search and its drain run, at once at the first constructive find,
    and at the end, so a kill loses at most a minute of finds. A search signs
    nothing: pair signatures are made when the run signs its pending files
@@ -311,13 +312,14 @@ expands.
     still signed), or `fatal-bug`; and, for a target that could not be built
     or was refused, `build-failed`. Only a search whose accounting balanced,
     with something examined, its drain complete and every write made, may
-    claim exhaustion (`EXHAUSTIVE to N added faces`, the verdicts' 
-    `exhausted_depth`, never lowered). Without a goal the run then writes the
-    target's search record into the verdicts file (`searched_faces`,
-    `search_outcome`, `exhausted_depth`, leaving status and bounds as they
-    were), prints its `breadth:`, outcome, accounting, `identification:`,
-    `diagram naming:` and `search profile:` lines, and goes on to the next
-    target; a goal run continues as below.
+    claim exhaustion. Without a goal the run then prints
+    `EXHAUSTIVE to N added faces` if it may, writes the target's search
+    record into the verdicts file (`searched_faces`, `search_outcome`, and
+    `exhausted_depth`, which is never lowered; status and bounds are left as
+    they were), prints its `breadth:` line (when frontiers are kept), its
+    outcome, accounting, `identification:`, `diagram naming:` and
+    `search profile:` lines, and goes on to the next target. A goal run
+    continues as below.
 
 An accounting failure ends only its own search: without a goal the run
 exits 2 after its other targets, since completeness is what such a run is for;
@@ -379,10 +381,11 @@ The run prints `[+] witness store: K kept, F new, A appended to <database>`.
 
 **Which diagram.** A pair signature's ambient is the thickening of the diagram
 searched, which for a goal run's untabulated or simplified link is not its
-subject's table PD. Each such cobordism gets a line in the sidecar
-`<database>.rows.csv` (`witness,layers,row_pd`: its cobordism key, layers and
-incoming PD, frozen), which `cobound name` and goal runs read back; a
-cobordism searched on its subject's table PD as written needs none.
+subject's table PD. So signing writes a line per appended cobordism in the
+sidecar `<database>.rows.csv` (`witness,layers,row_pd`: its cobordism key,
+layers and incoming PD; frozen), which goal runs read back and the atlas feeds
+to `cobound name`. A run without a goal writes one only for a cobordism not
+searched on its subject's table PD as written, so none for a table row.
 
 **Subjects.** A goal run records a search's cobordisms under the target's own
 name, a link's proved table name, or `cascade:<run>/<target>/n<link>` for an
@@ -418,7 +421,7 @@ loop, until a check ends it:
 6. when nothing is useful at this surface target, double it and search every
    useful link again, deeper, carrying each on from its frontier; stop when the
    doubled target would pass `max_surface_target` (`nothing-useful`);
-7. load the chosen link's database cobordisms first, if any (free edges, which
+7. load the chosen link's database cobordisms first, if any (free cobordisms, which
    may close the proof without a search), then search it. A link with at least
    `hub_degree` cobordisms is searched once at `hub_surfaces`.
 
@@ -465,7 +468,7 @@ All of these are frozen.
 ## The run directory
 
 `work` holds, for every run: each search's `hop_<k>_n<link>/` (its pending
-file `kept.csv`; with a goal also `frontier.txt` and `log.txt`, whose first
+file `kept.csv`, when the run has a database to sign into; with a goal also `frontier.txt` and `log.txt`, whose first
 line is the subject and the PD searched, in the `[[a;b;c;d];...]` spelling),
 and `cobound.conf`. A goal run also writes (`driver/runrecords`,
 `bounds/certificate`; names and formats frozen):
@@ -475,7 +478,7 @@ and `cobound.conf`. A goal run also writes (`driver/runrecords`,
 | `cascade.jsonl` | one JSON line per search (`{"hop":k,...}`: its link, crossings, surface target, wall and CPU, and where its time went: building and certifying the thickening, setup, search, rounds, drain tail, naming by route, adding its finds, naming new links, propagating; and the driver's time since the last record: choosing (with the gates' what-ifs), loading database cobordisms, the pending file and frontier), one per database load (`{"master":...}`, with its read-back, assembly, naming and propagation times and `skipped_genus`), one per refused link, and the run's own (`{"run":...}`: wall, CPU, cores, startup, loop, the searches' wall and CPU, the driver's totals, signing and the reports) |
 | `profiles.jsonl` | every link's partition genera (written at every end, a halt included): name, table name, label, depth, crossings, whether searched, linking matrix, literature lower bound, Pareto entries (partition, genus, derivation), and for links of at most 5 components every partition with a positive lower bound or `forbidden` |
 | `node_bounds.jsonl` | every link's identity, diagram, linking matrix, proved partition genera with whether each proof is constructive, and every lower bound with its reason's kind. Composites and links beyond the tables get bounds here that no table records |
-| `lower_report.jsonl` | with `lower_report`: for every tabulated link Y, what Y's literature lower bound carries to the target now (`carries`), and the most Y could ever carry (`could_carry`), each a what-if with every other lower bound forgotten; and whether Y is a special source |
+| `lower_report.jsonl` | with `lower_report`: for every tabulated link Y that carries the target anything, what Y's literature lower bound carries to the target now (`carries`), and the most Y could ever carry (`could_carry`), each a what-if with every other lower bound forgotten; and whether Y is a special source |
 | `nodes.csv` | the untabulated subjects recorded in the database, with their diagrams |
 | `certificate.json` | when an upper goal is met: the proof, for the atlas's independent checker |
 | `lower_certificate.json` | when a lower goal is met: the lower bound's proof as a tree of facts |
@@ -765,7 +768,7 @@ writes `lower_certificate.json`.
 | B7 | the contradiction gates fire | `testContradictionGates` |
 | B8 | non-bijective maps and boundaryless components are refused | `testSaturationAndMaps` |
 | B9 | on 1,500 random graphs (over 300 with directed cycles) the fixed point is independent of arrival order, equals a naive closure, is saturated, and every derivation rechecks | `testRandomFixedPoints` |
-| S | sums: the Hopf chain, the paper's two-knot case, the lower rule, cyclic and non-surjective maps refused | `testSums` |
+| S | sums: a chain of Hopf links bounds a planar surface; a knot summed into a Hopf link (`lem:sum-along-components`(i)); the lower rule; sites forming a cycle, and pieces missing a component, refused | `testSums` |
 | L1–L4 | lower bounds: transport along a concordance, the paper's reverse inequality (band and merging band), no penalty for disjoint annuli, the split rules | `testLowerConcordance`, `testLowerPaperCases`, `testLowerNoPenaltyForAnnuli`, `testLowerSplit` |
 | L5 | on 600 random worlds (the upper closure taken as the truth, true minima as literature) no bound exceeds an achieved surface, and nothing contradicts | `testLowerSoundOnRandomWorlds` |
 | L6 | the lower report's cleared what-if | `testLowerWhatIf` |
@@ -821,9 +824,9 @@ counts: its `genus` is its tubed genus.
 - **Statuses** (`judge()`): `verified` (constructive, matching the literature),
   `verified-assisted` (resting on another name's literature value),
   `improved`, `pinned`, `bounded`, `unresolved`, and `skipped` for a table row
-  above `max_crossings` with no bound. A derived bound outside the
-  literature interval is a contradiction: `solve` halts with 2 after writing
-  the verdicts.
+  above `max_crossings` with no bound. Derived bounds inconsistent with the
+  literature, or with each other, are a contradiction: `solve` halts with 2
+  after writing the verdicts.
 - **Inputs.** `name_aliases`, `outgoing_resolutions`, `outgoing_names_file`,
   `link_classes`, `certified_bounds`, `knot_symmetry` and `sum_rules` are
   opt-in, each applied to a separate copy of the cobordisms (the database keeps
