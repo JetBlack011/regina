@@ -110,7 +110,7 @@ bool linkingAllows(const Partition &p, const std::vector<std::vector<int>> &lk);
 struct ProfileEntry {
   Partition partition;
   int genus = 0;
-  long record = -1;
+  long derivation = -1;
 };
 
 /**
@@ -131,7 +131,7 @@ public:
 
   /// Adds (p, g) unless implied, removing the entries it implies. Returns
   /// whether it was added.
-  bool insert(const Partition &p, int g, long record);
+  bool insert(const Partition &p, int g, long derivation);
 
   /// The least genus known for a surface whose partition refines `target`
   /// (and the record proving it), or nullopt. For the one-block partition

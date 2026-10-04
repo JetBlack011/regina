@@ -69,11 +69,11 @@ SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
 // symmetric far side (the Hopf link) may be matched to its node by either of
 // two component maps. Both reads are then true, and differ by a symmetry of
 // the row and one of the far side: so they are compared up to those.
-std::string content(const ProofGraph &g, const AddedCobordism &e, const std::vector<int> &incomingPerm,
+std::string content(const CobordismGraph &g, const AddedCobordism &e, const std::vector<int> &incomingPerm,
                     const std::vector<int> &outgoingPerm) {
   if (!e.ok) return "not ok: " + e.why;
   if (e.direct) return "direct";
-  const LinkCobordism &w = g.cobordism(e.edge);
+  const LinkCobordism &w = g.cobordism(e.cobordism);
   std::map<int, std::pair<std::vector<int>, std::vector<int>>> bySurface;
   for (size_t c = 0; c < w.shape.inComponent.size(); ++c)
     bySurface[w.shape.inComponent[c]].first.push_back(incomingPerm[c]);
@@ -115,7 +115,7 @@ std::vector<std::vector<int>> symmetries(const GaussDiagram &d) {
 }
 
 // Whether the two reads of one surface say the same, up to symmetries.
-bool sameEdge(const ProofGraph &g, const LinkRegistry &reg, LinkId incomingLink, const AddedCobordism &a,
+bool sameAdded(const CobordismGraph &g, const LinkRegistry &reg, LinkId incomingLink, const AddedCobordism &a,
               const AddedCobordism &b) {
   const int incomingN = g.link(incomingLink).components;
   std::vector<int> incomingId(incomingN);
@@ -156,7 +156,7 @@ std::vector<std::pair<SignRequest, std::string>> signed_;
 void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name,
               const std::string &pd, long long accepted, long long otherOrientation) {
   // One graph and registry for both reads, so equal far sides are one node.
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
   CobordismAssembler inProcess(g, reg, searched);
@@ -186,7 +186,7 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
     signed_.push_back({{pd, 2, k.faces}, sig});
     const AddedCobordism b = byPairSig.add({sig, k.genus, key});
     ++compared;
-    if (a.ok && sameEdge(g, reg, searched.link, a, b)) {
+    if (a.ok && sameAdded(g, reg, searched.link, a, b)) {
       ++same;
     } else {
       std::cout << "  " << name << " kept surface " << i << " (" << k.outgoingName << "): in process ok="
@@ -267,7 +267,7 @@ void testBatchSigning() {
 }
 
 void testStop(const linknaming::SignatureTable &sigs) {
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
   Searcher searcher(sigs, nullptr, capThree(), 4);

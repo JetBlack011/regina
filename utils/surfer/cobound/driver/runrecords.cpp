@@ -30,7 +30,7 @@ void append(const std::string &work, const std::string &line) {
 void writeProfiles(const std::string &work, const GraphView &v,
                    const std::function<std::string(LinkId)> &subjectName,
                    const std::function<bool(LinkId)> &searched) {
-  const ProofGraph &g = v.g;
+  const CobordismGraph &g = v.g;
   const LinkRegistry &reg = v.reg;
   std::ofstream out(work + "/" + kFrozenProfilesJsonl);
   for (LinkId n = 0; n < static_cast<LinkId>(g.linkCount()); ++n) {
@@ -57,8 +57,8 @@ void writeProfiles(const std::string &work, const GraphView &v,
 }
 
 void writeLinkBounds(const std::string &work, const GraphView &v) {
-  using Kind = ProofGraph::LowerReason::Kind;
-  const ProofGraph &g = v.g;
+  using Kind = CobordismGraph::LowerReason::Kind;
+  const CobordismGraph &g = v.g;
   const LinkRegistry &reg = v.reg;
   std::ofstream o(work + "/" + kFrozenNodeBoundsJsonl);
   auto kindName = [](Kind k) {
@@ -96,23 +96,23 @@ void writeLinkBounds(const std::string &work, const GraphView &v) {
     bool first = true;
     for (const ProfileEntry &e : link.profile.entries()) {
       bool constructive = true;
-      for (RecordId r : g.proof(e.record))
-        if (g.record(r).kind == RecordKind::leaf &&
-            g.record(r).source.rfind("literature", 0) == 0)
+      for (DerivationId r : g.proof(e.derivation))
+        if (g.derivation(r).kind == DerivationKind::leaf &&
+            g.derivation(r).source.rfind("literature", 0) == 0)
           constructive = false;
       o << (first ? "" : ",") << "{\"partition\":\"" << e.partition.str() << "\",\"genus\":"
-        << e.genus << ",\"record\":" << e.record << ",\"constructive\":"
+        << e.genus << ",\"record\":" << e.derivation << ",\"constructive\":"
         << (constructive ? "true" : "false") << "}";
       first = false;
     }
     o << "],\"lower\":[";
     first = true;
-    if (link.components <= ProofGraph::kMaxLowerComponents)
+    if (link.components <= CobordismGraph::kMaxLowerComponents)
       for (const Partition &p : allPartitions(link.components)) {
         const auto f = g.lowerWhy(n, p);
         if (f.value <= 0 || !(f.storedFor == p)) continue; // stored bounds only, once each
         o << (first ? "" : ",") << "{\"partition\":\"" << p.str() << "\",\"value\":"
-          << (f.value >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(f.value))
+          << (f.value >= CobordismGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(f.value))
           << ",\"kind\":\"" << kindName(f.reason.kind) << "\"";
         if (f.reason.kind == Kind::literature)
           o << ",\"source\":\"" << json::escape(link.lowerBoundSource) << "\"";
@@ -135,7 +135,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   // carry. README.md, "Lower bounds": only a charge-0 path to a source whose
   // bound is not Lipschitz (lower_bound_sources.csv, `special`) can beat the
   // target's own literature bound.
-  const ProofGraph &g = v.g;
+  const CobordismGraph &g = v.g;
   const LinkId target = v.target;
   const Partition goal = v.goal;
   const int targetLower = g.lower(target, goal);
@@ -152,7 +152,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   // surfaces, would pump bounds without limit. -1 when the what-if itself
   // meets a contradiction (then nothing it says is used).
   auto carried = [&](LinkId n, int seed) {
-    ProofGraph what = g;
+    CobordismGraph what = g;
     what.clearLowerBounds();
     const size_t before = what.contradictions().size();
     what.setGenusLowerBound(n, seed, "lower-report what-if");

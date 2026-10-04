@@ -37,11 +37,11 @@ namespace bounds {
 /// Where loading puts what it reads: the run's graph, its links and their
 /// names and outside facts, and how each new edge's surface is found.
 struct DatabaseLoad {
-  ProofGraph &g;
+  CobordismGraph &g;
   LinkRegistry &reg;
   LinkAxioms &axioms;
   const linknaming::ExactTables &tables;
-  EdgeInfos &edges;
+  CobordismSources &sources;
   /// Read-backs and assemblies that broke an invariant (reported, dropped).
   int &invariantFailures;
   /// A cobordism of greater genus is on no proof the run can use, so it is

@@ -83,7 +83,7 @@ const char *PD_L11n33 =
     "[5;12;6;13];[13;4;14;5];[20;3;21;4];[2;8;3;7];[18;2;19;1];[15;1;16;0]]";
 
 void test10_3() {
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_10_3);
   CobordismAssembler assembler(g, reg, searched); // certifies the row (throws if not)
@@ -114,13 +114,13 @@ void test10_3() {
   auto best = g.bestConnected(searched.link);
   CHECK(best.has_value() && best->genus == 0, "10_3 is proved slice");
   if (best) {
-    for (RecordId r : g.proof(best->record))
+    for (DerivationId r : g.proof(best->derivation))
       CHECK(g.recheck(r).empty(), "every record of the proof rechecks");
     // The proof rests only on the unknot's disc: constructive.
     bool onlyUnknot = true;
-    for (RecordId r : g.proof(best->record))
-      if (g.record(r).kind == RecordKind::leaf &&
-          g.record(r).source.find("unknot") == std::string::npos)
+    for (DerivationId r : g.proof(best->derivation))
+      if (g.derivation(r).kind == DerivationKind::leaf &&
+          g.derivation(r).source.find("unknot") == std::string::npos)
         onlyUnknot = false;
     CHECK(onlyUnknot, "the slice proof uses no literature");
   }
@@ -128,7 +128,7 @@ void test10_3() {
 }
 
 void testL11n33() {
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_L11n33);
   CobordismAssembler assembler(g, reg, searched);
@@ -144,7 +144,7 @@ void testL11n33() {
     if (r.other == "L11n33{1}" && r.genus == "0") {
       CHECK_EQ(e.outgoing, searched.link, "the identity far side is the row's node");
       // A self-loop of two annuli maps component i to component i.
-      const LinkCobordism &we = g.cobordism(e.edge);
+      const LinkCobordism &we = g.cobordism(e.cobordism);
       if (e.shape.components == 2) {
         bool product = true;
         for (int i = 0; i < 2; ++i) {
@@ -167,7 +167,7 @@ void testFastMatchesReference() {
   // pieces for every real witness.
   for (auto [pd, file] : {std::pair{PD_10_3, "hop_10_3_witnesses.csv"},
                           std::pair{PD_L11n33, "hop_L11n33_witnesses.csv"}}) {
-    ProofGraph gf, gr;
+    CobordismGraph gf, gr;
     LinkRegistry rf(gf), rr(gr);
     CobordismAssembler fast(gf, rf, makeSearchedLink(rf, pd), CobordismAssembler::Read::fast);
     CobordismAssembler ref(gr, rr, makeSearchedLink(rr, pd), CobordismAssembler::Read::reference);

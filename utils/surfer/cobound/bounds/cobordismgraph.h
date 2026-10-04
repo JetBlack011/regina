@@ -29,10 +29,10 @@
 namespace bounds {
 
 using LinkId = int;
-using EdgeId = int;
-using RecordId = long;
+using RelationId = int;
+using DerivationId = long;
 
-enum class RecordKind {
+enum class DerivationKind {
   leaf,            ///< A fact from outside: a table, an anchor, a certificate.
   cobordismForward,  ///< A witness's incoming link, from its outgoing link.
   cobordismReverse,  ///< A witness's outgoing link, from its incoming link.
@@ -41,16 +41,16 @@ enum class RecordKind {
   sumCombine,      ///< A sum along components, from surfaces for its summands.
 };
 
-const char *kindName(RecordKind k);
+const char *kindName(DerivationKind k);
 
-struct Record {
-  RecordId id = -1;
+struct Derivation {
+  DerivationId id = -1;
   LinkId link = -1;
   Partition partition;
   int genus = 0;
-  RecordKind kind = RecordKind::leaf;
-  EdgeId edge = -1;                 ///< The witness or split edge used.
-  std::vector<RecordId> children;   ///< Records used; all have smaller ids.
+  DerivationKind kind = DerivationKind::leaf;
+  RelationId relation = -1;                 ///< The witness or split edge used.
+  std::vector<DerivationId> children;   ///< Records used; all have smaller ids.
   std::string source;               ///< For leaves: where the fact comes from.
 };
 
@@ -62,7 +62,7 @@ struct Record {
  * the caller's job and is what soundness rests on.
  */
 struct LinkCobordism {
-  EdgeId id = -1;
+  RelationId id = -1;
   LinkId in = -1, out = -1;
   CobordismShape shape;
   std::vector<int> inMap, outMap;
@@ -75,8 +75,8 @@ struct LinkCobordism {
  * `whole` that component c of pieces[k] is; together they are a bijection
  * onto the components of `whole`.
  */
-struct SplitEdge {
-  EdgeId id = -1;
+struct Split {
+  RelationId id = -1;
   LinkId whole = -1;
   std::vector<LinkId> pieces;
   std::vector<std::vector<int>> pieceMap;
@@ -91,8 +91,8 @@ struct SplitEdge {
  * least one piece component; two piece components with one image were
  * summed together. Unlike a split, the map is not injective.
  */
-struct SumEdge {
-  EdgeId id = -1;
+struct Sum {
+  RelationId id = -1;
   LinkId whole = -1;
   std::vector<LinkId> pieces;
   std::vector<std::vector<int>> pieceMap;
@@ -110,12 +110,12 @@ struct GraphLink {
   std::optional<int> genusLowerBound;
   std::string lowerBoundSource;
   Profile profile;
-  std::vector<EdgeId> cobordisms; ///< Edges with this node at either end.
-  std::vector<EdgeId> splitEdges;   ///< As whole or as a piece.
-  std::vector<EdgeId> sumEdges;     ///< As whole or as a summand.
+  std::vector<RelationId> cobordisms; ///< Edges with this node at either end.
+  std::vector<RelationId> splits;   ///< As whole or as a piece.
+  std::vector<RelationId> sums;     ///< As whole or as a summand.
 };
 
-class ProofGraph {
+class CobordismGraph {
 public:
   LinkId addLink(int components, std::string label,
                  std::optional<std::vector<std::vector<int>>> linking = {});
@@ -123,18 +123,18 @@ public:
 
   /// Records an outside fact; returns its record, or -1 if already implied.
   /// Call propagate() afterwards.
-  RecordId addLeaf(LinkId n, const Partition &p, int genus,
+  DerivationId addLeaf(LinkId n, const Partition &p, int genus,
                    std::string source);
   /// Adds a witness edge (validated); call propagate() afterwards.
-  EdgeId addCobordism(LinkId in, LinkId out, CobordismShape shape,
+  RelationId addCobordism(LinkId in, LinkId out, CobordismShape shape,
                     std::vector<int> inMap, std::vector<int> outMap,
                     std::string key);
   /// Adds a split edge (validated); call propagate() afterwards.
-  EdgeId addSplit(LinkId whole, std::vector<LinkId> pieces,
+  RelationId addSplit(LinkId whole, std::vector<LinkId> pieces,
                   std::vector<std::vector<int>> pieceMap);
   /// Adds a sum-along-components edge (validated: every whole component
   /// is hit, at least two pieces); call propagate() afterwards.
-  EdgeId addSum(LinkId whole, std::vector<LinkId> pieces,
+  RelationId addSum(LinkId whole, std::vector<LinkId> pieces,
                 std::vector<std::vector<int>> pieceMap);
 
   /// Derives every bound that follows, to a fixed point. Returns the number
@@ -145,12 +145,12 @@ public:
   long saturate();
 
   const GraphLink &link(LinkId n) const { return links_.at(n); }
-  const Record &record(RecordId r) const { return records_.at(r); }
-  const LinkCobordism &cobordism(EdgeId e) const { return cobordisms_.at(e); }
-  const SplitEdge &split(EdgeId e) const { return splits_.at(e); }
-  const SumEdge &sum(EdgeId e) const { return sums_.at(e); }
+  const Derivation &derivation(DerivationId r) const { return derivations_.at(r); }
+  const LinkCobordism &cobordism(RelationId e) const { return cobordisms_.at(e); }
+  const Split &split(RelationId e) const { return splits_.at(e); }
+  const Sum &sum(RelationId e) const { return sums_.at(e); }
   size_t linkCount() const { return links_.size(); }
-  size_t recordCount() const { return records_.size(); }
+  size_t derivationCount() const { return derivations_.size(); }
   size_t cobordismCount() const { return cobordisms_.size(); }
 
   /// The least genus known for node n with a partition refining `target`.
@@ -159,12 +159,12 @@ public:
   std::optional<ProfileEntry> bestConnected(LinkId n) const;
 
   /// Every record `r` rests on, children before parents, `r` last.
-  std::vector<RecordId> proof(RecordId r) const;
+  std::vector<DerivationId> proof(DerivationId r) const;
 
   /// Re-derives record r from its children with glue() and the edge's maps,
   /// returning an empty string if it reproduces exactly, else what differs.
   /// A bookkeeping check, not an independent one (cascade_check.py is).
-  std::string recheck(RecordId r) const;
+  std::string recheck(DerivationId r) const;
 
   /// Contradictions met so far (a derived bound below a proved lower bound,
   /// or a partition the linking numbers forbid). Each means a bug or a wrong
@@ -203,7 +203,7 @@ public:
     Kind kind = Kind::none;
     /// witness: the edge and which end this is; the other end's partition
     /// (labels) whose bound `from` was read, and what the cap added.
-    EdgeId edge = -1;
+    RelationId relation = -1;
     bool toIsIn = false;
     std::vector<int> fromPartition;
     int from = 0, addition = 0;
@@ -215,7 +215,7 @@ public:
     /// connected surfaces, whose genera plus components minus one were
     /// subtracted (addition).
     std::vector<std::vector<int>> pieces;
-    std::vector<RecordId> records;
+    std::vector<DerivationId> derivations;
     int piece = -1;
   };
   /// The bound lower(n, q) reads, the partition it is stored for (q or a
@@ -275,10 +275,10 @@ public:
   std::string profileFields(LinkId n) const;
 
 private:
-  RecordId insert(LinkId n, const Partition &p, int genus, RecordKind kind,
-                  EdgeId edge, std::vector<RecordId> children,
+  DerivationId insert(LinkId n, const Partition &p, int genus, DerivationKind kind,
+                  RelationId relation, std::vector<DerivationId> children,
                   std::string source);
-  void deriveFrom(RecordId r);
+  void deriveFrom(DerivationId r);
 
   // What glue() and the maps give for a witness edge from one entry; used by
   // both deriveFrom() and recheck().
@@ -286,14 +286,14 @@ private:
   throughCobordism(const LinkCobordism &e, bool forward, const Partition &p,
                  int genus) const;
   std::optional<std::pair<Partition, int>>
-  combineSplit(const SplitEdge &s,
-               const std::vector<const Record *> &perPiece) const;
-  std::optional<Partition> restrictSplit(const SplitEdge &s, size_t piece,
+  combineSplit(const Split &s,
+               const std::vector<const Derivation *> &perPiece) const;
+  std::optional<Partition> restrictSplit(const Split &s, size_t piece,
                                          const Partition &whole) const;
   // The whole's (partition, genus) from one surface per summand: genera add
   // and blocks merge where components were summed (paper lem:sum-partitions).
-  std::pair<Partition, int> combineSum(const SumEdge &s,
-                                       const std::vector<const Record *> &perPiece) const;
+  std::pair<Partition, int> combineSum(const Sum &s,
+                                       const std::vector<const Derivation *> &perPiece) const;
 
   // Lower bounds per node: partition labels -> bound (absent: 0), and why.
   std::vector<std::map<std::vector<int>, int>> lower_;
@@ -306,11 +306,11 @@ private:
   int lowerAcross(const LinkCobordism &e, bool toIsIn, const Partition &q) const;
 
   std::vector<GraphLink> links_;
-  std::vector<Record> records_;
+  std::vector<Derivation> derivations_;
   std::vector<LinkCobordism> cobordisms_;
-  std::vector<SplitEdge> splits_;
-  std::vector<SumEdge> sums_;
-  std::vector<RecordId> pending_;
+  std::vector<Split> splits_;
+  std::vector<Sum> sums_;
+  std::vector<DerivationId> pending_;
   std::vector<std::string> contradictions_;
 };
 

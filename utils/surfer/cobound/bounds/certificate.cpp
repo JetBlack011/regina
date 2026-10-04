@@ -18,7 +18,7 @@ namespace bounds {
 // How a certificate finds a witness's surface: a master witness's pair
 // signature inline; an in-process one's faces in its row's thickening, with
 // that thickening's digest.
-void CertificateWriter::writeSurface(std::ostream &c, const EdgeInfo &info) {
+void CertificateWriter::writeSurface(std::ostream &c, const CobordismSource &info) {
   if (!info.pairsig.empty()) c << ",\"pairsig\":\"" << json::escape(info.pairsig) << "\"";
   if (!info.faces.empty()) {
     c << ",\"faces\":[";
@@ -27,7 +27,7 @@ void CertificateWriter::writeSurface(std::ostream &c, const EdgeInfo &info) {
   }
 }
 
-void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
+void CertificateWriter::writeCobordism(std::ostream &c, RelationId eid,
                                          std::set<LinkId> &links) const {
   // A witness edge as a checker replays it: its key, ends, shape and maps,
   // and (for an edge with a hop or master row) the row, the surface (faces
@@ -35,51 +35,51 @@ void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
   const LinkCobordism &we = g_.cobordism(eid);
   links.insert(we.in);
   links.insert(we.out);
-  const auto it = edges_.byEdge.find(eid);
+  const auto it = sources_.byCobordism.find(eid);
   c << ",\"witness\":\"" << json::escape(we.key) << "\"";
   c << ",\"in\":" << we.in << ",\"out\":" << we.out
     << ",\"shape\":{\"components\":" << we.shape.components << ",\"genus\":" << we.shape.genus
     << ",\"inComponent\":" << json::array(we.shape.inComponent)
     << ",\"outComponent\":" << json::array(we.shape.outComponent) << "},\"inMap\":" << json::array(we.inMap)
     << ",\"outMap\":" << json::array(we.outMap);
-  if (it == edges_.byEdge.end()) return;
-  const AddedCobordism &he = it->second.he;
+  if (it == sources_.byCobordism.end()) return;
+  const AddedCobordism &added = it->second.added;
   c << ",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
     << json::escape(it->second.incomingPD) << "\",\"layers\":" << it->second.layers
     << ",\"row_node_map\":" << json::array(it->second.incomingLinkMap);
   writeSurface(c, it->second);
-  c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
-  for (size_t j = 0; j < he.outgoingCurveEdges.size(); ++j)
-    c << (j ? "," : "") << json::array(he.outgoingCurveEdges[j]);
+  c << ",\"split_edge\":" << added.split << ",\"farCurveEdges\":[";
+  for (size_t j = 0; j < added.outgoingCurveEdges.size(); ++j)
+    c << (j ? "," : "") << json::array(added.outgoingCurveEdges[j]);
   c << "],\"pieces\":[";
-  for (size_t k = 0; k < he.pieces.size(); ++k) {
-    const LinkMatch &m = he.pieces[k];
+  for (size_t k = 0; k < added.pieces.size(); ++k) {
+    const LinkMatch &m = added.pieces[k];
     c << (k ? "," : "") << "{\"node\":" << m.link << ",\"method\":\"" << m.method
       << "\",\"componentMap\":" << json::array(m.componentMap) << ",\"mirrored\":"
       << (m.mirrored ? "true" : "false") << ",\"reversed\":" << (m.reversed ? "true" : "false")
-      << ",\"origins\":" << json::array(he.pieceOrigins[k]) << "}";
+      << ",\"origins\":" << json::array(added.pieceOrigins[k]) << "}";
     links.insert(m.link);
   }
   c << "]";
 }
 
-void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
+void CertificateWriter::writeDerivations(std::ostream &c, const std::vector<DerivationId> &ids,
                                      std::set<LinkId> &links) const {
   bool first = true;
-  for (RecordId r : ids) {
-    const Record &rec = g_.record(r);
+  for (DerivationId r : ids) {
+    const Derivation &rec = g_.derivation(r);
     links.insert(rec.link);
     c << (first ? "" : ",\n") << "{\"id\":" << r << ",\"node\":" << rec.link
       << ",\"partition\":\"" << rec.partition.str() << "\",\"genus\":" << rec.genus
-      << ",\"kind\":\"" << kindName(rec.kind) << "\",\"edge\":" << rec.edge
+      << ",\"kind\":\"" << kindName(rec.kind) << "\",\"edge\":" << rec.relation
       << ",\"source\":\"" << json::escape(rec.source) << "\",\"children\":[";
     for (size_t i = 0; i < rec.children.size(); ++i)
       c << (i ? "," : "") << rec.children[i];
     c << "]";
-    if (rec.kind == RecordKind::cobordismForward || rec.kind == RecordKind::cobordismReverse)
-      writeCobordism(c, rec.edge, links);
-    if (rec.kind == RecordKind::splitCombine || rec.kind == RecordKind::splitRestrict) {
-      const SplitEdge &se = g_.split(rec.edge);
+    if (rec.kind == DerivationKind::cobordismForward || rec.kind == DerivationKind::cobordismReverse)
+      writeCobordism(c, rec.relation, links);
+    if (rec.kind == DerivationKind::splitCombine || rec.kind == DerivationKind::splitRestrict) {
+      const Split &se = g_.split(rec.relation);
       links.insert(se.whole);
       links.insert(se.pieces.begin(), se.pieces.end());
       c << ",\"whole\":" << se.whole << ",\"pieces\":" << json::array(se.pieces) << ",\"pieceMap\":[";
@@ -87,8 +87,8 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
         c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
     }
-    if (rec.kind == RecordKind::sumCombine) {
-      const SumEdge &se = g_.sum(rec.edge);
+    if (rec.kind == DerivationKind::sumCombine) {
+      const Sum &se = g_.sum(rec.relation);
       links.insert(se.whole);
       links.insert(se.pieces.begin(), se.pieces.end());
       c << ",\"whole\":" << se.whole << ",\"pieces\":" << json::array(se.pieces) << ",\"pieceMap\":[";
@@ -96,9 +96,9 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
         c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
     }
-    if (rec.kind == RecordKind::leaf && rec.source.rfind(kFrozenDirectWitnessSource, 0) == 0) {
+    if (rec.kind == DerivationKind::leaf && rec.source.rfind(kFrozenDirectWitnessSource, 0) == 0) {
       const std::string key = rec.source.substr(sizeof kFrozenDirectWitnessSource - 1);
-      if (auto it = edges_.direct.find(key); it != edges_.direct.end()) {
+      if (auto it = sources_.direct.find(key); it != sources_.direct.end()) {
         c << ",\"witness\":\"" << json::escape(it->second.key)
           << "\",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
           << json::escape(it->second.incomingPD) << "\",\"layers\":" << it->second.layers;
@@ -118,20 +118,20 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
   // replays the surface the same way, then recomputes the cap's addition
   // and the other end's partition itself. Split facts carry the upper
   // records they subtract, with those records' own proofs.
-  using Kind = ProofGraph::LowerReason::Kind;
+  using Kind = CobordismGraph::LowerReason::Kind;
   struct Fact {
     LinkId link;
     Partition q;
-    ProofGraph::LowerFact f;
+    CobordismGraph::LowerFact f;
     long from = -1;          ///< witness / split-piece: the fact read
     std::vector<long> pieces; ///< split-whole: the pieces' facts
   };
   std::vector<Fact> facts;
   std::map<std::pair<LinkId, std::vector<int>>, long> ids;
   std::set<std::pair<LinkId, std::vector<int>>> onStack;
-  std::set<RecordId> records;
+  std::set<DerivationId> derivations;
   std::function<long(LinkId, const Partition &)> visit = [&](LinkId n, const Partition &q) -> long {
-    const ProofGraph::LowerFact f = g_.lowerWhy(n, q);
+    const CobordismGraph::LowerFact f = g_.lowerWhy(n, q);
     const auto key = std::make_pair(n, f.storedFor.labels());
     if (auto it = ids.find(key); it != ids.end()) return it->second;
     if (!onStack.insert(key).second)
@@ -139,14 +139,14 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
     Fact fact{n, f.storedFor, f};
     switch (f.reason.kind) {
     case Kind::cobordism: {
-      const LinkCobordism &e = g_.cobordism(f.reason.edge);
+      const LinkCobordism &e = g_.cobordism(f.reason.relation);
       fact.from = visit(f.reason.toIsIn ? e.out : e.in,
                         Partition::fromLabels(f.reason.fromPartition));
       break;
     }
     case Kind::splitWhole:
-      for (EdgeId sid : g_.link(n).splitEdges) {
-        const SplitEdge &s = g_.split(sid);
+      for (RelationId sid : g_.link(n).splits) {
+        const Split &s = g_.split(sid);
         if (s.whole != n) continue;
         for (size_t k = 0; k < s.pieces.size() && k < f.reason.pieces.size(); ++k)
           fact.pieces.push_back(visit(s.pieces[k], Partition::fromLabels(f.reason.pieces[k])));
@@ -154,22 +154,22 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
       }
       break;
     case Kind::splitPiece:
-      for (EdgeId sid : g_.link(n).splitEdges) {
-        const SplitEdge &s = g_.split(sid);
+      for (RelationId sid : g_.link(n).splits) {
+        const Split &s = g_.split(sid);
         if (s.whole == n || std::find(s.pieces.begin(), s.pieces.end(), n) == s.pieces.end())
           continue;
         fact.from = visit(s.whole, Partition::fromLabels(f.reason.fromPartition));
         break;
       }
-      for (RecordId r : f.reason.records)
-        for (RecordId p : g_.proof(r)) records.insert(p);
+      for (DerivationId r : f.reason.derivations)
+        for (DerivationId p : g_.proof(r)) derivations.insert(p);
       break;
     case Kind::sumPiece: {
-      const SumEdge &s = g_.sum(f.reason.edge);
+      const Sum &s = g_.sum(f.reason.relation);
       const LinkId piece = s.pieces[static_cast<size_t>(f.reason.piece)];
       fact.from = visit(piece, Partition::coarsest(g_.link(piece).components));
-      for (RecordId r : f.reason.records)
-        for (RecordId p : g_.proof(r)) records.insert(p);
+      for (DerivationId r : f.reason.derivations)
+        for (DerivationId p : g_.proof(r)) derivations.insert(p);
       break;
     }
     default:
@@ -189,7 +189,7 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
     << g_.lower(goal.target, goal.partition) << ",\"top\":" << top << ",\"facts\":[\n";
   std::set<LinkId> links;
   auto value = [](int v) {
-    return v >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(v);
+    return v >= CobordismGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(v);
   };
   for (size_t i = 0; i < facts.size(); ++i) {
     const Fact &fact = facts[i];
@@ -205,7 +205,7 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
       c << ",\"kind\":\"linking\"";
       break;
     case Kind::cobordism: {
-      const LinkCobordism &e = g_.cobordism(fact.f.reason.edge);
+      const LinkCobordism &e = g_.cobordism(fact.f.reason.relation);
       c << ",\"kind\":\"" << kFrozenLowerKindWitness
         << "\",\"to_is_in\":" << (fact.f.reason.toIsIn ? "true" : "false")
         << ",\"from\":" << fact.from << ",\"from_partition\":\""
@@ -218,8 +218,8 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
       c << ",\"kind\":\"split-whole\",\"pieces\":[";
       for (size_t k = 0; k < fact.pieces.size(); ++k) c << (k ? "," : "") << fact.pieces[k];
       c << "]";
-      for (EdgeId sid : g_.link(fact.link).splitEdges) {
-        const SplitEdge &se = g_.split(sid);
+      for (RelationId sid : g_.link(fact.link).splits) {
+        const Split &se = g_.split(sid);
         if (se.whole != fact.link) continue;
         c << ",\"whole\":" << se.whole << ",\"piece_nodes\":" << json::array(se.pieces)
           << ",\"pieceMap\":[";
@@ -234,18 +234,18 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
         << Partition::fromLabels(fact.f.reason.fromPartition).str() << "\",\"from_value\":"
         << value(fact.f.reason.from) << ",\"subtracted\":" << fact.f.reason.addition
         << ",\"records\":[";
-      for (size_t k = 0; k < fact.f.reason.records.size(); ++k)
-        c << (k ? "," : "") << fact.f.reason.records[k];
+      for (size_t k = 0; k < fact.f.reason.derivations.size(); ++k)
+        c << (k ? "," : "") << fact.f.reason.derivations[k];
       c << "]";
       break;
     }
     case Kind::sumPiece: {
-      const SumEdge &se = g_.sum(fact.f.reason.edge);
+      const Sum &se = g_.sum(fact.f.reason.relation);
       c << ",\"kind\":\"sum-piece\",\"from\":" << fact.from << ",\"piece\":" << fact.f.reason.piece
         << ",\"from_value\":" << value(fact.f.reason.from) << ",\"subtracted\":"
         << fact.f.reason.addition << ",\"records\":[";
-      for (size_t k = 0; k < fact.f.reason.records.size(); ++k)
-        c << (k ? "," : "") << fact.f.reason.records[k];
+      for (size_t k = 0; k < fact.f.reason.derivations.size(); ++k)
+        c << (k ? "," : "") << fact.f.reason.derivations[k];
       c << "],\"whole\":" << se.whole << ",\"piece_nodes\":" << json::array(se.pieces) << ",\"pieceMap\":[";
       for (size_t k = 0; k < se.pieceMap.size(); ++k) c << (k ? "," : "") << json::array(se.pieceMap[k]);
       c << "]";
@@ -259,7 +259,7 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
     c << "}";
   }
   c << "\n],\"records\":[\n";
-  writeRecords(c, std::vector<RecordId>(records.begin(), records.end()), links);
+  writeDerivations(c, std::vector<DerivationId>(derivations.begin(), derivations.end()), links);
   c << "\n],\"nodes\":[\n";
   writeLinks(c, links);
   c << "\n]}\n";
@@ -274,7 +274,7 @@ void CertificateWriter::writeUpper(const std::string &path, const CertificateGoa
     << ",\"goal\":\"" << (goal.disjoint ? "disjoint" : "connected") << "\",\"genus\":"
     << best->genus << ",\"records\":[\n";
   std::set<LinkId> links;
-  writeRecords(c, g_.proof(best->record), links);
+  writeDerivations(c, g_.proof(best->derivation), links);
   c << "\n],\"nodes\":[\n";
   writeLinks(c, links);
   c << "\n]}\n";
@@ -308,7 +308,7 @@ void CertificateWriter::writeLinks(std::ostream &c, const std::set<LinkId> &link
 
 void CertificateWriter::describeLower(std::ostream &o, LinkId n, const Partition &q,
                                       int indent) const {
-  using Kind = ProofGraph::LowerReason::Kind;
+  using Kind = CobordismGraph::LowerReason::Kind;
   const auto fact = g_.lowerWhy(n, q);
   const std::string pad(static_cast<size_t>(2 * indent + 4), ' ');
   auto name = [&](LinkId m) {
@@ -317,7 +317,7 @@ void CertificateWriter::describeLower(std::ostream &o, LinkId n, const Partition
            (t == tableName_.end() ? std::string(" (untabulated)") : " (" + t->second + ")");
   };
   o << pad << name(n) << " " << q.str() << " >= "
-    << (fact.value >= ProofGraph::kNoSurface ? std::string("(no such surface)")
+    << (fact.value >= CobordismGraph::kNoSurface ? std::string("(no such surface)")
                                              : std::to_string(fact.value));
   if (!(fact.storedFor == q)) o << ", stored for " << fact.storedFor.str();
   if (indent > 40) {
@@ -338,18 +338,18 @@ void CertificateWriter::describeLower(std::ostream &o, LinkId n, const Partition
     o << ": what-if seed\n";
     return;
   case Kind::sumPiece: {
-    const SumEdge &s = g_.sum(fact.reason.edge);
+    const Sum &s = g_.sum(fact.reason.relation);
     const LinkId piece = s.pieces[static_cast<size_t>(fact.reason.piece)];
     o << ": a sum along components: summand " << name(piece) << " >= " << fact.reason.from
       << ", minus the other summands' connected genera plus components minus one ("
       << fact.reason.addition << "; records";
-    for (RecordId r : fact.reason.records) o << " " << r;
+    for (DerivationId r : fact.reason.derivations) o << " " << r;
     o << ")\n";
     describeLower(o, piece, Partition::coarsest(g_.link(piece).components), indent + 1);
     return;
   }
   case Kind::cobordism: {
-    const LinkCobordism &e = g_.cobordism(fact.reason.edge);
+    const LinkCobordism &e = g_.cobordism(fact.reason.relation);
     const LinkId other = fact.reason.toIsIn ? e.out : e.in;
     const Partition op = Partition::fromLabels(fact.reason.fromPartition);
     o << ": across witness " << e.key << " (genus " << e.shape.genus << ", "
@@ -360,8 +360,8 @@ void CertificateWriter::describeLower(std::ostream &o, LinkId n, const Partition
   }
   case Kind::splitWhole: {
     o << ": the split link's pieces, summed\n";
-    for (EdgeId sid : g_.link(n).splitEdges) {
-      const SplitEdge &s = g_.split(sid);
+    for (RelationId sid : g_.link(n).splits) {
+      const Split &s = g_.split(sid);
       if (s.whole != n) continue;
       for (size_t k = 0; k < s.pieces.size() && k < fact.reason.pieces.size(); ++k)
         describeLower(o, s.pieces[k], Partition::fromLabels(fact.reason.pieces[k]),
@@ -373,10 +373,10 @@ void CertificateWriter::describeLower(std::ostream &o, LinkId n, const Partition
   case Kind::splitPiece: {
     o << ": a piece of a split link whose whole is bounded, minus the proved genera ("
       << fact.reason.addition << ") of the other pieces (records";
-    for (RecordId r : fact.reason.records) o << " " << r;
+    for (DerivationId r : fact.reason.derivations) o << " " << r;
     o << ")\n";
-    for (EdgeId sid : g_.link(n).splitEdges) {
-      const SplitEdge &s = g_.split(sid);
+    for (RelationId sid : g_.link(n).splits) {
+      const Split &s = g_.split(sid);
       if (s.whole == n) continue;
       if (std::find(s.pieces.begin(), s.pieces.end(), n) == s.pieces.end()) continue;
       describeLower(o, s.whole, Partition::fromLabels(fact.reason.fromPartition), indent + 1);

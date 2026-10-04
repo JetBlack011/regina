@@ -24,7 +24,7 @@ std::string formatOutputRow(const OutputRow &r) {
   std::ostringstream out;
   out << csvField(r.knot) << ',' << r.resolvedGenus << ',' << r.status << ','
       << r.cobordismKind << ',' << csvField(r.cobordismPairSig) << ','
-      << csvField(r.viaKnot) << ',' << r.viaEdgeGenus << ','
+      << csvField(r.viaKnot) << ',' << r.viaCobordismGenus << ','
       << csvField(r.dependsOn) << ',' << r.literatureLo << ','
       << r.literatureHi << ',' << r.derivedLo << ',' << r.derivedHi << ','
       << r.cobordismBasis << ',' << (r.tubed ? "true" : "false") << ','
@@ -59,9 +59,9 @@ loadOutputCsv(const std::filesystem::path &path) {
     r.cobordismPairSig = f[4];
     r.viaKnot = f[5];
     try {
-      r.viaEdgeGenus = f[6].empty() ? 0 : std::stoi(f[6]);
+      r.viaCobordismGenus = f[6].empty() ? 0 : std::stoi(f[6]);
     } catch (const std::exception &) {
-      r.viaEdgeGenus = 0;
+      r.viaCobordismGenus = 0;
     }
     r.dependsOn = f[7];
     try {
@@ -168,7 +168,7 @@ OutputRow rowFromVerdict(
         b.kind == cobordisms::CobordismKind::direct ? "direct" : "cobordism";
     out.cobordismPairSig = !b.pairSig.empty() ? b.pairSig : reader.at(b.pairSigOffset);
     out.viaKnot = b.viaName;
-    out.viaEdgeGenus = b.viaGenus;
+    out.viaCobordismGenus = b.viaGenus;
     out.dependsOn = solver::buildDependsOn(b.viaName, bounds);
     out.cobordismBasis = b.basis == solver::Basis::constructive
                            ? "constructive"

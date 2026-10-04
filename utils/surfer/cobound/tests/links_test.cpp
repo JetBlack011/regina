@@ -36,7 +36,7 @@ const char *L7n1_1 = "PD[X[12; 2; 13; 1]; X[6; 11; 7; 12]; X[4; 6; 1; 5]; X[13; 
 void testDiagramHits() {
   // The same diagram relabelled: a "diagram" hit whose map is the relabelling.
   using regina::ExampleLink;
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   regina::Link u = ExampleLink::hopf();
   u.insertLink(ExampleLink::torus(2, 4));
@@ -73,7 +73,7 @@ void testDifferentDiagramsSameLink() {
   int isometryHits = 0, trials = 0;
   for (const regina::Link &l : {ExampleLink::whitehead(), ExampleLink::borromean(),
                                 ExampleLink::conway()}) {
-    ProofGraph g;
+    CobordismGraph g;
     LinkRegistry reg(g);
     GaussDiagram base = simplifyKeepingComponents(of(l));
     LinkMatch n0 = reg.intern(base, "base");
@@ -106,7 +106,7 @@ void testOrientationVariantsAreDifferentLinks() {
   // L7n1{0} (g4 2) and L7n1{1} (g4 0), L4a1{0} (g4 0) and L4a1{1} (g4 1):
   // one link with different component orientations. Merging them would be
   // unsound, so they must be different nodes.
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   for (auto [a, b] : {std::pair{L7n1_0, L7n1_1}, std::pair{L4a1_0, L4a1_1}}) {
     GaussDiagram da = simplifyKeepingComponents(of(linknaming::linkFromTablePD(a)));
@@ -120,7 +120,7 @@ void testOrientationVariantsAreDifferentLinks() {
 }
 
 void testUnknot() {
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   GaussDiagram u;
   u.comps = {{}};
@@ -140,7 +140,7 @@ void testReducedDiagramsCertify() {
   const GaussDiagram d =
       sumThroughTwist(of(ExampleLink::trefoilLeft()), 0, of(ExampleLink::figureEight()), 1);
   auto certifies = [](const GaussDiagram &diagram) {
-    ProofGraph g;
+    CobordismGraph g;
     LinkRegistry reg(g);
     SearchedLink searched;
     searched.link = reg.intern(diagram, "row").link;
@@ -170,7 +170,7 @@ void testLiftedDiagramsCertify() {
   d.comps = {{5, -6}, {4, 2}, {1, -4, -5, 6, -2, -3}, {-1, 3}};
   d.origin = {0, 1, 2, 3};
   auto certifies = [](const GaussDiagram &diagram) {
-    ProofGraph g;
+    CobordismGraph g;
     LinkRegistry reg(g);
     SearchedLink searched;
     searched.link = reg.intern(diagram, "row").link;

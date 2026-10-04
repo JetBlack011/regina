@@ -120,7 +120,7 @@ bool Profile::implies(const Partition &p, int g) const {
   return false;
 }
 
-bool Profile::insert(const Partition &p, int g, long record) {
+bool Profile::insert(const Partition &p, int g, long derivation) {
   if (p.size() != n_)
     throw std::invalid_argument("Profile::insert: partition size != link");
   if (implies(p, g))
@@ -128,7 +128,7 @@ bool Profile::insert(const Partition &p, int g, long record) {
   std::erase_if(entries_, [&](const ProfileEntry &e) {
     return g <= e.genus && p.refines(e.partition);
   });
-  entries_.push_back({p, g, record});
+  entries_.push_back({p, g, derivation});
   return true;
 }
 

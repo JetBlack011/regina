@@ -83,9 +83,9 @@ SearchJudge::Verdict SearchJudge::add(const outgoing::OutgoingLink &link, int ge
   if (auto best = g_.best(target_, Partition::coarsest(components_));
       best && best->genus <= literatureLo_) {
     bool constructive = true;
-    for (RecordId r : g_.proof(best->record))
-      if (g_.record(r).kind == RecordKind::leaf &&
-          g_.record(r).source.rfind("literature", 0) == 0)
+    for (DerivationId r : g_.proof(best->derivation))
+      if (g_.derivation(r).kind == DerivationKind::leaf &&
+          g_.derivation(r).source.rfind("literature", 0) == 0)
         constructive = false;
     if (constructive) v.constructive = best->genus;
   }

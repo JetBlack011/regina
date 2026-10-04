@@ -31,7 +31,7 @@ std::string LinkRegistry::diagramKey(const GaussDiagram &d) {
   return o.str();
 }
 
-LinkRegistry::LinkRegistry(ProofGraph &graph) : g_(graph) {}
+LinkRegistry::LinkRegistry(CobordismGraph &graph) : g_(graph) {}
 
 LinkId LinkRegistry::unknot() {
   if (unknot_ < 0) {

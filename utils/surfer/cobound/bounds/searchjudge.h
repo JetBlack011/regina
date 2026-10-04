@@ -70,10 +70,10 @@ public:
 
   long long finds() const { return finds_; }
   long long failures() const { return failures_; }
-  const ProofGraph &graph() const { return g_; }
+  const CobordismGraph &graph() const { return g_; }
 
 private:
-  ProofGraph g_;
+  CobordismGraph g_;
   LinkRegistry reg_;
   LinkAxioms axioms_;
   std::unique_ptr<CobordismAssembler> assembler_;

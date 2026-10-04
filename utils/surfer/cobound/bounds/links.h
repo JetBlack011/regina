@@ -57,7 +57,7 @@ struct LinkRegistryStats {
  */
 class LinkRegistry {
 public:
-  explicit LinkRegistry(ProofGraph &graph);
+  explicit LinkRegistry(CobordismGraph &graph);
   LinkRegistry(const LinkRegistry &) = delete;
   LinkRegistry &operator=(const LinkRegistry &) = delete;
 
@@ -74,7 +74,7 @@ public:
 private:
   static std::string diagramKey(const linknaming::GaussDiagram &d);
 
-  ProofGraph &g_;
+  CobordismGraph &g_;
   std::map<LinkId, LinkInfo> info_;
   std::map<LinkId, std::unique_ptr<linknaming::KernelLink>> kernel_;
   std::multimap<std::string, LinkId> byDiagramKey_;

@@ -42,7 +42,7 @@ struct OutputRow {
   std::string cobordismKind; // direct | cobordism | none
   std::string cobordismPairSig;
   std::string viaKnot;
-  int viaEdgeGenus = 0;
+  int viaCobordismGenus = 0;
   std::string dependsOn;
   int literatureLo = 0;
   int literatureHi = 0;

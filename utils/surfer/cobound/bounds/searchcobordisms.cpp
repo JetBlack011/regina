@@ -50,14 +50,14 @@ std::string diagramPD(const GaussDiagram &d) {
   return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
+CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
                            Read read)
     : read_(read), g_(graph), links_(links), searched_(std::move(searched)) {
   redraw_ = std::make_unique<outgoing::OutgoingReader>(searched_.pd, searched_.layers);
   certifyIncoming_();
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
+CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
                            std::unique_ptr<outgoing::OutgoingReader> built, Read read)
     : read_(read), g_(graph), links_(links), searched_(std::move(searched)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
@@ -206,13 +206,13 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
         mapK[out.pieces[k].componentMap[i]] = static_cast<int>(pieceOrigins[k][i]);
       pmap.push_back(mapK);
     }
-    out.splitEdge = g_.addSplit(out.outgoing, pn, pmap);
+    out.split = g_.addSplit(out.outgoing, pn, pmap);
     for (size_t j = 0; j < m; ++j) outMap[j] = static_cast<int>(j);
   }
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addCobordism(searched_.link, out.outgoing, shape, inMap, outMap, key);
+  out.cobordism = g_.addCobordism(searched_.link, out.outgoing, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

@@ -34,9 +34,9 @@
 namespace bounds {
 
 /// What a checker needs to replay one cobordism edge of the graph.
-struct EdgeInfo {
+struct CobordismSource {
   std::string searchDir, incomingPD, key;
-  AddedCobordism he;
+  AddedCobordism added;
   int layers = 2;
   std::string pairsig; ///< inline for master witnesses (no hop directory)
   /// The row diagram's component i is the node's rowNodeMap[i]: identity
@@ -54,9 +54,9 @@ struct EdgeInfo {
 };
 
 /// Every edge's EdgeInfo: witness edges by edge, direct witnesses by key.
-struct EdgeInfos {
-  std::map<EdgeId, EdgeInfo> byEdge;
-  std::map<std::string, EdgeInfo> direct;
+struct CobordismSources {
+  std::map<RelationId, CobordismSource> byCobordism;
+  std::map<std::string, CobordismSource> direct;
 };
 
 /// The goal a certificate proves.
@@ -74,9 +74,9 @@ struct CertificateGoal {
 /// the writer.
 class CertificateWriter {
 public:
-  CertificateWriter(const ProofGraph &g, const LinkRegistry &reg,
-                    const std::map<LinkId, std::string> &tableName, const EdgeInfos &edges)
-      : g_(g), reg_(reg), tableName_(tableName), edges_(edges) {}
+  CertificateWriter(const CobordismGraph &g, const LinkRegistry &reg,
+                    const std::map<LinkId, std::string> &tableName, const CobordismSources &sources)
+      : g_(g), reg_(reg), tableName_(tableName), sources_(sources) {}
 
   /// certificate.json at `path`: the proof of the target's best genus on
   /// the goal partition. Nothing when there is none.
@@ -89,16 +89,16 @@ public:
   void describeLower(std::ostream &o, LinkId n, const Partition &q, int indent) const;
 
 private:
-  static void writeSurface(std::ostream &c, const EdgeInfo &info);
-  void writeCobordism(std::ostream &c, EdgeId e, std::set<LinkId> &links) const;
-  void writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
+  static void writeSurface(std::ostream &c, const CobordismSource &info);
+  void writeCobordism(std::ostream &c, RelationId e, std::set<LinkId> &links) const;
+  void writeDerivations(std::ostream &c, const std::vector<DerivationId> &ids,
                     std::set<LinkId> &links) const;
   void writeLinks(std::ostream &c, const std::set<LinkId> &links) const;
 
-  const ProofGraph &g_;
+  const CobordismGraph &g_;
   const LinkRegistry &reg_;
   const std::map<LinkId, std::string> &tableName_;
-  const EdgeInfos &edges_;
+  const CobordismSources &sources_;
 };
 
 } // namespace bounds

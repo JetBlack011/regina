@@ -67,7 +67,7 @@ public:
 
   /// All references must outlive this. `symmetries` may change content
   /// later (cascadesearch fills its NameTable after constructing this).
-  LinkAxioms(ProofGraph &graph, LinkRegistry &links, const linknaming::ExactTables &tables,
+  LinkAxioms(CobordismGraph &graph, LinkRegistry &links, const linknaming::ExactTables &tables,
              const linknaming::ExactNamer &namer,
              const linknaming::SymmetryTable &symmetries, Options options);
   LinkAxioms(const LinkAxioms &) = delete;
@@ -99,7 +99,7 @@ private:
   void applySum(LinkId n, const std::vector<linknaming::GaussDiagram> &primes, int depth);
   std::vector<LinkId> linksSince(size_t first) const;
 
-  ProofGraph &g_;
+  CobordismGraph &g_;
   LinkRegistry &reg_;
   const linknaming::ExactTables &tables_;
   const linknaming::ExactNamer &namer_;

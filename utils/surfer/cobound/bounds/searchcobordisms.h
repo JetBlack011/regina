@@ -38,12 +38,12 @@ struct AddedCobordism {
   bool ok = false;
   std::string why;          ///< when !ok
   bool direct = false;      ///< no far side: the surface bounds the row alone
-  EdgeId edge = -1;         ///< the witness edge (when not direct)
+  RelationId cobordism = -1;         ///< the witness edge (when not direct)
   LinkId outgoing = -1;      ///< the far side's node (a split whole or a piece)
   std::vector<LinkMatch> pieces; ///< its split pieces, interned
   /// Per piece: which far-side curves (drawn order) its components are.
   std::vector<std::vector<size_t>> pieceOrigins;
-  EdgeId splitEdge = -1;    ///< the split edge, when the far side is split
+  RelationId split = -1;    ///< the split edge, when the far side is split
   /// Per far-side curve (in this read's order): its edges of T, sorted.
   /// Curve order is a property of the read, not of the cobordism; tests use
   /// these to compare two reads up to relabelling the curves.
@@ -70,11 +70,11 @@ public:
   /// rebuilds a KnottedSurface (~1 s). hopedges_test checks they agree.
   enum class Read { fast, reference };
 
-  CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
+  CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
                Read read = Read::fast);
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
-  CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
+  CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
                std::unique_ptr<outgoing::OutgoingReader> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
@@ -100,7 +100,7 @@ private:
   surfaceOfIncomingComponents(const outgoing::OutgoingLink &link, std::string &why) const;
   void certifyIncoming_();
   Read read_;
-  ProofGraph &g_;
+  CobordismGraph &g_;
   LinkRegistry &links_;
   SearchedLink searched_;
   std::unique_ptr<outgoing::OutgoingReader> redraw_;

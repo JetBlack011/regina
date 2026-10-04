@@ -31,7 +31,7 @@ linknaming::NamerLimits LinkAxioms::namerLimits() {
   return l;
 }
 
-LinkAxioms::LinkAxioms(ProofGraph &graph, LinkRegistry &links,
+LinkAxioms::LinkAxioms(CobordismGraph &graph, LinkRegistry &links,
                        const linknaming::ExactTables &tables,
                        const linknaming::ExactNamer &namer,
                        const linknaming::SymmetryTable &symmetries, Options options)

@@ -32,7 +32,7 @@ using bounds::LinkId;
 
 /// What the records read of a goal run's graph.
 struct GraphView {
-  const bounds::ProofGraph &g;
+  const bounds::CobordismGraph &g;
   const bounds::LinkRegistry &reg;
   const std::map<LinkId, std::string> &tableName;
   const std::map<LinkId, int> &depth;

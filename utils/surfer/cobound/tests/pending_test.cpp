@@ -88,7 +88,7 @@ int main() {
   fs::create_directories(searchDir);
 
   const std::string pd = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
-  ProofGraph g;
+  CobordismGraph g;
   LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
   CobordismAssembler assembler(g, reg, searched);

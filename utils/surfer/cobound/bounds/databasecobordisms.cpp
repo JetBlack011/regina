@@ -81,7 +81,7 @@ double DatabaseCobordisms::load(LinkId n, DatabaseLoad &ld) {
   done_.insert(n);
   std::vector<std::string> own;
   if (!subjectsFor(n, ld.axioms, ld.tables, &own)) return secondsSince(tLoad);
-  ProofGraph &g = ld.g;
+  CobordismGraph &g = ld.g;
   LinkRegistry &reg = ld.reg;
   const linknaming::ExactTables &tables = ld.tables;
   std::map<LinkId, std::string> &tableName = ld.axioms.tableName;
@@ -312,27 +312,27 @@ double DatabaseCobordisms::load(LinkId n, DatabaseLoad &ld) {
     for (size_t k = 0; k < r.ws.size(); ++k) {
       const Cobordism *w = r.ws[k];
       const std::string key = cobordisms::cobordismKey(w->pairsig);
-      AddedCobordism he;
+      AddedCobordism added;
       if (r.invariant[k]) {
         ++ld.invariantFailures;
         std::cout << "[!!] master witness " << key << ": INVARIANT: " << r.why[k] << "\n";
       } else if (!r.links[k]) {
-        he.why = r.why[k];
+        added.why = r.why[k];
       } else {
         try {
-          he = assembler->addRead(*r.links[k], w->genus, "master:" + key);
+          added = assembler->addRead(*r.links[k], w->genus, "master:" + key);
         } catch (const std::logic_error &ex) {
           ++ld.invariantFailures;
           std::cout << "[!!] master witness " << key << ": INVARIANT: " << ex.what() << "\n";
         } catch (const std::exception &ex) {
-          he.why = ex.what();
+          added.why = ex.what();
         }
       }
-      if (!he.ok) { ++failed; continue; }
+      if (!added.ok) { ++failed; continue; }
       ++assembled;
-      EdgeInfo info{"master", searched.pd, key, he, r.layers, w->pairsig, searched.linkMap};
-      if (he.direct) ld.edges.direct["master:" + key] = info;
-      else ld.edges.byEdge[he.edge] = info;
+      CobordismSource info{"master", searched.pd, key, added, r.layers, w->pairsig, searched.linkMap};
+      if (added.direct) ld.sources.direct["master:" + key] = info;
+      else ld.sources.byCobordism[added.cobordism] = info;
     }
   }
   // Phase B, the serial assembly: the row loop less its read-backs.

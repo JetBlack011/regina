@@ -68,8 +68,8 @@ using bounds::CertificateGoal;
 using bounds::CertificateWriter;
 using bounds::DatabaseCobordisms;
 using bounds::DatabaseLoad;
-using bounds::EdgeInfo;
-using bounds::EdgeInfos;
+using bounds::CobordismSource;
+using bounds::CobordismSources;
 using bounds::CobordismAssembler;
 using bounds::AddedCobordism;
 using bounds::SearchedLink;
@@ -80,9 +80,9 @@ using bounds::LinkInfo;
 using bounds::LinkMatch;
 using bounds::LinkRegistry;
 using bounds::Partition;
-using bounds::ProofGraph;
-using bounds::RecordId;
-using bounds::RecordKind;
+using bounds::CobordismGraph;
+using bounds::DerivationId;
+using bounds::DerivationKind;
 using bounds::allPartitions;
 using bounds::diagramPD;
 using cobordisms::StoreResult;
@@ -123,7 +123,7 @@ private:
     const int k = g_.link(n).components;
     return cfg_.goalDisjoint ? Partition::singletons(k) : Partition::coarsest(k);
   }
-  static bool goalMetIn(const ProofGraph &g, LinkId t, const Partition &p, int genus) {
+  static bool goalMetIn(const CobordismGraph &g, LinkId t, const Partition &p, int genus) {
     auto b = g.best(t, p);
     return b && b->genus <= genus;
   }
@@ -185,11 +185,11 @@ private:
     return {cfg_.targetName, cfg_.targetPD,  cfg_.goalGenus,         cfg_.goalLower,
             cfg_.goalDisjoint, target_,      goalPartition(target_)};
   }
-  CertificateWriter certificates() const { return {g_, reg_, tableName_, edges_}; }
+  CertificateWriter certificates() const { return {g_, reg_, tableName_, sources_}; }
   void log(const std::string &line) { runrecords::append(cfg_.work, line); }
 
   GoalOptions cfg_;
-  ProofGraph g_;
+  CobordismGraph g_;
   LinkRegistry reg_;
   linknaming::ExactTables tables_;
   linknaming::ExactNamer namer_;
@@ -206,7 +206,7 @@ private:
   /// Why the run must halt (an impossible state, divergence 2); empty if not.
   std::string halt_;
   /// What a checker needs to replay each witness edge (certificate.json).
-  EdgeInfos edges_;
+  CobordismSources sources_;
   std::optional<linknaming::SignatureTable> signatures_;
   std::unique_ptr<Searcher> searcher_;
   /// The database's cobordisms as free edges (master_witnesses).
@@ -293,7 +293,7 @@ void Scheduler::loadMaster(LinkId n, bool countsAsExpansion) {
                     reg_,
                     axioms_,
                     tables_,
-                    edges_,
+                    sources_,
                     invariantFailures_,
                     std::max(cfg_.goalGenus, cfg_.goalLower >= 0 ? lowerLMax_ - cfg_.goalLower : -1),
                     static_cast<unsigned>(std::max(cfg_.threads, 1)),
@@ -311,13 +311,13 @@ bool Scheduler::useful(LinkId n) const {
   // What-if: give n the best profile it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
   // whether the target's goal would follow over the edges found so far.
-  ProofGraph what = g_;
+  CobordismGraph what = g_;
   const GraphLink &link = what.link(n);
   // Optimistic only down to what is proved impossible: each partition at
   // its propagated lower bound (the linking condition included).
   for (const Partition &p : allPartitions(link.components)) {
     const int lo = g_.lower(n, p);
-    if (lo < ProofGraph::kNoSurface)
+    if (lo < CobordismGraph::kNoSurface)
       what.addLeaf(n, p, lo, "what-if");
   }
   what.propagate();
@@ -351,7 +351,7 @@ void Scheduler::lowerSlacks(const std::vector<LinkId> &ns) const {
   // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
   // it, so they are independent), on the run's threads, cached until the
   // graph changes.
-  const std::tuple<size_t, size_t, long> version{g_.cobordismCount(), g_.recordCount(),
+  const std::tuple<size_t, size_t, long> version{g_.cobordismCount(), g_.derivationCount(),
                                                  g_.lowerVersion()};
   if (lowerCache_.version != version) {
     lowerCache_.version = version;
@@ -376,7 +376,7 @@ void Scheduler::lowerSlacks(const std::vector<LinkId> &ns) const {
     if (auto t = tableName_.find(n); t != tableName_.end())
       if (const linknaming::TableEntry *e = tables_.entry(t->second))
         if (auto g4 = linknaming::parseTableG4(e->g4)) litHi = g4->second;
-    std::vector<ProofGraph::LowerSeed> seeds;
+    std::vector<CobordismGraph::LowerSeed> seeds;
     for (const Partition &p : allPartitions(link.components)) {
       int cap = lowerLMax_;
       if (p.blocks() == 1) cap = std::min(cap, litHi);
@@ -397,7 +397,7 @@ std::optional<int> Scheduler::lowerSlack(LinkId n) const {
 
 bool Scheduler::usefulLower(LinkId n, int *slack) const {
   if (cfg_.goalLower < 0 || n == target_) return false;
-  if (g_.link(n).components > ProofGraph::kMaxLowerComponents) return false;
+  if (g_.link(n).components > CobordismGraph::kMaxLowerComponents) return false;
   if (reg_.info(n).diagram.crossings() > cfg_.lowerMaxCrossings) return false;
   auto s = lowerSlack(n);
   if (!s || *s < 0) return false;
@@ -436,7 +436,7 @@ std::optional<LinkId> Scheduler::choose() {
   for (LinkId n : eligible) {
     upper[n] = n == target_ || useful(n);
     if (!upper[n] && cfg_.goalLower >= 0 && n != target_ &&
-        g_.link(n).components <= ProofGraph::kMaxLowerComponents &&
+        g_.link(n).components <= CobordismGraph::kMaxLowerComponents &&
         reg_.info(n).diagram.crossings() <= cfg_.lowerMaxCrossings)
       needLower.push_back(n);
   }
@@ -576,10 +576,10 @@ void Scheduler::expand(LinkId n, long surfaces) {
     if (e.ok) {
       ++assembled;
       const bool inProcess = !faces.empty();
-      EdgeInfo info{dir, searched.pd, key, e, 2, "", searched.linkMap, std::move(faces),
+      CobordismSource info{dir, searched.pd, key, e, 2, "", searched.linkMap, std::move(faces),
                     inProcess ? build : std::string()};
-      if (e.direct) edges_.direct[key] = std::move(info);
-      else edges_.byEdge[e.edge] = std::move(info);
+      if (e.direct) sources_.direct[key] = std::move(info);
+      else sources_.byCobordism[e.cobordism] = std::move(info);
     } else {
       ++failed;
       std::cout << "[!] witness " << key << " (" << label << "): " << e.why << "\n";
@@ -718,7 +718,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
     << namingJson << ",\"witnesses\":" << cobordisms
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"nodes\":" << g_.linkCount() << ",\"new_nodes\":" << (g_.linkCount() - linksBefore)
-    << ",\"records\":" << g_.recordCount()
+    << ",\"records\":" << g_.derivationCount()
     << ",\"target_best\":" << (best ? std::to_string(best->genus) : "null")
     << ",\"target_lower\":" << targetLower
     << ",\"contradictions\":" << g_.contradictions().size()
@@ -952,7 +952,7 @@ int Scheduler::run() {
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   auto best = g_.best(target_, goalPartition(target_));
   std::cout << "[+] done: " << searches_ << " hops, " << g_.linkCount() << " nodes, "
-            << g_.recordCount() << " records; " << std::fixed << std::setprecision(0)
+            << g_.derivationCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
   const auto tStore = Clock::now();
@@ -982,9 +982,9 @@ int Scheduler::run() {
   if (goalMet()) {
     certificates().writeUpper(cfg_.work + "/certificate.json", certificateGoal());
     bool constructive = true;
-    for (RecordId r : g_.proof(best->record))
-      if (g_.record(r).kind == RecordKind::leaf &&
-          g_.record(r).source.rfind("literature", 0) == 0)
+    for (DerivationId r : g_.proof(best->derivation))
+      if (g_.derivation(r).kind == DerivationKind::leaf &&
+          g_.derivation(r).source.rfind("literature", 0) == 0)
         constructive = false;
     std::cout << "[+] GOAL MET: " << cfg_.targetName << " genus <= " << best->genus << " ("
               << (constructive ? "constructive" : "literature-assisted") << "); certificate "
