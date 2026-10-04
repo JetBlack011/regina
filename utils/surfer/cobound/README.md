@@ -339,8 +339,8 @@ reports each search again as `[+] <name>: N new witnesses, outcome io-error`
 (N is 0 when signing failed; a campaign reads a target's last outcome line),
 rewrites the verdicts if it can, and exits 2. Cobordisms that were not signed
 stay in their pending files, and the run says so:
-`[!] the run's cobordisms were not signed into <database>; `cobound sign`
-with work = <work> signs them`.
+``[!] the run's cobordisms were not signed into <database>; `cobound sign`
+with work = <work> signs them``.
 
 **Signals** (`driver/signals`). The first SIGINT or SIGTERM ends the running
 search cleanly within a second: its drain finishes, its pending file is
@@ -486,8 +486,8 @@ All of these are frozen.
 `node_bounds.jsonl`, `profiles.jsonl` and its own `cascade.jsonl` record. If
 any of these cannot be written, it prints `[!!] HALT: an output write failed --
 ...`, claims no goal, and ends with outcome `io-error` and exit 2; cobordisms
-not signed stay in their pending files (`[!] the run's cobordisms were not
-signed into ...; `cobound sign` with work = ... signs them`). A goal is
+not signed stay in their pending files (``[!] the run's cobordisms were not
+signed into ...; `cobound sign` with work = ... signs them``). A goal is
 reported met only once its certificate is on disk: the certificate is written
 first, then `GOAL MET` or `LOWER GOAL MET` is printed; a certificate that
 cannot be written halts the same way (`... -- certificate: ...`).
