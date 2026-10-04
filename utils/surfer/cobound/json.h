@@ -12,8 +12,8 @@
 
 /*! \file utils/surfer/cobound/json.h
  *  \brief What every JSON line cobound writes is built from (cascade.jsonl,
- *  node_bounds.jsonl, the certificates, the cobordism graph's profiles,
- *  farsidediagram's `incoming=` field). The run directory's formats are
+ *  node_bounds.jsonl, the certificates, the cobordism graph's partition
+ *  genera (profiles.jsonl), `cobound draw`'s `incoming=` field). The run directory's formats are
  *  frozen, so each helper writes exactly what its callers wrote before.
  */
 

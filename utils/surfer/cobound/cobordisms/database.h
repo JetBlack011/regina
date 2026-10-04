@@ -90,7 +90,7 @@ class DatabaseIndex {
   public:
     /// A table name's base: orientation tag and a knot's mirror prefix
     /// dropped. Used only to FIND candidate cobordisms; every one found is
-    /// redrawn and identified exactly before it means anything.
+    /// redrawn and named exactly before it means anything.
     static std::string base(std::string name);
 
     /// \exception std::runtime_error `path` cannot be read.
