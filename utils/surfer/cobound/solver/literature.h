@@ -48,8 +48,8 @@ struct NameInfo {
 
 /**
  * Populated from the --input tables. A links run and a knots run pointed at
- * the same table set see the same NameTable, which is what lets a knot row's
- * search use a link far side and vice versa.
+ * the same table set see the same NameTable, which is what lets a knot's
+ * search use an outgoing link named from the link table and vice versa.
  */
 class NameTable {
   public:
@@ -75,10 +75,10 @@ class NameTable {
      * `"<n>-component unlink"`, or a bare isoSig, none of which have oriented
      * variants to disambiguate between.
      *
-     * This is a description of a NAME, not a claim about a far side: for a
-     * multi-component far side the true candidate set is not enumerable from
-     * a complement at all (see \ref cg_farside), so callers must never treat
-     * this list as licensing a bound. farSideBearsBound() decides that.
+     * This is a description of a NAME, not a claim about an outgoing link: for a
+     * multi-component outgoing link the true candidate set is not enumerable from
+     * a complement at all (see \ref cg_outgoing), so callers must never treat
+     * this list as licensing a bound. outgoingBearsBound() decides that.
      */
     std::vector<std::string>
     candidates(const std::string &name,
@@ -126,7 +126,7 @@ namespace solver {
 size_t loadNameTable(const std::filesystem::path &path,
                      solver::NameTable &names);
 
-/// The knot and link tables' names and literature bounds (the store step's
+/// The knot and link tables' names and literature bounds (the sign step's
 /// candidate sets) and, with `knotSymmetry`, the knots' symmetry types (the
 /// slice-composite anchors; their count into `symmetryTypes`): a goal run's
 /// NameTable, and `sign`'s (without symmetry types).

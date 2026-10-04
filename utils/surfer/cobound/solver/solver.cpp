@@ -17,11 +17,11 @@ namespace solver {
 
 bool outgoingBearsBound(const cobordisms::Cobordism &w) {
     // The observed count, never the name: componentsFromName() is an
-    // inference from a string, and an alias could make a two-curve far side
+    // inference from a string, and an alias could make a two-curve outgoing link
     // read like a knot.
-    // A far side proved per witness -- meridians carried, or an all-knot
+    // An outgoing link proved per cobordism -- meridians carried, or an all-knot
     // split -- is the one case where a multi-component name is a complete
-    // candidate set; see Witness::farSideProved.
+    // candidate set; see Cobordism::outgoingProved.
     return w.otherComponents == 1 || w.outgoingProved ||
            complement::isUnlinkName(w.other);
 }
@@ -133,7 +133,7 @@ UpperContribution upperOf(const std::string &name,
         if (best.value == NO_UPPER_BOUND || info->litHi < best.value)
             best = {.value = info->litHi, .support = {name}};
 
-    // A split far side is not in any table, so its UPPER bound comes from its
+    // A split outgoing link is not in any table, so its UPPER bound comes from its
     // factors: g_4(A u B) <= g_4(A) + g_4(B), tubing the factors' minimal
     // surfaces together in B^4 (a tube leaves the genus the sum) --
     // constructive. There is no matching lower bound by addition: see
@@ -179,7 +179,7 @@ UpperContribution upperOf(const std::string &name,
     if (std::optional<linknaming::CompositeName> cp = linknaming::compositeParts(name)) {
         const std::string knot = linknaming::stripKnotMarks(cp->knot);
         UpperContribution k = upperOf(knot, bounds, names);
-        // A TAGGED L comes from an exact name: it is its own only variant.
+        // A TAGGED L comes from a name: it is its own only variant.
         const bool tagged = cp->link.find('{') != std::string::npos;
         const std::vector<std::string> variants =
             tagged ? std::vector<std::string>{cp->link} : names.candidates(cp->link);
@@ -269,7 +269,7 @@ LowerContribution lowerOf(const std::string &name,
     // in B^4, so g_4(4_1 u 4_1) = 0 although each factor has g_4 = 1. (The
     // additive version, adopted as an assumption on 2026-09-14, produced
     // "lower bound 1, ABOVE the literature upper bound 0" for L10a91{0}, whose
-    // genus-0 witnesses end at 4_1 u 4_1.) What does hold, by one band either
+    // genus-0 cobordisms end at 4_1 u 4_1.) What does hold, by one band either
     // way -- a band joining two components of a connected surface raises its
     // genus by one, a band splitting one component leaves it unchanged -- is
     //     g_4(#factors) - (f - 1) <= g_4(u factors) <= g_4(#factors),
@@ -566,14 +566,14 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
     std::unordered_map<std::string, Bounds> bounds;
     seedAxioms(bounds, cobordisms, names);
 
-    // Direct witnesses are the constructive base case (surfaces that straight
+    // Direct cobordisms are the constructive base case (surfaces that straight
     // up bound the link)
     for (const cobordisms::Cobordism &w : cobordisms)
         if (w.kind == cobordisms::CobordismKind::direct)
             relaxUpper(bounds, names, w.subject, w.genus, /*support=*/{}, w,
                        "");
 
-    // Certified proofs from outside (--cascade-proofs): a base case too, as
+    // Certified proofs from outside (certified_bounds): a base case too, as
     // constructive as their leaves. Recorded as direct, via the proof's
     // source, so a report names where the bound came from.
     for (const ExternalProof &p : external) {
@@ -592,9 +592,9 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
         for (const cobordisms::Cobordism &w : cobordisms) {
             if (w.kind != cobordisms::CobordismKind::cobordism)
                 continue;
-            // A multi-component far side that is not a proven unlink bounds
+            // A multi-component outgoing link that is not a proven unlink bounds
             // nothing in either direction -- its complement does not
-            // determine which link it is (\ref cg_farside). The witness
+            // determine which link it is (\ref cg_outgoing). The cobordism
             // stays in the file; it is only the solver that declines it.
             if (!outgoingBearsBound(w))
                 continue;
@@ -607,18 +607,18 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                 int toComponents;
                 std::vector<std::string> from;
                 int fromComponents;
-                std::string viaLabel; // how to name the far side
+                std::string viaLabel; // how to name the outgoing link
             };
             std::vector<Direction> directions;
             directions.push_back({w.subject, w.subjectComponents,
                                   w.otherCandidates, w.otherComponents,
                                   w.other});
-            // The reverse direction bounds the far side FROM the subject, so
-            // it needs the far side's identity, not just a bound over a set:
-            // only a single-component far side (a knot, by Gordon-Luecke)
-            // qualifies. An unlink passes farSideBearsBound() but is an
+            // The reverse direction bounds the outgoing link FROM the subject, so
+            // it needs the outgoing link's identity, not just a bound over a set:
+            // only a single-component outgoing link (a knot, by Gordon-Luecke)
+            // qualifies. An unlink passes outgoingBearsBound() but is an
             // axiom already, and a bound onto it would be meaningless.
-            // A far side named EXACTLY is an identity whatever its component
+            // A named outgoing link is an identity whatever its component
             // count, so it may receive a bound too (never an unlink, which is
             // an axiom).
             if ((w.otherComponents == 1 || w.outgoingNamed) &&

@@ -16,9 +16,9 @@
 #include "cobound/solver/literature.h"
 
 /*! \file utils/surfer/cobound/solver/solver.h
- *  \brief The name/genus resolution graph verifyslicegenus.cpp builds up
- *  across its --input rows: given a set of witnessed surfaces and cobordisms
- *  between named knots/links, works out what each row's slice genus must be.
+ *  \brief The name/genus resolution graph built up across the --input rows:
+ *  given a set of cobordisms between named knots/links, works out what each
+ *  row's slice genus must be.
  *
  *  \section cg_math The inequality this is all built on
  *
@@ -47,16 +47,16 @@
  * unlink bounds `g_4(K)` by `0 + 0 + 2 - 1 = 1`, not by 0, so dropping the
  * correction would "prove" `K` slice on wrong evidence.
  *
- *  \section cg_farside Which far sides may carry a bound at all
+ *  \section cg_outgoing Which outgoing links may carry a bound at all
  *
- *  census::identify() names a far side by its COMPLEMENT. Whether that
+ *  census::nameComplement() names an outgoing link by its COMPLEMENT. Whether that
  *  name may feed either inequality above depends entirely on how many
- *  components the far side has, and the rule is decided by farSideBearsBound():
+ *  components the outgoing link has, and the rule is decided by outgoingBearsBound():
  *
  *  - **One component.** Gordon-Luecke: a knot is determined by its
  *    complement up to mirroring, and `g_4` is mirror-invariant. The name is
  *    the knot, and it bounds.
- *  - **An `n`-component unlink.** identify() emits that name only from a
+ *  - **An `n`-component unlink.** census::nameComplement() emits that name only from a
  *    structural proof (free pi_1 => split unlink), which forces the link
  *    itself, not just its exterior. It bounds, with no component penalty
  *    (see propagate()).
@@ -68,7 +68,7 @@
  *    with `g_4` ranging over 0..2. So "the complement matched L6a3" does not
  *    mean "this is some orientation of L6a3", and a max/min over L6a3's
  *    oriented variants is not a bound over the actual possibilities. Such a
- *    far side is still RECORDED (it is the honest observation, and the input
+ *    outgoing link is still RECORDED (it is the honest observation, and the input
  *    a later peripheral resolution needs) but the solver skips it.
  *
  *  Orientation is the lesser half of the same problem: `L4a1{0}` (slice genus
@@ -85,15 +85,15 @@ constexpr int NO_UPPER_BOUND = INT_MAX;
 constexpr int NO_LOWER_BOUND = INT_MIN;
 
 /**
- * Whether `w`'s far side is allowed to supply or receive a slice-genus bound.
+ * Whether `w`'s outgoing link is allowed to supply or receive a slice-genus bound.
  *
- * True exactly when the far side has one observed component (a knot; sound by
- * Gordon-Luecke) or is a structurally recognised `"Unknot"` /
- * `"<n>-component unlink"`. False for every other multi-component far side,
+ * True exactly when the outgoing link has one observed component (a knot; sound by
+ * Gordon-Luecke) or is a structurally proven `"Unknot"` /
+ * `"<n>-component unlink"`. False for every other multi-component outgoing link,
  * whatever it is called: a Thistlethwaite name, a census name, a bare
  * isoSig -- none of these determines a link from a complement alone (see
- * \ref cg_farside). Gated on the OBSERVED component count rather than the
- * spelling of the name, so an alias that renames a two-component far side to
+ * \ref cg_outgoing). Gated on the OBSERVED component count rather than the
+ * spelling of the name, so an alias that renames a two-component outgoing link to
  * something knot-shaped cannot slip through.
  */
 bool outgoingBearsBound(const cobordisms::Cobordism &w);
@@ -119,12 +119,12 @@ struct Bounds {
     int lo = NO_LOWER_BOUND;
     Basis basis = Basis::constructive;
 
-    // Provenance of whichever witness last improved `hi`.
+    // Provenance of whichever cobordism last improved `hi`.
     cobordisms::CobordismKind kind = cobordisms::CobordismKind::direct;
     std::string viaName;
     int viaGenus = 0;
     std::string pairSig;
-    long long pairSigOffset = -1; /**< The witness's Witness::fileOffset, for
+    long long pairSigOffset = -1; /**< The cobordism's Cobordism::fileOffset, for
                                        reading pairSig back when it is not in
                                        memory. */
     bool tubed = false;
@@ -134,10 +134,10 @@ struct Bounds {
 };
 
 /**
- * Derives every bound the witness set supports, by relaxing to a fixpoint.
+ * Derives every bound the cobordism set supports, by relaxing to a fixpoint.
  *
- * For each witness, with `g` its genus, `n_a` the subject's component count
- * and `n_b` the far side's:
+ * For each cobordism, with `g` its genus, `n_a` the subject's component count
+ * and `n_b` the outgoing link's:
  * \f[
  *   hi[a] \leftarrow \min\bigl(hi[a],\ \max_{c \in cand(b)} hi(c) + g + n_b -
  * 1\bigr),
@@ -146,7 +146,7 @@ struct Bounds {
  *   lo[a] \leftarrow \max\bigl(lo[a],\ \min_{c \in cand(b)} lo(c) - g - n_a +
  * 1\bigr),
  * \f]
- * and `hi[a] <- min(hi[a], g)` for a direct witness. Every edge is relaxed in
+ * and `hi[a] <- min(hi[a], g)` for a direct cobordism. Every cobordism is relaxed in
  * both directions, since a cobordism is symmetric.
  *
  * `hi(c)` prefers the derived bound and falls back to `c`'s literature upper
@@ -164,11 +164,11 @@ struct Bounds {
  * circles), so both get `hi = lo = 0` constructively.
  */
 /**
- * An upper bound proved outside this solver's witnesses: a certified
- * cascadesearch proof (regina-john cascade/, checked by cascade_check.py),
- * read from the atlas's data/cascade_proofs.csv (--cascade-proofs).
+ * An upper bound proved outside this solver's cobordisms: a certified
+ * goal run's certificate (cobound run with a goal, checked by cascade_check.py),
+ * read from the atlas's data/cascade_proofs.csv (the certified_bounds key).
  * `support` names the literature values the proof's leaves use; empty for a
- * constructive proof. Seeded like a direct witness, so it grounds chains
+ * constructive proof. Seeded like a direct cobordism, so it grounds chains
  * exactly as one does.
  */
 struct ExternalProof {
@@ -219,7 +219,7 @@ Verdict judge(const std::string &name, const Bounds &bounds,
               const NameTable &names);
 
 /** Walks `via` back through `bounds`' own provenance chain to whatever it
- * ultimately rests on (a direct witness, the Unknot, or an unlink), joining
+ * ultimately rests on (a direct cobordism, the Unknot, or an unlink), joining
  * the path with ';'. No cycles. */
 std::string
 buildDependsOn(const std::string &via,

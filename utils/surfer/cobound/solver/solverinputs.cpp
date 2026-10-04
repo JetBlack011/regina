@@ -34,7 +34,7 @@ std::unordered_map<std::string, std::string> loadNameAliases(const std::filesyst
     if (f.size() < 2 || f[0].empty() || f[1].empty())
       continue;
     // An anchor name is an AXIOM to the solver (seedAxioms matches on the
-    // string), and identify() only ever emits one from a structural proof.
+    // string), and census::nameComplement() only ever emits one from a structural proof.
     // An alias must not be able to manufacture that proof by spelling.
     if (complement::isUnlinkName(f[1]))
       throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" + f[1] +
@@ -144,7 +144,7 @@ std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
     const std::vector<cobordisms::Cobordism> &observed,
     const std::unordered_map<std::string, std::vector<OutgoingResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut) {
-  // Taken by value and rewritten in place. (A loaded witness no longer
+  // Taken by value and rewritten in place. (A loaded cobordism no longer
   // carries its pair signature in memory, only pairSigKey.)
   size_t applied = 0;
   size_t linkAliasesOverridden = 0;
@@ -161,9 +161,9 @@ std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
     if (it == resolutions.end())
       continue;
 
-    // A witness has two boundary components and the table names one of them.
+    // A cobordism has two boundary components and the table names one of them.
     // The component count is what says which: a resolution whose own
-    // component count does not match this far side's observed curve count is
+    // component count does not match this outgoing link's observed curve count is
     // about the other side, not this one.
     const std::string *match = nullptr;
     for (const OutgoingResolution &r : it->second) {

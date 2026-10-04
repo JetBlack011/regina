@@ -45,8 +45,8 @@ NameTable::candidates(const std::string &name,
         if (components(candidate) == *observedComponents)
             filtered.push_back(candidate);
     // An empty result means every registered variant of this base has the
-    // wrong component count, i.e. the identification and the geometry
-    // disagree. The far side is none of those variants, so a max/min over
+    // wrong component count, i.e. the name and the geometry
+    // disagree. The outgoing link is none of those variants, so a max/min over
     // them bounds nothing: hand back the name itself, which is unregistered
     // and so bears no bound.
     return filtered.empty() ? std::vector<std::string>{name} : filtered;
@@ -58,7 +58,7 @@ namespace solver {
 
 // Loads a literature table for its names and bounds only, skipping the PD
 // code entirely. Used for tables that aren't this run's --input: we need
-// their names (to expand orientation-blind identifications into candidate
+// their names (to expand orientation-blind names into candidate
 // sets) and their bounds, but never build a triangulation from them, so
 // there is no reason to pay parsePDCode()'s cost across 12k+ rows.
 size_t loadNameTable(const std::filesystem::path &path,

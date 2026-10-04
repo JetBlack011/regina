@@ -52,7 +52,7 @@ struct OutputRow {
   std::string derivedHi; // empty when no upper bound was derived
   std::string cobordismBasis; // constructive | literature-assisted | empty
   bool tubed = false;
-      /**< Whether the witness surface was disconnected as found, with the
+      /**< Whether the cobordism's surface was disconnected as found, with the
            recorded genus being its tubed genus. */
 
   // T5 bookkeeping: how hard this row was actually tried, so a later,
@@ -105,7 +105,7 @@ const char *statusName(solver::Status s);
  * Rebuilds `name`'s row from the solver's verdict, keeping whatever search
  * bookkeeping (searchedFaces/searchOutcome/exhaustedDepth) the row already
  * carried -- that records what we DID, which no amount of re-solving
- * changes. A bound's witness pair signature is read back through `reader`
+ * changes. A bound's cobordism's pair signature is read back through `reader`
  * when the bound holds only its offset.
  */
 OutputRow rowFromVerdict(
