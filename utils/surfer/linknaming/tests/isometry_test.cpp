@@ -1,7 +1,7 @@
 //
 //  snappeaisometry_test.cpp
 //
-//  KernelLink (../snappeaisometry.h): far sides from the master that the
+//  KernelLink (../snappeaisometry.h): outgoing links from the master that the
 //  diagram searches could not reach, against their table entries, and two
 //  kinds of pair that must NOT match -- a HOMFLY coincidence, and three far
 //  sides whose complement is L11n353's while the links are not (an isometry

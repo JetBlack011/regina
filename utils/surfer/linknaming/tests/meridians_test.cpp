@@ -270,7 +270,7 @@ void testDiagram(const std::string &label, const std::string &pd,
  * This is the whole content of the signed overload: a meridian is oriented by
  * `lk(mu, K) = +1`, so reversing K reverses mu. Without it every meridian
  * carries an arbitrary sign fixed by Regina's edge numbering, which is enough
- * to recognise an unoriented link and never enough to recognise an oriented
+ * to name an unoriented link and never enough to name an oriented
  * one.
  */
 void testDirectionNegatesMeridian() {
@@ -364,8 +364,8 @@ void testUndirectedMatchesForward() {
  * orient()'s vertex 2/3 swap reverses local edge {2,3}, and only that edge.
  *
  * This is the correction the directed overload folds in, and it is not
- * cosmetic: on real witness data it changes the recorded sign for 2,710 of the
- * meridian lines in a 40-witness dump. The old undirected code left the sign
+ * cosmetic: on real cobordism data it changes the recorded sign for 2,710 of the
+ * meridian lines in a 40-cobordism dump. The old undirected code left the sign
  * at +1 there, which was harmless only because its consumer
  * (Isometry::extends_to_link()) tests meridian against +-meridian per cusp and
  * so never looked at the sign.

@@ -1,7 +1,7 @@
 // census_test.cpp
 //
-// Tests for census::localCensusLookup() (see ../identifycomplement.h/.cpp):
-// the SQLite-backed local census that identify::resolveRecognition() checks
+// Tests for census::localCensusLookup() (see ../census/censusnaming.h/.cpp):
+// the SQLite-backed local census that census::resolveAnswer() checks
 // before falling back to the real, mutex-guarded regina::Census::lookup().
 // These tests build a small scratch .sqlite fixture directly (rather than
 // the real, multi-hundred-thousand-row census tools/gen_census.py
@@ -156,9 +156,9 @@ void test_reenable_after_reset() {
               "resetCensusForTesting() re-enables lookups");
 }
 
-// insertCensusEntry() must actually land a row: verifyslicegenus seeds the
-// census with every knot it names (the row's own knot at row end, and every
-// Pachner success), and later rows -- separate processes -- rely on it. A
+// insertCensusEntry() must actually land a row: a run seeds the census with
+// every knot it names (the incoming knot at its search's end, and every
+// Pachner success), and later searches -- separate processes -- rely on it. A
 // failed insert returns false, which production code ignores, so nothing
 // else would ever notice.
 void test_insert_lands_and_is_found() {
@@ -311,7 +311,7 @@ void buildSingleRowFixture(const std::string &sig, const std::string &name,
 // with the same synthetic placeholder string by construction, so a
 // key-format mismatch in *real* usage can't show up there. This test uses a
 // real triangulation and its real isoSig() throughout, going through the
-// full census::identify() path (not just census::localCensusLookup()
+// full census::nameComplement() path (not just census::localCensusLookup()
 // directly), so a future regression reintroducing any key-format mismatch
 // fails here.
 void test_real_triangulation_isosig_key_matches_production_query() {

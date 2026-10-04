@@ -35,49 +35,48 @@ namespace census {
  * concurrent calls have been observed to crash outright (Tokyo Cabinet
  * reports a "threading error"), not just contend. Building or simplifying a
  * complement is unaffected, and stays parallel across callers. The
- * memoized cache of recognition results is guarded separately, so a cache
+ * memoized cache of complement answers is guarded separately, so a cache
  * hit never blocks behind an in-flight lookup on another thread.
  */
 extern std::mutex censusLookupMutex;
 
 /**
- * Non-printing identification of `e`'s complement: the census name if
- * recognized, "Unknot" if a genus-1 handlebody, or else the bare isoSig as
- * a fallback identifier.
+ * Names `e` by its complement, without printing: the census name if there
+ * is one, "Unknot" if a genus-1 handlebody, or else the bare isoSig as a
+ * fallback identifier.
  */
 std::string nameComplement(const EdgeComplement &e);
 
 /**
- * Test-only. When set, identify() appends a fresh suffix to every name it
- * returns, so no two identifications ever agree -- exactly the
+ * Test-only. When set, nameComplement() appends a fresh suffix to every
+ * name it returns, so no two names it gives ever agree -- exactly the
  * non-determinism a census entry number already has, pushed to the limit.
  * Which surfaces a search accepts must not change (tests/
  * name_independence_test.sh): names are recorded, never gated on.
- * verifyslicegenus sets it from the SURFER_TEST_PERTURB_NAMES environment
- * variable.
+ * cobound sets it from the SURFER_TEST_PERTURB_NAMES environment variable.
  */
 extern std::atomic<bool> perturbNamesForTesting;
 
-/** `name`, perturbed as identify() perturbs its own when
- *  perturbNamesForTesting is set; for other namers (outgoing::DiagramNamer)
+/** `name`, perturbed as nameComplement() perturbs its own when
+ *  perturbNamesForTesting is set; for other namers (outgoing::OutgoingNamer)
  *  to honour the same test. */
 std::string perturbedForTesting(std::string name);
 
 /**
- * Non-printing identification of `l`'s complement (all of `l`'s components
+ * Names `l` by its complement, without printing (all of `l`'s components
  * drilled together, i.e. Link::buildComplement()): `"<n>-component
  * unlink"` if `l`'s complement is proven split (see
  * unlinknaming.h's groupProvesUnlink() -- a fast, sound
- * generalization of identify(const EdgeComplement&)'s genus-1/"Unknot"
- * check to n > 1 components, via free-group recognition rather than a
+ * generalization of nameComplement(const EdgeComplement&)'s genus-1/"Unknot"
+ * check to n > 1 components, via a free-group check rather than a
  * handlebody genus check: unlike a single unknotted curve, a split
  * multi-component unlink's complement has multiple torus boundary
  * components, so it is never itself a handlebody), the census name if
- * recognized, "Unknot" if `l` is a single unknotted curve, or else the
+ * there is one, "Unknot" if `l` is a single unknotted curve, or else the
  * bare isoSig as a fallback identifier.
  *
  * A genuine overload, not virtual dispatch: since Link publicly inherits
- * EdgeComplement, identify(const EdgeComplement&) would already run and
+ * EdgeComplement, nameComplement(const EdgeComplement&) would already run and
  * build the right (possibly multi-cusp) complement if called with a Link,
  * and (for n == 1) already returns exactly the same answer this does. This
  * overload is picked automatically by ordinary overload resolution
@@ -87,13 +86,13 @@ std::string perturbedForTesting(std::string name);
 std::string nameComplement(const Link &l);
 
 /**
- * Prints and returns whether `e`'s complement is recognized: either as a
+ * Prints and returns whether `e`'s complement is named: either as a
  * genus-1 handlebody (the complement of a single unknotted component), or
  * as a census hit.
  */
 bool reportComplement(const EdgeComplement &e);
 
-/** Prints whether each component of `l`'s complement is recognized; see recognizeComplement(const EdgeComplement&). */
+/** Prints whether each component of `l`'s complement is named; see reportComplement(const EdgeComplement&). */
 void reportComplement(const Link &l);
 
 } // namespace census
@@ -101,11 +100,12 @@ void reportComplement(const Link &l);
 namespace census {
 
 /**
- * Whether resolveRecognition() should attempt retriangulateAndLookup() on
+ * Whether resolveAnswer() should attempt retriangulateAndLookup() on
  * a local-census/real-Census::lookup() miss. Off by default -- materially
  * more expensive than a plain lookup, so existing callers (surfer.cpp)
- * must opt in via --retriangulate-on-miss; verifyslicegenus defaults it
- * on, since resolving non-hyperbolic far-ends is core to its purpose.
+ * must opt in via --retriangulate-on-miss; cobound's run without a goal
+ * defaults it on (retriangulate_on_miss), since resolving non-hyperbolic
+ * outgoing ends is core to its purpose.
  *
  * Set once, before any search worker thread is spawned, same contract as
  * linkcomplement.h's simplifyComplements.
@@ -115,18 +115,18 @@ extern std::atomic<bool> retriangulateOnMiss;
 /**
  * Whether retriangulateOnMiss also applies to multi-component (link)
  * complements. Off by default: a link's name, read from its complement
- * alone, never bears a slice-genus bound during a search, and the
- * per-witness far-side pipeline names every far side afterwards, so the
+ * alone, never bears a slice-genus bound during a search, and the atlas's
+ * per-cobordism naming names every outgoing link afterwards, so the
  * search spending up to retriangulateTimeBudgetSeconds per link complement
  * on it bought nothing. Same set-once contract as retriangulateOnMiss.
  */
 extern std::atomic<bool> retriangulateLinks;
 
 /**
- * Parameters resolveRecognition() passes to retriangulateAndLookup() on
+ * Parameters resolveAnswer() passes to retriangulateAndLookup() on
  * every retriangulateOnMiss attempt -- retriangulateAndLookup()'s own
  * defaults (height=2, candidateBudget=8000, timeBudget=20s) exist for
- * direct/test callers only; production recognition always goes through
+ * direct/test callers only; production naming always goes through
  * these, so they're the actual knobs for trading match rate against
  * per-curve worst-case cost. retriangulate()'s candidate count grows
  * roughly exponentially in height, so height=1 (rather than the default
@@ -143,7 +143,7 @@ extern std::atomic<long long> retriangulateTimeBudgetSeconds;
  * Looks up `sig` (an isoSig, e.g. from EdgeComplement::buildComplement()'s
  * result) in the local SQLite census -- a copy of the 3 census databases
  * that can ever match a cusped boundary complement, plus any
- * SnapPy-identified isoSigs Regina's own census misses, plus anything
+ * SnapPy-named isoSigs Regina's own census misses, plus anything
  * inserted directly via insertCensusEntry() (see tools/gen_census.py).
  * Unlike the real regina::Census::lookup(), needs no mutex: each thread
  * lazily opens its own read-only connection, and SQLite supports many
@@ -166,7 +166,7 @@ std::optional<std::string> localCensusLookup(const std::string &sig);
  * Set once, before any search worker thread is spawned (see surfer.cpp's
  * --census-db flag, defaulting to the SURFER_CENSUS_PATH compile
  * definition from CMakeLists.txt) -- same contract as
- * linkcomplement.h's simplifyComplements/complement::recognitionCacheLimit.
+ * linkcomplement.h's simplifyComplements/complement::cacheLimit.
  */
 bool setCensusPath(const std::string &path);
 

@@ -1,11 +1,11 @@
 //
-//  exactnamer.h
+//  linknamer.h
 //
-//  Exact names for oriented far-side diagrams.
+//  Names, with proof, for oriented diagrams of outgoing links.
 //
 
 /*! \file utils/surfer/linknaming/linknamer.h
- *  \brief Names an oriented link diagram -- a far side drawn with the
+ *  \brief Names an oriented link diagram -- an outgoing link drawn with the
  *  orientation its surface induces -- with a proof, as a table entry or a
  *  split union / connected sum of table entries, in the atlas's syntax.
  *
@@ -53,12 +53,12 @@
  *     `#{A[?] # B[?] ; ...}` links summed along components. `?` marks a
  *     component index this namer does not compute.
  *
- *  A name is EXACT when it is an identity: it determines the far side up to
- *  mirror and global reversal, neither of which a slice genus sees, so it
- *  may stand as a node of the cobordism graph and receive bounds. That is:
+ *  A NAME is an identity: it determines the outgoing link up to mirror and
+ *  global reversal, neither of which a slice genus sees, so it may stand as
+ *  a link of the cobordism graph and receive bounds (LinkName::isName). That is:
  *  the unknot and unlinks; one tabulated or untabulated piece whose variant
  *  is pinned, possibly with split unknots; and composite knots whose every
- *  relative mirror and reversal that matters is pinned. Every other name is
+ *  relative mirror and reversal that matters is pinned. Anything weaker is
  *  a proved DESCRIPTION: each piece is exactly the named table link, but how
  *  the pieces are joined is not all recorded, which is enough for rules
  *  that bound its slice genus from its pieces' but not for an identity.
@@ -129,7 +129,7 @@ struct PieceName {
     By by = By::untabulated;
     size_t components = 0;
     size_t crossings = 0;           /**< of its simplified diagram */
-    std::vector<size_t> origin;     /**< far-side component of each of its components */
+    std::vector<size_t> origin;     /**< outgoing component of each of its components */
     std::string base;               /**< table base, when tabulated */
     /** Canonical names (exacttables.h) the piece may be; exactly one when
      *  its oriented variant is pinned. */
@@ -143,7 +143,7 @@ struct PieceName {
     std::string display() const;
 };
 
-/** A far side's name, with how it was proved. */
+/** An outgoing link's name, with how it was proved. */
 struct LinkName {
     std::string name;
     bool isName = false;             /**< an identity; see the file comment */
@@ -156,12 +156,12 @@ struct LinkName {
 };
 
 /**
- * What an ExactNamer learns about its tables, whatever its limits: the
+ * What a LinkNamer learns about its tables, whatever its limits: the
  * entries' HOMFLY polynomials and the index over them, their flype orbits,
  * their complements in the SnapPea kernel, and their canonical names. Each
  * is built on first use -- the HOMFLY index alone is ~34,000 polynomials --
- * so namers over the same tables can share one (ExactNamer::caches()), as a
- * cascade's node namer and every hop's far-side namer do. Guarded by its
+ * so namers over the same tables can share one (LinkNamer::caches()), as a
+ * goal run's link namer and every search's outgoing namer do. Guarded by its
  * own locks.
  */
 struct TableCaches {
@@ -198,17 +198,17 @@ class LinkNamer {
     const std::shared_ptr<TableCaches> &caches() const { return caches_; }
 
     /**
-     * \param drawn an oriented, planar diagram of the far side, component i
-     *        the i-th far-side curve (knotbuilder::Diagram::link()).
+     * \param drawn an oriented, planar diagram of the outgoing link, component i
+     *        the i-th outgoing curve (knotbuilder::Diagram::link()).
      */
     LinkName name(const regina::Link &drawn) const;
 
-    /** Piece identification alone (exposed for tests). */
+    /** Naming one piece alone (exposed for tests). */
     PieceName namePiece(const GaussDiagram &piece) const;
 
     /** An entry's canonical name: one per class of variants of its base that
      *  are the same oriented link up to mirror and global reversal, whether
-     *  their table diagrams coincide (ExactTables::canonical()) or an
+     *  their table diagrams coincide (Tables::canonical()) or an
      *  isometry carries meridians to meridians with a uniform orientation
      *  sign. Built per base on first use. */
     const std::string &canonicalName(const TableEntry &e) const;
@@ -216,7 +216,7 @@ class LinkNamer {
     /** Cuts a diagram at its visible connected-sum spheres (after
      *  simplifying it) into prime pieces, each keeping its components'
      *  origins; a diagram with no visible sphere gives itself. Exposed for
-     *  the cascade, which turns the pieces into summand nodes. */
+     *  goal runs, which turn the pieces into summand links. */
     void decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const;
 
   private:
@@ -226,7 +226,7 @@ class LinkNamer {
      *  index is built on first use. A shortlist only: it proves nothing. */
     std::vector<const TableEntry *> homflyCandidates(
         const regina::Link &l, const regina::Laurent2<regina::Integer> &h) const;
-    /** What the isometry step of identify() proves: the base of a
+    /** What the isometry step of namePiece() proves: the base of a
      *  shortlisted table entry whose complement is isometric to `l`'s by an
      *  isometry carrying meridians to meridians, and the canonical names of
      *  the variants some such isometry reaches with a uniform orientation
@@ -247,7 +247,7 @@ class LinkNamer {
                                              const std::string &base, std::set<bool> *mirrors) const;
     /** The kernel's complement of an entry's table diagram, built on first use. */
     const KernelLink &kernelLinkOf(const TableEntry &e) const;
-    /** The table-side step of identify(): the base of a table entry proved
+    /** The table-side step of namePiece(): the base of a table entry proved
      *  to be the link of `l` up to mirror and orientations, if any. */
     std::optional<std::string> tableSideBase(const regina::Link &l,
                                              const regina::Laurent2<regina::Integer> &h) const;
@@ -276,7 +276,7 @@ class Link;
 
 namespace linknaming {
 
-/** How LinkNamer (and DiagramNamer's exact names) named what it was asked
+/** How DiagramNamer (and OutgoingNamer's names) named what it was asked
  *  to (cumulative). */
 struct NamingStats {
     std::atomic<long long> calls{0}, unknots{0}, unlinks{0}, tableKnots{0},
@@ -288,9 +288,9 @@ struct NamingStats {
          each is a drawer defect, named by the complement route instead. */
     std::atomic<long long> orientedNamed{0}, orientedCacheHits{0}, orientedFailed{0};
     /**< orientedName(): names computed, answered from the cache, and
-         drawings that failed (the witness then keeps its unoriented name). */
+         drawings that failed (the cobordism then keeps its unoriented name). */
     std::atomic<long long> microsOriented{0};
-    /**< Time in the exact namer itself (computed names only, not cache hits). */
+    /**< Time in the link namer itself (computed names only, not cache hits). */
 
     /** The slowest single naming so far: which route, what it named, how
         long. One slow name can hold a whole drain's last thread. */
@@ -298,8 +298,8 @@ struct NamingStats {
     long long slowestMicros() const { return slowestMicros_.load(); }
     std::string slowest() const; ///< "<route> <name>", or empty
 
-    /** The `diagram naming:` body, as verifyslicegenus and each cascade hop
-        print it: counts by outcome, times by route, and the slowest name. */
+    /** The `diagram naming:` body, as every search prints it: counts by
+        outcome, times by route, and the slowest name. */
     std::string summary() const;
 
   private:
@@ -308,7 +308,7 @@ struct NamingStats {
     std::string slowest_;
 };
 
-/** A drawing of one boundary component's curves, as LinkNamer::name()
+/** A drawing of one boundary component's curves, as DiagramNamer::name()
  *  asks for it. */
 struct DrawnCurves {
     enum class Outcome {
@@ -344,10 +344,10 @@ struct DrawnCurves {
  * Everything else -- a knot the table does not know, a link the Jones
  * polynomial cannot tell from an unlink, a drawing that failed or that the
  * drawer refused as not planar (counted in NamingStats::nonPlanar) -- falls
- * back to census::identify(), the complement route. Whatever it returns is
+ * back to census::nameComplement(), the complement route. Whatever it returns is
  * remembered against the diagram's signature (a diagram determines its
  * link), so each distinct diagram costs at most one fallback, and repeats
- * of it get the same name. Names are perturbed as identify()'s are under
+ * of it get the same name. Names are perturbed as nameComplement()'s are under
  * census::perturbNamesForTesting.
  */
 class DiagramNamer {
@@ -364,7 +364,7 @@ class DiagramNamer {
                      const std::function<DrawnCurves()> &draw) const;
 
     /** What this namer has named (cumulative). A caller naming by other
-     *  routes too (DiagramNamer::orientedName()) adds its counts here. */
+     *  routes too (OutgoingNamer::orientedName()) adds its counts here. */
     NamingStats &stats() const { return stats_; }
 
   private:

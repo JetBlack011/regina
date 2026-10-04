@@ -43,7 +43,7 @@ namespace linknaming {
 struct GaussDiagram {
     std::vector<int> signs;             /**< per crossing, +1 right-handed */
     std::vector<std::vector<long>> comps; /**< +(k+1) over crossing k, -(k+1) under */
-    std::vector<size_t> origin;         /**< per component: the far-side component it is (part of) */
+    std::vector<size_t> origin;         /**< per component: the outgoing component it is (part of) */
 
     size_t crossings() const { return signs.size(); }
     size_t components() const { return comps.size(); }

@@ -1,7 +1,7 @@
 //
 //  names.h
 //
-//  The grammar of far-side names.
+//  The grammar of outgoing names.
 //
 
 #ifndef SURFER_LINKNAMING_NAMES_H
@@ -13,7 +13,7 @@
 #include <vector>
 
 /*! \file utils/surfer/linknaming/names.h
- *  \brief The grammar of the names a far side is recorded under, read back:
+ *  \brief The grammar of the names an outgoing link is recorded under, read back:
  *  component counts, bases, splits (`A u B`), alternatives (`A|B`),
  *  composites (`K #_c L`, `A#B`), sums (`#{...}`) and knot marks.
  *
@@ -45,11 +45,11 @@ std::string baseName(const std::string &name);
 std::string stripOrientationTag(const std::string &name);
 
 /** A Regina census hit's name without its `" : #N"` suffix, which varies
- *  between identifications of one manifold: `m004 : #1` -> `m004`. */
+ *  between namings of one manifold: `m004 : #1` -> `m004`. */
 std::string stripCensusSuffix(const std::string &name);
 
 /**
- * A COMPOSITE far-side name, "K #_c L": the knot K connect-summed into
+ * A COMPOSITE outgoing name, "K #_c L": the knot K connect-summed into
  * component c of the link L (L a base name, c in L's PD component order).
  *
  * The component is part of the name because K # L is only well defined once
@@ -61,7 +61,7 @@ std::string stripCensusSuffix(const std::string &name);
 struct CompositeName {
     std::string knot;
     int component = 0;  /**< -1 for "?": the namer did not compute it */
-    std::string link;   /**< a base, or a tagged variant ("L7n1{1}") from an exact name */
+    std::string link;   /**< a base, or a tagged variant ("L7n1{1}") from a name */
 };
 
 /** The parts of a composite name, or nullopt if `name` is not one. */
@@ -77,7 +77,7 @@ std::vector<std::string> knotSummands(const std::string &name);
 
 /**
  * A (possibly marked) prime knot name without its marks: "mr8_17" -> "8_17".
- * An exact name marks a summand "m" (mirrored) and/or "r" (reversed)
+ * A name marks a summand "m" (mirrored) and/or "r" (reversed)
  * relative to the table's diagram, where its symmetry type makes the mark
  * matter; g_4 sees neither. Any other name is returned unchanged.
  */
@@ -96,7 +96,8 @@ std::string stripKnotMarks(const std::string &name);
 std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::string &name);
 
 /**
- * What a far side named EXACTLY (--far-side-exact) may be: the name itself,
+ * What an outgoing link named in outgoing_names_file (--far-side-exact) may
+ * be: the name itself,
  * or -- where the namer proved it one of a few orientation variants it could
  * not tell apart -- those alternatives "A|B". Never widened to a base's
  * variants. A split or a sum is one candidate: its alternatives live inside
@@ -105,7 +106,7 @@ std::optional<std::vector<std::pair<std::string, int>>> sumPieces(const std::str
 std::vector<std::string> nameCandidates(const std::string &name);
 
 /**
- * An identify() result reduced to the name the graph should key on.
+ * A census::nameComplement() result reduced to the name the graph should key on.
  *
  * Strips the trailing parenthetical if there is one; leaves everything else
  * (`"Unknot"`, `"3-component unlink"`, a bare isoSig, an undecorated census
@@ -117,9 +118,9 @@ std::string normalizeComplementName(const std::string &name);
  * The factors of a split name, "A u B u ...", or an empty vector if `name`
  * is not one.
  *
- * A far side is split exactly when its exterior is reducible, which is the
- * commonest thing an unnameable multi-component far side turns out to be:
- * measured over 70 sampled unidentified link far sides, 43 of them. The
+ * An outgoing link is split exactly when its exterior is reducible, which is the
+ * commonest thing an unnameable multi-component outgoing link turns out to be:
+ * measured over 70 sampled unnamed multi-component outgoing links, 43 of them. The
  * factors are named separately, each by its own exterior, and the link is
  * their disjoint union.
  */

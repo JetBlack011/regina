@@ -25,10 +25,10 @@ std::vector<std::vector<int>> linkingMatrix(const linknaming::GaussDiagram &d);
  * Simplifies a diagram with regina::Link::simplify() (Reidemeister moves
  * only: never reflects or reverses, and keeps component indices, a zero-
  * crossing component in its slot), keeping `origin`, then removes every
- * nugatory crossing left (removeNugatoryCrossings()): a hop's row must be a
- * reduced diagram for knotbuilder's drawer to certify it. Throws std::logic_error
+ * nugatory crossing left (removeNugatoryCrossings()): a searched link's diagram
+ * must be reduced for knotbuilder's drawer to certify it. Throws std::logic_error
  * if the component count or any pairwise linking number changed: component
- * identity is what every profile is indexed by, so a violation must stop
+ * identity is what every link's partition genera are indexed by, so a violation must stop
  * everything rather than mislabel components.
  */
 linknaming::GaussDiagram simplifyKeepingComponents(const linknaming::GaussDiagram &d);
@@ -47,8 +47,8 @@ linknaming::GaussDiagram removeNugatoryCrossings(linknaming::GaussDiagram d);
 /// meets lifted off: its crossings deleted, leaving it crossingless. Such a
 /// component has no self-crossing, so it is an unknot above (below)
 /// everything else, and lifting it is an isotopy that splits it off. Its PD
-/// code could not carry its orientation (Regina's pdAmbiguous()), so a row
-/// keeping it could not be certified. Repeated until none is left.
+/// code could not carry its orientation (Regina's pdAmbiguous()), so a
+/// searched link keeping it could not be certified. Repeated until none is left.
 linknaming::GaussDiagram liftSplitComponents(linknaming::GaussDiagram d);
 
 } // namespace linknaming

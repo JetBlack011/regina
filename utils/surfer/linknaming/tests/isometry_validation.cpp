@@ -1,7 +1,7 @@
 //
 //  isometry_validation.cpp
 //
-//  Whole-table validation of the isometry step of linknaming::ExactNamer
+//  Whole-table validation of the isometry step of linknaming::LinkNamer
 //  (../snappeaisometry.h), as the drawer was validated on every table row.
 //  Not a ctest target: it takes minutes on the full tables.
 //
@@ -16,7 +16,7 @@
 //               reversed, and each component c >= 1 reversed), scrambled by
 //               seeded random Reidemeister moves (orientation kept) into a
 //               different diagram of the same oriented link, and named three
-//               ways, the last two by identify() on the raw scrambled piece:
+//               ways, the last two by namePiece() on the raw scrambled piece:
 //                 ref     the full namer on the UNscrambled transformed
 //                         diagram (an exact diagram match: the reference);
 //                 iso     the scrambled diagram, isometry step only;
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
             c.nontrivial = c.scrambled.sig<2>(true, true, true) !=
                            entries[c.entry].diagram.sig<2>(true, true, true);
             c.ref = fullN.name(c.diagram).name;
-            // identify() on the scrambled piece itself: no simplify() first,
+            // namePiece() on the scrambled piece itself: no simplify() first,
             // so the complement is built from the scrambled diagram.
             const PieceName iso = isoN.namePiece(gaussOf(c.scrambled));
             c.iso = iso.display();

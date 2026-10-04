@@ -38,7 +38,7 @@ using complement::cacheAnswer;
 
 // The actual (uncached) Census::lookup() call, serialized under
 // censusLookupMutex per its documented contract. No memoization here --
-// that's entirely recognitionCache's job now.
+// that's entirely complement cache's job now.
 std::optional<std::string> censusLookupName(
     const regina::Triangulation<3> &complement) {
     std::lock_guard<std::mutex> lock(census::censusLookupMutex);
@@ -198,11 +198,11 @@ resolveAnswer(const regina::Triangulation<3> &complement,
                  .retriangulateAttempted = retriangulateAttempted});
 }
 
-// Shared tail of identify(const EdgeComplement&)/identify(const Link&),
-// once a complement is already built and resolveRecognition() has already
-// run for it: turns the result into identify()'s final answer. Factored
-// out (rather than having identify(const Link&) just call identify(const
-// EdgeComplement&)) specifically so neither caller ever builds the same
+// Shared tail of nameComplement(const EdgeComplement&)/nameComplement(const Link&),
+// once a complement is already built and resolveAnswer() has already
+// run for it: turns the result into nameComplement()'s final answer.
+// Factored out (rather than having nameComplement(const Link&) just call
+// nameComplement(const EdgeComplement&)) specifically so neither caller ever builds the same
 // complement twice -- buildComplement() is not cheap.
 std::string nameFromAnswer(const complement::ComplementAnswer &result,
                                 const std::string &sig) {
@@ -218,7 +218,7 @@ std::string nameFromAnswer(const complement::ComplementAnswer &result,
 namespace census {
 
 namespace {
-// See perturbNamesForTesting: every name identify() returns gets a fresh
+// See perturbNamesForTesting: every name nameComplement() returns gets a fresh
 // suffix, so any decision that depends on a name -- rather than on geometry
 // -- changes, and the name-independence test sees it.
 std::string perturbed(std::string name) {
@@ -234,7 +234,7 @@ std::atomic<bool> perturbNamesForTesting{false};
 std::string perturbedForTesting(std::string name) { return perturbed(std::move(name)); }
 
 namespace {
-// identify()'s answer for a built complement: the genus check, the census,
+// nameComplement()'s answer for a built complement: the genus check, the census,
 // else the isoSig.
 std::string nameBuiltComplement(const regina::Triangulation<3> &complement) {
     std::string sig = complement.isoSig();
@@ -279,7 +279,7 @@ void reportComplement(const Link &l) {
     }
 
     // buildComplement()/simplify() runs again here (the whole-link
-    // recognizeComplement() above already built the same complement) --
+    // reportComplement() above already built the same complement) --
     // a pre-existing inefficiency this cache doesn't address, since
     // simplify() has no isoSig to key off of until after it's run. The
     // cache does at least make this second recogniseHandlebody() free.
@@ -354,7 +354,7 @@ std::optional<std::string> localCensusLookup(const std::string &sig) {
     // insertCensusEntry() could never commit: each insert waited out the
     // 5 s busy_timeout and failed, silently. Every Pachner success paid
     // those 5 s, and nothing it named ever reached the census for a later
-    // row (measured 2026-09-26: c3 added no row in 694 rows).
+    // search (measured 2026-09-26: c3 added no census row in 694 searches).
     struct ResetOnExit {
         sqlite3_stmt *stmt;
         ~ResetOnExit() { sqlite3_reset(stmt); }
@@ -370,7 +370,7 @@ std::optional<std::string> localCensusLookup(const std::string &sig) {
 
     // Regina-sourced rows store the raw census hit name, same as
     // censusLookupName() gets from CensusHit::name() -- format it
-    // identically for byte-identical output. SnapPy/verifyslicegenus/
+    // identically for byte-identical output. SnapPy-, search-
     // retriangulate-sourced rows already store a best-effort pretty name,
     // not a raw census name, so linknames::name() would just miss on those
     // -- return as-is.

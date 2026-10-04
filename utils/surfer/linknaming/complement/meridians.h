@@ -23,7 +23,7 @@
  *
  *  \section per_why Why this exists
  *
- *  census::identify() names a link by its *complement*, and a complement
+ *  census::nameComplement() names a link by its *complement*, and a complement
  *  does not determine a link: Rolfsen twisting along an unknotted component
  *  changes the link while preserving the exterior. Knots are exempt
  *  (Gordon-Luecke); links are not, and the ambiguity is real in our own data
@@ -37,7 +37,7 @@
  *
  *  \section per_frame The common frame
  *
- *  Naming the far side means comparing against SnapPy, which needs our
+ *  Naming the outgoing link means comparing against SnapPy, which needs our
  *  meridian as a pair of coefficients against *some* basis. Which basis is
  *  irrelevant -- SnapPea's is arbitrary (the meridian is (0,+-1) for the
  *  trefoil and (+-1,0) for the figure-8) -- but our meridian and the
@@ -269,7 +269,7 @@ struct SnapPeaFile {
  * Parses a SnapPea data file, keeping the peripheral-curve block.
  *
  * \exception regina::InvalidArgument \a text is not a SnapPea data file we
- * recognise.
+ * can read.
  */
 SnapPeaFile parseSnapPea(const std::string &text);
 
@@ -318,8 +318,8 @@ std::pair<long, long> completeBasis(long a, long b);
  * regina::SnapPeaTriangulation.
  *
  * The components carry no direction, so the meridians are signed only up
- * to an independent `+-` per component -- enough to recognise an
- * unoriented link, not enough to recognise an oriented one. Prefer the
+ * to an independent `+-` per component -- enough to name an
+ * unoriented link, not enough to name an oriented one. Prefer the
  * directed overload below wherever the direction is known.
  *
  * \exception regina::InvalidArgument the ambient triangulation is not
@@ -349,14 +349,14 @@ DrilledWithMeridians buildComplementWithPeripheral(
 /**
  * The complement of just the listed components, with their meridians.
  *
- * Naming a SPLIT far side means naming each of its split factors, and a
+ * Naming a SPLIT outgoing link means naming each of its split factors, and a
  * factor is a sublink of the whole -- so it has to be drilled out of the
  * ambient triangulation on its own, rather than recovered from a cut piece
  * of the whole link's exterior. Cutting works for the exterior but not for
  * the peripheral data: cutAlong relabels, simplify() renumbers, and coning
  * adds tetrahedra, so a cut piece no longer knows which cusp came from
  * which component. That correspondence *is* the meridian labelling, and
- * without it a multi-component factor cannot be identified at all.
+ * without it a multi-component factor cannot be named at all.
  *
  * \param components indices into `link`'s own component order.
  * \param directions per listed component, as in the overload above, or

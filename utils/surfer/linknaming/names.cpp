@@ -16,7 +16,7 @@ const std::string kSplitSeparator = " u ";
 std::string baseName(const std::string &name) {
     // A SPLIT name has no base in this sense. Stripping at the first '{'
     // would turn "L2a1{0} u Unknot" into "L2a1", so NameTable::candidates()
-    // would hand back L2a1's orientation variants as if the far side were
+    // would hand back L2a1's orientation variants as if the outgoing link were
     // that two-component link rather than a three-component split one --
     // enumerating variants of a summand as variants of the whole. Returning
     // the name unchanged makes the byBase_ lookup miss, which is exactly
@@ -44,16 +44,16 @@ std::string normalizeComplementName(const std::string &name) {
     return name.substr(0, open);
 }
 
-/* Split (disjoint-union) far sides */
+/* Split (disjoint-union) outgoing links */
 
 // The separator decompose_far_sides.py writes between the factors of a split
 // link, as recorded in results/split_far_sides.csv: "3_1 u Unknot".
 
 // The factors of a split name, or an empty vector if `name` is not one.
 //
-// A far side is split exactly when its exterior is reducible, which is the
-// commonest thing an unnameable multi-component far side turns out to be:
-// measured over 70 sampled unidentified link far sides, 43 of them. The
+// An outgoing link is split exactly when its exterior is reducible, which is the
+// commonest thing an unnameable multi-component outgoing link turns out to be:
+// measured over 70 sampled unnamed multi-component outgoing links, 43 of them. The
 // factors are named separately, each by its own exterior, and the link is
 // their disjoint union.
 std::vector<std::string> splitFactors(const std::string &name) {
@@ -125,7 +125,7 @@ std::optional<CompositeName> compositeParts(const std::string &name) {
         return std::nullopt;
     while (i < link.size() && std::isdigit(static_cast<unsigned char>(link[i])))
         ++i;
-    // An exact name writes L with its orientation tag, "L7n1{1}".
+    // A name writes L with its orientation tag, "L7n1{1}".
     size_t end = link.size();
     const size_t brace = link.find('{');
     if (brace != std::string::npos) {

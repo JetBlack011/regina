@@ -1,6 +1,6 @@
 // diagramiso_test.cpp
 //
-// Tests for cascade/diagramiso.h (README.md, "Component maps"): the component
+// Tests for diagrams/diagramiso.h (README.md, "Component maps"): the component
 // map a diagram isomorphism returns is exactly the relabelling applied, and
 // nothing that changes the oriented link is accepted.
 

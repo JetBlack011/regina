@@ -2,7 +2,7 @@
 //  tableclasses.cpp
 //
 //  The table's link classes: every knot and link table entry whose
-//  canonical name is another entry's, as linknaming::ExactNamer names it.
+//  canonical name is another entry's, as linknaming::LinkNamer names it.
 //
 //  Usage:
 //    tableclasses --knots <table.csv> --links <table.csv> [--symmetry <csv>]
@@ -10,11 +10,11 @@
 //
 //  stdout, CSV: name,canonical,proof -- one line per entry whose canonical
 //  name differs from its own. `proof` is `diagram` when a version of one
-//  table diagram is the other (ExactTables::canonical()), or `isometry` when
+//  table diagram is the other (Tables::canonical()), or `isometry` when
 //  an isometry of the complements carries meridians to meridians with a
 //  uniform orientation sign (snappeaisometry.h): either way the two entries
-//  are one oriented link up to mirror and global reversal, so one graph
-//  node. The solvers read the file opt-in (C++ --link-classes, frontier.py
+//  are one oriented link up to mirror and global reversal, so one link of
+//  the graph. The solvers read the file opt-in (C++ --link-classes, frontier.py
 //  --link-classes). A class whose members' literature 4-genera differ is a
 //  table error or a bug: it is reported on stderr and the run fails.
 //

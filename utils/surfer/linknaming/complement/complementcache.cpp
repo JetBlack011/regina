@@ -11,15 +11,15 @@ std::atomic<size_t> complement::cacheLimit{200'000};
 
 namespace {
 
-// Memoizes recognition results (both recogniseHandlebody()'s genus and, for
+// Memoizes complement answers (both recogniseHandlebody()'s genus and, for
 // non-handlebody complements, Census::lookup()'s name) by isomorphism
 // signature. The same boundary complement (e.g. a hyperbolic knot
 // guaranteed to be a census hit) tends to recur across many found surfaces
 // -- every real Census::lookup() reopens six on-disk census databases from
 // scratch under censusLookupMutex, and recogniseHandlebody() itself is not
-// free either, so caching turns "one recognition per surface" into "one
-// recognition per distinct complement". Guarded by its own
-// recognitionCacheMutex, separate from censusLookupMutex, so that a cache
+// free either, so caching turns "one answer per surface" into "one
+// answer per distinct complement". Guarded by its own
+// cachedAnswersMutex, separate from censusLookupMutex, so that a cache
 // hit -- the common case once a search has been running a while, and the
 // only case isUnknot()'s hot path ever takes -- never blocks behind a slow
 // in-flight Census::lookup() on another thread.

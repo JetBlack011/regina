@@ -1,5 +1,5 @@
 //
-//  exactnamer.cpp
+//  linknamer.cpp
 //
 
 #include "linknaming/linknamer.h"
@@ -62,7 +62,7 @@ LinkNamer::LinkNamer(const Tables &tables, NamerLimits limits,
                        std::shared_ptr<TableCaches> caches)
     : tables_(tables), limits_(limits),
       caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)) {
-    // Every cache is keyed by entries of one ExactTables.
+    // Every cache is keyed by entries of one Tables.
     if (caches_->tables != &tables_)
         throw std::invalid_argument("ExactNamer: table caches built for other tables");
 }
@@ -213,7 +213,7 @@ const std::string &LinkNamer::canonicalName(const TableEntry &e) const {
             if (same)
                 parent[std::max(find(i), find(j))] = std::min(find(i), find(j));
         }
-    // Each class named as ExactTables names its first member, so that a
+    // Each class named as Tables names its first member, so that a
     // class of one keeps the name it always had.
     std::lock_guard<std::mutex> lock(c.classMutex);
     for (size_t i = 0; i < vs.size(); ++i)
@@ -595,7 +595,7 @@ LinkName LinkNamer::name(const regina::Link &drawn) const {
         return out;
     }
 
-    // Split factors: pieces joined, transitively, by a shared far-side
+    // Split factors: pieces joined, transitively, by a shared outgoing
     // component (the component they are summed along).
     const size_t np = out.pieces.size();
     std::vector<size_t> parent(np);
@@ -603,7 +603,7 @@ LinkName LinkNamer::name(const regina::Link &drawn) const {
     std::function<size_t(size_t)> find = [&](size_t x) {
         return parent[x] == x ? x : parent[x] = find(parent[x]);
     };
-    std::map<size_t, size_t> ownerOf; // far-side component -> a piece using it
+    std::map<size_t, size_t> ownerOf; // outgoing component -> a piece using it
     for (size_t i = 0; i < np; ++i)
         for (size_t o : out.pieces[i].origin) {
             auto [it, fresh] = ownerOf.try_emplace(o, i);
@@ -645,7 +645,7 @@ LinkName LinkNamer::name(const regina::Link &drawn) const {
             factorNames.push_back(s);
             continue;
         }
-        // Sums with a link. Sites: far-side components shared by >= 2 pieces.
+        // Sums with a link. Sites: outgoing components shared by >= 2 pieces.
         std::map<size_t, std::vector<const PieceName *>> sites;
         for (const PieceName *p : ps)
             for (size_t o : p->origin) sites[o].push_back(p);

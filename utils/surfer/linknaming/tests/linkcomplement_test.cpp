@@ -2,11 +2,12 @@
 //
 // Tests for EdgeComplement::edgeIndices() and Link's split into components
 // (see ../complement/linkcomplement.h): pure edge-set representation,
-// independent of any recognition/census logic.
+// independent of any naming/census logic.
 //
-// See identifycomplement_test.cpp for BoundarySignatureCache and
-// recognition-cache tests -- those exercise census::identify() and its
-// caches, not this file's representation-only concern.
+// See surfer's namecache_test.cpp for BoundarySignatureCache and
+// censusnaming_test.cpp for the complement cache -- those exercise
+// census::nameComplement() and its caches, not this file's
+// representation-only concern.
 
 #include <algorithm>
 #include <iostream>

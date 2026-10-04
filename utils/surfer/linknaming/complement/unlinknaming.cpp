@@ -93,7 +93,7 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
 }
 
 // Fast, sound, one-sided proof that `t` (a LINK complement, possibly
-// multiple components) is split -- i.e. `t` is identify(const Link&)'s
+// multiple components) is split -- i.e. `t` is census::nameComplement(const Link&)'s
 // n-component-unlink case -- generalizing groupProvesUnknot() above from
 // n == 1 to any n. A presentation with zero relations is free by
 // construction (same "sound regardless of how simplify() got there"
@@ -113,7 +113,7 @@ ssize_t cachedGenus(const regina::Triangulation<3> &complement,
 // component count.) As with groupProvesUnknot(), a "false" here is only
 // ever inconclusive (simplify() didn't collapse the presentation that
 // far), never wrong -- always safe to fall through to the normal
-// resolveRecognition() path when it fails.
+// resolveAnswer() path when it fails.
 bool groupProvesUnlink(const regina::Triangulation<3> &t) {
     return freeGroupRank(t).has_value();
 }

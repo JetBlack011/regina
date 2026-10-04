@@ -27,7 +27,7 @@
 //  fields for entries with no hit, e.g. torus knots or non-hyperbolic
 //  links, which cannot appear in any of Regina's hyperbolic-only census
 //  databases -- the isosig column is still populated on a miss, so it can
-//  be fed to an offline SnapPy identification pass the same way
+//  be fed to an offline SnapPy naming pass the same way
 //  custom_analysis/identify_boundaries.py already does for knot
 //  complements). Progress goes to stderr, so redirecting stdout to a file
 //  works cleanly:
@@ -160,11 +160,11 @@ int crossingsFromPDCode(const knotbuilder::PDCode &pdcode) {
 
 // Builds `pdcode`'s complement (as a Knot for a single-component diagram,
 // a Link otherwise -- both just forward to EdgeComplement::buildComplement()
-// unchanged, but going through the same types surfer.cpp/verifyslicegenus.cpp
+// unchanged, but going through the same types surfer.cpp and cobound
 // use at runtime keeps this generator honest about what it's actually
 // mimicking), and returns both the complement's isoSig (the same key
-// census::localCensusLookup()/census::identify() query by -- written out
-// so a miss row can be fed to an offline SnapPy identification pass, the
+// census::localCensusLookup()/census::nameComplement() query by -- written out
+// so a miss row can be fed to an offline SnapPy naming pass, the
 // same way custom_analysis/identify_boundaries.py already does for knot
 // complements) and every regina::Census::lookup() hit against it.
 // One census match: the database that produced it and the name it gave.
@@ -193,14 +193,14 @@ censusHitsFor(const knotbuilder::PDCode &pdcode) {
     // here, yet the census does contain that manifold as L108014 -- the two
     // triangulations are two Pachner moves apart.
     //
-    // The RUNTIME already handles this. verifyslicegenus defaults
-    // census::retriangulateOnMiss on, so identify() falls through to
+    // The RUNTIME already handles this. A run without a goal defaults
+    // census::retriangulateOnMiss on, so nameComplement() falls through to
     // retriangulateAndLookup() and comes back with "L108014". Without the
     // same second rung here, this generator writes a blank row, linknames.h
     // gets no L108014 -> 8_14 entry, and every such object then shows up in
     // the results as a raw census name that nothing can tie back to a
     // classical one. That is exactly the gap that left 89 unnamed
-    // L###### nodes in the cobordism graph.
+    // L###### links in the cobordism graph.
     //
     // Budgets are more generous than the runtime's (8000 candidates, 20s),
     // since this is a one-off offline pass -- but bounded, because a height

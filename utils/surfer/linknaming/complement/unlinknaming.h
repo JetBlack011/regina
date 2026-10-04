@@ -1,7 +1,7 @@
 //
 //  unlinknaming.h
 //
-//  The unknot and unlinks, recognized from their complements.
+//  The unknot and unlinks, named from their complements.
 //
 
 #ifndef SURFER_LINKNAMING_UNLINKNAMING_H
@@ -16,7 +16,7 @@
 #include "linknaming/complement/linkcomplement.h"
 
 /*! \file utils/surfer/linknaming/complement/unlinknaming.h
- *  \brief Recognizes the unknot and unlinks from their complements, with
+ *  \brief Names the unknot and unlinks from their complements, with
  *  proof and without any census: a handlebody-genus check (cached in
  *  complementcache.h), a free-group certificate, and the capping that turns
  *  an arc in a ball into a closed curve. This is what KnottedSurface's local
@@ -67,10 +67,10 @@ bool isMultiComponentUnlinkName(const std::string &name);
 
 /**
  * Whether `name` is an unlink's name, `"Unknot"` or `"<n>-component unlink"`
- * -- and so (as returned by identify(const Link&)) safe to use for a genus
- * deduction on a MULTI-component far side; false for everything else.
+ * -- and so (as returned by census::nameComplement(const Link&)) safe to use for a genus
+ * deduction on a MULTI-component outgoing link; false for everything else.
  *
- * Those two are the only multi-curve names identify() produces from a
+ * Those two are the only multi-curve names nameComplement() produces from a
  * structural proof of the link itself (free pi_1 => split unlink), rather
  * than from a lookup of the complement's homeomorphism type. Every other
  * multi-component name -- a Thistlethwaite name, a census name, a bare
@@ -81,7 +81,7 @@ bool isMultiComponentUnlinkName(const std::string &name);
  * candidate set is not enumerable at all. Single-curve names need no such
  * check, since Gordon-Luecke makes a knot's complement determine it.
  *
- * The solver applies this through solver::farSideBearsBound(). Kept
+ * The solver applies this through solver::outgoingBearsBound(). Kept
  * here, next to where these strings are actually produced, rather than
  * pattern-matched elsewhere, so the two stay in sync if the format ever
  * changes.
@@ -90,7 +90,7 @@ bool isUnlinkName(const std::string &name);
 
 /**
  * Cheap test for whether `e`'s complement is a genus-1 handlebody (a solid
- * torus) -- unlike identify(), this never falls back to the slower
+ * torus) -- unlike census::nameComplement(), this never falls back to the slower
  * Census::lookup().
  *
  * \return \c true if and only if the complement is a genus-1 handlebody.
@@ -99,7 +99,7 @@ bool isUnknot(const EdgeComplement &e);
 
 /**
  * `e`'s name without any census: `"Unknot"` if its complement is a solid
- * torus, else the complement's isoSig -- what identify() names it when the
+ * torus, else the complement's isoSig -- what census::nameComplement() names it when the
  * census has no name for it.
  */
 std::string unlinkNameOrIsoSig(const EdgeComplement &e);
@@ -108,7 +108,7 @@ std::string unlinkNameOrIsoSig(const EdgeComplement &e);
  * `l`'s name without any census: `"<n>-component unlink"` for n > 1
  * components whose complement's group is free (groupProvesUnlink()),
  * `"Unknot"` for a solid-torus complement, else the complement's isoSig --
- * what identify(const Link&) names it when the census has no name for it.
+ * what census::nameComplement(const Link&) names it when the census has no name for it.
  */
 std::string unlinkNameOrIsoSig(const Link &l);
 

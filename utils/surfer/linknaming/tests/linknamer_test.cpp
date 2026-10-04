@@ -1,7 +1,7 @@
 //
-//  exactnaming_test.cpp
+//  linknamer_test.cpp
 //
-//  linknaming::ExactNamer on diagrams built by hand from table PD codes:
+//  linknaming::LinkNamer on diagrams built by hand from table PD codes:
 //
 //    1. every table entry drawn as itself is named as itself (canonically),
 //       exactly;
@@ -234,7 +234,7 @@ void test_search_then_invariants(const Tables &t) {
               "L7n1{0}, one component reversed, with a kink: L7n1{1}");
 }
 
-// Two far sides from the master (2026-09-27) that the forward search left
+// Two outgoing links from the master (2026-09-27) that the forward search left
 // untabulated and the SnapPy pipeline named: each is another minimal diagram
 // of its table knot. The table-side step names them, and without it (or with
 // its forward-search-only limits) they stay untabulated.
@@ -262,7 +262,7 @@ void test_table_side(const Tables &t) {
     }
 }
 
-// The same far sides, and a 10-crossing drawing of 8_16 (two crossings above
+// The same outgoing links, and a 10-crossing drawing of 8_16 (two crossings above
 // minimal; a table-side rewrite needs height 4 and ~30 s), named by an
 // isometry of complements carrying meridians to meridians, with every
 // Reidemeister search off. 8_16 shares its HOMFLY polynomial with 10_156,
@@ -298,7 +298,7 @@ void test_isometry(const Tables &t) {
 }
 
 // Namers over the same tables can share what they learn about them (a
-// cascade's node namer and every hop's far-side namer do): a second namer
+// goal run's link namer and every search's outgoing namer do): a second namer
 // names through the first's HOMFLY index and kernel complements exactly as a
 // namer with its own would. Caches built for other tables -- even loaded from
 // the same files -- are refused, since they are keyed by those tables'

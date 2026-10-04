@@ -1,7 +1,7 @@
 //
 //  exacttables.h
 //
-//  The knot and link tables as oriented diagrams, for naming far sides
+//  The knot and link tables as oriented diagrams, for naming outgoing links
 //  exactly.
 //
 
@@ -54,8 +54,8 @@ struct TableRow {
  * after the second (no quoting appears in these files: a PD code uses ';'
  * internally, never a comma). The header line, empty lines and lines without
  * two commas are skipped; a trailing '\r' is dropped. The one reader of the
- * tables: the solver's literature, the search's input rows, the namer's
- * indices and the cascade's PD lookups all read through it.
+ * tables: the solver's literature, a run's targets, the namer's indices
+ * and a goal run's PD lookups all read through it.
  * \exception regina::InvalidArgument the file cannot be opened.
  */
 std::vector<TableRow> readTableRows(const std::filesystem::path &path);
@@ -114,7 +114,7 @@ SymmetryTable readSymmetryTable(const std::filesystem::path &path);
  *
  * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
  * with no symmetry data loaded, so a run without --knot-symmetry loses
- * nothing it had before. Consumed by both the atlas solver and the cascade.
+ * nothing it had before. Consumed by both the atlas solver and goal runs.
  */
 bool isElementarySlice(const std::string &name, const SymmetryTable &symmetry);
 
@@ -197,7 +197,7 @@ class Tables {
  * A PD code as text ("[[1;5;2;4];...]", "PD[X[4; 1; 3; 2]; ...]", or any
  * other punctuation: the integers in fours) as Regina reads it, labels as
  * written. The one parser of PD text into a regina::Link: the tables', and a
- * cascade row's. A code holding a 0 is taken as 0-based and shifted up by
+ * searched link's. A code holding a 0 is taken as 0-based and shifted up by
  * one, as diagramtriangulation's parsePDCode() reads it.
  * \exception regina::InvalidArgument no labels, or a count not divisible by 4.
  */

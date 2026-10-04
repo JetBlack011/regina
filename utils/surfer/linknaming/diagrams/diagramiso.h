@@ -35,7 +35,7 @@ struct DiagramIsomorphism {
  * link in general.
  *
  * Exact and exhaustive (backtracking over rotations), for the small diagrams
- * the cascade meets. Returns the first isomorphism found; which one, when
+ * a goal run meets. Returns the first isomorphism found; which one, when
  * there are several (symmetric diagrams), is unspecified -- unless
  * `componentMap` is given, when only isomorphisms taking a's component i to
  * b's componentMap[i] are considered. With a == b, that asks whether a

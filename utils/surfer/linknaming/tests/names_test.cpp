@@ -1,6 +1,6 @@
 // names_test.cpp
 //
-// Tests for ../names.h: the grammar of the names a far side is recorded
+// Tests for ../names.h: the grammar of the names an outgoing link is recorded
 // under -- component counts, bases and tags, census suffixes, splits,
 // composites, sums and knot marks. Pure string functions. The cases from
 // componentsFromName() to knotSummands() moved here, verbatim, from the
@@ -77,9 +77,9 @@ void test_base_name() {
 }
 
 void test_normalize_complement_name() {
-    // identify() decorates a translated census hit; the --input tables do
-    // not. Left undecorated, "4_1 (m004 : #1)" would be a DIFFERENT graph
-    // node from the "4_1" row for the very same knot, and nothing would
+    // census::nameComplement() decorates a translated census hit; the
+    // tables do not. Left undecorated, "4_1 (m004 : #1)" would be a
+    // DIFFERENT name to the solver from the "4_1" row for the very same knot, and nothing would
     // ever chain through it.
     EXPECT_EQ(normalizeComplementName("4_1 (m004 : #1)"), std::string("4_1"),
               "the census annotation is stripped for node identity");
@@ -120,7 +120,7 @@ void test_composite_parts() {
     EXPECT_EQ(compositeParts("3_1 #_ L2a1").has_value(), false,
               "no component index: refused, since K # L is not well defined "
               "without one");
-    // An exact name writes L with its orientation tag, and the component as
+    // A name writes L with its orientation tag, and the component as
     // "?" when the namer does not compute it.
     EXPECT_EQ(compositeParts("3_1 #_0 L2a1{0}").has_value(), true,
               "a TAGGED link part (exact names) is accepted");

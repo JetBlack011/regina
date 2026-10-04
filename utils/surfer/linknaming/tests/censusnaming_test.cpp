@@ -1,6 +1,6 @@
 // censusnaming_test.cpp
 //
-// Tests for census::identify() and the recognition cache behind it (see
+// Tests for census::nameComplement() and the complement cache behind it (see
 // ../census/censusnaming.h and ../complement/complementcache.h): the cache's
 // limit and its behaviour under concurrent clears, the split-unlink fast
 // path, and the Pachner-search policy.
@@ -78,11 +78,11 @@ regina::Triangulation<3> testBoundary() {
 
 void test_complement_cache_clear_threshold() {
     // Unlike BoundarySignatureCache's pre-triangulation combinatorial key,
-    // recognitionCache is keyed by the drilled complement's POST-simplify
+    // complement cache is keyed by the drilled complement's POST-simplify
     // isoSig -- a topological invariant of the resulting manifold, not of
     // how many edges were drilled. So this needs two genuinely
     // topologically distinct complements, not just different edge counts.
-    // Drilling no edges at all from a fixed triangulation just recognizes
+    // Drilling no edges at all from a fixed triangulation just names
     // that triangulation itself (buildComplement()'s pinch loop is a no-op
     // on an empty edge set) -- so pairing the pentachoron-boundary case (one
     // edge with distinct ends, which pinching just collapses, leaving S^3)
@@ -107,10 +107,10 @@ void test_complement_cache_clear_threshold() {
 }
 
 void test_complement_cache_clear_race() {
-    // resolveRecognition() takes the genus from cachedGenus(), which stores
-    // it and releases recognitionCacheMutex, and then dereferences
-    // lookupRecognition(sig) under a second lock. storeRecognition() clears
-    // the whole cache once it is at recognitionCacheLimit, so another
+    // resolveAnswer() takes the genus from cachedGenus(), which stores
+    // it and releases cachedAnswersMutex, and then dereferences
+    // lookupAnswer(sig) under a second lock. cacheAnswer() clears
+    // the whole cache once it is at cacheLimit, so another
     // thread's store can land between the two and leave an empty optional.
     // With the limit at 1, every store of a different signature clears it:
     // four threads name one complement while four others churn another.
@@ -118,7 +118,7 @@ void test_complement_cache_clear_race() {
     // churners also clear the cache directly, as a store at the limit does,
     // so the narrow window between the two lookups is actually reached.
     // The three edges of one triangle: an unknotted circle, whose complement
-    // is a solid torus, so resolveRecognition() takes the genus != -1 branch
+    // is a solid torus, so resolveAnswer() takes the genus != -1 branch
     // that dereferences the second lookup. (A single edge with distinct ends
     // just collapses, leaving S^3, which takes the census branch instead.)
     auto unknot = [](const regina::Triangulation<3> &t) {
@@ -181,10 +181,10 @@ void test_complement_cache_clear_race() {
     complement::resetCacheForTesting();
 }
 
-// census::identify(const Link&): the split-unlink fast path
-// (groupProvesUnlink(), identifycomplement.cpp), generalizing
-// identify(const EdgeComplement&)'s genus-1/"Unknot" check from n == 1 to
-// any n via free-group recognition rather than a handlebody genus check
+// census::nameComplement(const Link&): the split-unlink fast path
+// (groupProvesUnlink(), unlinknaming.cpp), generalizing
+// nameComplement(const EdgeComplement&)'s genus-1/"Unknot" check from n == 1
+// to any n via a free-group check rather than a handlebody genus check
 // (a split n-component unlink's complement has n SEPARATE torus boundary
 // components, so -- unlike a solid torus -- it is never itself a
 // handlebody; recogniseHandlebody() correctly returns -1 for it, not n,
@@ -208,7 +208,7 @@ void test_name_link_unlink() {
               "back to a bare isoSig");
 }
 
-// The flip side of the above: identify() must not mistake a genuinely
+// The flip side of the above: nameComplement() must not mistake a genuinely
 // LINKED multi-component complement for a handlebody either. The
 // (unflipped) Hopf link has the same component count as the unlink fixture
 // above, but its complement (T^2 x I) is not a handlebody at all.

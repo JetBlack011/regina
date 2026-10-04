@@ -22,8 +22,8 @@
  *  The same boundary complement tends to recur across many found surfaces,
  *  and neither answer is free -- recogniseHandlebody() is normal-surface
  *  theory, and Regina's Census::lookup() reopens its on-disk databases under
- *  a mutex -- so caching turns "one recognition per surface" into "one
- *  recognition per distinct complement". The cache's own mutex is separate
+ *  a mutex -- so caching turns "one answer per surface" into "one
+ *  answer per distinct complement". The cache's own mutex is separate
  *  from the census lookup's, so a cache hit -- the common case once a search
  *  has run a while, and the only case isUnknot()'s hot path ever takes --
  *  never blocks behind a slow lookup on another thread.
@@ -32,7 +32,7 @@
 namespace complement {
 
 /**
- * The outcome of recognizing a complement, memoized by isomorphism
+ * What is known about a complement, memoized by isomorphism
  * signature (see the cache below).
  */
 struct ComplementAnswer {
@@ -41,7 +41,7 @@ struct ComplementAnswer {
      * computed for this isoSig: 1 means the unknot (a genus-1 handlebody),
      * -1 means "not any handlebody" (the only case eligible for a census
      * lookup), and any other value is the pre-existing "almost definitely a
-     * bug" case (see recognizeComplement(const Link&)). nullopt means not
+     * bug" case (see reportComplement(const Link&)). nullopt means not
      * yet computed.
      */
     std::optional<ssize_t> genus;
@@ -66,8 +66,8 @@ struct ComplementAnswer {
 };
 
 /**
- * Counters for how much recomputation the recognition cache is actually
- * avoiding. See recognitionCacheStats().
+ * Counters for how much recomputation the complement cache is actually
+ * avoiding. See cacheStats().
  */
 struct ComplementCacheStats {
     long long genusChecks = 0;
@@ -96,7 +96,7 @@ struct ComplementCacheStats {
     long long localCensusChecks = 0;
     long long localCensusHits = 0;
 
-    /** How many times recognitionCache has been fully cleared after exceeding recognitionCacheLimit. */
+    /** How many times the complement cache has been fully cleared after exceeding cacheLimit. */
     long long cacheResets = 0;
 
     /** One kind of complement's Pachner-search (retriangulateAndLookup())
@@ -111,21 +111,21 @@ struct ComplementCacheStats {
                                      census::retriangulateLinks). */
 };
 
-/** A snapshot of the recognition cache's current hit/miss counters. */
+/** A snapshot of the complement cache's current hit/miss counters. */
 ComplementCacheStats cacheStats();
 
-/** The recognition cache's current entry count (distinct isoSigs seen). */
+/** The complement cache's current entry count (distinct isoSigs seen). */
 size_t cacheSize();
 
 /**
- * Clears recognitionCache and its stats outright, ignoring
- * recognitionCacheLimit. Test-only: production code should only ever see
- * this cache clear itself automatically via recognitionCacheLimit.
+ * Clears the complement cache and its stats outright, ignoring
+ * cacheLimit. Test-only: production code should only ever see
+ * this cache clear itself automatically via cacheLimit.
  */
 void resetCacheForTesting();
 
 /**
- * Entry-count threshold past which recognitionCache (complementcache.cpp)
+ * Entry-count threshold past which the complement cache (complementcache.cpp)
  * clears itself entirely before admitting the next new isoSig -- keyed by
  * content (an isoSig string), not a recyclable integer id, so a lookup
  * racing a clear is simply a clean miss, never a wrong hit against an
@@ -153,7 +153,7 @@ std::optional<ComplementAnswer> lookupAnswer(const std::string &sig);
  * is what keeps a thread racing to complete an entry from clobbering
  * another thread's already-finished result. Returns the post-merge
  * snapshot. Clears the whole cache first when sig is new and the cache is
- * at recognitionCacheLimit.
+ * at cacheLimit.
  */
 ComplementAnswer cacheAnswer(const std::string &sig,
                                    const ComplementAnswer &update);

@@ -172,11 +172,11 @@ GaussDiagram simplifyKeepingComponents(const GaussDiagram &d) {
   regina::Link l = d.link();
   l.simplify();
   // Reduced as well: knotbuilder's drawer cannot draw a diagram with a
-  // nugatory crossing back (a block's corners meet), so a hop on one could
+  // nugatory crossing back (a block's corners meet), so a search on one could
   // not be certified. Regina's simplify() removes kinks but not every
   // nugatory crossing. And with every component that lies above (or below)
   // everything lifted off: its PD code cannot carry its orientation, so its
-  // row could not be certified either; lifted, it is a split unknot.
+  // searched link could not be certified either; lifted, it is a split unknot.
   GaussDiagram s = liftSplitComponents(
       removeNugatoryCrossings(liftSplitComponents(GaussDiagram::of(l, d.origin))));
   if (s.components() != d.components())

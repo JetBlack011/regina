@@ -25,9 +25,9 @@
  *  \brief Tracks a set of edges inside a triangulation and builds their
  *  complement.
  *
- *  Pure representation only -- for recognizing/naming a built complement
- *  (genus checks, the local census, regina::Census::lookup()), see
- *  identifycomplement.h.
+ *  Pure representation only -- for naming a built complement (genus
+ *  checks, the local census, regina::Census::lookup()), see unlinknaming.h
+ *  and censusnaming.h.
  */
 
 /**
@@ -35,8 +35,8 @@
  * Triangulation<3>::simplify() on the drilled complement before returning
  * it. Defaults to \c true (existing behavior); set to \c false only for
  * profiling -- skipping simplify() yields much larger triangulations whose
- * isomorphism signatures rarely recur, so identifycomplement.h's
- * recognition cache and Census::lookup() itself become far less effective,
+ * isomorphism signatures rarely recur, so the complement cache
+ * (complementcache.h) and Census::lookup() itself become far less effective,
  * in exchange for a possibly much cheaper buildComplement().
  *
  * Set once, before any search worker thread is spawned, and never written
@@ -51,8 +51,8 @@ extern std::atomic<bool> simplifyComplements;
  *
  * This is a general-purpose base for anything encoded as a list of edges
  * whose complement is of interest -- it does not by itself assume the
- * edges form a knot or link, and knows nothing about recognizing/naming
- * that complement (see identifycomplement.h for that).
+ * edges form a knot or link, and knows nothing about naming that
+ * complement (see unlinknaming.h and censusnaming.h for that).
  */
 class EdgeComplement {
   private:
@@ -64,8 +64,8 @@ class EdgeComplement {
      * drilling needs. Built when a complement is (buildComplement(),
      * drillTrackingEdges_()), not on construction: the drain builds a Link
      * and its Knots for every surface's boundary, and almost none is ever
-     * drilled (2026-09-29: 17 of 100k on a production row), so building
-     * it eagerly was ~6% of a row's CPU, mostly hash-map allocation.
+     * drilled (2026-09-29: 17 of 100k on a production search), so building
+     * it eagerly was ~6% of a search's CPU, mostly hash-map allocation.
      * Keyed by tetrahedron index, so drilling never follows addresses.
      */
     std::map<size_t, std::set<int>> tetEdges_() const;
@@ -117,7 +117,7 @@ class EdgeComplement {
      *
      * Cheap to compute (no triangulation/simplification involved) --
      * intended as a pre-triangulation cache key; see
-     * identifycomplement.h's BoundarySignatureCache.
+     * namecache.h's BoundarySignatureCache (the surfer library).
      */
     std::vector<size_t> edgeIndices() const;
 

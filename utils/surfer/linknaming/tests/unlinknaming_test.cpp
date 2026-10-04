@@ -1,7 +1,7 @@
 // unlinknaming_test.cpp
 //
 // Tests for complement::certifiesUnlink() and complement::capInCone() (see
-// ../complement/unlinknaming.h): the census-free recognition of unknots and
+// ../complement/unlinknaming.h): the census-free naming of unknots and
 // unlinks that KnottedSurface's local flatness and resolution checks rest
 // on.
 //

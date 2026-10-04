@@ -74,7 +74,7 @@ struct TempFile {
 };
 
 // The table's literature 4-genus: what parses, and that a malformed value
-// never becomes a bound (moved from the cascade's leaves test, F1).
+// never becomes a bound (moved from the goal run's axioms test, F1).
 void test_parse_table_g4() {
     EXPECT_EQ(parseTableG4("2") == std::make_pair(2, 2), true, "plain value");
     EXPECT_EQ(parseTableG4("[0;1]") == std::make_pair(0, 1), true, "interval");

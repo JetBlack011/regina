@@ -300,7 +300,7 @@ namespace linknaming {
 SignatureTable SignatureTable::fromTables(const std::string &knotTable,
                                           const std::string &linkTable) {
     // A row that does not parse is an error, not a silent gap: an empty or
-    // partial table would quietly send every far side back to the
+    // partial table would quietly send every outgoing link back to the
     // complement route (it did, once, when the PD codes were read with
     // 0-based labels).
     // The PD codes as Regina reads them (linknaming::linkFromTablePD()):

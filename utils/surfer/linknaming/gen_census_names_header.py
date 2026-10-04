@@ -4,7 +4,7 @@ Validates ../knot_census_names.csv (produced by gen_knot_census_names.cpp)
 and, if present, ../link_census_names.csv (produced by the same tool's
 --links mode) against SnapPy, then emits ../linknames.h: a census-name ->
 classical-name lookup table (Rolfsen knot names + Thistlethwaite link
-names) for identifycomplement.cpp.
+names) for census/censusnaming.cpp.
 
 Usage (run with the venv that has SnapPy installed):
     utils/surfer/.venv/bin/python3 gen_knot_names_header.py
@@ -16,7 +16,7 @@ triangulations of the *same* manifold was matched -- Regina's
 cusped-hyp-or-census-9 stores one entry per triangulation discovered during
 census construction, and many manifolds have several (confirmed: every
 group of entries sharing a base name has identical hyperbolic volume).
-Keying on the full string would only ever recognize whichever one specific
+Keying on the full string would only ever match whichever one specific
 triangulation knotbuilder.cpp + simplify() happened to produce for a given
 PD code, and silently miss the same manifold reached via any other
 triangulation (e.g. one a live surfer search stumbles on mid-simplification).
@@ -40,7 +40,7 @@ Validation performed:
   - Every row hitting "Cusped hyperbolic census (...)" is cross-checked
     against snappy.Manifold(classical_name).identify(): the bare census
     name (e.g. "m004" from "m004 : #1") must appear among SnapPy's
-    independent identification of the same knot/link.
+    independent naming of the same knot/link.
   - Every knot/link with *no* census hit is cross-checked as genuinely
     non-hyperbolic (near-zero volume) via SnapPy. A "no hit" entry that
     SnapPy says *is* hyperbolic is an anomaly -- it just means the
@@ -80,7 +80,7 @@ def bare_snappy_name(name: str) -> str:
 
 def load_rows(csv_path: pathlib.Path):
     """Ignores the trailing isosig column (gen_knot_census_names.cpp's
-    complement isoSig, kept for feeding a SnapPy identification pass on
+    complement isoSig, kept for feeding a SnapPy naming pass on
     miss rows -- see tools/identify_link_isosigs.py) -- not needed here."""
     if not csv_path.exists():
         return []
