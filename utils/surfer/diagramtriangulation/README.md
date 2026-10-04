@@ -21,7 +21,7 @@ Regina. Namespace `diagramtriangulation`, except the thickening's classes.
 | `thickening/prism` | `SimplicialPrism`: a simplex × [0,1] as simplices |
 | `thickening/thickening` | `CobordismBuilder`: T × [0, k] by prism layers. `OutgoingMap`: the outgoing boundary read back as T, edge by edge. `ThickenedLink` and `buildAmbient()`: what a search runs in |
 | `thickening/collar` | `CollarBuilder`: the collar L × [0, c] through the first c layers, the seed every searched surface contains |
-| `triangulatediagram.cpp` | the tool `triangulateknot` (`build/utils/surfer/knotbuilder/triangulateknot`): a PD code → the isomorphism signatures of T and of L's complement |
+| `triangulatediagram.cpp` | the tool `triangulateknot` (`build/utils/surfer/knotbuilder/triangulateknot`, the path it had before this part was renamed, kept for commands written against it): a PD code → the isomorphism signatures of T and of L's complement |
 
 ## PD codes
 

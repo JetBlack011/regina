@@ -63,6 +63,12 @@ campaigns expect them:
 | `surfer` | `surfer/surfer` |
 | `gen_knot_census_names` | `linknaming/gen_knot_census_names` |
 
+Every program kept its name and path when the code was split into its four
+parts, so commands written against the old layout still work; `surfer` alone
+could not, since its part's build directory took the name. That is why
+`triangulateknot` still builds into `knotbuilder/`, the directory of the part
+`diagramtriangulation/` was before.
+
 The local census (`linknaming/census/census.sqlite`) is not tracked; its
 default path is compiled in (`SURFER_CENSUS_PATH`), and `cobound` takes
 another with the `census` key.
