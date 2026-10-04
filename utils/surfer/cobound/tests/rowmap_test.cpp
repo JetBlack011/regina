@@ -88,30 +88,30 @@ std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
 
 void checkIncomingMap(const std::string &name, const std::string &pd) {
     // The campaign shape: two layers, collared through both.
-    search::IncomingThickening rb;
+    search::IncomingThickening thickened;
     try {
-        search::buildIncoming(pd, 2, 2, rb);
+        search::buildIncoming(pd, 2, 2, thickened);
     } catch (const regina::InvalidArgument &e) {
         std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
                   << "\n";
         ++failed_count;
         return;
     }
-    const auto &[t2, edges2, reversed2] = rb.link;
+    const auto &[t2, edges2, reversed2] = thickened.link;
     const int components = Link(t2, edges2).countComponents();
-    const size_t bc = rb.incomingBC;
-    const regina::Triangulation<4> &tri = rb.tri;
-    const std::vector<int> &seedFaces = rb.seedFaces;
-    EXPECT_EQ(rb.componentCount, components,
+    const size_t bc = thickened.incomingBC;
+    const regina::Triangulation<4> &tri = thickened.tri;
+    const std::vector<int> &seedFaces = thickened.seedFaces;
+    EXPECT_EQ(thickened.componentCount, components,
               name + ": the row's component count");
 
     const std::vector<size_t> seedEdges = seedEdgesOn(tri, seedFaces, bc);
     EXPECT_EQ(seedEdges.size(), edges2.size(),
               name + ": the seed holds every edge of L on the search side");
-    EXPECT_EQ(rb.incomingEdges == seedEdges, true,
+    EXPECT_EQ(thickened.incomingEdges == seedEdges, true,
               name + ": the row's search edges are the seed's own");
 
-    const IncomingOrientation &incoming = *rb.orientation;
+    const IncomingOrientation &incoming = *thickened.orientation;
     if (incoming.divergedFromDefaultIsomorphism) {
         ++divergedRows;
         std::cout << "  (" << name << ": the default isomorphism would have "

@@ -232,21 +232,21 @@ struct GateRun {
 // the first few also have their deferred pair signature compared.
 void gateRun(const std::string &pd, const std::string &name, GateRun &out,
              int signatures) {
-    IncomingThickening rb;
-    buildIncoming(pd, 2, 2, rb);
+    IncomingThickening thickened;
+    buildIncoming(pd, 2, 2, thickened);
     SurfaceSearchLimits limits;
     limits.capturePairSig = true;
-    SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);
+    SurfaceSearch e(thickened.tri, thickened.seedFaces, thickened.incomingBC);
     e.configureLimits(limits);
-    OutgoingStubNamer namer(rb.incomingBC);
+    OutgoingStubNamer namer(thickened.incomingBC);
     e.setBoundaryNamer(namer);
-    e.primeBoundaryName(rb.incomingBC, rb.incomingEdges, name);
+    e.primeBoundaryName(thickened.incomingBC, thickened.incomingEdges, name);
 
     std::mutex m;
     SurfaceSearchCallbacks callbacks;
     callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo &info) {
         out.acct.described.fetch_add(1);
-        const GatedSurface g = gateSurface(info, rb);
+        const GatedSurface g = gateSurface(info, thickened);
         if (!g.accepted()) {
             out.acct.reject(g.gate);
             return;
@@ -262,13 +262,13 @@ void gateRun(const std::string &pd, const std::string &name, GateRun &out,
             ++out.signaturesChecked;
         }
         const bool same =
-            pairSig<4, 2>(rb.tri, faces) == info.capturePairSig();
+            pairSig<4, 2>(thickened.tri, faces) == info.capturePairSig();
         std::lock_guard<std::mutex> lock(m);
         if (same)
             ++out.signaturesAgreeing;
     };
     const SearchStats stats = e.search(
-        4, conditionFor(BoundaryConditionMode::proper, rb.componentCount),
+        4, conditionFor(BoundaryConditionMode::proper, thickened.componentCount),
         callbacks, 0, 0, std::nullopt, std::nullopt,
         /*orientableOnly=*/true, 3, 0, 2);
     out.accepted = stats.satisfyingCount;

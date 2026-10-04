@@ -170,7 +170,7 @@ SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &reader,
   return request;
 }
 
-SearchResult Searcher::run(const search::IncomingThickening &rb,
+SearchResult Searcher::run(const search::IncomingThickening &thickened,
                         const SearchRequest &request) const {
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = timers::processCpuSeconds();
@@ -181,7 +181,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   const bool resolveUnlinked = *shape.resolveUnlinked;
   const LiteratureInterval &literature = request.literature;
   const SearchOutputs &outputs = request.outputs;
-  if (rb.seedFaces.empty())
+  if (thickened.seedFaces.empty())
     throw SearchRefused("hop: the row has no collar seed");
   if (!request.reader)
     throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
@@ -190,7 +190,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   // boundary is named by its complement unless the row draws its far sides.
   const outgoing::ComplementNamer complementNamer{};
   std::optional<outgoing::OutgoingNamer> namer;
-  SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);
+  SurfaceSearch e(thickened.tri, thickened.seedFaces, thickened.incomingBC);
   e.configureLimits(shape.limits);
   // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
   e.setSigintHandling(false);
@@ -222,7 +222,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     // A row whose far sides cannot be drawn is refused (divergence 2): its
     // T does not read back, and naming it some other way would hide that.
     try {
-      namer.emplace(rb.link.tri, rb.pdcode.size(), *rb.cob, *signatures_);
+      namer.emplace(thickened.link.tri, thickened.pdcode.size(), *thickened.cob, *signatures_);
       if (tables_) namer->enableOrientedNames(*tables_, tableCaches_);
     } catch (const std::exception &ex) {
       throw SearchRefused(ex.what());
@@ -234,17 +234,17 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     // The invariant that makes the search side fixed: no searchable
     // triangle other than the seed has an edge on it. Checked once here
     // rather than re-derived for every surface found.
-    if (const size_t touching = e.countSearchableFacesTouching(rb.incomingBC))
+    if (const size_t touching = e.countSearchableFacesTouching(thickened.incomingBC))
       throw SeedInvariantFailure(touching);
     // Its name is known by construction; never identify it.
-    e.primeBoundaryName(rb.incomingBC, rb.incomingEdges, request.name);
+    e.primeBoundaryName(thickened.incomingBC, thickened.incomingEdges, request.name);
   }
 
   // Fresh per search, so each census line describes one search.
   std::optional<SelfIntersectionCensus> selfIntersectionCensus;
   if (outputs.selfIntersectionCensus) {
     selfIntersectionCensus.emplace();
-    selfIntersectionCensus->incomingBoundary = static_cast<long>(rb.incomingBC);
+    selfIntersectionCensus->incomingBoundary = static_cast<long>(thickened.incomingBC);
   }
   e.configureSelfIntersections(
       {.resolveUnlinked = resolveUnlinked,
@@ -450,7 +450,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     // far side (search::gateSurface()). The orientation check needs the
     // search side's oriented curves, and an exact oriented far-side name the
     // rest, so the gate captures them once.
-    const search::GatedSurface g = search::gateSurface(info, rb);
+    const search::GatedSurface g = search::gateSurface(info, thickened);
     if (!g.accepted()) {
       acct.reject(g.gate);
       sampleRejection(search::gateReason(g.gate), info);
@@ -463,7 +463,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     {
       link = outgoing::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.reader->outgoing(), g.flips,
-                                           rb.incomingBC);
+                                           thickened.incomingBC);
       if (!link) {
         // Only a surface component off the row, which the gate's flips (one
         // per component meeting the row) rule out: impossible.
@@ -481,7 +481,7 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
     // forces the DFS to ever bridge them.
     cobordisms::Cobordism w;
     w.subject = request.name;
-    w.subjectComponents = rb.componentCount;
+    w.subjectComponents = thickened.componentCount;
     w.genus = info.tubedGenus;
     w.tubed = !info.connected;
     w.resolvedVertices = info.resolvedVertices;
@@ -736,9 +736,9 @@ SearchResult Searcher::run(const search::IncomingThickening &rb,
   // support -- exactly the claim linknames.h forbids adding "from a
   // complement match alone". For a knot the same entry is sound by
   // Gordon-Luecke.
-  if (request.censusName && rb.componentCount == 1 &&
+  if (request.censusName && thickened.componentCount == 1 &&
       census::censusUpdates.load(std::memory_order_relaxed)) {
-    Link incoming(rb.link.tri, rb.link.edges);
+    Link incoming(thickened.link.tri, thickened.link.edges);
     census::insertCensusEntry(incoming.buildComplement().isoSig(), *request.censusName);
   }
   out.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();

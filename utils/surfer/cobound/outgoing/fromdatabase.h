@@ -129,13 +129,13 @@ class OutgoingReader {
      */
     std::string buildChecksum() const;
 
-    const regina::Triangulation<3> &knotT() const { return rb_.link.tri; }
-    const regina::Triangulation<4> &thickening() const { return rb_.tri; }
+    const regina::Triangulation<3> &knotT() const { return thickened_.link.tri; }
+    const regina::Triangulation<4> &thickening() const { return thickened_.tri; }
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }
     const OutgoingMap &outgoing() const { return *outgoing_; }
-    const search::IncomingOrientation &orientation() const { return *rb_.orientation; }
-    size_t incomingBC() const { return rb_.incomingBC; }
-    const std::vector<size_t> &incomingEdges() const { return rb_.incomingEdges; }
+    const search::IncomingOrientation &orientation() const { return *thickened_.orientation; }
+    size_t incomingBC() const { return thickened_.incomingBC; }
+    const std::vector<size_t> &incomingEdges() const { return thickened_.incomingEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
     /** The row's own components, in DiagramDrawer::cyclesOf() order. */
     const std::vector<knotbuilder::EdgeCycle> &incomingCycles() const { return incomingCycles_; }
@@ -143,10 +143,10 @@ class OutgoingReader {
      *  the incoming boundary component's built triangulation) lies on.
      *  \throws std::out_of_range for an edge that is not one of L's. */
     size_t incomingComponentOf(size_t edgeIndex) const { return incomingComponentOf_.at(edgeIndex); }
-    const knotbuilder::TriangulationWithLink &built() const { return rb_.link; }
+    const knotbuilder::TriangulationWithLink &built() const { return thickened_.link; }
     /** The whole row build: a search run in thickening() (cascadesearch's
      *  in-process hops) sees exactly what this redrawer reads. */
-    const search::IncomingThickening &thickened() const { return rb_; }
+    const search::IncomingThickening &thickened() const { return thickened_; }
 
     /** Cumulative milliseconds spent decoding pair signatures, and searching
      *  for the isomorphism onto the thickening (carry()). */
@@ -179,7 +179,7 @@ class OutgoingReader {
                                             const std::vector<int> &faces,
                                             const IsoSource &isos) const;
 
-    search::IncomingThickening rb_; /**< T, the thickening, its collar and row map. */
+    search::IncomingThickening thickened_; /**< T, the thickening, its collar and row map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;

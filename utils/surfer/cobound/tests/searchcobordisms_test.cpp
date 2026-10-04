@@ -144,13 +144,13 @@ void testL11n33() {
     if (r.other == "L11n33{1}" && r.genus == "0") {
       CHECK_EQ(e.outgoing, searched.link, "the identity far side is the row's node");
       // A self-loop of two annuli maps component i to component i.
-      const LinkCobordism &we = g.cobordism(e.cobordism);
+      const LinkCobordism &cob = g.cobordism(e.cobordism);
       if (e.shape.components == 2) {
         bool product = true;
         for (int i = 0; i < 2; ++i) {
-          int ci = we.shape.inComponent[i];
+          int ci = cob.shape.inComponent[i];
           for (int j = 0; j < 2; ++j)
-            if (we.outMap[j] == i && we.shape.outComponent[j] != ci) product = false;
+            if (cob.outMap[j] == i && cob.shape.outComponent[j] != ci) product = false;
         }
         CHECK(product, "the identity witness joins each component to itself");
       }

@@ -32,16 +32,16 @@ void CertificateWriter::writeCobordism(std::ostream &c, RelationId eid,
   // A witness edge as a checker replays it: its key, ends, shape and maps,
   // and (for an edge with a hop or master row) the row, the surface (faces
   // and build digest, or pair signature) and each far-side piece's match.
-  const LinkCobordism &we = g_.cobordism(eid);
-  links.insert(we.in);
-  links.insert(we.out);
+  const LinkCobordism &cob = g_.cobordism(eid);
+  links.insert(cob.in);
+  links.insert(cob.out);
   const auto it = sources_.byCobordism.find(eid);
-  c << ",\"witness\":\"" << json::escape(we.key) << "\"";
-  c << ",\"in\":" << we.in << ",\"out\":" << we.out
-    << ",\"shape\":{\"components\":" << we.shape.components << ",\"genus\":" << we.shape.genus
-    << ",\"inComponent\":" << json::array(we.shape.inComponent)
-    << ",\"outComponent\":" << json::array(we.shape.outComponent) << "},\"inMap\":" << json::array(we.inMap)
-    << ",\"outMap\":" << json::array(we.outMap);
+  c << ",\"witness\":\"" << json::escape(cob.key) << "\"";
+  c << ",\"in\":" << cob.in << ",\"out\":" << cob.out
+    << ",\"shape\":{\"components\":" << cob.shape.components << ",\"genus\":" << cob.shape.genus
+    << ",\"inComponent\":" << json::array(cob.shape.inComponent)
+    << ",\"outComponent\":" << json::array(cob.shape.outComponent) << "},\"inMap\":" << json::array(cob.inMap)
+    << ",\"outMap\":" << json::array(cob.outMap);
   if (it == sources_.byCobordism.end()) return;
   const AddedCobordism &added = it->second.added;
   c << ",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""

@@ -378,7 +378,7 @@ int runWithoutGoal(const config::Config &cfg) {
       std::cerr << "[!] " << row.name << ": failed to build (" << e.what() << "), skipping\n";
       buildFailed = true;
     }
-    const search::IncomingThickening *rbp = judge ? &judge->reader().thickened() : nullptr;
+    const search::IncomingThickening *thickenedOrNull = judge ? &judge->reader().thickened() : nullptr;
 
     // A row that cannot be built, or that the search refuses: recorded as
     // such, and the run goes on.
@@ -429,8 +429,8 @@ int runWithoutGoal(const config::Config &cfg) {
     // curve count on EVERY ambient boundary component, the far side
     // included, so a knot row searched under it can only ever discover
     // single-curve far sides: proper, the default, lifts that.
-    const search::IncomingThickening &rb = *rbp;
-    request.shape.condition = search::conditionFor(boundaryConditionMode, rb.componentCount);
+    const search::IncomingThickening &thickened = *thickenedOrNull;
+    request.shape.condition = search::conditionFor(boundaryConditionMode, thickened.componentCount);
     // The search stops at the surface target or the per-row time limit; the
     // boundary drain then finishes.
     request.surfaceTarget = surfaceTarget;
@@ -475,7 +475,7 @@ int runWithoutGoal(const config::Config &cfg) {
                                         outgoingTables ? &*outgoingTables : nullptr, numThreads);
     search::SearchResult run;
     try {
-      run = searcher.run(rb, request);
+      run = searcher.run(thickened, request);
     } catch (const search::SeedInvariantFailure &f) {
       fatal::flag(row.name + ": " + std::to_string(f.touching) +
                   " searchable non-seed triangles have an edge on the "

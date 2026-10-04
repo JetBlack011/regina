@@ -54,10 +54,10 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
   parallelFor(diagrams.size(), static_cast<unsigned>(n), [&](size_t r) {
     try {
       const auto &[diagram, indices] = *diagrams[r];
-      search::IncomingThickening rb;
-      search::buildIncoming(diagram.first, diagram.second, diagram.second, rb);
+      search::IncomingThickening thickened;
+      search::buildIncoming(diagram.first, diagram.second, diagram.second, thickened);
       const std::unique_ptr<PairSigContext<4, 2>> context =
-          pairSigContextFor(rb.tri, cacheDir, inner);
+          pairSigContextFor(thickened.tri, cacheDir, inner);
       for (size_t i : indices) out[i] = context->sig(requests[i].faces);
     } catch (const std::exception &e) {
       std::lock_guard<std::mutex> lock(errorMutex);

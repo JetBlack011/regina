@@ -441,7 +441,7 @@ public:
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */
-  SearchResult run(const search::IncomingThickening &rb, const SearchRequest &request) const;
+  SearchResult run(const search::IncomingThickening &thickened, const SearchRequest &request) const;
 
 private:
   const linknaming::SignatureTable *signatures_;

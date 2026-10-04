@@ -57,7 +57,7 @@ std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulat
         std::vector<int> image;
         image.reserve(faces.size());
         for (int f : faces) image.push_back(carryTriangle(ambient.triangle(f), iso, W));
-        if (search::boundaryEdgesOf(W, image, rb_.incomingBC) != rb_.incomingEdges) return false;
+        if (search::boundaryEdgesOf(W, image, thickened_.incomingBC) != thickened_.incomingEdges) return false;
         carried = std::move(image);
         return true;
     });
@@ -68,20 +68,20 @@ OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
     // through every layer.
-    search::buildIncoming(incomingPD, layers, layers, rb_);
-    const regina::Triangulation<4> &W = rb_.tri;
-    outgoing_ = std::make_unique<OutgoingMap>(rb_.link.tri, *rb_.cob);
-    drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(rb_.link.tri, rb_.pdcode.size());
+    search::buildIncoming(incomingPD, layers, layers, thickened_);
+    const regina::Triangulation<4> &W = thickened_.tri;
+    outgoing_ = std::make_unique<OutgoingMap>(thickened_.link.tri, *thickened_.cob);
+    drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(thickened_.link.tri, thickened_.pdcode.size());
     skeleton_ = std::make_unique<Skeleton<4, 2>>(W);
-    incomingCycles_ = knotbuilder::DiagramDrawer::cyclesOf(rb_.link.edges, rb_.link.reversed);
+    incomingCycles_ = knotbuilder::DiagramDrawer::cyclesOf(thickened_.link.edges, thickened_.link.reversed);
     {
         // A search-side edge -> its row edge (the row map) -> its T edge ->
         // the cycle holding it.
         std::unordered_map<size_t, size_t> cycleOfT;
         for (size_t c = 0; c < incomingCycles_.size(); ++c)
             for (const auto &de : incomingCycles_[c]) cycleOfT[de.edge] = c;
-        for (const auto &[edge, incomingEdge] : rb_.orientation->incomingIndexOf)
-            incomingComponentOf_[edge] = cycleOfT.at(rb_.link.edges[incomingEdge]->index());
+        for (const auto &[edge, incomingEdge] : thickened_.orientation->incomingIndexOf)
+            incomingComponentOf_[edge] = cycleOfT.at(thickened_.link.edges[incomingEdge]->index());
     }
     for (size_t c = 0; c < W.countBoundaryComponents(); ++c) {
         const regina::BoundaryComponent<4> *bc = W.boundaryComponent(c);
@@ -118,10 +118,10 @@ std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig
         std::vector<int> image;
         for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
         if (isos < 4) {
-            auto in = search::boundaryEdgesOf(W, image, rb_.incomingBC);
+            auto in = search::boundaryEdgesOf(W, image, thickened_.incomingBC);
             auto out = search::boundaryEdgesOf(W, image, outgoing_->boundaryComponent());
             std::vector<size_t> common;
-            std::ranges::set_intersection(in, rb_.incomingEdges, std::back_inserter(common));
+            std::ranges::set_intersection(in, thickened_.incomingEdges, std::back_inserter(common));
             sizes += " [in " + std::to_string(in.size()) + " edges, " +
                      std::to_string(common.size()) + " on L; out " + std::to_string(out.size()) + "]";
         }
@@ -129,7 +129,7 @@ std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig
         return false;
     });
     why = "no isomorphism carries its incoming curve onto L (" + std::to_string(isos) +
-          " isomorphisms onto the thickening; L has " + std::to_string(rb_.incomingEdges.size()) +
+          " isomorphisms onto the thickening; L has " + std::to_string(thickened_.incomingEdges.size()) +
           " edges;" + sizes + ")";
     return std::nullopt;
 }
@@ -245,10 +245,10 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFast(const std::string &
     // Then oriented against the row, as for a rebuilt surface
     // (orientedOutgoingLink()).
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented = {
-        {rb_.incomingBC, chain(directed[rb_.incomingBC])},
+        {thickened_.incomingBC, chain(directed[thickened_.incomingBC])},
         {outgoing_->boundaryComponent(), chain(directed[outgoing_->boundaryComponent()])}};
     std::optional<OutgoingLink> out = orientedOutgoingLink(
-        oriented, surfaceOf, *outgoing_, *rb_.orientation, rb_.incomingBC, &why);
+        oriented, surfaceOf, *outgoing_, *thickened_.orientation, thickened_.incomingBC, &why);
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t2).count();
     return out;
 }
@@ -266,7 +266,7 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLink(const std::string &pair
     }
     auto t1 = std::chrono::steady_clock::now();
     msBoundaryBuild_ += std::chrono::duration<double, std::milli>(tb - t0).count();
-    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.incomingBC);
+    auto link = orientedOutgoingLink(surface, *outgoing_, *thickened_.orientation, thickened_.incomingBC);
     msSurface_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
     if (!link) why = "incoming orientation is inconsistent";
@@ -275,14 +275,14 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLink(const std::string &pair
 
 bool OutgoingReader::rebuild(const std::vector<int> &faces, KnottedSurface &surface,
                               std::string &why) const {
-    const regina::Triangulation<4> &W = rb_.tri;
+    const regina::Triangulation<4> &W = thickened_.tri;
     for (int f : faces)
         if (f < 0 || static_cast<size_t>(f) >= W.countTriangles()) {
             why = "face " + std::to_string(f) + " is not a triangle of the thickening";
             return false;
         }
     // Before anything is built: the search side must be exactly L x {0}.
-    if (search::boundaryEdgesOf(W, faces, rb_.incomingBC) != rb_.incomingEdges) {
+    if (search::boundaryEdgesOf(W, faces, thickened_.incomingBC) != thickened_.incomingEdges) {
         why = "its incoming boundary is not L x {0}";
         return false;
     }
@@ -309,13 +309,13 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFromFaces(const std::vec
     options.resolveUnlinked = true;
     KnottedSurface surface(options, *skeleton_, cache);
     if (!rebuild(faces, surface, why)) return std::nullopt;
-    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.incomingBC);
+    auto link = orientedOutgoingLink(surface, *outgoing_, *thickened_.orientation, thickened_.incomingBC);
     if (!link) why = "incoming orientation is inconsistent";
     return link;
 }
 
 std::string OutgoingReader::buildChecksum() const {
-    const regina::Triangulation<4> &W = rb_.tri;
+    const regina::Triangulation<4> &W = thickened_.tri;
     std::string data = std::to_string(W.size()) + '|';
     for (size_t i = 0; i < W.size(); ++i) {
         const regina::Pentachoron<4> *p = W.pentachoron(i);
