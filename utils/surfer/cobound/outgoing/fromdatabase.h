@@ -11,8 +11,8 @@
  *  \brief Reading stored cobordisms' outgoing links, and keeping them.
  *
  *  **OutgoingReader** redraws cobordisms of one incoming diagram from their pair
- *  signatures, exactly as the search itself would have seen them. The row is
- *  thickened as verifyslicegenus thickens it (search::buildIncoming()). A
+ *  signatures, exactly as the search itself would have seen them. The incoming
+ *  diagram is thickened as a search thickens it (search::buildIncoming()). A
  *  cobordism's decoded pair is carried onto that thickening by an isomorphism
  *  sending its incoming curve onto L x {0}; from there the outgoing
  *  side is read through the thickening's own product structure

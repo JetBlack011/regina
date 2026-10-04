@@ -126,7 +126,7 @@ SignResult signPending(const std::string &work, const std::string &database,
  * `dedupeAgainst` (read only; the master, say), nor earlier in `pending`:
  * exactly a run without a goal's rule, which records one cobordism per identity. Only
  * fresh surfaces are signed (pairSigsOf(), `threads` diagrams at a time).
- * Their other_candidates come from `names`, as the sweep's do. The append
+ * Their other_candidates come from `names`, as a run's without a goal do. The append
  * holds an exclusive lock on <database>.lock and re-reads the database's
  * identities under it, so runs sharing a database never record one identity
  * twice. With `loaded`, the identities the run already holds stand for the

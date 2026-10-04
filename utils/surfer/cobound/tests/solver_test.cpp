@@ -220,7 +220,7 @@ void test_component_correction_on_the_upper_bound() {
     // The link is the SUBJECT here, not the outgoing link. A linked outgoing
     // link is named from its complement and so bounds nothing at all (see
     // test_linked_outgoing_bounds_nothing); the only linked endpoint the
-    // solver may reason from is one known by construction, i.e. a row, and
+    // solver may reason from is one known by construction, i.e. a searched link, and
     // the bound then flows in the reverse direction onto the knot.
     NameTable names;
     names.addLiterature("L", 0, 0);
@@ -452,7 +452,7 @@ void test_outgoing_bears_bound() {
 void test_chains_through_an_unnamed_isosig_link() {
     // census::nameComplement() falls back to a bare isoSig when the census
     // misses. Such a name has no bounds of its own, but it still CONNECTS:
-    // two rows that each cobound with it are thereby related to each other.
+    // two subjects that each cobound with it are thereby related to each other.
     // Keeping these names in the graph is free information.
     NameTable names;
     names.addLiterature("X", 0, 9);
@@ -908,10 +908,10 @@ void test_split_boundary_multiple_other_sides_not_collapsed() {
 void test_split_boundary_seeded_ignores_names() {
     // The D1 regression (2026-09-26). Seeded, the incoming side is L by
     // construction, and its name must never be consulted: gdb on 8_8 caught
-    // the row's own name as "8_8 (o9_37770 : #17)" and the incoming side as
+    // the searched link's own name as "8_8 (o9_37770 : #17)" and the incoming side as
     // "8_8 (o9_37770 : #6)" -- the same manifold, a different census entry
     // number -- and the old name comparison then discarded every surface of
-    // the row (270 rows of the atlas, with nothing logged).
+    // the search (270 of the atlas's rows, with nothing logged).
     std::vector<BoundaryComponentNames> components = {
         BoundaryComponentNames{0, {"8_8 (o9_37770 : #6)"}, std::nullopt,
                                {7, 8, 9}},
@@ -954,7 +954,7 @@ void test_classify_incoming_orientation() {
     // (2,3)}: edges 0 and 5 of one tetrahedron are vertex-disjoint.
     regina::Edge<3> *e0 = tri.tetrahedron(0)->edge(0);
     regina::Edge<3> *e1 = tri.tetrahedron(0)->edge(5);
-    regina::Edge<3> *e2 = tri.tetrahedron(1)->edge(0); // not the row's
+    regina::Edge<3> *e2 = tri.tetrahedron(1)->edge(0); // not the incoming link's
 
     IncomingOrientation incoming;
     incoming.tailOf[e0->index()] = e0->vertex(0)->index();

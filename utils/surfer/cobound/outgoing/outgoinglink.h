@@ -48,7 +48,7 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve);
  * Per surface component, +1 to keep its orientation or -1 to reverse it,
  * so that its incoming curves run as the incoming link does. nullopt when some
  * component's incoming curves disagree among themselves, a curve has an
- * edge off the row's link, or a curve's component is unknown -- exactly the
+ * edge off the incoming link, or a curve's component is unknown -- exactly the
  * surfaces classifyIncomingOrientation() rejects; an empty map for no curves.
  * (search::judgeIncomingOrientation()'s consistentFlips(): one walk.)
  */

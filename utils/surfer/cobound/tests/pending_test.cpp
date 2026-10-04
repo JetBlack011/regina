@@ -4,8 +4,8 @@
 // on a real exhaustive search (3_1 at face cap 3, the canaries' shape):
 //
 //   1. kept.csv round-trips: every cobordism column and every face comes back.
-//   2. The database gets exactly one line per cobordism identity, the sweep's
-//      rule, each with the pair signature taken in the searched thickening,
+//   2. The database gets exactly one line per cobordism identity, a run's
+//      rule without a goal, each with the pair signature taken in the searched thickening,
 //      other_candidates from the name table, and the search's provenance.
 //   3. Signing the same surfaces again, or against a database that already
 //      holds them (dedupe_against), appends nothing.

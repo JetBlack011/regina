@@ -73,8 +73,8 @@ struct GoalOptions {
   /// A link kept only for the lower goal is never expanded above this many
   /// crossings: the chain must come back to a table entry.
   size_t lowerMaxCrossings = 0;
-  /// Hub breadth (John, 2026-09-29): a link with at least hubDegree cobordism
-  /// edges is expanded once at hubSurfaces or more. 0: off.
+  /// Hub breadth (John, 2026-09-29): a link with at least hubDegree
+  /// cobordisms is expanded once at hubSurfaces or more. 0: off.
   size_t hubDegree = 0;
   long hubSurfaces = 0;
 };

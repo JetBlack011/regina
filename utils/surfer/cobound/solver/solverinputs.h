@@ -35,7 +35,7 @@ namespace solverinputs {
  * An outgoing link is named by census::nameComplement(), from its complement alone, and that
  * often lands on something no literature table knows: a bare isomorphism
  * signature, a Christy census name ("L108019"), or a SnapPy census manifold
- * name ("m129 : #3"). Such an edge bounds nothing. Where we have since
+ * name ("m129 : #3"). Such an outgoing link bounds nothing. Where we have since
  * PROVED what one of those is -- by a Pachner match against a complement
  * built from a PD code, or by the peripheral test for a link -- this table
  * records it.

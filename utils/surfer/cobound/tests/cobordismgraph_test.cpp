@@ -62,7 +62,7 @@ void testBandToDisjointDiscs() {
   g.propagate();
   CHECK_EQ(g.bestConnected(K)->genus, 0, "disjoint discs for L make K slice");
   // And the reverse direction gave L an annulus from nothing new: L's own
-  // leaf already implied it, so no record was created for it.
+  // leaf already implied it, so no derivation was created for it.
   checkAllDerivations(g, "band");
 }
 
@@ -235,8 +235,8 @@ void testSaturationAndMaps() {
 
 // ---------------------------------------------------------------------------
 // B9: random graphs. The fixed point must not depend on the order in which
-// edges and leaves arrive, must equal a naive closure computed from
-// scratch, must be saturated, and every record must recheck.
+// cobordisms and leaves arrive, must equal a naive closure computed from
+// scratch, must be saturated, and every derivation must recheck.
 
 struct RandomGraph {
   int links;
@@ -425,7 +425,7 @@ void testRandomFixedPoints() {
 
 void testLowerConcordance() {
   // L1: K --annulus--> K', literature g4(K') >= 1: then g4(K) >= 1 (genus 0
-  // edge), and nothing from a genus-1 edge.
+  // cobordism), and nothing from a genus-1 one.
   for (int g : {0, 1}) {
     CobordismGraph pg;
     LinkId K = pg.addLink(1, "K"), K2 = pg.addLink(1, "K'");
@@ -543,7 +543,7 @@ void testLowerTransportMonotone() {
   // relies on this instead of minimising over refinements; if the claim
   // ever broke (a shape or a map for which refining the cap raised the
   // addition), this test fails. Checked at the fixed point of random worlds,
-  // both directions of every edge, every q, with the lower bounds relaxed
+  // both directions of every cobordism, every q, with the lower bounds relaxed
   // from random literature values the world allows, not only true minima.
   std::mt19937 rng(4242);
   long checked = 0, strict = 0;
@@ -666,7 +666,7 @@ void testSums() {
   // {0,1} at genus 1: the paper's lem:sum-along-components(i). The lower
   // rule (cor:sum-pieces): lower(K) = 1 and H1's annulus (genus 0, 2
   // components) give lower(K #_c H1) >= 1 - (0 + 2 - 1) = 0, nothing; with
-  // lower(K) = 3 it gives 2. Every record rechecks.
+  // lower(K) = 3 it gives 2. Every derivation rechecks.
   CobordismGraph pg;
   LinkId H1 = pg.addLink(2, "H1", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
   LinkId H2 = pg.addLink(2, "H2", std::vector<std::vector<int>>{{0, 1}, {1, 0}});

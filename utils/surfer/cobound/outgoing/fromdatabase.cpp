@@ -66,7 +66,7 @@ std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulat
 
 OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
-    // The row's thickening, exactly as verifyslicegenus builds it: collared
+    // The incoming diagram's thickening, exactly as a search builds it: collared
     // through every layer.
     search::buildIncoming(incomingPD, layers, layers, thickened_);
     const regina::Triangulation<4> &W = thickened_.tri;

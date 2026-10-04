@@ -151,7 +151,7 @@ private:
   bool useful(LinkId n) const;
   /// The lower gate (README.md, "Lower-bound mode"): whether n, given the
   /// best lower bounds it could ever have, would carry the lower goal to
-  /// the target over the edges found so far. `slack` gets how much more
+  /// the target over the cobordisms found so far. `slack` gets how much more
   /// than the goal it would carry (charge still affordable).
   bool usefulLower(LinkId n, int *slack = nullptr) const;
   /// What n could carry to the target at best, cached per graph version;
@@ -312,7 +312,7 @@ void Scheduler::loadMaster(LinkId n, bool countsAsExpansion) {
 bool Scheduler::useful(LinkId n) const {
   // What-if: give n the best partition genera it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
-  // whether the target's goal would follow over the edges found so far.
+  // whether the target's goal would follow over the cobordisms found so far.
   CobordismGraph what = g_;
   const GraphLink &link = what.link(n);
   // Optimistic only down to what is proved impossible: each partition at
