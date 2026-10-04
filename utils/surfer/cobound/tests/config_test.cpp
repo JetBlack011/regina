@@ -172,8 +172,8 @@ std::vector<Reference> references() {
       {"complement_cache_limit", C::run, std::to_string(complement::cacheLimit.load()),
        "identify::recognitionCacheLimit"},
       {"complement_cache_limit", C::goal, "1500000", "HopShape::recognitionCacheLimit"},
-      {"exact_far_side_names", C::run, "0", "verifyslicegenus exactFarSideNames"},
-      {"exact_far_side_names", C::goal, "1", "cascadesearch: every hop names exactly"},
+      {"outgoing_names", C::run, "0", "verifyslicegenus exactFarSideNames"},
+      {"outgoing_names", C::goal, "1", "cascadesearch: every hop names exactly"},
       {"census_updates", C::run, census::censusUpdates.load() ? "1" : "0",
        "census::censusUpdates (verifyslicegenus left it on)"},
       {"census_updates", C::goal, "0", "cascadesearch Cascade::run(): censusUpdates off"},
@@ -204,7 +204,7 @@ std::vector<Reference> references() {
       {"max_searches", C::goal, "20", "cascadesearch Config::maxExpansions"},
       {"cpu_budget", C::goal, "14400", "cascadesearch Config::cpuBudget"},
       {"strategy", C::goal, "best", "cascadesearch Config::strategy"},
-      {"master_witnesses", C::goal, "none", "cascadesearch Config::masterWitnesses"},
+      {"master_cobordisms", C::goal, "none", "cascadesearch Config::masterWitnesses"},
       {"read_back_cache", C::goal, "none", "cascadesearch Config::readBackCache"},
       {"run_name", C::goal, "none", "cascadesearch Config::runName"},
       {"hub_degree", C::goal, "0", "cascadesearch Config::hubDegree"},
@@ -214,10 +214,10 @@ std::vector<Reference> references() {
       {"lower_max_crossings", C::goal, "16", "cascadesearch Config::lowerMaxCrossings"},
       // solve
       {"name_aliases", C::solve, "none", "verifyslicegenus nameAliasPath"},
-      {"far_side_resolutions", C::solve, "none", "verifyslicegenus"},
-      {"far_side_exact", C::solve, "none", "verifyslicegenus"},
+      {"outgoing_resolutions", C::solve, "none", "verifyslicegenus"},
+      {"outgoing_names_file", C::solve, "none", "verifyslicegenus"},
       {"link_classes", C::solve, "none", "verifyslicegenus"},
-      {"cascade_proofs", C::solve, "none", "verifyslicegenus"},
+      {"certified_bounds", C::solve, "none", "verifyslicegenus"},
       {"sum_rules", C::solve, "0", "verifyslicegenus sumRules"},
       // name
       {"namer_search_height", C::name, std::to_string(namer.searchHeight), "NamerLimits"},
@@ -404,6 +404,43 @@ void testParsing() {
   std::filesystem::remove(file);
 }
 
+// The keys phase 6 renamed keep their old spellings: a phase-5 cobound.conf
+// still runs, the last assignment wins whichever spelling it uses, and the
+// effective configuration names the new key and the spelling it was given as.
+void testOldSpellings() {
+  struct Renamed {
+    const char *now, *old;
+    Context ctx;
+    const char *value;
+  };
+  for (const Renamed &r : std::vector<Renamed>{
+           {"outgoing_names", "exact_far_side_names", Context::run, "1"},
+           {"master_cobordisms", "master_witnesses", Context::goal, "/master.csv"},
+           {"outgoing_resolutions", "far_side_resolutions", Context::solve, "/res.csv"},
+           {"outgoing_names_file", "far_side_exact", Context::solve, "/exact.csv"},
+           {"certified_bounds", "cascade_proofs", Context::solve, "/proofs.csv"}}) {
+    CHECK(config::findKey(r.old) == config::findKey(r.now),
+          std::string(r.old) + " is " + r.now);
+    std::vector<Assignment> a = minimal(r.ctx);
+    a.push_back({r.old, r.value, "old.conf:1"});
+    const Config c(r.ctx, a);
+    CHECK_EQ(value(c, r.now), std::string(r.value), std::string(r.old) + " sets " + r.now);
+    CHECK(c.ignored().empty(), std::string(r.old) + " is not an ignored key");
+    std::ostringstream out;
+    c.writeEffective(out, "test");
+    CHECK(out.str().find("# old.conf:1 (as " + std::string(r.old) + ")\n" + r.now + " = ") !=
+              std::string::npos,
+          std::string(r.now) + ": written under its new name, given as " + r.old);
+  }
+  // Both spellings: the last assignment wins.
+  std::vector<Assignment> a = minimal(Context::run);
+  a.push_back({"outgoing_names", "1", "first"});
+  a.push_back({"exact_far_side_names", "0", "second"});
+  CHECK_EQ(Config(Context::run, a).flag("outgoing_names"), false, "the later old spelling wins");
+  a.push_back({"outgoing_names", "1", "third"});
+  CHECK_EQ(Config(Context::run, a).flag("outgoing_names"), true, "the later new spelling wins");
+}
+
 // The effective configuration, read back, is the same configuration.
 void testEffective() {
   std::vector<Assignment> a = minimal(Context::goal);
@@ -434,6 +471,7 @@ void testEffective() {
 int main() {
   testDefaults();
   testParsing();
+  testOldSpellings();
   testEffective();
   return checks::finish("config_test");
 }

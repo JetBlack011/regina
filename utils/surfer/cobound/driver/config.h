@@ -71,6 +71,11 @@ struct Rule {
 
 struct Key {
     std::string name;
+    /** Earlier spellings of the key, still accepted in config files and by
+     *  --set (phase 6 renamed the keys that held a retired term: phase-5
+     *  cobound.conf files spell them so). `cobound help keys` lists them; the
+     *  effective configuration writes `name`. */
+    std::vector<std::string> oldNames;
     Type type = Type::text;
     std::vector<std::string> choices; ///< Type::choice
     /** The contexts the key applies to, with its rule in each. */
@@ -84,7 +89,7 @@ struct Key {
 
 /** Every key, in the order the effective configuration lists them. */
 const std::vector<Key> &schema();
-/** The key named `name`, or nullptr. */
+/** The key named `name` (or spelled so formerly: Key::oldNames), or nullptr. */
 const Key *findKey(const std::string &name);
 
 /** A configuration or command line that cannot be used. */
@@ -158,6 +163,7 @@ class Config {
     struct Value {
         std::optional<std::string> text; ///< nullopt: unset
         std::string source;              ///< "default", "--set", "<file>:<line>"
+        std::string spelling;            ///< the old name it was given as, if one
     };
     const Value &value_(const std::string &key, Type expected) const;
     Context context_;

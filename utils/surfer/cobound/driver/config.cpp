@@ -32,6 +32,12 @@ Key key(std::string name, Type type, std::vector<std::pair<Context, Rule>> rules
     return k;
 }
 
+// A key renamed in phase 6, with the spelling it had before.
+Key formerly(Key k, std::string oldName) {
+    k.oldNames.push_back(std::move(oldName));
+    return k;
+}
+
 std::string trim(const std::string &s) {
     size_t a = 0, b = s.size();
     while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
@@ -271,9 +277,10 @@ const std::vector<Key> &schema() {
             "--recognition-cache-limit (verifyslicegenus), --hop-recognition-cache "
             "(cascadesearch)",
             "Complement answers cached per process before the cache is cleared."),
-        key("exact_far_side_names", Type::flag, {{C::run, def("0")}, {C::goal, def("1")}},
-            "--exact-far-side-names (verifyslicegenus; a goal run's searches always did)",
-            "Name multi-curve outgoing links exactly, oriented (with a goal: always)."),
+        formerly(key("outgoing_names", Type::flag, {{C::run, def("0")}, {C::goal, def("1")}},
+                     "--exact-far-side-names (verifyslicegenus; a goal run's searches always did)",
+                     "Name multi-curve outgoing links, oriented (with a goal: always)."),
+                 "exact_far_side_names"),
         key("census_updates", Type::flag, {{C::run, def("1")}, {C::goal, def("0")}},
             "--no-census-updates (verifyslicegenus; the cascade never wrote)",
             "Write the census: a knot row's complement after its search, and Pachner hits."),
@@ -328,10 +335,11 @@ const std::vector<Key> &schema() {
             "CPU seconds the searches may spend."),
         key("strategy", Type::choice, {{C::goal, def("best")}}, "--strategy (cascadesearch)",
             "Which link to search next.", {"best", "dfs", "bfs"}),
-        key("master_witnesses", Type::path, {{C::goal, unset}},
-            "--master-witnesses (cascadesearch)",
-            "A read-only database whose cobordisms of each link about to be searched enter the "
-            "graph first (never loaded without a goal)."),
+        formerly(key("master_cobordisms", Type::path, {{C::goal, unset}},
+                     "--master-witnesses (cascadesearch)",
+                     "A read-only database whose cobordisms of each link about to be searched "
+                     "enter the graph first (never loaded without a goal)."),
+                 "master_witnesses"),
         key("read_back_cache", Type::path, {{C::goal, unset}},
             "--read-back-cache (cascadesearch)",
             "Where those cobordisms' outgoing links are kept between runs."),
@@ -353,14 +361,20 @@ const std::vector<Key> &schema() {
         // ---- solve ----
         key("name_aliases", Type::path, {{C::solve, unset}}, "--name-aliases (verifyslicegenus)",
             "Observed -> classical outgoing names, applied when solving."),
-        key("far_side_resolutions", Type::path, {{C::solve, unset}},
-            "--far-side-resolutions (verifyslicegenus)", "Per-cobordism proved outgoing names."),
-        key("far_side_exact", Type::path, {{C::solve, unset}}, "--far-side-exact (verifyslicegenus)",
-            "Per-cobordism exact outgoing names (name)."),
+        formerly(key("outgoing_resolutions", Type::path, {{C::solve, unset}},
+                     "--far-side-resolutions (verifyslicegenus)",
+                     "Per-cobordism proved outgoing names."),
+                 "far_side_resolutions"),
+        formerly(key("outgoing_names_file", Type::path, {{C::solve, unset}},
+                     "--far-side-exact (verifyslicegenus)",
+                     "Per-cobordism names of outgoing links (name)."),
+                 "far_side_exact"),
         key("link_classes", Type::path, {{C::solve, unset}}, "--link-classes (verifyslicegenus)",
             "The table's link classes (tableclasses)."),
-        key("cascade_proofs", Type::path, {{C::solve, unset}},
-            "--cascade-proofs (verifyslicegenus)", "Certified bounds (data/cascade_proofs.csv)."),
+        formerly(key("certified_bounds", Type::path, {{C::solve, unset}},
+                     "--cascade-proofs (verifyslicegenus)",
+                     "Certified bounds (data/cascade_proofs.csv)."),
+                 "cascade_proofs"),
         key("sum_rules", Type::flag, {{C::solve, def("0")}}, "--sum-rules (verifyslicegenus)",
             "Bound sums along components and splits with link factors from their pieces."),
 
@@ -400,7 +414,9 @@ const std::vector<Key> &schema() {
 
 const Key *findKey(const std::string &name) {
     for (const Key &k : schema())
-        if (k.name == name) return &k;
+        if (k.name == name ||
+            std::find(k.oldNames.begin(), k.oldNames.end(), name) != k.oldNames.end())
+            return &k;
     return nullptr;
 }
 
@@ -482,7 +498,7 @@ Config::Config(Context context, const std::vector<Assignment> &assignments)
             ignored_.push_back(a);
             continue;
         }
-        last[a.key] = &a;
+        last[k->name] = &a; // an old spelling assigns the key it names
     }
     for (const Key &k : schema()) {
         const Rule *r = k.rule(context);
@@ -491,6 +507,7 @@ Config::Config(Context context, const std::vector<Assignment> &assignments)
         if (auto it = last.find(k.name); it != last.end()) {
             const Assignment &a = *it->second;
             v.source = a.source;
+            if (a.key != k.name) v.spelling = a.key;
             if (a.value == "none") {
                 if (r->kind != Rule::Kind::unset)
                     throw Error(a.source + ": " + k.name + " cannot be none in " +
@@ -597,7 +614,9 @@ void Config::writeEffective(std::ostream &out, const std::string &command) const
             value = std::to_string(threads(k.name));
             out << "# " << it->second.source << ": auto\n";
         } else if (it->second.source != "default") {
-            out << "# " << it->second.source << "\n";
+            out << "# " << it->second.source
+                << (it->second.spelling.empty() ? "" : " (as " + it->second.spelling + ")")
+                << "\n";
         }
         out << k.name << " = " << value << "\n";
     }

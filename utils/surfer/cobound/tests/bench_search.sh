@@ -160,7 +160,7 @@ run_one() {
         *) echo "bench_search.sh: mode must be b1 or b2" >&2; return 2 ;;
       esac
       echo "resolve_unlinked = $([ "$CFG_RESOLVE_UNLINKED" = 1 ] && echo 1 || echo 0)"
-      echo "exact_far_side_names = $([ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && echo 1 || echo 0)"
+      echo "outgoing_names = $([ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && echo 1 || echo 0)"
     } > "$run/run.conf"
     cmd=("$bin" run --config "$run/run.conf")
     # Word-split on purpose: e.g. EXTRA_ARGS="--set audit_linking=1".

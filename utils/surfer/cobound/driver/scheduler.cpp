@@ -1058,7 +1058,7 @@ GoalOptions goalOptions(const config::Config &cfg) {
   o.maxCrossings = static_cast<size_t>(cfg.integer("max_crossings"));
   o.strategy = cfg.text("strategy");
   o.literature = cfg.flag("literature");
-  o.masterCobordisms = cfg.text("master_witnesses");
+  o.masterCobordisms = cfg.text("master_cobordisms");
   RunShape &h = o.runShape;
   h.layers = static_cast<int>(cfg.integer("layers"));
   h.maxFaces = cfg.integer("max_faces");
@@ -1085,9 +1085,9 @@ GoalOptions goalOptions(const config::Config &cfg) {
   o.hubDegree = static_cast<size_t>(cfg.integer("hub_degree"));
   o.hubSurfaces = static_cast<long>(cfg.integer("hub_surfaces"));
   // What the retired cascadesearch refused, still refused.
-  if (!cfg.flag("exact_far_side_names"))
-    throw config::Error("exact_far_side_names cannot be 0 in a run with a goal (its "
-                        "searches always name outgoing links exactly)");
+  if (!cfg.flag("outgoing_names"))
+    throw config::Error("outgoing_names (formerly exact_far_side_names) cannot be 0 in a run "
+                        "with a goal (its searches always name outgoing links)");
   if (!o.cobordismsPath.empty() && o.runName.empty())
     throw config::Error("cobordisms needs run_name in a run with a goal");
   if (o.goalLower >= 0 && o.lowerSources.empty())

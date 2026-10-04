@@ -53,6 +53,8 @@ void helpKeys(std::ostream &out) {
       for (const std::string &c : k.choices) out << " " << c;
     }
     out << ")\n";
+    for (const std::string &old : k.oldNames)
+      out << "    formerly " << old << " (still accepted)\n";
     for (const auto &[ctx, rule] : k.rules) {
       out << "    " << config::contextName(ctx) << ": ";
       switch (rule.kind) {

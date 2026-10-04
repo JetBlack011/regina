@@ -40,10 +40,10 @@ int solveWith(const config::Config &cfg) {
   const std::string linkTablePath = cfg.text("link_table");
   const std::string knotSymmetryPath = cfg.text("knot_symmetry");
   const std::string nameAliasPath = cfg.text("name_aliases");
-  const std::string outgoingResolutionsPath = cfg.text("far_side_resolutions");
-  const std::string outgoingNamesPath = cfg.text("far_side_exact");
+  const std::string outgoingResolutionsPath = cfg.text("outgoing_resolutions");
+  const std::string outgoingNamesPath = cfg.text("outgoing_names_file");
   const std::string linkClassesPath = cfg.text("link_classes");
-  const std::string certifiedBoundsPath = cfg.text("cascade_proofs");
+  const std::string certifiedBoundsPath = cfg.text("certified_bounds");
   const bool sumRules = cfg.flag("sum_rules");
   const int maxCrossings = static_cast<int>(cfg.integer("max_crossings"));
   const std::string censusPath = cfg.text("census");
