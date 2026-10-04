@@ -332,7 +332,7 @@ void test_knotbuilder_reversed_directions_are_consistent() {
 // L6a3{0} and L6a3{1} are the same diagram with one component's orientation
 // reversed -- the exact pair that motivated this feature (see the
 // orientation-tracking plan's Context). Their complements are identical
-// (identify() names them the same, "L206001"), so a complement-based check
+// (census::nameComplement() names them the same, "L206001"), so a complement-based check
 // can never distinguish them; this confirms buildLink()'s new `reversed`
 // tagging, driven purely by each PD code's own strand directions, actually
 // does.

@@ -37,12 +37,12 @@ PDCode parsePDCode(std::string pdcode_str);
 
 /** How a stored PD code is spelt. */
 enum class PDSpelling {
-    /** `[[1;5;2;4];[3;1;4;6];...]`: every PD a cascade writes (kept.csv's and
-     *  the `.rows.csv` sidecar's row PDs, nodes.csv, node_bounds.jsonl,
+    /** `[[1;5;2;4];[3;1;4;6];...]`: every PD a goal run writes (kept.csv's and
+     *  the `.rows.csv` sidecar's `row_pd`s, nodes.csv, node_bounds.jsonl,
      *  certificates), and the knot table's but for spaces (from 11 crossings
      *  it writes `[[3; 1; 4; 26]; [1; ...`). */
     semicolons,
-    /** `[[1,5,2,4],[3,1,4,6],...]`: farsidediagram's `pd=` field. */
+    /** `[[1,5,2,4],[3,1,4,6],...]`: `cobound draw`'s `pd=` field. */
     commas,
 };
 

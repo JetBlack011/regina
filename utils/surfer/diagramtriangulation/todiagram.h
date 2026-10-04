@@ -11,7 +11,7 @@
  *  knotbuilder::buildLink()'s triangulation T of S^3 is one block per
  *  crossing, each linearly the box [-1,1]^2 x [0,1] (blockgeometry.h), glued
  *  along walls into S^2 x I, plus two cones. So any edge cycle of T -- in
- *  particular every far side of a cobordism built on T, whose outgoing
+ *  particular every outgoing link of a cobordism built on T, whose outgoing
  *  boundary is a copy of T -- can be drawn by projecting each edge inside
  *  its own block and reading crossings off block by block:
  *

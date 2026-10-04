@@ -88,7 +88,7 @@ struct TriangulationWithLink {
      * referenced for its convention, never built or run against at
      * runtime). It exists so a downstream comparison can check whether a
      * *found* surface's own induced boundary direction agrees with this
-     * row's own diagram, everywhere or nowhere, without recomputing
+     * link's own diagram, everywhere or nowhere, without recomputing
      * anything knot-theoretic at comparison time.
      */
     std::vector<bool> reversed;
