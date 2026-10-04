@@ -203,6 +203,7 @@ int solveWith(const config::Config &cfg) {
   size_t aliasesApplied = 0;
   size_t resolutionsApplied = 0;
   size_t namesApplied = 0, namesRefused = 0;
+  size_t alternativesSplit = 0;
   auto solverCobordisms = [&]() -> std::vector<cobordisms::Cobordism> {
     std::vector<cobordisms::Cobordism> out =
         nameAliases.empty()
@@ -214,6 +215,9 @@ int solveWith(const config::Config &cfg) {
     if (!outgoingNamed.empty())
       out = solverinputs::applyOutgoingNames(std::move(out), outgoingNamed, namesApplied,
                                             namesRefused);
+    // A stored candidate of alternatives "A|B" is its alternatives, whichever
+    // build signed it.
+    alternativesSplit = solverinputs::splitStoredAlternatives(out);
     // Last: whole names only. A name inside a sum or split is a piece,
     // bounded by its literature value, which is the same across a class.
     if (!linkClasses.empty())
@@ -258,6 +262,10 @@ int solveWith(const config::Config &cfg) {
                                      " refused: component count differs)"
                                : std::string())
               << "\n";
+  if (alternativesSplit)
+    std::cout << "[+] Stored candidates: " << alternativesSplit
+              << " witness edges recorded alternatives \"A|B\" as one candidate, read as "
+                 "their alternatives\n";
   std::cout << "[+] Solver: derived bounds for " << bounds.size() << " names\n\n";
 
   // Rows above max_crossings that the verdicts do not hold yet are recorded

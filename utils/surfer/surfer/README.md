@@ -135,8 +135,9 @@ other name (it counts curves), so any other name answers to its reader.
 `cobound solve` gates bounds by the curves' count (`cobound/README.md`, "The
 atlas solver (`cobound solve`)"): one curve bears a bound whatever it is called,
 so a name of one curve must denote one knot up to mirror, which a name taken
-from its complement does (Gordon–Luecke; cobound's own `|` descriptions are
-the exception described there); 2 or more curves bear nothing unless they are
+from its complement does (Gordon–Luecke), or be alternatives `A|B`, each of
+which does: those bear forward as the worst case over them and never in
+reverse (described there); 2 or more curves bear nothing unless they are
 an unlink or proved by another input, so their name need not determine
 them. Names are memoised per boundary component by
 `BoundarySignatureCache`, keyed by the marked edge set up to the component's

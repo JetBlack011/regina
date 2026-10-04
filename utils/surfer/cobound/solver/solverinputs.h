@@ -21,7 +21,8 @@
 /*! \file utils/surfer/cobound/solver/solverinputs.h
  *  \brief The solver's inputs beyond the database and the tables (`solve`):
  *  name aliases, per-cobordism resolutions and outgoing names, the
- *  table's link classes and certified bounds. Each is applied to a SEPARATE
+ *  table's link classes and certified bounds; and stored candidates of
+ *  alternatives read as their alternatives. Each is applied to a SEPARATE
  *  copy of the cobordisms the solver reads (the database keeps what the
  *  search observed). The resolutions and `sum_rules` stay until the atlas
  *  task cuts them (plan hand-off item 6).
@@ -142,6 +143,22 @@ std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
     const std::vector<cobordisms::Cobordism> &observed,
     const std::unordered_map<std::string, std::vector<OutgoingResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut);
+
+/**
+ * Reads every stored candidate of alternatives, "A|B", as those alternatives
+ * (linknaming::nameCandidates()), in the solver's copy of the cobordisms.
+ *
+ * `other_candidates` is recorded when a cobordism is signed, and propagate()
+ * consumes it as stored. NameTable::candidates() now splits a name of
+ * alternatives, but a cobordism signed before it did, by a build whose namer
+ * writes "A|B" for one component (this tree's, from phase 7), holds "A|B" as
+ * its ONE candidate, which the reverse direction takes for an identity. Read
+ * this way, it is solved as if signed now. (frontier.py re-derives the
+ * candidates from the name, so it never sees a stored list.) A split or a
+ * sum stays one candidate. Idempotent; returns how many cobordisms it
+ * changed.
+ */
+size_t splitStoredAlternatives(std::vector<cobordisms::Cobordism> &cobordisms);
 
 /**
  * link_classes: table names that are one oriented link up to mirror and

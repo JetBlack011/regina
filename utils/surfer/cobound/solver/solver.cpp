@@ -620,7 +620,10 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
             // axiom already, and a bound onto it would be meaningless.
             // A named outgoing link is an identity whatever its component
             // count, so it may receive a bound too (never an unlink, which is
-            // an axiom).
+            // an axiom). Alternatives "A|B" are not an identity even for one
+            // component; they arrive as two or more candidates
+            // (NameTable::candidates(), linknaming::nameCandidates()), so they
+            // never qualify.
             if ((w.otherComponents == 1 || w.outgoingNamed) &&
                 w.otherCandidates.size() == 1 &&
                 !complement::isMultiComponentUnlinkName(w.otherCandidates.front()))

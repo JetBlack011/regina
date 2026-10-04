@@ -32,6 +32,7 @@
 #include "cobound/search/preconditions.h"
 #include "cobound/solver/literature.h"
 #include "cobound/solver/solver.h"
+#include "cobound/solver/solverinputs.h"
 #include "linknaming/names.h"
 
 using namespace cobordisms;
@@ -562,6 +563,112 @@ void test_ambiguous_outgoing_gets_no_reverse_bound() {
               "witnesses exactly one of the candidates and we cannot tell "
               "which, so neither may be bounded individually");
     EXPECT_EQ(bounds["L7n1{1}"].haveUpper(), false, "likewise the other");
+}
+
+// A one-component outgoing link the namer could only narrow to alternatives:
+// a composite knot whose summands' relative chirality it did not pin,
+// "3_1#5_1|3_1#m5_1" (linknamer.cpp, knotSumSpellings()). Both alternatives
+// are registered here with their g4, 3_1#5_1 at 3 and 3_1#m5_1 at 1, as if a
+// table held them, so that a relay from one to the other shows.
+NameTable alternativesTable() {
+    NameTable names;
+    names.addLiterature("3_1", 1, 1);
+    names.addLiterature("5_1", 2, 2);
+    names.addLiterature("3_1#5_1", 3, 3);
+    names.addLiterature("3_1#m5_1", 1, 1);
+    names.addLiterature("Z", 3, 9);
+    for (const char *s : {"S", "X", "Y", "W"})
+        names.addLiterature(s, 0, 9);
+    return names;
+}
+
+void test_alternative_knot_name_gets_no_reverse_bound() {
+    // Regression for the phase-8 re-check. candidates() fell back to {name}
+    // for the unregistered "A|B", so its cobordisms had ONE candidate, and the
+    // reverse direction wrote a bound on the node "A|B" from one cobordism
+    // that another read back, though its outgoing link may be the OTHER
+    // alternative. Here X (a disc) reaches "A|B" by a genus-1 cobordism,
+    // which gave "A|B" the upper bound 0 + 1 + 1 - 1 = 1, and Y reaches it by
+    // a genus-0 one, which read g4(Y) <= 1 -- false if Y's outgoing link is
+    // 3_1#5_1 (g4 3). Likewise Z (g4 >= 3) gave "A|B" the lower bound 3, and
+    // W read g4(W) >= 3 -- false if W's is 3_1#m5_1 (g4 1).
+    NameTable names = alternativesTable();
+    const std::string ab = "3_1#5_1|3_1#m5_1";
+    const std::vector<std::string> cands = names.candidates(ab, 1);
+    EXPECT_EQ(cands.size(), static_cast<size_t>(2),
+              "an unregistered name of alternatives falls back to its "
+              "alternatives, split as an outgoing_names_file entry is");
+    EXPECT_EQ(cands.front() + ";" + cands.back(), std::string("3_1#5_1;3_1#m5_1"),
+              "the alternatives as written");
+    EXPECT_EQ(names.candidates("3_1#3_1|3_1#m3_1 u Unknot", 2).size(),
+              static_cast<size_t>(1),
+              "a split is one candidate: its alternatives live in its factors");
+
+    auto bounds = propagate({direct("X", 1, 0), cobordism("X", 1, ab, 1, 1, cands),
+                             cobordism("Y", 1, ab, 1, 0, cands),
+                             cobordism("Z", 1, ab, 1, 0, cands),
+                             cobordism("W", 1, ab, 1, 0, cands)},
+                            names);
+    EXPECT_EQ(bounds.contains(ab), false,
+              "no bound is written on the node \"A|B\"");
+    EXPECT_EQ(bounds["3_1#5_1"].haveUpper() || bounds["3_1#5_1"].haveLower(), false,
+              "nor on one alternative from a subject");
+    EXPECT_EQ(bounds["3_1#m5_1"].haveUpper() || bounds["3_1#m5_1"].haveLower(), false,
+              "nor on the other");
+    EXPECT_EQ(bounds["Y"].hi, 3,
+              "Y is bounded by the worst alternative, 3 + 0, never by X's 1 relayed");
+    EXPECT_EQ(bounds["W"].lo, 1,
+              "W by the least, 1 - 0 - 1 + 1, never by Z's 3 relayed");
+}
+
+void test_alternative_knot_name_bounds_forward_by_the_worst_case() {
+    // The forward direction is not lost: the outgoing link is one of the
+    // alternatives, so the subject is bounded by the worst case over them,
+    // above by the max and below by the min (the convention a split factor's
+    // alternatives follow in upperOf() and lowerOf()).
+    const std::string ab = "3_1#5_1|3_1#m5_1";
+    NameTable names = alternativesTable();
+    auto bounds = propagate({cobordism("S", 1, ab, 1, 0, names.candidates(ab, 1))}, names);
+    EXPECT_EQ(bounds["S"].hi, 3, "g4(S) <= max(3, 1) + 0 + 1 - 1");
+    EXPECT_EQ(bounds["S"].lo, 1, "g4(S) >= min(3, 1) - 0 - 1 + 1");
+    EXPECT_EQ(bounds["S"].basis == Basis::literatureAssisted, true,
+              "resting on the alternatives' literature values");
+
+    // An alternative with no bound of its own leaves the subject unbounded:
+    // the outgoing link may be that one.
+    NameTable partial;
+    partial.addLiterature("S", 0, 9);
+    partial.addLiterature("10_83", 1, 1);
+    const std::string cd = "10_83|10_86";
+    auto b2 = propagate({cobordism("S", 1, cd, 1, 0, partial.candidates(cd, 1))}, partial);
+    EXPECT_EQ(b2["S"].haveUpper() || b2["S"].haveLower(), false,
+              "no bound while one alternative is unknown");
+    EXPECT_EQ(b2.contains(cd) || b2["10_86"].haveUpper(), false,
+              "and none onto the alternatives either");
+}
+
+void test_stored_alternatives_are_split() {
+    // The database keeps other_candidates as signed, and a cobordism signed
+    // before candidates() split alternatives holds "A|B" as its one
+    // candidate. The solver's copy reads it as its alternatives
+    // (solverinputs::splitStoredAlternatives(), which `solve` applies), so
+    // the relay cannot come back through old data.
+    const std::string ab = "3_1#5_1|3_1#m5_1";
+    std::vector<Cobordism> ws = {direct("X", 1, 0), cobordism("X", 1, ab, 1, 1),
+                                 cobordism("Y", 1, ab, 1, 0),
+                                 cobordism("K", 1, "3_1|m3_1 u Unknot", 2, 0)};
+    EXPECT_EQ(ws[2].otherCandidates.size(), static_cast<size_t>(1),
+              "signed before the fix: one candidate, \"A|B\"");
+    EXPECT_EQ(solverinputs::splitStoredAlternatives(ws), static_cast<size_t>(2),
+              "both such cobordisms are read as their alternatives");
+    EXPECT_EQ(ws[2].otherCandidates.size(), static_cast<size_t>(2), "Y's are now two");
+    EXPECT_EQ(ws[3].otherCandidates.size(), static_cast<size_t>(1),
+              "a split keeps its alternatives inside its factors");
+    EXPECT_EQ(solverinputs::splitStoredAlternatives(ws), static_cast<size_t>(0),
+              "idempotent");
+    auto bounds = propagate(ws, alternativesTable());
+    EXPECT_EQ(bounds.contains(ab), false, "no bound on the node \"A|B\"");
+    EXPECT_EQ(bounds["Y"].hi, 3, "Y by the worst alternative, never by X's 1 relayed");
 }
 
 void test_unambiguous_outgoing_does_get_a_reverse_bound() {
@@ -1479,6 +1586,11 @@ int main() {
         test_self_cobordism_still_allows_a_real_bound_from_elsewhere);
     run("ambiguous_outgoing_gets_no_reverse_bound",
         test_ambiguous_outgoing_gets_no_reverse_bound);
+    run("alternative_knot_name_gets_no_reverse_bound",
+        test_alternative_knot_name_gets_no_reverse_bound);
+    run("alternative_knot_name_bounds_forward_by_the_worst_case",
+        test_alternative_knot_name_bounds_forward_by_the_worst_case);
+    run("stored_alternatives_are_split", test_stored_alternatives_are_split);
     run("unambiguous_outgoing_does_get_a_reverse_bound",
         test_unambiguous_outgoing_does_get_a_reverse_bound);
     run("two_step_cycle_through_an_alias_is_refused",

@@ -75,7 +75,16 @@ class NameTable {
      * the wrong number of components simply isn't what was found). Falls back
      * to `{name}` when the base is unregistered: a knot name, `"Unknot"`, an
      * `"<n>-component unlink"`, or a bare isoSig, none of which have oriented
-     * variants to disambiguate between.
+     * variants to disambiguate between. A name of alternatives, `"A|B"` (a
+     * composite knot whose summands' relative chirality is not pinned, or a
+     * table signature matching several names), falls back to those
+     * alternatives instead, split as linknaming::nameCandidates() splits an
+     * `outgoing_names_file` entry (a split or a sum stays one candidate: its
+     * alternatives live in its factors and pieces). The outgoing link is one
+     * of them, so it bears forward as the worst case over them, and never in
+     * reverse: with two or more candidates propagate() does not bound it from
+     * the subject, so no node `"A|B"` can carry a bound written through one
+     * alternative to a cobordism whose outgoing link is the other.
      *
      * This is a description of a NAME, not a claim about an outgoing link: for a
      * multi-component outgoing link the true candidate set is not enumerable from

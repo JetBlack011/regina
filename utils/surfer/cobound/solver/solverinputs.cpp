@@ -176,6 +176,9 @@ std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
           linknaming::componentsFromName(r.name) == w.otherComponents;
       // candidates() falls back to {name} itself for an unregistered base,
       // so a real table hit is one whose front is a different (tagged) name.
+      // (For alternatives "A|B" the fallback is the alternatives, whose
+      // front states the count the whole name states, so countFromName has
+      // already decided.)
       // A composite K #_c L has L's components (a knot is summed INTO a
       // component), so it is L's variants that state the count.
       const std::optional<linknaming::CompositeName> cp =
@@ -237,6 +240,24 @@ std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
 
   appliedOut = applied;
   return resolved;
+}
+
+size_t splitStoredAlternatives(std::vector<cobordisms::Cobordism> &cobordisms) {
+  size_t changed = 0;
+  for (cobordisms::Cobordism &w : cobordisms) {
+    if (std::none_of(w.otherCandidates.begin(), w.otherCandidates.end(),
+                     [](const std::string &c) { return c.find('|') != std::string::npos; }))
+      continue;
+    std::vector<std::string> split;
+    for (const std::string &c : w.otherCandidates)
+      for (std::string &alt : linknaming::nameCandidates(c))
+        split.push_back(std::move(alt));
+    if (split.size() != w.otherCandidates.size()) {
+      w.otherCandidates = std::move(split);
+      ++changed;
+    }
+  }
+  return changed;
 }
 
 std::unordered_map<std::string, std::string> loadLinkClasses(const std::filesystem::path &path) {

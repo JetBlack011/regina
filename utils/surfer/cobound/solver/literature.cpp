@@ -33,9 +33,14 @@ int NameTable::components(const std::string &name) const {
 std::vector<std::string>
 NameTable::candidates(const std::string &name,
                       std::optional<int> observedComponents) const {
+    // Where the table has no variants for `name`, the fallback is the name
+    // itself -- or, for alternatives "A|B", those alternatives, split as an
+    // outgoing_names_file entry is (nameCandidates()): a node named "A|B"
+    // would carry a bound written through one alternative to a cobordism
+    // whose outgoing link is the other.
     auto it = byBase_.find(linknaming::baseName(name));
     if (it == byBase_.end() || it->second.empty())
-        return {name};
+        return linknaming::nameCandidates(name);
 
     if (!observedComponents)
         return it->second;
@@ -48,8 +53,9 @@ NameTable::candidates(const std::string &name,
     // wrong component count, i.e. the name and the geometry
     // disagree. The outgoing link is none of those variants, so a max/min over
     // them bounds nothing: hand back the name itself, which is unregistered
-    // and so bears no bound.
-    return filtered.empty() ? std::vector<std::string>{name} : filtered;
+    // and so bears no bound (or its alternatives, as above, which never
+    // receive one through the reverse direction).
+    return filtered.empty() ? linknaming::nameCandidates(name) : filtered;
 }
 
 } // namespace solver

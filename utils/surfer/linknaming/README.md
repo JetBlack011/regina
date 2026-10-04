@@ -45,7 +45,8 @@ Whether an outgoing link carries a bound to its subject is a separate rule,
 by its component count (`cobound/README.md`, "The atlas solver (`cobound
 solve`)"): the search records the string, not `isName`, so a 2-component
 `diagram:<sig>` name bears nothing there, and a one-component description can
-bear.
+bear: a one-component `A|B` bears forward, as the worst case over its
+alternatives, and never in reverse.
 
 | shape | written | |
 |---|---|---|

@@ -845,15 +845,21 @@ counts: its `genus` is its tubed genus.
   nothing by its count, not by
   being a description: a `complement:` description always has 2 or more
   components, but a one-component `|` description (a composite knot whose
-  summands' relative chirality is not pinned) bears, through the reverse
-  direction, and an `outgoing_names_file` entry with a `?` component index
+  summands' relative chirality is not pinned, or a table signature matching
+  several names) bears forward, as the worst case over its alternatives, and
+  never in reverse: where the name table has nothing for it, its candidates
+  are its alternatives (`NameTable::candidates()`, split as an
+  `outgoing_names_file` entry is), so it has two or more; `solve` reads a
+  stored `other_candidates` of `A|B`, signed before that split, the same way
+  (`solverinputs::splitStoredAlternatives()`). And an
+  `outgoing_names_file` entry with a `?` component index
   (`3_1 #_? L2a1{0}`) counts as proved and bears forward. The rule that a
   description bears nothing, whatever its count, is the atlas's to make, in
   both solvers together.
 - **The reverse direction** (bounding the outgoing link from the subject)
   needs the outgoing link's identity: one component, or a name (not a
-  description) from `outgoing_names_file`; never an unlink, which is an axiom
-  already.
+  description) from `outgoing_names_file`, and a single candidate, so never
+  alternatives `A|B`; never an unlink, which is an axiom already.
 - **Splits, composites and sums.** A split outgoing link's upper bound comes
   from its factors' surfaces placed side by side; its lower bound is not
   additive (`K ⊔ −K` bounds an annulus): g₄(A # B) − 1 ≤ g₄(A ⊔ B) ≤ g₄(A # B),
@@ -942,7 +948,7 @@ crossings, and real cobordisms of two searches).
 | `incomingmap_test` | the incoming map lands exactly on L × {0}, one closed directed curve per component, despite T's automorphisms; no searchable face but the seed's touches the incoming side; the bare collar's boundary matches per component; `certifyIncoming()` accepts the PD's own diagram and refuses a mirror and a nugatory kink (with a table as argument, every row) |
 | `preconditions_test` | `conditionFor()`; the rejection names; every accounting bucket, failure message and the exact accounting body; the watchdog's order and reasons; `gateSurface()` on exhaustive cap-3 searches (`3_1` accepts 1,752; `L2a1{0}` 795 of 945, 150 the other orientation); a pair signature from captured faces equals the captured one |
 | `outgoingnamer_test` | on real thickenings: the bare collar's outgoing link is the incoming link (a table knot by name, a table link per edge set as a variant and per surface as its own variant), straight from the diagram; a curve round one triangle is an unknot; the complement namers agree on an unlink with or without the census |
-| `solver_test` | the solver: component-count terms, which outgoing links bear a bound, the reverse direction, splits, composites, anchors, cycles, support sets, statuses, `splitBoundary()`, per-component orientation, the cobordism identity, named outgoing links, `sum_rules` |
+| `solver_test` | the solver: component-count terms, which outgoing links bear a bound, the reverse direction, one-component alternatives `A\|B` (forward as the worst case, never in reverse, stored ones included), splits, composites, anchors, cycles, support sets, statuses, `splitBoundary()`, per-component orientation, the cobordism identity, named outgoing links, `sum_rules` |
 | `partitiongenera_test`, `cobordismgraph_test`, `links_test`, `axioms_test` | the assumptions above; `axioms_test` the literature leaf policy |
 | `database_test` | a cobordism round-trips (commas quoted, `resolved_vertices` empty when 0); appends keep every byte and drop pair signatures; a torn last line is ignored, then cut; a 12-column file is refused for appending |
 | `pending_test` | `kept.csv` round-trips; one database line per identity, each with the pair signature taken in the searched thickening; signing again, or against a database holding them, appends nothing; a torn last line is skipped |
