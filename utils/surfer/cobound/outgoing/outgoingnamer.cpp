@@ -16,8 +16,8 @@
 namespace outgoing {
 
 // The complement route, as SurfaceSearch called it before a namer was
-// required: a lone curve on its own (identify(const EdgeComplement&)),
-// several curves together (identify(const Link&)).
+// required: a lone curve on its own (census::nameComplement(const EdgeComplement&)),
+// several curves together (census::nameComplement(const Link&)).
 ComplementNamer::ComplementNamer()
     : ComplementBoundaryNamer(static_cast<KnotRoute>(&census::nameComplement),
                               static_cast<LinkRoute>(&census::nameComplement)) {}
@@ -74,9 +74,9 @@ void OutgoingNamer::enableOrientedNames(const linknaming::Tables &tables,
     fast.deepHeight = -1;
     // Nor from the table's side: rewrite() outward from every HOMFLY
     // candidate's diagram, up to 3M diagrams per candidate and height. On a
-    // far side that is none of them it runs to the end, a minute or more per
-    // name (a 50k-surface hop spent 57,000 thread-seconds there, 2026-09-29).
-    // farsidename refines such names offline from the pair signature.
+    // outgoing link that is none of them it runs to the end, a minute or more per
+    // name (a 50k-surface search spent 57,000 thread-seconds there, 2026-09-29).
+    // `cobound name` refines such names offline from the pair signature.
     fast.tableSideHeight = -1;
     linkNamer_ = std::make_unique<linknaming::LinkNamer>(tables, fast, std::move(caches));
 }

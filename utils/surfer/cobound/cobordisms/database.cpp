@@ -2,8 +2,8 @@
 //  database.cpp
 //
 //  The append-only cobordism database (cobordisms.csv), shared by
-//  verifyslicegenus and cascadesearch. Moved verbatim from
-//  verifyslicegenus.cpp (2026-09-28), as witnessstore.cpp.
+//  every run and command. Moved verbatim from verifyslicegenus.cpp
+//  (2026-09-28), as witnessstore.cpp.
 //
 
 #include "cobound/cobordisms/database.h"
@@ -32,20 +32,20 @@
 
 namespace cobordisms {
 // ─────────────────────────────────────────────────────────────────────────
-// Witness file (--cobordisms) I/O
+// Database (--cobordisms) I/O
 // ─────────────────────────────────────────────────────────────────────────
 //
-// The point of persisting these separately from --output is that a witness
+// The point of persisting these separately from --output is that a cobordism
 // is a fact ("a surface with this boundary and this genus exists") while an
-// --output row is a conclusion. Conclusions get better whenever the solver,
-// the literature tables, or the identification improves; facts do not. So
+// verdicts row is a conclusion. Conclusions get better whenever the solver,
+// the literature tables, or the naming improves; facts do not. So
 // every fact a search paid for is written here once and never re-searched,
-// and `--solve-only` re-derives all the conclusions from them in seconds.
+// and `cobound solve` re-derives all the conclusions from them in seconds.
 
-// resolved_vertices (Witness::resolvedVertices) is written EMPTY when 0, which
-// is every witness but those found under --resolve-unlinked. That keeps a row
+// resolved_vertices (Cobordism::resolvedVertices) is written EMPTY when 0, which
+// is every cobordism but those found under --resolve-unlinked. That keeps a line
 // written before the column existed, or merged in by a Python DictWriter
-// (which fills a missing field with ""), byte-identical after a --solve-only
+// (which fills a missing field with ""), byte-identical after a solve's
 // round trip -- the invariant merge_cobordisms.py relies on.
 std::string formatCobordism(const cobordisms::Cobordism &w) {
   std::ostringstream candidates;
@@ -68,12 +68,12 @@ std::string formatCobordism(const cobordisms::Cobordism &w) {
   return out.str();
 }
 
-// The header of a witness file written before resolved_vertices existed.
+// The header of a database written before resolved_vertices existed.
 constexpr const char *COBORDISMS_HEADER_12 =
     "kind,subject,subject_components,other,other_candidates,other_components,"
     "genus,tubed,pairsig,source_row,thicken_layers,max_faces";
 
-// Reads the first 12 or 13 fields of a witness line into `w`, keeping the
+// Reads the first 12 or 13 fields of a cobordism line into `w`, keeping the
 // pair signature only if `keepPairSig`. Returns false for a malformed line.
 bool cobordismFromFields(std::vector<std::string> f, cobordisms::Cobordism &w,
                        bool keepPairSig, bool wantPairSigKey,
@@ -101,7 +101,7 @@ bool cobordismFromFields(std::vector<std::string> f, cobordisms::Cobordism &w,
     w.pairSig = std::move(f[8]);
   w.sourceSearch = f[9];
   // Optional 13th field (absent in files written before it existed).
-  // Informational only, so an unreadable value never costs the witness
+  // Informational only, so an unreadable value never costs the cobordism
   // itself.
   if (f.size() > 12 && !f[12].empty()) {
     try {
@@ -136,7 +136,7 @@ std::vector<std::string> splitCandidates(const std::string &field) {
   return out;
 }
 
-// Parses one witness line (12 or 13 fields) into `w`, keeping the pair
+// Parses one cobordism line (12 or 13 fields) into `w`, keeping the pair
 // signature only if `keepPairSig`. Returns false for a malformed line.
 bool parseCobordismLine(const std::string &line, cobordisms::Cobordism &w,
                       bool keepPairSig, bool wantPairSigKey,
@@ -147,7 +147,7 @@ bool parseCobordismLine(const std::string &line, cobordisms::Cobordism &w,
 
 namespace {
 
-// Every complete witness line of `path` (a torn last line ignored, malformed
+// Every complete cobordism line of `path` (a torn last line ignored, malformed
 // lines counted and skipped), each with its line's byte offset.
 std::vector<cobordisms::Cobordism>
 readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSigKeys) {
@@ -190,14 +190,14 @@ readLines(const std::filesystem::path &path, bool keepPairSigs, bool wantPairSig
 
 } // namespace
 
-// Loads every complete witness line, WITHOUT its pair signature: each
-// witness keeps only the byte offset of its line (Witness::fileOffset), and
+// Loads every complete cobordism line, WITHOUT its pair signature: each
+// cobordism keeps only the byte offset of its line (Cobordism::fileOffset), and
 // anything that needs the signature reads it back from there. That is what
-// keeps a solve's memory proportional to the number of witnesses rather
+// keeps a solve's memory proportional to the number of cobordisms rather
 // than to the ~11 KB signature each one carries.
 //
 // A final line with no terminating newline is a torn append (the process
-// died mid-write) and is ignored here; appendWitnesses() truncates it away
+// died mid-write) and is ignored here; appendCobordisms() truncates it away
 // before it next appends.
 std::vector<cobordisms::Cobordism>
 loadCobordisms(const std::filesystem::path &path, bool wantPairSigKeys) {
@@ -244,9 +244,9 @@ DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
   if (!in)
     throw std::runtime_error("cannot read " + path);
   std::string line;
-  // The row-PD sidecar (pending.cpp: witness,layers,row_pd), if any: a
-  // cobordism recorded by a cascade hop was searched on its node's
-  // simplified diagram, and can only be read back on that row.
+  // The `.rows.csv` sidecar (pending.cpp: witness,layers,row_pd), if any: a
+  // cobordism recorded by a goal run's search was searched on its link's
+  // simplified diagram, and can only be read back on that diagram.
   if (std::ifstream side(path + kFrozenRowsSidecarSuffix); side) {
     std::getline(side, line);
     while (std::getline(side, line)) {
@@ -259,7 +259,7 @@ DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
   std::streamoff at = in.tellg();
   while (std::getline(in, line)) {
     if (in.eof())
-      break; // a torn last line, as loadWitnesses() leaves it out
+      break; // a torn last line, as loadCobordisms() leaves it out
     const auto a = line.find(','), b = line.find(',', a + 1);
     if (a != std::string::npos && b != std::string::npos) {
       offsets_[line.substr(a + 1, b - a - 1)].push_back(at);
@@ -354,7 +354,7 @@ cobordismIdentities(const std::filesystem::path &path, unsigned threads,
         break;
       at += static_cast<std::streamoff>(l.size()) + 1;
       if (r.eof()) {
-        // As loadWitnesses(): a last line with no newline is torn.
+        // As loadCobordisms(): a last line with no newline is torn.
         if (!l.empty())
           std::cerr << "[!] " << path.string() << ": ignoring a torn last line ("
                     << l.size() << " bytes, no newline)\n";
@@ -408,7 +408,7 @@ std::string readHeader(int fd) {
 }
 } // namespace
 
-// Appends witnesses[from..] to `path`, then fsyncs. The file is never
+// Appends cobordisms[from..] to `path`, then fsyncs. The file is never
 // rewritten: everything already in it stays byte-for-byte, so a merge, a
 // solve or a crash can never lose what an earlier write put there.
 //
@@ -417,8 +417,8 @@ std::string readHeader(int fd) {
 // retired verifyslicegenus --rewrite-witnesses, never something an append
 // does implicitly -- and truncates a torn last line (no newline) before appending.
 //
-// On success each appended witness gets its fileOffset and drops its pair
-// signature from memory. Throws on any failure, leaving those witnesses
+// On success each appended cobordism gets its fileOffset and drops its pair
+// signature from memory. Throws on any failure, leaving those cobordisms
 // untouched in memory for the next attempt.
 void appendCobordisms(const std::filesystem::path &path,
                      std::vector<cobordisms::Cobordism> &cobordisms,

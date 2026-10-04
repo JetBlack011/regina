@@ -38,8 +38,8 @@ size_t mapEdgeIndex(const regina::Edge<3> *e,
     return dest.tetrahedron(iso.simpImage(tet))->edge(p[v[0]], p[v[1]])->index();
 }
 
-// The row's directed link under `iso`: edge index -> (tail, head) vertex
-// indices in `dest`, and the edge's position in rowEdges.
+// The incoming link's directed edges under `iso`: edge index -> (tail, head)
+// vertex indices in `dest`, and the edge's position in diagramEdges.
 using IncomingImage = std::unordered_map<size_t, std::tuple<size_t, size_t, size_t>>;
 IncomingImage
 directedImage(const std::vector<const regina::Edge<3> *> &diagramEdges,
@@ -161,7 +161,7 @@ namespace search {
 void orientIncoming(IncomingThickening &thickened) {
     const auto &edges2 = thickened.link.edges;
     const auto &reversed2 = thickened.link.reversed;
-    // The seed's own edges on the search side: exactly L x {0}.
+    // The seed's own edges on the incoming side: exactly L x {0}.
     if (!thickened.seedFaces.empty())
         thickened.incomingEdges = search::boundaryEdgesOf(thickened.tri, thickened.seedFaces,
                                                    thickened.incomingBC);
@@ -171,8 +171,8 @@ void orientIncoming(IncomingThickening &thickened) {
     if (thickened.seedFaces.empty())
         thickened.incomingEdges = thickened.orientation->edges;
 
-    // Setup-time checks on the row's own link, in place of any per-surface
-    // ones: the search side is fixed from here on.
+    // Setup-time checks on the incoming link, in place of any per-surface
+    // ones: the incoming side is fixed from here on.
     if (thickened.incomingEdges.size() != edges2.size())
         throw regina::InvalidArgument(
             "the search side holds " + std::to_string(thickened.incomingEdges.size()) +

@@ -1,7 +1,7 @@
 //
 //  fromdatabase.cpp
 //
-//  WitnessRedrawer (was farsideredraw.cpp) and RowReadBacks (was
+//  OutgoingReader (was farsideredraw.cpp) and ReadBacks (was
 //  readbackcache.cpp).
 //
 
@@ -75,7 +75,7 @@ OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
     skeleton_ = std::make_unique<Skeleton<4, 2>>(W);
     incomingCycles_ = knotbuilder::DiagramDrawer::cyclesOf(thickened_.link.edges, thickened_.link.reversed);
     {
-        // A search-side edge -> its row edge (the row map) -> its T edge ->
+        // An incoming edge -> its diagram edge (the incoming map) -> its T edge ->
         // the cycle holding it.
         std::unordered_map<size_t, size_t> cycleOfT;
         for (size_t c = 0; c < incomingCycles_.size(); ++c)
@@ -101,7 +101,7 @@ std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig
     auto t1 = std::chrono::steady_clock::now();
     msDecode_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    // The isomorphism onto W sending the witness's incoming curve onto L x {0},
+    // The isomorphism onto W sending the cobordism's incoming curve onto L x {0},
     // found while the ambient's isomorphisms are enumerated.
     std::optional<std::vector<int>> carried =
         pinned_(*dec.ambient, faces, [&](const IsoVisitor &visit) {
@@ -181,7 +181,7 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFast(const std::string &
     msDecode_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
 
     // The isomorphism carrying the incoming curve onto L x {0}, from the
-    // ambient's isomorphisms found once per row.
+    // ambient's isomorphisms found once per incoming diagram.
     const std::optional<std::vector<int>> pinned =
         pinned_(*ambient_, faces, [&](const IsoVisitor &visit) {
             for (const regina::Isomorphism<4> &iso : isos_)
@@ -242,7 +242,7 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFast(const std::string &
             surfaceOf[edge] = simplex->component()->index();
         }
     }
-    // Then oriented against the row, as for a rebuilt surface
+    // Then oriented against the incoming link, as for a rebuilt surface
     // (orientedOutgoingLink()).
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented = {
         {thickened_.incomingBC, chain(directed[thickened_.incomingBC])},
@@ -281,7 +281,7 @@ bool OutgoingReader::rebuild(const std::vector<int> &faces, KnottedSurface &surf
             why = "face " + std::to_string(f) + " is not a triangle of the thickening";
             return false;
         }
-    // Before anything is built: the search side must be exactly L x {0}.
+    // Before anything is built: the incoming side must be exactly L x {0}.
     if (search::boundaryEdgesOf(W, faces, thickened_.incomingBC) != thickened_.incomingEdges) {
         why = "its incoming boundary is not L x {0}";
         return false;
@@ -435,7 +435,7 @@ ReadBacks::ReadBacks(const std::string &dir, const std::string &incomingPD, int 
     return;
   }
   if (line != "readback 1 " + digest_) {
-    rewrite_ = true; // another build of the row: its edge numbers mean nothing here
+    rewrite_ = true; // another build of the thickening: its edge numbers mean nothing here
     return;
   }
   while (std::getline(in, line)) {
@@ -487,7 +487,7 @@ void ReadBacks::flush() {
       out += key + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
     }
     // A cache: replaced atomically, but not fsynced (a lost write is
-    // rebuilt), as before phase 3. Two fsyncs per row can cost a cold load
+    // rebuilt), as before phase 3. Two fsyncs per incoming diagram can cost a cold load
     // seconds while the disk is still writing back a big write.
     report::atomicWrite(path_, [&](std::ostream &f) { f << out; },
                         report::Durability::cache);

@@ -94,7 +94,7 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e) {
   // Which iterative-deepening round we are in, and how deep finds have
   // actually gone. Without this a run looks like it is exploring up to
   // --max-faces when it may never have finished round 1 -- the calibration
-  // row on L6a1{1} spent its whole 600s budget inside round 1 (cap 5) and
+  // search of L6a1{1} spent its whole 600s budget inside round 1 (cap 5) and
   // never started rounds 2-4, which is invisible from candidate counts alone.
   report << "[+] iddfs round " << stats.iddfsRound << "/"
          << stats.iddfsTotalRounds;
@@ -210,7 +210,7 @@ void printComplementNaming(std::ostream &out, const std::string &name,
              "defect; named by the complement route instead)\n";
   }
   // A census that cannot be written to costs nothing in correctness, but
-  // every name it fails to keep is recomputed by every later row.
+  // every name it fails to keep is recomputed by every later search.
   if (censusFailed > 0)
     out << "[!] " << name << ": WARNING: " << censusFailed
         << " census writes failed (names found here will not "

@@ -163,7 +163,7 @@ SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &reader,
   request.shape = searchShape(shape_);
   request.surfaceTarget = surfaceTarget;
   request.seconds = seconds;
-  // Always recorded (it costs one fingerprint): a later hop from this node
+  // Always recorded (it costs one fingerprint): a later search from this link
   // carries on from it instead of searching this prefix again.
   request.recordFrontier = true;
   request.layers = *shape_.layers;
@@ -187,7 +187,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
 
   // Declared before the search, which holds pointers to them. Every
-  // boundary is named by its complement unless the row draws its far sides.
+  // boundary is named by its complement unless the search draws its outgoing links.
   const outgoing::ComplementNamer complementNamer{};
   std::optional<outgoing::OutgoingNamer> namer;
   SurfaceSearch e(thickened.tri, thickened.seedFaces, thickened.incomingBC);
@@ -219,7 +219,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     e.setPairSigCacheDir(*request.pairSigCacheDir);
   e.setBoundaryNamer(complementNamer);
   if (signatures_) {
-    // A row whose far sides cannot be drawn is refused (divergence 2): its
+    // A search whose outgoing links cannot be drawn is refused (divergence 2): its
     // T does not read back, and naming it some other way would hide that.
     try {
       namer.emplace(thickened.link.tri, thickened.pdcode.size(), *thickened.cob, *signatures_);
@@ -231,12 +231,12 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   }
 
   {
-    // The invariant that makes the search side fixed: no searchable
+    // The invariant that makes the incoming side fixed: no searchable
     // triangle other than the seed has an edge on it. Checked once here
     // rather than re-derived for every surface found.
     if (const size_t touching = e.countSearchableFacesTouching(thickened.incomingBC))
       throw SeedInvariantFailure(touching);
-    // Its name is known by construction; never identify it.
+    // Its name is known by construction; never name it again.
     e.primeBoundaryName(thickened.incomingBC, thickened.incomingEdges, request.name);
   }
 
@@ -419,7 +419,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   callbacks.onSurfaceBoundaryProcessed = [&](const SurfaceBoundaryInfo &info) {
     // Recorded before any of the filtering below: the question this answers
     // is what the SEARCH found, not what survived the checks that decide
-    // whether a surface bounds this particular row.
+    // whether a surface is a cobordism from this particular incoming link.
     if (surfaceStats)
       surfaceStats->record(search::SurfaceStatsKey{
           .triangles = info.triangleCount,
@@ -446,9 +446,9 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
       return;
     }
 
-    // Orientable, search side intact, the row's own oriented variant, one
-    // far side (search::gateSurface()). The orientation check needs the
-    // search side's oriented curves, and an exact oriented far-side name the
+    // Orientable, incoming side intact, the incoming link's own oriented variant, one
+    // outgoing link (search::gateSurface()). The orientation check needs the
+    // incoming side's oriented curves, and an exact oriented outgoing name the
     // rest, so the gate captures them once.
     const search::GatedSurface g = search::gateSurface(info, thickened);
     if (!g.accepted()) {
@@ -457,16 +457,16 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
       return;
     }
     // The oriented outgoing link, kept and judged by: oriented by the gate's
-    // own judgement of the incoming curves (g.flips: the row is rb's,
-    // request.row->row() is *rb.orientation).
+    // own judgement of the incoming curves (g.flips: the incoming link is
+    // thickened's, request.reader->orientation() is *thickened.orientation).
     std::optional<outgoing::OutgoingLink> link;
     {
       link = outgoing::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.reader->outgoing(), g.flips,
                                            thickened.incomingBC);
       if (!link) {
-        // Only a surface component off the row, which the gate's flips (one
-        // per component meeting the row) rule out: impossible.
+        // Only a surface component off the incoming link, which the gate's flips
+        // (one per component meeting it) rule out: impossible.
         acct.reject(search::Gate::orientationBroken);
         return;
       }
@@ -475,7 +475,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     // A disconnected find is NOT discarded. Its components tube into a
     // single connected surface with the same boundary and genus exactly
     // info.tubedGenus (see KnottedSurface::tubedSurfaceType), so it
-    // witnesses precisely what a connected find of that genus would. This
+    // cobordisms precisely what a connected find of that genus would. This
     // is what makes multi-component links tractable at all: their seeded
     // collar starts as one disjoint annulus per component, and nothing
     // forces the DFS to ever bridge them.
@@ -494,14 +494,14 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
       w.kind = cobordisms::CobordismKind::direct;
     } else {
       // Exactly one: the gate turns away more (multi-far-side). A
-      // genuinely-linked far side is recorded but, unless it is a knot or a
+      // genuinely-linked outgoing link is recorded but, unless it is a knot or a
       // proven unlink, it will not carry a bound: a complement does not
       // determine a link. It is kept because the observation is real and is
-      // exactly what a later per-witness naming needs as input; the solver's
-      // farSideBearsBound() is what declines it.
+      // exactly what a later per-cobordism naming needs as input; the solver's
+      // outgoingBearsBound() is what declines it.
       const search::BoundarySide &outgoingSide = g.split.otherSides.front();
-      // Normalized, so a census hit and the table name are one graph node,
-      // and oriented where exact names are on (search::farSideName()).
+      // Normalized, so a census hit and the table name are one name in the graph,
+      // and oriented where names are on (search::nameOutgoing()).
       outgoingName = search::nameOutgoing(g, namer ? &*namer : nullptr);
       w.kind = cobordisms::CobordismKind::cobordism;
       w.other = outgoingName;
@@ -550,10 +550,10 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
 
   // Stops the DFS, and by default LETS THE BOUNDARY DRAIN FINISH.
   //
-  // The time limit bounds the *search*, not the row. Identification is the
-  // product: an unidentified surface says nothing whatever about a slice
+  // The time limit bounds the *search*, not the drain. Naming is the
+  // product: an unnamed surface says nothing whatever about a slice
   // genus, so a surface found and then discarded unexamined is pure waste.
-  // Cutting the drain short measured 1% identification on a run that
+  // Cutting the drain short measured 1% named on a run that
   // produced 1,216,027 qualifying surfaces -- 1.2 million boundaries thrown
   // away unlooked-at, which is why that run's "found nothing" meant nothing.
   //
@@ -585,14 +585,14 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
         } catch (const std::exception &ex) {
           j.contradiction = std::string("the cobordism graph failed: ") + ex.what();
         }
-        // Only a CONSTRUCTIVE result settles a row: an assisted one is a
+        // Only a CONSTRUCTIVE result settles a table row: an assisted one is a
         // correct deduction but not an independent verification. Announced
         // on stdout, once, the first time: otherwise the only sign is "--
         // ACHIEVED" in the redrawn stderr progress block, invisible to any
-        // log filter, and a row could sit verified-but-unwritten for hours
+        // log filter, and a search could sit verified-but-unwritten for hours
         // with nothing in the log to say so. Checkpointed at once too: this
-        // is the single most valuable moment in a row, and every search
-        // harvests, so the row may keep running for hours afterwards.
+        // is the single most valuable moment in a search, and every search
+        // harvests, so it may keep running for hours afterwards.
         if (j.constructive && !constructive.exchange(true, std::memory_order_relaxed)) {
           std::cout << "[+] " << request.name << kFrozenConstructiveWitnessFound
                     << *j.constructive
@@ -661,7 +661,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   // by the drain (unless the drain was deliberately cut short), and every
   // described surface must sit in exactly one bucket. Anything else means
   // surfaces vanished unexamined -- the failure mode that once emptied whole
-  // rows without a trace.
+  // searches without a trace.
   const bool drainSkipped = e.boundaryProcessingSkipped();
   if (namer) {
     const linknaming::NamingStats &ns = namer->stats();
@@ -682,7 +682,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   out.otherOrientation = acct.orientation.load();
   out.drainSkipped = drainSkipped;
   // Surfaces were accepted, yet not one reached the record. That can be
-  // genuine (every one witnesses another oriented variant), but it is also
+  // genuine (every one cobordisms another oriented variant), but it is also
   // exactly what a broken gate looks like, so it never licenses a negative.
   out.nothingExamined = acct.nothingExamined();
   out.impossible = acct.impossible();
@@ -728,11 +728,11 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   out.linkingAudit = linkingnumber::auditLinkingNumbers.load();
 
   // The incoming knot's complement into the census under its table name,
-  // after the counters above were read (it never counted in the row's own
-  // identification line). Knots only. A link's complement is shared by
+  // after the counters above were read (it never counted in the search's own
+  // `identification:` line). Knots only. A link's complement is shared by
   // infinitely many links (Rolfsen twisting), so writing `isoSig -> L6a3`
-  // into a shared cache would assert, permanently and for every future far
-  // side landing on that isoSig, an identification the complement cannot
+  // into a shared cache would assert, permanently and for every future
+  // outgoing link landing on that isoSig, a naming the complement cannot
   // support -- exactly the claim linknames.h forbids adding "from a
   // complement match alone". For a knot the same entry is sound by
   // Gordon-Luecke.

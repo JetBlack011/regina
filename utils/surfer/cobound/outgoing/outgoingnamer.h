@@ -9,11 +9,11 @@
  *  (knotbuilder::DiagramDrawer) instead of drilling their complement.
  *
  *  The outgoing boundary of the search's thickening is a copy of
- *  knotbuilder's triangulation T of the row (OutgoingMap, thickening.h), so
+ *  knotbuilder's triangulation T of the incoming link (OutgoingMap, thickening.h), so
  *  its curves draw straight into a diagram: microseconds, where drilling,
- *  simplifying and recognising a complement -- with a Pachner search behind
+ *  simplifying and naming a complement -- with a Pachner search behind
  *  a census miss -- took tens of milliseconds and was nearly all of the
- *  drain. DiagramNamer draws, and linknaming's LinkNamer names the drawing
+ *  drain. OutgoingNamer draws, and linknaming's DiagramNamer names the drawing
  *  with proof (linknamer.h), falling back to the complement route for what
  *  a drawing cannot name.
  */
@@ -40,9 +40,9 @@
 namespace outgoing {
 
 /**
- * Names every boundary curve by its complement (census::identify(), the
- * census route) -- the search's namer where a row has no DiagramNamer, and
- * DiagramNamer's own fallback.
+ * Names every boundary curve by its complement (census::nameComplement(), the
+ * census route) -- the search's namer where a search has no OutgoingNamer, and
+ * OutgoingNamer's own fallback.
  */
 class ComplementNamer : public ComplementBoundaryNamer {
   public:
@@ -53,14 +53,14 @@ class ComplementNamer : public ComplementBoundaryNamer {
  * The search's BoundaryNamer: the outgoing boundary's curves by their
  * drawing (name()), every other boundary component's, and each curve of a
  * multi-curve component on its own, by the complement route as
- * ComplementNamer names them. One per row; thread-safe.
+ * ComplementNamer names them. One per search; thread-safe.
  */
 class OutgoingNamer : public BoundaryNamer {
   public:
     /**
-     * \param knotT knotbuilder's triangulation of the row, unmodified.
-     * \param crossings the row's crossing count.
-     * \param cob the row's thickening, after its last thicken() and not coned.
+     * \param knotT knotbuilder's triangulation of the incoming link, unmodified.
+     * \param crossings the incoming diagram's crossing count.
+     * \param cob the incoming link's thickening, after its last thicken() and not coned.
      * \param table outlives this namer.
      */
     OutgoingNamer(const regina::Triangulation<3> &knotT, size_t crossings,
@@ -70,7 +70,7 @@ class OutgoingNamer : public BoundaryNamer {
      *  namer draws. */
     bool handles(size_t bc) const { return bc == map_.boundaryComponent(); }
     /** All the curves of the outgoing boundary component, named together
-     *  from their drawing (LinkNamer). */
+     *  from their drawing (DiagramNamer). */
     std::string name(const Link &curves) const;
 
     std::string nameLink(size_t bc, const Link &curves) const override;
@@ -78,28 +78,28 @@ class OutgoingNamer : public BoundaryNamer {
     const linknaming::NamingStats &stats() const { return diagramNamer_.stats(); }
 
     /**
-     * Turns on orientedName() (verifyslicegenus --exact-far-side-names).
+     * Turns on orientedName() (outgoing_names; formerly --exact-far-side-names).
      * \param tables outlives this namer.
      * \param caches what naming learns about `tables`, shared with other
-     *        namers over them (a cascade's hops share one); new when null.
+     *        namers over them (a goal run's searches share one); new when null.
      */
     void enableOrientedNames(const linknaming::Tables &tables,
                           std::shared_ptr<linknaming::TableCaches> caches = nullptr);
     bool orientedNamesOn() const { return linkNamer_ != nullptr; }
 
     /**
-     * The exact name (exactnaming/) of ONE surface's outgoing curves,
-     * oriented as a cobordism from the row: each curve reversed when
-     * `flips` says its surface component runs against the row
+     * The name (linknaming/) of ONE surface's outgoing curves,
+     * oriented as a cobordism from the incoming link: each curve reversed when
+     * `flips` says its surface component runs against the incoming link
      * (outgoing::incomingFlips()). name() cannot give this -- it is asked once
      * per edge set, and an edge set's orientation depends on the surface --
-     * so the search asks it per witness, for deduplicating by the ORIENTED
-     * far side (two surfaces whose far sides are different orientation
-     * variants of one link are two witnesses). Only exactnaming's fast path
+     * so the search asks it per cobordism, for deduplicating by the ORIENTED
+     * outgoing link (two surfaces whose outgoing links are different orientation
+     * variants of one link are two cobordisms). Only the link namer's fast path
      * runs here (diagram matches and visible cuts, no Reidemeister search);
      * a piece it cannot match is written as its exact oriented signature,
-     * which farsidename refines offline from the stored pair signature.
-     * Cached by the drawn diagram's exact signature. nullopt when exact names
+     * which `cobound name` refines offline from the stored pair signature.
+     * Cached by the drawn diagram's exact signature. nullopt when names
      * are off or the drawing fails.
      */
     std::optional<std::string> orientedName(
@@ -118,7 +118,7 @@ class OutgoingNamer : public BoundaryNamer {
     std::unique_ptr<linknaming::LinkNamer> linkNamer_;
     mutable std::mutex orientedMutex_;
     mutable std::unordered_map<std::string, std::string> orientedCache_;
-    /**< drawn diagram's exact signature -> its exact name. */
+    /**< drawn diagram's exact signature -> its name. */
 };
 
 } // namespace outgoing

@@ -42,9 +42,9 @@ void printProgress(const SearchStats &stats, SurfaceSearch &e);
 
 /**
  * Fired from callbacks.onBoundaryProcessingProgress once per second during
- * the post-search boundary-identification phase
+ * the post-search boundary-naming phase
  * (processRemainingSurfaceBoundaries). `resolvedGenus`, if set, is the
- * literature target once the search has found a constructive witness for it
+ * literature target once the search has found a constructive cobordism for it
  * (resolution is all-or-nothing, so there is no partial genus to show, only
  * "not yet" vs. the exact target once hit), so it's visible at a glance how
  * the current genus stands against the literature target even while this
@@ -69,7 +69,7 @@ void printBoundaryProgress(size_t processed, size_t total,
  * them, it is overwritten each knot, and it forces a pairSig() (an isoSig
  * computation) per surface. The distinct keys here are bounded by
  * faces x genus x punctures -- a few hundred -- so the whole distribution
- * costs one map lookup per surface and a few hundred CSV lines per row.
+ * costs one map lookup per surface and a few hundred CSV lines per search.
  */
 struct SurfaceStatsKey {
   long long triangles;
@@ -87,8 +87,8 @@ struct SurfaceStatsKey {
  * Thread-safe counts keyed by SurfaceStatsKey.
  *
  * record() is called from onSurfaceBoundaryProcessed, which runs on the
- * boundary-identification worker threads. That phase is bounded by
- * identification throughput (a few hundred surfaces a second), so a single
+ * boundary-naming worker threads. That phase is bounded by
+ * naming throughput (a few hundred surfaces a second), so a single
  * mutex is far below the noise floor and buys simplicity over the
  * thread-local-then-merge dance SurfaceTypeTally needs on the hot DFS path.
  */
@@ -99,7 +99,7 @@ public:
     ++counts_[key];
   }
 
-  /** Returns the accumulated counts and resets, ready for the next row. */
+  /** Returns the accumulated counts and resets, ready for the next search. */
   std::map<SurfaceStatsKey, long long> take() {
     std::lock_guard<std::mutex> lock(mutex_);
     std::map<SurfaceStatsKey, long long> out;
@@ -113,12 +113,12 @@ private:
 };
 
 /**
- * Appends one row's distribution to `path`, creating it (with a header) if
+ * Appends one search's distribution to `path`, creating it (with a header) if
  * it does not yet exist.
  *
- * Appended per row rather than written once at the end so that an
- * interrupted sweep keeps the statistics of every row that did finish --
- * the same reasoning that makes witness checkpoints a per-row operation.
+ * Appended per search rather than written once at the end so that an
+ * interrupted run keeps the statistics of every search that did finish --
+ * the same reasoning that makes pending checkpoints a per-search operation.
  */
 void appendSurfaceStats(const std::filesystem::path &path,
                         const std::string &subject, long long maxFaces,
@@ -126,8 +126,8 @@ void appendSurfaceStats(const std::filesystem::path &path,
 
 /**
  * Appends one row of --self-intersection-census output (see
- * SelfIntersectionCensus) for `rowName`, with the search's own resolved
- * count alongside. Per row, like appendSurfaceStats(), so an interrupted
+ * SelfIntersectionCensus) for `subject`, with the search's own resolved
+ * count alongside. Per search, like appendSurfaceStats(), so an interrupted
  * run keeps what it measured.
  */
 void appendSelfIntersectionCensus(const std::filesystem::path &path,
@@ -136,13 +136,13 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
                                   const SearchStats &stats,
                                   SelfIntersectionCensus &census);
 
-/** How many rejected surfaces per reason per row --rejection-sample-log keeps. */
+/** How many rejected surfaces per reason per search rejection_sample_log keeps. */
 constexpr int REJECTION_SAMPLES_PER_REASON = 20;
 
 /*
- * verifyslicegenus's per-row lines, from what the search returned
- * (search::HopRun) and nothing else. Each writes to `out` exactly as the
- * row loop did, stream state included (the breadth line leaves `out` in
+ * A search's lines (verifyslicegenus's, frozen), from what the search
+ * returned (search::SearchResult) and nothing else. Each writes to `out`
+ * exactly as verifyslicegenus's loop did, stream state included (the breadth line leaves `out` in
  * std::fixed's precision, as it always has).
  */
 
@@ -156,7 +156,7 @@ void printBreadth(std::ostream &out, const std::string &name,
  *  and RE_ACCOUNTING). */
 void printOutcome(std::ostream &out, const std::string &name, const search::SearchResult &run);
 
-/** `identification:` (the census and recognition counters as the search ended, against
+/** `identification:` (the census and complement-cache counters as the search ended, against
  *  the search's start), `diagram naming:` and their warnings. */
 void printComplementNaming(std::ostream &out, const std::string &name,
                          const search::SearchResult &run);

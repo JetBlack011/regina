@@ -2,23 +2,23 @@
 //  outgoinglink.h
 //
 //  A cobordism's outgoing link, as oriented curves in knotbuilder's own
-//  triangulation of the row.
+//  triangulation of the incoming link.
 //
 
 /*! \file utils/surfer/cobound/outgoing/outgoinglink.h
  *  \brief Carries a surface's outgoing boundary curves onto knotbuilder's
- *  triangulation T of the row (OutgoingMap, diagramtriangulation/thickening),
- *  oriented as a cobordism from the row's own oriented link -- ready for
+ *  triangulation T of the incoming link (OutgoingMap, diagramtriangulation/thickening),
+ *  oriented as a cobordism from the oriented incoming link -- ready for
  *  knotbuilder::DiagramDrawer.
  *
  *  Orientation. A surface's boundary is oriented per connected component of
  *  the surface, each component independently
  *  (KnottedSurface::orientedBoundaryLinks()). Every component meets the
  *  incoming boundary (it contains a seed annulus), and the search accepts a
- *  surface only if each component's incoming curves all run with the row's
- *  orientation or all against it (search::classifyRowOrientation()).
+ *  surface only if each component's incoming curves all run with the incoming link's
+ *  orientation or all against it (search::classifyIncomingOrientation()).
  *  Reversing the components that run against it orients the surface as an
- *  oriented cobordism from the row's oriented link L; its outgoing curves
+ *  oriented cobordism from the oriented incoming link L; its outgoing curves
  *  are then the oriented outgoing link, up to reversing every component at
  *  once -- which neither a table name nor a slice genus can see.
  */
@@ -46,31 +46,31 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve);
 
 /**
  * Per surface component, +1 to keep its orientation or -1 to reverse it,
- * so that its incoming curves run as the row's link does. nullopt when some
+ * so that its incoming curves run as the incoming link does. nullopt when some
  * component's incoming curves disagree among themselves, a curve has an
  * edge off the row's link, or a curve's component is unknown -- exactly the
- * surfaces classifyRowOrientation() rejects; an empty map for no curves.
- * (search::judgeRowOrientation()'s consistentFlips(): one walk.)
+ * surfaces classifyIncomingOrientation() rejects; an empty map for no curves.
+ * (search::judgeIncomingOrientation()'s consistentFlips(): one walk.)
  */
 std::optional<std::map<size_t, int>> incomingFlips(
     const search::IncomingOrientation &incoming,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
-/** A surface's outgoing link, oriented as a cobordism from the row's link. */
+/** A surface's outgoing link, oriented as a cobordism from the incoming link. */
 struct OutgoingLink {
     std::vector<knotbuilder::EdgeCycle> curves; /**< In knotbuilder's T. */
     std::vector<size_t> surfaceComponent;       /**< Per curve. */
     /** The incoming side, per incoming curve: the index of its first edge in
      *  the incoming boundary component's built triangulation, and the surface
-     *  component it lies on (the cascade needs both ends). */
+     *  component it lies on (goal runs need both ends). */
     std::vector<size_t> incomingFirstEdge;
     std::vector<size_t> incomingSurfaceComponent;
 };
 
 /**
  * `surface`'s outgoing curves, carried onto T by `map` and oriented per
- * incomingFlips() against the row (`row`, built on boundary component
+ * incomingFlips() against the incoming link (`incoming`, built on boundary component
  * `incomingBC`). nullopt when incomingFlips() is.
  */
 std::optional<OutgoingLink> orientedOutgoingLink(

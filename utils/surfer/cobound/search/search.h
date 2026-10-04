@@ -36,43 +36,43 @@
 #include "surfer/enumeration/surfacesearch.h"
 
 /*! \file utils/surfer/cobound/search/search.h
- *  \brief THE search from a link (HopSearcher::run()), as every driver runs
+ *  \brief THE search from a link (Searcher::run()), as every driver runs
  *  it: which BoundaryCondition it runs under (conditionFor()), the watchdog
- *  that ends it at its surface target or deadline (RowWatchdog). Every
+ *  that ends it at its surface target or deadline (SearchWatchdog). Every
  *  caller's searches behave alike (phase 4(b) unified them).
  *
- *  verifyslicegenus searches each table row through it (its finds written to
- *  the row's pending file and signed at the run's end), and the
- *  cascade runs each hop through it in process: the row's own thickening
- *  (the one its HopAssembler certified and reads from), the campaign's
+ *  A run without a goal searches each target through it (its finds written
+ *  to the search's pending file and signed at the run's end), and a goal
+ *  run runs each of its searches through it in process: the searched link's thickening
+ *  (the one its CobordismAssembler certified and reads from), the campaign's
  *  search shape, and the gates and accounting of preconditions.h, with the
  *  accepted surfaces read straight off the search instead of written out as
  *  pair signatures and read back.
  *
- *  What that saves, per hop: a process start and table load, a pair
- *  signature per kept surface (3.4 s each on a 10-crossing row, 2026-09-28:
- *  64 s of a 152 s hop), and decoding them again. A kept surface keeps its
+ *  What that saves, per search: a process start and table load, a pair
+ *  signature per kept surface (3.4 s each on a 10-crossing link, 2026-09-28:
+ *  64 s of a 152 s search), and decoding them again. A kept surface keeps its
  *  faces instead, from which its pair signature can be computed later
- *  (cobordisms/pairsigner.h), for the few witnesses a certificate needs.
+ *  (cobordisms/pairsigner.h), for the few cobordisms a certificate needs.
  */
 
 namespace search {
 
-/** Which BoundaryCondition to search a row under; see conditionFor(). */
+/** Which BoundaryCondition to search a link under; see conditionFor(). */
 enum class BoundaryConditionMode { automatic, connected, proper };
 
 /**
- * The BoundaryCondition for a row of `componentCount` components.
+ * The BoundaryCondition for an incoming link of `componentCount` components.
  *
  * `connected` (one curve per ambient boundary component) prunes far harder,
- * but it caps the curve count on the far side too, so a knot row searched
+ * but it caps the curve count on the outgoing link too, so a knot searched
  * under it can never find a knot-to-link cobordism. It is honoured only for
- * a knot: a multi-component link can never meet it on its own search side.
+ * a knot: a multi-component link can never meet it on its own incoming side.
  * `automatic` is `connected` for a knot and `proper` otherwise.
  */
 BoundaryCondition conditionFor(BoundaryConditionMode mode, int componentCount);
 
-/** When RowWatchdog ends a row's search. Unset limits never fire. */
+/** When SearchWatchdog ends a search. Unset limits never fire. */
 struct WatchdogLimits {
     std::optional<long long> surfaceTarget;
     std::optional<double> seconds;
@@ -82,9 +82,9 @@ struct WatchdogLimits {
 
 /**
  * Polls every 200 ms, while the search and its drain run, and calls
- * `endRow(why)` at most once: "surface-target" or "timeout".
+ * `endSearch(why)` at most once: "surface-target" or "timeout".
  * stop() wakes it at once rather than waiting out its poll.
- * The surface target is checked before the clocks, so a row reaching it in
+ * The surface target is checked before the clocks, so a search reaching it in
  * the same tick as a deadline records "surface-target": the two mean
  * different things to anyone later reading the negative.
  *
@@ -119,15 +119,15 @@ private:
 
 namespace search {
 
-/// A goal run's search shape: what its profile line prints, and every
+/// A goal run's search shape: what its `profile:` line prints, and every
 /// search of the run searches with (searchShape()). No field that decides
 /// what a search visits or accepts has a default here: the config is the
 /// one source of every value (plan, "search-shape defaults"; with a goal,
 /// the campaign's shape: atlas tools/orchestrate/hosts.conf [campaign]), and
 /// searchShape() refuses a shape with one unset.
 struct RunShape {
-  /// Thicken and collar layers of a hop's row (both), and the profile's
-  /// layers=. A master row's layers are its witnesses' own.
+  /// Thicken and collar layers of a searched link (both), and the `profile:`
+  /// line's layers=. A database cobordism's layers are its own.
   std::optional<int> layers;
   std::optional<long long> maxFaces;
   std::optional<unsigned> iddfsIterations;
@@ -141,7 +141,7 @@ struct RunShape {
   /// The searches' resources (SurfaceSearchLimits): they decide no order,
   /// and unset is the library's default. With a goal the config sets
   /// hosts.conf's: at the library's pending cap (500,000) a search pauses to
-  /// drain its queue, which a campaign row never does.
+  /// drain its queue, which a campaign's search never does.
   std::optional<size_t> pendingSurfaceCap;
   std::optional<size_t> petalCacheLimit;
   std::optional<size_t> boundarySignatureCacheLimit;
@@ -149,7 +149,7 @@ struct RunShape {
 
 /// How one search runs: the arguments of SurfaceSearch::search() that fix
 /// its traversal and what it accepts, and the limits of its shared
-/// structures. Every caller fills all of it (searchShape() for a hop).
+/// structures. Every caller fills all of it (searchShape() for a search).
 struct SearchShape {
   BoundaryCondition condition = BoundaryCondition::proper;
   unsigned iddfsIterations = 0;
@@ -162,15 +162,15 @@ struct SearchShape {
   /// §4.5). A required input of every search, with no default anywhere
   /// (plan divergence 3): it changes which surfaces count toward a surface
   /// target and is part of every frontier's fingerprint, so a caller that
-  /// forgot it must not get one silently. HopSearcher::run() refuses a
+  /// forgot it must not get one silently. Searcher::run() refuses a
   /// shape without it.
   std::optional<bool> resolveUnlinked;
   SurfaceSearchLimits limits;
 };
 
-/// A hop's SearchShape: `proper`, `shape`'s rounds, cap and budgets, its
+/// A search's SearchShape: `proper`, `shape`'s rounds, cap and budgets, its
 /// limits, one name per multi-curve component and no pair signatures (a
-/// hop keeps faces).
+/// search keeps faces).
 SearchShape searchShape(const RunShape &shape);
 
 /** The searched link's literature interval, as a search reports it: the
@@ -196,7 +196,7 @@ struct SearchOutputs {
 /// What the cobordism graph made of a find (SearchRequest::judge).
 struct FindJudgement {
   /// A contradiction the find brought into the graph (its gates): the search
-  /// ends, and HopRun::fatal says why. Empty, normally.
+  /// ends, and SearchResult::fatal says why. Empty, normally.
   std::string contradiction;
   /// The searched link's least genus, once a proof resting on no literature
   /// value reaches its literature lower bound (divergence 10): the first
@@ -205,27 +205,27 @@ struct FindJudgement {
   std::optional<int> constructive;
 };
 
-/// A surface a hop kept.
+/// A surface a search kept.
 struct KeptSurface {
-  outgoing::OutgoingLink link; ///< far side on T, oriented, and incoming side
+  outgoing::OutgoingLink link; ///< outgoing link on T, oriented, and incoming side
   int genus = 0;              ///< tubed genus
   int resolvedVertices = 0;
-  std::string outgoingName;        ///< the namer's name; "" for no far side
-  std::vector<int> faces;     ///< triangles of the row's thickening
-  std::string key;            ///< its dedupe key (see HopSearcher::run())
+  std::string outgoingName;        ///< the namer's name; "" for no outgoing link
+  std::vector<int> faces;     ///< triangles of the incoming link's thickening
+  std::string key;            ///< its dedupe key (see Searcher::run())
   /// The cobordism as the database will record it, every column but the
   /// pair signature and other_candidates (both made when it is signed): its
   /// subject is the search's name.
   cobordisms::Cobordism cobordism;
 };
 
-/// One search's inputs besides its row.
+/// One search's inputs besides its incoming thickening.
 struct SearchRequest {
-  /// The incoming link's name: the subject of every witness, the name the
+  /// The incoming link's name: the subject of every cobordism, the name the
   /// incoming curves are primed with, and the name in every report line.
   std::string name;
-  /// The row's redrawer (required): each kept surface's outgoing link is
-  /// oriented on it and keyed by its row components.
+  /// The incoming link's reader (required): each kept surface's outgoing link is
+  /// oriented on it and keyed by its incoming components.
   const outgoing::OutgoingReader *reader = nullptr;
   SearchShape shape;
 
@@ -260,13 +260,13 @@ struct SearchRequest {
   /// minute while the search and its drain run, at the first constructive
   /// find, and the rest when the search ends -- for `sign` to sign into the
   /// database (plan divergence 7). Unset: nothing is written (a goal run
-  /// without a witness store keeps its finds in memory only).
+  /// without a database keeps its finds in memory only).
   std::optional<std::string> pending;
-  /// The row's PD and layers, as a pending line and a cobordism's
-  /// provenance record them (`sign` rebuilds the row from them).
+  /// The incoming PD and layers, as a pending line and a cobordism's
+  /// provenance record them (`sign` rebuilds the thickening from them).
   std::string incomingPD;
   int layers = 2;
-  /// The identities of the database the run loaded (RecordedWitnesses): a
+  /// The identities of the database the run loaded (LoadedDatabase): a
   /// find with one of them is a duplicate, one cobordism per identity
   /// across the database. Unset: no database loaded.
   const std::unordered_set<std::string> *knownIdentities = nullptr;
@@ -278,7 +278,7 @@ struct SearchRequest {
   /// divergences 6 and 10): called on a thread of its own, one find at a
   /// time, in the order they were kept, so the drain never waits for it;
   /// the search waits for the last one before it returns. A contradiction
-  /// ends the search; the first constructive find is announced. Needs `row`
+  /// ends the search; the first constructive find is announced. Needs `reader`
   /// (each find's outgoing link is read on it). Unset: the caller's graph
   /// judges the search's finds once it returns (a goal run's, which spans
   /// every search of the run).
@@ -288,7 +288,7 @@ struct SearchRequest {
   SearchOutputs outputs;
 };
 
-/// Thrown by HopSearcher::run() before searching when a searchable triangle
+/// Thrown by Searcher::run() before searching when a searchable triangle
 /// other than the seed has an edge on the incoming boundary, so found
 /// surfaces could change the incoming link: an impossible state, on which
 /// every driver halts once what it found is written (plan divergence 2).
@@ -297,15 +297,15 @@ struct SeedInvariantFailure : std::runtime_error {
   size_t touching;
 };
 
-/// Thrown by HopSearcher::run() for a row it will not search: no collar
-/// seed, or a far-side namer that cannot be built on it (plan divergence 2:
-/// refused, never searched by a fallback route). The cascade refuses the
-/// node; verifyslicegenus records the row as a build failure and goes on.
+/// Thrown by Searcher::run() for a link it will not search: no collar
+/// seed, or an outgoing namer that cannot be built on it (plan divergence 2:
+/// refused, never searched by a fallback route). A goal run refuses the
+/// link; a run without a goal records the table row as a build failure and goes on.
 struct SearchRefused : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
-/// What a hop did.
+/// What a search did.
 struct SearchResult {
   std::vector<KeptSurface> kept;
   long long accepted = 0;
@@ -313,13 +313,13 @@ struct SearchResult {
   std::string accountingFailure; ///< empty iff every surface is accounted for
   std::string outcome;           ///< surface-target, exhausted, timeout, stopped
   double wall = 0;               ///< seconds
-  double cpu = 0;                ///< process CPU seconds over the hop
+  double cpu = 0;                ///< process CPU seconds over the search
   double setup = 0;              ///< wall before the search: namer, search, seed checks
   double search = 0;             ///< wall of the search itself, drain included
   std::vector<double> rounds;    ///< each IDDFS round's wall (SearchStats::Profile)
   size_t drainTail = 0;          ///< surfaces left for the drain when the search ended
   double drainTailSeconds = 0;   ///< and the wall it took to describe them
-  /// The drain's far-side naming: the `diagram naming:` body
+  /// The drain's outgoing naming: the `diagram naming:` body
   /// (linknaming::NamingStats::summary()), its times by route, and the slowest
   /// single name, which is what can hold a drain's last thread alone.
   std::string naming;
@@ -335,12 +335,12 @@ struct SearchResult {
   bool resumed = false;          ///< carried on from the frontier it was given
   std::string resumeRefusal;     ///< why not, when given one it refused
 
-  // What verifyslicegenus's row report reads besides (searchreport.h).
+  // What a search's report reads besides (searchreport.h).
   SearchStats stats;               ///< the search's own, as it returned them
   long long described = 0;         ///< surfaces the drain described
   long long recorded = 0;          ///< kept surfaces
   /// Distinct cobordism identities among them: the outcome line's "N new
-  /// witnesses" (the database gains these when they are signed).
+  /// cobordisms" (the database gains these when they are signed).
   long long newCobordisms = 0;
   /// The pending file, and its fsynced length when the search ended; -1
   /// when none was written.
@@ -348,8 +348,8 @@ struct SearchResult {
   long long pendingBytes = -1;
   long long otherOrientation = 0;  ///< rejected as another oriented variant
   bool drainSkipped = false;
-  bool nothingExamined = false;    ///< RowAccounting::nothingExamined()
-  /// Surfaces in a state that cannot occur (RowAccounting::impossible()):
+  bool nothingExamined = false;    ///< SearchAccounting::nothingExamined()
+  /// Surfaces in a state that cannot occur (SearchAccounting::impossible()):
   /// unlike an imbalance, which ends only its search, a halt (divergence 2).
   long long impossible = 0;
   /// The search's frontier as recorded, whether vouched for or not.
@@ -363,7 +363,7 @@ struct SearchResult {
   complement::ComplementCacheStats complementCacheAfter;  ///< and as it ended
   std::pair<long long, long long> censusWritesBefore; ///< census::insertCounts()
   std::pair<long long, long long> censusWritesAfter;
-  bool diagramNamed = false;       ///< a DiagramNamer named the outgoing curves
+  bool diagramNamed = false;       ///< an OutgoingNamer named the outgoing curves
   long long nonPlanar = 0;         ///< its non-planar drawings
   /// Pair signatures made during the search: none since divergence 7 (they
   /// are made when the run signs its pending files).
@@ -379,40 +379,40 @@ struct SearchResult {
 
 class Searcher {
 public:
-  /// `signatures` and `exact` name far sides as verifyslicegenus names them
-  /// (outgoing::DiagramNamer), which is what surfaces are deduplicated by.
-  /// Both must outlive the searcher. Every hop's exact names use one set of
-  /// table caches (`exactCaches`, or the searcher's own when null), so what
+  /// `signatures` and `tables` name outgoing links as every search names them
+  /// (outgoing::OutgoingNamer), which is what surfaces are deduplicated by.
+  /// Both must outlive the searcher. Every search's names use one set of
+  /// table caches (`tableCaches`, or the searcher's own when null), so what
   /// naming learns about the tables -- the HOMFLY index above all -- is
-  /// built once, not once per hop. The cascade's.
+  /// built once, not once per search. A goal run's.
   Searcher(const linknaming::SignatureTable &signatures,
               const linknaming::Tables *tables, RunShape shape,
               unsigned threads,
               std::shared_ptr<linknaming::TableCaches> tableCaches = nullptr);
 
   /// Any caller's. Without `signatures`, every boundary is named by its
-  /// complement. Exact names use this searcher's own caches.
+  /// complement. Names use this searcher's own caches.
   Searcher(const linknaming::SignatureTable *signatures,
               const linknaming::Tables *tables, unsigned threads);
 
   /**
-   * Searches `row`'s thickening, seeded with its collar, under `proper`,
+   * Searches `reader`'s thickening, seeded with its collar, under `proper`,
    * until `surfaceTarget` surfaces satisfy it (or `seconds` pass; the drain
-   * then finishes), and keeps one surface per key: verifyslicegenus's
-   * witness identity (far-side name, its component count, genus, whether
-   * tubed or resolved) together with which row components and how many
-   * far-side curves each surface component carries. The second part is
-   * what profiles read (partitions), and the witness identity alone
+   * then finishes), and keeps one surface per key: the
+   * cobordism identity (outgoing name, its component count, genus, whether
+   * tubed or resolved) together with which incoming components and how many
+   * outgoing curves each surface component carries. The second part is
+   * what partition genera read (partitions), and the cobordism identity alone
    * collapses it.
    *
    * `stop`, when given, is polled with each newly kept surface (from drain
    * threads, one at a time) and ends the search when it returns true.
    *
-   * \throws std::runtime_error when the row's seed invariant fails.
+   * \throws std::runtime_error when the seed invariant fails.
    */
-  /// `resume`, if set, is an earlier hop's frontier on this row: the search
-  /// carries on from it (if it is this search's; see HopRun::resumeRefusal).
-  /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
+  /// `resume`, if set, is an earlier search's frontier on this link: the search
+  /// carries on from it (if it is this search's; see SearchResult::resumeRefusal).
+  /// `surfaceTarget` is the search's breadth, so a resumed search adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   /// `censusName`, if any, is SearchRequest::censusName.
   SearchResult run(const outgoing::OutgoingReader &reader, const std::string &subject,
@@ -421,23 +421,23 @@ public:
              const SearchFrontier *resume = nullptr,
              std::optional<std::string> censusName = std::nullopt) const;
 
-  /// The request run(row, rowName, ...) makes: a hop's search of `row`
-  /// (searchShape() of this searcher's HopShape, its frontier always
+  /// The request run(reader, subject, ...) makes: a search of `reader`'s link
+  /// (searchShape() of this searcher's RunShape, its frontier always
   /// recorded), for a caller that adds to it (its pending file, say).
   SearchRequest requestFor(const outgoing::OutgoingReader &reader, const std::string &subject,
                            long long surfaceTarget, double seconds) const;
 
   /**
-   * THE search: one search from `rb`'s incoming link, as `request` says.
-   * It builds the search over `rb`'s thickening (seeded with its collar),
+   * THE search: one search from `thickened`'s incoming link, as `request` says.
+   * It builds the search over `thickened`'s thickening (seeded with its collar),
    * names boundaries, checks the seed invariant, runs the search with the
    * watchdog, gates every surface the drain describes (preconditions.h),
    * keeps what passes (one per keptKey(), written to the pending file), and
-   * accounts for every surface. run(row, ...) above is the cascade's hop
+   * accounts for every surface. run(reader, ...) above is a goal run's search
    * through it.
    *
    * \throws SeedInvariantFailure when the seed invariant fails;
-   * SearchRefused for a row with no seed, or
+   * SearchRefused for a link with no seed, or
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */

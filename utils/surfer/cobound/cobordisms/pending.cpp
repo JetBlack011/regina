@@ -31,7 +31,7 @@ namespace cobordisms {
 
 namespace {
 
-// An exclusive flock(2) on the store's sidecar lock file, released on
+// An exclusive flock(2) on the database's sidecar lock file, released on
 // destruction.
 struct DatabaseLock : appendonly::FileLock {
   explicit DatabaseLock(const std::string &database) : appendonly::FileLock(database + ".lock") {}
@@ -45,8 +45,8 @@ void identitiesOf(const std::string &path, std::unordered_set<std::string> &into
   else into.merge(ids);
 }
 
-// The identities of the witness lines appended to `path` after its first
-// `from` bytes (complete lines only, as loadWitnesses() reads them).
+// The identities of the cobordism lines appended to `path` after its first
+// `from` bytes (complete lines only, as loadCobordisms() reads them).
 void identitiesSince(const std::string &path, std::uintmax_t from,
                      std::unordered_set<std::string> &into) {
   if (!fs::exists(path) || fs::file_size(path) <= from) return;
@@ -146,7 +146,7 @@ SignResult signPending(const std::string &work, const std::string &database,
   std::vector<PendingCobordism> pending = readKept(work, &readTo);
   SignResult r = signKept(std::move(pending), database, dedupeAgainst, names, threads,
                             pairSigCache, loaded, sidecarLine);
-  // Signed (or already in the store): recorded only once the store holds
+  // Signed (or already in the database): recorded only once the database holds
   // them, so a failure leaves the file to be signed again.
   for (const auto &[path, bytes] : readTo)
     if (bytes > signedThrough(path))
@@ -164,7 +164,7 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
   r.kept = pending.size();
   if (pending.empty()) return r;
 
-  // The store's identities as they stand: the run's own copy of what it
+  // The database's identities as they stand: the run's own copy of what it
   // loaded and what was appended since, or the whole file.
   auto databaseIdentities = [&](std::unordered_set<std::string> &into) {
     if (!loaded.identities) {
@@ -175,7 +175,7 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
     identitiesSince(database, loaded.bytes, into);
   };
 
-  // Fresh against the read-only stores (once) and the store as it stands.
+  // Fresh against the read-only databases (once) and the database as it stands.
   const auto tDedupe = std::chrono::steady_clock::now();
   std::unordered_set<std::string> seen;
   for (const std::string &path : dedupeAgainst) identitiesOf(path, seen, threads);
@@ -200,7 +200,7 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
   std::vector<cobordisms::Cobordism> out;
-  // parallel to out: row PD, layers, and whether the sidecar records it
+  // parallel to out: incoming PD, layers, and whether the sidecar records it
   std::vector<std::pair<std::string, int>> diagramOf;
   std::vector<char> sidecar;
   out.reserve(fresh.size());
@@ -218,7 +218,7 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
     out.push_back(std::move(w));
   }
 
-  // Under the lock: re-read what the store holds now (another run may have
+  // Under the lock: re-read what the database holds now (another run may have
   // appended since), and append only what is still new.
   DatabaseLock lock(database);
   std::unordered_set<std::string> now;
@@ -234,10 +234,10 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
     }
   cobordisms::appendCobordisms(database, append, 0);
   r.appended = append.size();
-  // Which diagram each pair signature's ambient was built from: a hop's row
-  // is a node's own diagram, not a table PD, so the atlas's farsidename
-  // (which rebuilds the row to redraw a far side) needs it. witness key
-  // (sha1(pairsig)[:12]), layers, row PD; appended beside the store.
+  // Which diagram each pair signature's ambient was built from: a goal run's
+  // search runs on its link's own diagram, not a table PD, so `cobound name`
+  // (which rebuilds the thickening to redraw an outgoing link) needs it. cobordism key
+  // (sha1(pairsig)[:12]), layers, incoming PD; appended beside the database.
   std::string lines;
   for (size_t i = 0; i < append.size(); ++i)
     if (appendSidecar[i])
@@ -246,7 +246,7 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
   if (!lines.empty()) {
     const std::string sidecarPath = database + kFrozenRowsSidecarSuffix;
     if (!fs::exists(sidecarPath)) lines = kFrozenRowsSidecarHeader + lines;
-    // fsynced like the store it describes (it was not, before phase 3).
+    // fsynced like the database it describes (it was not, before phase 3).
     appendonly::append(sidecarPath, lines, appendonly::Sync::yes);
   }
   return r;
@@ -317,7 +317,7 @@ long long PendingWriter::syncedBytes() const {
 namespace {
 
 // The length of `path` up to the end of its last complete line: a torn last
-// line is not loaded (loadWitnesses()), and the next append cuts it.
+// line is not loaded (loadCobordisms()), and the next append cuts it.
 std::uintmax_t completeBytes(const fs::path &path) {
   std::error_code ec;
   const std::uintmax_t size = fs::file_size(path, ec);

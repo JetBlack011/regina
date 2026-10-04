@@ -33,7 +33,7 @@ splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
         if (!name) {
             // describeBoundary_() never leaves a multi-curve component
             // without a linkName. Reported rather than skipped: skipping
-            // would silently turn a cobordism into a "direct" witness.
+            // would silently turn a cobordism into a "direct" cobordism.
             result.unnamedSide = true;
             continue;
         }
@@ -114,8 +114,8 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
         return g;
     }
 
-    // The search side is L by construction (the seed; asserted once at row
-    // setup), so splitBoundary() just takes component searchSideBC.
+    // The incoming side is L by construction (the seed; asserted once at
+    // the search's setup), so splitBoundary() just takes component incomingBC.
     g.split = search::splitBoundary(info.boundaryComponents,
                                             thickened.incomingBC);
     if (g.split.unnamedSide) {
@@ -128,10 +128,10 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
     }
 
     // Orientation: a surface component whose curves induce a pattern no flip
-    // of that component can fix witnesses a DIFFERENT oriented variant of
+    // of that component can fix cobordisms a DIFFERENT oriented variant of
     // this link -- the L6a3{0}/L6a3{1} misattribution. Judged per surface
     // component, since each can be oriented independently
-    // (classifyRowOrientation()).
+    // (classifyIncomingOrientation()).
     g.orientedLinks = info.captureOrientedBoundaryLinks();
     g.surfaceOf = info.captureBoundaryEdgeSurfaceComponent();
     bool foundIncoming = false;
@@ -240,7 +240,7 @@ std::string SearchAccounting::summary(long long accepted, bool drainSkipped) con
 
 namespace {
 
-// Which row components and how many far-side curves each surface component
+// Which incoming components and how many outgoing curves each surface component
 // carries, as a canonical string: surface components are unlabelled, so the
 // per-component entries are sorted.
 std::string groupingOf(const outgoing::OutgoingLink &link,

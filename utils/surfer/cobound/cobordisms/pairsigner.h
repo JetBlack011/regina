@@ -24,12 +24,12 @@
 namespace cobordisms {
 
 /// The pair signature of a kept surface, from its faces and the thickening
-/// it was found in (rebuilt from the row's PD by search::buildRow(), or
+/// it was found in (rebuilt from the incoming PD by search::buildIncoming(), or
 /// the searched one itself).
 std::string pairSigOf(const regina::Triangulation<4> &thickening,
                       const std::vector<int> &faces);
 
-/// A kept surface to sign: the row it was found in, and its faces there.
+/// A kept surface to sign: the incoming diagram it was found on, and its faces there.
 struct SignRequest {
   std::string incomingPD;
   int layers = 2;
@@ -37,13 +37,13 @@ struct SignRequest {
 };
 
 /// pairSigOf() for many surfaces at once. Almost all of a signature's cost is
-/// the ambient's own (~50 s for a 10-crossing row, 2026-09-28), so each
-/// distinct row is rebuilt (search::buildRow(), deterministic, so faces
+/// the ambient's own (~50 s for a 10-crossing link, 2026-09-28), so each
+/// distinct incoming diagram is rebuilt (search::buildIncoming(), deterministic, so faces
 /// index it as they did the searched one) and its ambient part computed once
-/// (PairSigContext), up to `threads` rows at a time. In request order.
-/// With a `cacheDir`, each row's context is read from there when stored and
-/// stored when built (PairSigContext::cached()), so a row signed again in a
-/// later run -- a node the cascade meets often -- costs no rebuild.
+/// (PairSigContext), up to `threads` diagrams at a time. In request order.
+/// With a `cacheDir`, each diagram's context is read from there when stored and
+/// stored when built (PairSigContext::cached()), so a diagram signed again in a
+/// later run -- a link goal runs meet often -- costs no rebuild.
 std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
                                     unsigned threads, const std::string &cacheDir = "");
 

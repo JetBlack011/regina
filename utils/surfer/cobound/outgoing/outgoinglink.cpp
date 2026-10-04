@@ -69,7 +69,7 @@ std::optional<OutgoingLink> orientedOutgoingLink(
             if (curve.empty()) continue;
             size_t comp = surfaceOf.at(curve.front().edge);
             auto f = flips.find(comp);
-            if (f == flips.end()) { // cannot happen: every component meets the row
+            if (f == flips.end()) { // cannot happen: every component meets the incoming link
                 if (why) *why = "a surface component misses the row";
                 return std::nullopt;
             }

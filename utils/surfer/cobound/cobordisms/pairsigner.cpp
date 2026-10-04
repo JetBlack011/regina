@@ -44,10 +44,10 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
   std::vector<std::string> out(requests.size());
   std::mutex errorMutex;
   std::string error;
-  // Rows share the threads: one row per worker, and each row's context (its
-  // ambient's isoSig, nearly all of signing) on threads / workers of them,
-  // so a run that kept surfaces from one row -- every 12-crossing knot row
-  // of a campaign -- signs on all of them rather than one.
+  // Diagrams share the threads: one incoming diagram per worker, and each
+  // one's context (its ambient's isoSig, nearly all of signing) on threads /
+  // workers of them, so a run that kept surfaces from one search -- every
+  // 12-crossing knot of a campaign -- signs on all of them rather than one.
   if (diagrams.empty()) return out;
   const size_t n = std::min<size_t>(std::max(threads, 1u), diagrams.size());
   const unsigned inner = std::max(1u, static_cast<unsigned>(std::max(threads, 1u) / n));

@@ -2,40 +2,41 @@
 //  fromdatabase.h
 //
 //  A stored cobordism's outgoing link: read back from its pair signature
-//  onto its row's thickening (WitnessRedrawer), and kept across runs
-//  (RowReadBacks).
+//  onto the thickening of the diagram it was searched on (OutgoingReader),
+//  and kept across runs
+//  (ReadBacks).
 //
 
 /*! \file utils/surfer/cobound/outgoing/fromdatabase.h
  *  \brief Reading stored cobordisms' outgoing links, and keeping them.
  *
- *  **WitnessRedrawer** redraws witnesses of one row from their pair
+ *  **OutgoingReader** redraws cobordisms of one incoming diagram from their pair
  *  signatures, exactly as the search itself would have seen them. The row is
- *  thickened as verifyslicegenus thickens it (search::buildRow()). A
- *  witness's decoded pair is carried onto that thickening by an isomorphism
- *  sending its incoming curve onto the row's L x {0}; from there the outgoing
+ *  thickened as verifyslicegenus thickens it (search::buildIncoming()). A
+ *  cobordism's decoded pair is carried onto that thickening by an isomorphism
+ *  sending its incoming curve onto L x {0}; from there the outgoing
  *  side is read through the thickening's own product structure
  *  (OutgoingMap), so no automorphism of T can mirror it, and oriented against
- *  the row (outgoing::orientedOutgoingLink()). The isomorphism is the only
- *  search, and L x {0} pins it. Used by farsidediagram (diagrams),
- *  farsidename (exact names) and the cascade (stored cobordisms as graph
- *  edges).
+ *  the incoming link (outgoing::orientedOutgoingLink()). The isomorphism is the only
+ *  search, and L x {0} pins it. Used by `cobound draw` (diagrams),
+ *  `cobound name` (names) and goal runs (stored cobordisms into their
+ *  cobordism graphs).
  *
- *  **RowReadBacks** keeps those read-backs across runs. Reading a master
- *  witness back (WitnessRedrawer::outgoingLinkFast()) enumerates the
- *  isomorphisms from its pair signature's ambient onto the row's thickening
+ *  **ReadBacks** keeps those read-backs across runs. Reading a master
+ *  cobordism back (OutgoingReader::outgoingLinkFast()) enumerates the
+ *  isomorphisms from its pair signature's ambient onto the thickening
  *  -- most of a run's single-threaded driver time on 2026-09-30, and the same
- *  witnesses of the same popular rows (L6a5{0;1}, L7a7{0;0}, L10a147{0;0},
+ *  cobordisms of the same popular subjects (L6a5{0;1}, L7a7{0;0}, L10a147{0;0},
  *  ...) were read again by nearly every target's run. The result is fixed by
- *  the witness and the row's exact thickening, so it is kept: one file per
- *  row, one line per witness.
+ *  the cobordism and the thickening exactly, so it is kept: one file per
+ *  incoming diagram, one line per cobordism.
  *
- *    <dir>/<rowkey>.readback       rowkey = witnessKey(row PD + "|" + layers)
- *      readback 1 <build digest>   the row's WitnessRedrawer::buildChecksum()
- *      <witness key>\tok\t<link>   a read-back (serialiseLink())
- *      <witness key>\tfail\t<why>  a read-back that fails (it always will)
+ *    <dir>/<key>.readback          key = cobordismKey(incoming PD + "|" + layers)
+ *      readback 1 <build digest>   the thickening's OutgoingReader::buildChecksum()
+ *      <cobordism key>\tok\t<link>   a read-back (serialiseLink())
+ *      <cobordism key>\tfail\t<why>  a read-back that fails (it always will)
  *
- *  A file whose digest is not the row's as built now is ignored and replaced:
+ *  A file whose digest is not the thickening's as built now is ignored and replaced:
  *  knotbuilder or the thickening changed, so its edge numbers mean nothing.
  *  Appends hold an flock on the file; a torn last line is ignored.
  */
@@ -65,49 +66,49 @@ namespace outgoing {
 class OutgoingReader {
   public:
     /**
-     * \param rowPD the row's PD code, as the tables write it.
-     * \param layers the witnesses' thicken_layers (cobordisms.csv).
+     * \param incomingPD the incoming diagram's PD code, as the tables write it.
+     * \param layers the cobordisms' thicken_layers (cobordisms.csv).
      */
     OutgoingReader(const std::string &incomingPD, int layers);
     OutgoingReader(const OutgoingReader &) = delete;
     OutgoingReader &operator=(const OutgoingReader &) = delete;
 
     /**
-     * The witness's surface as triangle indices of the thickening, or
+     * The cobordism's surface as triangle indices of the thickening, or
      * nullopt with `why` set when no isomorphism carries its incoming curve
      * onto L x {0}.
      */
     std::optional<std::vector<int>> carry(const std::string &pairsig, std::string &why) const;
 
-    /** The oriented outgoing link of a witness, or nullopt with `why`. */
+    /** The oriented outgoing link of a cobordism, or nullopt with `why`. */
     std::optional<OutgoingLink> outgoingLink(const std::string &pairsig, std::string &why) const;
 
     /**
-     * As outgoingLink(), without rebuilding what a stored witness no longer
-     * needs checked -- and what made the reference path ~1 s per witness:
+     * As outgoingLink(), without rebuilding what a stored cobordism no longer
+     * needs checked -- and what made the reference path ~1 s per cobordism:
      *
      *   - A pair signature is the AMBIENT's own isomorphism signature, a
      *     delimiter, and the surface's faces in that ambient's canonical
-     *     reconstruction (pairsig.h). Every witness of a row therefore has
+     *     reconstruction (pairsig.h). Every cobordism of one incoming diagram therefore has
      *     the same ambient part: it is decoded, and its isomorphisms onto
-     *     the thickening found, once per row; per witness only the face
+     *     the thickening found, once per diagram; per cobordism only the face
      *     suffix is decoded, and the cached isomorphisms tried until one
      *     carries the incoming curve onto L x {0}.
      *   - The surface is not rebuilt as a KnottedSurface, whose addFaces()
      *     re-runs the search's embeddedness and local-flatness checks with a
-     *     cold cache (~290 ms): a stored witness passed them when found. Its
+     *     cold cache (~290 ms): a stored cobordism passed them when found. Its
      *     triangles are glued into a plain regina::Triangulation<2>, each
      *     component oriented, and the boundary read off exactly as
      *     KnottedSurface::orientedBoundaryLinks() does.
      *
-     * farsidename checks this against outgoingLink() (--reference).
+     * `cobound name` checks this against outgoingLink() (name_reference).
      */
     std::optional<OutgoingLink> outgoingLinkFast(const std::string &pairsig,
                                                  std::string &why) const;
 
     /**
      * Rebuilds a surface given by its triangles in thickening() -- as an
-     * in-process cascade hop keeps them -- face by face into `surface`, which
+     * goal run's search keeps them -- face by face into `surface`, which
      * must be empty, over skeleton(), made with resolveUnlinked on. It runs
      * the search's own checks: every face must add, and the whole must
      * satisfy `proper`, be acceptable (embedded or resolvable, and smooth at
@@ -137,15 +138,15 @@ class OutgoingReader {
     size_t incomingBC() const { return thickened_.incomingBC; }
     const std::vector<size_t> &incomingEdges() const { return thickened_.incomingEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
-    /** The row's own components, in DiagramDrawer::cyclesOf() order. */
+    /** The incoming link's own components, in DiagramDrawer::cyclesOf() order. */
     const std::vector<knotbuilder::EdgeCycle> &incomingCycles() const { return incomingCycles_; }
-    /** Which of rowCycles() the search-side edge `edgeIndex` (an index into
+    /** Which of incomingCycles() the incoming edge `edgeIndex` (an index into
      *  the incoming boundary component's built triangulation) lies on.
      *  \throws std::out_of_range for an edge that is not one of L's. */
     size_t incomingComponentOf(size_t edgeIndex) const { return incomingComponentOf_.at(edgeIndex); }
     const knotbuilder::TriangulationWithLink &built() const { return thickened_.link; }
-    /** The whole row build: a search run in thickening() (cascadesearch's
-     *  in-process hops) sees exactly what this redrawer reads. */
+    /** The whole incoming thickening: a search run in thickening() (a goal
+     *  run's searches) sees exactly what this reader reads. */
     const search::IncomingThickening &thickened() const { return thickened_; }
 
     /** Cumulative milliseconds spent decoding pair signatures, and searching
@@ -172,22 +173,22 @@ class OutgoingReader {
      * thickening() by the first isomorphism `isos` offers whose image meets
      * the incoming boundary in exactly L x {0}, or nullopt. carry() decodes
      * the whole pair signature and enumerates the isomorphisms as it goes;
-     * outgoingLinkFast() decodes only the face suffix and offers the row's
+     * outgoingLinkFast() decodes only the face suffix and offers the thickening's
      * isomorphisms, found once.
      */
     std::optional<std::vector<int>> pinned_(const regina::Triangulation<4> &ambient,
                                             const std::vector<int> &faces,
                                             const IsoSource &isos) const;
 
-    search::IncomingThickening thickened_; /**< T, the thickening, its collar and row map. */
+    search::IncomingThickening thickened_; /**< T, the thickening, its collar and incoming map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
     std::vector<knotbuilder::EdgeCycle> incomingCycles_;
-    std::unordered_map<size_t, size_t> incomingComponentOf_; /**< see rowComponentOf() */
+    std::unordered_map<size_t, size_t> incomingComponentOf_; /**< see incomingComponentOf() */
     mutable double msDecode_ = 0, msIso_ = 0, msSurface_ = 0, msRead_ = 0, msBoundaryBuild_ = 0;
 
-    // The fast path's per-row state (outgoingLinkFast()).
+    // The fast path's per-diagram state (outgoingLinkFast()).
     mutable std::string ambientSig_;
     mutable std::unique_ptr<regina::Triangulation<4>> ambient_;
     mutable std::vector<regina::Isomorphism<4>> isos_;
@@ -211,8 +212,8 @@ std::string serialiseLink(const outgoing::OutgoingLink &link);
 /// Inverse of serialiseLink(); nullopt if the text is malformed.
 std::optional<outgoing::OutgoingLink> parseLink(const std::string &text);
 
-/// One row's read-backs: loaded from its file, appended as new ones are
-/// computed. Not shared between threads (one per row being read).
+/// One incoming diagram's read-backs: loaded from its file, appended as new
+/// ones are computed. Not shared between threads (one per diagram being read).
 class ReadBacks {
 public:
   /// An empty dir means no cache (get() finds nothing, put() keeps nothing).
