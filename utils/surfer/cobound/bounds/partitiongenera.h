@@ -80,7 +80,7 @@ struct Glued {
  * `gluedPartition` partitions the glued side's curves (in that side's curve
  * order) into the pieces of a surface G bounded by them, of total genus
  * `gluedGenus`. The union S = C u G is then a surface in B^4 (after the
- * collar identification of README.md, "Composing hops") bounded by the free
+ * collar identification of README.md, "Gluing (`glue()`)") bounded by the free
  * side. Its pieces are the connected components of the graph whose vertices
  * are C's components and G's pieces and whose edges are the glued curves; a
  * graph component K has genus

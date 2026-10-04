@@ -4,7 +4,7 @@
 // searches): a search's incoming link is certified, every cobordism becomes
 // cobordisms of the graph, outgoing links become graph links with the right
 // component maps, and the cobordism graph derives
-// what the cobordisms prove. README.md, "Composing hops".
+// what the cobordisms prove. README.md, "Component maps".
 
 #include <fstream>
 #include <map>

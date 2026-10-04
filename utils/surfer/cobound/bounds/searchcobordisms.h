@@ -1,7 +1,7 @@
 // searchcobordisms.h
 //
 // One search's cobordisms, turned into cobordisms of the graph. See README.md,
-// "Composing hops".
+// "Component maps".
 
 #pragma once
 

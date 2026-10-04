@@ -1,4 +1,4 @@
-// leaves_test.cpp: the literature leaf policy (README.md, "Leaf facts").
+// axioms_test.cpp: the literature leaf policy (README.md, "Leaf facts").
 
 #include "cobound/bounds/axioms.h"
 #include "linknaming/tests/check.h"
