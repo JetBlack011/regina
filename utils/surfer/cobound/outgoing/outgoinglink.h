@@ -90,8 +90,9 @@ std::optional<OutgoingLink> orientedOutgoingLink(
 
 /**
  * As above, with the incoming curves' flips already judged (incomingFlips(),
- * or a search's gate, search::GatedSurface::flips). nullopt ("a surface
- * component misses the row") when an outgoing curve's component has none.
+ * or a search's gate, search::GatedSurface::flips). nullopt when an outgoing
+ * curve's surface component meets no incoming curve (`why`: "a surface
+ * component misses the row", the incoming link in the message's old word).
  */
 std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,

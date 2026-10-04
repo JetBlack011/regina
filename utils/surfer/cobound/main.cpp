@@ -6,8 +6,9 @@
 //    cobound run       [--config FILE]... [--set key=value]...
 //    cobound solve     [--config FILE]... [--set key=value]...
 //    cobound sign      [--config FILE]... [--set key=value]...
-//    cobound draw      [--layers N] [--gauss] [--faces [--pairsig [--sig-cache DIR]]] '<row PD>'
+//    cobound draw      [--layers N] [--gauss] [--faces [--pairsig [--sig-cache DIR]]] '<incoming PD>'
 //    cobound name      --knots CSV --links CSV [--symmetry CSV] [namer limits] [--profile]
+//                      [--reference]
 //    cobound meridians sig|dump|dump-link|dump-subset|slope
 //    cobound help [keys]
 //

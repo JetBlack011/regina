@@ -116,8 +116,8 @@ SymmetryTable readSymmetryTable(const std::filesystem::path &path);
  * is refused, never guessed.
  *
  * The two long-standing anchors "3_1#m3_1" and "4_1#4_1" are accepted even
- * with no symmetry data loaded, so a run without --knot-symmetry loses
- * nothing it had before. Consumed by both the atlas solver and goal runs.
+ * with no symmetry data loaded, so a run without `knot_symmetry` still
+ * has them. Consumed by both the atlas solver and goal runs.
  */
 bool isElementarySlice(const std::string &name, const SymmetryTable &symmetry);
 

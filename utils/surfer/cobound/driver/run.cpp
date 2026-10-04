@@ -73,7 +73,7 @@ int runWithoutGoal(const config::Config &cfg) {
   const std::string linkTablePath = cfg.text("link_table");
   const std::string knotSymmetryPath = cfg.text("knot_symmetry");
   const std::optional<std::string> targetPD = cfg.optionalText("target_pd");
-  // The rows to search: the table's, or the one diagram.
+  // The targets to search: the table's entries, or the one diagram.
   const std::string inputPath = targetPD ? std::string() : cfg.text("targets");
   const std::optional<long long> maxFaces = cfg.optionalInteger("max_faces");
   const int maxCrossings = static_cast<int>(cfg.integer("max_crossings"));
@@ -201,7 +201,7 @@ int runWithoutGoal(const config::Config &cfg) {
   // The tables, loaded once: a search's own cobordism graph names its links by
   // them (divergence 6), and its outgoing links are named by them (phase 7.1:
   // always). A run that cannot load them searches nothing. The frozen line
-  // says they are loaded (dispatch.py fails a row without it).
+  // says they are loaded (dispatch.py fails a search without it).
   std::optional<linknaming::Tables> tablesOwn;
   std::optional<linknaming::LinkNamer> graphNamer;
   try {
@@ -625,7 +625,7 @@ int runWithoutGoal(const config::Config &cfg) {
   // every search this run made: unsigned cobordisms stay in their pending
   // files (`cobound sign` signs them), the searches' exhaustion claims are
   // withdrawn, each search is reported again with outcome io-error
-  // (dispatch.py reads a row's last outcome line), and the run exits 2.
+  // (dispatch.py reads a search's last outcome line), and the run exits 2.
   std::string endFailure;
   bool signFailed = false;
   try {

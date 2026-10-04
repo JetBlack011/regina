@@ -32,18 +32,18 @@
 
 namespace cobordisms {
 // ─────────────────────────────────────────────────────────────────────────
-// Database (--cobordisms) I/O
+// Database (`cobordisms`) I/O
 // ─────────────────────────────────────────────────────────────────────────
 //
-// The point of persisting these separately from --output is that a cobordism
-// is a fact ("a surface with this boundary and this genus exists") while an
-// verdicts row is a conclusion. Conclusions get better whenever the solver,
-// the literature tables, or the naming improves; facts do not. So
+// The point of persisting these separately from the verdicts is that a
+// cobordism is a fact ("a surface with this boundary and this genus exists")
+// while a verdicts row is a conclusion. Conclusions get better whenever the
+// solver, the literature tables, or the naming improves; facts do not. So
 // every fact a search paid for is written here once and never re-searched,
 // and `cobound solve` re-derives all the conclusions from them in seconds.
 
 // resolved_vertices (Cobordism::resolvedVertices) is written EMPTY when 0, which
-// is every cobordism but those found under --resolve-unlinked. That keeps a line
+// is every cobordism but those found under `resolve_unlinked`. That keeps a line
 // written before the column existed, or merged in by a Python DictWriter
 // (which fills a missing field with ""), byte-identical after a solve's
 // round trip -- the invariant merge_cobordisms.py relies on.

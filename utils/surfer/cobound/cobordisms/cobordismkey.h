@@ -22,7 +22,7 @@
  *  mirror-invariant. For a LINK it is not: a complement does not determine
  *  a link (Rolfsen twisting), and one observed name is genuinely different
  *  links on different cobordisms -- "m129" alone stands for a dozen of them
- *  in our data. So a name-keyed table (--name-aliases) cannot express a
+ *  in our data. So a name-keyed table (`name_aliases`) cannot express a
  *  link's identity without being wrong on most of its cobordisms.
  *
  *  The pair signature DOES determine the outgoing link, so it is the honest key.

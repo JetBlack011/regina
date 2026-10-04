@@ -90,7 +90,7 @@ struct Cobordism {
 
     int resolvedVertices = 0;
     /**< How many ambient vertices the found surface meets itself at. 0 for
-         an embedded surface. Positive only under --resolve-unlinked, where
+         an embedded surface. Positive only under `resolve_unlinked`, where
          each such vertex is an unlinked self-intersection, and a
          perturbation near those vertices turns the surface into an embedded
          one of the same topology and boundary (paper §4.5), so the cobordism

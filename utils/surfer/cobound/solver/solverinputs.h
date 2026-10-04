@@ -23,7 +23,7 @@
  *  name aliases, per-cobordism resolutions and outgoing names, the
  *  table's link classes and certified bounds. Each is applied to a SEPARATE
  *  copy of the cobordisms the solver reads (the database keeps what the
- *  search observed). The resolutions and --sum-rules stay until the atlas
+ *  search observed). The resolutions and `sum_rules` stay until the atlas
  *  task cuts them (plan hand-off item 6).
  */
 

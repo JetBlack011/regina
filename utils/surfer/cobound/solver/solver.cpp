@@ -203,7 +203,7 @@ UpperContribution upperOf(const std::string &name,
                 best = {.value = k.value + worst, .support = std::move(support)};
         }
     }
-    // A sum along components (--sum-rules): g_4(A # B) <= g_4(A) + g_4(B),
+    // A sum along components (`sum_rules`): g_4(A # B) <= g_4(A) + g_4(B),
     // boundary-connect-summing the pieces' minimal connected surfaces along
     // the summed components -- constructive, whichever the components are.
     if (names.sumRules())
@@ -342,7 +342,7 @@ LowerContribution lowerOf(const std::string &name,
             }
         }
     }
-    // --sum-rules, a split with ANY factors: cap every other factor off in a
+    // `sum_rules`, a split with ANY factors: cap every other factor off in a
     // collar with its minimal connected surface. Gluing a connected surface
     // on along k circles adds k - 1 to the genus, so
     //     g_4(F_i) <= g_4(u F) + sum_{j != i} (g_4(F_j) + n(F_j) - 1).
@@ -386,7 +386,7 @@ LowerContribution lowerOf(const std::string &name,
                 if (ok && (best.value == NO_LOWER_BOUND || value > best.value))
                     best = {.value = value, .support = std::move(support)};
             }
-    // --sum-rules, a sum along components: undoing a piece B (summing -B into
+    // `sum_rules`, a sum along components: undoing a piece B (summing -B into
     // the same component; B # -B bounds (B^3, T_B) x I, a disc and n(B) - 1
     // annuli, each annulus a handle once glued on) costs g_4(B) + n(B) - 1,
     //     g_4(P_i) <= g_4(sum) + sum_{j != i} (g_4(P_j) + n(P_j) - 1).

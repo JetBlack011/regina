@@ -57,7 +57,7 @@ NameTable::candidates(const std::string &name,
 namespace solver {
 
 // Loads a literature table for its names and bounds only, skipping the PD
-// code entirely. Used for tables that aren't this run's --input: we need
+// code entirely. Used for tables that aren't this run's targets: we need
 // their names (to expand orientation-blind names into candidate
 // sets) and their bounds, but never build a triangulation from them, so
 // there is no reason to pay parsePDCode()'s cost across 12k+ rows.

@@ -34,9 +34,9 @@ namespace targets {
 std::vector<solver::InputRow> loadInputCsv(const std::filesystem::path &path);
 
 /**
- * One diagram as a row: its name, PD and crossings, and its literature
- * interval from `tables` when the name is a table row there, else [0, 99]
- * (as the retired child search wrote an untabulated row).
+ * One diagram as a target: its name, PD and crossings, and its literature
+ * interval from `tables` when the name is an entry there, else [0, 99],
+ * the interval of an untabulated target.
  */
 solver::InputRow oneDiagram(const std::string &name, const std::string &pd,
                                     const std::vector<std::filesystem::path> &tables);
@@ -50,7 +50,7 @@ std::vector<solver::InputRow>
 searchOrder(const std::vector<solver::InputRow> &rows, int maxCrossings,
             std::unordered_map<std::string, verdicts::OutputRow> &outputRows);
 
-/** name -> the table's PD string, as the atlas's rows were searched from it. */
+/** name -> the table's PD string, the diagram each entry is searched on. */
 std::map<std::string, std::string> tablePDs(const std::vector<std::string> &files);
 
 } // namespace targets

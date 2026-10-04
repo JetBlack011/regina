@@ -16,9 +16,9 @@
 #include "cobound/solver/literature.h"
 
 /*! \file utils/surfer/cobound/solver/solver.h
- *  \brief The name/genus resolution graph built up across the --input rows:
+ *  \brief The name/genus resolution graph built up across the targets:
  *  given a set of cobordisms between named knots/links, works out what each
- *  row's slice genus must be.
+ *  target's slice genus must be.
  *
  *  \section cg_math The inequality this is all built on
  *

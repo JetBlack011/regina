@@ -138,9 +138,9 @@ void LinkAxioms::applySum(LinkId n, const std::vector<GaussDiagram> &primes, int
 void LinkAxioms::applyComposite(LinkId n, const linknaming::LinkName &fs) {
   // The composite's name is recorded (certificates, link bounds, the
   // subject name stays cascade:, since no table entry holds it). It is an
-  // ANCHOR when its summands cancel in concordance (cobordismgraph.h
+  // ANCHOR when its summands cancel in concordance (linknaming/tables.h
   // isElementarySlice: the explicit allowlist, or symmetry types from
-  // --knot-symmetry): K # m(K^r) bounds a ribbon disc, so the link gets the
+  // `knot_symmetry`): K # m(K^r) bounds a ribbon disc, so the link gets the
   // unknot's leaf, constructive like the unknot's, never for the target.
   tableName[n] = fs.name;
   if (n == target) return;

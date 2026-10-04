@@ -64,7 +64,7 @@ void identitiesSince(const std::string &path, std::uintmax_t from,
 }
 
 int searchNumber(const fs::path &dir) {
-  // hop_<k>_n<node>
+  // hop_<k>_n<link>
   const std::string name = dir.filename().string();
   try {
     return std::stoi(name.substr(sizeof kFrozenHopDirPrefix - 1));

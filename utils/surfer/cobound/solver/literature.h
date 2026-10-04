@@ -25,8 +25,9 @@
 
 namespace solver {
 
-/** One --input row: a name to verify/bound the slice genus of, plus its
- * literature bounds and the PD code to search from. */
+/** One target (a row of the `targets` table, or the `target_pd` diagram):
+ * a name to verify/bound the slice genus of, plus its literature bounds and
+ * the PD code to search from. */
 struct InputRow {
     std::string name;
     std::string pdNotation;
@@ -47,9 +48,10 @@ struct NameInfo {
 };
 
 /**
- * Populated from the --input tables. A links run and a knots run pointed at
- * the same table set see the same NameTable, which is what lets a knot's
- * search use an outgoing link named from the link table and vice versa.
+ * Populated from the targets and the knot and link tables. A links run and
+ * a knots run pointed at the same table set see the same NameTable, which
+ * is what lets a knot's search use an outgoing link named from the link
+ * table and vice versa.
  */
 class NameTable {
   public:
@@ -86,7 +88,7 @@ class NameTable {
 
     size_t size() const { return info_.size(); }
 
-    /** Records a knot's symmetry type (--knot-symmetry). */
+    /** Records a knot's symmetry type (the `knot_symmetry` table). */
     void setSymmetry(const std::string &knot, SymmetryType type) {
         symmetry_[knot] = type;
     }
@@ -102,7 +104,7 @@ class NameTable {
 
     /**
      * Whether upperOf()/lowerOf() bound sums along components and splits
-     * with link factors from their pieces (--sum-rules): the additive upper
+     * with link factors from their pieces (`sum_rules`): the additive upper
      * bound, and the lower bounds g_4(F_i) - sum_{j != i} (g_4(F_j) + n(F_j)
      * - 1) for a split and g_4(P_i) - sum_{j != i} (g_4(P_j) + n(P_j) - 1)
      * for a sum. Off by default, like every other widening of what bounds.

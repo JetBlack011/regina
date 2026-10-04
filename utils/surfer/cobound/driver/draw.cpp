@@ -5,7 +5,7 @@
 //  cobordisms' outgoing links, from their pair signatures.
 //
 //  Usage:
-//    cobound draw [--layers N] [--gauss] [--faces] '<row PD code>' < pairsigs
+//    cobound draw [--layers N] [--gauss] [--faces] '<incoming PD code>' < pairsigs
 //
 //  The flags are farsidediagram's, which the atlas's checker and recorder
 //  (cascade_check.py, cascade_record.py) pass; each is a config key (layers,
@@ -139,7 +139,7 @@ std::string curveEdges(const std::vector<diagramtriangulation::EdgeCycle> &curve
 
 int commands::draw(const std::vector<std::string> &args) {
     const char *usage = "usage: cobound draw [--layers N] [--gauss] "
-                        "[--faces [--pairsig [--sig-cache DIR]]] '<row PD code>' < pairsigs (or faces)\n";
+                        "[--faces [--pairsig [--sig-cache DIR]]] '<incoming PD code>' < pairsigs (or faces)\n";
     int layers = 2;
     bool gauss = false, facesInput = false, pairsigOut = false;
     std::string sigCache;
