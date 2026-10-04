@@ -43,7 +43,7 @@ extern std::mutex censusLookupMutex;
 /**
  * Names `e` by its complement, without printing: the census name if there
  * is one, "Unknot" if a genus-1 handlebody, or else the bare isoSig as a
- * fallback identifier.
+ * fallback name.
  */
 std::string nameComplement(const EdgeComplement &e);
 
@@ -73,7 +73,7 @@ std::string perturbedForTesting(std::string name);
  * multi-component unlink's complement has multiple torus boundary
  * components, so it is never itself a handlebody), the census name if
  * there is one, "Unknot" if `l` is a single unknotted curve, or else the
- * bare isoSig as a fallback identifier.
+ * bare isoSig as a fallback name.
  *
  * A genuine overload, not virtual dispatch: since Link publicly inherits
  * EdgeComplement, nameComplement(const EdgeComplement&) would already run and

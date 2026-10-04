@@ -294,7 +294,7 @@ threads, not in ctest):
 - **Census.** The kernel's hyperbolicity and volume agree with KnotInfo and
   LinkInfo for every entry: 16,981 hyperbolic (volumes equal to 10⁻⁶), 172
   not (torus knots, satellites, non-hyperbolic links).
-- **Self-identification.** Every entry under every transform (as written,
+- **Self-naming.** Every entry under every transform (as written,
   mirrored, reversed, and each component c ≥ 1 reversed: 58,679 cases),
   scrambled by seeded random Reidemeister moves into another diagram of the
   same oriented link, is named by the isometry step alone exactly as the
