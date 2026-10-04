@@ -1,16 +1,17 @@
 // hoprunner_test.cpp
 //
-// An in-process hop (hoprunner.h) against the route a child hop takes. On
+// An in-process search (search/search.h) against reading its finds back
+// from their pair signatures. On
 // exhaustive searches at face cap 3 (the canaries' shape, so the counts are
 // a function of the code alone):
 //
 //   1. The accounting is verifyslicegenus's: 3_1 accepts 1,752 surfaces,
 //      L2a1{0} 945 with 150 turned away as the other orientation
 //      (tools/orchestrate/canaries.expected).
-//   2. Every kept surface gives the same edge read in process as read back
+//   2. Every kept surface gives the same cobordism read in process as read back
 //      from its pair signature (computed later from its faces) -- the route
-//      a certificate's checker replays: the same far-side curves on the same
-//      surface components, the same genus, and far sides that split into the
+//      a certificate's checker replays: the same outgoing curves on the same
+//      surface components, the same genus, and outgoing links that split into the
 //      same pieces.
 //   3. Keys are distinct, and a stop request ends the search.
 
@@ -57,18 +58,18 @@ SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
   return searched;
 }
 
-// What an edge says, independent of how its surface was read: per surface
-// component, the row's components and the far node's components on it
-// (surface components are unlabelled, so sorted), and the far side's piece
-// nodes -- with the row's components relabelled by `rowPerm` and the far
-// node's by `farPerm`.
+// What a cobordism says, independent of how its surface was read: per
+// surface component, the incoming link's components and the outgoing
+// link's components on it (surface components are unlabelled, so sorted),
+// and the outgoing link's piece links -- with the incoming components
+// relabelled by `incomingPerm` and the outgoing ones by `outgoingPerm`.
 //
 // The pair-signature route carries the surface back by an isomorphism
 // sending its incoming curve onto L x {0}, and T has automorphisms preserving
-// L (3_1's has six), so its far-side curves may sit elsewhere in T; and a
-// symmetric far side (the Hopf link) may be matched to its node by either of
-// two component maps. Both reads are then true, and differ by a symmetry of
-// the row and one of the far side: so they are compared up to those.
+// L (3_1's has six), so its outgoing curves may sit elsewhere in T; and a
+// symmetric outgoing link (the Hopf link) may be matched to its graph link by
+// either of two component maps. Both reads are then true, and differ by a
+// symmetry of the incoming link and one of the outgoing link: so they are compared up to those.
 std::string content(const CobordismGraph &g, const AddedCobordism &e, const std::vector<int> &incomingPerm,
                     const std::vector<int> &outgoingPerm) {
   if (!e.ok) return "not ok: " + e.why;
@@ -155,7 +156,7 @@ std::vector<std::pair<SignRequest, std::string>> signed_;
 
 void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name,
               const std::string &pd, long long accepted, long long otherOrientation) {
-  // One graph and registry for both reads, so equal far sides are one node.
+  // One graph and registry for both reads, so equal outgoing links are one graph link.
   CobordismGraph g;
   LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
@@ -214,7 +215,7 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
   CHECK_EQ(fromFaces, compared,
            name + ": every kept surface reads exactly the same rebuilt from its faces");
 
-  // Faces that are not a surface of this row are refused, not misread.
+  // Faces that are not a surface of this thickening are refused, not misread.
   const std::vector<int> &faces = run.kept.front().faces;
   std::string why;
   std::vector<int> noSeed;
@@ -236,8 +237,8 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
   }
 }
 
-// The build digest names the thickening: the same for two builds of one row,
-// different for another row or another number of layers.
+// The build digest names the thickening: the same for two builds of one
+// diagram, different for another diagram or another number of layers.
 void testBuildChecksum() {
   const char *trefoil = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
   const outgoing::OutgoingReader a(trefoil, 2), b(trefoil, 2);
@@ -249,13 +250,13 @@ void testBuildChecksum() {
   CHECK_EQ(a.buildChecksum().size(), static_cast<size_t>(16), "digest: 16 hex digits");
 }
 
-// pairSigsOf(): the rows rebuilt from their PD codes and signed with one
-// ambient context each, several rows at once, give exactly the signatures
+// pairSigsOf(): the thickenings rebuilt from their PD codes and signed with
+// one ambient context each, several at once, give exactly the signatures
 // of the searched thickenings, in request order.
 void testBatchSigning() {
   std::vector<SignRequest> requests;
   for (const auto &[r, sig] : signed_) requests.push_back(r);
-  std::reverse(requests.begin(), requests.end()); // rows interleaved differently
+  std::reverse(requests.begin(), requests.end()); // diagrams interleaved differently
   const std::vector<std::string> sigs = pairSigsOf(requests, 3);
   CHECK_EQ(sigs.size(), requests.size(), "batch: one signature per request");
   int same = 0;

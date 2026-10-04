@@ -1,6 +1,6 @@
 // profile_test.cpp
 //
-// Tests for cascade/partition.h and cascade/profile.h. Each block names the
+// Tests for bounds/partition.h and bounds/partitiongenera.h. Each block names the
 // assumption it pins (README.md, "Assumptions and their tests").
 
 #include <map>
@@ -260,7 +260,7 @@ void testPaperSpecialCases() {
         auto r = glue(CobordismShape::product(n), s, p, 2);
         CHECK(r->partition == p && r->genus == 2, "product is the identity");
       }
-  // A9: disconnected witnesses (the ~70% tubed ones): two annuli from a
+  // A9: disconnected cobordisms (the ~70% tubed ones): two annuli from a
   // 2-component link to a 2-component link keep blocks apart.
   CobordismShape annuli = CobordismShape::product(2);
   auto sep = glue(annuli, Side::outgoing, Partition::singletons(2), 0);

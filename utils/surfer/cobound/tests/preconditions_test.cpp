@@ -1,14 +1,14 @@
 //
 //  rowsearch_test.cpp
 //
-//  The row pipeline verifyslicegenus and cascadesearch share
-//  (rowsearch.h), each piece pinned on its own:
+//  A search's preconditions and gates (search/preconditions.h), each piece
+//  pinned on its own:
 //
 //    1. conditionFor(): `connected` only ever for a knot.
 //    2. gateReason(): the names --rejection-sample-log has always written.
-//    3. RowAccounting: every bucket, every failure message, and the exact
+//    3. SearchAccounting: every bucket, every failure message, and the exact
 //       `accounting:` body tools/orchestrate/dispatch.py parses.
-//    4. RowWatchdog: the surface target before the clocks, each limit's
+//    4. SearchWatchdog: the surface target before the clocks, each limit's
 //       reason, at most one call, no thread without a limit.
 //    5. gateSurface() on real exhaustive searches at face cap 3 (the
 //       canaries' shape): 3_1 accepts all 1,752 surfaces, and L2a1{0}
@@ -17,8 +17,8 @@
 //       verifyslicegenus, reached here without it and without any naming.
 //    6. SurfaceBoundaryInfo::captureFaces: a surface's pair signature, taken
 //       later from (ambient, faces), is the one the search would have
-//       captured -- what lets the cascade defer signatures to the few
-//       witnesses a proof uses.
+//       captured -- what lets a goal run defer signatures to the few
+//       cobordisms a proof uses.
 //
 
 #include <atomic>
@@ -199,8 +199,8 @@ void test_watchdog() {
     expect(r.empty(), "before the deadline: nothing");
 }
 
-// Names every far side "far", so a search needs no tables and no complement
-// identification: the gates never consult a name beyond its presence.
+// Names every outgoing link "far", so a search needs no tables and no
+// complement naming: the gates never consult a name beyond its presence.
 class OutgoingStubNamer : public BoundaryNamer {
   public:
     explicit OutgoingStubNamer(size_t incoming) : incoming_(incoming) {}

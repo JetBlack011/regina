@@ -3,7 +3,7 @@
 // Every key's default reproduces the reference behaviour (plan, phase 5):
 // without a goal verifyslicegenus's (9eb3cec4c: its option defaults and the
 // library defaults it left in place), with a goal cascadesearch's (its
-// Config and HopShape), and each command's its tool's. One check per key and
+// Config and RunShape), and each command's its tool's. One check per key and
 // context, against the reference value; the library's own constants where
 // the reference took them from the library. Then the parser: files, --set,
 // `none`, required keys, types, unknown and inapplicable keys, aliases, the

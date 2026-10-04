@@ -1,22 +1,22 @@
 //
 //  incomingmap_test.cpp
 //
-//  The row's own link, as verifyslicegenus sets it up on the search side
-//  of a real collar-seeded search:
+//  The incoming link, as a search sets it up on the incoming side of a real
+//  collar-seeded search:
 //
-//    1. buildRowOrientation(), pinned to the seed's own edges, lands on
+//    1. buildIncomingOrientation(), pinned to the seed's own edges, lands on
 //       exactly L x {0} -- every edge, one closed directed curve per
 //       component -- even though the diagram's triangulation has
 //       automorphisms (D3).
-//    2. No searchable face other than the seed touches the search side, so
-//       the search side can never change; an unprotected search, for
+//    2. No searchable face other than the seed touches the incoming side, so
+//       the incoming side can never change; an unprotected search, for
 //       contrast, has plenty that do.
 //    3. The bare collar's own boundary classifies as a MATCH. For a link its
 //       collar is one annulus per component, each oriented independently;
 //       comparing their signs globally (D2) rejected it for some variants.
 //
-//  Built from real PD codes by search::buildRow(), the build
-//  verifyslicegenus and cascadesearch both use. An optional argument
+//  Built from real PD codes by search::buildIncoming(), the build
+//  every search uses. An optional argument
 //  -- a table CSV of Name,PD,... rows -- sweeps every row of it instead
 //  (slow; not part of ctest):
 //
@@ -68,7 +68,7 @@ namespace {
 
 // The seed's edges in boundary component `bcIndex`, as sorted indices of
 // that component's built triangulation: computed here independently of
-// search::boundaryEdgesOf(), which buildRow() uses, as a cross-check.
+// search::boundaryEdgesOf(), which buildIncoming() uses, as a cross-check.
 std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
                                 const std::vector<int> &seedFaces,
                                 size_t bcIndex) {

@@ -1,9 +1,10 @@
 // hopedges_test.cpp
 //
-// End to end on real witnesses (tests/data, from the 2026-09-28 Phase 0
-// hops): a hop row is certified, every witness becomes edges, far sides
-// become nodes with the right component maps, and the proof graph derives
-// what the witnesses prove. README.md, "Composing hops".
+// End to end on real cobordisms (tests/data, from the 2026-09-28 Phase 0
+// searches): a search's incoming link is certified, every cobordism becomes
+// cobordisms of the graph, outgoing links become graph links with the right
+// component maps, and the cobordism graph derives
+// what the cobordisms prove. README.md, "Composing hops".
 
 #include <fstream>
 #include <map>
@@ -61,7 +62,7 @@ GaussDiagram of(const regina::Link &l) {
   return GaussDiagram::of(l, origin);
 }
 
-// The row as searched: its own (unsimplified) diagram, interned via its
+// The link as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
 SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
   GaussDiagram d = of(linknaming::linkFromTablePD(pd));
@@ -86,7 +87,7 @@ void test10_3() {
   CobordismGraph g;
   LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_10_3);
-  CobordismAssembler assembler(g, reg, searched); // certifies the row (throws if not)
+  CobordismAssembler assembler(g, reg, searched); // certifies the incoming link (throws if not)
   CHECK(true, "10_3: the row is certified");
   auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/search_10_3_cobordisms.csv");
   CHECK_EQ(static_cast<int>(ws.size()), 9, "10_3: nine witnesses");
@@ -132,7 +133,7 @@ void testL11n33() {
   LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_L11n33);
   CobordismAssembler assembler(g, reg, searched);
-  // The certificate's map: knotbuilder's component order onto the node's.
+  // The certificate's map: knotbuilder's component order onto the link's.
   CHECK_EQ(static_cast<int>(assembler.incomingToLink().size()), 2, "two row components");
   auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/search_L11n33_cobordisms.csv");
   int ok = 0;
@@ -163,8 +164,8 @@ void testL11n33() {
 
 void testFastMatchesReference() {
   // G1: the fast read (outgoingLinkFast, no KnottedSurface rebuild) and the
-  // reference read give the same cobordism shape and the same far-side
-  // pieces for every real witness.
+  // reference read give the same cobordism shape and the same outgoing
+  // pieces for every real cobordism.
   for (auto [pd, file] : {std::pair{PD_10_3, "search_10_3_cobordisms.csv"},
                           std::pair{PD_L11n33, "search_L11n33_cobordisms.csv"}}) {
     CobordismGraph gf, gr;
@@ -178,7 +179,7 @@ void testFastMatchesReference() {
       AddedCobordism b = ref.add({r.pairsig, std::stoi(r.genus), r.other});
       CHECK(a.ok && b.ok, std::string("both reads assemble: ") + r.other);
       if (!a.ok || !b.ok) continue;
-      // The two reads may list the far-side curves in different orders.
+      // The two reads may list the outgoing curves in different orders.
       // Match curves by their edge sets (a bijection, or the reads
       // disagree), then compare everything under that relabelling.
       const size_t m = a.outgoingCurveEdges.size();
@@ -197,7 +198,7 @@ void testFastMatchesReference() {
       }
       CHECK(bijection, std::string("far curves match by edge set: ") + r.other);
       if (!bijection) continue;
-      // Shapes: incoming curves are in node order in both; outgoing curves
+      // Shapes: incoming curves are in link order in both; outgoing curves
       // relabelled by perm; surface components compared by first appearance.
       auto canon = [](std::vector<int> v) {
         std::map<int, int> seen;

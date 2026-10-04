@@ -1,21 +1,21 @@
 // cobordismgraph_test.cpp
 //
-// Tests for ../cobordismgraph.h/.cpp: the interval solver verifyslicegenus.cpp
-// runs over its accumulated witness set (componentsFromName(), NameTable,
+// Tests for ../solver/solver.h/.cpp: the interval solver `cobound solve`
+// runs over the database's cobordisms (componentsFromName(), NameTable,
 // propagate(), judge()) and the boundary classification (splitBoundary())
 // that feeds it. All pure logic on plain data types -- no triangulations, no
 // search, no census -- so these tests run instantly and exercise the core of
-// verifyslicegenus's genus deductions directly.
+// the solver's genus deductions directly.
 //
 // The cases below deliberately pin down the two things that are easy to get
 // silently wrong: the component-count terms in the cobordism inequality
 // (which vanish for knots, so a knots-only test suite would never notice
-// them missing), and WHICH far sides may carry a bound at all. A far side is
-// named from its complement, and a complement determines a knot
+// them missing), and WHICH outgoing links may carry a bound at all. An
+// outgoing link is named from its complement, and a complement determines a knot
 // (Gordon-Luecke) but not a link (Rolfsen twisting: infinitely many links
-// per exterior). So a multi-component far side bounds nothing unless it is a
-// structurally proven unlink -- see farSideBearsBound() and cobordismgraph.h
-// \ref cg_farside. For months the solver took a max/min over a link's
+// per exterior). So a multi-component outgoing link bounds nothing unless it
+// is a structurally proven unlink -- see outgoingBearsBound() and solver.h
+// \ref cg_outgoing. For months the solver took a max/min over a link's
 // ORIENTATION variants as if that were the whole candidate set; 178 of 333
 // "verified" rows rested on it. The tests here are what stop that coming
 // back.
@@ -77,7 +77,7 @@ std::ostream &resetColor(std::ostream &os) {
 
 namespace {
 
-// Builds a cobordism witness between `subject` (with `nA` components) and
+// Builds a cobordism between `subject` (with `nA` components) and
 // `other` (with `nB`), at genus `g`. `candidates` defaults to just `other`.
 Cobordism cobordism(const std::string &subject, int nA, const std::string &other,
                   int nB, int g,
@@ -161,9 +161,9 @@ void test_direct_cobordism_gives_upper_bound() {
 }
 
 void test_external_proofs() {
-    // --cascade-proofs: a certified proof is a base case like a direct
-    // witness, constructive only when it names no literature value, and it
-    // grounds chains through the witnesses.
+    // certified_bounds: a certified proof is a base case like a direct
+    // cobordism, constructive only when it names no literature value, and it
+    // grounds chains through the cobordisms.
     NameTable names;
     names.addLiterature("K", 1, 1);
     names.addLiterature("J", 0, 1);
@@ -217,9 +217,9 @@ void test_component_correction_on_the_upper_bound() {
     // the knot slice: the link must be capped with a CONNECTED surface,
     // which costs + n - 1 = 2 in genus.
     //
-    // The link is the SUBJECT here, not the far side. A linked far side is
-    // named from its complement and so bounds nothing at all (see
-    // test_linked_far_side_bounds_nothing); the only linked endpoint the
+    // The link is the SUBJECT here, not the outgoing link. A linked outgoing
+    // link is named from its complement and so bounds nothing at all (see
+    // test_linked_outgoing_bounds_nothing); the only linked endpoint the
     // solver may reason from is one known by construction, i.e. a row, and
     // the bound then flows in the reverse direction onto the knot.
     NameTable names;
@@ -238,7 +238,7 @@ void test_component_correction_on_the_lower_bound() {
     // The mirror case: deducing a lower bound for a MULTI-component
     // subject costs - n_0 + 1.
     NameTable names;
-    names.addLiterature("L", 0, 9); // 2 components, per the witness below
+    names.addLiterature("L", 0, 9); // 2 components, per the cobordism below
     names.addLiterature("K", 3, 3);
     auto bounds = propagate({cobordism("L", 2, "K", 1, 0)}, names);
 
@@ -249,7 +249,7 @@ void test_component_correction_on_the_lower_bound() {
 }
 
 void test_unlink_outgoing_carries_no_component_penalty() {
-    // The `+ n_far - 1` term assumes the far side is capped with its minimal
+    // The `+ n_far - 1` term assumes the outgoing link is capped with its minimal
     // CONNECTED surface. An n-component unlink instead bounds n DISJOINT
     // discs, and gluing those onto a connected cobordism still yields a
     // connected surface -- so chi* = n, not 2 - n, and the penalty vanishes.
@@ -275,12 +275,12 @@ void test_unlink_outgoing_carries_no_component_penalty() {
 }
 
 void test_derived_lower_above_derived_upper_is_a_contradiction() {
-    // K bounds a disc (a direct genus-0 witness: hi 0, constructive), and a
-    // genus-1 cobordism runs from K to a knot far side whose every candidate
+    // K bounds a disc (a direct genus-0 cobordism: hi 0, constructive), and a
+    // genus-1 cobordism runs from K to a knot outgoing link whose every candidate
     // has literature g4 = 3, which transports lo(K) >= 3 - 1 - 1 + 1 = 2.
     // Two candidates keep the reverse rule out, so nothing else can notice.
     // Both bounds sit inside K's literature interval [0, 2], but together
-    // they say 2 <= g4(K) <= 0: a witness, a name or a table is wrong, and
+    // they say 2 <= g4(K) <= 0: a cobordism, a name or a table is wrong, and
     // the status is the computation's only consistency check (paper,
     // def:status). It must not come out "verified".
     NameTable names;
@@ -300,12 +300,12 @@ void test_derived_lower_above_derived_upper_is_a_contradiction() {
 }
 
 void test_knot_outgoing_named_as_a_link_bounds_nothing() {
-    // One curve was observed on the far side, but the name it was given is a
-    // link's base, so no registered variant has the observed count: the
-    // identification and the geometry disagree. candidates() then hands back
-    // every link variant, and a one-curve far side bears a bound
-    // (farSideBearsBound), so the subject would be bounded by a LINK's g4 as
-    // if it were this knot's. The witness is built as the driver builds it
+    // One curve was observed on the outgoing link, but the name it was given
+    // is a link's base, so no registered variant has the observed count: the
+    // name and the geometry disagree. candidates() then hands back
+    // every link variant, and a one-curve outgoing link bears a bound
+    // (outgoingBearsBound), so the subject would be bounded by a LINK's g4 as
+    // if it were this knot's. The cobordism is built as the driver builds it
     // (verifyslicegenus.cpp: otherCandidates = candidates(name, observed)).
     NameTable names;
     names.addLiterature("K", 0, 3);
@@ -321,7 +321,7 @@ void test_knot_outgoing_named_as_a_link_bounds_nothing() {
 }
 
 void test_linked_outgoing_bounds_nothing() {
-    // The unlink exemption is the ONLY way a multi-component far side gets
+    // The unlink exemption is the ONLY way a multi-component outgoing link gets
     // to carry a bound. Every other multi-component name is a statement
     // about a complement, and a link complement belongs to infinitely many
     // links (Rolfsen twisting), so "L4a1" here does not mean L4a1 -- it
@@ -394,13 +394,13 @@ void test_slice_composite_allowlist_is_not_a_pattern() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// propagate(): orientation-ambiguous far sides
+// propagate(): orientation-ambiguous outgoing links
 // ─────────────────────────────────────────────────────────────────────────
 
 void test_orientation_variants_are_not_a_candidate_set() {
     // L4a1{0} has slice genus 0 and L4a1{1} has 1, and they share one
     // complement. The solver used to bound K by max(0, 1) + 0 + (2 - 1) = 2,
-    // "sound whichever variant it actually was". It is not: the far side
+    // "sound whichever variant it actually was". It is not: the outgoing link
     // need not be EITHER variant. Our own peripheral tests found the census
     // name m129 standing for 18 different links, g_4 from 0 to 2. So the
     // max over {L4a1{0}, L4a1{1}} is a max over the wrong set.
@@ -440,7 +440,7 @@ void test_outgoing_bears_bound() {
                   cobordism("K", 1, "gLLMQacdefeffhhnkxk", 3, 0)),
               false, "nor a bare isoSig with 3 curves");
     // The gate is on the OBSERVED count, so a name that looks like a knot
-    // cannot smuggle a two-curve far side through.
+    // cannot smuggle a two-curve outgoing link through.
     EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "4_1", 2, 0)), false,
               "a knot-shaped name on a 2-curve far side is refused");
 }
@@ -450,10 +450,10 @@ void test_outgoing_bears_bound() {
 // ─────────────────────────────────────────────────────────────────────────
 
 void test_chains_through_an_unnamed_isosig_link() {
-    // identify() falls back to a bare isoSig when the census misses. Such a
-    // node has no bounds of its own, but it still CONNECTS: two rows that
-    // each cobound with it are thereby related to each other. Keeping these
-    // nodes in the graph is free information.
+    // census::nameComplement() falls back to a bare isoSig when the census
+    // misses. Such a name has no bounds of its own, but it still CONNECTS:
+    // two rows that each cobound with it are thereby related to each other.
+    // Keeping these names in the graph is free information.
     NameTable names;
     names.addLiterature("X", 0, 9);
     names.addLiterature("Y", 0, 0);
@@ -530,7 +530,7 @@ void test_self_cobordism_cannot_confirm_the_literature() {
 }
 
 void test_self_cobordism_still_allows_a_real_bound_from_elsewhere() {
-    // The self-loop is skipped, not poisonous: a genuine witness on the
+    // The self-loop is skipped, not poisonous: a genuine cobordism on the
     // same name still lands.
     NameTable names;
     names.addLiterature("K", 0, 5);
@@ -541,10 +541,10 @@ void test_self_cobordism_still_allows_a_real_bound_from_elsewhere() {
 
 void test_ambiguous_outgoing_gets_no_reverse_bound() {
     // Regression for a real contradiction caught by a live run. A genus-0
-    // cobordism from L4a1{0} to a far side identified only as "L7n1" was
+    // cobordism from L4a1{0} to an outgoing link named only as "L7n1" was
     // once pushed onto every candidate, giving L7n1{0} (true genus 2) a
     // bound of 1. The first fix stopped at "we cannot tell which variant";
-    // the real reason is stronger -- the far side need not be any L7n1 at
+    // the real reason is stronger -- the outgoing link need not be any L7n1 at
     // all, since L7n1 shares its exterior with L5a1, L8n2, L9n3, L10n9.
     NameTable names;
     names.addLiterature("L4a1{0}", 0, 0);
@@ -584,7 +584,7 @@ void test_two_step_cycle_through_an_alias_is_refused() {
     // Regression for a bug spotted in real output. The census names the
     // same knot twice -- 8_14 is also L108014, an untranslated Christy name
     // for a one-component complement -- so a trivial product annulus shows
-    // up as a cobordism between two DIFFERENT-looking nodes. 8_14's own
+    // up as a cobordism between two DIFFERENT-looking names. 8_14's own
     // literature value then flowed out to L108014 and came back as a
     // "derived" bound on 8_14, reported as having verified the literature.
     //
@@ -622,7 +622,7 @@ void test_longer_cycle_is_refused() {
 void test_support_set_records_what_a_bound_rests_on() {
     NameTable names;
     names.addLiterature("K", 0, 9);
-    names.addLiterature("J", 2, 2); // asserted, never witnessed
+    names.addLiterature("J", 2, 2); // asserted, never constructed
     auto bounds = propagate({cobordism("K", 1, "J", 1, 1)}, names);
 
     EXPECT_EQ(bounds["K"].hi, 3, "g_4(K) <= 2 + 1 + 0");
@@ -632,7 +632,7 @@ void test_support_set_records_what_a_bound_rests_on() {
     EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
               "and is therefore assisted, not constructive");
 
-    // Witness J for real and the support empties out.
+    // A cobordism for J, for real, and the support empties out.
     auto bounds2 = propagate(
         {cobordism("K", 1, "J", 1, 1), direct("J", 1, 2)}, names);
     EXPECT_EQ(bounds2["K"].support.empty(), true,
@@ -643,11 +643,11 @@ void test_support_set_records_what_a_bound_rests_on() {
 void test_unregistered_multicomponent_outgoing_gets_no_reverse_bound() {
     // Regression for four live contradictions that killed three phases of a
     // sweep. candidates() falls back to `{name}` for any name absent from
-    // the literature tables, so a far side known only by its COMPLEMENT --
+    // the literature tables, so an outgoing link known only by its COMPLEMENT --
     // here a Christy census name for a 2-component link -- arrives looking
     // like an unambiguous singleton. It is the opposite: a complement says
     // nothing about WHICH 2-component link this is, let alone how it is
-    // oriented -- see farSideBearsBound().
+    // oriented -- see outgoingBearsBound().
     //
     // What actually happened: 6_1 -g0-> L204001 (2 curves) pushed a bound
     // onto L204001, which then bounded L6a3{0} at 1 against a literature
@@ -695,9 +695,9 @@ void test_unregistered_SINGLE_component_outgoing_still_chains() {
 }
 
 void test_two_component_isosig_link_does_not_chain() {
-    // The mirror of the test above. An unnamed TWO-curve node is a shared
-    // exterior, and two witnesses landing on the same exterior may have
-    // found two different links -- so the node must not connect them. This
+    // The mirror of the test above. An unnamed TWO-curve name is a shared
+    // exterior, and two cobordisms landing on the same exterior may have
+    // found two different links -- so the name must not connect them. This
     // is the m129 case from results/far_side_identification_census.csv,
     // where one name was 18 links, and it is the regression the golden-
     // truffle plan asks for: a relapse into complement-only reasoning.
@@ -718,7 +718,7 @@ void test_two_component_isosig_link_does_not_chain() {
 }
 
 void test_unlink_outgoing_still_chains_and_is_penalty_free() {
-    // The one multi-component far side that DOES bear a bound, checked
+    // The one multi-component outgoing link that DOES bear a bound, checked
     // alongside the ones that do not so the gate is seen to be selective
     // rather than a blanket refusal of links.
     NameTable names;
@@ -742,7 +742,7 @@ void test_judge_distinguishes_assisted_verification() {
     // verification, and the paper's tables depend on the difference.
     NameTable names;
     names.addLiterature("K", 1, 1);
-    names.addLiterature("J", 0, 0); // J's genus is asserted, never witnessed
+    names.addLiterature("J", 0, 0); // J's genus is asserted, never constructed
     auto bounds = propagate({cobordism("K", 1, "J", 1, 1)}, names);
     Verdict v = judge("K", bounds["K"], names);
 
@@ -750,7 +750,7 @@ void test_judge_distinguishes_assisted_verification() {
               "K's bound rests on J's literature value, so it is reported "
               "as assisted rather than as a verification");
 
-    // Now witness J for real; K's own bound becomes independent.
+    // Now a cobordism for J, for real; K's own bound becomes independent.
     auto bounds2 = propagate(
         {cobordism("K", 1, "J", 1, 1), direct("J", 1, 0)}, names);
     Verdict v2 = judge("K", bounds2["K"], names);
@@ -906,9 +906,9 @@ void test_split_boundary_multiple_other_sides_not_collapsed() {
 }
 
 void test_split_boundary_seeded_ignores_names() {
-    // The D1 regression (2026-09-26). Seeded, the search side is L by
+    // The D1 regression (2026-09-26). Seeded, the incoming side is L by
     // construction, and its name must never be consulted: gdb on 8_8 caught
-    // the row's own name as "8_8 (o9_37770 : #17)" and the search side as
+    // the row's own name as "8_8 (o9_37770 : #17)" and the incoming side as
     // "8_8 (o9_37770 : #6)" -- the same manifold, a different census entry
     // number -- and the old name comparison then discarded every surface of
     // the row (270 rows of the atlas, with nothing logged).
@@ -941,10 +941,10 @@ void test_split_boundary_unnamed_side_flagged() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// classifyRowOrientation()'s decision logic, isolated from
-// buildRowOrientation()'s geometry by hand-constructing RowOrientation and
+// classifyIncomingOrientation()'s decision logic, isolated from
+// buildIncomingOrientation()'s geometry by hand-constructing IncomingOrientation and
 // OrientedCurve against a triangulation's own edges. Two vertex-disjoint
-// edges stand in for two components of the row's link.
+// edges stand in for two components of the incoming link.
 // ─────────────────────────────────────────────────────────────────────────────
 void test_classify_incoming_orientation() {
     regina::Triangulation<3> tri;
@@ -1009,7 +1009,7 @@ void test_classify_incoming_orientation() {
               true, "a curve with no known surface component is not guessed");
 
     // The judgement's flips (phase 3: the one walk behind both
-    // classifyRowOrientation() and outgoing::incomingFlips()).
+    // classifyIncomingOrientation() and outgoing::incomingFlips()).
     using Flips = std::map<size_t, int>;
     const Flips keep = {{0, 1}}, reverse = {{0, -1}}, each = {{0, 1}, {1, -1}};
     EXPECT_EQ(judgeIncomingOrientation(incoming, allMatch, oneComponent).flips == keep, true,
@@ -1058,14 +1058,14 @@ void test_cobordism_identity() {
 } // namespace
 
 // ─────────────────────────────────────────────────────────────────────────
-// Per-witness proved far sides (--far-side-resolutions)
+// Per-cobordism proved outgoing links (outgoing_resolutions)
 // ─────────────────────────────────────────────────────────────────────────
 
 void test_proved_link_outgoing_bears_bound() {
-    // The counterpart of test_linked_far_side_bounds_nothing. There the far
-    // side was named from its complement, which does not determine a link.
-    // Here applyFarSideResolutions() has marked it proved PER WITNESS -- an
-    // isometry carrying this witness's own meridians -- and complement plus
+    // The counterpart of test_linked_outgoing_bounds_nothing. There the
+    // outgoing link was named from its complement, which does not determine a link.
+    // Here applyOutgoingResolutions() has marked it proved PER COBORDISM -- an
+    // isometry carrying this cobordism's own meridians -- and complement plus
     // meridians does determine the link, so its oriented variants ARE the
     // complete candidate set and the max over them is sound.
     NameTable names;
@@ -1082,7 +1082,7 @@ void test_proved_link_outgoing_bears_bound() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Split (disjoint-union) far-side names: "A u B"
+// Split (disjoint-union) outgoing names: "A u B"
 // ─────────────────────────────────────────────────────────────────────────
 
 void test_split_outgoing_upper_bound() {
@@ -1111,7 +1111,7 @@ void test_split_outgoing_upper_bound() {
 
 // The split rule observed through the public solver: a proved genus-0
 // cobordism from a knot K (literature [0, 9], so it constrains nothing) to a
-// far side F gives, from the cobordism inequalities with n_0 = 1,
+// outgoing link F gives, from the cobordism inequalities with n_0 = 1,
 //     lo(K) = lo(F) - 0 - 1 + 1 = lo(F),    hi(K) = hi(F) + 0 + (n_F - 1).
 Bounds probeOutgoing(const std::string &outgoing, int nOutgoing, NameTable names) {
     names.addLiterature("K", 0, 9);
@@ -1149,7 +1149,7 @@ void test_split_lower_bound_is_not_additive() {
     EXPECT_EQ(k.hi, 3, "upper still the constructive (1 + 1) + (2 - 1) = 3");
 
     // The regression, end to end: a slice two-component subject with a
-    // genus-0 witness to a proved 4_1 u 4_1 is not pushed above its
+    // genus-0 cobordism to a proved 4_1 u 4_1 is not pushed above its
     // literature value, and nothing is judged a contradiction.
     names.addLiterature("S{0}", 0, 0);
     Cobordism w = cobordism("S{0}", 2, "4_1 u 4_1", 2, 0);
@@ -1207,7 +1207,7 @@ void test_split_composite_alternative_keeps_its_mirror() {
     // Only a PRIME knot's m is stripped. "m3_1#3_1" is the square knot
     // (slice); stripping its leading m would give "3_1#3_1", the granny
     // (g_4 = 2), and borrow the granny's bound. Registered here as literature
-    // to make the mix-up visible: the square knot's far side must get only
+    // to make the mix-up visible: the square knot's outgoing link must get only
     // the composite rule's 1 - 1 = 0.
     NameTable names;
     names.addLiterature("3_1", 1, 1);
@@ -1231,8 +1231,8 @@ void test_split_with_a_link_factor_has_no_lower_bound() {
 }
 
 void test_unproved_split_outgoing_bounds_nothing() {
-    // A split name reaching the solver WITHOUT a per-witness proof is still
-    // a multi-component far side, and the gate refuses it.
+    // A split name reaching the solver WITHOUT a per-cobordism proof is still
+    // a multi-component outgoing link, and the gate refuses it.
     NameTable names;
     names.addLiterature("K", 0, 9);
     names.addLiterature("3_1", 1, 1);
@@ -1241,10 +1241,10 @@ void test_unproved_split_outgoing_bounds_nothing() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Composite far-side names: "K #_c L"
+// Composite outgoing names: "K #_c L"
 // ─────────────────────────────────────────────────────────────────────────
 
-// An exact far side bounds by ITS variant, not the worst of its base's, and
+// A named outgoing link bounds by ITS variant, not the worst of its base's, and
 // receives a bound from the subject whatever its component count.
 void test_named_outgoing() {
     NameTable names;

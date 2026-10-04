@@ -1,14 +1,14 @@
 // keptstore_test.cpp
 //
-// A hop's kept surfaces into the atlas's witness store (keptstore.h), on a
-// real exhaustive row (3_1 at face cap 3, the canaries' shape):
+// A search's kept surfaces into the atlas's database (cobordisms/pending.h),
+// on a real exhaustive search (3_1 at face cap 3, the canaries' shape):
 //
-//   1. kept.csv round-trips: every witness column and every face comes back.
-//   2. The store gets exactly one line per witness identity, the sweep's
+//   1. kept.csv round-trips: every cobordism column and every face comes back.
+//   2. The database gets exactly one line per cobordism identity, the sweep's
 //      rule, each with the pair signature taken in the searched thickening,
-//      other_candidates from the name table, and the hop's provenance.
-//   3. Storing the same surfaces again, or against a store that already
-//      holds them (--dedupe-against), appends nothing.
+//      other_candidates from the name table, and the search's provenance.
+//   3. Signing the same surfaces again, or against a database that already
+//      holds them (dedupe_against), appends nothing.
 //   4. A torn last line of kept.csv (a run killed mid-append) is skipped.
 
 #include <array>
@@ -96,7 +96,7 @@ int main() {
   SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, 1752LL, "the canaries' count for 3_1 at cap 3");
 
-  // What cascadesearch does with them (expand()).
+  // What a goal run does with them (Scheduler::expand()).
   std::vector<PendingCobordism> pending;
   std::map<std::string, std::string> sigOfIdentity; // first surface of each identity
   for (const KeptSurface &ks : run.kept) {
@@ -110,7 +110,7 @@ int main() {
   }
   CHECK(pending.size() >= sigOfIdentity.size(), "at least one kept surface per identity");
 
-  // 1. kept.csv round trip (in two appends, as two hops would write it).
+  // 1. kept.csv round trip (in two appends, as two searches would write it).
   const size_t half = pending.size() / 2;
   appendKept(searchDir.string(), {pending.begin(), pending.begin() + half});
   appendKept(searchDir.string(), {pending.begin() + half, pending.end()});
@@ -123,7 +123,7 @@ int main() {
       ++same;
   CHECK_EQ(same, static_cast<int>(pending.size()), "kept.csv: every field and face round-trips");
 
-  // 2. Into a store.
+  // 2. Into a database.
   solver::NameTable names;
   solver::loadNameTable(knots, names);
   solver::loadNameTable(links, names);
@@ -161,8 +161,8 @@ int main() {
   CHECK_EQ(candidatesOk, static_cast<int>(inDatabase.size()),
            "store: other_candidates as the sweep fills them");
 
-  // The row sidecar: one line per stored witness, its key a stored pair
-  // signature's and its row the hop's own PD.
+  // The `.rows.csv` sidecar: one line per signed cobordism, its key a
+  // signed pair signature's and its row_pd the search's own PD.
   {
     std::ifstream in(database + ".rows.csv");
     std::string line;

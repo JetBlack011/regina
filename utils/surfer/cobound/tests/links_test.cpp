@@ -1,6 +1,6 @@
 // nodes_test.cpp
 //
-// Tests for cascade/nodes.h: node identity is exact, and the component map
+// Tests for bounds/links.h: graph link identity is exact, and the component map
 // it returns is right (README.md, "Component maps").
 
 #include <algorithm>
@@ -25,7 +25,7 @@ using namespace checks;
 
 namespace {
 
-// Real table rows (the same strings exactnaming_test uses).
+// Real table rows (the same strings linknamer_test uses).
 const char *L4a1_0 = "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]";
 const char *L4a1_1 = "PD[X[6; 2; 7; 1]; X[8; 4; 5; 3]; X[2; 8; 3; 7]; X[4; 6; 1; 5]]";
 const char *L7n1_0 = "PD[X[6; 1; 7; 2]; X[12; 7; 13; 8]; X[4; 13; 1; 14]; X[5; 10; 6; 11]; "
@@ -52,7 +52,7 @@ void testDiagramHits() {
   LinkMatch again = reg.intern(perm, "T(3,6) permuted");
   CHECK(!again.created && again.link == first.link, "same diagram, same node");
   CHECK_EQ(again.method, std::string("diagram"), "found as a diagram");
-  // perm's component i is t36's component 2-i; the node's components are
+  // perm's component i is t36's component 2-i; the link's components are
   // t36's. T(3,6) has symmetries permuting components, so check the map is
   // an isomorphism rather than a specific permutation:
   GaussDiagram mapped;
@@ -65,7 +65,7 @@ void testDiagramHits() {
 }
 
 void testDifferentDiagramsSameLink() {
-  // Scrambled diagrams of one hyperbolic link: the same node, by diagram or
+  // Scrambled diagrams of one hyperbolic link: the same link, by diagram or
   // by isometry, with a map consistent with the tracked origins up to a
   // symmetry of the link.
   using regina::ExampleLink;
@@ -105,7 +105,7 @@ void testDifferentDiagramsSameLink() {
 void testOrientationVariantsAreDifferentLinks() {
   // L7n1{0} (g4 2) and L7n1{1} (g4 0), L4a1{0} (g4 0) and L4a1{1} (g4 1):
   // one link with different component orientations. Merging them would be
-  // unsound, so they must be different nodes.
+  // unsound, so they must be different links.
   CobordismGraph g;
   LinkRegistry reg(g);
   for (auto [a, b] : {std::pair{L7n1_0, L7n1_1}, std::pair{L4a1_0, L4a1_1}}) {
@@ -132,9 +132,10 @@ void testUnknot() {
   CHECK_EQ(m2.link, m.link, "one unknot node");
 }
 
-// Why reduction matters: a hop's row is certified by drawing knotbuilder's
-// link back (HopAssembler), and knotbuilder's drawer cannot draw a diagram
-// with a nugatory crossing. The reduced diagram's row certifies.
+// Why reduction matters: a search's incoming link is certified by drawing
+// knotbuilder's link back (CobordismAssembler), and knotbuilder's drawer
+// cannot draw a diagram with a nugatory crossing. The reduced diagram
+// certifies.
 void testReducedDiagramsCertify() {
   using regina::ExampleLink;
   const GaussDiagram d =
@@ -159,11 +160,12 @@ void testReducedDiagramsCertify() {
   CHECK(certifies(removeNugatoryCrossings(d)), "its reduced diagram's row certifies");
 }
 
-// A far side a hop refused (11a_239's run, 2026-09-28, node 46): component
+// An outgoing link a search refused (11a_239's run, 2026-09-28, graph link 46):
+// component
 // 1 passes over both crossings it meets, so its PD code cannot carry its
-// orientation and the row did not certify. Lifted off, it is a split unknot:
+// orientation and it did not certify. Lifted off, it is a split unknot:
 // the link is unchanged (Jones polynomial, linking numbers), the diagram
-// comes apart, and every piece's row certifies.
+// comes apart, and every piece certifies.
 void testLiftedDiagramsCertify() {
   GaussDiagram d;
   d.signs = {1, 1, 1, -1, -1, -1};

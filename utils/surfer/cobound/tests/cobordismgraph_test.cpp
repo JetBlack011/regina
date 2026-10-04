@@ -1,9 +1,9 @@
 // proofgraph_test.cpp
 //
-// Tests for cascade/proofgraph.h: the fixed point over a graph with cycles,
-// both directions of every witness, split edges, component maps, proof
-// records, and the contradiction gates. Each block names the assumption it
-// pins (README.md, "Assumptions and their tests").
+// Tests for bounds/cobordismgraph.h: the fixed point over a graph with cycles,
+// both directions of every cobordism, splits, component maps, derivations,
+// and the contradiction gates. Each block names the assumption it pins
+// (README.md, "Assumptions and their tests").
 
 #include <algorithm>
 #include <map>
@@ -67,8 +67,8 @@ void testBandToDisjointDiscs() {
 }
 
 void testCycleImprovesAncestor() {
-  // B2 (John's example): a genus-1 witness L0 -> L1 is found first, L1 has a
-  // leaf (slice), so L0 <= 1. Then a search from L1 finds a genus-0 witness
+  // B2 (John's example): a genus-1 cobordism L0 -> L1 is found first, L1 has a
+  // leaf (slice), so L0 <= 1. Then a search from L1 finds a genus-0 cobordism
   // L1 -> L0. Read backwards, it improves L0 to 0 -- without re-expanding
   // L0, and with a well-founded proof.
   CobordismGraph g;
@@ -91,7 +91,7 @@ void testCycleImprovesAncestor() {
 }
 
 void testCycleWithoutLeafGivesNothing() {
-  // B3: a cycle of witnesses with no leaf anywhere derives nothing.
+  // B3: a cycle of cobordisms with no leaf anywhere derives nothing.
   CobordismGraph g;
   LinkId a = g.addLink(1, "a"), b = g.addLink(1, "b"), c = g.addLink(1, "c");
   g.addCobordism(a, b, annulusShape(0), {0}, {0}, "ab");
@@ -102,7 +102,7 @@ void testCycleWithoutLeafGivesNothing() {
 }
 
 void testCycleCannotSelfImprove() {
-  // B4: a leaf at a, then a cycle a -> b -> a of genus-0 witnesses: a gets
+  // B4: a leaf at a, then a cycle a -> b -> a of genus-0 cobordisms: a gets
   // nothing better than its leaf, and nothing is created for a at all.
   CobordismGraph g;
   LinkId a = g.addLink(1, "a"), b = g.addLink(1, "b");
@@ -118,9 +118,9 @@ void testCycleCannotSelfImprove() {
 }
 
 void testComponentMapsMatter() {
-  // B5: a witness whose outgoing curves are listed in a different order from
-  // the far node's components. L (3 components) bounds pieces {0,1} and {2}
-  // with genus 0 (a leaf). The witness's outgoing curve j is L's component
+  // B5: a cobordism whose outgoing curves are listed in a different order from
+  // the outgoing link's components. L (3 components) bounds pieces {0,1} and {2}
+  // with genus 0 (a leaf). The cobordism's outgoing curve j is L's component
   // outMap[j] = {2, 0, 1}: curves 1 and 2 share a piece, curve 0 is alone.
   // Its shape: component A carries the incoming curve and outgoing curves
   // 1, 2; component B is an annulus... not possible from one incoming curve,
@@ -212,7 +212,7 @@ void testContradictionGates() {
 }
 
 void testSaturationAndMaps() {
-  // B8: addWitness/addSplit reject maps that are not bijections.
+  // B8: addCobordism/addSplit reject maps that are not bijections.
   CobordismGraph g;
   LinkId K = g.addLink(1, "K"), L = g.addLink(2, "L");
   bool threw = false;
@@ -263,7 +263,7 @@ RandomGraph randomGraph(std::mt19937 &rng) {
     int nin = g.comps[w.in], nout = g.comps[w.out];
     w.shape.components = u(1, std::min(nin, 3));
     w.shape.genus = u(0, 2);
-    // Every component gets an incoming curve (as a witness's must).
+    // Every component gets an incoming curve (as a cobordism's must).
     w.shape.inComponent.resize(nin);
     for (int i = 0; i < nin; ++i)
       w.shape.inComponent[i] = i < w.shape.components ? i : u(0, w.shape.components - 1);
@@ -287,14 +287,14 @@ RandomGraph randomGraph(std::mt19937 &rng) {
   return g;
 }
 
-// The profile of every node after building `rg` in the given order.
+// The partition genera of every link after building `rg` in the given order.
 std::vector<std::set<std::pair<std::vector<int>, int>>>
 build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
       CobordismGraph *out = nullptr) {
   CobordismGraph g;
   for (int i = 0; i < rg.links; ++i)
     g.addLink(rg.comps[i], "n" + std::to_string(i));
-  // order: indices into witnesses (0..W-1) then leaves (W..W+L-1), mixed.
+  // order: indices into cobordisms (0..W-1) then leaves (W..W+L-1), mixed.
   const int W = static_cast<int>(rg.cobordisms.size());
   for (int idx : order) {
     if (idx < W) {
@@ -318,9 +318,9 @@ build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
 }
 
 // A naive closure, independent of propagate(): repeatedly apply every
-// witness in both directions to every fact until nothing new appears, then
+// cobordism in both directions to every fact until nothing new appears, then
 // take Pareto minima. Uses glue() (tested against its own model above) but
-// none of ProofGraph's bookkeeping.
+// none of CobordismGraph's bookkeeping.
 std::vector<std::set<std::pair<std::vector<int>, int>>>
 naiveClosure(const RandomGraph &rg) {
   std::vector<std::set<std::pair<std::vector<int>, int>>> facts(rg.links);
@@ -398,7 +398,7 @@ void testRandomFixedPoints() {
                 "proof is closed under children");
     }
     ++graphs;
-    // Count graphs with a directed cycle through witnesses, to be sure
+    // Count graphs with a directed cycle through cobordisms, to be sure
     // cycles are exercised.
     std::vector<std::vector<int>> adj(rg.links);
     for (const auto &w : rg.cobordisms) adj[w.in].push_back(w.out);
@@ -502,8 +502,8 @@ void testLowerSplit() {
 }
 
 void testLowerWhatIf() {
-  // L6: the lower report's what-if (cascadesearch writeLowerReport()):
-  // forget every lower bound, seed one node, and read what reaches the
+  // L6: the lower report's what-if (runrecords::writeLowerReport()):
+  // forget every lower bound, seed one link, and read what reaches the
   // target. A concordance carries the seed whole, a merging band loses 1,
   // and the literature bound elsewhere no longer contributes.
   CobordismGraph pg;
@@ -537,7 +537,7 @@ void testLowerWhatIf() {
 }
 
 void testLowerTransportMonotone() {
-  // L7 (lem:transport-monotone): what a witness transports for surfaces
+  // L7 (lem:transport-monotone): what a cobordism transports for surfaces
   // with EXACTLY partition p never falls when p is refined, so the bound for
   // surfaces refining q is transportedLower() at q itself. lowerAcross()
   // relies on this instead of minimising over refinements; if the claim
@@ -722,7 +722,7 @@ void testSums() {
 
 void testLowerSoundOnRandomWorlds() {
   // L5: take a random graph's upper-bound closure as the whole world, give
-  // every node its true connected minimum as a literature lower bound, and
+  // every link its true connected minimum as a literature lower bound, and
   // propagate: no lower bound may exceed a surface the world contains.
   std::mt19937 rng(777);
   int worlds = 0, raised = 0;
@@ -751,7 +751,7 @@ void testLowerSoundOnRandomWorlds() {
 void testPartitionGeneraFields() {
   // P1: profiles.jsonl's fields. B1's graph: the band's Pareto sets (L's
   // disjoint discs dominate its annulus, K's disc its genus-1 surface), a
-  // Hopf-linked node whose split partition the linking numbers forbid, and a
+  // Hopf link whose split partition the linking numbers forbid, and a
   // literature bound read back per partition.
   CobordismGraph g;
   LinkId K = g.addLink(1, "K");

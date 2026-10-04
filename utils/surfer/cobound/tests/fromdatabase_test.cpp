@@ -1,11 +1,11 @@
 // readbackcache_test.cpp
 //
-// Master witnesses' read-backs kept across runs (readbackcache.h), on the
-// real witnesses of 10_3's Phase 0 hop:
+// Master cobordisms' read-backs kept across runs (outgoing/fromdatabase.h), on the
+// real cobordisms of 10_3's Phase 0 search:
 //
 //   1. serialiseLink()/parseLink() round-trip every read-back exactly, and
 //      malformed text is refused.
-//   2. A cache written by one RowReadBacks is read back whole by the next:
+//   2. A cache written by one ReadBacks is read back whole by the next:
 //      every link equal to a fresh outgoingLinkFast(), failures kept too.
 //   3. A file with another build digest is ignored and replaced (its edge
 //      numbers belong to another thickening).
@@ -122,7 +122,7 @@ int main() {
     CHECK(f && !f->link && f->why == "no isomorphism carries its incoming curve",
           "a failure is kept with its reason");
     CHECK_EQ(static_cast<int>(c.hits()), 10, "hits counted");
-    // The same row at other layers is another file.
+    // The same diagram at other layers is another file.
     ReadBacks other(dir, PD_10_3, 3, digest);
     CHECK_EQ(static_cast<int>(other.loaded()), 0, "layers are part of the row");
   }

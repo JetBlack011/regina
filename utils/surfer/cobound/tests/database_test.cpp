@@ -1,14 +1,14 @@
 //
 //  witnessstore_test.cpp
 //
-//  The witness file (witnessstore.h), which verifyslicegenus and
-//  cascadesearch both append to and every merge and solve reads:
+//  The database (cobordisms/database.h), which every run and `sign`
+//  append to and every merge and solve reads:
 //
-//   1. A witness written and read back is the same witness, a name with a
+//   1. A cobordism written and read back is the same cobordism, a name with a
 //      comma included (csvField() quotes it), resolved_vertices written
 //      empty when 0.
 //   2. An append creates the file with its header, keeps every earlier byte,
-//      gives each witness its line's offset and drops its pair signature.
+//      gives each cobordism its line's offset and drops its pair signature.
 //   3. A torn last line (no newline) is ignored on load and truncated before
 //      the next append.
 //   4. A 12-column file is refused for appending.
@@ -150,7 +150,7 @@ int main() {
     check(refused, "a 12-column file is refused for appending");
   }
 
-  // 5. witnessIdentities(): loadWitnesses()'s identities, in byte ranges.
+  // 5. cobordismIdentities(): loadCobordisms()'s identities, in byte ranges.
   {
     const fs::path big = dir / "identities.csv";
     std::vector<Cobordism> ws;
@@ -198,7 +198,7 @@ int main() {
           "a three-component candidate list round-trips");
   }
 
-  // 7. The other readers: readWitnesses() keeps pair signatures, the index
+  // 7. The other readers: readCobordisms() keeps pair signatures, the index
   //    finds lines by subject and outgoing base, PairSigReader reads one back;
   //    all leave a torn last line out.
   {

@@ -1,13 +1,14 @@
 //
 //  farsidenaming_test.cpp
 //
-//  outgoing::DiagramNamer on real thickenings, the way verifyslicegenus uses
+//  outgoing::OutgoingNamer on real thickenings, the way verifyslicegenus uses
 //  it:
 //
-//    1. The bare collar L x [0,2] has the row's own link as its far side,
-//       so the namer must name it as the row: a table knot by its name, a
-//       table link by its base name -- straight from the diagram, with no
-//       complement drilled (the fallback counter stays at zero).
+//    1. The bare collar L x [0,2] has the incoming link itself as its
+//       outgoing link, so the namer must name it as the incoming link: a
+//       table knot by its name, a table link by its base name -- straight
+//       from the diagram, with no complement drilled (the fallback counter
+//       stays at zero).
 //    2. A curve around one triangle of the outgoing boundary is an unknot.
 //    3. The signature tables refuse to come back empty.
 //    4. The complement namers share one dispatch, and name an unlink's
@@ -66,7 +67,7 @@ void writeTables() {
          "X[12; 6; 7; 5]; X[6; 12; 1; 11]; X[4; 8; 5; 7]],0\n";
 }
 
-// The row thickened as verifyslicegenus does it (buildAmbient(): two
+// The incoming diagram thickened as a search does it (buildAmbient(): two
 // layers, the collar through both).
 struct Thickened : ThickenedLink {
     explicit Thickened(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }

@@ -1,10 +1,10 @@
 //
 //  witnesskey_test.cpp
 //
-//  Checks cobordisms::witnessKey() against values produced by Python's
-//  hashlib, which is what the cobordism-atlas tooling keys far-side
-//  resolutions on. If these two ever disagree, a resolution written by the
-//  Python side silently fails to match any witness on the C++ side -- and
+//  Checks cobordisms::cobordismKey() against values produced by Python's
+//  hashlib, which is what the cobordism-atlas tooling keys outgoing
+//  link resolutions on. If these two ever disagree, a resolution written by the
+//  Python side silently fails to match any cobordism on the C++ side -- and
 //  vice versa -- with no error anywhere. The SHA-1 underneath
 //  (surfer/pairsig/sha1.h) is checked against FIPS 180-1 in surfer's
 //  tests/sha1_test.cpp.
