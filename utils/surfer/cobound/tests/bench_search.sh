@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Rough, repeatable search benchmarks for `cobound run` (or a retired
 # verifyslicegenus, to compare against it), one target per run. Results land in
-# $BENCH_DIR/results.tsv; the "Search performance history" table in
-# utils/surfer/README.md is written from them.
+# $BENCH_DIR/results.tsv; the measurements in utils/surfer/surfer/README.md,
+# "Performance", come from them.
 #
 # A <binary> is cobound (by the name it resolves to), driven with a config
 # file; anything else is taken for a verifyslicegenus and given its options.

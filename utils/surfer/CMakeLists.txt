@@ -67,8 +67,8 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 # mimalloc in place of glibc's malloc, for every surfer binary and test
 # (2026-09-29). A perf profile of a production search put about a third of all
 # CPU in glibc's malloc/free, and the drain ran ~1.8x faster under mimalloc
-# (utils/surfer/README.md, "Performance"). Linked statically and whole, so the
-# executable itself defines malloc and interposes it for the engine library
+# (utils/surfer/surfer/README.md, "Performance"). Linked statically and whole,
+# so the executable itself defines malloc and interposes it for the engine library
 # too, and a host without the package can use a copied archive
 # (-DSURFER_MIMALLOC=<path>, or ~/.local/lib/libmimalloc.a). Results cannot
 # depend on the allocator; only speed does. It is one INTERFACE target,
@@ -80,7 +80,7 @@ find_library(SURFER_MIMALLOC NAMES libmimalloc.a
 # The archive must define malloc as real machine code. Arch's packaged one is
 # GCC LTO bitcode, which a linker without the matching plugin skips with only
 # a warning -- leaving glibc's malloc in place. Build mimalloc from source
-# instead (see README, "Performance").
+# instead (see surfer/README.md, "Performance").
 if(SURFER_MIMALLOC)
   execute_process(COMMAND nm "${SURFER_MIMALLOC}" OUTPUT_VARIABLE _mi_syms
                   ERROR_QUIET)
