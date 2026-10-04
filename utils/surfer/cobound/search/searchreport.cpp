@@ -206,7 +206,8 @@ void printComplementNaming(std::ostream &out, const std::string &name,
       << (r.pachnerLinks.successes - before.pachnerLinks.successes) << "/"
       << secs(r.pachnerLinks.milliseconds - before.pachnerLinks.milliseconds)
       << "s, pairsigs " << run.pairSigsSigned << "/" << secs(run.pairSigMillis)
-      << "s, census writes " << censusOk << " ok/" << censusFailed << " failed\n";
+      << "s, " << kFrozenCensusWrites << censusOk << kFrozenCensusWritesOk << censusFailed
+      << " failed\n";
   if (run.diagramNamed) {
     out << "[+] " << name << ": diagram naming: " << run.naming << "\n";
     // Harmless to the names (each went to the complement route), but each

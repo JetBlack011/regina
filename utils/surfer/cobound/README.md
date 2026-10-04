@@ -26,7 +26,7 @@ say AGREE after any change to either solver) remains a check.
 | `outgoing/` | `outgoinglink`: a surface's outgoing curves on T, oriented against the incoming link; `outgoingnamer`: the search's `BoundaryNamer`; `fromdatabase`: a stored cobordism's outgoing link, read back |
 | `bounds/` | the cobordism graph: `partition`, `partitiongenera`, `cobordismgraph`, `links` (the registry), `axioms`, `searchcobordisms` (a search's finds into the graph), `databasecobordisms`, `searchjudge` (a search's own graph), `certificate` |
 | `solver/` | the atlas solver: `literature` (`NameTable`), `solver`, `solverinputs`, `verdicts` |
-| `frozen.h` | every output token that something reads back or parses and that still spells a retired term (below, "Frozen formats") |
+| `frozen.h` | every output token that something reads back or parses and that still spells a retired term, and the fixed text of the log lines the atlas's `cascade_layer.py` and `status_halcyon.sh` parse (below, "Frozen formats") |
 | `json.h`, `parallelfor.h` | the one JSON writer; the one thread loop |
 
 ## Commands
@@ -885,9 +885,10 @@ counts: its `genus` is its tubed genus.
 
 Everything the atlas reads or keys on keeps its bytes until the atlas changes
 its readers with it. In `cobound/frozen.h` are the tokens that still spell a
-retired term (`hop_`, `node`, `witness`, `far side`, `cascade:`, `row`, ...),
-named for what they are; the rest are literals at the one place each is
-written. Frozen:
+retired term (`hop_`, `node`, `witness`, `far side`, `cascade:`, `row`, ...)
+and the fixed text of the lines `cascade_layer.py` and `status_halcyon.sh`
+parse, named for what they are; the rest are literals at the one place each
+is written. Frozen:
 
 - the database's 13 columns and its `.rows.csv` sidecar;
 - the verdicts file's columns (the atlas's `verify_genus_v2.csv`, each
@@ -901,9 +902,11 @@ written. Frozen:
   `breadth:`, `[+] hop <k> ...`, `[!!] hop <k>: surface accounting failed --
   ...`, `[+] profile:`, `hop shape:`, `EXHAUSTIVE to`, `boundary processing:`,
   `Target best:`, `GOAL MET`, `[+] Searching X`, the `diagram naming:` line's
-  `far sides drawn` and counters, and the progress block; and a goal run's
-  lines read by the atlas's `cascade_layer.py`: `[+] raising the hop budget to
-  S`, `[+] hub: node N has K witness edges; expanding it at S`, `[!] node N
+  `far sides drawn` and counters, the `identification:` line's `census writes
+  N ok/M failed` (the atlas's `status_halcyon.sh`), and the progress block;
+  and a goal run's lines read by the atlas's `cascade_layer.py`: `[+] hop <k>:
+  node N (C crossings, K components)`, `[+] raising the hop budget to S`,
+  `[+] hub: node N has K witness edges; expanding it at S`, `[!] node N
   refused: ...`, `[+] master rows of node N (name): K witnesses assembled`,
   the target line's `goal genus G (connected)` or `(disjoint pieces)`, and
   the refusal `the target PD is X, not Y`;

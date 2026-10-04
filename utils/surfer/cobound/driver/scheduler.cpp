@@ -813,9 +813,9 @@ void Scheduler::expand(LinkId n, long surfaces) {
     << ",\"kept_s\":" << driver_.kept - driverAtLastSearch_.kept << "}";
   driverAtLastSearch_ = driver_;
   log(o.str());
-  std::cout << "[+] " << kFrozenHopLine << k << ": node " << n << " (" << d.crossings()
-            << " crossings, "
-            << d.components() << " components): " << cobordisms << " witnesses, "
+  std::cout << "[+] " << kFrozenHopLine << k << kFrozenHopNodeMark << n << " (" << d.crossings()
+            << kFrozenHopCrossings
+            << d.components() << kFrozenHopComponents << ": " << cobordisms << " witnesses, "
             << assembled << " assembled, " << (g_.linkCount() - linksBefore)
             << " new nodes; " << std::fixed << std::setprecision(0) << r.wall << " s wall, "
             << r.cpu << " s CPU; target best " << (best ? std::to_string(best->genus) : "none")
@@ -922,7 +922,7 @@ int Scheduler::run() {
     // refusal; the table's own PD needs no proof.
     const std::string claimed = classOf(cfg_.targetName);
     if (named && targetCanonical_ != claimed)
-      throw std::runtime_error("the target PD is " + targetCanonical_ + ", not " +
+      throw std::runtime_error(kFrozenTargetPdIs + targetCanonical_ + kFrozenTargetPdNot +
                                cfg_.targetName + " (" + claimed + ")");
     targetCanonical_ = claimed;
   }
@@ -976,8 +976,8 @@ int Scheduler::run() {
   }
   std::cout << "[+] target " << cfg_.targetName << " = node " << target_ << " ("
             << simp.crossings() << " crossings, " << simp.components()
-            << " components; table class '" << targetCanonical_ << "'); goal genus "
-            << cfg_.goalGenus << (cfg_.goalDisjoint ? " (disjoint pieces)" : " (connected)")
+            << " components; table class '" << targetCanonical_ << "'); " << kFrozenGoalGenus
+            << cfg_.goalGenus << (cfg_.goalDisjoint ? kFrozenGoalDisjoint : kFrozenGoalConnected)
             << "\n";
   const auto start = std::chrono::steady_clock::now();
   const double startupSeconds = secondsSince(tRun);

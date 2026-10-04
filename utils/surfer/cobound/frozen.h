@@ -17,9 +17,11 @@
  *
  *  Here are the tokens something reads back or keys on: file and directory
  *  names, prefixes parsed back, enumerated values, CSV headers, and the log
- *  tokens the atlas's tools parse. The rest of the frozen formats -- JSON keys
- *  and the free text of log lines -- are literals at the one place each is
- *  written, and the phase-6 token map lists every one with its future name.
+ *  tokens the atlas's tools parse. The fixed text of the goal run's lines
+ *  cascade_layer.py parses, and of `census writes`, is here too, retired term
+ *  or not. The rest of the frozen formats -- JSON keys and the free text of
+ *  log lines -- are literals at the one place each is written, and the
+ *  phase-6 token map lists every one with its future name.
  */
 
 // ---- the run directory (driver/run.cpp, driver/scheduler.cpp, driver/runrecords.cpp)
@@ -114,8 +116,17 @@ inline constexpr char kFrozenExactFarSideNamesLine[] = "[+] exact far-side names
 /// failed -- ...`, `[!] hop <k>: frontier not written: ...`, `[+] hop <k>:
 /// node <id> (...)`.
 inline constexpr char kFrozenHopLine[] = "hop ";
+/// A goal run's per-search summary after kFrozenHopLine: `[+] hop <k>: node
+/// <id> (<c> crossings, <n> components): ...` (cascade_layer.py's HOP_LINE).
+inline constexpr char kFrozenHopNodeMark[] = ": node ";
+inline constexpr char kFrozenHopCrossings[] = " crossings, ";
+inline constexpr char kFrozenHopComponents[] = " components)";
 /// `[+] <name>: identification: ...` (the complement route's counters).
 inline constexpr char kFrozenIdentificationLine[] = ": identification: ";
+/// That line's `census writes N ok/M failed` (status_halcyon.sh counts the
+/// searches whose M is not 0).
+inline constexpr char kFrozenCensusWrites[] = "census writes ";
+inline constexpr char kFrozenCensusWritesOk[] = " ok/";
 /// `[+] <name>: CONSTRUCTIVE witness found -- reaches genus G ...`.
 inline constexpr char kFrozenConstructiveWitnessFound[] =
     ": CONSTRUCTIVE witness found -- reaches genus ";
@@ -134,5 +145,14 @@ inline constexpr char kFrozenNodeRefusedLine[] = "[!] node ";
 inline constexpr char kFrozenNodeRefusedMark[] = " refused: ";
 inline constexpr char kFrozenMasterRowsLine[] = "[+] master rows of node ";
 inline constexpr char kFrozenWitnessesAssembled[] = " witnesses assembled, ";
+/// The goal run's target line ends `goal genus G (connected)` or `goal genus G
+/// (disjoint pieces)` (cascade_layer.py's TARGET); a target the namer proves
+/// to be another table entry is refused with `the target PD is X, not Y (...)`
+/// (its CLASS_MATE).
+inline constexpr char kFrozenGoalGenus[] = "goal genus ";
+inline constexpr char kFrozenGoalConnected[] = " (connected)";
+inline constexpr char kFrozenGoalDisjoint[] = " (disjoint pieces)";
+inline constexpr char kFrozenTargetPdIs[] = "the target PD is ";
+inline constexpr char kFrozenTargetPdNot[] = ", not ";
 
 #endif // SURFER_COBOUND_FROZEN_H
