@@ -24,7 +24,7 @@ struct SearchedLink {
   linknaming::GaussDiagram diagram;
   /// diagram component i is the link's component linkMap[i].
   std::vector<int> linkMap;
-  std::string pd;   ///< as the search was given it, `;`-separated
+  std::string pd;   ///< as the search was given it, `;`-separated (a given PD respelt so)
   int layers = 2;   ///< thicken_layers of the cobordisms
 };
 

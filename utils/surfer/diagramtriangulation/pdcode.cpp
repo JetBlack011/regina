@@ -1,7 +1,9 @@
 //
 //  pdcode.cpp
 //
-//  parsePDCode() moved here from knotbuilder.cpp (now fromdiagram.cpp).
+//  parsePDCode() moved here from knotbuilder.cpp (now fromdiagram.cpp); its
+//  reading of the integers is pdLabels(), which a goal target's given PD is
+//  also respelt from.
 //
 
 #include "diagramtriangulation/pdcode.h"
@@ -9,8 +11,9 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <utility>
 
-diagramtriangulation::PDCode diagramtriangulation::parsePDCode(std::string pdcode_str) {
+diagramtriangulation::PDCode diagramtriangulation::pdLabels(std::string pdcode_str) {
     std::vector<std::array<int, 4>> pdcode;
 
     for (char &c : pdcode_str) {
@@ -26,26 +29,36 @@ diagramtriangulation::PDCode diagramtriangulation::parsePDCode(std::string pdcod
         pdlist.push_back(token);
     }
 
-    // PD codes conventionally 1-index strand labels; detect 0-indexed
-    // input (a literal 0 can only appear in that case) and normalize to
-    // 0-indexed internally either way.
-    bool isZeroIndexed = false;
-    if (std::ranges::find(pdlist, 0) != pdlist.end()) {
-        isZeroIndexed = true;
-    }
-
-    if (!isZeroIndexed) {
-        for (int &i : pdlist) {
-            --i;
-        }
-    }
-
     for (int i = 0; i < pdlist.size(); i += 4) {
         std::array<int, 4> crossing;
         for (int j = 0; j < 4; j++) {
             crossing[j] = pdlist[i + j];
         }
         pdcode.push_back(crossing);
+    }
+
+    return pdcode;
+}
+
+diagramtriangulation::PDCode diagramtriangulation::parsePDCode(std::string pdcode_str) {
+    PDCode pdcode = pdLabels(std::move(pdcode_str));
+
+    // PD codes conventionally 1-index strand labels; detect 0-indexed
+    // input (a literal 0 can only appear in that case) and normalize to
+    // 0-indexed internally either way.
+    bool isZeroIndexed = false;
+    for (const std::array<int, 4> &crossing : pdcode) {
+        if (std::ranges::find(crossing, 0) != crossing.end()) {
+            isZeroIndexed = true;
+        }
+    }
+
+    if (!isZeroIndexed) {
+        for (std::array<int, 4> &crossing : pdcode) {
+            for (int &i : crossing) {
+                --i;
+            }
+        }
     }
 
     return pdcode;

@@ -14,6 +14,13 @@
 #      crossing, so its T never redraws as its diagram.
 #   3. Only an untabulated target under a goal may fall back to its
 #      simplified diagram, and the run says so.
+#   4. What the run records a target's searches under -- log.txt's first
+#      line, kept.csv's row_pd (column 14), the database's .rows.csv and
+#      certificate.json's row_pd -- is the given PD in the frozen formats'
+#      spelling, [[a;b;c;d];...], labels and crossing order as given: a link
+#      table row given as LinkInfo writes it (PD[X[4; 1; 3; 2]; ...]), and a
+#      knot's PD given with spaces (as the knot table writes it from 11
+#      crossings), are respelt, never recorded as written.
 set -eu
 
 C=$1
@@ -25,7 +32,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 pd31=$(grep '^3_1,' "$DATA/knots_to_6.csv" | cut -d, -f2)
 kinked='[[1;5;2;4];[3;1;4;8];[5;7;6;6];[7;3;8;2]]'
 
-goal() { # dir name pd -> runs; rc in $rc
+goal() { # dir name pd [config line...] -> runs; rc in $rc (later lines win)
   mkdir -p "$1"
   cat > "$1.conf" <<CONF
 target_pd = $3
@@ -47,7 +54,9 @@ iddfs_step = 0
 root_budget_start = 0
 resolve_unlinked = 1
 CONF
-  rc=0; "$C" run --config "$1.conf" > "$1.log" 2>&1 || rc=$?
+  d=$1; shift 3
+  for line in "$@"; do echo "$line" >> "$d.conf"; done
+  rc=0; "$C" run --config "$d.conf" > "$d.log" 2>&1 || rc=$?
 }
 
 # 1. A table target, searched on its PD as written.
@@ -97,4 +106,31 @@ grep -q '^\[!\] target kinked_trefoil: its given diagram does not certify' "$T/f
   fail "the fallback was not logged"
 grep -q '^\[+\] hop 0 .*: accounting:' "$T/fallback.log" || fail "the fallback searched nothing"
 
-echo "PASS: targets are searched on their given diagrams, certified; a table row that does not certify is refused (exit 2 with a goal, build-failed at depth 0); an untabulated target falls back, logged"
+# 4a. A link table row given as LinkInfo writes it: recorded in the bracket spelling.
+pdL=$(grep '^L2a1{0},' "$DATA/links_to_6.csv" | cut -d, -f2)
+spelt=$(printf '%s' "$pdL" | sed 's/^PD\[/[/; s/X\[/[/g; s/ //g')
+case $pdL in PD\[X*) ;; *) fail "the fixture L2a1{0} is not in LinkInfo's spelling: $pdL" ;; esac
+goal "$T/link" 'L2a1{0}' "$pdL" "max_faces = 3" "cobordisms = $T/link.store.csv" \
+  "run_name = given_diagram_test/L2a1"
+[ "$rc" -eq 0 ] || fail "L2a1{0} goal 1 at cap 3 exited $rc, not 0 (met)"
+[ "$(head -1 "$T/link/hop_0_n0/log.txt")" = "[+] L2a1{0} $spelt" ] ||
+  fail "L2a1{0}'s log.txt does not record its given PD respelt: '$(head -1 "$T/link/hop_0_n0/log.txt")'"
+k=$(wc -l < "$T/link/hop_0_n0/kept.csv")
+[ "$k" -gt 0 ] || fail "L2a1{0} kept nothing"
+[ "$(grep -cF ",$spelt," "$T/link/hop_0_n0/kept.csv")" -eq "$k" ] ||
+  fail "a kept.csv line of L2a1{0} does not record row_pd $spelt"
+grep -qF "\"row_pd\":\"$spelt\"" "$T/link/certificate.json" || fail "certificate.json's row_pd is not $spelt"
+grep -qF ",$spelt" "$T/link.store.csv.rows.csv" || fail "the .rows.csv sidecar does not record $spelt"
+for f in "$T/link/hop_0_n0/log.txt" "$T/link/hop_0_n0/kept.csv" "$T/link.store.csv.rows.csv"; do
+  ! grep -q 'PD\[X' "$f" || fail "$f records LinkInfo's spelling"
+done
+! grep -q '"row_pd":"PD\[X' "$T/link/certificate.json" || fail "certificate.json records LinkInfo's spelling"
+
+# 4b. A knot's PD given with spaces: recorded without them.
+spaced=$(printf '%s' "$pd31" | sed 's/;/; /g')
+goal "$T/spaced" 3_1 "$spaced"
+[ "$rc" -eq 1 ] || fail "3_1 (spaced PD) goal 1 at cap 2 exited $rc, not 1 (not met)"
+[ "$(head -1 "$T/spaced/hop_0_n0/log.txt")" = "[+] 3_1 $pd31" ] ||
+  fail "3_1's spaced PD was not respelt: '$(head -1 "$T/spaced/hop_0_n0/log.txt")'"
+
+echo "PASS: targets are searched on their given diagrams, certified; a table row that does not certify is refused (exit 2 with a goal, build-failed at depth 0); an untabulated target falls back, logged; a given PD is recorded in the bracket spelling, labels and order as given"

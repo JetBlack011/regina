@@ -62,6 +62,7 @@
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"
 #include "cobound/frozen.h"
+#include "diagramtriangulation/pdcode.h"
 
 namespace scheduler {
 
@@ -209,6 +210,8 @@ private:
   /// The target as it is searched: on the diagram it was given (its PD as
   /// written, certified at the run's start: phase 7.2), unless an untabulated
   /// target's given diagram did not certify. Unset: its registered diagram.
+  /// Its `pd` is what the run records (respelt: see its certification); T is
+  /// built from the given text itself, cfg_.targetPD, in every search of it.
   std::optional<SearchedLink> targetGiven_;
   /// The first search of the target reuses the thickening its certification built.
   std::unique_ptr<outgoing::OutgoingReader> targetReader_;
@@ -533,8 +536,11 @@ void Scheduler::expand(LinkId n, long surfaces) {
   const auto tBuild = clock::now();
   std::unique_ptr<CobordismAssembler> assembler;
   try {
-    if (given && targetReader_)
-      assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched, std::move(targetReader_));
+    if (given)
+      assembler = std::make_unique<CobordismAssembler>(
+          g_, reg_, searched,
+          targetReader_ ? std::move(targetReader_)
+                        : std::make_unique<outgoing::OutgoingReader>(cfg_.targetPD, searched.layers));
     else
       assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched);
   } catch (const std::exception &e) {
@@ -890,10 +896,18 @@ int Scheduler::run() {
     givenLink.link = target_;
     givenLink.diagram = raw;
     givenLink.linkMap = t.componentMap; // simplifyKeepingComponents() keeps components
-    givenLink.pd = cfg_.targetPD;
+    // What the run records the target's searches under (kept.csv, the
+    // database's `.rows.csv`, certificate.json, log.txt): the given PD in the
+    // frozen formats' spelling, `[[a;b;c;d];...]`, its labels and crossing
+    // order as given -- a link table row is written `PD[X[...]; ...]`, a knot
+    // table row from 11 crossings with spaces. T is built from the given text
+    // itself; both are the same integers in the same order (pdcode.h), so the
+    // same T for whoever rebuilds it from the record.
+    givenLink.pd = diagramtriangulation::formatPDCode(diagramtriangulation::pdLabels(cfg_.targetPD),
+                                                      diagramtriangulation::PDSpelling::semicolons);
     givenLink.layers = *cfg_.runShape.layers;
     try {
-      auto reader = std::make_unique<outgoing::OutgoingReader>(givenLink.pd, givenLink.layers);
+      auto reader = std::make_unique<outgoing::OutgoingReader>(cfg_.targetPD, givenLink.layers);
       search::certifyIncoming(reader->drawer(), reader->incomingCycles(), raw);
       targetGiven_ = std::move(givenLink);
       targetReader_ = std::move(reader);

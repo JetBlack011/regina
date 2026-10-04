@@ -17,14 +17,17 @@
  *  \brief PD (planar diagram) codes as text, both ways.
  *
  *  Reading: parsePDCode() is how T is built from a PD code: whatever the
- *  punctuation, the integers in fours, renumbered from 0 (a code that
- *  already holds a 0 is taken as 0-based). Reading a PD code into a
- *  regina::Link, labels as written, is linknaming/tables.h's
+ *  punctuation, the integers in fours (pdLabels()), renumbered from 0 (a
+ *  code that already holds a 0 is taken as 0-based). Reading a PD code into
+ *  a regina::Link, labels as written, is linknaming/tables.h's
  *  (linknaming::linkFromTablePD()).
  *
  *  Writing: formatPDCode() is the one formatter. The files that store a PD
  *  code spell it in two ways, both frozen until the atlas task picks one
- *  (PDSpelling).
+ *  (PDSpelling). A PD given in another spelling (LinkInfo's
+ *  `PD[X[4; 1; 3; 2]; ...]`, the knot table's spaced one from 11 crossings)
+ *  is respelt as formatPDCode(pdLabels(text), spelling): the same integers
+ *  in the same order, so the same T.
  */
 
 namespace diagramtriangulation {
@@ -32,15 +35,21 @@ namespace diagramtriangulation {
 /** A planar diagram code: one 4-tuple of strand labels per crossing. */
 using PDCode = std::vector<std::array<int, 4>>;
 
-/** Parses a PD (planar diagram) code string into a PDCode. */
+/** A PD code's text as its integers in fours, labels and crossing order
+ *  exactly as written, whatever the punctuation. */
+PDCode pdLabels(std::string pdcode_str);
+
+/** Parses a PD (planar diagram) code string into a PDCode: pdLabels(),
+ *  renumbered from 0. */
 PDCode parsePDCode(std::string pdcode_str);
 
 /** How a stored PD code is spelt. */
 enum class PDSpelling {
     /** `[[1;5;2;4];[3;1;4;6];...]`: every PD a goal run writes (kept.csv's and
-     *  the `.rows.csv` sidecar's `row_pd`s, nodes.csv, node_bounds.jsonl,
-     *  certificates), and the knot table's but for spaces (from 11 crossings
-     *  it writes `[[3; 1; 4; 26]; [1; ...`). */
+     *  the `.rows.csv` sidecar's `row_pd`s, the search's log.txt, nodes.csv,
+     *  node_bounds.jsonl, certificates; its target's given PD respelt so),
+     *  and the knot table's but for spaces (from 11 crossings it writes
+     *  `[[3; 1; 4; 26]; [1; ...`). */
     semicolons,
     /** `[[1,5,2,4],[3,1,4,6],...]`: `cobound draw`'s `pd=` field. */
     commas,

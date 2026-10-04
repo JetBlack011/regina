@@ -1,8 +1,9 @@
 // pdcode_test.cpp
 //
 // Tests for ../pdcode.h: the one parser of PD text into T's crossings
-// (parsePDCode(), labels renumbered from 0) and the one formatter
-// (formatPDCode(), in each stored spelling). The round trip over all 17,153
+// (parsePDCode(), labels renumbered from 0; pdLabels(), labels as written) and
+// the one formatter (formatPDCode(), in each stored spelling, also respelling a
+// given code). The round trip over all 17,153
 // table PD codes is in linknaming/tests/tables_test.cpp, beside the tables'
 // reader.
 
@@ -77,6 +78,30 @@ void test_format() {
               std::string("[]"), "the empty code (the unknot's)");
 }
 
+// A PD given in another spelling is recorded as formatPDCode(pdLabels(text)):
+// labels and crossing order as written, so parsePDCode() -- T's input -- reads
+// the record exactly as it read the text.
+void test_respell() {
+    const std::string linkinfo = "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]";
+    EXPECT_EQ(pdLabels(linkinfo) == (PDCode{{4, 1, 3, 2}, {2, 3, 1, 4}}), true,
+              "pdLabels: LinkInfo's spelling, labels and crossing order as written");
+    EXPECT_EQ(pdLabels("PD[X[0; 4; 1; 3]; X[2; 0; 3; 5]; X[4; 2; 5; 1]]")[0] ==
+                  (std::array<int, 4>{0, 4, 1, 3}),
+              true, "pdLabels: a 0-based code is not renumbered");
+    EXPECT_EQ(formatPDCode(pdLabels(linkinfo), PDSpelling::semicolons),
+              std::string("[[4;1;3;2];[2;3;1;4]]"), "LinkInfo's spelling respelt with semicolons");
+    EXPECT_EQ(formatPDCode(pdLabels("[[1; 5; 2; 4]; [3; 1; 4; 6]; [5; 3; 6; 2]]"),
+                           PDSpelling::semicolons),
+              std::string(kTrefoil), "the knot table's spaced spelling respelt without spaces");
+    for (const char *text : {"PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]",
+                             "PD[X[6; 1; 7; 2]; X[10; 7; 5; 8]; X[4; 5; 1; 6]; X[2; 10; 3; 9]; X[8; 4; 9; 3]]",
+                             "PD[X[0; 4; 1; 3]; X[2; 0; 3; 5]; X[4; 2; 5; 1]]",
+                             "[[1; 5; 2; 4]; [3; 1; 4; 6]; [5; 3; 6; 2]]"})
+        EXPECT_EQ(parsePDCode(formatPDCode(pdLabels(text), PDSpelling::semicolons)) ==
+                      parsePDCode(text),
+                  true, std::string(text) + ": the respelt code parses as the text does");
+}
+
 void test_round_trip() {
     for (const char *text : {kTrefoil, "[[4;2;5;1];[8;6;1;5];[6;3;7;4];[2;7;3;8]]",
                              "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]"}) {
@@ -97,6 +122,7 @@ void run(const std::string &name, void (*fn)()) {
 int main() {
     run("parse", test_parse);
     run("format", test_format);
+    run("respell", test_respell);
     run("round_trip", test_round_trip);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
