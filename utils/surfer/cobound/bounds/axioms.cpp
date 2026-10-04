@@ -59,7 +59,7 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
   // A knot identify() leaves untabulated may be a connected sum the tables
   // hold only summand by summand: the whole-diagram namer cuts it at its
   // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
-  std::vector<std::optional<linknaming::FarSideName>> composites(ns.size());
+  std::vector<std::optional<linknaming::LinkName>> composites(ns.size());
   // Any untabulated node (knot or link) with visible sum spheres is cut into
   // its prime summands, which become nodes joined to it by a sum edge
   // (applySum; paper lem:sum-partitions): the tables list prime links only,
@@ -73,7 +73,7 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
       names[i] = namer_.identify(d);
       if (names[i]->by == linknaming::PieceName::By::untabulated && d.crossings() > 0) {
         if (d.components() == 1) {
-          linknaming::FarSideName fs = namer_.name(d.link());
+          linknaming::LinkName fs = namer_.name(d.link());
           if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
               fs.name.find('#') != std::string::npos)
             composites[i] = std::move(fs);
@@ -135,7 +135,7 @@ void NodeAxioms::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int
   *options_.log << o.str() << "\n";
 }
 
-void NodeAxioms::applyComposite(NodeId n, const linknaming::FarSideName &fs) {
+void NodeAxioms::applyComposite(NodeId n, const linknaming::LinkName &fs) {
   // The composite's name is recorded (certificates, node bounds, the
   // subject name stays cascade:, since no table row holds it). It is an
   // ANCHOR when its summands cancel in concordance (cobordismgraph.h

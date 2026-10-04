@@ -190,7 +190,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
   // boundary is named by its complement unless the row draws its far sides.
   const outgoing::ComplementNamer complementNamer{};
   std::optional<outgoing::DiagramNamer> namer;
-  SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
+  SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);
   e.configureLimits(shape.limits);
   // The process owns SIGINT and SIGTERM (driver/signals.h), not the library.
   e.setSigintHandling(false);
@@ -234,17 +234,17 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     // The invariant that makes the search side fixed: no searchable
     // triangle other than the seed has an edge on it. Checked once here
     // rather than re-derived for every surface found.
-    if (const size_t touching = e.countSearchableFacesTouching(rb.searchSideBC))
+    if (const size_t touching = e.countSearchableFacesTouching(rb.incomingBC))
       throw SeedInvariantFailure(touching);
     // Its name is known by construction; never identify it.
-    e.primeBoundaryName(rb.searchSideBC, rb.searchEdges, request.name);
+    e.primeBoundaryName(rb.incomingBC, rb.incomingEdges, request.name);
   }
 
   // Fresh per search, so each census line describes one search.
   std::optional<SelfIntersectionCensus> selfIntersectionCensus;
   if (outputs.selfIntersectionCensus) {
     selfIntersectionCensus.emplace();
-    selfIntersectionCensus->searchSideBoundary = static_cast<long>(rb.searchSideBC);
+    selfIntersectionCensus->incomingBoundary = static_cast<long>(rb.incomingBC);
   }
   e.configureSelfIntersections(
       {.resolveUnlinked = resolveUnlinked,
@@ -463,7 +463,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     {
       link = outgoing::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
                                            request.row->outgoing(), g.flips,
-                                           rb.searchSideBC);
+                                           rb.incomingBC);
       if (!link) {
         // Only a surface component off the row, which the gate's flips (one
         // per component meeting the row) rule out: impossible.
@@ -489,7 +489,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     w.sourceRow = request.name;
     w.thickenLayers = request.layers;
     w.maxFaces = shape.maxFaces.value_or(0);
-    std::string farName;
+    std::string outgoingName;
     if (g.split.otherSides.empty()) {
       w.kind = cobordisms::CobordismKind::direct;
     } else {
@@ -499,13 +499,13 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
       // determine a link. It is kept because the observation is real and is
       // exactly what a later per-witness naming needs as input; the solver's
       // farSideBearsBound() is what declines it.
-      const search::BoundarySide &far = g.split.otherSides.front();
+      const search::BoundarySide &outgoingSide = g.split.otherSides.front();
       // Normalized, so a census hit and the table name are one graph node,
       // and oriented where exact names are on (search::farSideName()).
-      farName = search::farSideName(g, namer ? &*namer : nullptr);
+      outgoingName = search::nameOutgoing(g, namer ? &*namer : nullptr);
       w.kind = cobordisms::CobordismKind::cobordism;
-      w.other = farName;
-      w.otherComponents = far.components;
+      w.other = outgoingName;
+      w.otherComponents = outgoingSide.components;
       // other_candidates is derived from the name when it is signed, as every
       // reader of the field re-derives it.
     }
@@ -531,7 +531,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     KeptSurface k{.link = std::move(*link),
                   .genus = info.tubedGenus,
                   .resolvedVertices = info.resolvedVertices,
-                  .farName = std::move(farName),
+                  .outgoingName = std::move(outgoingName),
                   .faces = info.captureFaces(),
                   .key = std::move(key),
                   .cobordism = std::move(w)};

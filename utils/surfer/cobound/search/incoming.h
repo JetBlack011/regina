@@ -75,7 +75,7 @@ struct RowOrientation {
 RowOrientation
 buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                     const std::vector<bool> &rowReversed,
-                    const regina::Triangulation<3> &searchSideTri,
+                    const regina::Triangulation<3> &incomingTri,
                     const std::vector<size_t> *requiredEdges = nullptr);
 } // namespace search
 
@@ -102,7 +102,7 @@ namespace search {
 struct RowBuild : ThickenedLink {
     std::optional<search::RowOrientation> orientation;
     /**< The row map: L's edges and PD orientation in search-side terms. */
-    std::vector<size_t> searchEdges;
+    std::vector<size_t> incomingEdges;
     /**< The row's own link on the search side, as sorted edge indices of that
          boundary component's built triangulation. Seeded, the seed's own
          edges there (L x {0}); unseeded, the image of L under the row map,

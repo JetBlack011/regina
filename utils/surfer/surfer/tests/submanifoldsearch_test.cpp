@@ -547,13 +547,13 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
     ThickenedLink row; // two layers, the collar through both, no cone
     buildAmbient(TREFOIL_PD, 2, 2, row);
 
-    size_t searchSideBC = row.searchSideBC;
+    size_t incomingBC = row.incomingBC;
     const regina::Triangulation<4> &tri = row.tri;
     EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
               "no cone() -- search side and far side are both still open, "
               "genuinely distinct ambient boundary components");
 
-    size_t farSideBC = (searchSideBC == 0) ? 1 : 0;
+    size_t outgoingBC = (incomingBC == 0) ? 1 : 0;
 
     const std::vector<int> &seedFaces = row.seedFaces;
     EXPECT_EQ(seedFaces.empty(), false, "the collar produced a non-empty seed");
@@ -577,7 +577,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
     EmbeddingSearch<4, 2> unprotected(tri);
     size_t baselineCount = unprotected.numEmbeddableFaces();
 
-    EmbeddingSearch<4, 2> protectedUnseeded(tri, searchSideBC);
+    EmbeddingSearch<4, 2> protectedUnseeded(tri, incomingBC);
     EXPECT_EQ(protectedUnseeded.numEmbeddableFaces() < baselineCount, true,
               "protecting searchSideBC strictly reduces the embeddable face "
               "count -- the edge-level exclusion catches interior faces "
@@ -585,7 +585,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
 
     bool seededProtectedThrew = false;
     try {
-        EmbeddingSearch<4, 2> seededProtected(tri, seedFaces, searchSideBC);
+        EmbeddingSearch<4, 2> seededProtected(tri, seedFaces, incomingBC);
     } catch (const regina::InvalidArgument &) {
         seededProtectedThrew = true;
     }
@@ -598,16 +598,16 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
     // The far side remains completely unrestricted when searchSideBC is
     // protected: a single-face seed taken from the far boundary component
     // embeds without issue.
-    int farFaceIdx =
-        static_cast<int>(tri.boundaryComponent(farSideBC)->triangle(0)->index());
-    bool farFaceThrew = false;
+    int outgoingFaceIdx =
+        static_cast<int>(tri.boundaryComponent(outgoingBC)->triangle(0)->index());
+    bool outgoingFaceThrew = false;
     try {
-        EmbeddingSearch<4, 2> farSeeded(tri, std::vector<int>{farFaceIdx},
-                                        searchSideBC);
+        EmbeddingSearch<4, 2> outgoingSeeded(tri, std::vector<int>{outgoingFaceIdx},
+                                        incomingBC);
     } catch (const regina::InvalidArgument &) {
-        farFaceThrew = true;
+        outgoingFaceThrew = true;
     }
-    EXPECT_EQ(farFaceThrew, false,
+    EXPECT_EQ(outgoingFaceThrew, false,
               "a far-side face is still a valid seed under searchSideBC "
               "protection -- protecting one boundary component doesn't "
               "restrict any other");

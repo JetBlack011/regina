@@ -150,7 +150,7 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
     std::vector<size_t> es;
     for (const auto &de : cyc) es.push_back(de.edge);
     std::sort(es.begin(), es.end());
-    out.farCurveEdges.push_back(std::move(es));
+    out.outgoingCurveEdges.push_back(std::move(es));
   }
   shape.components = static_cast<int>(compIndex.size());
   shape.validate();
@@ -189,13 +189,13 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
 
   std::vector<int> outMap(m, -1);
   if (out.pieces.size() == 1) {
-    out.farNode = out.pieces[0].node;
+    out.outgoing = out.pieces[0].node;
     for (size_t i = 0; i < pieceOrigins[0].size(); ++i)
       outMap[pieceOrigins[0][i]] = out.pieces[0].componentMap[i];
   } else {
     // A split far side: a fresh whole node (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
-    out.farNode = g_.addNode(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
+    out.outgoing = g_.addNode(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
                              linknaming::linkingMatrix(whole));
     std::vector<NodeId> pn;
     std::vector<std::vector<int>> pmap;
@@ -206,13 +206,13 @@ HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
         mapK[out.pieces[k].componentMap[i]] = static_cast<int>(pieceOrigins[k][i]);
       pmap.push_back(mapK);
     }
-    out.splitEdge = g_.addSplit(out.farNode, pn, pmap);
+    out.splitEdge = g_.addSplit(out.outgoing, pn, pmap);
     for (size_t j = 0; j < m; ++j) outMap[j] = static_cast<int>(j);
   }
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addCobordism(row_.node, out.farNode, shape, inMap, outMap, key);
+  out.edge = g_.addCobordism(row_.node, out.outgoing, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

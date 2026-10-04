@@ -142,7 +142,7 @@ void test_each_entry_names_itself(const ExactNamer &namer, const ExactTables &t)
     for (const auto &rows : {KNOT_ROWS, LINK_ROWS})
         for (const auto &[name, rest] : rows) {
             for (const regina::Link &l : {table(name), mirrored(table(name)), reversedAll(table(name))}) {
-                FarSideName n = namer.name(l);
+                LinkName n = namer.name(l);
                 EXPECT_EQ(n.name, t.canonical(name), name + " (or its mirror or reverse) is named as itself");
                 EXPECT_EQ(n.exact, true, name + " is an exact name");
             }
@@ -160,8 +160,8 @@ void test_orientation_variant_is_pinned(const ExactNamer &namer, const ExactTabl
 
 void test_composite_knots(const ExactNamer &namer) {
     const GaussDiagram t = gauss(table("3_1")), mt = gauss(mirrored(table("3_1")));
-    FarSideName granny = namer.name(sum(t, 0, t).link());
-    FarSideName square = namer.name(sum(t, 0, mt).link());
+    LinkName granny = namer.name(sum(t, 0, t).link());
+    LinkName square = namer.name(sum(t, 0, mt).link());
     EXPECT_EQ(granny.name, std::string("3_1#3_1"), "the granny knot");
     EXPECT_EQ(square.name, std::string("3_1#m3_1"), "the square knot");
     EXPECT_EQ(granny.exact && square.exact, true, "both are exact names");
@@ -174,7 +174,7 @@ void test_composite_knots(const ExactNamer &namer) {
     const GaussDiagram k = gauss(table("8_17")), mk = gauss(mirrored(table("8_17")));
     EXPECT_EQ(namer.name(sum(t, 0, k).link()).name, namer.name(sum(t, 0, mk).link()).name,
               "3_1#8_17 and its global reverse 3_1#m8_17 get one name");
-    FarSideName three = namer.name(sum(sum(t, 0, t), 0, gauss(table("5_2"))).link());
+    LinkName three = namer.name(sum(sum(t, 0, t), 0, gauss(table("5_2"))).link());
     EXPECT_EQ(three.name, std::string("3_1#3_1#5_2"), "three summands");
 }
 
@@ -183,16 +183,16 @@ void test_splits_and_sums(const ExactNamer &namer, const ExactTables &t) {
     GaussDiagram unknot;
     unknot.comps = {{}};
     unknot.origin = {0};
-    FarSideName split = namer.name(unite(t31, f41).link());
+    LinkName split = namer.name(unite(t31, f41).link());
     EXPECT_EQ(split.name, std::string("3_1 u 4_1"), "a split of two knots");
     EXPECT_EQ(split.exact, false, "which is a description, not an identity");
-    FarSideName withUnknot = namer.name(unite(t31, unknot).link());
+    LinkName withUnknot = namer.name(unite(t31, unknot).link());
     EXPECT_EQ(withUnknot.name, std::string("3_1 u Unknot"), "a knot and a split unknot");
     EXPECT_EQ(withUnknot.exact, true, "which is an identity");
     EXPECT_EQ(namer.name(unite(unknot, unknot).link()).name, std::string("2-component unlink"),
               "two split unknots");
     const GaussDiagram hopf = gauss(table("L2a1{0}"));
-    FarSideName knotIntoLink = namer.name(sum(hopf, 0, t31).link());
+    LinkName knotIntoLink = namer.name(sum(hopf, 0, t31).link());
     EXPECT_EQ(knotIntoLink.name, "3_1 #_? " + t.canonical("L2a1{0}"),
               "a trefoil summed into a component of the Hopf link");
     EXPECT_EQ(knotIntoLink.exact, false, "which is a description");
@@ -201,7 +201,7 @@ void test_splits_and_sums(const ExactNamer &namer, const ExactTables &t) {
     chain.comps[1].insert(chain.comps[1].end(), chain.comps[2].begin(), chain.comps[2].end());
     chain.comps.erase(chain.comps.begin() + 2);
     chain.origin = {0, 1, 2};
-    FarSideName three = namer.name(chain.link());
+    LinkName three = namer.name(chain.link());
     const std::string h = t.canonical("L2a1{0}");
     EXPECT_EQ(three.name, "#{" + h + "[?] # " + h + "[?]}", "two Hopf links summed along a component");
     EXPECT_EQ(three.pinned, true, "each piece pinned");

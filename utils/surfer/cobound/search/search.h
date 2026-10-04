@@ -210,7 +210,7 @@ struct KeptSurface {
   outgoing::OutgoingLink link; ///< far side on T, oriented, and incoming side
   int genus = 0;              ///< tubed genus
   int resolvedVertices = 0;
-  std::string farName;        ///< the namer's name; "" for no far side
+  std::string outgoingName;        ///< the namer's name; "" for no far side
   std::vector<int> faces;     ///< triangles of the row's thickening
   std::string key;            ///< its dedupe key (see HopSearcher::run())
   /// The cobordism as the database will record it, every column but the

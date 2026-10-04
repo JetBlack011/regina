@@ -40,8 +40,8 @@ int solveWith(const config::Config &cfg) {
   const std::string linkTablePath = cfg.text("link_table");
   const std::string knotSymmetryPath = cfg.text("knot_symmetry");
   const std::string nameAliasPath = cfg.text("name_aliases");
-  const std::string farSideResolutionPath = cfg.text("far_side_resolutions");
-  const std::string farSideExactPath = cfg.text("far_side_exact");
+  const std::string outgoingResolutionsPath = cfg.text("far_side_resolutions");
+  const std::string outgoingNamesPath = cfg.text("far_side_exact");
   const std::string linkClassesPath = cfg.text("link_classes");
   const std::string cascadeProofsPath = cfg.text("cascade_proofs");
   const bool sumRules = cfg.flag("sum_rules");
@@ -90,7 +90,7 @@ int solveWith(const config::Config &cfg) {
   // Both per-witness tables are keyed on the pair signature's key, which is
   // hashed at load only when one of them will be looked up.
   const std::vector<cobordisms::Cobordism> cobordisms = cobordisms::loadCobordisms(
-      cobordismsPath, !farSideResolutionPath.empty() || !farSideExactPath.empty());
+      cobordismsPath, !outgoingResolutionsPath.empty() || !outgoingNamesPath.empty());
   std::cout << "[+] Resuming with " << cobordisms.size()
             << " previously-recorded witnesses from " << cobordismsPath << "\n";
 
@@ -120,31 +120,31 @@ int solveWith(const config::Config &cfg) {
               << "\n";
   }
 
-  std::unordered_map<std::string, std::vector<solverinputs::FarSideResolution>>
-      farSideResolutions;
-  if (!farSideResolutionPath.empty()) {
+  std::unordered_map<std::string, std::vector<solverinputs::OutgoingResolution>>
+      outgoingResolutions;
+  if (!outgoingResolutionsPath.empty()) {
     try {
-      farSideResolutions = solverinputs::loadFarSideResolutions(farSideResolutionPath);
-      std::cout << "[+] Far-side resolutions: " << farSideResolutions.size()
-                << " witnesses with a proved far side from " << farSideResolutionPath << "\n";
+      outgoingResolutions = solverinputs::loadOutgoingResolutions(outgoingResolutionsPath);
+      std::cout << "[+] Far-side resolutions: " << outgoingResolutions.size()
+                << " witnesses with a proved far side from " << outgoingResolutionsPath << "\n";
     } catch (const std::exception &e) {
-      std::cerr << "[!] could not load far-side resolutions " << farSideResolutionPath << ": "
+      std::cerr << "[!] could not load far-side resolutions " << outgoingResolutionsPath << ": "
                 << e.what() << " (continuing without them)\n";
     }
   }
 
-  std::unordered_map<std::string, solverinputs::ExactFarSide> farSideExact;
-  if (!farSideExactPath.empty()) {
+  std::unordered_map<std::string, solverinputs::OutgoingName> outgoingNamed;
+  if (!outgoingNamesPath.empty()) {
     size_t clashes = 0;
     try {
-      farSideExact = solverinputs::loadFarSideExact(farSideExactPath, clashes);
+      outgoingNamed = solverinputs::loadOutgoingNames(outgoingNamesPath, clashes);
     } catch (const std::exception &e) {
-      std::cerr << "[!] could not load far-side exact names " << farSideExactPath << ": "
+      std::cerr << "[!] could not load far-side exact names " << outgoingNamesPath << ": "
                 << e.what() << "\n";
       return 1;
     }
-    std::cout << "[+] Far-side exact names: " << farSideExact.size() << " witnesses from "
-              << farSideExactPath;
+    std::cout << "[+] Far-side exact names: " << outgoingNamed.size() << " witnesses from "
+              << outgoingNamesPath;
     if (clashes)
       std::cout << " (" << clashes << " with two names dropped)";
     std::cout << "\n";
@@ -208,11 +208,11 @@ int solveWith(const config::Config &cfg) {
         nameAliases.empty()
             ? cobordisms
             : solverinputs::applyNameAliases(cobordisms, nameAliases, names, aliasesApplied);
-    if (!farSideResolutions.empty())
-      out = solverinputs::applyFarSideResolutions(std::move(out), cobordisms, farSideResolutions,
+    if (!outgoingResolutions.empty())
+      out = solverinputs::applyOutgoingResolutions(std::move(out), cobordisms, outgoingResolutions,
                                                   names, resolutionsApplied);
-    if (!farSideExact.empty())
-      out = solverinputs::applyFarSideExact(std::move(out), farSideExact, exactApplied,
+    if (!outgoingNamed.empty())
+      out = solverinputs::applyOutgoingNames(std::move(out), outgoingNamed, exactApplied,
                                             exactRefused);
     // Last: whole names only. A name inside a sum or split is a piece,
     // bounded by its literature value, which is the same across a class.
@@ -249,10 +249,10 @@ int solveWith(const config::Config &cfg) {
   }
   if (!nameAliases.empty())
     std::cout << "[+] Name aliases: applied to " << aliasesApplied << " witness edges\n";
-  if (!farSideResolutions.empty())
+  if (!outgoingResolutions.empty())
     std::cout << "[+] Far-side resolutions: applied to " << resolutionsApplied
               << " witness edges\n";
-  if (!farSideExact.empty())
+  if (!outgoingNamed.empty())
     std::cout << "[+] Far-side exact names: applied to " << exactApplied << " witness edges"
               << (exactRefused ? " (" + std::to_string(exactRefused) +
                                      " refused: component count differs)"

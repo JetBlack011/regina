@@ -302,33 +302,33 @@ struct SelfIntersectionCensus {
    * when there is none (surfer). Set before the search starts; with -1 the
    * multiOpen split below is not recorded.
    */
-  long searchSideBoundary = -1;
+  long incomingBoundary = -1;
   /** multiOpen, split: some multi-open vertex lies on the search side ... */
-  std::atomic<long long> multiOpenSearchSide{0};
+  std::atomic<long long> multiOpenIncoming{0};
   /** ... or every one lies on a far side, where truncating a half-ball at
       the vertex would replace the singular far-side curve by a link L'. */
-  std::atomic<long long> multiOpenFar{0};
+  std::atomic<long long> multiOpenOutgoing{0};
   /** Of multiOpenFar, those whose every OTHER singular vertex is certified
       (as interiorUnlinked / boundaryUnlinked): the far-side multi-open
       vertices are the only obstruction. */
-  std::atomic<long long> multiOpenFarClean{0};
+  std::atomic<long long> multiOpenOutgoingClean{0};
   /** Of multiOpenFarClean, those with exactly one multi-open vertex,
       carrying exactly two open petals (a 2-string tangle) and nothing
       else. */
-  std::atomic<long long> multiOpenFarSimple{0};
+  std::atomic<long long> multiOpenOutgoingSimple{0};
 
   /** Distinct far-side multi-open vertex configurations -- the vertex and
       its full set of petals -- among multiOpenFar / multiOpenFarClean
       candidates. Hashes, bounded by MAX_CONFIGS each. */
   static constexpr size_t MAX_CONFIGS = 4'000'000;
   std::mutex configsMutex;
-  std::unordered_set<uint64_t> farConfigs, farCleanConfigs;
+  std::unordered_set<uint64_t> outgoingConfigs, outgoingCleanConfigs;
   bool configsSaturated = false;
 
-  void recordFarConfigs(const std::vector<uint64_t> &configs, bool clean) {
+  void recordOutgoingConfigs(const std::vector<uint64_t> &configs, bool clean) {
     std::lock_guard<std::mutex> lock(configsMutex);
     for (uint64_t c : configs) {
-      for (auto *set : {&farConfigs, clean ? &farCleanConfigs : nullptr}) {
+      for (auto *set : {&outgoingConfigs, clean ? &outgoingCleanConfigs : nullptr}) {
         if (!set)
           continue;
         if (set->size() < MAX_CONFIGS)

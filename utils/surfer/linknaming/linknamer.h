@@ -144,7 +144,7 @@ struct PieceName {
 };
 
 /** A far side's name, with how it was proved. */
-struct FarSideName {
+struct LinkName {
     std::string name;
     bool exact = false;             /**< an identity; see the file comment */
     bool pinned = false;            /**< every piece's variant pinned */
@@ -201,7 +201,7 @@ class ExactNamer {
      * \param drawn an oriented, planar diagram of the far side, component i
      *        the i-th far-side curve (knotbuilder::Diagram::link()).
      */
-    FarSideName name(const regina::Link &drawn) const;
+    LinkName name(const regina::Link &drawn) const;
 
     /** Piece identification alone (exposed for tests). */
     PieceName identify(const GaussDiagram &piece) const;

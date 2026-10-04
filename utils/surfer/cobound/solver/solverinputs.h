@@ -70,14 +70,14 @@ applyNameAliases(const std::vector<cobordisms::Cobordism> &cobordisms,
                  const solver::NameTable &names, size_t &appliedOut);
 
 /** One proved far-side identity, keyed on the witness rather than the name. */
-struct FarSideResolution {
+struct OutgoingResolution {
   std::string boundaryComponent; // "0" or "1", as peripheral_slopes reports it
   std::string name;              // the ORIENTED name we have proved it to be
 };
 
 /** One row of far_side_exact: the far side redrawn from the witness's own
  *  pair signature, oriented by its surface and named with a proof (name). */
-struct ExactFarSide {
+struct OutgoingName {
   std::string name;
   bool exact = false; // an identity (may receive a bound), not a description
   int components = 0; // curves drawn: must equal the witness's observed count
@@ -85,8 +85,8 @@ struct ExactFarSide {
 
 /** Loads far_side_exact: witness,name,exact,pinned,components,proof. A key
  *  seen with two different names is a contradiction and is dropped. */
-std::unordered_map<std::string, ExactFarSide>
-loadFarSideExact(const std::filesystem::path &path, size_t &clashes);
+std::unordered_map<std::string, OutgoingName>
+loadOutgoingNames(const std::filesystem::path &path, size_t &clashes);
 
 /**
  * Applies far_side_exact to the solver's copy of the witnesses, last, so it
@@ -96,8 +96,8 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes);
  * or its proved alternatives -- never a base's variants.
  */
 std::vector<cobordisms::Cobordism>
-applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
-                  const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
+applyOutgoingNames(std::vector<cobordisms::Cobordism> cobordisms,
+                  const std::unordered_map<std::string, OutgoingName> &exact, size_t &applied,
                   size_t &refused);
 
 /**
@@ -116,8 +116,8 @@ applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
  * keyed on it (via cobordisms::witnessKey) plus which boundary component of
  * that witness is meant.
  */
-std::unordered_map<std::string, std::vector<FarSideResolution>>
-loadFarSideResolutions(const std::filesystem::path &path);
+std::unordered_map<std::string, std::vector<OutgoingResolution>>
+loadOutgoingResolutions(const std::filesystem::path &path);
 
 /**
  * Resolves far sides witness-by-witness, returning a SEPARATE vector for the
@@ -137,10 +137,10 @@ loadFarSideResolutions(const std::filesystem::path &path);
  * load_witnesses(); the two implementations are deliberately independent,
  * and `frontier.py --check` is only a check while they stay that way.
  */
-std::vector<cobordisms::Cobordism> applyFarSideResolutions(
+std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
     std::vector<cobordisms::Cobordism> resolved,
     const std::vector<cobordisms::Cobordism> &observed,
-    const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
+    const std::unordered_map<std::string, std::vector<OutgoingResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut);
 
 /**

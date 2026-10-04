@@ -248,7 +248,7 @@ void test_component_correction_on_the_lower_bound() {
               "justified");
 }
 
-void test_unlink_far_side_carries_no_component_penalty() {
+void test_unlink_outgoing_carries_no_component_penalty() {
     // The `+ n_far - 1` term assumes the far side is capped with its minimal
     // CONNECTED surface. An n-component unlink instead bounds n DISJOINT
     // discs, and gluing those onto a connected cobordism still yields a
@@ -299,7 +299,7 @@ void test_derived_lower_above_derived_upper_is_a_contradiction() {
               "verification");
 }
 
-void test_knot_far_side_named_as_a_link_bounds_nothing() {
+void test_knot_outgoing_named_as_a_link_bounds_nothing() {
     // One curve was observed on the far side, but the name it was given is a
     // link's base, so no registered variant has the observed count: the
     // identification and the geometry disagree. candidates() then hands back
@@ -320,7 +320,7 @@ void test_knot_far_side_named_as_a_link_bounds_nothing() {
               "bound: no candidate is a knot");
 }
 
-void test_linked_far_side_bounds_nothing() {
+void test_linked_outgoing_bounds_nothing() {
     // The unlink exemption is the ONLY way a multi-component far side gets
     // to carry a bound. Every other multi-component name is a statement
     // about a complement, and a link complement belongs to infinitely many
@@ -418,30 +418,30 @@ void test_orientation_variants_are_not_a_candidate_set() {
               "no lower bound from a min over them");
 }
 
-void test_far_side_bears_bound() {
+void test_outgoing_bears_bound() {
     // The predicate the solver gates on, stated directly.
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "4_1", 1, 0)), true,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "4_1", 1, 0)), true,
               "a knot far side bounds (Gordon-Luecke)");
-    EXPECT_EQ(farSideBearsBound(
+    EXPECT_EQ(outgoingBearsBound(
                   cobordism("K", 1, "gLLMQacdefeffhhnkxk", 1, 0)),
               true, "so does a one-component bare isoSig");
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "Unknot", 1, 0)), true,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "Unknot", 1, 0)), true,
               "and the unknot");
-    EXPECT_EQ(farSideBearsBound(
+    EXPECT_EQ(outgoingBearsBound(
                   cobordism("K", 1, "2-component unlink", 2, 0)),
               true, "an unlink is a structural proof of the link itself");
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "L4a1{0}", 2, 0)), false,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "L4a1{0}", 2, 0)), false,
               "a Thistlethwaite name with 2 curves does not");
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "L204001", 2, 0)), false,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "L204001", 2, 0)), false,
               "nor a Christy census name");
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "m129", 2, 0)), false,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "m129", 2, 0)), false,
               "nor a SnapPea census name");
-    EXPECT_EQ(farSideBearsBound(
+    EXPECT_EQ(outgoingBearsBound(
                   cobordism("K", 1, "gLLMQacdefeffhhnkxk", 3, 0)),
               false, "nor a bare isoSig with 3 curves");
     // The gate is on the OBSERVED count, so a name that looks like a knot
     // cannot smuggle a two-curve far side through.
-    EXPECT_EQ(farSideBearsBound(cobordism("K", 1, "4_1", 2, 0)), false,
+    EXPECT_EQ(outgoingBearsBound(cobordism("K", 1, "4_1", 2, 0)), false,
               "a knot-shaped name on a 2-curve far side is refused");
 }
 
@@ -539,7 +539,7 @@ void test_self_cobordism_still_allows_a_real_bound_from_elsewhere() {
     EXPECT_EQ(bounds["K"].hi, 2, "the direct witness still bounds K");
 }
 
-void test_ambiguous_far_side_gets_no_reverse_bound() {
+void test_ambiguous_outgoing_gets_no_reverse_bound() {
     // Regression for a real contradiction caught by a live run. A genus-0
     // cobordism from L4a1{0} to a far side identified only as "L7n1" was
     // once pushed onto every candidate, giving L7n1{0} (true genus 2) a
@@ -564,7 +564,7 @@ void test_ambiguous_far_side_gets_no_reverse_bound() {
     EXPECT_EQ(bounds["L7n1{1}"].haveUpper(), false, "likewise the other");
 }
 
-void test_unambiguous_far_side_does_get_a_reverse_bound() {
+void test_unambiguous_outgoing_does_get_a_reverse_bound() {
     // The restriction above is about ambiguity, not about direction: with
     // a single candidate the reverse bound is perfectly sound and must
     // still fire, or link-to-knot cobordisms would stop teaching us
@@ -640,7 +640,7 @@ void test_support_set_records_what_a_bound_rests_on() {
     EXPECT_EQ(bounds2["K"].basis == Basis::constructive, true, "");
 }
 
-void test_unregistered_multicomponent_far_side_gets_no_reverse_bound() {
+void test_unregistered_multicomponent_outgoing_gets_no_reverse_bound() {
     // Regression for four live contradictions that killed three phases of a
     // sweep. candidates() falls back to `{name}` for any name absent from
     // the literature tables, so a far side known only by its COMPLEMENT --
@@ -675,7 +675,7 @@ void test_unregistered_multicomponent_far_side_gets_no_reverse_bound() {
               "no contradiction, where the unguarded version produced one");
 }
 
-void test_unregistered_SINGLE_component_far_side_still_chains() {
+void test_unregistered_SINGLE_component_outgoing_still_chains() {
     // The guard keys on component count, not on being unregistered: a
     // single curve has no orientation freedom, so a bare isoSig knot
     // complement must still chain. That path carries most of the graph's
@@ -717,7 +717,7 @@ void test_two_component_isosig_node_does_not_chain() {
               "found different links with that exterior");
 }
 
-void test_unlink_far_side_still_chains_and_is_penalty_free() {
+void test_unlink_outgoing_still_chains_and_is_penalty_free() {
     // The one multi-component far side that DOES bear a bound, checked
     // alongside the ones that do not so the gate is seen to be selective
     // rather than a blanket refusal of links.
@@ -1061,7 +1061,7 @@ void test_cobordism_identity() {
 // Per-witness proved far sides (--far-side-resolutions)
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_proved_link_far_side_bears_bound() {
+void test_proved_link_outgoing_bears_bound() {
     // The counterpart of test_linked_far_side_bounds_nothing. There the far
     // side was named from its complement, which does not determine a link.
     // Here applyFarSideResolutions() has marked it proved PER WITNESS -- an
@@ -1073,9 +1073,9 @@ void test_proved_link_far_side_bears_bound() {
     names.addLiterature("L4a1{0}", 0, 0);
     names.addLiterature("L4a1{1}", 0, 0);
     Cobordism w = cobordism("K", 1, "L4a1", 2, 0, {"L4a1{0}", "L4a1{1}"});
-    EXPECT_EQ(farSideBearsBound(w), false, "unproved: the gate refuses it");
-    w.farSideProved = true;
-    EXPECT_EQ(farSideBearsBound(w), true, "proved: the gate accepts it");
+    EXPECT_EQ(outgoingBearsBound(w), false, "unproved: the gate refuses it");
+    w.outgoingProved = true;
+    EXPECT_EQ(outgoingBearsBound(w), true, "proved: the gate accepts it");
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 1,
               "g_4(K) <= max(0, 0) + 0 + (2 - 1) = 1, by hand");
@@ -1085,7 +1085,7 @@ void test_proved_link_far_side_bears_bound() {
 // Split (disjoint-union) far-side names: "A u B"
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_split_far_side_upper_bound() {
+void test_split_outgoing_upper_bound() {
     // g_4(A u B) <= g_4(A) + g_4(B): tube the factors' minimal surfaces
     // together (constructive). With 3_1 at 1 and the Unknot axiom at 0, a
     // genus-0 cobordism K -> (3_1 u Unknot) gives
@@ -1095,14 +1095,14 @@ void test_split_far_side_upper_bound() {
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("m3_1", 1, 1);
     Cobordism w = cobordism("K", 1, "3_1 u Unknot", 2, 0);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
     EXPECT_EQ(bounds["K"].basis == Basis::literatureAssisted, true,
               "it rests on 3_1's literature value, so it is assisted");
 
     Cobordism m = cobordism("K", 1, "3_1|m3_1 u Unknot", 2, 0);
-    m.farSideProved = true;
+    m.outgoingProved = true;
     auto mb = propagate({m}, names);
     EXPECT_EQ(mb["K"].hi, 2,
               "a mirror alternation takes the worse of 3_1 and m3_1 -- the "
@@ -1113,10 +1113,10 @@ void test_split_far_side_upper_bound() {
 // cobordism from a knot K (literature [0, 9], so it constrains nothing) to a
 // far side F gives, from the cobordism inequalities with n_0 = 1,
 //     lo(K) = lo(F) - 0 - 1 + 1 = lo(F),    hi(K) = hi(F) + 0 + (n_F - 1).
-Bounds probeFarSide(const std::string &far, int nFar, NameTable names) {
+Bounds probeOutgoing(const std::string &outgoing, int nOutgoing, NameTable names) {
     names.addLiterature("K", 0, 9);
-    Cobordism w = cobordism("K", 1, far, nFar, 0);
-    w.farSideProved = true;
+    Cobordism w = cobordism("K", 1, outgoing, nOutgoing, 0);
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     return bounds["K"];
 }
@@ -1126,10 +1126,10 @@ void test_split_unknot_factor_changes_nothing() {
     // disc in a collar (>=). So 3_1 u Unknot has g_4 exactly 1.
     NameTable names;
     names.addLiterature("3_1", 1, 1);
-    Bounds k = probeFarSide("3_1 u Unknot", 2, names);
+    Bounds k = probeOutgoing("3_1 u Unknot", 2, names);
     EXPECT_EQ(k.lo, 1, "lo(3_1 u Unknot) = g_4(3_1) = 1: the unknot drops out");
     EXPECT_EQ(k.hi, 2, "hi = (1 + 0) + (2 - 1) = 2, by hand");
-    Bounds k2 = probeFarSide("3_1 u Unknot u Unknot", 3, names);
+    Bounds k2 = probeOutgoing("3_1 u Unknot u Unknot", 3, names);
     EXPECT_EQ(k2.lo, 1, "any number of split unknots drop out");
 }
 
@@ -1143,7 +1143,7 @@ void test_split_lower_bound_is_not_additive() {
     // says nothing.
     NameTable names;
     names.addLiterature("4_1", 1, 1);
-    Bounds k = probeFarSide("4_1 u 4_1", 2, names);
+    Bounds k = probeOutgoing("4_1 u 4_1", 2, names);
     EXPECT_EQ(k.haveLower() && k.lo > 0, false,
               "no positive lower bound through 4_1 u 4_1, whose g_4 is 0");
     EXPECT_EQ(k.hi, 3, "upper still the constructive (1 + 1) + (2 - 1) = 3");
@@ -1153,7 +1153,7 @@ void test_split_lower_bound_is_not_additive() {
     // literature value, and nothing is judged a contradiction.
     names.addLiterature("S{0}", 0, 0);
     Cobordism w = cobordism("S{0}", 2, "4_1 u 4_1", 2, 0);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["S{0}"].haveLower() && bounds["S{0}"].lo > 0, false,
               "the slice subject keeps a lower bound of at most 0");
@@ -1172,7 +1172,7 @@ void test_split_lower_bound_three_factors() {
     NameTable names;
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("5_1", 2, 2);
-    Bounds k = probeFarSide("3_1 u 5_1 u Unknot", 3, names);
+    Bounds k = probeOutgoing("3_1 u 5_1 u Unknot", 3, names);
     EXPECT_EQ(k.haveLower() && k.lo > 0, false,
               "(2 - 1) - (2 - 1) = 0: no positive lower bound, by hand");
     EXPECT_EQ(k.hi, 5, "hi = (1 + 2 + 0) + (3 - 1) = 5, by hand");
@@ -1180,7 +1180,7 @@ void test_split_lower_bound_three_factors() {
     // A gap big enough to be positive. The unknot must DROP OUT: counted as
     // a factor it would make f = 3 and the bound (3 - 1) - 2 = 0.
     names.addLiterature("7_1", 3, 3);
-    EXPECT_EQ(probeFarSide("3_1 u 7_1 u Unknot", 3, names).lo, 1,
+    EXPECT_EQ(probeOutgoing("3_1 u 7_1 u Unknot", 3, names).lo, 1,
               "(3 - 1) - (2 - 1) = 1, by hand: the unknot is not a factor");
 
     // Three nontrivial factors: 11a_367 is T(2,11), g_4 = 5.
@@ -1188,7 +1188,7 @@ void test_split_lower_bound_three_factors() {
     //     g_4(3_1 u 3_1 u 11a_367) >= 3 - (3 - 1) = 1.
     // (The additive rule claimed 7; dropping the -(f - 1) would claim 3.)
     names.addLiterature("11a_367", 5, 5);
-    EXPECT_EQ(probeFarSide("3_1 u 3_1 u 11a_367", 3, names).lo, 1,
+    EXPECT_EQ(probeOutgoing("3_1 u 3_1 u 11a_367", 3, names).lo, 1,
               "5 - 1 - 1 - (3 - 1) = 1, by hand");
 }
 
@@ -1198,7 +1198,7 @@ void test_split_mirror_alternatives_use_the_unmirrored_name() {
     // nothing registered for m3_1.
     NameTable names;
     names.addLiterature("3_1", 1, 1);
-    Bounds k = probeFarSide("3_1|m3_1 u Unknot", 2, names);
+    Bounds k = probeOutgoing("3_1|m3_1 u Unknot", 2, names);
     EXPECT_EQ(k.hi, 2, "upper found through the unmirrored name: 1 + 0 + 1");
     EXPECT_EQ(k.lo, 1, "lower likewise: g_4(3_1) = 1");
 }
@@ -1212,12 +1212,12 @@ void test_split_composite_alternative_keeps_its_mirror() {
     NameTable names;
     names.addLiterature("3_1", 1, 1);
     names.addLiterature("3_1#3_1", 2, 2);
-    Bounds k = probeFarSide("m3_1#3_1 u Unknot", 2, names);
+    Bounds k = probeOutgoing("m3_1#3_1 u Unknot", 2, names);
     EXPECT_EQ(k.haveLower() && k.lo > 0, false,
               "no lower bound borrowed from the granny: 1 - 1 = 0");
     EXPECT_EQ(k.hi, 3, "upper from the summands: (1 + 1) + (2 - 1) = 3");
     // The granny itself, by name, does carry its value.
-    EXPECT_EQ(probeFarSide("3_1#3_1 u Unknot", 2, names).lo, 2,
+    EXPECT_EQ(probeOutgoing("3_1#3_1 u Unknot", 2, names).lo, 2,
               "3_1#3_1 u Unknot: g_4(3_1#3_1) = 2");
 }
 
@@ -1226,11 +1226,11 @@ void test_split_with_a_link_factor_has_no_lower_bound() {
     // which only the composite-KNOT rule gives; a link factor leaves it open.
     NameTable names;
     names.addLiterature("L2a1{0}", 0, 0);
-    Bounds k = probeFarSide("L2a1{0} u Unknot", 3, names);
+    Bounds k = probeOutgoing("L2a1{0} u Unknot", 3, names);
     EXPECT_EQ(k.haveLower(), false, "no lower bound claimed");
 }
 
-void test_unproved_split_far_side_bounds_nothing() {
+void test_unproved_split_outgoing_bounds_nothing() {
     // A split name reaching the solver WITHOUT a per-witness proof is still
     // a multi-component far side, and the gate refuses it.
     NameTable names;
@@ -1246,14 +1246,14 @@ void test_unproved_split_far_side_bounds_nothing() {
 
 // An exact far side bounds by ITS variant, not the worst of its base's, and
 // receives a bound from the subject whatever its component count.
-void test_exact_far_side() {
+void test_named_outgoing() {
     NameTable names;
     names.addLiterature("S", 0, 9);
     names.addLiterature("L7n1{0}", 2, 2);
     names.addLiterature("L7n1{1}", 0, 0);
     Cobordism w = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
-    w.farSideProved = true;
-    w.farSideExact = true;
+    w.outgoingProved = true;
+    w.outgoingNamed = true;
     auto bounds = propagate({w, direct("S", 1, 0)}, names);
     EXPECT_EQ(bounds["S"].hi, 0, "the subject is bounded by its own genus-0 witness");
     EXPECT_EQ(bounds["L7n1{1}"].haveUpper(), true, "an exact far side receives a bound");
@@ -1264,7 +1264,7 @@ void test_exact_far_side() {
     names2.addLiterature("L7n1{0}", 2, 2);
     names2.addLiterature("L7n1{1}", 0, 0);
     Cobordism v = cobordism("S", 1, "L7n1{1}", 2, 0, exactCandidates("L7n1{1}"));
-    v.farSideProved = true; // proved but not an identity
+    v.outgoingProved = true; // proved but not an identity
     auto b2 = propagate({v}, names2);
     EXPECT_EQ(b2["S"].hi, 1, "forward: g4(L7n1{1}) + 0 + 2 - 1, not L7n1{0}'s 2 + 1");
     EXPECT_EQ(b2["L7n1{1}"].haveUpper(), false, "a description receives nothing");
@@ -1282,10 +1282,10 @@ void test_sum_rules() {
         names.addLiterature("L2a1{0}", 0, 0);
         Cobordism sum = cobordism("S", 1, "#{L2a1{0}[?] # L7n1{0}[?]}", 3, 0,
                                 exactCandidates("#{L2a1{0}[?] # L7n1{0}[?]}"));
-        sum.farSideProved = true;
+        sum.outgoingProved = true;
         Cobordism split = cobordism("T", 1, "L7n1{0} u L2a1{0}", 4, 0,
                                   exactCandidates("L7n1{0} u L2a1{0}"));
-        split.farSideProved = true;
+        split.outgoingProved = true;
         auto bounds = propagate({sum, split}, names);
         const std::string tag = on ? " (sum rules on)" : " (sum rules off)";
         // Sum: g4 <= 2 + 0; >= 2 - (0 + 2 - 1) = 1. Subject: hi 2 + 0 + 3 - 1
@@ -1300,7 +1300,7 @@ void test_sum_rules() {
     }
 }
 
-void test_composite_far_side_upper_bound() {
+void test_composite_outgoing_upper_bound() {
     // g_4(K #_c L) <= g_4(K) + g_4(L). With 3_1 at 1 and both orientations of
     // L2a1 at 0, a proved genus-0 cobordism K -> (m3_1 #_0 L2a1) gives
     //     g_4(K) <= (1 + max(0, 0)) + 0 + (2 - 1) = 2.
@@ -1310,7 +1310,7 @@ void test_composite_far_side_upper_bound() {
     names.addLiterature("L2a1{0}", 0, 0);
     names.addLiterature("L2a1{1}", 0, 0);
     Cobordism w = cobordism("K", 1, "m3_1 #_0 L2a1", 2, 0);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 2, "g_4(K) <= 1 + 0 + 0 + 1 = 2, by hand");
     EXPECT_EQ(bounds["K"].haveLower(), false,
@@ -1325,7 +1325,7 @@ void test_composite_takes_the_worst_orientation() {
     names.addLiterature("L4a1{0}", 0, 0);
     names.addLiterature("L4a1{1}", 1, 1);
     Cobordism w = cobordism("K", 1, "3_1 #_0 L4a1", 2, 0);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["K"].hi, 3, "g_4(K) <= 1 + max(0, 1) + 0 + 1 = 3");
 }
@@ -1401,7 +1401,7 @@ void test_composite_link_lower_bound() {
     names.addLiterature("L7a1{0}", 2, 2);
     names.addLiterature("L7a1{1}", 2, 2);
     Cobordism w = cobordism("S", 1, "3_1 #_0 L7a1", 2, 0);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     auto bounds = propagate({w}, names);
     EXPECT_EQ(bounds["S"].lo, 1, "g_4(S) >= (2 - 1) - 0 - 1 + 1 = 1, by hand");
     EXPECT_EQ(bounds["S"].hi, 4, "and g_4(S) <= (1 + 2) + 0 + (2 - 1) = 4");
@@ -1417,10 +1417,10 @@ int main() {
     run("derived_lower_above_derived_upper_is_a_contradiction",
         test_derived_lower_above_derived_upper_is_a_contradiction);
     run("knot_far_side_named_as_a_link_bounds_nothing",
-        test_knot_far_side_named_as_a_link_bounds_nothing);
+        test_knot_outgoing_named_as_a_link_bounds_nothing);
     run("proved_link_far_side_bears_bound",
-        test_proved_link_far_side_bears_bound);
-    run("split_far_side_upper_bound", test_split_far_side_upper_bound);
+        test_proved_link_outgoing_bears_bound);
+    run("split_far_side_upper_bound", test_split_outgoing_upper_bound);
     run("split_unknot_factor_changes_nothing",
         test_split_unknot_factor_changes_nothing);
     run("split_lower_bound_is_not_additive",
@@ -1434,8 +1434,8 @@ int main() {
     run("split_with_a_link_factor_has_no_lower_bound",
         test_split_with_a_link_factor_has_no_lower_bound);
     run("unproved_split_far_side_bounds_nothing",
-        test_unproved_split_far_side_bounds_nothing);
-    run("composite_far_side_upper_bound", test_composite_far_side_upper_bound);
+        test_unproved_split_outgoing_bounds_nothing);
+    run("composite_far_side_upper_bound", test_composite_outgoing_upper_bound);
     run("composite_takes_the_worst_orientation",
         test_composite_takes_the_worst_orientation);
     run("unproved_composite_bounds_nothing",
@@ -1457,8 +1457,8 @@ int main() {
     run("component_correction_on_the_lower_bound",
         test_component_correction_on_the_lower_bound);
     run("unlink_far_side_carries_no_component_penalty",
-        test_unlink_far_side_carries_no_component_penalty);
-    run("linked_far_side_bounds_nothing", test_linked_far_side_bounds_nothing);
+        test_unlink_outgoing_carries_no_component_penalty);
+    run("linked_far_side_bounds_nothing", test_linked_outgoing_bounds_nothing);
     run("unlink_axiom_is_constructive", test_unlink_axiom_is_constructive);
     run("slice_composite_axiom_is_constructive",
         test_slice_composite_axiom_is_constructive);
@@ -1466,7 +1466,7 @@ int main() {
         test_slice_composite_allowlist_is_not_a_pattern);
     run("orientation_variants_are_not_a_candidate_set",
         test_orientation_variants_are_not_a_candidate_set);
-    run("far_side_bears_bound", test_far_side_bears_bound);
+    run("far_side_bears_bound", test_outgoing_bears_bound);
     run("chains_through_an_unnamed_isosig_node",
         test_chains_through_an_unnamed_isosig_node);
     run("tubed_witness_genus_is_taken_at_face_value",
@@ -1478,22 +1478,22 @@ int main() {
     run("self_cobordism_still_allows_a_real_bound_from_elsewhere",
         test_self_cobordism_still_allows_a_real_bound_from_elsewhere);
     run("ambiguous_far_side_gets_no_reverse_bound",
-        test_ambiguous_far_side_gets_no_reverse_bound);
+        test_ambiguous_outgoing_gets_no_reverse_bound);
     run("unambiguous_far_side_does_get_a_reverse_bound",
-        test_unambiguous_far_side_does_get_a_reverse_bound);
+        test_unambiguous_outgoing_does_get_a_reverse_bound);
     run("two_step_cycle_through_an_alias_is_refused",
         test_two_step_cycle_through_an_alias_is_refused);
     run("longer_cycle_is_refused", test_longer_cycle_is_refused);
     run("support_set_records_what_a_bound_rests_on",
         test_support_set_records_what_a_bound_rests_on);
     run("unregistered_multicomponent_far_side_gets_no_reverse_bound",
-        test_unregistered_multicomponent_far_side_gets_no_reverse_bound);
+        test_unregistered_multicomponent_outgoing_gets_no_reverse_bound);
     run("unregistered_SINGLE_component_far_side_still_chains",
-        test_unregistered_SINGLE_component_far_side_still_chains);
+        test_unregistered_SINGLE_component_outgoing_still_chains);
     run("two_component_isosig_node_does_not_chain",
         test_two_component_isosig_node_does_not_chain);
     run("unlink_far_side_still_chains_and_is_penalty_free",
-        test_unlink_far_side_still_chains_and_is_penalty_free);
+        test_unlink_outgoing_still_chains_and_is_penalty_free);
     run("judge_verified", test_judge_verified);
     run("judge_distinguishes_assisted_verification",
         test_judge_distinguishes_assisted_verification);
@@ -1517,7 +1517,7 @@ int main() {
         test_split_boundary_unnamed_side_flagged);
     run("classify_row_orientation", test_classify_row_orientation);
     run("witness_identity", test_cobordism_identity);
-    run("exact_far_side", test_exact_far_side);
+    run("exact_far_side", test_named_outgoing);
     run("sum_rules", test_sum_rules);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "

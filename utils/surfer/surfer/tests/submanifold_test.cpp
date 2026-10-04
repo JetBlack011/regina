@@ -1390,24 +1390,24 @@ void test_boundary_vertex_self_intersection_not_resolvable() {
                                            ->index());
     for (long side : {-1L, bc, bc + 1}) {
         SelfIntersectionCensus census;
-        census.searchSideBoundary = side;
+        census.incomingBoundary = side;
         PetalCache sideCache;
         KnottedSurface tallied({.census = &census}, skeleton, sideCache);
         tallied.addFace(pair->first);
         tallied.addFace(pair->second);
         tallied.tallySelfIntersection();
         const std::string l = "search side " + std::to_string(side) + ": ";
-        const bool far = side == bc + 1;
+        const bool outgoing = side == bc + 1;
         EXPECT_EQ(census.multiOpen.load(), 1LL, l + "multi-open");
-        EXPECT_EQ(census.multiOpenSearchSide.load(), side == bc ? 1LL : 0LL,
+        EXPECT_EQ(census.multiOpenIncoming.load(), side == bc ? 1LL : 0LL,
                   l + "search-side split");
-        EXPECT_EQ(census.multiOpenFar.load(), far ? 1LL : 0LL,
+        EXPECT_EQ(census.multiOpenOutgoing.load(), outgoing ? 1LL : 0LL,
                   l + "far-side split");
-        EXPECT_EQ(census.multiOpenFarClean.load(), far ? 1LL : 0LL,
+        EXPECT_EQ(census.multiOpenOutgoingClean.load(), outgoing ? 1LL : 0LL,
                   l + "no other singular vertex, so clean");
-        EXPECT_EQ(census.multiOpenFarSimple.load(), far ? 1LL : 0LL,
+        EXPECT_EQ(census.multiOpenOutgoingSimple.load(), outgoing ? 1LL : 0LL,
                   l + "one vertex, two open petals: simple");
-        EXPECT_EQ(census.farConfigs.size(), size_t(far ? 1 : 0),
+        EXPECT_EQ(census.outgoingConfigs.size(), size_t(outgoing ? 1 : 0),
                   l + "one far-side configuration");
     }
 }

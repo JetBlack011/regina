@@ -134,8 +134,8 @@ class OutgoingReader {
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }
     const OutgoingMap &outgoing() const { return *outgoing_; }
     const search::RowOrientation &row() const { return *rb_.orientation; }
-    size_t incomingBC() const { return rb_.searchSideBC; }
-    const std::vector<size_t> &rowEdges() const { return rb_.searchEdges; }
+    size_t incomingBC() const { return rb_.incomingBC; }
+    const std::vector<size_t> &rowEdges() const { return rb_.incomingEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
     /** The row's own components, in DiagramDrawer::cyclesOf() order. */
     const std::vector<knotbuilder::EdgeCycle> &rowCycles() const { return rowCycles_; }

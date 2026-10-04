@@ -52,12 +52,12 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
   }
   if (needHeader)
     out << kFrozenSelfIntersectionCensusHeader;
-  size_t farConfigs, farCleanConfigs;
+  size_t outgoingConfigs, outgoingCleanConfigs;
   bool saturated;
   {
     std::lock_guard<std::mutex> lock(census.configsMutex);
-    farConfigs = census.farConfigs.size();
-    farCleanConfigs = census.farCleanConfigs.size();
+    outgoingConfigs = census.outgoingConfigs.size();
+    outgoingCleanConfigs = census.outgoingCleanConfigs.size();
     saturated = census.configsSaturated;
   }
   std::string hits;
@@ -76,10 +76,10 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
       << get(census.interiorUncertified) << ','
       << get(census.boundaryUnlinked) << ','
       << get(census.boundaryUncertified) << ',' << get(census.multiOpen)
-      << ',' << get(census.multiOpenSearchSide) << ','
-      << get(census.multiOpenFar) << ',' << get(census.multiOpenFarClean)
-      << ',' << get(census.multiOpenFarSimple) << ',' << farConfigs << ','
-      << farCleanConfigs << ',' << (saturated ? "true" : "false") << ','
+      << ',' << get(census.multiOpenIncoming) << ','
+      << get(census.multiOpenOutgoing) << ',' << get(census.multiOpenOutgoingClean)
+      << ',' << get(census.multiOpenOutgoingSimple) << ',' << outgoingConfigs << ','
+      << outgoingCleanConfigs << ',' << (saturated ? "true" : "false") << ','
       << get(census.audited) << ',' << get(census.auditKnotted) << ','
       << csvField(hits) << '\n';
 }

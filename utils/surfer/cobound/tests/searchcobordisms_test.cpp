@@ -99,7 +99,7 @@ void test10_3() {
     CHECK_EQ(static_cast<int>(e.shape.outComponent.size()), std::stoi(r.otherComponents),
              "far-side curve count matches the witness file: " + r.other);
     if (r.other == "10_3") {
-      CHECK_EQ(e.farNode, row.node, "the far side 10_3 is the row's own node");
+      CHECK_EQ(e.outgoing, row.node, "the far side 10_3 is the row's own node");
       ++selfLoops;
     }
     if (r.other.find(" u ") != std::string::npos || r.other == "2-component unlink") {
@@ -142,7 +142,7 @@ void testL11n33() {
     if (!e.ok) continue;
     ++ok;
     if (r.other == "L11n33{1}" && r.genus == "0") {
-      CHECK_EQ(e.farNode, row.node, "the identity far side is the row's node");
+      CHECK_EQ(e.outgoing, row.node, "the identity far side is the row's node");
       // A self-loop of two annuli maps component i to component i.
       const LinkCobordism &we = g.cobordism(e.edge);
       if (e.shape.components == 2) {
@@ -181,14 +181,14 @@ void testFastMatchesReference() {
       // The two reads may list the far-side curves in different orders.
       // Match curves by their edge sets (a bijection, or the reads
       // disagree), then compare everything under that relabelling.
-      const size_t m = a.farCurveEdges.size();
-      CHECK_EQ(m, b.farCurveEdges.size(), "same number of far curves");
+      const size_t m = a.outgoingCurveEdges.size();
+      CHECK_EQ(m, b.outgoingCurveEdges.size(), "same number of far curves");
       std::vector<int> perm(m, -1); // a's curve j is b's curve perm[j]
-      bool bijection = m == b.farCurveEdges.size();
-      std::vector<char> used(b.farCurveEdges.size(), 0);
+      bool bijection = m == b.outgoingCurveEdges.size();
+      std::vector<char> used(b.outgoingCurveEdges.size(), 0);
       for (size_t j = 0; j < m && bijection; ++j) {
-        for (size_t k = 0; k < b.farCurveEdges.size(); ++k)
-          if (!used[k] && a.farCurveEdges[j] == b.farCurveEdges[k]) {
+        for (size_t k = 0; k < b.outgoingCurveEdges.size(); ++k)
+          if (!used[k] && a.outgoingCurveEdges[j] == b.outgoingCurveEdges[k]) {
             perm[j] = static_cast<int>(k);
             used[k] = 1;
             break;

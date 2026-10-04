@@ -86,13 +86,13 @@ void test_gate_reasons() {
              std::string("non-orientable"), "non-orientable");
     expectEq(std::string(gateReason(Gate::unnamedSide)),
              std::string("unnamed-side"), "unnamed-side");
-    expectEq(std::string(gateReason(Gate::searchSideBroken)),
+    expectEq(std::string(gateReason(Gate::incomingBroken)),
              std::string("search-side-broken"), "search-side-broken");
     expectEq(std::string(gateReason(Gate::orientation)),
              std::string("orientation"), "orientation");
     expectEq(std::string(gateReason(Gate::orientationBroken)),
              std::string("orientation-broken"), "orientation-broken");
-    expectEq(std::string(gateReason(Gate::multiFarSide)),
+    expectEq(std::string(gateReason(Gate::multiOutgoing)),
              std::string("multi-far-side"), "multi-far-side");
 }
 
@@ -138,8 +138,8 @@ void test_accounting() {
         RowAccounting a;
         a.described = 6;
         a.recorded = 1;
-        for (Gate g : {Gate::nonOrientable, Gate::searchSideBroken,
-                       Gate::orientationBroken, Gate::multiFarSide,
+        for (Gate g : {Gate::nonOrientable, Gate::incomingBroken,
+                       Gate::orientationBroken, Gate::multiOutgoing,
                        Gate::unnamedSide})
             a.reject(g);
         expectEq(a.impossible(), 5LL, "each impossible gate counts");
@@ -201,11 +201,11 @@ void test_watchdog() {
 
 // Names every far side "far", so a search needs no tables and no complement
 // identification: the gates never consult a name beyond its presence.
-class FarNamer : public BoundaryNamer {
+class OutgoingStubNamer : public BoundaryNamer {
   public:
-    explicit FarNamer(size_t searchSide) : searchSide_(searchSide) {}
+    explicit OutgoingStubNamer(size_t incoming) : incoming_(incoming) {}
     std::string nameLink(size_t bc, const Link &curves) const override {
-        if (bc != searchSide_) return "far";
+        if (bc != incoming_) return "far";
         return curves.comps_.size() == 1 ? census::identify(curves.comps_.front())
                                          : census::identify(curves);
     }
@@ -214,7 +214,7 @@ class FarNamer : public BoundaryNamer {
     }
 
   private:
-    size_t searchSide_;
+    size_t incoming_;
 };
 
 struct GateRun {
@@ -236,11 +236,11 @@ void gateRun(const std::string &pd, const std::string &name, GateRun &out,
     buildRow(pd, 2, 2, rb);
     SurfaceSearchLimits limits;
     limits.capturePairSig = true;
-    SurfaceSearch e(rb.tri, rb.seedFaces, rb.searchSideBC);
+    SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);
     e.configureLimits(limits);
-    FarNamer namer(rb.searchSideBC);
+    OutgoingStubNamer namer(rb.incomingBC);
     e.setBoundaryNamer(namer);
-    e.primeBoundaryName(rb.searchSideBC, rb.searchEdges, name);
+    e.primeBoundaryName(rb.incomingBC, rb.incomingEdges, name);
 
     std::mutex m;
     SurfaceSearchCallbacks callbacks;

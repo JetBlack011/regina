@@ -72,7 +72,7 @@ struct Row : ThickenedLink {
     explicit Row(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }
 };
 
-void test_collar_far_side_is_the_row(const std::string &name, const std::string &pd,
+void test_collar_outgoing_is_the_incoming(const std::string &name, const std::string &pd,
                                      const std::string &want,
                                      const linknaming::SignatureTable &table) {
     Row row(pd);
@@ -170,11 +170,11 @@ int main() {
     EXPECT_EQ(table.links(), static_cast<size_t>(1),
               "both orientations of L6a3 share one unoriented signature");
 
-    test_collar_far_side_is_the_row("8_20", "[[1;7;2;6];[4;13;5;14];[5;9;6;8];[7;3;8;2];"
+    test_collar_outgoing_is_the_incoming("8_20", "[[1;7;2;6];[4;13;5;14];[5;9;6;8];[7;3;8;2];"
                                     "[10;15;11;16];[12;9;13;10];[14;3;15;4];[16;11;1;12]]",
                                     "8_20", table);
-    test_collar_far_side_is_the_row("3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", "3_1", table);
-    test_collar_far_side_is_the_row(
+    test_collar_outgoing_is_the_incoming("3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", "3_1", table);
+    test_collar_outgoing_is_the_incoming(
         "L6a3{1}", "PD[X[10; 2; 11; 1]; X[2; 10; 3; 9]; X[8; 4; 9; 3]; X[12; 6; 7; 5]; "
                    "X[6; 12; 1; 11]; X[4; 8; 5; 7]]",
         "L6a3", table);

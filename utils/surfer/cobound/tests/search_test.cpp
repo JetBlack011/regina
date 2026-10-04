@@ -70,7 +70,7 @@ HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
 // two component maps. Both reads are then true, and differ by a symmetry of
 // the row and one of the far side: so they are compared up to those.
 std::string content(const ProofGraph &g, const HopEdge &e, const std::vector<int> &rowPerm,
-                    const std::vector<int> &farPerm) {
+                    const std::vector<int> &outgoingPerm) {
   if (!e.ok) return "not ok: " + e.why;
   if (e.direct) return "direct";
   const LinkCobordism &w = g.cobordism(e.edge);
@@ -78,7 +78,7 @@ std::string content(const ProofGraph &g, const HopEdge &e, const std::vector<int
   for (size_t c = 0; c < w.shape.inComponent.size(); ++c)
     bySurface[w.shape.inComponent[c]].first.push_back(rowPerm[c]);
   for (size_t j = 0; j < w.outMap.size(); ++j)
-    bySurface[w.shape.outComponent[j]].second.push_back(farPerm[w.outMap[j]]);
+    bySurface[w.shape.outComponent[j]].second.push_back(outgoingPerm[w.outMap[j]]);
   std::vector<std::string> parts;
   for (auto &[s, io] : bySurface) {
     std::sort(io.first.begin(), io.first.end());
@@ -94,7 +94,7 @@ std::string content(const ProofGraph &g, const HopEdge &e, const std::vector<int
   for (const NodeMatch &m : e.pieces) pieces.push_back(m.node);
   std::sort(pieces.begin(), pieces.end());
   std::string out = "genus " + std::to_string(w.shape.genus) + ", far node " +
-                    (e.pieces.size() == 1 ? std::to_string(e.farNode) : "split") +
+                    (e.pieces.size() == 1 ? std::to_string(e.outgoing) : "split") +
                     ", pieces";
   for (NodeId p : pieces) out += ' ' + std::to_string(p);
   out += ", surface components";
@@ -122,15 +122,15 @@ bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, cons
   for (int i = 0; i < rowN; ++i) rowId[i] = i;
   if (!a.ok || !b.ok || a.direct || b.direct)
     return content(g, a, rowId, {}) == content(g, b, rowId, {});
-  const int farN = g.node(a.farNode).components;
-  std::vector<int> farId(farN);
-  for (int i = 0; i < farN; ++i) farId[i] = i;
-  const std::string want = content(g, a, rowId, farId);
-  std::vector<std::vector<int>> farSyms = {farId};
-  if (a.pieces.size() == 1 && reg.known(a.farNode))
-    farSyms = symmetries(reg.info(a.farNode).diagram);
+  const int outgoingN = g.node(a.outgoing).components;
+  std::vector<int> outgoingId(outgoingN);
+  for (int i = 0; i < outgoingN; ++i) outgoingId[i] = i;
+  const std::string want = content(g, a, rowId, outgoingId);
+  std::vector<std::vector<int>> outgoingSyms = {outgoingId};
+  if (a.pieces.size() == 1 && reg.known(a.outgoing))
+    outgoingSyms = symmetries(reg.info(a.outgoing).diagram);
   for (const auto &rp : symmetries(reg.info(rowNode).diagram))
-    for (const auto &fp : farSyms)
+    for (const auto &fp : outgoingSyms)
       if (content(g, b, rp, fp) == want) return true;
   return false;
 }
@@ -189,7 +189,7 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
     if (a.ok && sameEdge(g, reg, row.node, a, b)) {
       ++same;
     } else {
-      std::cout << "  " << name << " kept surface " << i << " (" << k.farName << "): in process ok="
+      std::cout << "  " << name << " kept surface " << i << " (" << k.outgoingName << "): in process ok="
                 << a.ok << " '" << a.why << "', by pair signature ok=" << b.ok << " '" << b.why
                 << "'; they differ beyond the row's and far side's symmetries\n";
     }
@@ -199,8 +199,8 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
     auto link = redraw.outgoingLinkFromFaces(k.faces, why);
     if (link) {
       const HopEdge c = inProcess.addRead(*link, k.genus, key);
-      if (c.ok && c.farCurveEdges == a.farCurveEdges && c.shape.outComponent == a.shape.outComponent &&
-          c.shape.inComponent == a.shape.inComponent && c.farNode == a.farNode)
+      if (c.ok && c.outgoingCurveEdges == a.outgoingCurveEdges && c.shape.outComponent == a.shape.outComponent &&
+          c.shape.inComponent == a.shape.inComponent && c.outgoing == a.outgoing)
         ++fromFaces;
     } else {
       std::cout << "  " << name << " kept surface " << i << ": from faces: " << why << "\n";

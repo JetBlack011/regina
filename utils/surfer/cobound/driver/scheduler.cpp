@@ -688,7 +688,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     for (size_t i = 0; i < run.kept.size(); ++i) {
       KeptSurface &ks = run.kept[i];
       const std::string key = kFrozenHopKeyPrefix + std::to_string(k) + "#" + std::to_string(i);
-      take(key, ks.farName, [&] { return hop->addRead(ks.link, ks.genus, key); },
+      take(key, ks.outgoingName, [&] { return hop->addRead(ks.link, ks.genus, key); },
            std::move(ks.faces));
     }
   }
@@ -828,7 +828,7 @@ int Cascade::run() {
     } else if (simp.components() == 1) {
       // A composite target: its whole-diagram name (never an anchor for
       // itself: NodeAxioms skips the target), reported and recorded.
-      linknaming::FarSideName fs = namer_.name(simp.link());
+      linknaming::LinkName fs = namer_.name(simp.link());
       if (fs.exact && fs.pinned && fs.pieces.size() >= 2 &&
           fs.name.find('#') != std::string::npos)
         composite = fs.name;

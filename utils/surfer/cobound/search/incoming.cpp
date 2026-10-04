@@ -71,7 +71,7 @@ std::vector<size_t> sortedKeys(const RowImage &image) {
 RowOrientation
 buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                     const std::vector<bool> &rowReversed,
-                    const regina::Triangulation<3> &searchSideTri,
+                    const regina::Triangulation<3> &incomingTri,
                     const std::vector<size_t> *requiredEdges) {
     if (rowEdges.empty())
         throw regina::InvalidArgument(
@@ -84,22 +84,22 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
 
     // What the old code used: whichever isomorphism isIsomorphicTo() returns.
     std::optional<regina::Isomorphism<3>> legacy =
-        rowTri.isIsomorphicTo(searchSideTri);
+        rowTri.isIsomorphicTo(incomingTri);
     if (!legacy)
         throw regina::InvalidArgument(
             "buildRowOrientation(): the row's own triangulation is not "
             "isomorphic to searchSideTri");
     auto legacyImage =
-        directedImage(rowEdges, rowReversed, searchSideTri, *legacy);
+        directedImage(rowEdges, rowReversed, incomingTri, *legacy);
 
     std::optional<RowImage> chosen;
     if (!requiredEdges || sortedKeys(legacyImage) == *requiredEdges) {
         chosen = legacyImage;
     } else {
         rowTri.findAllIsomorphisms(
-            searchSideTri, [&](const regina::Isomorphism<3> &iso) {
+            incomingTri, [&](const regina::Isomorphism<3> &iso) {
                 auto image =
-                    directedImage(rowEdges, rowReversed, searchSideTri, iso);
+                    directedImage(rowEdges, rowReversed, incomingTri, iso);
                 if (sortedKeys(image) != *requiredEdges)
                     return false; // keep looking
                 chosen = std::move(image);
@@ -163,19 +163,19 @@ void orientRow(RowBuild &row) {
     const auto &reversed2 = row.link.reversed;
     // The seed's own edges on the search side: exactly L x {0}.
     if (!row.seedFaces.empty())
-        row.searchEdges = search::boundaryEdgesOf(row.tri, row.seedFaces,
-                                                   row.searchSideBC);
+        row.incomingEdges = search::boundaryEdgesOf(row.tri, row.seedFaces,
+                                                   row.incomingBC);
     row.orientation = search::buildRowOrientation(
-        edges2, reversed2, row.tri.boundaryComponent(row.searchSideBC)->build(),
-        row.seedFaces.empty() ? nullptr : &row.searchEdges);
+        edges2, reversed2, row.tri.boundaryComponent(row.incomingBC)->build(),
+        row.seedFaces.empty() ? nullptr : &row.incomingEdges);
     if (row.seedFaces.empty())
-        row.searchEdges = row.orientation->edges;
+        row.incomingEdges = row.orientation->edges;
 
     // Setup-time checks on the row's own link, in place of any per-surface
     // ones: the search side is fixed from here on.
-    if (row.searchEdges.size() != edges2.size())
+    if (row.incomingEdges.size() != edges2.size())
         throw regina::InvalidArgument(
-            "the search side holds " + std::to_string(row.searchEdges.size()) +
+            "the search side holds " + std::to_string(row.incomingEdges.size()) +
             " link edges, the diagram " + std::to_string(edges2.size()));
     if (row.orientation->components !=
         static_cast<size_t>(row.componentCount))

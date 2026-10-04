@@ -67,7 +67,7 @@ struct BoundarySplit {
  */
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC);
+              size_t incomingBC);
 
 /** How a surface's search-side boundary compares with the row's orientation;
  * see classifyRowOrientation(). */
@@ -142,10 +142,10 @@ enum class Gate {
     accepted,
     nonOrientable,       /**< Impossible: orientableOnly prunes these. */
     unnamedSide,         /**< Impossible: a far side with no name at all. */
-    searchSideBroken,    /**< Impossible when seeded. */
+    incomingBroken,    /**< Impossible when seeded. */
     orientation,         /**< Witnesses another oriented variant of the row. */
     orientationBroken,   /**< Impossible: an incoherent or foreign curve. */
-    multiFarSide,        /**< Impossible: S^3 x I has two boundary components. */
+    multiOutgoing,        /**< Impossible: S^3 x I has two boundary components. */
 };
 
 /** The name --rejection-sample-log records a rejection under. */
@@ -161,7 +161,7 @@ struct GatedSurface {
     std::vector<std::pair<size_t, std::vector<OrientedCurve>>> orientedLinks;
     /** Which surface component each boundary edge lies on. */
     std::map<const regina::Edge<3> *, size_t> surfaceOf;
-    std::vector<OrientedCurve> searchSideCurves;
+    std::vector<OrientedCurve> incomingCurves;
     /** Each surface component's flip against the row (its incoming curves'
      *  judgeRowOrientation()): complete for an accepted surface. */
     std::map<size_t, int> flips;
@@ -187,7 +187,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
  *
  * \pre `g` is accepted with exactly one far side.
  */
-std::string farSideName(const GatedSurface &g, const outgoing::DiagramNamer *namer);
+std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *namer);
 
 /**
  * Every surface the drain describes lands in exactly one of these, and at
@@ -201,17 +201,17 @@ struct RowAccounting {
     std::atomic<long long> orientation{0}; // another oriented variant
     // Impossible for a correct build; any nonzero count halts the run.
     std::atomic<long long> nonOrientable{0};
-    std::atomic<long long> searchSideBroken{0};
+    std::atomic<long long> incomingBroken{0};
     std::atomic<long long> orientationBroken{0};
-    std::atomic<long long> multiFarSide{0};
+    std::atomic<long long> multiOutgoing{0};
     std::atomic<long long> unnamedSide{0};
 
     /** Counts one surface rejected by `gate` (not Gate::accepted). */
     void reject(Gate gate);
 
     long long impossible() const {
-        return nonOrientable + searchSideBroken + orientationBroken +
-               multiFarSide + unnamedSide;
+        return nonOrientable + incomingBroken + orientationBroken +
+               multiOutgoing + unnamedSide;
     }
     long long bucketed() const {
         return recorded + duplicate + orientation + impossible();

@@ -18,10 +18,10 @@ namespace search {
 
 BoundarySplit
 splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
-              size_t searchSideBC) {
+              size_t incomingBC) {
     BoundarySplit result;
     for (const auto &info : boundaryComponents) {
-        if (info.component == searchSideBC) {
+        if (info.component == incomingBC) {
             result.searchCurveCount = info.curveNames.size();
             continue;
         }
@@ -98,10 +98,10 @@ const char *gateReason(Gate gate) {
     case Gate::accepted: return "accepted";
     case Gate::nonOrientable: return "non-orientable";
     case Gate::unnamedSide: return "unnamed-side";
-    case Gate::searchSideBroken: return kFrozenReasonSearchSideBroken;
+    case Gate::incomingBroken: return kFrozenReasonSearchSideBroken;
     case Gate::orientation: return "orientation";
     case Gate::orientationBroken: return "orientation-broken";
-    case Gate::multiFarSide: return kFrozenReasonMultiFarSide;
+    case Gate::multiOutgoing: return kFrozenReasonMultiFarSide;
     }
     return "unknown";
 }
@@ -117,13 +117,13 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     // The search side is L by construction (the seed; asserted once at row
     // setup), so splitBoundary() just takes component searchSideBC.
     g.split = search::splitBoundary(info.boundaryComponents,
-                                            row.searchSideBC);
+                                            row.incomingBC);
     if (g.split.unnamedSide) {
         g.gate = Gate::unnamedSide;
         return g;
     }
     if (g.split.searchCurveCount != static_cast<size_t>(row.componentCount)) {
-        g.gate = Gate::searchSideBroken;
+        g.gate = Gate::incomingBroken;
         return g;
     }
 
@@ -134,19 +134,19 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     // (classifyRowOrientation()).
     g.orientedLinks = info.captureOrientedBoundaryLinks();
     g.surfaceOf = info.captureBoundaryEdgeSurfaceComponent();
-    bool foundSearchSide = false;
+    bool foundIncoming = false;
     for (auto &[c, curves] : g.orientedLinks) {
-        if (c == row.searchSideBC) {
-            g.searchSideCurves = curves;
-            foundSearchSide = true;
+        if (c == row.incomingBC) {
+            g.incomingCurves = curves;
+            foundIncoming = true;
             break;
         }
     }
     search::OrientationVerdict verdict =
         search::OrientationVerdict::incoherentCurve;
-    if (foundSearchSide) {
+    if (foundIncoming) {
         search::RowOrientationJudgement judged =
-            search::judgeRowOrientation(*row.orientation, g.searchSideCurves,
+            search::judgeRowOrientation(*row.orientation, g.incomingCurves,
                                                 g.surfaceOf);
         verdict = judged.verdict;
         g.flips = std::move(judged.flips);
@@ -161,16 +161,16 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     }
 
     if (g.split.otherSides.size() > 1)
-        g.gate = Gate::multiFarSide;
+        g.gate = Gate::multiOutgoing;
     return g;
 }
 
-std::string farSideName(const GatedSurface &g, const outgoing::DiagramNamer *namer) {
-    const search::BoundarySide &far = g.split.otherSides.front();
-    std::string name = linknaming::normalizeIdentifiedName(far.name);
+std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *namer) {
+    const search::BoundarySide &outgoingSide = g.split.otherSides.front();
+    std::string name = linknaming::normalizeIdentifiedName(outgoingSide.name);
     // An accepted surface's flips are the gate's (g.flips, its incoming
     // curves judged once).
-    if (far.components > 1 && namer && namer->exactNamesOn()) {
+    if (outgoingSide.components > 1 && namer && namer->exactNamesOn()) {
         for (const auto &[bc, curves] : g.orientedLinks)
             if (namer->handles(bc))
                 if (auto n = namer->orientedName(curves, g.surfaceOf, g.flips))
@@ -188,8 +188,8 @@ void RowAccounting::reject(Gate gate) {
     case Gate::unnamedSide:
         unnamedSide.fetch_add(1, std::memory_order_relaxed);
         break;
-    case Gate::searchSideBroken:
-        searchSideBroken.fetch_add(1, std::memory_order_relaxed);
+    case Gate::incomingBroken:
+        incomingBroken.fetch_add(1, std::memory_order_relaxed);
         break;
     case Gate::orientation:
         orientation.fetch_add(1, std::memory_order_relaxed);
@@ -197,8 +197,8 @@ void RowAccounting::reject(Gate gate) {
     case Gate::orientationBroken:
         orientationBroken.fetch_add(1, std::memory_order_relaxed);
         break;
-    case Gate::multiFarSide:
-        multiFarSide.fetch_add(1, std::memory_order_relaxed);
+    case Gate::multiOutgoing:
+        multiOutgoing.fetch_add(1, std::memory_order_relaxed);
         break;
     }
 }
@@ -219,9 +219,9 @@ std::string RowAccounting::failure(long long accepted, long long rebuildFailed,
         return std::to_string(impossible()) +
                " surfaces hit a state that cannot occur (non-orientable " +
                std::to_string(nonOrientable.load()) + ", search side " +
-               std::to_string(searchSideBroken.load()) + ", orientation " +
+               std::to_string(incomingBroken.load()) + ", orientation " +
                std::to_string(orientationBroken.load()) + ", multi far side " +
-               std::to_string(multiFarSide.load()) + ", unnamed side " +
+               std::to_string(multiOutgoing.load()) + ", unnamed side " +
                std::to_string(unnamedSide.load()) + ")";
     return {};
 }

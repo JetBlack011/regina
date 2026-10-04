@@ -49,8 +49,8 @@ void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
     << ",\"row_node_map\":" << json::array(it->second.rowNodeMap);
   writeSurface(c, it->second);
   c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
-  for (size_t j = 0; j < he.farCurveEdges.size(); ++j)
-    c << (j ? "," : "") << json::array(he.farCurveEdges[j]);
+  for (size_t j = 0; j < he.outgoingCurveEdges.size(); ++j)
+    c << (j ? "," : "") << json::array(he.outgoingCurveEdges[j]);
   c << "],\"pieces\":[";
   for (size_t k = 0; k < he.pieces.size(); ++k) {
     const NodeMatch &m = he.pieces[k];

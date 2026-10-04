@@ -137,7 +137,7 @@ int commands::name(const std::vector<std::string> &args) {
     };
     std::unique_ptr<outgoing::OutgoingReader> redraw;
     std::string redrawKey;
-    std::unordered_map<std::string, linknaming::FarSideName> cache; // per row
+    std::unordered_map<std::string, linknaming::LinkName> cache; // per row
     std::string line;
     while (std::getline(std::cin, line)) {
         std::istringstream in(line);
@@ -193,7 +193,7 @@ int commands::name(const std::vector<std::string> &args) {
                 msName += ms(tn);
                 ++named;
             }
-            const linknaming::FarSideName &n = hit->second;
+            const linknaming::LinkName &n = hit->second;
             std::ostringstream pieces;
             for (size_t i = 0; i < n.pieces.size(); ++i)
                 pieces << (i ? " & " : "") << n.pieces[i].display() << '/' << byName(n.pieces[i].by)

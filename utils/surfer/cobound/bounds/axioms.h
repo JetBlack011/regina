@@ -95,7 +95,7 @@ public:
 
 private:
   void applyName(NodeId n, const linknaming::PieceName &pn);
-  void applyComposite(NodeId n, const linknaming::FarSideName &fs);
+  void applyComposite(NodeId n, const linknaming::LinkName &fs);
   void applySum(NodeId n, const std::vector<linknaming::GaussDiagram> &primes, int depth);
   std::vector<NodeId> nodesSince(size_t first) const;
 

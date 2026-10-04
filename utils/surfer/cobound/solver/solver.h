@@ -96,7 +96,7 @@ constexpr int NO_LOWER_BOUND = INT_MIN;
  * spelling of the name, so an alias that renames a two-component far side to
  * something knot-shaped cannot slip through.
  */
-bool farSideBearsBound(const cobordisms::Cobordism &w);
+bool outgoingBearsBound(const cobordisms::Cobordism &w);
 
 /* Solving */
 

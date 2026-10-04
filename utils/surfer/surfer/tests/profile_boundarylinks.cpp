@@ -62,14 +62,14 @@ int main(int argc, char *argv[]) {
 
     ThickenedLink row; // as the search builds it: the collar through every layer
     buildAmbient(pd, layers, layers, row);
-    const size_t searchSideBC = row.searchSideBC;
+    const size_t incomingBC = row.incomingBC;
     const regina::Triangulation<4> &tri = row.tri;
     const std::vector<int> &seed = row.seedFaces;
 
     std::cout << "cobordism: " << tri.size() << " pentachora, "
               << tri.countTriangles() << " triangles\n"
               << "seed: " << seed.size() << " faces\n";
-    const auto *bc = tri.boundaryComponent(searchSideBC);
+    const auto *bc = tri.boundaryComponent(incomingBC);
     std::cout << "search-side boundary component: " << bc->countEdges()
               << " edges  <-- length of the scan in boundaryLinks()\n\n";
 

@@ -57,7 +57,7 @@ std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulat
         std::vector<int> image;
         image.reserve(faces.size());
         for (int f : faces) image.push_back(carryTriangle(ambient.triangle(f), iso, W));
-        if (search::boundaryEdgesOf(W, image, rb_.searchSideBC) != rb_.searchEdges) return false;
+        if (search::boundaryEdgesOf(W, image, rb_.incomingBC) != rb_.incomingEdges) return false;
         carried = std::move(image);
         return true;
     });
@@ -118,10 +118,10 @@ std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig
         std::vector<int> image;
         for (int f : faces) image.push_back(carryTriangle(dec.ambient->triangle(f), iso, W));
         if (isos < 4) {
-            auto in = search::boundaryEdgesOf(W, image, rb_.searchSideBC);
+            auto in = search::boundaryEdgesOf(W, image, rb_.incomingBC);
             auto out = search::boundaryEdgesOf(W, image, outgoing_->boundaryComponent());
             std::vector<size_t> common;
-            std::ranges::set_intersection(in, rb_.searchEdges, std::back_inserter(common));
+            std::ranges::set_intersection(in, rb_.incomingEdges, std::back_inserter(common));
             sizes += " [in " + std::to_string(in.size()) + " edges, " +
                      std::to_string(common.size()) + " on L; out " + std::to_string(out.size()) + "]";
         }
@@ -129,7 +129,7 @@ std::optional<std::vector<int>> OutgoingReader::carry(const std::string &pairsig
         return false;
     });
     why = "no isomorphism carries its incoming curve onto L (" + std::to_string(isos) +
-          " isomorphisms onto the thickening; L has " + std::to_string(rb_.searchEdges.size()) +
+          " isomorphisms onto the thickening; L has " + std::to_string(rb_.incomingEdges.size()) +
           " edges;" + sizes + ")";
     return std::nullopt;
 }
@@ -245,10 +245,10 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFast(const std::string &
     // Then oriented against the row, as for a rebuilt surface
     // (orientedOutgoingLink()).
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> oriented = {
-        {rb_.searchSideBC, chain(directed[rb_.searchSideBC])},
+        {rb_.incomingBC, chain(directed[rb_.incomingBC])},
         {outgoing_->boundaryComponent(), chain(directed[outgoing_->boundaryComponent()])}};
     std::optional<OutgoingLink> out = orientedOutgoingLink(
-        oriented, surfaceOf, *outgoing_, *rb_.orientation, rb_.searchSideBC, &why);
+        oriented, surfaceOf, *outgoing_, *rb_.orientation, rb_.incomingBC, &why);
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t2).count();
     return out;
 }
@@ -266,7 +266,7 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLink(const std::string &pair
     }
     auto t1 = std::chrono::steady_clock::now();
     msBoundaryBuild_ += std::chrono::duration<double, std::milli>(tb - t0).count();
-    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.searchSideBC);
+    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.incomingBC);
     msSurface_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
     msRead_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
     if (!link) why = "incoming orientation is inconsistent";
@@ -282,7 +282,7 @@ bool OutgoingReader::rebuild(const std::vector<int> &faces, KnottedSurface &surf
             return false;
         }
     // Before anything is built: the search side must be exactly L x {0}.
-    if (search::boundaryEdgesOf(W, faces, rb_.searchSideBC) != rb_.searchEdges) {
+    if (search::boundaryEdgesOf(W, faces, rb_.incomingBC) != rb_.incomingEdges) {
         why = "its incoming boundary is not L x {0}";
         return false;
     }
@@ -309,7 +309,7 @@ std::optional<OutgoingLink> OutgoingReader::outgoingLinkFromFaces(const std::vec
     options.resolveUnlinked = true;
     KnottedSurface surface(options, *skeleton_, cache);
     if (!rebuild(faces, surface, why)) return std::nullopt;
-    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.searchSideBC);
+    auto link = orientedOutgoingLink(surface, *outgoing_, *rb_.orientation, rb_.incomingBC);
     if (!link) why = "incoming orientation is inconsistent";
     return link;
 }

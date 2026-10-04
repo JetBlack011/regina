@@ -99,7 +99,7 @@ void checkRow(const std::string &name, const std::string &pd) {
     }
     const auto &[t2, edges2, reversed2] = rb.link;
     const int components = Link(t2, edges2).countComponents();
-    const size_t bc = rb.searchSideBC;
+    const size_t bc = rb.incomingBC;
     const regina::Triangulation<4> &tri = rb.tri;
     const std::vector<int> &seedFaces = rb.seedFaces;
     EXPECT_EQ(rb.componentCount, components,
@@ -108,7 +108,7 @@ void checkRow(const std::string &name, const std::string &pd) {
     const std::vector<size_t> rowEdges = seedEdgesOn(tri, seedFaces, bc);
     EXPECT_EQ(rowEdges.size(), edges2.size(),
               name + ": the seed holds every edge of L on the search side");
-    EXPECT_EQ(rb.searchEdges == rowEdges, true,
+    EXPECT_EQ(rb.incomingEdges == rowEdges, true,
               name + ": the row's search edges are the seed's own");
 
     const RowOrientation &row = *rb.orientation;
@@ -177,7 +177,7 @@ void test_row_map_refuses_foreign_edges() {
     buildAmbient("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 0, built);
     auto &[t2, edges2, reversed2] = built.link;
     const regina::Triangulation<4> &tri = built.tri;
-    const size_t bc = built.searchSideBC;
+    const size_t bc = built.incomingBC;
     const std::vector<size_t> nonsense = {0};
     bool threw = false;
     try {

@@ -100,7 +100,7 @@ int runWithoutGoal(const config::Config &cfg) {
   // Accept surfaces whose only self-intersections are unlinked (paper §4.5,
   // KnottedSurface::isResolvable()). No default (plan divergence 3).
   const bool resolveUnlinked = cfg.flag("resolve_unlinked");
-  const bool exactFarSideNames = cfg.flag("exact_far_side_names");
+  const bool outgoingNames = cfg.flag("exact_far_side_names");
   const std::string workDir = cfg.text("work");
   const unsigned numThreads = cfg.threads();
   // Thickened and collared through every layer (divergence 6: the cobordism
@@ -203,7 +203,7 @@ int runWithoutGoal(const config::Config &cfg) {
   // are named exactly by (exact_far_side_names), and diagram naming's
   // signature table, drawn from them.
   std::optional<linknaming::ExactTables> exactTables;
-  if (exactFarSideNames) {
+  if (outgoingNames) {
     const auto t0 = std::chrono::steady_clock::now();
     try {
       exactTables =

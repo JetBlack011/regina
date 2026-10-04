@@ -72,7 +72,7 @@ struct Cobordism {
      * plus meridians does, and then the oriented variants of `other` ARE a
      * complete candidate set, so the max/min over them is sound.
      */
-    bool farSideProved = false;
+    bool outgoingProved = false;
     /**
      * Whether the far side was named EXACTLY (--far-side-exact): redrawn
      * from this witness's own pair signature, oriented by its surface, and
@@ -81,7 +81,7 @@ struct Cobordism {
      * subject, whatever its component count. Solver-side only; never
      * recorded.
      */
-    bool farSideExact = false;
+    bool outgoingNamed = false;
 
     // Provenance: which search produced this, and under what budget.
     std::string sourceRow;

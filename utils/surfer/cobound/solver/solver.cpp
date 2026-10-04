@@ -15,14 +15,14 @@
 
 namespace solver {
 
-bool farSideBearsBound(const cobordisms::Cobordism &w) {
+bool outgoingBearsBound(const cobordisms::Cobordism &w) {
     // The observed count, never the name: componentsFromName() is an
     // inference from a string, and an alias could make a two-curve far side
     // read like a knot.
     // A far side proved per witness -- meridians carried, or an all-knot
     // split -- is the one case where a multi-component name is a complete
     // candidate set; see Witness::farSideProved.
-    return w.otherComponents == 1 || w.farSideProved ||
+    return w.otherComponents == 1 || w.outgoingProved ||
            complement::isUnlinkName(w.other);
 }
 
@@ -596,17 +596,17 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
             // nothing in either direction -- its complement does not
             // determine which link it is (\ref cg_farside). The witness
             // stays in the file; it is only the solver that declines it.
-            if (!farSideBearsBound(w))
+            if (!outgoingBearsBound(w))
                 continue;
 
             // Both endpoints, with the component count that belongs to each.
             // `far` is the side supplying the bound; `near` is the side
             // receiving it.
             struct Direction {
-                std::string near;
-                int nearComponents;
-                std::vector<std::string> far;
-                int farComponents;
+                std::string to;
+                int toComponents;
+                std::vector<std::string> from;
+                int fromComponents;
                 std::string viaLabel; // how to name the far side
             };
             std::vector<Direction> directions;
@@ -621,7 +621,7 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
             // A far side named EXACTLY is an identity whatever its component
             // count, so it may receive a bound too (never an unlink, which is
             // an axiom).
-            if ((w.otherComponents == 1 || w.farSideExact) &&
+            if ((w.otherComponents == 1 || w.outgoingNamed) &&
                 w.otherCandidates.size() == 1 &&
                 !complement::isMultiComponentUnlinkName(w.otherCandidates.front()))
                 directions.push_back({w.otherCandidates.front(),
@@ -631,19 +631,19 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                                       w.subject});
 
             for (const Direction &d : directions) {
-                if (d.far.empty())
+                if (d.from.empty())
                     continue;
 
                 // Never bound a name using itself (e.g. the product surface is
                 // not interesting).
-                if (std::find(d.far.begin(), d.far.end(), d.near) !=
-                    d.far.end())
+                if (std::find(d.from.begin(), d.from.end(), d.to) !=
+                    d.from.end())
                     continue;
 
                 int worst = 0;
                 std::vector<std::string> support;
                 bool haveAll = true;
-                for (const std::string &c : d.far) {
+                for (const std::string &c : d.from) {
                     UpperContribution u = upperOf(c, bounds, names);
                     if (u.value == NO_UPPER_BOUND) {
                         haveAll = false;
@@ -652,12 +652,12 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                     worst = std::max(worst, u.value);
                     mergeSupport(support, u.support);
                 }
-                const bool unlinkFar =
-                    !d.far.empty() &&
-                    std::all_of(d.far.begin(), d.far.end(),
+                const bool unlinkFrom =
+                    !d.from.empty() &&
+                    std::all_of(d.from.begin(), d.from.end(),
                                 complement::isMultiComponentUnlinkName);
-                const int penalty = unlinkFar ? 0 : d.farComponents - 1;
-                if (haveAll && relaxUpper(bounds, names, d.near,
+                const int penalty = unlinkFrom ? 0 : d.fromComponents - 1;
+                if (haveAll && relaxUpper(bounds, names, d.to,
                                           addUpper(worst, w.genus + penalty),
                                           std::move(support), w, d.viaLabel))
                     changed = true;
@@ -667,7 +667,7 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                 int best = NO_LOWER_BOUND;
                 std::vector<std::string> lowerSupport;
                 bool haveAllLower = true;
-                for (const std::string &c : d.far) {
+                for (const std::string &c : d.from) {
                     LowerContribution l = lowerOf(c, bounds, names);
                     if (l.value == NO_LOWER_BOUND) {
                         haveAllLower = false;
@@ -678,8 +678,8 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                     mergeSupport(lowerSupport, l.support);
                 }
                 if (haveAllLower && best != NO_LOWER_BOUND &&
-                    relaxLower(bounds, names, d.near,
-                               best - w.genus - d.nearComponents + 1,
+                    relaxLower(bounds, names, d.to,
+                               best - w.genus - d.toComponents + 1,
                                std::move(lowerSupport)))
                     changed = true;
             }

@@ -69,9 +69,9 @@ applyNameAliases(const std::vector<cobordisms::Cobordism> &cobordisms,
   return resolved;
 }
 
-std::unordered_map<std::string, ExactFarSide>
-loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
-  std::unordered_map<std::string, ExactFarSide> out;
+std::unordered_map<std::string, OutgoingName>
+loadOutgoingNames(const std::filesystem::path &path, size_t &clashes) {
+  std::unordered_map<std::string, OutgoingName> out;
   std::unordered_set<std::string> clash;
   std::ifstream in(path);
   if (!in)
@@ -82,7 +82,7 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
     auto f = parseCsvLine(line);
     if (f.size() < 5 || f[0].empty() || f[1].empty())
       continue;
-    ExactFarSide e{f[1], f[2] == "1", std::stoi(f[4])};
+    OutgoingName e{f[1], f[2] == "1", std::stoi(f[4])};
     auto [it, fresh] = out.try_emplace(f[0], e);
     if (!fresh && (it->second.name != e.name || it->second.exact != e.exact))
       clash.insert(f[0]);
@@ -94,8 +94,8 @@ loadFarSideExact(const std::filesystem::path &path, size_t &clashes) {
 }
 
 std::vector<cobordisms::Cobordism>
-applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
-                  const std::unordered_map<std::string, ExactFarSide> &exact, size_t &applied,
+applyOutgoingNames(std::vector<cobordisms::Cobordism> cobordisms,
+                  const std::unordered_map<std::string, OutgoingName> &exact, size_t &applied,
                   size_t &refused) {
   applied = refused = 0;
   for (cobordisms::Cobordism &w : cobordisms) {
@@ -112,16 +112,16 @@ applyFarSideExact(std::vector<cobordisms::Cobordism> cobordisms,
     }
     w.other = it->second.name;
     w.otherCandidates = linknaming::exactCandidates(it->second.name);
-    w.farSideProved = true;
-    w.farSideExact = it->second.exact;
+    w.outgoingProved = true;
+    w.outgoingNamed = it->second.exact;
     ++applied;
   }
   return cobordisms;
 }
 
-std::unordered_map<std::string, std::vector<FarSideResolution>>
-loadFarSideResolutions(const std::filesystem::path &path) {
-  std::unordered_map<std::string, std::vector<FarSideResolution>> resolutions;
+std::unordered_map<std::string, std::vector<OutgoingResolution>>
+loadOutgoingResolutions(const std::filesystem::path &path) {
+  std::unordered_map<std::string, std::vector<OutgoingResolution>> resolutions;
   std::ifstream in(path);
   if (!in)
     throw std::runtime_error("Cannot open far-side resolution table: " + path.string());
@@ -139,10 +139,10 @@ loadFarSideResolutions(const std::filesystem::path &path) {
   return resolutions;
 }
 
-std::vector<cobordisms::Cobordism> applyFarSideResolutions(
+std::vector<cobordisms::Cobordism> applyOutgoingResolutions(
     std::vector<cobordisms::Cobordism> resolved,
     const std::vector<cobordisms::Cobordism> &observed,
-    const std::unordered_map<std::string, std::vector<FarSideResolution>> &resolutions,
+    const std::unordered_map<std::string, std::vector<OutgoingResolution>> &resolutions,
     const solver::NameTable &names, size_t &appliedOut) {
   // Taken by value and rewritten in place. (A loaded witness no longer
   // carries its pair signature in memory, only pairSigKey.)
@@ -166,7 +166,7 @@ std::vector<cobordisms::Cobordism> applyFarSideResolutions(
     // component count does not match this far side's observed curve count is
     // about the other side, not this one.
     const std::string *match = nullptr;
-    for (const FarSideResolution &r : it->second) {
+    for (const OutgoingResolution &r : it->second) {
       // The name alone gives the count for a knot, an unlink or a tagged
       // link ("L9a47{0}"). A peripherally proved link arrives as its BASE
       // name -- the meridians pin the link, not its orientation -- and a
@@ -214,7 +214,7 @@ std::vector<cobordisms::Cobordism> applyFarSideResolutions(
 
     w.other = *match;
     w.otherCandidates = names.candidates(w.other, w.otherComponents);
-    w.farSideProved = true;
+    w.outgoingProved = true;
     ++applied;
   }
 

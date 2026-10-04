@@ -39,7 +39,7 @@ struct HopEdge {
   std::string why;          ///< when !ok
   bool direct = false;      ///< no far side: the surface bounds the row alone
   EdgeId edge = -1;         ///< the witness edge (when not direct)
-  NodeId farNode = -1;      ///< the far side's node (a split whole or a piece)
+  NodeId outgoing = -1;      ///< the far side's node (a split whole or a piece)
   std::vector<NodeMatch> pieces; ///< its split pieces, interned
   /// Per piece: which far-side curves (drawn order) its components are.
   std::vector<std::vector<size_t>> pieceOrigins;
@@ -47,7 +47,7 @@ struct HopEdge {
   /// Per far-side curve (in this read's order): its edges of T, sorted.
   /// Curve order is a property of the read, not of the cobordism; tests use
   /// these to compare two reads up to relabelling the curves.
-  std::vector<std::vector<size_t>> farCurveEdges;
+  std::vector<std::vector<size_t>> outgoingCurveEdges;
   CobordismShape shape;
 };
 

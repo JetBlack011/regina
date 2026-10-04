@@ -45,7 +45,7 @@ std::string PieceName::display() const {
     return s;
 }
 
-std::string FarSideName::proof() const {
+std::string LinkName::proof() const {
     size_t exact = 0, isometry = 0, search = 0, untab = 0;
     for (const PieceName &p : pieces)
         (p.by == PieceName::By::exactDiagram           ? exact
@@ -572,14 +572,14 @@ std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &
 
 } // namespace
 
-FarSideName ExactNamer::name(const regina::Link &drawn) const {
+LinkName ExactNamer::name(const regina::Link &drawn) const {
     const size_t n = drawn.countComponents();
     std::vector<size_t> origin(n);
     std::iota(origin.begin(), origin.end(), 0);
     std::vector<GaussDiagram> primes;
     decompose(GaussDiagram::of(drawn, origin), primes);
 
-    FarSideName out;
+    LinkName out;
     std::vector<bool> covered(n, false);
     for (const GaussDiagram &g : primes) {
         out.pieces.push_back(identify(g));

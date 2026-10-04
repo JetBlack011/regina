@@ -780,26 +780,26 @@ void KnottedSurface::tallySelfIntersection() const {
     }
 
     census_->multiOpen.fetch_add(1, std::memory_order_relaxed);
-    if (census_->searchSideBoundary < 0)
+    if (census_->incomingBoundary < 0)
         return;
     for (size_t v : multiOpen)
         if (static_cast<long>(skeleton_.triangulation()
                                   .vertex(v)
                                   ->boundaryComponent()
-                                  ->index()) == census_->searchSideBoundary) {
-            census_->multiOpenSearchSide.fetch_add(1,
+                                  ->index()) == census_->incomingBoundary) {
+            census_->multiOpenIncoming.fetch_add(1,
                                                    std::memory_order_relaxed);
             return;
         }
 
-    census_->multiOpenFar.fetch_add(1, std::memory_order_relaxed);
+    census_->multiOpenOutgoing.fetch_add(1, std::memory_order_relaxed);
     if (certified) {
-        census_->multiOpenFarClean.fetch_add(1, std::memory_order_relaxed);
+        census_->multiOpenOutgoingClean.fetch_add(1, std::memory_order_relaxed);
         if (multiOpen.size() == 1) {
             const std::vector<int> &roots = registeredClassRoots(multiOpen[0]);
             if (roots.size() == 2 && !isPetalClosed_(multiOpen[0], roots[0]) &&
                 !isPetalClosed_(multiOpen[0], roots[1]))
-                census_->multiOpenFarSimple.fetch_add(
+                census_->multiOpenOutgoingSimple.fetch_add(
                     1, std::memory_order_relaxed);
         }
     }
@@ -821,7 +821,7 @@ void KnottedSurface::tallySelfIntersection() const {
             h ^= p + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
         configs.push_back(h);
     }
-    census_->recordFarConfigs(configs, certified);
+    census_->recordOutgoingConfigs(configs, certified);
 }
 
 size_t KnottedSurface::CornerVectorHash::operator()(

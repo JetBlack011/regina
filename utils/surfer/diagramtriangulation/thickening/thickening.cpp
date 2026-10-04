@@ -328,7 +328,7 @@ void buildAmbient(const std::string &pdNotation, int thickenLayers,
             collarBuilder.addLayer(cob);
     }
 
-    row.searchSideBC = cob.baseBoundaryComponent()->index();
+    row.incomingBC = cob.baseBoundaryComponent()->index();
     row.tri = cob.getCobordism();
 
     if (collarLayers > 0) {
