@@ -240,7 +240,7 @@ SurfaceSearch::describeBoundary_(
         std::vector<std::string> curveNames;
         curveNames.reserve(link.comps_.size());
         // A multi-curve component's individual curve names are only ever
-        // counted downstream, so identifying each one is optional work.
+        // counted downstream, so naming each one is optional work.
         const bool nameEachCurve =
             link.comps_.size() == 1 || limits_.nameLinkCurves;
         // A lone curve is named as the whole component's link; the curves of
@@ -584,8 +584,8 @@ void SurfaceSearch::processEntry_(KnottedSurface &embedding,
     // the drain would be about to describe a DIFFERENT complex from the one
     // the search accepted. Never describe it: undo, count it, and say so.
     // The entry then never reaches onSurfaceBoundaryProcessed, which the
-    // caller's per-row accounting (see rebuildFailures()) turns into a halt
-    // once the row's witnesses are safely written -- rather than throwing
+    // caller's per-search accounting (see rebuildFailures()) turns into a halt
+    // once the search's cobordisms are safely written -- rather than throwing
     // here, on a drain thread, which would lose them.
     for (size_t i = 0; i < faceIndices.size(); ++i) {
         if (!embedding.addFace(faceIndices[i])) {

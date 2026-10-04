@@ -159,7 +159,7 @@ public:
   /**
    * Adds the wall time one cache miss spent computing its answer:
    * Knot::isUnknot() for recordUnknotMissTime(), Knot::linkingNumberWith()
-   * for recordLinkingMissTime(). Measurement only, for the per-row
+   * for recordLinkingMissTime(). Measurement only, for the per-search
    * `search profile:` line; see Stats.
    */
   void recordUnknotMissTime(long long nanos);
@@ -303,22 +303,22 @@ struct SelfIntersectionCensus {
    * multiOpen split below is not recorded.
    */
   long incomingBoundary = -1;
-  /** multiOpen, split: some multi-open vertex lies on the search side ... */
+  /** multiOpen, split: some multi-open vertex lies on the incoming side ... */
   std::atomic<long long> multiOpenIncoming{0};
-  /** ... or every one lies on a far side, where truncating a half-ball at
-      the vertex would replace the singular far-side curve by a link L'. */
+  /** ... or every one lies on an outgoing link, where truncating a half-ball at
+      the vertex would replace the singular outgoing curve by a link L'. */
   std::atomic<long long> multiOpenOutgoing{0};
-  /** Of multiOpenFar, those whose every OTHER singular vertex is certified
-      (as interiorUnlinked / boundaryUnlinked): the far-side multi-open
+  /** Of multiOpenOutgoing, those whose every OTHER singular vertex is certified
+      (as interiorUnlinked / boundaryUnlinked): the outgoing multi-open
       vertices are the only obstruction. */
   std::atomic<long long> multiOpenOutgoingClean{0};
-  /** Of multiOpenFarClean, those with exactly one multi-open vertex,
+  /** Of multiOpenOutgoingClean, those with exactly one multi-open vertex,
       carrying exactly two open petals (a 2-string tangle) and nothing
       else. */
   std::atomic<long long> multiOpenOutgoingSimple{0};
 
-  /** Distinct far-side multi-open vertex configurations -- the vertex and
-      its full set of petals -- among multiOpenFar / multiOpenFarClean
+  /** Distinct outgoing multi-open vertex configurations -- the vertex and
+      its full set of petals -- among multiOpenOutgoing / multiOpenOutgoingClean
       candidates. Hashes, bounded by MAX_CONFIGS each. */
   static constexpr size_t MAX_CONFIGS = 4'000'000;
   std::mutex configsMutex;

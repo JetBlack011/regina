@@ -44,7 +44,7 @@ add_executable(profile_driver profile_driver.cpp)
 target_link_libraries(profile_driver surfer_lib diagramtriangulation_lib surfer_mimalloc)
 target_compile_options(profile_driver PRIVATE -g)
 
-# Measures where the boundary-identification drain spends its time; see
+# Measures where the boundary-naming drain spends its time; see
 # profile_boundarylinks.cpp. Not a CTest test.
 add_executable(profile_boundarylinks profile_boundarylinks.cpp)
 target_link_libraries(profile_boundarylinks surfer_lib diagramtriangulation_lib surfer_mimalloc)
@@ -57,7 +57,7 @@ add_executable(profile_pairsig profile_pairsig.cpp)
 target_link_libraries(profile_pairsig surfer_lib diagramtriangulation_lib surfer_mimalloc)
 target_compile_options(profile_pairsig PRIVATE -g)
 
-# How parallelIsoSigDetail() scales with threads on a row's thickening.
+# How parallelIsoSigDetail() scales with threads on a link's thickening.
 # Not a CTest test.
 add_executable(profile_parallelisosig profile_parallelisosig.cpp)
 target_link_libraries(profile_parallelisosig surfer_lib diagramtriangulation_lib surfer_mimalloc)

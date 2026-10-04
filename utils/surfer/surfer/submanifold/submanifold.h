@@ -391,7 +391,7 @@ extern template class EmbeddedSubmanifold<4, 2>;
  * (see KnottedSurface::orientedBoundaryLinks()): `edge` runs
  * `vertex(1)` -> `vertex(0)` iff `reversed` -- the same convention as
  * knotbuilder::TriangulationWithLink::reversed, so a found surface's own
- * induced direction and a row's PD-tagged direction can be compared
+ * induced direction and the incoming link's PD-tagged direction can be compared
  * directly.
  */
 struct OrientedEdge {
@@ -605,7 +605,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
                    const Skeleton<4, 2> &skeleton, PetalCache &petalCache);
 
     /**
-     * Whether the current surface should be accepted as a witness, given
+     * Whether the current surface should be accepted as a cobordism, given
      * that it satisfies the search's BoundaryCondition: it must be embedded
      * or -- only with SelfIntersectionOptions::resolveUnlinked --
      * isResolvable(), AND isSmoothAtBoundary().
@@ -646,7 +646,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * the paper's resolution theorem, which then perturbs the map, only near
      * those vertices and keeping its domain, into a proper locally flat
      * embedding of the same abstract surface -- so the surface is as good a
-     * witness as an embedded one. addFace() enforces P_1 everywhere and
+     * cobordism as an embedded one. addFace() enforces P_1 everywhere and
      * P_smooth at interior vertices; isAcceptable() adds smoothness at the
      * boundary.
      */

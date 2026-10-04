@@ -378,7 +378,7 @@ void runSearch(const regina::Triangulation<4> &tri,
     return out.str();
   };
 
-  // How much recomputation the isoSig-keyed recognition cache (see
+  // How much recomputation the isoSig-keyed complement cache (see
   // complementcache.h) is actually avoiding -- shared process-wide, so this
   // is already the full aggregate across every search thread. Boundaries are
   // named without a census, so only the genus answers are cached.
@@ -411,7 +411,7 @@ void runSearch(const regina::Triangulation<4> &tri,
   // avoiding -- one cache per ambient boundary component, shared across
   // every search thread, so this is already the full aggregate. A high hit
   // rate here means most boundary curves are never named again at all, let
-  // alone drilled for the recognition cache above.
+  // alone drilled for the complement cache above.
   auto boundarySignatureCacheText = [&] {
     namecache::BoundarySignatureCacheStats s = e.boundarySignatureCacheStats();
     double hitRate = s.checks > 0 ? 100.0 * static_cast<double>(s.hits) /
@@ -881,8 +881,8 @@ int main(int argc, char *argv[]) {
   std::cout << "------ SurFer (Surface Finder) \U0001F30A ------\n\n";
 
   if (havePD) {
-    // The same ambient verifyslicegenus searches a row in, without its row
-    // map: surfer reports what it finds and judges nothing against L.
+    // The same ambient a cobound search runs in, without its incoming map:
+    // surfer reports what it finds and judges nothing against L.
     ThickenedLink thickened;
     try {
       buildAmbient(pdCode, thickenLayers, collarLayers, thickened);

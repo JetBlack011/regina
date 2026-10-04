@@ -61,7 +61,7 @@ std::vector<std::string> parseCsvLine(const std::string &line);
  * shardForThisThread() caches its result in a thread_local, function-static
  * pointer, which is per thread and shared by every CsvWriter. So the pointer
  * is kept together with the id of the writer it belongs to, and a thread
- * writing to a different writer (verifyslicegenus makes one per row, at the
+ * writing to a different writer (a run makes one per search, at the
  * same address each time) takes a fresh shard instead of the previous
  * writer's destroyed one.
  */
@@ -99,7 +99,7 @@ private:
   std::string headerLine_;
   unsigned maxShards_;
   // Distinguishes this writer in the thread-local shard cache: a later
-  // writer can occupy the same address (a std::optional reused per row).
+  // writer can occupy the same address (a std::optional reused per search).
   uint64_t id_;
   std::mutex registryMutex_;
   size_t nextShard_ = 0; // guarded by registryMutex_

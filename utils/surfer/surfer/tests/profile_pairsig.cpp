@@ -1,5 +1,5 @@
 // Scratch benchmark: how much of pairSig<4,2>() depends only on the AMBIENT
-// triangulation (constant for a whole row) versus on the surface?
+// triangulation (constant for a whole search) versus on the surface?
 #include <chrono>
 #include <iostream>
 #include <string>

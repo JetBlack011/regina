@@ -34,7 +34,7 @@ struct SurfaceFoundInfo {
     /**< The genus of the connected surface obtained by discarding this
          surface's closed components and tubing the rest together This is the
        number to use for a slice-genus bound: a disconnected find is still a
-       legitimate witness, since tubing keeps the surface properly embedded with
+       legitimate cobordism, since tubing keeps the surface properly embedded with
        the same boundary. See KnottedSurface::tubedSurfaceType() for the
        derivation.
 
@@ -182,7 +182,7 @@ struct SurfaceSearchLimits {
          EmbeddedSubmanifold::pairSig()). */
     bool nameLinkCurves = true;
     /**< Whether a multi-curve boundary component's curves are also
-         identified one by one. Only their count is ever used downstream
+         named one by one. Only their count is ever used downstream
          (splitBoundary(), classifyByLinks_()), so a caller that does not
          print them can switch this off; the curve names are then
          placeholders, and the count is unchanged. */
@@ -217,7 +217,7 @@ class BoundaryNamer {
  * Names boundary curves by their complements, through one pair of routes: a
  * lone curve (and each curve named on its own) by `knot`, several curves
  * together by `link`. UnlinkBoundaryNamer below is the census-free pair;
- * cobound's outgoing::ComplementNamer the census pair (census::identify()).
+ * cobound's outgoing::ComplementNamer the census pair (census::nameComplement()).
  */
 class ComplementBoundaryNamer : public BoundaryNamer {
   public:
@@ -348,7 +348,7 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
     /**
      * Per-worker-thread hook passed to runSearch_(): tallies surface types
      * and (when boundary links are wanted) batches each find's face
-     * indices for later link identification, merging into the owning
+     * indices for later link naming, merging into the owning
      * SurfaceSearch's shared accumulators whenever the harness flushes
      * this thread's counters.
      */
@@ -455,7 +455,7 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
      * The ambient here is the search's own cobordism -- fixed for the whole
      * search -- so everything pairSig() derives from it is the same for every
      * surface found. Computing it per surface made the drain's cost scale
-     * with the number of witnesses rather than the amount of work (79% of a
+     * with the number of cobordisms rather than the amount of work (79% of a
      * whole run's CPU, measured). Built on first use, not here, so a search
      * that never signs anything never pays for it.
      */
@@ -587,7 +587,7 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
     /**
      * Reads and writes the pair-signature context through `dir`
-     * (PairSigContext::cached()), so a row searched again, or signed again
+     * (PairSigContext::cached()), so a link searched again, or signed again
      * later, does not rebuild it. Call before search().
      */
     void setPairSigCacheDir(const std::string &dir) {
@@ -599,8 +599,8 @@ class SurfaceSearch : public EmbeddingSearch<4, 2> {
 
     /**
      * Records `name` as boundary component `component`'s identity for the
-     * edge set `edgeIndices` (sorted), so it is never identified. For an
-     * edge set known by construction: a row's own link on its search side.
+     * edge set `edgeIndices` (sorted), so it is never named. For an edge
+     * set known by construction: the incoming link, on the incoming boundary.
      */
     void primeBoundaryName(size_t component,
                            const std::vector<size_t> &edgeIndices,

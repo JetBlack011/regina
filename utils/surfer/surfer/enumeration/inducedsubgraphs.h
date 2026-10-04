@@ -447,7 +447,7 @@ class ConnectedInducedSubgraphEnumerator {
      * returns at once, where a DepthCappedPredicate lets it scan every
      * candidate and offer each valid child to the predicate chain, only to
      * be refused. That was 94% of all nodes, 98% of all candidate scanning
-     * and 97% of all tryAdd() calls on a profiled row -- none of it able to
+     * and 97% of all tryAdd() calls on a profiled search -- none of it able to
      * find anything, and all of it charged to the root's budget.
      */
     void setMaxSize(size_t maxSize) { maxSize_ = maxSize; }

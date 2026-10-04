@@ -175,7 +175,7 @@ std::string EmbeddingSearch<dim, subdim>::frontierFingerprint_(
             s << ' ' << v;
     }
     // Each vertex's faces as a set: the seed's arrive in no fixed order
-    // (measured: two hops on one row), and it is committed whole, so only
+    // (measured: two searches of one link), and it is committed whole, so only
     // which faces it holds can matter to the search.
     s << "\nskeleton";
     for (const auto &faces : graph_.graphToSkel) {
@@ -717,7 +717,7 @@ SearchStats EmbeddingSearch<dim, subdim>::runSearch_(
 
     // The reporter reports once a second, and is woken the moment the
     // workers finish (it used to sleep out its second, which a short search
-    // -- a cascade hop -- paid as idle wall time on every call).
+    // -- a goal run's -- paid as idle wall time on every call).
     std::mutex reporterMutex;
     std::condition_variable reporterWake;
     std::thread reporter([&]() {

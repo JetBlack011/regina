@@ -132,7 +132,7 @@ struct SearchFrontier {
      * a runtime_error naming the reason ("SearchFrontier: ..."), never
      * returns a frontier. A caller treats that file as ABSENT -- it searches
      * from the start and logs the reason -- and never resumes from it
-     * (cobound's sweep does exactly this).
+     * (cobound's run without a goal does exactly this).
      */
     static std::optional<SearchFrontier> load(const std::string &path);
 };

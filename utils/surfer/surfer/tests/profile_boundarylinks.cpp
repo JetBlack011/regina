@@ -1,13 +1,13 @@
 //
 //  profile_boundarylinks.cpp
 //
-//  Where does the boundary-identification drain actually spend its time?
+//  Where does the boundary-naming drain actually spend its time?
 //
-//  Timing the identification stages in isolation (build complement, simplify,
+//  Timing the naming stages in isolation (build complement, simplify,
 //  isoSig, group/unlink test) on real boundary complements accounted for
 //  ~1.7 ms per surface. The observed drain rate on a large queue was ~123
 //  surfaces/sec across 12 threads, i.e. ~98 ms per surface per thread -- a
-//  factor of ~57 unaccounted for. Since those identification stages are also
+//  factor of ~57 unaccounted for. Since those naming stages are also
 //  short-circuited by BoundarySignatureCache on repeat boundaries, they cannot
 //  be the bulk of it.
 //
@@ -23,7 +23,7 @@
 //
 //  This program measures that directly rather than by subtraction: it builds
 //  the same cobordism the search uses, reconstructs surfaces from the seed,
-//  and times boundaryLinks() against the identification that follows it.
+//  and times boundaryLinks() against the naming that follows it.
 //
 //  Usage:  profile_boundarylinks <pd-code> [layers] [samples]
 //
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     }
     const double linksMs = msSince(t0) / samples;
 
-    // Stage 2: what identification costs on the SAME boundary, for scale.
+    // Stage 2: what naming costs on the SAME boundary, for scale.
     auto links = surface.boundaryLinks();
     size_t curves = 0;
     for (auto &[c, l] : links)

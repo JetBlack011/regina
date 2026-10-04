@@ -1376,8 +1376,8 @@ void test_boundary_vertex_self_intersection_not_resolvable() {
               "so it is rejected even with --resolve-unlinked");
 
     // The census's multi-open split, by where the vertex lies relative to
-    // the search side: -1 (unknown) records neither half; its own boundary
-    // component makes it search-side; any other makes it far-side, where
+    // the incoming side: -1 (unknown) records neither half; its own boundary
+    // component makes it incoming; any other makes it outgoing, where
     // this lone vertex with exactly two open petals is the "simple" case.
     long bc = -1;
     for (int i = 0; i < 3; ++i)
@@ -1603,7 +1603,7 @@ void test_hereditariness_stress() {
     // removeFace() calls here) -- a single-crossing unknot's cone still
     // has a genuinely closing/reopening petal at the apex, which is what
     // this stress test needs to exercise, without the cost of repeatedly
-    // recognizing a much larger knot complement.
+    // naming a much larger knot complement.
     auto pd = knotbuilder::parsePDCode("1 2 2 1");
     auto result = knotbuilder::buildLink(pd);
 

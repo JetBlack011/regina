@@ -377,7 +377,7 @@ void test_malformed_input() {
 // This is the entire contract of the context: it is a cheaper ROUTE to the
 // same string, never a different encoding. results/cobordisms.csv stores
 // these strings and peripheral_slopes reconstructs surfaces from them, so
-// any divergence here would silently invalidate recorded witnesses.
+// any divergence here would silently invalidate recorded cobordisms.
 //
 // Reusing one context across every marked set is deliberate -- it is how the
 // search uses it, and it is what would expose state leaking between calls.
@@ -610,7 +610,7 @@ void test_context_output_decodes() {
 // Two distinct races are in scope here, and only the first is obvious:
 //
 //  1. The lazy build itself. Every drain thread reaches get() at once on the
-//     first witness; std::call_once must serialise the build and publish a
+//     first cobordism; std::call_once must serialise the build and publish a
 //     fully-constructed context to all of them.
 //
 //  2. The SHARED canonical triangulation. This is the subtler one, and it is

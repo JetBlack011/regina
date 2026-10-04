@@ -33,8 +33,8 @@
  * It calls the engine's own fillFrom() and IsoSigPrintable::encode(), which
  * the engine instantiates, so nothing of the algorithm is reimplemented.
  *
- * For a 12-crossing row's thickening this is ~99.8% of a pair-signature
- * context (pairsig.h), which campaign rows used to build on one thread
+ * For a 12-crossing link's thickening this is ~99.8% of a pair-signature
+ * context (pairsig.h), which a campaign's searches used to build on one thread
  * (README.md, "Performance").
  *
  * \pre `tri` is non-empty and connected, with its skeleton computed (any

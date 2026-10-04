@@ -17,10 +17,10 @@
 //     valence 2, and its trace is the link edge of every one of its corners;
 //   - at every interior vertex, every closed petal's trace is an unknot and
 //     every two closed petals' traces have linking number 0.
-// Unknot recognition and linking numbers are the production ones
+// Unknot naming and linking numbers are the production ones
 // (complement::isUnknot, EdgeComplement::linkingNumberWith): this test is about
-// which corners make up a petal and when it is checked, not about knot
-// recognition.
+// which corners make up a petal and when it is checked, not about naming
+// knots.
 //
 // The one-vertex closed triangulations matter most: every triangle there has
 // all three corners at one interior vertex, so addFace() must register every

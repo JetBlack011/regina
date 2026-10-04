@@ -49,7 +49,7 @@
  * final step -- what pairSig()'s per-automorphism inner loop relies on to
  * stay cheap, and equally useful for canonicalizing a marked face set
  * against a single fixed triangulation's own automorphism group (see
- * namecache::BoundarySignatureCache in identifycomplement.h).
+ * namecache::BoundarySignatureCache in surfer/enumeration/namecache.h).
  */
 template <int dim>
 struct FaceDescriptor {
@@ -62,7 +62,7 @@ struct FaceDescriptor {
  * `ambient`'s subdim-faces), before any isomorphism has been applied.
  *
  * Defined here (not in pairsig.cpp) so that any translation unit --
- * including identifycomplement.cpp's BoundarySignatureCache, which has no
+ * including namecache.cpp's BoundarySignatureCache, which has no
  * other reason to link against pairsig.cpp's own explicit instantiations
  * (pairSig()/fromPairSig() and everything they in turn pull in, e.g.
  * EmbeddedSubmanifold/KnottedSurface/Skeleton's .cpp files) -- can
@@ -112,9 +112,9 @@ size_t resolveFaceIndex(const regina::Triangulation<dim> &codomain,
  *       findAllIsomorphisms         265 ms            <- ambient only
  *       fromSig(sig)                  0.5 ms          <- ambient only
  *
- * `verifyslicegenus` builds one cobordism per row and then signs every
- * witness found in it, so recomputing the above per witness made the drain's
- * cost proportional to the number of witnesses rather than the amount of
+ * A search builds one thickening per incoming link and then signs every
+ * cobordism found in it, so recomputing the above per cobordism made the
+ * drain's cost proportional to the number of cobordisms rather than the amount of
  * work: `perf` put 79% of the whole run in IsoSigData<1,4>::fillFrom plus
  * IsoSigPrintable::encode<4>, against 0.46% in the surface-dependent part of
  * pairSig() itself.
@@ -190,8 +190,8 @@ class PairSigContext {
      * The ambient part itself: its isoSig, and an isomorphism carrying the
      * ambient onto the triangulation that sig decodes to. It is 99.8% of the
      * cost (above) and depends on the ambient alone, so a caller that meets
-     * the same ambient again -- another run over the same row -- may keep it
-     * (farsidediagram --sig-cache) and build a context from it.
+     * the same ambient again -- another search of the same link -- may keep
+     * it (pair_sig_cache) and build a context from it.
      *
      * Any such isomorphism gives byte-identical signatures, since sig()
      * minimises over every automorphism of the canonical ambient. So a kept
@@ -230,10 +230,10 @@ class PairSigContext {
  *
  * Laziness is the point, not an implementation detail. Building a context
  * costs an isoSigDetail() of the whole ambient -- ~33 s on a
- * 1,728-pentachoron cobordism -- and MOST SEARCH ROWS NEVER SIGN ANYTHING,
- * because they find no witness at all. Constructing eagerly (say, alongside
- * the per-row Skeleton) would hand every barren row a large bill it does not
- * currently pay, turning a win on productive rows into a loss overall. So the
+ * 1,728-pentachoron cobordism -- and MOST SEARCHES NEVER SIGN ANYTHING,
+ * because they find no cobordism at all. Constructing eagerly (say, alongside
+ * the per-search Skeleton) would hand every barren search a large bill it does
+ * not currently pay, turning a win on productive searches into a loss overall. So the
  * cost is deferred to the first sig() that actually happens.
  *
  * get() is safe to call concurrently: std::call_once both serialises the

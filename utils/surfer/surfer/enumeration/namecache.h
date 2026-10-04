@@ -35,14 +35,14 @@ struct BoundarySignatureCacheStats {
  * triangulation's own automorphism group -- so a boundary curve already
  * seen (exactly, or up to a symmetry of the boundary component)
  * short-circuits before buildComplement()/simplify()/isoSig() ever runs,
- * rather than only being caught by the isoSig-keyed recognitionCache
+ * rather than only being caught by the isoSig-keyed complement cache
  * *after* paying for that triangulation (see complementcache.h).
  *
- * recognitionCache is still needed on top of this: two curves can be the
+ * complement cache is still needed on top of this: two curves can be the
  * same knot/link type without being combinatorially related by any
  * automorphism of the boundary component (e.g. two non-isomorphic edge
  * paths that happen to drill out to the same manifold), in which case only
- * recognitionCache -- keyed on the post-simplify isoSig -- catches the
+ * complement cache -- keyed on the post-simplify isoSig -- catches the
  * duplicate. This cache is a cheaper pre-filter in front of that one, not a
  * replacement for it.
  *
@@ -89,8 +89,8 @@ class BoundarySignatureCache {
 
     /**
      * Records `name` as the answer for `edgeIndices` without computing
-     * anything, for an edge set whose identity is known by construction (a
-     * row's own link on its search side). Harmless if the cache is later
+     * anything, for an edge set whose identity is known by construction (the
+     * incoming link, on the incoming boundary). Harmless if the cache is later
      * cleared: that entry is then just recomputed on demand.
      */
     void prime(const std::vector<size_t> &edgeIndices, const std::string &name);

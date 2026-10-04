@@ -65,7 +65,7 @@ find_package(SQLite3 REQUIRED)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
 # mimalloc in place of glibc's malloc, for every surfer binary and test
-# (2026-09-29). A perf profile of a production row put about a third of all
+# (2026-09-29). A perf profile of a production search put about a third of all
 # CPU in glibc's malloc/free, and the drain ran ~1.8x faster under mimalloc
 # (utils/surfer/README.md, "Performance"). Linked statically and whole, so the
 # executable itself defines malloc and interposes it for the engine library

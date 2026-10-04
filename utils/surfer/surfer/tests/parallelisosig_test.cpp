@@ -6,7 +6,7 @@
 // every thread count, including counts that do not divide the number of
 // starts and counts above it.
 //
-// Inputs: campaign-shaped row thickenings built from real PD codes (the
+// Inputs: campaign-shaped thickenings of table rows' PD codes (the
 // ambients pair signatures are taken over), each also with its labelling
 // randomised (a different serial winner, and ties between starts whenever
 // the triangulation has automorphisms), and a few of Regina's 3- and

@@ -20,7 +20,7 @@
 #include <unordered_set>
 
 namespace {
-// For PetalCache's miss timings (the per-row `search profile:` line).
+// For PetalCache's miss timings (the per-search `search profile:` line).
 long long nanosSince(std::chrono::steady_clock::time_point start) {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::steady_clock::now() - start)

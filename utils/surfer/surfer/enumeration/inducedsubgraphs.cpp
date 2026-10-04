@@ -286,7 +286,7 @@ void ConnectedInducedSubgraphEnumerator::seedFastForward_(
     // good: the predicate is anti-monotonic, and every set this enumerator
     // will visit contains the seed, so none containing that neighbour can
     // pass. Leave it out of the list, but keep it in C, so no later vertex
-    // re-introduces it. On the profiled row, 880 of 1,019 seed neighbours:
+    // re-introduces it. On the profiled search, 880 of 1,019 seed neighbours:
     // 84% of every scan, and 91% of the failing tryAdd() calls.
     //
     // The list's order right now is canonical: every later root restores
@@ -445,8 +445,8 @@ ConnectedInducedSubgraphEnumerator::extendFiltered(
         inU[w] = true;
 
         // w's neighbours join C only once w passes. Nearly every child fails
-        // (97% on a profiled row), and introducing its neighbours only to
-        // remove them again cost that row ~30% of its wall time. Doing it
+        // (97% on a profiled search), and introducing its neighbours only to
+        // remove them again cost that search ~30% of its wall time. Doing it
         // after the check changes nothing observable: no predicate reads C,
         // and a vertex outside U and C always has dist -1 and parentOf 0, so
         // introducing and then removing candidates restores C exactly.

@@ -1,6 +1,6 @@
 // profile_parallelisosig.cpp
 //
-// How parallelIsoSigDetail() (../parallelisosig.h) scales: a row's
+// How parallelIsoSigDetail() (../parallelisosig.h) scales: a link's
 // campaign-shaped thickening (two layers, collared, no cone), its isoSig at
 // each thread count given, each checked equal to the one-thread answer.
 // Not a CTest test.

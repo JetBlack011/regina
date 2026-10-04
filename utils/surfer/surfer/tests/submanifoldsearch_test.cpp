@@ -326,7 +326,7 @@ void test_triple_self_fold_excluded() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Batch boundary-link recognition (SurfaceSearch::processSurfaceBoundaries()
+// Batch boundary-link naming (SurfaceSearch::processSurfaceBoundaries()
 // / linkTally()): a single pentachoron (B^4, dim = 4) whose boundary is
 // ∂Δ^4 = S^3, exactly the "single tetrahedron" scenario from
 // test_tetrahedron_boundary_conditions one dimension up -- every ambient
@@ -336,7 +336,7 @@ void test_triple_self_fold_excluded() {
 // since it's the boundary of an embedded disc already sitting inside this
 // S^3. search() with BoundaryCondition::connected should find it, batch it,
 // and processSurfaceBoundaries() (called internally as part of search()'s
-// final flush) should recognize its complement as the unknot and record it
+// final flush) should name its complement as the unknot and record it
 // bounding a Disc.
 // ─────────────────────────────────────────────────────────────────────────────
 void test_boundary_link_batch_names_unknot() {
@@ -374,7 +374,7 @@ void test_backpressure_does_not_drop_or_double_count_surfaces() {
     std::cout << "\n--- SurfaceSearch: pendingSurfaceCap backpressure changes "
                  "timing only, never drops/double-counts a surface ---\n";
 
-    // Same fixture as test_boundary_link_batch_recognizes_unknot: a single
+    // Same fixture as test_boundary_link_batch_names_unknot: a single
     // pentachoron's boundary (S^3), which under --connected yields several
     // distinct satisfying surfaces -- enough to exceed a cap of 1.
     auto buildFourBall = [] {
@@ -559,7 +559,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
     EXPECT_EQ(seedFaces.empty(), false, "the collar produced a non-empty seed");
 
     // At least one seed triangle is NOT itself a boundary triangle of
-    // searchSideBC (it's a "wall" triangle of the swept prism, interior to
+    // incomingBC (it's a "wall" triangle of the swept prism, interior to
     // the cobordism) -- confirms this seed genuinely exercises the
     // edge-level (not face-level) distinction, not just faces a naive
     // face-level check would have handled correctly too.
@@ -595,7 +595,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
               "correctly exempted from the exclusion it would otherwise "
               "trigger (this is the exact bug caught in review)");
 
-    // The far side remains completely unrestricted when searchSideBC is
+    // The outgoing link remains completely unrestricted when incomingBC is
     // protected: a single-face seed taken from the far boundary component
     // embeds without issue.
     int outgoingFaceIdx =
@@ -893,8 +893,8 @@ void test_iddfs_max_depth_formula() {
 // root's enumeration and repeating with a doubled ration must, once every
 // root has finished, have reported exactly what one unbudgeted pass reports
 // -- nothing missed, nothing duplicated. Duplicates are not a cosmetic
-// problem: each one costs a full boundary identification downstream, which
-// dominates the cost of a row.
+// problem: each one costs a full boundary naming downstream, which
+// dominates the cost of a search.
 //
 // This is the invariant that caught both bugs in the original
 // implementation. Skipping already-finished roots silently changed the
@@ -1454,7 +1454,7 @@ void test_frontier_pending_relative() {
     EXPECT_EQ(h && h->pending ? h->pending->path : std::string(),
               (b / "work" / "hop_0_n0" / "kept.csv").string(), "moved: the moved file");
 
-    // A frontier beside its pending file (a goal run's hop directory).
+    // A frontier beside its pending file (a goal run's search directory).
     SearchFrontier c = f;
     c.pending->path = (b / "work" / "hop_0_n0" / "kept.csv").string();
     c.save((b / "work" / "hop_0_n0" / "frontier.txt").string());

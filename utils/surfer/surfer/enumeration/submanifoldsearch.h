@@ -131,7 +131,7 @@ struct SearchStats {
 
   /**
    * Where the search's work went -- measurement only, printed as the
-   * per-row `search profile:` line and read by utils/surfer/tools/
+   * per-search `search profile:` line and read by utils/surfer/tools/
    * bench_search.sh. Filled in only on the final SearchStats (search()'s
    * return value and onSearchComplete); zero in progress snapshots.
    */
@@ -718,7 +718,7 @@ private:
    * ConnectedInducedSubgraphEnumerator::contractSeed().
    *
    * `seedFaces` is also forwarded as buildGraph_()'s exemption list: a
-   * seed built to trace this row's own diagram (e.g. CollarBuilder's
+   * seed built to trace the incoming link's own diagram (e.g. CollarBuilder's
    * output) legitimately has edges on `protectedBoundaryComponent` by
    * construction (that's the whole point of seeding from it), so those
    * specific faces must never be excluded even though the exclusion this

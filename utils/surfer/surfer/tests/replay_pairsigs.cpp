@@ -6,8 +6,8 @@
 //  The pair signatures in cobordism-atlas/results/cobordisms.csv were all
 //  produced by the pre-context code path. This replays them through the new
 //  one: decode each recorded signature, build ONE PairSigContext from the
-//  decoded ambient (every witness of a row shares that ambient -- which is
-//  the premise the whole optimization rests on), re-encode every witness
+//  decoded ambient (every cobordism of one search shares that ambient -- which is
+//  the premise the whole optimization rests on), re-encode every cobordism
 //  through it, and require the result to be byte-identical to what was
 //  recorded.
 //
