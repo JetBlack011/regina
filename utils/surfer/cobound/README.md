@@ -523,10 +523,10 @@ Pareto set (`PartitionGenera`). Special cases:
 
 **Why partitions, not g₄ alone.** A band move K → L is a pair of pants. If L
 bounds two disjoint discs, K is slice; if L bounds only an annulus (g₄(L) = 0),
-K bounds genus 1. In the atlas's database every genus-0 cobordism from a knot
-goes to the knot itself or to a link of 2 or 3 components, never to another
-knot. So a proof that a knot is slice must pass through links bounding
-disjoint discs, which a connected-genus rule cannot express.
+K bounds genus 1. Most genus-0 cobordisms from a knot in the atlas's database
+go to links of 2 or 3 components (24,069 of 29,370), so a proof that a knot is
+slice often passes through links bounding disjoint discs, which a
+connected-genus rule cannot express.
 
 ### Gluing (`glue()`)
 
@@ -723,11 +723,11 @@ beats f computed at the target itself. That covers |σ_ω|/2, |τ|, |s|/2 and ν
 for knots, and the Murasugi–Tristram bound for links (its μ − 1 term is exactly
 the slack splitting bands add), all of which the tables already record. So a
 transported bound can close an entry only from a source whose bound is NOT of
-this kind, and then only across a charge-0, genus-0 path. From KnotInfo and
-LinkInfo such sources are about 2,228 knots (2,106 non-slice with every such
-invariant 0, 122 with g₄ = 2 above a floor of at most 1) and 653 links above
-the Murasugi floor (e.g. `L5a1`); the atlas lists them in
-`data/lower_bound_sources.csv` (`special`), which `lower_sources` reads.
+this kind, and then only across a charge-0, genus-0 path. The atlas's
+`data/lower_bound_sources.csv` marks such sources (`special`), which
+`lower_sources` reads: of the 17,153 table entries, 2,360 knots whose lower
+bound exceeds every such invariant, and 653 links above the Murasugi floor
+(e.g. `L5a1`). The largest of their lower bounds is 4.
 
 ### Lower goals
 
