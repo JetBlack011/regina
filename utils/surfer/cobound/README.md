@@ -58,8 +58,8 @@ except `run`, `solve` and `sign`.
 
 | command | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| `run` without a goal | done (a first SIGINT or SIGTERM included) | the tables or symmetry types cannot be read | a configuration error; a search whose accounting failed or whose output write failed (after the run's other targets); a halt: a contradiction, an impossible state, a broken seed invariant, a linking-audit disagreement | · |
-| `run` with a goal | the goal met | not met (limits spent, nothing useful left, or a first signal) | a configuration error, a table target whose given diagram does not certify, a run that cannot start; a halt: an impossible state, a broken seed invariant, a failed output write | a contradiction, even when the goal is met |
+| `run` without a goal | done (a first SIGINT or SIGTERM included) | the tables or symmetry types cannot be read | a configuration error; a search whose accounting failed or whose output write failed, the verdicts file included (after the run's other targets); the verdicts or the database that cannot be written at the run's end; a halt: a contradiction, an impossible state, a broken seed invariant, a linking-audit disagreement | · |
+| `run` with a goal | the goal met, its certificate written | not met (limits spent, nothing useful left, or a first signal) | a configuration error, a table target whose given diagram does not certify, a run that cannot start; a halt: an impossible state, a broken seed invariant, a search's failed output write, a run record, a search's `log.txt`, the database or the certificate that cannot be written | a contradiction, even when the goal is met |
 | `solve` | done | an input cannot be read | a configuration error; a contradiction (after writing the verdicts) | · |
 | `sign` | done | · | any failure | · |
 | `draw`, `name` | done (a cobordism that cannot be read is a `FAILED` line) | · | a usage or configuration error | · |
@@ -312,14 +312,17 @@ expands.
     still signed), or `fatal-bug`; and, for a target that could not be built
     or was refused, `build-failed`. Only a search whose accounting balanced,
     with something examined, its drain complete and every write made, may
-    claim exhaustion. Without a goal the run then prints
-    `EXHAUSTIVE to N added faces` if it may, writes the target's search
-    record into the verdicts file (`searched_faces`, `search_outcome`, and
-    `exhausted_depth`, which is never lowered; status and bounds are left as
-    they were), prints its `breadth:` line (when frontiers are kept), its
-    outcome, accounting, `identification:`, `diagram naming:` and
-    `search profile:` lines, and goes on to the next target. A goal run
-    continues as below.
+    claim exhaustion. Without a goal the run then writes its frontier (one
+    that cannot be written makes the search `io-error`), writes the target's
+    search record into the verdicts file (`searched_faces`, `search_outcome`,
+    and `exhausted_depth`, which is never lowered; status and bounds are left
+    as they were), and only then prints `EXHAUSTIVE to N added faces` if it may.
+    A verdicts file that cannot be written makes the search `io-error` too, its
+    exhaustion withdrawn; its frontier stays, since every cobordism of its
+    prefix is in its pending file. The run then prints the search's `breadth:`
+    line (when frontiers are kept), its outcome, accounting, `identification:`,
+    `diagram naming:` and `search profile:` lines, and goes on to the next
+    target. A goal run continues as below.
 
 An accounting failure ends only its own search: without a goal the run
 exits 2 after its other targets, since completeness is what such a run is for;
@@ -327,6 +330,17 @@ with a goal the search is marked `[!!] hop <k>: surface accounting failed --
 ...` and the run's code is unchanged, its certificate standing. An
 impossible state halts any run (exit 2), after writing what was found, even
 when the goal is met.
+
+**The run's end** (without a goal). The run writes the verdicts file once
+more and signs its pending files into the database. If either write fails,
+every search of the run vouches for nothing: it prints `[!!] an output write
+failed at the run's end -- ...`, withdraws each search's exhaustion claim,
+reports each search again as `[+] <name>: N new witnesses, outcome io-error`
+(N is 0 when signing failed; a campaign reads a target's last outcome line),
+rewrites the verdicts if it can, and exits 2. Cobordisms that were not signed
+stay in their pending files, and the run says so:
+`[!] the run's cobordisms were not signed into <database>; `cobound sign`
+with work = <work> signs them`.
 
 **Signals** (`driver/signals`). The first SIGINT or SIGTERM ends the running
 search cleanly within a second: its drain finishes, its pending file is
@@ -406,10 +420,12 @@ slot). Each search's surfaces enter the run's cobordism graph
 written and read back, and a kept surface keeps its triangles instead. The
 loop, until a check ends it:
 
-1. a halt (exit 2) or a contradiction (exit 3) ends the run, after signing
-   what was found and writing the partition genera; the contradiction gate is
-   checked **before** the goal, so a goal met through inconsistent facts is
-   never certified;
+1. a halt (exit 2, outcome `halted`) or a contradiction (exit 3) ends the
+   run, after signing what was found and writing the partition genera; the
+   contradiction gate is checked **before** the goal, so a goal met through
+   inconsistent facts is never certified. Besides an impossible state and a
+   broken seed invariant, a halt is any output write that fails: a search's
+   own (step 10), a run record (`cascade.jsonl`), or a search's `log.txt`;
 2. the goal met (upper: the target's best surface on the goal partition has
    genus at most `goal_genus`; lower: `lower(target, goal partition)` at least
    `goal_lower`) ends the loop;
@@ -462,8 +478,19 @@ the run covers, as `key=value`), `[+] hop shape: ...`; per search
 `: breadth: ...` and `[+] hop <k>: node <id> (...)`; at the end `[+] done: ...
 Target best: ...`, then `[+] GOAL MET: ...` or `[+] LOWER GOAL MET: ...` and
 the outcome line a campaign parses,
-`[+] <target>: N new witnesses, outcome met|expansion-limit|cpu-budget|nothing-useful|interrupted|contradiction|halted`.
+`[+] <target>: N new witnesses, outcome met|expansion-limit|cpu-budget|nothing-useful|interrupted|contradiction|halted|io-error`.
 All of these are frozen.
+
+**The run's end.** The run signs its pending files into the database (with
+`cobordisms`) and writes `nodes.csv`, `lower_report.jsonl`,
+`node_bounds.jsonl`, `profiles.jsonl` and its own `cascade.jsonl` record. If
+any of these cannot be written, it prints `[!!] HALT: an output write failed --
+...`, claims no goal, and ends with outcome `io-error` and exit 2; cobordisms
+not signed stay in their pending files (`[!] the run's cobordisms were not
+signed into ...; `cobound sign` with work = ... signs them`). A goal is
+reported met only once its certificate is on disk: the certificate is written
+first, then `GOAL MET` or `LOWER GOAL MET` is printed; a certificate that
+cannot be written halts the same way (`... -- certificate: ...`).
 
 ## The run directory
 
@@ -883,7 +910,7 @@ crossings, and real cobordisms of two searches).
 | `interrupted_outcome_test` | SIGINT and SIGTERM end the running search cleanly, at depth 0 and with a goal: `interrupted`, never `exhausted`; no further search; exit 0 without a goal, 1 with one |
 | `unaccounted_search_test` | an imbalanced search (`SURFER_TEST_UNACCOUNTED`) ends only itself: `unaccounted`, no frontier, the run goes on, exit 2 at depth 0, the goal's own code with a goal; an impossible state (`SURFER_TEST_IMPOSSIBLE`) halts with 2 after writing what was found, even when the goal is met |
 | `contradiction_halt_test` | the contradiction gates run in every run: with `L2a1{0}`'s 4-genus rewritten to 1, a depth-0 run halts with 2 after writing its cobordisms, and a goal run with 3 although the same find meets the goal |
-| `io_failure_test` | a failed output write (a frontier path that is a directory, `/dev/full`, a file-size limit under the surface log, an unwritable search directory) ends its search as `io-error`: no frontier, no exhaustion claim, its finds signed, exit 2; never a signal |
+| `io_failure_test` | a failed output write (a frontier path that is a directory, `/dev/full`, a file-size limit under the surface log, an unwritable search directory, the forced checkpoint at the first constructive find) ends its search as `io-error`: no frontier, no exhaustion claim, its finds signed, exit 2; never a signal. After the search: a certificate that cannot be written (exit 2, no `GOAL MET` anywhere), a run record at the end (`io-error`) and mid-run (a halt), a database that refuses the sign step (depth 0: the search reported again as `io-error`, its claim withdrawn; with a goal, a halt), and a verdicts file that cannot be written |
 | `name_independence_test` | the same exhaustive searches with every name and description perturbed (`SURFER_TEST_PERTURB_NAMES`) accept and account for exactly the same surfaces; only the recorded/duplicate split may move; the full naming route ran |
 | `goal_layout_test` | a goal run explores the same links whatever the heap layout (five work-path lengths); needs the atlas's tables |
 | `meridians_order_test` | `cobound meridians` answers each record on its own: the records reversed give the same output |
