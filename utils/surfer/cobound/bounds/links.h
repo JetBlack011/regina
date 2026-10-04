@@ -20,8 +20,8 @@
 namespace bounds {
 
 /// How a diagram was found to be a node.
-struct NodeMatch {
-  NodeId node = -1;
+struct LinkMatch {
+  LinkId link = -1;
   /// The diagram's component i is the node's component componentMap[i].
   std::vector<int> componentMap;
   bool mirrored = false; ///< the diagram is the node's mirror image
@@ -30,14 +30,14 @@ struct NodeMatch {
   std::string method; ///< "new", "diagram", "isometry" or "unknot"
 };
 
-struct NodeInfo {
+struct LinkInfo {
   linknaming::GaussDiagram diagram; ///< the representative diagram, simplified
   std::vector<std::vector<int>> linking;
   bool hyperbolic = false;
   double volume = 0;
 };
 
-struct NodeRegistryStats {
+struct LinkRegistryStats {
   long lookups = 0, diagramHits = 0, isometryHits = 0, isometryRetries = 0,
        created = 0, unknots = 0;
 };
@@ -55,34 +55,34 @@ struct NodeRegistryStats {
  * never soundness. One node for two links is what must not happen, and
  * cannot, since every match above is a proof.
  */
-class NodeRegistry {
+class LinkRegistry {
 public:
-  explicit NodeRegistry(ProofGraph &graph);
-  NodeRegistry(const NodeRegistry &) = delete;
-  NodeRegistry &operator=(const NodeRegistry &) = delete;
+  explicit LinkRegistry(ProofGraph &graph);
+  LinkRegistry(const LinkRegistry &) = delete;
+  LinkRegistry &operator=(const LinkRegistry &) = delete;
 
   /// \pre `piece` is one split piece (linknaming::splitPieces()), simplified.
-  NodeMatch intern(const linknaming::GaussDiagram &piece, const std::string &label);
+  LinkMatch intern(const linknaming::GaussDiagram &piece, const std::string &label);
 
   /// The unknot's node (created on first use, with its disc as a leaf).
-  NodeId unknot();
+  LinkId unknot();
 
-  const NodeInfo &info(NodeId n) const { return info_.at(n); }
-  bool known(NodeId n) const { return info_.count(n) > 0; }
-  const NodeRegistryStats &stats() const { return stats_; }
+  const LinkInfo &info(LinkId n) const { return info_.at(n); }
+  bool known(LinkId n) const { return info_.count(n) > 0; }
+  const LinkRegistryStats &stats() const { return stats_; }
 
 private:
   static std::string diagramKey(const linknaming::GaussDiagram &d);
 
   ProofGraph &g_;
-  std::map<NodeId, NodeInfo> info_;
-  std::map<NodeId, std::unique_ptr<linknaming::KernelLink>> kernel_;
-  std::multimap<std::string, NodeId> byDiagramKey_;
+  std::map<LinkId, LinkInfo> info_;
+  std::map<LinkId, std::unique_ptr<linknaming::KernelLink>> kernel_;
+  std::multimap<std::string, LinkId> byDiagramKey_;
   // Hyperbolic nodes by (components, volume rounded to 1e-6); lookups scan
   // neighbouring buckets, so rounding never hides a match.
-  std::multimap<std::pair<size_t, long long>, NodeId> byVolume_;
-  NodeId unknot_ = -1;
-  NodeRegistryStats stats_;
+  std::multimap<std::pair<size_t, long long>, LinkId> byVolume_;
+  LinkId unknot_ = -1;
+  LinkRegistryStats stats_;
 };
 
 } // namespace bounds

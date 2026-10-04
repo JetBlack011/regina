@@ -37,20 +37,20 @@ void testDiagramHits() {
   // The same diagram relabelled: a "diagram" hit whose map is the relabelling.
   using regina::ExampleLink;
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   regina::Link u = ExampleLink::hopf();
   u.insertLink(ExampleLink::torus(2, 4));
   // Two split pieces here; intern one connected piece: T(2,4) alone and a
   // three-component connected link, T(3,6).
   GaussDiagram t36 = of(ExampleLink::torus(3, 6));
-  NodeMatch first = reg.intern(simplifyKeepingComponents(t36), "T(3,6)");
+  LinkMatch first = reg.intern(simplifyKeepingComponents(t36), "T(3,6)");
   CHECK(first.created, "first sight creates a node");
   // Reverse the component order: the map must follow.
   GaussDiagram perm = t36;
   std::reverse(perm.comps.begin(), perm.comps.end());
   std::reverse(perm.origin.begin(), perm.origin.end());
-  NodeMatch again = reg.intern(perm, "T(3,6) permuted");
-  CHECK(!again.created && again.node == first.node, "same diagram, same node");
+  LinkMatch again = reg.intern(perm, "T(3,6) permuted");
+  CHECK(!again.created && again.link == first.link, "same diagram, same node");
   CHECK_EQ(again.method, std::string("diagram"), "found as a diagram");
   // perm's component i is t36's component 2-i; the node's components are
   // t36's. T(3,6) has symmetries permuting components, so check the map is
@@ -59,7 +59,7 @@ void testDiagramHits() {
   mapped.signs = perm.signs;
   mapped.comps.assign(3, {});
   for (int i = 0; i < 3; ++i) mapped.comps[again.componentMap[i]] = perm.comps[i];
-  CHECK(findDiagramIsomorphism(reg.info(first.node).diagram, mapped, false, true)
+  CHECK(findDiagramIsomorphism(reg.info(first.link).diagram, mapped, false, true)
             .has_value(),
         "the returned map realises an isomorphism onto the node");
 }
@@ -74,20 +74,20 @@ void testDifferentDiagramsSameLink() {
   for (const regina::Link &l : {ExampleLink::whitehead(), ExampleLink::borromean(),
                                 ExampleLink::conway()}) {
     ProofGraph g;
-    NodeRegistry reg(g);
+    LinkRegistry reg(g);
     GaussDiagram base = simplifyKeepingComponents(of(l));
-    NodeMatch n0 = reg.intern(base, "base");
+    LinkMatch n0 = reg.intern(base, "base");
     for (int t = 0; t < 25; ++t) {
       GaussDiagram s = scramble(base, rng, 20);
       for (const GaussDiagram &q : linknaming::splitPieces(s)) {
         if (q.components() != base.components()) continue; // came apart: skip
-        NodeMatch m = reg.intern(q, "scrambled");
+        LinkMatch m = reg.intern(q, "scrambled");
         ++trials;
-        CHECK_EQ(m.node, n0.node, "scrambled diagram is the same node");
+        CHECK_EQ(m.link, n0.link, "scrambled diagram is the same node");
         if (m.method == "isometry") ++isometryHits;
         // Linking numbers must transport through the map (up to the global
         // sign a mirror gives).
-        auto lq = linkingMatrix(q), ln = reg.info(n0.node).linking;
+        auto lq = linkingMatrix(q), ln = reg.info(n0.link).linking;
         bool okMap = true;
         const int sgn = m.mirrored ? -1 : 1;
         for (size_t i = 0; i < q.components(); ++i)
@@ -102,34 +102,34 @@ void testDifferentDiagramsSameLink() {
   CHECK(isometryHits > 0, "some matches needed the isometry test");
 }
 
-void testOrientationVariantsAreDifferentNodes() {
+void testOrientationVariantsAreDifferentLinks() {
   // L7n1{0} (g4 2) and L7n1{1} (g4 0), L4a1{0} (g4 0) and L4a1{1} (g4 1):
   // one link with different component orientations. Merging them would be
   // unsound, so they must be different nodes.
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   for (auto [a, b] : {std::pair{L7n1_0, L7n1_1}, std::pair{L4a1_0, L4a1_1}}) {
     GaussDiagram da = simplifyKeepingComponents(of(linknaming::linkFromTablePD(a)));
     GaussDiagram db = simplifyKeepingComponents(of(linknaming::linkFromTablePD(b)));
-    NodeMatch ma = reg.intern(da, a), mb = reg.intern(db, b);
-    CHECK(ma.node != mb.node, "orientation variants are different nodes");
+    LinkMatch ma = reg.intern(da, a), mb = reg.intern(db, b);
+    CHECK(ma.link != mb.link, "orientation variants are different nodes");
     // And each variant, re-interned, finds itself.
-    CHECK_EQ(reg.intern(da, a).node, ma.node, "variant 0 finds itself");
-    CHECK_EQ(reg.intern(db, b).node, mb.node, "variant 1 finds itself");
+    CHECK_EQ(reg.intern(da, a).link, ma.link, "variant 0 finds itself");
+    CHECK_EQ(reg.intern(db, b).link, mb.link, "variant 1 finds itself");
   }
 }
 
 void testUnknot() {
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   GaussDiagram u;
   u.comps = {{}};
   u.origin = {3};
-  NodeMatch m = reg.intern(u, "crossingless");
-  CHECK_EQ(m.node, reg.unknot(), "a crossingless piece is the unknot");
-  CHECK_EQ(g.bestConnected(m.node)->genus, 0, "the unknot bounds a disc");
-  NodeMatch m2 = reg.intern(u, "again");
-  CHECK_EQ(m2.node, m.node, "one unknot node");
+  LinkMatch m = reg.intern(u, "crossingless");
+  CHECK_EQ(m.link, reg.unknot(), "a crossingless piece is the unknot");
+  CHECK_EQ(g.bestConnected(m.link)->genus, 0, "the unknot bounds a disc");
+  LinkMatch m2 = reg.intern(u, "again");
+  CHECK_EQ(m2.link, m.link, "one unknot node");
 }
 
 // Why reduction matters: a hop's row is certified by drawing knotbuilder's
@@ -141,11 +141,11 @@ void testReducedDiagramsCertify() {
       sumThroughTwist(of(ExampleLink::trefoilLeft()), 0, of(ExampleLink::figureEight()), 1);
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
-    NodeRegistry reg(g);
+    LinkRegistry reg(g);
     SearchedLink searched;
-    searched.node = reg.intern(diagram, "row").node;
+    searched.link = reg.intern(diagram, "row").link;
     searched.diagram = diagram;
-    searched.nodeMap = {0};
+    searched.linkMap = {0};
     searched.pd = diagramPD(diagram);
     searched.layers = 2;
     try {
@@ -171,12 +171,12 @@ void testLiftedDiagramsCertify() {
   d.origin = {0, 1, 2, 3};
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
-    NodeRegistry reg(g);
+    LinkRegistry reg(g);
     SearchedLink searched;
-    searched.node = reg.intern(diagram, "row").node;
+    searched.link = reg.intern(diagram, "row").link;
     searched.diagram = diagram;
-    searched.nodeMap.resize(diagram.components());
-    std::iota(searched.nodeMap.begin(), searched.nodeMap.end(), 0);
+    searched.linkMap.resize(diagram.components());
+    std::iota(searched.linkMap.begin(), searched.linkMap.end(), 0);
     searched.pd = diagramPD(diagram);
     searched.layers = 2;
     try {
@@ -221,7 +221,7 @@ int main() {
   testLiftedDiagramsCertify();
   testDiagramHits();
   testDifferentDiagramsSameLink();
-  testOrientationVariantsAreDifferentNodes();
+  testOrientationVariantsAreDifferentLinks();
   testUnknot();
   return checks::finish("nodes_test");
 }

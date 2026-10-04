@@ -28,7 +28,7 @@
 
 namespace bounds {
 
-using NodeId = int;
+using LinkId = int;
 using EdgeId = int;
 using RecordId = long;
 
@@ -45,7 +45,7 @@ const char *kindName(RecordKind k);
 
 struct Record {
   RecordId id = -1;
-  NodeId node = -1;
+  LinkId link = -1;
   Partition partition;
   int genus = 0;
   RecordKind kind = RecordKind::leaf;
@@ -63,7 +63,7 @@ struct Record {
  */
 struct LinkCobordism {
   EdgeId id = -1;
-  NodeId in = -1, out = -1;
+  LinkId in = -1, out = -1;
   CobordismShape shape;
   std::vector<int> inMap, outMap;
   std::string key; ///< Provenance, e.g. the witness key sha1(pairsig)[:12].
@@ -77,8 +77,8 @@ struct LinkCobordism {
  */
 struct SplitEdge {
   EdgeId id = -1;
-  NodeId whole = -1;
-  std::vector<NodeId> pieces;
+  LinkId whole = -1;
+  std::vector<LinkId> pieces;
   std::vector<std::vector<int>> pieceMap;
 };
 
@@ -93,13 +93,13 @@ struct SplitEdge {
  */
 struct SumEdge {
   EdgeId id = -1;
-  NodeId whole = -1;
-  std::vector<NodeId> pieces;
+  LinkId whole = -1;
+  std::vector<LinkId> pieces;
   std::vector<std::vector<int>> pieceMap;
 };
 
-struct Node {
-  NodeId id = -1;
+struct GraphLink {
+  LinkId id = -1;
   int components = 0;
   std::string label;
   /// Linking matrix, when known: used only as a contradiction gate.
@@ -117,24 +117,24 @@ struct Node {
 
 class ProofGraph {
 public:
-  NodeId addNode(int components, std::string label,
+  LinkId addLink(int components, std::string label,
                  std::optional<std::vector<std::vector<int>>> linking = {});
-  void setGenusLowerBound(NodeId n, int lo, std::string source);
+  void setGenusLowerBound(LinkId n, int lo, std::string source);
 
   /// Records an outside fact; returns its record, or -1 if already implied.
   /// Call propagate() afterwards.
-  RecordId addLeaf(NodeId n, const Partition &p, int genus,
+  RecordId addLeaf(LinkId n, const Partition &p, int genus,
                    std::string source);
   /// Adds a witness edge (validated); call propagate() afterwards.
-  EdgeId addCobordism(NodeId in, NodeId out, CobordismShape shape,
+  EdgeId addCobordism(LinkId in, LinkId out, CobordismShape shape,
                     std::vector<int> inMap, std::vector<int> outMap,
                     std::string key);
   /// Adds a split edge (validated); call propagate() afterwards.
-  EdgeId addSplit(NodeId whole, std::vector<NodeId> pieces,
+  EdgeId addSplit(LinkId whole, std::vector<LinkId> pieces,
                   std::vector<std::vector<int>> pieceMap);
   /// Adds a sum-along-components edge (validated: every whole component
   /// is hit, at least two pieces); call propagate() afterwards.
-  EdgeId addSum(NodeId whole, std::vector<NodeId> pieces,
+  EdgeId addSum(LinkId whole, std::vector<LinkId> pieces,
                 std::vector<std::vector<int>> pieceMap);
 
   /// Derives every bound that follows, to a fixed point. Returns the number
@@ -144,19 +144,19 @@ public:
   /// fixed point this creates nothing; tests use it to check that.
   long saturate();
 
-  const Node &node(NodeId n) const { return nodes_.at(n); }
+  const GraphLink &link(LinkId n) const { return links_.at(n); }
   const Record &record(RecordId r) const { return records_.at(r); }
   const LinkCobordism &cobordism(EdgeId e) const { return cobordisms_.at(e); }
   const SplitEdge &split(EdgeId e) const { return splits_.at(e); }
   const SumEdge &sum(EdgeId e) const { return sums_.at(e); }
-  size_t nodeCount() const { return nodes_.size(); }
+  size_t linkCount() const { return links_.size(); }
   size_t recordCount() const { return records_.size(); }
   size_t cobordismCount() const { return cobordisms_.size(); }
 
   /// The least genus known for node n with a partition refining `target`.
-  std::optional<ProfileEntry> best(NodeId n, const Partition &target) const;
+  std::optional<ProfileEntry> best(LinkId n, const Partition &target) const;
   /// The connected slice genus bound for node n.
-  std::optional<ProfileEntry> bestConnected(NodeId n) const;
+  std::optional<ProfileEntry> bestConnected(LinkId n) const;
 
   /// Every record `r` rests on, children before parents, `r` last.
   std::vector<RecordId> proof(RecordId r) const;
@@ -191,7 +191,7 @@ public:
   /// Returns the number of improvements.
   long propagateLower();
   /// The lower bound for surfaces refining q (0 when nothing is known).
-  int lower(NodeId n, const Partition &q) const;
+  int lower(LinkId n, const Partition &q) const;
 
   /// Why a lower bound holds: the last fact that raised it. Every raise is a
   /// strict increase and no rule increases what it reads (transport
@@ -225,7 +225,7 @@ public:
     Partition storedFor;
     LowerReason reason;
   };
-  LowerFact lowerWhy(NodeId n, const Partition &q) const;
+  LowerFact lowerWhy(LinkId n, const Partition &q) const;
 
   /// What a transport read: the other end's partition and what the cap added.
   struct Transport {
@@ -253,11 +253,11 @@ public:
   /// meets a contradiction (a seed above a proved surface), in which case
   /// nothing it says is used. This graph is untouched.
   struct LowerSeed {
-    NodeId node = -1;
+    LinkId link = -1;
     Partition partition;
     int value = 0;
   };
-  std::optional<int> lowerIf(const std::vector<LowerSeed> &seeds, NodeId target,
+  std::optional<int> lowerIf(const std::vector<LowerSeed> &seeds, LinkId target,
                              const Partition &goal) const;
   /// Forgets every lower bound: the literature seeds and everything
   /// propagated from them (the linking condition, read from the nodes, stays).
@@ -272,10 +272,10 @@ public:
   ///   components, "lower": [{"p": Q, "lo": lower(n, Q)}] for every
   ///   partition Q with a positive bound, or {"p": Q, "forbidden": true}
   ///   where no surface can have partition Q (kNoSurface).
-  std::string profileFields(NodeId n) const;
+  std::string profileFields(LinkId n) const;
 
 private:
-  RecordId insert(NodeId n, const Partition &p, int genus, RecordKind kind,
+  RecordId insert(LinkId n, const Partition &p, int genus, RecordKind kind,
                   EdgeId edge, std::vector<RecordId> children,
                   std::string source);
   void deriveFrom(RecordId r);
@@ -299,13 +299,13 @@ private:
   std::vector<std::map<std::vector<int>, int>> lower_;
   std::vector<std::map<std::vector<int>, LowerReason>> lowerReason_;
   long lowerVersion_ = 0;
-  bool raiseLower(NodeId n, const Partition &q, int value,
+  bool raiseLower(LinkId n, const Partition &q, int value,
                   const LowerReason &why);
   // The bound transported to `to` for surfaces refining q across witness e:
   // transportedLower() at q itself, since that is monotone under refinement.
   int lowerAcross(const LinkCobordism &e, bool toIsIn, const Partition &q) const;
 
-  std::vector<Node> nodes_;
+  std::vector<GraphLink> links_;
   std::vector<Record> records_;
   std::vector<LinkCobordism> cobordisms_;
   std::vector<SplitEdge> splits_;

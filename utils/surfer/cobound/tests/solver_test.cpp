@@ -449,7 +449,7 @@ void test_outgoing_bears_bound() {
 // propagate(): chaining
 // ─────────────────────────────────────────────────────────────────────────
 
-void test_chains_through_an_unnamed_isosig_node() {
+void test_chains_through_an_unnamed_isosig_link() {
     // identify() falls back to a bare isoSig when the census misses. Such a
     // node has no bounds of its own, but it still CONNECTS: two rows that
     // each cobound with it are thereby related to each other. Keeping these
@@ -694,7 +694,7 @@ void test_unregistered_SINGLE_component_outgoing_still_chains() {
     EXPECT_EQ(bounds["X"].hi, 1, "and still passes it on");
 }
 
-void test_two_component_isosig_node_does_not_chain() {
+void test_two_component_isosig_link_does_not_chain() {
     // The mirror of the test above. An unnamed TWO-curve node is a shared
     // exterior, and two witnesses landing on the same exterior may have
     // found two different links -- so the node must not connect them. This
@@ -1468,7 +1468,7 @@ int main() {
         test_orientation_variants_are_not_a_candidate_set);
     run("far_side_bears_bound", test_outgoing_bears_bound);
     run("chains_through_an_unnamed_isosig_node",
-        test_chains_through_an_unnamed_isosig_node);
+        test_chains_through_an_unnamed_isosig_link);
     run("tubed_witness_genus_is_taken_at_face_value",
         test_tubed_cobordism_genus_is_taken_at_face_value);
     run("propagation_terminates_on_a_cycle",
@@ -1491,7 +1491,7 @@ int main() {
     run("unregistered_SINGLE_component_far_side_still_chains",
         test_unregistered_SINGLE_component_outgoing_still_chains);
     run("two_component_isosig_node_does_not_chain",
-        test_two_component_isosig_node_does_not_chain);
+        test_two_component_isosig_link_does_not_chain);
     run("unlink_far_side_still_chains_and_is_penalty_free",
         test_unlink_outgoing_still_chains_and_is_penalty_free);
     run("judge_verified", test_judge_verified);

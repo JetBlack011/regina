@@ -73,12 +73,12 @@ using bounds::EdgeInfos;
 using bounds::CobordismAssembler;
 using bounds::AddedCobordism;
 using bounds::SearchedLink;
-using bounds::Node;
-using bounds::NodeAxioms;
-using bounds::NodeId;
-using bounds::NodeInfo;
-using bounds::NodeMatch;
-using bounds::NodeRegistry;
+using bounds::GraphLink;
+using bounds::LinkAxioms;
+using bounds::LinkId;
+using bounds::LinkInfo;
+using bounds::LinkMatch;
+using bounds::LinkRegistry;
 using bounds::Partition;
 using bounds::ProofGraph;
 using bounds::RecordId;
@@ -109,7 +109,7 @@ public:
       : cfg_(std::move(c)), reg_(g_),
         tables_(linknaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
                                                cfg_.knotSymmetry)),
-        namer_(tables_, NodeAxioms::namerLimits()),
+        namer_(tables_, LinkAxioms::namerLimits()),
         axioms_(g_, reg_, tables_, namer_, names_.symmetries(),
                 {.literature = cfg_.literature,
                  .classes = true,
@@ -119,11 +119,11 @@ public:
   int run();
 
 private:
-  Partition goalPartition(NodeId n) const {
-    const int k = g_.node(n).components;
+  Partition goalPartition(LinkId n) const {
+    const int k = g_.link(n).components;
     return cfg_.goalDisjoint ? Partition::singletons(k) : Partition::coarsest(k);
   }
-  static bool goalMetIn(const ProofGraph &g, NodeId t, const Partition &p, int genus) {
+  static bool goalMetIn(const ProofGraph &g, LinkId t, const Partition &p, int genus) {
     auto b = g.best(t, p);
     return b && b->genus <= genus;
   }
@@ -136,35 +136,35 @@ private:
   }
   bool goalMet() const { return upperMet() || lowerMet(); }
 
-  void onNewNode(NodeId n, int depth) { onNewNodes({n}, depth); }
+  void onNewLink(LinkId n, int depth) { onNewLinks({n}, depth); }
   /// Names every node in `ns` (in parallel), then records each at `depth`
   /// with its table name, literature leaf and lower bound (in order):
   /// NodeAxioms::name().
-  void onNewNodes(const std::vector<NodeId> &ns, int depth) { axioms_.name(ns, depth); }
+  void onNewLinks(const std::vector<LinkId> &ns, int depth) { axioms_.name(ns, depth); }
   solver::NameTable names_; ///< table names and symmetry types
-  std::vector<NodeId> nodesSince(size_t first) const {
-    std::vector<NodeId> ns;
-    for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
+  std::vector<LinkId> linksSince(size_t first) const {
+    std::vector<LinkId> ns;
+    for (size_t m = first; m < g_.linkCount(); ++m) ns.push_back(static_cast<LinkId>(m));
     return ns;
   }
-  bool useful(NodeId n) const;
+  bool useful(LinkId n) const;
   /// The lower gate (README.md, "Lower-bound mode"): whether n, given the
   /// best lower bounds it could ever have, would carry the lower goal to
   /// the target over the edges found so far. `slack` gets how much more
   /// than the goal it would carry (charge still affordable).
-  bool usefulLower(NodeId n, int *slack = nullptr) const;
+  bool usefulLower(LinkId n, int *slack = nullptr) const;
   /// What n could carry to the target at best, cached per graph version;
   /// computed for every node of `ns` on the run's threads.
-  void lowerSlacks(const std::vector<NodeId> &ns) const;
-  std::optional<int> lowerSlack(NodeId n) const;
+  void lowerSlacks(const std::vector<LinkId> &ns) const;
+  std::optional<int> lowerSlack(LinkId n) const;
   /// --lower-sources: which table names are special sources (their lower
   /// bound is not a Lipschitz invariant's), and the largest such bound.
   void loadLowerSources();
-  std::optional<NodeId> choose();
-  void expand(NodeId n, long surfaces);
+  std::optional<LinkId> choose();
+  void expand(LinkId n, long surfaces);
   /// The name node n's hop records its witnesses under: the target's own
   /// name, a proved table name, or cascade:<run>/<target>/n<n>.
-  std::string subjectName(NodeId n) const;
+  std::string subjectName(LinkId n) const;
   /// With --witness-store: signs and stores every kept surface of the run,
   /// and writes <work>/nodes.csv for the cascade: subjects. Idempotent.
   void signIntoDatabase();
@@ -178,8 +178,8 @@ private:
   /// writes the run's other files.
   void writeProfiles() const {
     runrecords::writeProfiles(
-        cfg_.work, view(), [this](NodeId n) { return subjectName(n); },
-        [this](NodeId n) { return searchSubject_.count(n) > 0; });
+        cfg_.work, view(), [this](LinkId n) { return subjectName(n); },
+        [this](LinkId n) { return searchSubject_.count(n) > 0; });
   }
   CertificateGoal certificateGoal() const {
     return {cfg_.targetName, cfg_.targetPD,  cfg_.goalGenus,         cfg_.goalLower,
@@ -190,19 +190,19 @@ private:
 
   GoalOptions cfg_;
   ProofGraph g_;
-  NodeRegistry reg_;
+  LinkRegistry reg_;
   linknaming::ExactTables tables_;
   linknaming::ExactNamer namer_;
   /// Each link's name and outside facts (bounds/axioms.h), shared with a
   /// depth-0 search's own graph; the target, its class, each node's depth
   /// and table name are its.
-  NodeAxioms axioms_;
-  NodeId &target_ = axioms_.target;
+  LinkAxioms axioms_;
+  LinkId &target_ = axioms_.target;
   std::string &targetCanonical_ = axioms_.targetClass;
-  std::map<NodeId, int> &depth_ = axioms_.depth;
-  std::map<NodeId, std::string> &tableName_ = axioms_.tableName;
-  std::map<NodeId, std::vector<long>> expansions_;
-  std::set<NodeId> refused_;
+  std::map<LinkId, int> &depth_ = axioms_.depth;
+  std::map<LinkId, std::string> &tableName_ = axioms_.tableName;
+  std::map<LinkId, std::vector<long>> expansions_;
+  std::set<LinkId> refused_;
   /// Why the run must halt (an impossible state, divergence 2); empty if not.
   std::string halt_;
   /// What a checker needs to replay each witness edge (certificate.json).
@@ -211,11 +211,11 @@ private:
   std::unique_ptr<Searcher> searcher_;
   /// The database's cobordisms as free edges (master_witnesses).
   std::unique_ptr<DatabaseCobordisms> database_;
-  bool masterSubjectsFor(NodeId n) const {
+  bool masterSubjectsFor(LinkId n) const {
     return database_ && database_->subjectsFor(n, axioms_, tables_);
   }
-  bool masterDone(NodeId n) const { return database_ && database_->loaded(n); }
-  void loadMaster(NodeId n, bool countsAsExpansion = true);
+  bool masterDone(LinkId n) const { return database_ && database_->loaded(n); }
+  void loadMaster(LinkId n, bool countsAsExpansion = true);
   /// The class a table name stands for, as the namer names nodes: its base's
   /// variants that are one oriented link up to mirror and global reversal,
   /// by diagram OR by a meridian-carrying isometry (ExactNamer::
@@ -225,10 +225,10 @@ private:
   double cpuSpent_ = 0, wallSpent_ = 0;
   int searches_ = 0;
   int invariantFailures_ = 0;
-  std::map<NodeId, std::string> searchSubject_; ///< each searched node's subject name
+  std::map<LinkId, std::string> searchSubject_; ///< each searched node's subject name
   bool stored_ = false;
   size_t storedAppended_ = 0;             ///< witnesses the store gained
-  std::set<NodeId> boosted_;              ///< hubs already expanded wide (--hub-degree)
+  std::set<LinkId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
   std::map<std::string, bool> special_;   ///< --lower-sources: name -> special
   int lowerLMax_ = 0;                     ///< the largest special lower bound
@@ -236,14 +236,14 @@ private:
   /// version) of the graph: nullopt when the what-if was inconsistent.
   struct LowerCache {
     std::tuple<size_t, size_t, long> version;
-    std::map<NodeId, std::optional<int>> carried;
+    std::map<LinkId, std::optional<int>> carried;
   };
   mutable LowerCache lowerCache_;
   /// Each searched node's latest usable frontier (searchfrontier.h): its next
   /// hop carries on from there instead of searching the prefix again.
-  std::map<NodeId, SearchFrontier> frontiers_;
+  std::map<LinkId, SearchFrontier> frontiers_;
   /// Nodes whose search ran to the end at the hop shape: nothing is left.
-  std::set<NodeId> searchedOut_;
+  std::set<LinkId> searchedOut_;
   /// The driver's own time, outside what a hop record's timers cover
   /// (README.md, "Where a run's time goes"): wall seconds, summed over the
   /// run. Each hop record carries what accrued since the previous one.
@@ -259,10 +259,10 @@ private:
   /// Writes the run's own record to cascade.jsonl: its whole wall and CPU,
   /// and where the time outside the hops went.
   void logRun(double wall, double cpu, double startup, double loop, double store,
-              double lowerReport, double nodeBounds);
+              double lowerReport, double linkBounds);
 };
 
-std::string Scheduler::subjectName(NodeId n) const {
+std::string Scheduler::subjectName(LinkId n) const {
   if (n == target_ && cfg_.targetName != "target") return cfg_.targetName;
   if (auto it = tableName_.find(n); it != tableName_.end() && tables_.entry(it->second))
     return it->second;
@@ -273,7 +273,7 @@ std::string Scheduler::subjectName(NodeId n) const {
 void Scheduler::signIntoDatabase() {
   if (cfg_.cobordismsPath.empty() || stored_) return;
   stored_ = true;
-  runrecords::writeNodesCsv(cfg_.work, searchSubject_, reg_);
+  runrecords::writeLinksCsv(cfg_.work, searchSubject_, reg_);
   const StoreResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
                                     names_, static_cast<unsigned>(cfg_.threads),
                                     cfg_.pairSigCache);
@@ -284,7 +284,7 @@ void Scheduler::signIntoDatabase() {
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
 }
 
-void Scheduler::loadMaster(NodeId n, bool countsAsExpansion) {
+void Scheduler::loadMaster(LinkId n, bool countsAsExpansion) {
   // A witness can be on an upper proof only if its genus is at most the
   // goal (glue() never lowers a genus), and on a lower proof only if the
   // charge it costs, at least its genus, is affordable: at most the largest
@@ -307,15 +307,15 @@ void Scheduler::loadMaster(NodeId n, bool countsAsExpansion) {
   if (countsAsExpansion && masterSubjectsFor(n)) expansions_[n].push_back(0);
 }
 
-bool Scheduler::useful(NodeId n) const {
+bool Scheduler::useful(LinkId n) const {
   // What-if: give n the best profile it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
   // whether the target's goal would follow over the edges found so far.
   ProofGraph what = g_;
-  const Node &node = what.node(n);
+  const GraphLink &link = what.link(n);
   // Optimistic only down to what is proved impossible: each partition at
   // its propagated lower bound (the linking condition included).
-  for (const Partition &p : allPartitions(node.components)) {
+  for (const Partition &p : allPartitions(link.components)) {
     const int lo = g_.lower(n, p);
     if (lo < ProofGraph::kNoSurface)
       what.addLeaf(n, p, lo, "what-if");
@@ -347,7 +347,7 @@ void Scheduler::loadLowerSources() {
   }
 }
 
-void Scheduler::lowerSlacks(const std::vector<NodeId> &ns) const {
+void Scheduler::lowerSlacks(const std::vector<LinkId> &ns) const {
   // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
   // it, so they are independent), on the run's threads, cached until the
   // graph changes.
@@ -357,15 +357,15 @@ void Scheduler::lowerSlacks(const std::vector<NodeId> &ns) const {
     lowerCache_.version = version;
     lowerCache_.carried.clear();
   }
-  std::vector<NodeId> todo;
-  for (NodeId n : ns)
+  std::vector<LinkId> todo;
+  for (LinkId n : ns)
     if (!lowerCache_.carried.count(n)) todo.push_back(n);
   if (todo.empty()) return;
   const Partition goal = goalPartition(target_);
   std::vector<std::optional<int>> out(todo.size());
   parallelFor(todo.size(), static_cast<unsigned>(std::max(cfg_.threads, 1)), [&](size_t i) {
-    const NodeId n = todo[i];
-    const Node &node = g_.node(n);
+    const LinkId n = todo[i];
+    const GraphLink &link = g_.link(n);
     // The most n could ever have, per partition: any transported bound
     // is a literature seed minus charges, so at most the largest special
     // source's (lowerLMax_); a proved surface refining P caps P; the
@@ -377,7 +377,7 @@ void Scheduler::lowerSlacks(const std::vector<NodeId> &ns) const {
       if (const linknaming::TableEntry *e = tables_.entry(t->second))
         if (auto g4 = linknaming::parseTableG4(e->g4)) litHi = g4->second;
     std::vector<ProofGraph::LowerSeed> seeds;
-    for (const Partition &p : allPartitions(node.components)) {
+    for (const Partition &p : allPartitions(link.components)) {
       int cap = lowerLMax_;
       if (p.blocks() == 1) cap = std::min(cap, litHi);
       if (auto b = g_.best(n, p)) cap = std::min(cap, b->genus);
@@ -388,16 +388,16 @@ void Scheduler::lowerSlacks(const std::vector<NodeId> &ns) const {
   for (size_t i = 0; i < todo.size(); ++i) lowerCache_.carried[todo[i]] = out[i];
 }
 
-std::optional<int> Scheduler::lowerSlack(NodeId n) const {
+std::optional<int> Scheduler::lowerSlack(LinkId n) const {
   lowerSlacks({n});
   const auto &c = lowerCache_.carried.at(n);
   if (!c) return std::nullopt;
   return *c - cfg_.goalLower;
 }
 
-bool Scheduler::usefulLower(NodeId n, int *slack) const {
+bool Scheduler::usefulLower(LinkId n, int *slack) const {
   if (cfg_.goalLower < 0 || n == target_) return false;
-  if (g_.node(n).components > ProofGraph::kMaxLowerComponents) return false;
+  if (g_.link(n).components > ProofGraph::kMaxLowerComponents) return false;
   if (reg_.info(n).diagram.crossings() > cfg_.lowerMaxCrossings) return false;
   auto s = lowerSlack(n);
   if (!s || *s < 0) return false;
@@ -405,7 +405,7 @@ bool Scheduler::usefulLower(NodeId n, int *slack) const {
   return true;
 }
 
-std::optional<NodeId> Scheduler::choose() {
+std::optional<LinkId> Scheduler::choose() {
   const auto tChoose = Clock::now();
   struct ChooseTimer {
     DriverTimes &d;
@@ -413,16 +413,16 @@ std::optional<NodeId> Scheduler::choose() {
     ~ChooseTimer() { d.choose += secondsSince(t); }
   } chooseTimer{driver_, tChoose};
   struct Cand {
-    NodeId n;
+    LinkId n;
     bool lowerOnly = false; ///< kept by the lower gate alone
     int slack = 0;          ///< lower gate: charge still affordable
     std::tuple<int, int, int, size_t> key;
   };
   std::vector<Cand> cands;
-  std::vector<NodeId> eligible;
+  std::vector<LinkId> eligible;
   for (const auto &[n, dep] : depth_) {
     if (!reg_.known(n) || n == reg_.unknot() || refused_.count(n)) continue;
-    const NodeInfo &ni = reg_.info(n);
+    const LinkInfo &ni = reg_.info(n);
     if (ni.diagram.crossings() > cfg_.maxCrossings) continue;
     if (searchedOut_.count(n)) continue; // nothing left to search
     if (!expansions_[n].empty()) continue; // one expansion per budget level
@@ -430,13 +430,13 @@ std::optional<NodeId> Scheduler::choose() {
   }
   // The upper gate first; the lower what-ifs for every node it rejects run
   // as one parallel batch (each is a graph copy relaxed to a fixed point).
-  std::map<NodeId, bool> upper;
-  std::vector<NodeId> needLower;
+  std::map<LinkId, bool> upper;
+  std::vector<LinkId> needLower;
   const auto tUseful = Clock::now();
-  for (NodeId n : eligible) {
+  for (LinkId n : eligible) {
     upper[n] = n == target_ || useful(n);
     if (!upper[n] && cfg_.goalLower >= 0 && n != target_ &&
-        g_.node(n).components <= ProofGraph::kMaxLowerComponents &&
+        g_.link(n).components <= ProofGraph::kMaxLowerComponents &&
         reg_.info(n).diagram.crossings() <= cfg_.lowerMaxCrossings)
       needLower.push_back(n);
   }
@@ -444,8 +444,8 @@ std::optional<NodeId> Scheduler::choose() {
   const auto tLower = Clock::now();
   if (!needLower.empty()) lowerSlacks(needLower);
   driver_.lowerSlack += secondsSince(tLower);
-  for (NodeId n : eligible) {
-    const NodeInfo &ni = reg_.info(n);
+  for (LinkId n : eligible) {
+    const LinkInfo &ni = reg_.info(n);
     const int dep = depth_.at(n);
     int slack = 0;
     const bool lowerOnly = !upper[n] && usefulLower(n, &slack);
@@ -466,13 +466,13 @@ std::optional<NodeId> Scheduler::choose() {
   // complements, so two nodes of one volume (a link and its mirror, say)
   // differed in the last bits from run to run, and the order they were
   // chosen in -- and so the whole run -- was not reproducible (2026-09-30).
-  auto roundedVolume = [&](NodeId n) {
-    const NodeInfo &i = reg_.info(n);
+  auto roundedVolume = [&](LinkId n) {
+    const LinkInfo &i = reg_.info(n);
     return i.hyperbolic ? std::llround(i.volume * 1e6) : std::numeric_limits<long long>::max();
   };
   std::sort(cands.begin(), cands.end(), [&](const Cand &a, const Cand &b) {
     if (cfg_.strategy == "best") {
-      const NodeInfo &ia = reg_.info(a.n), &ib = reg_.info(b.n);
+      const LinkInfo &ia = reg_.info(a.n), &ib = reg_.info(b.n);
       if (ia.diagram.crossings() != ib.diagram.crossings())
         return ia.diagram.crossings() < ib.diagram.crossings();
       if (a.lowerOnly != b.lowerOnly) return !a.lowerOnly;
@@ -487,7 +487,7 @@ std::optional<NodeId> Scheduler::choose() {
   return cands.front().n;
 }
 
-void Scheduler::expand(NodeId n, long surfaces) {
+void Scheduler::expand(LinkId n, long surfaces) {
   // A node searched before carries on from where that search stopped (the
   // hop's surface target is its breadth, so it adds only what is new); one
   // already searched this far (a hub's wide hop, say) has nothing new at
@@ -506,10 +506,10 @@ void Scheduler::expand(NodeId n, long surfaces) {
   fs::create_directories(dir);
   const GaussDiagram &d = reg_.info(n).diagram;
   SearchedLink searched;
-  searched.node = n;
+  searched.link = n;
   searched.diagram = d;
-  searched.nodeMap.resize(d.components());
-  std::iota(searched.nodeMap.begin(), searched.nodeMap.end(), 0);
+  searched.linkMap.resize(d.components());
+  std::iota(searched.linkMap.begin(), searched.linkMap.end(), 0);
   searched.pd = diagramPD(d);
   searched.layers = *cfg_.runShape.layers;
   using clock = std::chrono::steady_clock;
@@ -553,7 +553,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
   // log lines are named by (subjectName()).
   const std::string subject = subjectName(n);
   searchSubject_[n] = subject;
-  const size_t nodesBefore = g_.nodeCount();
+  const size_t linksBefore = g_.linkCount();
   int assembled = 0, failed = 0;
   size_t cobordisms = 0;
   // One kept surface into the graph. Its edge's key is its provenance:
@@ -576,7 +576,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
     if (e.ok) {
       ++assembled;
       const bool inProcess = !faces.empty();
-      EdgeInfo info{dir, searched.pd, key, e, 2, "", searched.nodeMap, std::move(faces),
+      EdgeInfo info{dir, searched.pd, key, e, 2, "", searched.linkMap, std::move(faces),
                     inProcess ? build : std::string()};
       if (e.direct) edges_.direct[key] = std::move(info);
       else edges_.byEdge[e.edge] = std::move(info);
@@ -695,13 +695,13 @@ void Scheduler::expand(NodeId n, long surfaces) {
   cpuSpent_ += r.cpu;
   wallSpent_ += r.wall;
   expansions_[n].push_back(surfaces);
-  const auto tNodes = clock::now();
-  const double addSeconds = seconds(t0, tNodes);
-  onNewNodes(nodesSince(nodesBefore), depth_.at(n) + 1);
+  const auto tLinks = clock::now();
+  const double addSeconds = seconds(t0, tLinks);
+  onNewLinks(linksSince(linksBefore), depth_.at(n) + 1);
   const auto tProp = clock::now();
   g_.propagate();
   g_.propagateLower();
-  const double nodeSeconds = seconds(tNodes, tProp), propagateSeconds = seconds(tProp, clock::now());
+  const double linkSeconds = seconds(tLinks, tProp), propagateSeconds = seconds(tProp, clock::now());
   const int targetLower = g_.lower(target_, goalPartition(target_));
   const double assemble = std::chrono::duration<double>(
       std::chrono::steady_clock::now() - t0).count();
@@ -712,12 +712,12 @@ void Scheduler::expand(NodeId n, long surfaces) {
     << ",\"wall\":" << std::fixed << std::setprecision(1) << r.wall << ",\"cpu\":" << r.cpu
     << ",\"assemble\":" << assemble << ",\"row\":" << buildSeconds
     << ",\"setup\":" << setupSeconds << ",\"search\":" << searchSeconds
-    << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
+    << ",\"add\":" << addSeconds << ",\"name_nodes\":" << linkSeconds
     << ",\"propagate\":" << propagateSeconds << ",\"rounds\":" << roundsJson
     << ",\"drain_tail\":" << drainTail << ",\"drain_tail_s\":" << drainTailSeconds
     << namingJson << ",\"witnesses\":" << cobordisms
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
-    << ",\"nodes\":" << g_.nodeCount() << ",\"new_nodes\":" << (g_.nodeCount() - nodesBefore)
+    << ",\"nodes\":" << g_.linkCount() << ",\"new_nodes\":" << (g_.linkCount() - linksBefore)
     << ",\"records\":" << g_.recordCount()
     << ",\"target_best\":" << (best ? std::to_string(best->genus) : "null")
     << ",\"target_lower\":" << targetLower
@@ -735,14 +735,14 @@ void Scheduler::expand(NodeId n, long surfaces) {
   std::cout << "[+] " << kFrozenHopLine << k << ": node " << n << " (" << d.crossings()
             << " crossings, "
             << d.components() << " components): " << cobordisms << " witnesses, "
-            << assembled << " assembled, " << (g_.nodeCount() - nodesBefore)
+            << assembled << " assembled, " << (g_.linkCount() - linksBefore)
             << " new nodes; " << std::fixed << std::setprecision(0) << r.wall << " s wall, "
             << r.cpu << " s CPU; target best " << (best ? std::to_string(best->genus) : "none")
             << "\n";
 }
 
 void Scheduler::logRun(double wall, double cpu, double startup, double loop, double store,
-                     double lowerReport, double nodeBounds) {
+                     double lowerReport, double linkBounds) {
   std::ostringstream o;
   o << std::fixed << std::setprecision(1) << "{\"run\":\"" << json::escape(cfg_.targetName)
     << "\",\"threads\":" << cfg_.threads << ",\"wall\":" << wall << ",\"cpu\":" << cpu
@@ -753,8 +753,8 @@ void Scheduler::logRun(double wall, double cpu, double startup, double loop, dou
     << ",\"master_s\":" << driver_.master << ",\"kept_s\":" << driver_.kept
     << ",\"store_s\":" << store << ",\"store_dedupe_s\":" << storeResult_.dedupeSeconds
     << ",\"store_sign_s\":" << storeResult_.signSeconds
-    << ",\"lower_report_s\":" << lowerReport << ",\"node_bounds_s\":" << nodeBounds
-    << ",\"hops\":" << searches_ << ",\"nodes\":" << g_.nodeCount() << "}";
+    << ",\"lower_report_s\":" << lowerReport << ",\"node_bounds_s\":" << linkBounds
+    << ",\"hops\":" << searches_ << ",\"nodes\":" << g_.linkCount() << "}";
   log(o.str());
 }
 
@@ -847,9 +847,9 @@ int Scheduler::run() {
                                cfg_.targetName + " (" + claimed + ")");
     targetCanonical_ = claimed;
   }
-  NodeMatch t = reg_.intern(simp, "target " + cfg_.targetName);
-  target_ = t.node;
-  onNewNode(target_, 0);
+  LinkMatch t = reg_.intern(simp, "target " + cfg_.targetName);
+  target_ = t.link;
+  onNewLink(target_, 0);
   if (!composite.empty()) {
     tableName_[target_] = composite;
     std::cout << "[+] target is the composite " << composite
@@ -939,19 +939,19 @@ int Scheduler::run() {
     }
     long surfaces = budget;
     if (cfg_.hubDegree > 0 && !boosted_.count(*n) &&
-        g_.node(*n).cobordisms.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
+        g_.link(*n).cobordisms.size() >= cfg_.hubDegree && cfg_.hubSurfaces > budget) {
       // A hub: many routes meet here, so one wide hop from it buys many
       // more first-level candidates than another narrow one elsewhere.
       surfaces = cfg_.hubSurfaces;
       boosted_.insert(*n);
-      std::cout << "[+] hub: node " << *n << " has " << g_.node(*n).cobordisms.size()
+      std::cout << "[+] hub: node " << *n << " has " << g_.link(*n).cobordisms.size()
                 << " witness edges; expanding it at " << surfaces << " surfaces\n";
     }
     expand(*n, surfaces);
   }
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   auto best = g_.best(target_, goalPartition(target_));
-  std::cout << "[+] done: " << searches_ << " hops, " << g_.nodeCount() << " nodes, "
+  std::cout << "[+] done: " << searches_ << " hops, " << g_.linkCount() << " nodes, "
             << g_.recordCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
@@ -964,7 +964,7 @@ int Scheduler::run() {
                                  static_cast<unsigned>(std::max(cfg_.threads, 1)));
   const double reportSeconds = secondsSince(tReport);
   const auto tBounds = Clock::now();
-  runrecords::writeNodeBounds(cfg_.work, view());
+  runrecords::writeLinkBounds(cfg_.work, view());
   writeProfiles();
   logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, storeSeconds,
          reportSeconds, secondsSince(tBounds));

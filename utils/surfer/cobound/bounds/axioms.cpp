@@ -14,14 +14,14 @@ using linknaming::GaussDiagram;
 
 namespace bounds {
 
-bool mayUseLiteratureUpperBound(const std::string &nodeClass,
+bool mayUseLiteratureUpperBound(const std::string &linkClass,
                                 const std::string &targetClass,
                                 bool literatureAllowed) {
-  if (!literatureAllowed || nodeClass.empty()) return false;
-  return targetClass.empty() || nodeClass != targetClass;
+  if (!literatureAllowed || linkClass.empty()) return false;
+  return targetClass.empty() || linkClass != targetClass;
 }
 
-linknaming::NamerLimits NodeAxioms::namerLimits() {
+linknaming::NamerLimits LinkAxioms::namerLimits() {
   linknaming::NamerLimits l;
   l.simplifyTries = 4;
   l.exhaustiveHeight = 0;
@@ -31,26 +31,26 @@ linknaming::NamerLimits NodeAxioms::namerLimits() {
   return l;
 }
 
-NodeAxioms::NodeAxioms(ProofGraph &graph, NodeRegistry &nodes,
+LinkAxioms::LinkAxioms(ProofGraph &graph, LinkRegistry &links,
                        const linknaming::ExactTables &tables,
                        const linknaming::ExactNamer &namer,
                        const linknaming::SymmetryTable &symmetries, Options options)
-    : g_(graph), reg_(nodes), tables_(tables), namer_(namer), symmetries_(symmetries),
+    : g_(graph), reg_(links), tables_(tables), namer_(namer), symmetries_(symmetries),
       options_(options) {}
 
-std::string NodeAxioms::classOf(const std::string &name) const {
+std::string LinkAxioms::classOf(const std::string &name) const {
   if (!options_.classes) return name;
   const linknaming::TableEntry *e = tables_.entry(name);
   return e ? namer_.canonicalName(*e) : name;
 }
 
-std::vector<NodeId> NodeAxioms::nodesSince(size_t first) const {
-  std::vector<NodeId> ns;
-  for (size_t m = first; m < g_.nodeCount(); ++m) ns.push_back(static_cast<NodeId>(m));
+std::vector<LinkId> LinkAxioms::linksSince(size_t first) const {
+  std::vector<LinkId> ns;
+  for (size_t m = first; m < g_.linkCount(); ++m) ns.push_back(static_cast<LinkId>(m));
   return ns;
 }
 
-void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
+void LinkAxioms::name(const std::vector<LinkId> &ns, int atDepth) {
   // Naming is most of what a hop does outside its search, and each node's
   // name is independent of the others', so the names are found on a pool
   // (ExactNamer is safe to share: its caches are locked, and its SnapPea
@@ -66,7 +66,7 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
   // and most far sides of small links are sums of smaller ones.
   std::vector<std::vector<GaussDiagram>> summands(ns.size());
   parallelFor(ns.size(), std::max(options_.threads, 1u), [&](size_t i) {
-    const NodeId n = ns[i];
+    const LinkId n = ns[i];
     if (!reg_.known(n) || n == reg_.unknot()) return;
     try {
       const GaussDiagram &d = reg_.info(n).diagram;
@@ -97,23 +97,23 @@ void NodeAxioms::name(const std::vector<NodeId> &ns, int atDepth) {
     if (!summands[i].empty()) applySum(ns[i], summands[i], atDepth);
 }
 
-void NodeAxioms::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int atDepth) {
+void LinkAxioms::applySum(LinkId n, const std::vector<GaussDiagram> &primes, int atDepth) {
   // Each prime is interned as a node (a duplicate costs search, never
   // soundness), and its components are mapped to the whole's through the
   // registry's component map and the prime's origins. The new summand
   // nodes are then named like any other (literature leaves included), so
   // the sum rule can combine their bounds.
-  const size_t before = g_.nodeCount();
-  std::vector<NodeId> pieces;
+  const size_t before = g_.linkCount();
+  std::vector<LinkId> pieces;
   std::vector<std::vector<int>> maps;
   for (size_t k = 0; k < primes.size(); ++k) {
     const GaussDiagram &p = primes[k];
-    NodeMatch m = reg_.intern(p, "summand " + std::to_string(k) + kFrozenSummandOfNodeLabel +
+    LinkMatch m = reg_.intern(p, "summand " + std::to_string(k) + kFrozenSummandOfNodeLabel +
                                         std::to_string(n));
     std::vector<int> map(p.components(), -1);
     for (size_t c = 0; c < p.components(); ++c)
       map[static_cast<size_t>(m.componentMap[c])] = static_cast<int>(p.origin[c]);
-    pieces.push_back(m.node);
+    pieces.push_back(m.link);
     maps.push_back(std::move(map));
   }
   try {
@@ -124,18 +124,18 @@ void NodeAxioms::applySum(NodeId n, const std::vector<GaussDiagram> &primes, int
     return;
   }
   sumOf[n] = pieces;
-  name(nodesSince(before), atDepth + 1);
+  name(linksSince(before), atDepth + 1);
   if (!options_.log) return;
   std::ostringstream o;
   o << "[+] node " << n << " is a sum along components of";
-  for (NodeId p : pieces) {
+  for (LinkId p : pieces) {
     auto t = tableName.find(p);
     o << " node " << p << (t == tableName.end() ? "" : " (" + t->second + ")");
   }
   *options_.log << o.str() << "\n";
 }
 
-void NodeAxioms::applyComposite(NodeId n, const linknaming::LinkName &fs) {
+void LinkAxioms::applyComposite(LinkId n, const linknaming::LinkName &fs) {
   // The composite's name is recorded (certificates, node bounds, the
   // subject name stays cascade:, since no table row holds it). It is an
   // ANCHOR when its summands cancel in concordance (cobordismgraph.h
@@ -152,7 +152,7 @@ void NodeAxioms::applyComposite(NodeId n, const linknaming::LinkName &fs) {
                   << "): a slice composite, anchored\n";
 }
 
-void NodeAxioms::applyName(NodeId n, const linknaming::PieceName &pn) {
+void LinkAxioms::applyName(LinkId n, const linknaming::PieceName &pn) {
   if (pn.by == linknaming::PieceName::By::untabulated || !pn.pinned() || pn.names.size() != 1)
     return;
   const std::string &name = pn.names.front();
@@ -167,7 +167,7 @@ void NodeAxioms::applyName(NodeId n, const linknaming::PieceName &pn) {
   // through a duplicate node of it (README.md, "Leaf facts").
   if (!mayUseLiteratureUpperBound(classOf(name), targetClass, options_.literature))
     return;
-  g_.addLeaf(n, Partition::coarsest(g_.node(n).components), hi,
+  g_.addLeaf(n, Partition::coarsest(g_.link(n).components), hi,
              "literature " + name + " " + e->g4);
 }
 

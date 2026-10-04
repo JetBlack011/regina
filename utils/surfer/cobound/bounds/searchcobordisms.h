@@ -19,11 +19,11 @@ namespace bounds {
 
 /// What a hop searched: a node, as the diagram written into the row's PD.
 struct SearchedLink {
-  NodeId node = -1;
+  LinkId link = -1;
   /// The diagram the row was built from (its PD), components in its order.
   linknaming::GaussDiagram diagram;
   /// diagram component i is the node's component nodeMap[i].
-  std::vector<int> nodeMap;
+  std::vector<int> linkMap;
   std::string pd;   ///< as written to the row, `;`-separated
   int layers = 2;   ///< thicken_layers of the witnesses
 };
@@ -39,8 +39,8 @@ struct AddedCobordism {
   std::string why;          ///< when !ok
   bool direct = false;      ///< no far side: the surface bounds the row alone
   EdgeId edge = -1;         ///< the witness edge (when not direct)
-  NodeId outgoing = -1;      ///< the far side's node (a split whole or a piece)
-  std::vector<NodeMatch> pieces; ///< its split pieces, interned
+  LinkId outgoing = -1;      ///< the far side's node (a split whole or a piece)
+  std::vector<LinkMatch> pieces; ///< its split pieces, interned
   /// Per piece: which far-side curves (drawn order) its components are.
   std::vector<std::vector<size_t>> pieceOrigins;
   EdgeId splitEdge = -1;    ///< the split edge, when the far side is split
@@ -70,11 +70,11 @@ public:
   /// rebuilds a KnottedSurface (~1 s). hopedges_test checks they agree.
   enum class Read { fast, reference };
 
-  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
+  CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
                Read read = Read::fast);
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
-  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
+  CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
                std::unique_ptr<outgoing::OutgoingReader> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
@@ -101,7 +101,7 @@ private:
   void certifyIncoming_();
   Read read_;
   ProofGraph &g_;
-  NodeRegistry &nodes_;
+  LinkRegistry &links_;
   SearchedLink searched_;
   std::unique_ptr<outgoing::OutgoingReader> redraw_;
   std::vector<int> incomingToLink_;

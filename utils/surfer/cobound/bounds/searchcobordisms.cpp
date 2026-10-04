@@ -50,16 +50,16 @@ std::string diagramPD(const GaussDiagram &d) {
   return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
                            Read read)
-    : read_(read), g_(graph), nodes_(nodes), searched_(std::move(searched)) {
+    : read_(read), g_(graph), links_(links), searched_(std::move(searched)) {
   redraw_ = std::make_unique<outgoing::OutgoingReader>(searched_.pd, searched_.layers);
   certifyIncoming_();
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, LinkRegistry &links, SearchedLink searched,
                            std::unique_ptr<outgoing::OutgoingReader> built, Read read)
-    : read_(read), g_(graph), nodes_(nodes), searched_(std::move(searched)), redraw_(std::move(built)) {
+    : read_(read), g_(graph), links_(links), searched_(std::move(searched)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
   certifyIncoming_();
 }
@@ -74,11 +74,11 @@ void CobordismAssembler::certifyIncoming_() {
     throw std::runtime_error(
         "HopAssembler: the row's triangulated link does not redraw as its "
         "diagram (no orientation-preserving isomorphism); refusing the row");
-  if (searched_.nodeMap.size() != searched_.diagram.components())
+  if (searched_.linkMap.size() != searched_.diagram.components())
     throw std::invalid_argument("HopAssembler: nodeMap size");
   incomingToLink_.resize(drawn.components());
   for (size_t i = 0; i < drawn.components(); ++i)
-    incomingToLink_[i] = searched_.nodeMap[iso->componentMap[i]];
+    incomingToLink_[i] = searched_.linkMap[iso->componentMap[i]];
 }
 
 std::optional<outgoing::OutgoingLink>
@@ -163,7 +163,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     // A surface bounding the row alone: a leaf for the row's node.
     std::vector<int> labels(n);
     for (size_t i = 0; i < n; ++i) labels[i] = shape.inComponent[i];
-    g_.addLeaf(searched_.node, Partition::fromLabels(labels), genus,
+    g_.addLeaf(searched_.link, Partition::fromLabels(labels), genus,
                kFrozenDirectWitnessSource + key);
     out.ok = true;
     out.direct = true;
@@ -182,26 +182,26 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     // simplify() can make a piece split further (a component unlinked by
     // Reidemeister moves): intern each resulting piece separately.
     for (const GaussDiagram &q : linknaming::splitPieces(s)) {
-      out.pieces.push_back(nodes_.intern(q, kFrozenFarSideLabel + key));
+      out.pieces.push_back(links_.intern(q, kFrozenFarSideLabel + key));
       pieceOrigins.push_back(q.origin);
     }
   }
 
   std::vector<int> outMap(m, -1);
   if (out.pieces.size() == 1) {
-    out.outgoing = out.pieces[0].node;
+    out.outgoing = out.pieces[0].link;
     for (size_t i = 0; i < pieceOrigins[0].size(); ++i)
       outMap[pieceOrigins[0][i]] = out.pieces[0].componentMap[i];
   } else {
     // A split far side: a fresh whole node (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
-    out.outgoing = g_.addNode(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
+    out.outgoing = g_.addLink(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
                              linknaming::linkingMatrix(whole));
-    std::vector<NodeId> pn;
+    std::vector<LinkId> pn;
     std::vector<std::vector<int>> pmap;
     for (size_t k = 0; k < out.pieces.size(); ++k) {
-      pn.push_back(out.pieces[k].node);
-      std::vector<int> mapK(g_.node(out.pieces[k].node).components, -1);
+      pn.push_back(out.pieces[k].link);
+      std::vector<int> mapK(g_.link(out.pieces[k].link).components, -1);
       for (size_t i = 0; i < pieceOrigins[k].size(); ++i)
         mapK[out.pieces[k].componentMap[i]] = static_cast<int>(pieceOrigins[k][i]);
       pmap.push_back(mapK);
@@ -212,7 +212,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addCobordism(searched_.node, out.outgoing, shape, inMap, outMap, key);
+  out.edge = g_.addCobordism(searched_.link, out.outgoing, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

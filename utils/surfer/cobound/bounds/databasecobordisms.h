@@ -38,8 +38,8 @@ namespace bounds {
 /// names and outside facts, and how each new edge's surface is found.
 struct DatabaseLoad {
   ProofGraph &g;
-  NodeRegistry &reg;
-  NodeAxioms &axioms;
+  LinkRegistry &reg;
+  LinkAxioms &axioms;
   const linknaming::ExactTables &tables;
   EdgeInfos &edges;
   /// Read-backs and assemblies that broke an invariant (reported, dropped).
@@ -51,7 +51,7 @@ struct DatabaseLoad {
   /// read_back_cache: read-backs kept across runs; "" for none.
   std::string readBackCache;
   /// The target and its goal partition, for the record lines' target best.
-  NodeId target = -1;
+  LinkId target = -1;
   Partition goal;
   /// Appends one line to cascade.jsonl.
   std::function<void(const std::string &)> log;
@@ -69,10 +69,10 @@ public:
   /// Whether the database holds cobordisms for link `n` (a table link): rows
   /// of its class's table entries (named into `rows`), or cobordisms of other
   /// rows whose outgoing link has its base name.
-  bool subjectsFor(NodeId n, const NodeAxioms &axioms, const linknaming::ExactTables &tables,
+  bool subjectsFor(LinkId n, const LinkAxioms &axioms, const linknaming::ExactTables &tables,
                std::vector<std::string> *subjects = nullptr) const;
   /// Whether `n`'s cobordisms were loaded already.
-  bool loaded(NodeId n) const { return done_.count(n) > 0; }
+  bool loaded(LinkId n) const { return done_.count(n) > 0; }
 
   /**
    * Loads link `n`'s cobordisms into the graph: its own rows' and the
@@ -82,12 +82,12 @@ public:
    * depth + 1) and relaxes the graph. Writes the cascade.jsonl record and
    * the `[+] master rows of node` line. Returns its wall seconds.
    */
-  double load(NodeId n, DatabaseLoad &load);
+  double load(LinkId n, DatabaseLoad &load);
 
 private:
   cobordisms::DatabaseIndex index_;
   std::map<std::string, std::string> tablePD_;
-  std::set<NodeId> done_;
+  std::set<LinkId> done_;
 };
 
 } // namespace bounds

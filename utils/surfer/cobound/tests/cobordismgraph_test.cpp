@@ -52,8 +52,8 @@ void testBandToDisjointDiscs() {
   // B1: knot K -> (band) -> 2-component link L; L gets "disjoint discs" as a
   // leaf; K becomes slice. With only an annulus for L, K gets genus 1.
   ProofGraph g;
-  NodeId K = g.addNode(1, "K");
-  NodeId L = g.addNode(2, "L", std::vector<std::vector<int>>{{0, 0}, {0, 0}});
+  LinkId K = g.addLink(1, "K");
+  LinkId L = g.addLink(2, "L", std::vector<std::vector<int>>{{0, 0}, {0, 0}});
   g.addCobordism(K, L, pants(), {0}, {0, 1}, "w");
   g.addLeaf(L, Partition::coarsest(2), 0, "annulus");
   g.propagate();
@@ -72,7 +72,7 @@ void testCycleImprovesAncestor() {
   // L1 -> L0. Read backwards, it improves L0 to 0 -- without re-expanding
   // L0, and with a well-founded proof.
   ProofGraph g;
-  NodeId L0 = g.addNode(1, "L0"), L1 = g.addNode(1, "L1");
+  LinkId L0 = g.addLink(1, "L0"), L1 = g.addLink(1, "L1");
   g.addLeaf(L1, Partition::coarsest(1), 0, "L1 is slice");
   g.addCobordism(L0, L1, annulusShape(1), {0}, {0}, "g1 edge");
   g.propagate();
@@ -93,7 +93,7 @@ void testCycleImprovesAncestor() {
 void testCycleWithoutLeafGivesNothing() {
   // B3: a cycle of witnesses with no leaf anywhere derives nothing.
   ProofGraph g;
-  NodeId a = g.addNode(1, "a"), b = g.addNode(1, "b"), c = g.addNode(1, "c");
+  LinkId a = g.addLink(1, "a"), b = g.addLink(1, "b"), c = g.addLink(1, "c");
   g.addCobordism(a, b, annulusShape(0), {0}, {0}, "ab");
   g.addCobordism(b, c, annulusShape(0), {0}, {0}, "bc");
   g.addCobordism(c, a, annulusShape(0), {0}, {0}, "ca");
@@ -105,7 +105,7 @@ void testCycleCannotSelfImprove() {
   // B4: a leaf at a, then a cycle a -> b -> a of genus-0 witnesses: a gets
   // nothing better than its leaf, and nothing is created for a at all.
   ProofGraph g;
-  NodeId a = g.addNode(1, "a"), b = g.addNode(1, "b");
+  LinkId a = g.addLink(1, "a"), b = g.addLink(1, "b");
   g.addLeaf(a, Partition::coarsest(1), 2, "a <= 2");
   g.addCobordism(a, b, annulusShape(0), {0}, {0}, "ab");
   g.addCobordism(b, a, annulusShape(0), {0}, {0}, "ba");
@@ -126,8 +126,8 @@ void testComponentMapsMatter() {
   // 1, 2; component B is an annulus... not possible from one incoming curve,
   // so use a 2-component incoming link: A: in 0, out 1 and 2; B: in 1, out 0.
   ProofGraph g;
-  NodeId N = g.addNode(2, "N");
-  NodeId L = g.addNode(3, "L");
+  LinkId N = g.addLink(2, "N");
+  LinkId L = g.addLink(3, "L");
   CobordismShape c;
   c.components = 2;
   c.genus = 0;
@@ -144,7 +144,7 @@ void testComponentMapsMatter() {
   // With the identity map instead, curves 0 and 1 (L's 0, 1) share a piece,
   // joining A and B: connected, genus 0. Different answer: the map matters.
   ProofGraph h;
-  NodeId N2 = h.addNode(2, "N"), L2 = h.addNode(3, "L");
+  LinkId N2 = h.addLink(2, "N"), L2 = h.addLink(3, "L");
   h.addLeaf(L2, Partition::fromLabels({0, 0, 1}), 0, "pieces {0,1},{2}");
   h.addCobordism(N2, L2, c, {0, 1}, {0, 1, 2}, "identity map");
   h.propagate();
@@ -160,8 +160,8 @@ void testSplitEdges() {
   // from K to A u B then makes K slice. And the restriction direction: a
   // surface for A u B that keeps A and B apart gives each piece a bound.
   ProofGraph g;
-  NodeId K = g.addNode(1, "K"), W = g.addNode(2, "A u B"),
-         A = g.addNode(1, "A"), B = g.addNode(1, "B");
+  LinkId K = g.addLink(1, "K"), W = g.addLink(2, "A u B"),
+         A = g.addLink(1, "A"), B = g.addLink(1, "B");
   g.addSplit(W, {A, B}, {{0}, {1}});
   g.addCobordism(K, W, pants(), {0}, {0, 1}, "band");
   g.addLeaf(A, Partition::coarsest(1), 0, "A slice");
@@ -173,8 +173,8 @@ void testSplitEdges() {
   CHECK_EQ(g.bestConnected(K)->genus, 0, "K slice through the split");
   // Restriction: C u D with a leaf keeping pieces apart at genus 3.
   ProofGraph h;
-  NodeId W2 = h.addNode(2, "C u D"), C = h.addNode(1, "C"),
-         D = h.addNode(1, "D");
+  LinkId W2 = h.addLink(2, "C u D"), C = h.addLink(1, "C"),
+         D = h.addLink(1, "D");
   h.addSplit(W2, {C, D}, {{0}, {1}});
   h.addLeaf(W2, Partition::singletons(2), 3, "separated, genus 3");
   h.addLeaf(W2, Partition::coarsest(2), 0, "annulus");
@@ -193,7 +193,7 @@ void testContradictionGates() {
   // partition the linking numbers forbid (a wrong component map would do
   // this: pretend the Hopf link bounds two discs).
   ProofGraph g;
-  NodeId K = g.addNode(1, "K"), L = g.addNode(2, "L");
+  LinkId K = g.addLink(1, "K"), L = g.addLink(2, "L");
   g.setGenusLowerBound(K, 1, "literature");
   g.addCobordism(K, L, pants(), {0}, {0, 1}, "band");
   g.addLeaf(L, Partition::singletons(2), 0, "discs");
@@ -201,12 +201,12 @@ void testContradictionGates() {
   CHECK_EQ(static_cast<int>(g.contradictions().size()), 1,
            "below-literature bound reported");
   ProofGraph h;
-  NodeId H = h.addNode(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  LinkId H = h.addLink(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
   h.addLeaf(H, Partition::singletons(2), 0, "wrong");
   CHECK_EQ(static_cast<int>(h.contradictions().size()), 1,
            "linking-forbidden partition reported");
   ProofGraph ok;
-  NodeId H2 = ok.addNode(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  LinkId H2 = ok.addLink(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
   ok.addLeaf(H2, Partition::coarsest(2), 0, "annulus");
   CHECK(ok.contradictions().empty(), "an annulus for the Hopf link is fine");
 }
@@ -214,7 +214,7 @@ void testContradictionGates() {
 void testSaturationAndMaps() {
   // B8: addWitness/addSplit reject maps that are not bijections.
   ProofGraph g;
-  NodeId K = g.addNode(1, "K"), L = g.addNode(2, "L");
+  LinkId K = g.addLink(1, "K"), L = g.addLink(2, "L");
   bool threw = false;
   try {
     g.addCobordism(K, L, pants(), {0}, {0, 0}, "bad");
@@ -239,10 +239,10 @@ void testSaturationAndMaps() {
 // scratch, must be saturated, and every record must recheck.
 
 struct RandomGraph {
-  int nodes;
+  int links;
   std::vector<int> comps;
   struct W { int in, out; CobordismShape shape; std::vector<int> inMap, outMap; };
-  struct Lf { int node; Partition p; int genus; };
+  struct Lf { int link; Partition p; int genus; };
   std::vector<W> cobordisms;
   std::vector<Lf> leaves;
 };
@@ -252,14 +252,14 @@ RandomGraph randomGraph(std::mt19937 &rng) {
     return std::uniform_int_distribution<int>(lo, hi)(rng);
   };
   RandomGraph g;
-  g.nodes = u(2, 6);
-  for (int i = 0; i < g.nodes; ++i)
+  g.links = u(2, 6);
+  for (int i = 0; i < g.links; ++i)
     g.comps.push_back(u(1, 3));
   int nw = u(1, 9);
   for (int k = 0; k < nw; ++k) {
     RandomGraph::W w;
-    w.in = u(0, g.nodes - 1);
-    w.out = u(0, g.nodes - 1);
+    w.in = u(0, g.links - 1);
+    w.out = u(0, g.links - 1);
     int nin = g.comps[w.in], nout = g.comps[w.out];
     w.shape.components = u(1, std::min(nin, 3));
     w.shape.genus = u(0, 2);
@@ -280,7 +280,7 @@ RandomGraph randomGraph(std::mt19937 &rng) {
   }
   int nl = u(1, 4);
   for (int k = 0; k < nl; ++k) {
-    int n = u(0, g.nodes - 1);
+    int n = u(0, g.links - 1);
     auto parts = allPartitions(g.comps[n]);
     g.leaves.push_back({n, parts[u(0, static_cast<int>(parts.size()) - 1)], u(0, 3)});
   }
@@ -292,8 +292,8 @@ std::vector<std::set<std::pair<std::vector<int>, int>>>
 build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
       ProofGraph *out = nullptr) {
   ProofGraph g;
-  for (int i = 0; i < rg.nodes; ++i)
-    g.addNode(rg.comps[i], "n" + std::to_string(i));
+  for (int i = 0; i < rg.links; ++i)
+    g.addLink(rg.comps[i], "n" + std::to_string(i));
   // order: indices into witnesses (0..W-1) then leaves (W..W+L-1), mixed.
   const int W = static_cast<int>(rg.cobordisms.size());
   for (int idx : order) {
@@ -302,15 +302,15 @@ build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
       g.addCobordism(w.in, w.out, w.shape, w.inMap, w.outMap, "w");
     } else {
       const auto &l = rg.leaves[idx - W];
-      g.addLeaf(l.node, l.p, l.genus, "leaf");
+      g.addLeaf(l.link, l.p, l.genus, "leaf");
     }
     if (stepwise)
       g.propagate();
   }
   g.propagate();
-  std::vector<std::set<std::pair<std::vector<int>, int>>> ans(rg.nodes);
-  for (int i = 0; i < rg.nodes; ++i)
-    for (const ProfileEntry &e : g.node(i).profile.entries())
+  std::vector<std::set<std::pair<std::vector<int>, int>>> ans(rg.links);
+  for (int i = 0; i < rg.links; ++i)
+    for (const ProfileEntry &e : g.link(i).profile.entries())
       ans[i].insert({e.partition.labels(), e.genus});
   if (out)
     *out = std::move(g);
@@ -323,9 +323,9 @@ build(const RandomGraph &rg, const std::vector<int> &order, bool stepwise,
 // none of ProofGraph's bookkeeping.
 std::vector<std::set<std::pair<std::vector<int>, int>>>
 naiveClosure(const RandomGraph &rg) {
-  std::vector<std::set<std::pair<std::vector<int>, int>>> facts(rg.nodes);
+  std::vector<std::set<std::pair<std::vector<int>, int>>> facts(rg.links);
   for (const auto &l : rg.leaves)
-    facts[l.node].insert({l.p.labels(), l.genus});
+    facts[l.link].insert({l.p.labels(), l.genus});
   const int maxGenus = 40; // genus only grows along derivations; cap for termination
   bool changed = true;
   while (changed) {
@@ -357,8 +357,8 @@ naiveClosure(const RandomGraph &rg) {
       }
   }
   // Pareto minima.
-  std::vector<std::set<std::pair<std::vector<int>, int>>> ans(rg.nodes);
-  for (int i = 0; i < rg.nodes; ++i)
+  std::vector<std::set<std::pair<std::vector<int>, int>>> ans(rg.links);
+  for (int i = 0; i < rg.links; ++i)
     for (const auto &[l, gnum] : facts[i]) {
       bool dominated = false;
       for (const auto &[l2, g2] : facts[i])
@@ -400,9 +400,9 @@ void testRandomFixedPoints() {
     ++graphs;
     // Count graphs with a directed cycle through witnesses, to be sure
     // cycles are exercised.
-    std::vector<std::vector<int>> adj(rg.nodes);
+    std::vector<std::vector<int>> adj(rg.links);
     for (const auto &w : rg.cobordisms) adj[w.in].push_back(w.out);
-    std::vector<int> state(rg.nodes, 0);
+    std::vector<int> state(rg.links, 0);
     bool cyc = false;
     std::function<void(int)> dfs = [&](int v) {
       state[v] = 1;
@@ -412,7 +412,7 @@ void testRandomFixedPoints() {
       }
       state[v] = 2;
     };
-    for (int v = 0; v < rg.nodes; ++v)
+    for (int v = 0; v < rg.links; ++v)
       if (!state[v]) dfs(v);
     if (cyc) ++withCycles;
   }
@@ -428,7 +428,7 @@ void testLowerConcordance() {
   // edge), and nothing from a genus-1 edge.
   for (int g : {0, 1}) {
     ProofGraph pg;
-    NodeId K = pg.addNode(1, "K"), K2 = pg.addNode(1, "K'");
+    LinkId K = pg.addLink(1, "K"), K2 = pg.addLink(1, "K'");
     pg.addCobordism(K, K2, annulusShape(g), {0}, {0}, "w");
     pg.setGenusLowerBound(K2, 1, "literature");
     pg.propagateLower();
@@ -442,7 +442,7 @@ void testLowerPaperCases() {
   // special cases. A band K -> L (n0 = 1): g4(K) >= g4(L).
   {
     ProofGraph pg;
-    NodeId K = pg.addNode(1, "K"), L = pg.addNode(2, "L");
+    LinkId K = pg.addLink(1, "K"), L = pg.addLink(2, "L");
     pg.addCobordism(K, L, pants(), {0}, {0, 1}, "band");
     pg.setGenusLowerBound(L, 1, "literature");
     pg.propagateLower();
@@ -452,7 +452,7 @@ void testLowerPaperCases() {
   // penalty 1 applies, g4(L0) >= g4(K) - 1.
   {
     ProofGraph pg;
-    NodeId L0 = pg.addNode(2, "L0"), K = pg.addNode(1, "K");
+    LinkId L0 = pg.addLink(2, "L0"), K = pg.addLink(1, "K");
     CobordismShape merge;
     merge.components = 1;
     merge.genus = 0;
@@ -470,7 +470,7 @@ void testLowerNoPenaltyForAnnuli() {
   // lower bound transports with NO penalty, where the solvers' n0 - 1 = 1
   // would lose it.
   ProofGraph pg;
-  NodeId L0 = pg.addNode(2, "L0"), L1 = pg.addNode(2, "L1");
+  LinkId L0 = pg.addLink(2, "L0"), L1 = pg.addLink(2, "L1");
   pg.addCobordism(L0, L1, CobordismShape::product(2), {0, 1}, {0, 1}, "annuli");
   pg.setGenusLowerBound(L1, 1, "literature");
   pg.propagateLower();
@@ -481,7 +481,7 @@ void testLowerSplit() {
   // L4: W = A u B. Whole from pieces (non-mixing partitions only), and a
   // piece from the whole minus a proved surface for the other piece.
   ProofGraph pg;
-  NodeId W = pg.addNode(2, "A u B"), A = pg.addNode(1, "A"), B = pg.addNode(1, "B");
+  LinkId W = pg.addLink(2, "A u B"), A = pg.addLink(1, "A"), B = pg.addLink(1, "B");
   pg.addSplit(W, {A, B}, {{0}, {1}});
   pg.setGenusLowerBound(A, 2, "lit A");
   pg.setGenusLowerBound(B, 1, "lit B");
@@ -490,7 +490,7 @@ void testLowerSplit() {
   CHECK_EQ(pg.lower(W, Partition::coarsest(2)), 0,
            "a connected surface may mix pieces: no additive bound (K u -K)");
   ProofGraph ph;
-  NodeId W2 = ph.addNode(2, "C u D"), C = ph.addNode(1, "C"), D = ph.addNode(1, "D");
+  LinkId W2 = ph.addLink(2, "C u D"), C = ph.addLink(1, "C"), D = ph.addLink(1, "D");
   ph.addSplit(W2, {C, D}, {{0}, {1}});
   ph.addLeaf(D, Partition::coarsest(1), 1, "D bounds genus 1");
   ph.setGenusLowerBound(W2, 3, "lit whole");
@@ -507,8 +507,8 @@ void testLowerWhatIf() {
   // target. A concordance carries the seed whole, a merging band loses 1,
   // and the literature bound elsewhere no longer contributes.
   ProofGraph pg;
-  NodeId T = pg.addNode(2, "T"), C = pg.addNode(2, "C"), K = pg.addNode(1, "K"),
-         O = pg.addNode(1, "O");
+  LinkId T = pg.addLink(2, "T"), C = pg.addLink(2, "C"), K = pg.addLink(1, "K"),
+         O = pg.addLink(1, "O");
   pg.addCobordism(T, C, CobordismShape::product(2), {0, 1}, {0, 1}, "annuli");
   CobordismShape merge;
   merge.components = 1;
@@ -519,7 +519,7 @@ void testLowerWhatIf() {
   pg.setGenusLowerBound(O, 5, "literature, unconnected");
   pg.setGenusLowerBound(T, 1, "the target's own literature");
   pg.propagateLower();
-  auto reach = [&](NodeId n, int seed) {
+  auto reach = [&](LinkId n, int seed) {
     ProofGraph what = pg;
     what.clearLowerBounds();
     what.setGenusLowerBound(n, seed, "what-if");
@@ -555,7 +555,7 @@ void testLowerTransportMonotone() {
     ProofGraph g;
     build(rg, order, false, &g);
     std::uniform_int_distribution<int> lit(0, 3);
-    for (int n = 0; n < rg.nodes; ++n) {
+    for (int n = 0; n < rg.links; ++n) {
       int cap = 3;
       if (auto b = g.bestConnected(n)) cap = std::min(cap, b->genus);
       const int v = std::min(lit(rng), cap);
@@ -566,8 +566,8 @@ void testLowerTransportMonotone() {
     for (EdgeId e = 0; e < static_cast<EdgeId>(rg.cobordisms.size()); ++e)
       for (bool toIsIn : {true, false}) {
         const LinkCobordism &w = g.cobordism(e);
-        const NodeId to = toIsIn ? w.in : w.out;
-        const int k = g.node(to).components;
+        const LinkId to = toIsIn ? w.in : w.out;
+        const int k = g.link(to).components;
         if (k > ProofGraph::kMaxLowerComponents) continue;
         for (const Partition &q : allPartitions(k)) {
           const int atQ = g.transportedLower(w, toIsIn, q);
@@ -594,7 +594,7 @@ void testLowerIf() {
   // bound on another can complete a bound together; a seed above a proved
   // surface is refused; the graph is untouched.
   ProofGraph pg;
-  NodeId T = pg.addNode(2, "T"), C = pg.addNode(2, "C"), K = pg.addNode(1, "K");
+  LinkId T = pg.addLink(2, "T"), C = pg.addLink(2, "C"), K = pg.addLink(1, "K");
   pg.addCobordism(T, C, CobordismShape::product(2), {0, 1}, {0, 1}, "annuli");
   CobordismShape merge;
   merge.components = 1;
@@ -627,7 +627,7 @@ void testLowerWhy() {
   // bound came across the merging band from K's literature value, with the
   // band's addition of 1 recorded; lowerVersion() changes on every raise.
   ProofGraph pg;
-  NodeId T = pg.addNode(2, "T"), K = pg.addNode(1, "K");
+  LinkId T = pg.addLink(2, "T"), K = pg.addLink(1, "K");
   CobordismShape merge;
   merge.components = 1;
   merge.genus = 0;
@@ -650,7 +650,7 @@ void testLowerWhy() {
   auto none = pg.lowerWhy(T, Partition::singletons(2));
   CHECK_EQ(none.value, 2, "the singleton partition transports 2 (no addition)");
   ProofGraph empty;
-  NodeId X = empty.addNode(1, "X");
+  LinkId X = empty.addLink(1, "X");
   CHECK(empty.lowerWhy(X, Partition::coarsest(1)).reason.kind ==
             ProofGraph::LowerReason::Kind::none,
         "nothing known: kind none");
@@ -668,9 +668,9 @@ void testSumEdges() {
   // components) give lower(K #_c H1) >= 1 - (0 + 2 - 1) = 0, nothing; with
   // lower(K) = 3 it gives 2. Every record rechecks.
   ProofGraph pg;
-  NodeId H1 = pg.addNode(2, "H1", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
-  NodeId H2 = pg.addNode(2, "H2", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
-  NodeId W = pg.addNode(3, "W");
+  LinkId H1 = pg.addLink(2, "H1", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  LinkId H2 = pg.addLink(2, "H2", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  LinkId W = pg.addLink(3, "W");
   pg.addLeaf(H1, Partition::coarsest(2), 0, "annulus");
   pg.addLeaf(H2, Partition::coarsest(2), 0, "annulus");
   pg.addSum(W, {H1, H2}, {{0, 1}, {1, 2}});
@@ -678,7 +678,7 @@ void testSumEdges() {
   auto b = pg.best(W, Partition::coarsest(3));
   CHECK(b && b->genus == 0, "a chain of two Hopf links bounds a planar surface");
   CHECK(pg.record(b->record).kind == RecordKind::sumCombine, "by the sum rule");
-  NodeId K = pg.addNode(1, "K"), KH = pg.addNode(2, "K#H1");
+  LinkId K = pg.addLink(1, "K"), KH = pg.addLink(2, "K#H1");
   pg.addLeaf(K, Partition::coarsest(1), 1, "genus 1");
   pg.addSum(KH, {K, H1}, {{0}, {0, 1}});
   pg.propagate();
@@ -689,7 +689,7 @@ void testSumEdges() {
   CHECK_EQ(pg.lower(KH, Partition::coarsest(2)), 0, "lower 1 - (0 + 2 - 1) = 0");
   // A knot K2 with literature lower bound 3 and no proved surface, summed
   // into H1: lower(K2 #_c H1) >= 3 - (0 + 2 - 1) = 2.
-  NodeId K2 = pg.addNode(1, "K2"), K2H = pg.addNode(2, "K2#H1");
+  LinkId K2 = pg.addLink(1, "K2"), K2H = pg.addLink(2, "K2#H1");
   pg.addSum(K2H, {K2, H1}, {{0}, {0, 1}});
   pg.setGenusLowerBound(K2, 3, "literature");
   pg.propagate();
@@ -710,7 +710,7 @@ void testSumEdges() {
   CHECK(refused, "a sum whose pieces miss a component of the whole is refused");
   // Two Hopf links summed along BOTH pairs of components would be a cycle
   // of sum sites, which no sphere decomposition gives: refused.
-  NodeId W2 = pg.addNode(2, "W2");
+  LinkId W2 = pg.addLink(2, "W2");
   refused = false;
   try {
     pg.addSum(W2, {H1, H2}, {{0, 1}, {0, 1}});
@@ -733,13 +733,13 @@ void testLowerSoundOnRandomWorlds() {
     std::iota(order.begin(), order.end(), 0);
     ProofGraph g;
     build(rg, order, false, &g);
-    for (int n = 0; n < rg.nodes; ++n)
+    for (int n = 0; n < rg.links; ++n)
       if (auto b = g.bestConnected(n))
         g.setGenusLowerBound(n, b->genus, "true minimum");
     raised += g.propagateLower();
     CHECK(g.contradictions().empty(), "sound: no contradiction in a consistent world");
-    for (int n = 0; n < rg.nodes; ++n)
-      for (const ProfileEntry &e : g.node(n).profile.entries())
+    for (int n = 0; n < rg.links; ++n)
+      for (const ProfileEntry &e : g.link(n).profile.entries())
         CHECK(g.lower(n, e.partition) <= e.genus,
               "no lower bound exceeds an achieved surface");
     ++worlds;
@@ -754,16 +754,16 @@ void testProfileFields() {
   // Hopf-linked node whose split partition the linking numbers forbid, and a
   // literature bound read back per partition.
   ProofGraph g;
-  NodeId K = g.addNode(1, "K");
-  NodeId L = g.addNode(2, "L", std::vector<std::vector<int>>{{0, 0}, {0, 0}});
+  LinkId K = g.addLink(1, "K");
+  LinkId L = g.addLink(2, "L", std::vector<std::vector<int>>{{0, 0}, {0, 0}});
   g.addCobordism(K, L, pants(), {0}, {0, 1}, "w");
   g.addLeaf(L, Partition::coarsest(2), 0, "annulus");
   g.propagate();
   g.addLeaf(L, Partition::singletons(2), 0, "disjoint discs");
   g.propagate();
-  NodeId H = g.addNode(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
+  LinkId H = g.addLink(2, "Hopf", std::vector<std::vector<int>>{{0, 1}, {1, 0}});
   g.setGenusLowerBound(H, 0, "table");
-  NodeId X = g.addNode(1, "X");
+  LinkId X = g.addLink(1, "X");
   g.setGenusLowerBound(X, 2, "table");
   g.propagateLower();
   const long rK = g.bestConnected(K)->record;

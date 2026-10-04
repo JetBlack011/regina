@@ -28,7 +28,7 @@ namespace bounds {
  * would otherwise do exactly that. Lower bounds are always kept: they only
  * gate contradictions.
  */
-bool mayUseLiteratureUpperBound(const std::string &nodeClass,
+bool mayUseLiteratureUpperBound(const std::string &linkClass,
                                 const std::string &targetClass,
                                 bool literatureAllowed);
 
@@ -46,7 +46,7 @@ bool mayUseLiteratureUpperBound(const std::string &nodeClass,
  * A goal run (cascadesearch) and a depth-0 search's own graph (SearchJudge)
  * name their links this one way.
  */
-class NodeAxioms {
+class LinkAxioms {
 public:
   struct Options {
     /// Literature upper bounds may be leaves (cascadesearch --literature).
@@ -67,40 +67,40 @@ public:
 
   /// All references must outlive this. `symmetries` may change content
   /// later (cascadesearch fills its NameTable after constructing this).
-  NodeAxioms(ProofGraph &graph, NodeRegistry &nodes, const linknaming::ExactTables &tables,
+  LinkAxioms(ProofGraph &graph, LinkRegistry &links, const linknaming::ExactTables &tables,
              const linknaming::ExactNamer &namer,
              const linknaming::SymmetryTable &symmetries, Options options);
-  NodeAxioms(const NodeAxioms &) = delete;
-  NodeAxioms &operator=(const NodeAxioms &) = delete;
+  LinkAxioms(const LinkAxioms &) = delete;
+  LinkAxioms &operator=(const LinkAxioms &) = delete;
 
   /// Names every node of `ns` (on the threads: names are independent of
   /// each other), then records each at `depth` with its table name and
   /// outside facts, in node order, as one at a time would; summands of a
   /// sum are named at depth + 1.
-  void name(const std::vector<NodeId> &ns, int depth);
+  void name(const std::vector<LinkId> &ns, int depth);
 
   /// The class a table name stands for (Options::classes), else the name.
   std::string classOf(const std::string &tableName) const;
 
   /// The target: never anchored as a composite, and its class's literature
   /// upper bound is no leaf, even of a duplicate node of it.
-  NodeId target = -1;
+  LinkId target = -1;
   std::string targetClass;
 
   // What naming found.
-  std::map<NodeId, std::string> tableName; ///< a table (or composite) name
-  std::map<NodeId, int> depth;             ///< hops from the target when met
-  std::map<NodeId, std::vector<NodeId>> sumOf; ///< each sum node's summands
+  std::map<LinkId, std::string> tableName; ///< a table (or composite) name
+  std::map<LinkId, int> depth;             ///< hops from the target when met
+  std::map<LinkId, std::vector<LinkId>> sumOf; ///< each sum node's summands
   int anchors = 0;
 
 private:
-  void applyName(NodeId n, const linknaming::PieceName &pn);
-  void applyComposite(NodeId n, const linknaming::LinkName &fs);
-  void applySum(NodeId n, const std::vector<linknaming::GaussDiagram> &primes, int depth);
-  std::vector<NodeId> nodesSince(size_t first) const;
+  void applyName(LinkId n, const linknaming::PieceName &pn);
+  void applyComposite(LinkId n, const linknaming::LinkName &fs);
+  void applySum(LinkId n, const std::vector<linknaming::GaussDiagram> &primes, int depth);
+  std::vector<LinkId> linksSince(size_t first) const;
 
   ProofGraph &g_;
-  NodeRegistry &reg_;
+  LinkRegistry &reg_;
   const linknaming::ExactTables &tables_;
   const linknaming::ExactNamer &namer_;
   const linknaming::SymmetryTable &symmetries_;

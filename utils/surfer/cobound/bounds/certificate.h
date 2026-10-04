@@ -65,7 +65,7 @@ struct CertificateGoal {
   int goalGenus = 0;
   int goalLower = -1;
   bool disjoint = false;
-  NodeId target = -1;
+  LinkId target = -1;
   Partition partition; ///< the goal partition of the target
 };
 
@@ -74,8 +74,8 @@ struct CertificateGoal {
 /// the writer.
 class CertificateWriter {
 public:
-  CertificateWriter(const ProofGraph &g, const NodeRegistry &reg,
-                    const std::map<NodeId, std::string> &tableName, const EdgeInfos &edges)
+  CertificateWriter(const ProofGraph &g, const LinkRegistry &reg,
+                    const std::map<LinkId, std::string> &tableName, const EdgeInfos &edges)
       : g_(g), reg_(reg), tableName_(tableName), edges_(edges) {}
 
   /// certificate.json at `path`: the proof of the target's best genus on
@@ -86,18 +86,18 @@ public:
   void writeLower(const std::string &path, const CertificateGoal &goal) const;
   /// The proof of lower(n, q), readably: its reason, then the reasons of
   /// what it read, indented, down to literature and linking leaves.
-  void describeLower(std::ostream &o, NodeId n, const Partition &q, int indent) const;
+  void describeLower(std::ostream &o, LinkId n, const Partition &q, int indent) const;
 
 private:
   static void writeSurface(std::ostream &c, const EdgeInfo &info);
-  void writeCobordism(std::ostream &c, EdgeId e, std::set<NodeId> &nodes) const;
+  void writeCobordism(std::ostream &c, EdgeId e, std::set<LinkId> &links) const;
   void writeRecords(std::ostream &c, const std::vector<RecordId> &ids,
-                    std::set<NodeId> &nodes) const;
-  void writeNodes(std::ostream &c, const std::set<NodeId> &nodes) const;
+                    std::set<LinkId> &links) const;
+  void writeLinks(std::ostream &c, const std::set<LinkId> &links) const;
 
   const ProofGraph &g_;
-  const NodeRegistry &reg_;
-  const std::map<NodeId, std::string> &tableName_;
+  const LinkRegistry &reg_;
+  const std::map<LinkId, std::string> &tableName_;
   const EdgeInfos &edges_;
 };
 

@@ -41,50 +41,50 @@ void requireBijection(const std::vector<int> &map, int n, const char *what) {
 
 } // namespace
 
-NodeId ProofGraph::addNode(int components, std::string label,
+LinkId ProofGraph::addLink(int components, std::string label,
                            std::optional<std::vector<std::vector<int>>> lk) {
   if (components < 1)
     throw std::invalid_argument("addNode: a link has at least one component");
   if (lk && static_cast<int>(lk->size()) != components)
     throw std::invalid_argument("addNode: linking matrix size");
-  Node n;
-  n.id = static_cast<NodeId>(nodes_.size());
+  GraphLink n;
+  n.id = static_cast<LinkId>(links_.size());
   n.components = components;
   n.label = std::move(label);
   n.linking = std::move(lk);
   n.profile = Profile(components);
-  nodes_.push_back(std::move(n));
+  links_.push_back(std::move(n));
   lower_.emplace_back();
   lowerReason_.emplace_back();
-  return nodes_.back().id;
+  return links_.back().id;
 }
 
-void ProofGraph::setGenusLowerBound(NodeId n, int lo, std::string source) {
-  Node &node = nodes_.at(n);
-  node.genusLowerBound = lo;
-  node.lowerBoundSource = std::move(source);
-  for (const ProfileEntry &e : node.profile.entries())
+void ProofGraph::setGenusLowerBound(LinkId n, int lo, std::string source) {
+  GraphLink &link = links_.at(n);
+  link.genusLowerBound = lo;
+  link.lowerBoundSource = std::move(source);
+  for (const ProfileEntry &e : link.profile.entries())
     if (e.genus < lo)
-      contradictions_.push_back(node.label + ": record " +
+      contradictions_.push_back(link.label + ": record " +
                                 std::to_string(e.record) + " has genus " +
                                 std::to_string(e.genus) +
                                 " below the lower bound " + std::to_string(lo) +
-                                " (" + node.lowerBoundSource + ")");
+                                " (" + link.lowerBoundSource + ")");
 }
 
-RecordId ProofGraph::addLeaf(NodeId n, const Partition &p, int genus,
+RecordId ProofGraph::addLeaf(LinkId n, const Partition &p, int genus,
                              std::string source) {
-  if (p.size() != nodes_.at(n).components)
+  if (p.size() != links_.at(n).components)
     throw std::invalid_argument("addLeaf: partition size");
   return insert(n, p, genus, RecordKind::leaf, -1, {}, std::move(source));
 }
 
-EdgeId ProofGraph::addCobordism(NodeId in, NodeId out, CobordismShape shape,
+EdgeId ProofGraph::addCobordism(LinkId in, LinkId out, CobordismShape shape,
                               std::vector<int> inMap, std::vector<int> outMap,
                               std::string key) {
   shape.validate();
-  requireBijection(inMap, nodes_.at(in).components, "addWitness inMap");
-  requireBijection(outMap, nodes_.at(out).components, "addWitness outMap");
+  requireBijection(inMap, links_.at(in).components, "addWitness inMap");
+  requireBijection(outMap, links_.at(out).components, "addWitness outMap");
   if (inMap.size() != shape.inComponent.size() ||
       outMap.size() != shape.outComponent.size())
     throw std::invalid_argument("addWitness: map size != curve count");
@@ -97,56 +97,56 @@ EdgeId ProofGraph::addCobordism(NodeId in, NodeId out, CobordismShape shape,
   e.outMap = std::move(outMap);
   e.key = std::move(key);
   cobordisms_.push_back(e);
-  nodes_[in].cobordisms.push_back(e.id);
+  links_[in].cobordisms.push_back(e.id);
   if (out != in)
-    nodes_[out].cobordisms.push_back(e.id);
+    links_[out].cobordisms.push_back(e.id);
   // Existing records at either end can now be pushed across it.
-  for (NodeId x : {in, out})
-    for (const ProfileEntry &pe : nodes_[x].profile.entries())
+  for (LinkId x : {in, out})
+    for (const ProfileEntry &pe : links_[x].profile.entries())
       pending_.push_back(pe.record);
   return e.id;
 }
 
-EdgeId ProofGraph::addSplit(NodeId whole, std::vector<NodeId> pieces,
+EdgeId ProofGraph::addSplit(LinkId whole, std::vector<LinkId> pieces,
                             std::vector<std::vector<int>> pieceMap) {
   if (pieces.size() != pieceMap.size() || pieces.empty())
     throw std::invalid_argument("addSplit: pieces/maps");
   std::vector<int> all;
   for (size_t k = 0; k < pieces.size(); ++k) {
-    if (static_cast<int>(pieceMap[k].size()) != nodes_.at(pieces[k]).components)
+    if (static_cast<int>(pieceMap[k].size()) != links_.at(pieces[k]).components)
       throw std::invalid_argument("addSplit: piece map size");
     if (pieces[k] == whole)
       throw std::invalid_argument("addSplit: a piece is the whole");
     all.insert(all.end(), pieceMap[k].begin(), pieceMap[k].end());
   }
-  requireBijection(all, nodes_.at(whole).components, "addSplit pieceMap");
+  requireBijection(all, links_.at(whole).components, "addSplit pieceMap");
   SplitEdge s;
   s.id = static_cast<EdgeId>(splits_.size());
   s.whole = whole;
   s.pieces = std::move(pieces);
   s.pieceMap = std::move(pieceMap);
   splits_.push_back(s);
-  nodes_[whole].splitEdges.push_back(s.id);
-  std::set<NodeId> seen;
-  for (NodeId p : s.pieces)
+  links_[whole].splitEdges.push_back(s.id);
+  std::set<LinkId> seen;
+  for (LinkId p : s.pieces)
     if (seen.insert(p).second)
-      nodes_[p].splitEdges.push_back(s.id);
-  for (NodeId x : seen)
-    for (const ProfileEntry &pe : nodes_[x].profile.entries())
+      links_[p].splitEdges.push_back(s.id);
+  for (LinkId x : seen)
+    for (const ProfileEntry &pe : links_[x].profile.entries())
       pending_.push_back(pe.record);
-  for (const ProfileEntry &pe : nodes_[whole].profile.entries())
+  for (const ProfileEntry &pe : links_[whole].profile.entries())
     pending_.push_back(pe.record);
   return s.id;
 }
 
-EdgeId ProofGraph::addSum(NodeId whole, std::vector<NodeId> pieces,
+EdgeId ProofGraph::addSum(LinkId whole, std::vector<LinkId> pieces,
                           std::vector<std::vector<int>> pieceMap) {
   if (pieces.size() != pieceMap.size() || pieces.size() < 2)
     throw std::invalid_argument("addSum: at least two pieces, one map each");
-  const int n = nodes_.at(whole).components;
+  const int n = links_.at(whole).components;
   std::vector<int> hits(n, 0);
   for (size_t k = 0; k < pieces.size(); ++k) {
-    if (static_cast<int>(pieceMap[k].size()) != nodes_.at(pieces[k]).components)
+    if (static_cast<int>(pieceMap[k].size()) != links_.at(pieces[k]).components)
       throw std::invalid_argument("addSum: piece map size");
     if (pieces[k] == whole)
       throw std::invalid_argument("addSum: a piece is the whole");
@@ -182,23 +182,23 @@ EdgeId ProofGraph::addSum(NodeId whole, std::vector<NodeId> pieces,
   s.pieces = std::move(pieces);
   s.pieceMap = std::move(pieceMap);
   sums_.push_back(s);
-  nodes_[whole].sumEdges.push_back(s.id);
-  std::set<NodeId> seen;
-  for (NodeId p : s.pieces)
+  links_[whole].sumEdges.push_back(s.id);
+  std::set<LinkId> seen;
+  for (LinkId p : s.pieces)
     if (seen.insert(p).second)
-      nodes_[p].sumEdges.push_back(s.id);
-  for (NodeId x : seen)
-    for (const ProfileEntry &pe : nodes_[x].profile.entries())
+      links_[p].sumEdges.push_back(s.id);
+  for (LinkId x : seen)
+    for (const ProfileEntry &pe : links_[x].profile.entries())
       pending_.push_back(pe.record);
   return s.id;
 }
 
-RecordId ProofGraph::insert(NodeId n, const Partition &p, int genus,
+RecordId ProofGraph::insert(LinkId n, const Partition &p, int genus,
                             RecordKind kind, EdgeId edge,
                             std::vector<RecordId> children,
                             std::string source) {
-  Node &node = nodes_.at(n);
-  if (node.profile.implies(p, genus))
+  GraphLink &link = links_.at(n);
+  if (link.profile.implies(p, genus))
     return -1;
   const RecordId id = static_cast<RecordId>(records_.size());
   for (RecordId c : children)
@@ -206,7 +206,7 @@ RecordId ProofGraph::insert(NodeId n, const Partition &p, int genus,
       throw std::logic_error("insert: a child record is not older");
   Record r;
   r.id = id;
-  r.node = n;
+  r.link = n;
   r.partition = p;
   r.genus = genus;
   r.kind = kind;
@@ -214,19 +214,19 @@ RecordId ProofGraph::insert(NodeId n, const Partition &p, int genus,
   r.children = std::move(children);
   r.source = std::move(source);
   records_.push_back(std::move(r));
-  node.profile.insert(p, genus, id);
+  link.profile.insert(p, genus, id);
   pending_.push_back(id);
 
-  if (node.genusLowerBound && genus < *node.genusLowerBound)
+  if (link.genusLowerBound && genus < *link.genusLowerBound)
     contradictions_.push_back(
-        node.label + ": record " + std::to_string(id) + " (" +
+        link.label + ": record " + std::to_string(id) + " (" +
         kindName(kind) + ") gives genus " + std::to_string(genus) +
         " below the proved lower bound " +
-        std::to_string(*node.genusLowerBound) + " (" +
-        node.lowerBoundSource + ")");
-  if (node.linking && !linkingAllows(p, *node.linking))
+        std::to_string(*link.genusLowerBound) + " (" +
+        link.lowerBoundSource + ")");
+  if (link.linking && !linkingAllows(p, *link.linking))
     contradictions_.push_back(
-        node.label + ": record " + std::to_string(id) + " (" +
+        link.label + ": record " + std::to_string(id) + " (" +
         kindName(kind) + ") claims partition " + p.str() +
         ", which its linking numbers forbid: a component map is wrong");
   return id;
@@ -246,10 +246,10 @@ ProofGraph::throughCobordism(const LinkCobordism &e, bool forward,
                 Partition::fromLabels(curveLabels), genus);
   if (!g)
     return std::nullopt;
-  std::vector<int> nodeLabels(freeMap.size());
+  std::vector<int> linkLabels(freeMap.size());
   for (size_t i = 0; i < freeMap.size(); ++i)
-    nodeLabels[freeMap[i]] = g->partition.blockOf(i);
-  return std::make_pair(Partition::fromLabels(nodeLabels), g->genus);
+    linkLabels[freeMap[i]] = g->partition.blockOf(i);
+  return std::make_pair(Partition::fromLabels(linkLabels), g->genus);
 }
 
 std::optional<std::pair<Partition, int>>
@@ -257,7 +257,7 @@ ProofGraph::combineSplit(const SplitEdge &s,
                          const std::vector<const Record *> &perPiece) const {
   // Surfaces for the pieces, placed in disjoint balls: blocks never merge
   // across pieces, and genera add.
-  std::vector<int> labels(nodes_[s.whole].components, -1);
+  std::vector<int> labels(links_[s.whole].components, -1);
   int genus = 0;
   int offset = 0;
   for (size_t k = 0; k < s.pieces.size(); ++k) {
@@ -277,7 +277,7 @@ std::pair<Partition, int> ProofGraph::combineSum(
   // genus is created (paper lem:sum-partitions). So the whole's blocks are
   // the unions, over the summands' blocks, of their images, merged wherever
   // two piece components share an image.
-  const int n = nodes_[s.whole].components;
+  const int n = links_[s.whole].components;
   std::vector<int> parent(n);
   std::iota(parent.begin(), parent.end(), 0);
   std::function<int(int)> find = [&](int x) {
@@ -308,7 +308,7 @@ std::optional<Partition> ProofGraph::restrictSplit(const SplitEdge &s,
   // Only a partition whose blocks each lie within one piece restricts: then
   // the surface's pieces bounding this piece's components form a surface for
   // it, of total genus at most the whole's.
-  std::vector<int> pieceOf(nodes_[s.whole].components, -1);
+  std::vector<int> pieceOf(links_[s.whole].components, -1);
   for (size_t k = 0; k < s.pieces.size(); ++k)
     for (int w : s.pieceMap[k])
       pieceOf[w] = static_cast<int>(k);
@@ -329,7 +329,7 @@ std::optional<Partition> ProofGraph::restrictSplit(const SplitEdge &s,
 void ProofGraph::deriveFrom(RecordId rid) {
   // Copy: insert() may reallocate records_ and nodes_ entries' vectors.
   const Record r = records_[rid];
-  const Node &n = nodes_[r.node];
+  const GraphLink &n = links_[r.link];
   const std::vector<EdgeId> wEdges = n.cobordisms;
   const std::vector<EdgeId> sEdges = n.splitEdges;
   const std::vector<EdgeId> mEdges = n.sumEdges;
@@ -338,7 +338,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
   for (EdgeId mid : mEdges) {
     const SumEdge s = sums_[mid];
     for (size_t k = 0; k < s.pieces.size(); ++k) {
-      if (s.pieces[k] != r.node) continue;
+      if (s.pieces[k] != r.link) continue;
       std::vector<std::vector<RecordId>> options(s.pieces.size());
       bool anyEmpty = false;
       for (size_t j = 0; j < s.pieces.size(); ++j) {
@@ -346,7 +346,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
           options[j] = {rid};
           continue;
         }
-        for (const ProfileEntry &pe : nodes_[s.pieces[j]].profile.entries())
+        for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
           options[j].push_back(pe.record);
         if (options[j].empty()) anyEmpty = true;
       }
@@ -375,11 +375,11 @@ void ProofGraph::deriveFrom(RecordId rid) {
 
   for (EdgeId eid : wEdges) {
     const LinkCobordism e = cobordisms_[eid];
-    if (e.out == r.node)
+    if (e.out == r.link)
       if (auto d = throughCobordism(e, /*forward=*/true, r.partition, r.genus))
         insert(e.in, d->first, d->second, RecordKind::cobordismForward, eid,
                {rid}, "");
-    if (e.in == r.node)
+    if (e.in == r.link)
       if (auto d = throughCobordism(e, /*forward=*/false, r.partition, r.genus))
         insert(e.out, d->first, d->second, RecordKind::cobordismReverse, eid,
                {rid}, "");
@@ -387,7 +387,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
 
   for (EdgeId sid : sEdges) {
     const SplitEdge s = splits_[sid];
-    if (s.whole == r.node) {
+    if (s.whole == r.link) {
       for (size_t k = 0; k < s.pieces.size(); ++k)
         if (auto p = restrictSplit(s, k, r.partition))
           insert(s.pieces[k], *p, r.genus, RecordKind::splitRestrict, sid,
@@ -396,7 +396,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
     // As a piece (possibly several times, if the same node appears twice):
     // combine with every current entry of the other pieces.
     for (size_t k = 0; k < s.pieces.size(); ++k) {
-      if (s.pieces[k] != r.node)
+      if (s.pieces[k] != r.link)
         continue;
       std::vector<std::vector<const Record *>> options(s.pieces.size());
       bool anyEmpty = false;
@@ -405,7 +405,7 @@ void ProofGraph::deriveFrom(RecordId rid) {
           options[j] = {&records_[rid]};
           continue;
         }
-        for (const ProfileEntry &pe : nodes_[s.pieces[j]].profile.entries())
+        for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
           options[j].push_back(&records_[pe.record]);
         if (options[j].empty())
           anyEmpty = true;
@@ -459,11 +459,11 @@ long ProofGraph::propagate() {
 
 // ---------------------------------------------------------------- lower bounds
 
-int ProofGraph::lower(NodeId n, const Partition &q) const {
-  const Node &node = nodes_.at(n);
-  if (node.linking && !linkingAllows(q, *node.linking))
+int ProofGraph::lower(LinkId n, const Partition &q) const {
+  const GraphLink &link = links_.at(n);
+  if (link.linking && !linkingAllows(q, *link.linking))
     return kNoSurface;
-  int v = std::max(0, node.genusLowerBound.value_or(0));
+  int v = std::max(0, link.genusLowerBound.value_or(0));
   // Every surface refining q refines each coarser partition, so a bound
   // stored for any partition that q refines applies to q.
   for (const auto &[labels, val] : lower_.at(n))
@@ -473,18 +473,18 @@ int ProofGraph::lower(NodeId n, const Partition &q) const {
 }
 
 void ProofGraph::clearLowerBounds() {
-  for (Node &node : nodes_) {
-    node.genusLowerBound.reset();
-    node.lowerBoundSource.clear();
+  for (GraphLink &link : links_) {
+    link.genusLowerBound.reset();
+    link.lowerBoundSource.clear();
   }
   for (auto &m : lower_) m.clear();
   for (auto &m : lowerReason_) m.clear();
   ++lowerVersion_;
 }
 
-bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value,
+bool ProofGraph::raiseLower(LinkId n, const Partition &q, int value,
                             const LowerReason &why) {
-  if (nodes_.at(n).components > kMaxLowerComponents)
+  if (links_.at(n).components > kMaxLowerComponents)
     return false;
   if (value <= lower(n, q))
     return false;
@@ -494,19 +494,19 @@ bool ProofGraph::raiseLower(NodeId n, const Partition &q, int value,
   return true;
 }
 
-ProofGraph::LowerFact ProofGraph::lowerWhy(NodeId n, const Partition &q) const {
+ProofGraph::LowerFact ProofGraph::lowerWhy(LinkId n, const Partition &q) const {
   // The same choice lower() makes, with its reason.
-  const Node &node = nodes_.at(n);
+  const GraphLink &link = links_.at(n);
   LowerFact f;
   f.storedFor = q;
-  if (node.linking && !linkingAllows(q, *node.linking)) {
+  if (link.linking && !linkingAllows(q, *link.linking)) {
     f.value = kNoSurface;
     f.reason.kind = LowerReason::Kind::linking;
     return f;
   }
-  if (node.genusLowerBound && *node.genusLowerBound > 0) {
-    f.value = *node.genusLowerBound;
-    f.storedFor = Partition::coarsest(node.components);
+  if (link.genusLowerBound && *link.genusLowerBound > 0) {
+    f.value = *link.genusLowerBound;
+    f.storedFor = Partition::coarsest(link.components);
     f.reason.kind = LowerReason::Kind::literature;
   }
   for (const auto &[labels, val] : lower_.at(n))
@@ -524,10 +524,10 @@ int ProofGraph::transportedLower(const LinkCobordism &e, bool toIsIn,
   // surface for the other end whose partition we compute, of genus at most
   // genus(F) + (what glue() adds with a genus-0 cap). So genus(F) is at
   // least the other end's bound for that partition minus that addition.
-  const NodeId to = toIsIn ? e.in : e.out, other = toIsIn ? e.out : e.in;
+  const LinkId to = toIsIn ? e.in : e.out, other = toIsIn ? e.out : e.in;
   const std::vector<int> &toMap = toIsIn ? e.inMap : e.outMap;
   const std::vector<int> &otherMap = toIsIn ? e.outMap : e.inMap;
-  if (nodes_[to].linking && !linkingAllows(p, *nodes_[to].linking))
+  if (links_[to].linking && !linkingAllows(p, *links_[to].linking))
     return kNoSurface; // no surface has partition p
   std::vector<int> curveLabels(toMap.size());
   for (size_t i = 0; i < toMap.size(); ++i)
@@ -549,14 +549,14 @@ int ProofGraph::transportedLower(const LinkCobordism &e, bool toIsIn,
   return lo >= kNoSurface ? kNoSurface : lo - g->genus;
 }
 
-std::string ProofGraph::profileFields(NodeId n) const {
-  const Node &node = nodes_.at(n);
+std::string ProofGraph::profileFields(LinkId n) const {
+  const GraphLink &link = links_.at(n);
   std::ostringstream o;
-  o << "\"components\":" << node.components;
-  if (node.linking) o << ",\"linking\":" << json::matrix(*node.linking);
-  if (node.genusLowerBound)
-    o << ",\"genus_lower\":" << *node.genusLowerBound;
-  std::vector<ProfileEntry> es = node.profile.entries();
+  o << "\"components\":" << link.components;
+  if (link.linking) o << ",\"linking\":" << json::matrix(*link.linking);
+  if (link.genusLowerBound)
+    o << ",\"genus_lower\":" << *link.genusLowerBound;
+  std::vector<ProfileEntry> es = link.profile.entries();
   std::sort(es.begin(), es.end(), [](const ProfileEntry &a, const ProfileEntry &b) {
     return a.partition == b.partition ? a.genus < b.genus : a.partition < b.partition;
   });
@@ -565,8 +565,8 @@ std::string ProofGraph::profileFields(NodeId n) const {
     o << (i ? "," : "") << "{\"p\":\"" << es[i].partition.str() << "\",\"g\":" << es[i].genus
       << ",\"r\":" << es[i].record << '}';
   o << ']';
-  if (node.components <= kMaxLowerComponents) {
-    std::vector<Partition> all = allPartitions(node.components);
+  if (link.components <= kMaxLowerComponents) {
+    std::vector<Partition> all = allPartitions(link.components);
     std::sort(all.begin(), all.end());
     o << ",\"lower\":[";
     bool first = true;
@@ -597,14 +597,14 @@ int ProofGraph::lowerAcross(const LinkCobordism &e, bool toIsIn,
 }
 
 std::optional<int> ProofGraph::lowerIf(const std::vector<LowerSeed> &seeds,
-                                       NodeId target,
+                                       LinkId target,
                                        const Partition &goal) const {
   ProofGraph what = *this;
   const size_t before = what.contradictions().size();
   LowerReason seed;
   seed.kind = LowerReason::Kind::seed;
   for (const LowerSeed &s : seeds)
-    what.raiseLower(s.node, s.partition, s.value, seed);
+    what.raiseLower(s.link, s.partition, s.value, seed);
   what.propagateLower();
   if (what.contradictions().size() != before)
     return std::nullopt;
@@ -613,13 +613,13 @@ std::optional<int> ProofGraph::lowerIf(const std::vector<LowerSeed> &seeds,
 
 long ProofGraph::propagateLower() {
   long improved = 0;
-  for (size_t n = 0; n < nodes_.size(); ++n)
-    if (nodes_[n].genusLowerBound) {
+  for (size_t n = 0; n < links_.size(); ++n)
+    if (links_[n].genusLowerBound) {
       LowerReason why;
       why.kind = LowerReason::Kind::literature;
-      improved += raiseLower(static_cast<NodeId>(n),
-                             Partition::coarsest(nodes_[n].components),
-                             *nodes_[n].genusLowerBound, why);
+      improved += raiseLower(static_cast<LinkId>(n),
+                             Partition::coarsest(links_[n].components),
+                             *links_[n].genusLowerBound, why);
     }
   const int maxPasses = 200;
   bool changed = true;
@@ -628,10 +628,10 @@ long ProofGraph::propagateLower() {
     changed = false;
     for (const LinkCobordism &e : cobordisms_)
       for (bool toIsIn : {true, false}) {
-        const NodeId to = toIsIn ? e.in : e.out;
-        if (nodes_[to].components > kMaxLowerComponents)
+        const LinkId to = toIsIn ? e.in : e.out;
+        if (links_[to].components > kMaxLowerComponents)
           continue;
-        for (const Partition &q : allPartitions(nodes_[to].components)) {
+        for (const Partition &q : allPartitions(links_[to].components)) {
           Transport t;
           const int v = transportedLower(e, toIsIn, q, &t);
           if (v <= lower(to, q))
@@ -650,7 +650,7 @@ long ProofGraph::propagateLower() {
         }
       }
     for (const SplitEdge &s : splits_) {
-      const Node &w = nodes_[s.whole];
+      const GraphLink &w = links_[s.whole];
       if (w.components <= kMaxLowerComponents) {
         // The whole, from its pieces, for partitions that never mix pieces.
         for (const Partition &q : allPartitions(w.components)) {
@@ -678,7 +678,7 @@ long ProofGraph::propagateLower() {
       // F_k u (achieved surfaces for the rest) bounds the whole, so
       // genus(F_k) >= lower(whole, combined) - their genera.
       for (size_t k = 0; k < s.pieces.size(); ++k) {
-        const Node &pk = nodes_[s.pieces[k]];
+        const GraphLink &pk = links_[s.pieces[k]];
         if (pk.components > kMaxLowerComponents ||
             w.components > kMaxLowerComponents)
           continue;
@@ -686,7 +686,7 @@ long ProofGraph::propagateLower() {
         bool anyEmpty = false;
         for (size_t j = 0; j < s.pieces.size(); ++j) {
           if (j == k) continue;
-          for (const ProfileEntry &pe : nodes_[s.pieces[j]].profile.entries())
+          for (const ProfileEntry &pe : links_[s.pieces[j]].profile.entries())
             others[j].push_back(&pe);
           if (others[j].empty()) anyEmpty = true;
         }
@@ -747,10 +747,10 @@ long ProofGraph::propagateLower() {
   // the pieces; one extra relaxation round suffices for what it adds.
   for (int round = 0; round < 2; ++round)
     for (const SumEdge &s : sums_) {
-      const Node &w = nodes_[s.whole];
+      const GraphLink &w = links_[s.whole];
       if (w.components > kMaxLowerComponents) continue;
       for (size_t i = 0; i < s.pieces.size(); ++i) {
-        const int lo = lower(s.pieces[i], Partition::coarsest(nodes_[s.pieces[i]].components));
+        const int lo = lower(s.pieces[i], Partition::coarsest(links_[s.pieces[i]].components));
         if (lo <= 0 || lo >= kNoSurface) continue;
         int subtract = 0;
         bool known = true;
@@ -763,7 +763,7 @@ long ProofGraph::propagateLower() {
           if (j == i) continue;
           auto b = bestConnected(s.pieces[j]);
           if (!b) { known = false; break; }
-          subtract += b->genus + nodes_[s.pieces[j]].components - 1;
+          subtract += b->genus + links_[s.pieces[j]].components - 1;
           why.records.push_back(b->record);
         }
         if (!known) continue;
@@ -777,7 +777,7 @@ long ProofGraph::propagateLower() {
         "lower bounds did not converge in " + std::to_string(maxPasses) +
         " passes: the facts are inconsistent");
   // Every proved surface must respect every lower bound.
-  for (const Node &n : nodes_)
+  for (const GraphLink &n : links_)
     for (const ProfileEntry &e : n.profile.entries()) {
       const int lo = lower(n.id, e.partition);
       if (e.genus < lo)
@@ -796,13 +796,13 @@ long ProofGraph::saturate() {
   return propagate();
 }
 
-std::optional<ProfileEntry> ProofGraph::best(NodeId n,
+std::optional<ProfileEntry> ProofGraph::best(LinkId n,
                                              const Partition &target) const {
-  return nodes_.at(n).profile.best(target);
+  return links_.at(n).profile.best(target);
 }
 
-std::optional<ProfileEntry> ProofGraph::bestConnected(NodeId n) const {
-  return best(n, Partition::coarsest(nodes_.at(n).components));
+std::optional<ProfileEntry> ProofGraph::bestConnected(LinkId n) const {
+  return best(n, Partition::coarsest(links_.at(n).components));
 }
 
 std::vector<RecordId> ProofGraph::proof(RecordId r) const {
@@ -833,19 +833,19 @@ std::string ProofGraph::recheck(RecordId rid) const {
     const LinkCobordism &e = cobordisms_.at(r.edge);
     const Record &c = records_.at(r.children[0]);
     const bool fwd = r.kind == RecordKind::cobordismForward;
-    if (c.node != (fwd ? e.out : e.in) || r.node != (fwd ? e.in : e.out))
+    if (c.link != (fwd ? e.out : e.in) || r.link != (fwd ? e.in : e.out))
       return "endpoints do not match the edge";
     d = throughCobordism(e, fwd, c.partition, c.genus);
     break;
   }
   case RecordKind::splitCombine: {
     const SplitEdge &s = splits_.at(r.edge);
-    if (r.children.size() != s.pieces.size() || r.node != s.whole)
+    if (r.children.size() != s.pieces.size() || r.link != s.whole)
       return "split-combine children/endpoint mismatch";
     std::vector<const Record *> recs;
     for (size_t k = 0; k < s.pieces.size(); ++k) {
       recs.push_back(&records_.at(r.children[k]));
-      if (recs.back()->node != s.pieces[k])
+      if (recs.back()->link != s.pieces[k])
         return "split-combine child on the wrong piece";
     }
     d = combineSplit(s, recs);
@@ -853,12 +853,12 @@ std::string ProofGraph::recheck(RecordId rid) const {
   }
   case RecordKind::sumCombine: {
     const SumEdge &s = sums_.at(r.edge);
-    if (r.children.size() != s.pieces.size() || r.node != s.whole)
+    if (r.children.size() != s.pieces.size() || r.link != s.whole)
       return "sum-combine children/endpoint mismatch";
     std::vector<const Record *> recs;
     for (size_t k = 0; k < s.pieces.size(); ++k) {
       recs.push_back(&records_.at(r.children[k]));
-      if (recs.back()->node != s.pieces[k])
+      if (recs.back()->link != s.pieces[k])
         return "sum-combine child on the wrong piece";
     }
     d = combineSum(s, recs);
@@ -869,10 +869,10 @@ std::string ProofGraph::recheck(RecordId rid) const {
     if (r.children.size() != 1)
       return "split-restrict needs one child";
     const Record &c = records_.at(r.children[0]);
-    if (c.node != s.whole)
+    if (c.link != s.whole)
       return "split-restrict child is not the whole";
     for (size_t k = 0; k < s.pieces.size(); ++k)
-      if (s.pieces[k] == r.node)
+      if (s.pieces[k] == r.link)
         if (auto p = restrictSplit(s, k, c.partition))
           if (*p == r.partition && c.genus == r.genus)
             return "";

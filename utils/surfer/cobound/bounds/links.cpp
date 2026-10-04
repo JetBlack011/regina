@@ -17,7 +17,7 @@ using linknaming::KernelLink;
 
 namespace bounds {
 
-std::string NodeRegistry::diagramKey(const GaussDiagram &d) {
+std::string LinkRegistry::diagramKey(const GaussDiagram &d) {
   std::vector<size_t> lengths;
   for (const auto &w : d.comps) lengths.push_back(w.size());
   std::sort(lengths.begin(), lengths.end());
@@ -31,12 +31,12 @@ std::string NodeRegistry::diagramKey(const GaussDiagram &d) {
   return o.str();
 }
 
-NodeRegistry::NodeRegistry(ProofGraph &graph) : g_(graph) {}
+LinkRegistry::LinkRegistry(ProofGraph &graph) : g_(graph) {}
 
-NodeId NodeRegistry::unknot() {
+LinkId LinkRegistry::unknot() {
   if (unknot_ < 0) {
-    unknot_ = g_.addNode(1, "unknot", std::vector<std::vector<int>>{{0}});
-    NodeInfo ni;
+    unknot_ = g_.addLink(1, "unknot", std::vector<std::vector<int>>{{0}});
+    LinkInfo ni;
     ni.diagram.comps = {{}};
     ni.diagram.origin = {0};
     ni.linking = {{0}};
@@ -46,7 +46,7 @@ NodeId NodeRegistry::unknot() {
   return unknot_;
 }
 
-NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &label) {
+LinkMatch LinkRegistry::intern(const GaussDiagram &piece, const std::string &label) {
   ++stats_.lookups;
   if (piece.components() == 0)
     throw std::invalid_argument("intern: empty diagram");
@@ -58,17 +58,17 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
     if (piece.components() != 1)
       throw std::logic_error("intern: a crossingless piece has one component");
     ++stats_.unknots;
-    return NodeMatch{unknot(), {0}, false, false, false, "unknot"};
+    return LinkMatch{unknot(), {0}, false, false, false, "unknot"};
   }
 
   // 1. The same diagram.
   const std::string key = diagramKey(piece);
   for (auto [it, end] = byDiagramKey_.equal_range(key); it != end; ++it) {
-    const NodeId n = it->second;
+    const LinkId n = it->second;
     if (auto iso = linknaming::findDiagramIsomorphism(piece, info_.at(n).diagram,
                                           /*allowMirror=*/true, /*allowReverse=*/true)) {
       ++stats_.diagramHits;
-      return NodeMatch{n, iso->componentMap, iso->mirrored, iso->reversed, false,
+      return LinkMatch{n, iso->componentMap, iso->mirrored, iso->reversed, false,
                        "diagram"};
     }
   }
@@ -76,15 +76,15 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   // 2. For hyperbolic pieces: the same link by an isometry carrying meridians.
   auto kl = std::make_unique<KernelLink>(piece.link());
   const size_t m = piece.components();
-  auto tryIsometry = [&](const KernelLink &k) -> std::optional<NodeMatch> {
+  auto tryIsometry = [&](const KernelLink &k) -> std::optional<LinkMatch> {
     const long long bucket = std::llround(k.volume() * 1e6);
     for (long long b = bucket - 2; b <= bucket + 2; ++b)
       for (auto [it, end] = byVolume_.equal_range({m, b}); it != end; ++it) {
-        const NodeId n = it->second;
+        const LinkId n = it->second;
         for (const KernelLink::Meridional &mi : k.meridionalIsometriesTo(*kernel_.at(n)))
           if (mi.uniform()) {
-            NodeMatch nm;
-            nm.node = n;
+            LinkMatch nm;
+            nm.link = n;
             nm.componentMap = mi.image;
             nm.mirrored = mi.reflects;
             nm.reversed = !mi.sign.empty() && mi.sign.front() < 0;
@@ -119,20 +119,20 @@ NodeMatch NodeRegistry::intern(const GaussDiagram &piece, const std::string &lab
   }
 
   // 3. A new node.
-  NodeInfo ni;
+  LinkInfo ni;
   ni.diagram = piece;
   ni.linking = linknaming::linkingMatrix(piece);
   ni.hyperbolic = kl->hyperbolic();
   ni.volume = kl->volume();
-  const NodeId n = g_.addNode(static_cast<int>(m), label, ni.linking);
+  const LinkId n = g_.addLink(static_cast<int>(m), label, ni.linking);
   info_[n] = ni;
   byDiagramKey_.emplace(key, n);
   if (ni.hyperbolic)
     byVolume_.emplace(std::make_pair(m, std::llround(ni.volume * 1e6)), n);
   kernel_[n] = std::move(kl);
   ++stats_.created;
-  NodeMatch nm;
-  nm.node = n;
+  LinkMatch nm;
+  nm.link = n;
   nm.componentMap.resize(m);
   for (size_t i = 0; i < m; ++i) nm.componentMap[i] = static_cast<int>(i);
   nm.created = true;

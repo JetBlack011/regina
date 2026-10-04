@@ -63,13 +63,13 @@ GaussDiagram of(const regina::Link &l) {
 
 // The row as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
-SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
   GaussDiagram d = of(linknaming::linkFromTablePD(pd));
-  NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
+  LinkMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
   SearchedLink searched;
-  searched.node = nm.node;
+  searched.link = nm.link;
   searched.diagram = d;
-  searched.nodeMap = nm.componentMap;
+  searched.linkMap = nm.componentMap;
   searched.pd = pd;
   searched.layers = 2;
   return searched;
@@ -84,7 +84,7 @@ const char *PD_L11n33 =
 
 void test10_3() {
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_10_3);
   CobordismAssembler assembler(g, reg, searched); // certifies the row (throws if not)
   CHECK(true, "10_3: the row is certified");
@@ -99,7 +99,7 @@ void test10_3() {
     CHECK_EQ(static_cast<int>(e.shape.outComponent.size()), std::stoi(r.otherComponents),
              "far-side curve count matches the witness file: " + r.other);
     if (r.other == "10_3") {
-      CHECK_EQ(e.outgoing, searched.node, "the far side 10_3 is the row's own node");
+      CHECK_EQ(e.outgoing, searched.link, "the far side 10_3 is the row's own node");
       ++selfLoops;
     }
     if (r.other.find(" u ") != std::string::npos || r.other == "2-component unlink") {
@@ -111,7 +111,7 @@ void test10_3() {
   CHECK(selfLoops >= 1, "10_3's identity witness is a self-loop");
   CHECK(splits >= 3, "split far sides recognised");
   g.propagate();
-  auto best = g.bestConnected(searched.node);
+  auto best = g.bestConnected(searched.link);
   CHECK(best.has_value() && best->genus == 0, "10_3 is proved slice");
   if (best) {
     for (RecordId r : g.proof(best->record))
@@ -129,7 +129,7 @@ void test10_3() {
 
 void testL11n33() {
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   SearchedLink searched = makeSearchedLink(reg, PD_L11n33);
   CobordismAssembler assembler(g, reg, searched);
   // The certificate's map: knotbuilder's component order onto the node's.
@@ -142,7 +142,7 @@ void testL11n33() {
     if (!e.ok) continue;
     ++ok;
     if (r.other == "L11n33{1}" && r.genus == "0") {
-      CHECK_EQ(e.outgoing, searched.node, "the identity far side is the row's node");
+      CHECK_EQ(e.outgoing, searched.link, "the identity far side is the row's node");
       // A self-loop of two annuli maps component i to component i.
       const LinkCobordism &we = g.cobordism(e.edge);
       if (e.shape.components == 2) {
@@ -168,7 +168,7 @@ void testFastMatchesReference() {
   for (auto [pd, file] : {std::pair{PD_10_3, "hop_10_3_witnesses.csv"},
                           std::pair{PD_L11n33, "hop_L11n33_witnesses.csv"}}) {
     ProofGraph gf, gr;
-    NodeRegistry rf(gf), rr(gr);
+    LinkRegistry rf(gf), rr(gr);
     CobordismAssembler fast(gf, rf, makeSearchedLink(rf, pd), CobordismAssembler::Read::fast);
     CobordismAssembler ref(gr, rr, makeSearchedLink(rr, pd), CobordismAssembler::Read::reference);
     auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/" + file);

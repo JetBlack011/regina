@@ -28,23 +28,23 @@ void append(const std::string &work, const std::string &line) {
 }
 
 void writeProfiles(const std::string &work, const GraphView &v,
-                   const std::function<std::string(NodeId)> &subjectName,
-                   const std::function<bool(NodeId)> &searched) {
+                   const std::function<std::string(LinkId)> &subjectName,
+                   const std::function<bool(LinkId)> &searched) {
   const ProofGraph &g = v.g;
-  const NodeRegistry &reg = v.reg;
+  const LinkRegistry &reg = v.reg;
   std::ofstream out(work + "/" + kFrozenProfilesJsonl);
-  for (NodeId n = 0; n < static_cast<NodeId>(g.nodeCount()); ++n) {
+  for (LinkId n = 0; n < static_cast<LinkId>(g.linkCount()); ++n) {
     // A crossingless node is named as the store names it (cascade_record.py):
     // it is never a hop's subject, so subjectName() has no better name.
     std::string name = subjectName(n);
     if (reg.known(n) && reg.info(n).diagram.signs.empty() && n != v.target) {
-      const int k = g.node(n).components;
+      const int k = g.link(n).components;
       name = complement::unlinkName(static_cast<size_t>(k));
     }
     out << "{\"node\":" << n << ",\"name\":\"" << json::escape(name) << '"';
     if (auto it = v.tableName.find(n); it != v.tableName.end())
       out << ",\"table\":\"" << json::escape(it->second) << '"';
-    out << ",\"label\":\"" << json::escape(g.node(n).label) << '"';
+    out << ",\"label\":\"" << json::escape(g.link(n).label) << '"';
     if (auto it = v.depth.find(n); it != v.depth.end())
       out << ",\"depth\":" << it->second;
     // A split far side's whole is added to the graph, not the registry,
@@ -56,10 +56,10 @@ void writeProfiles(const std::string &work, const GraphView &v,
   }
 }
 
-void writeNodeBounds(const std::string &work, const GraphView &v) {
+void writeLinkBounds(const std::string &work, const GraphView &v) {
   using Kind = ProofGraph::LowerReason::Kind;
   const ProofGraph &g = v.g;
-  const NodeRegistry &reg = v.reg;
+  const LinkRegistry &reg = v.reg;
   std::ofstream o(work + "/" + kFrozenNodeBoundsJsonl);
   auto kindName = [](Kind k) {
     switch (k) {
@@ -73,15 +73,15 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
     default: return "none";
     }
   };
-  for (size_t i = 0; i < g.nodeCount(); ++i) {
-    const NodeId n = static_cast<NodeId>(i);
-    const Node &node = g.node(n);
-    o << "{\"node\":" << n << ",\"label\":\"" << json::escape(node.label) << "\",\"components\":"
-      << node.components << ",\"target\":" << (n == v.target ? "true" : "false");
+  for (size_t i = 0; i < g.linkCount(); ++i) {
+    const LinkId n = static_cast<LinkId>(i);
+    const GraphLink &link = g.link(n);
+    o << "{\"node\":" << n << ",\"label\":\"" << json::escape(link.label) << "\",\"components\":"
+      << link.components << ",\"target\":" << (n == v.target ? "true" : "false");
     if (auto t = v.tableName.find(n); t != v.tableName.end())
       o << ",\"table\":\"" << json::escape(t->second) << "\"";
     if (reg.known(n)) {
-      const NodeInfo &ni = reg.info(n);
+      const LinkInfo &ni = reg.info(n);
       const linknaming::GaussDiagram &d = ni.diagram;
       o << ",\"crossings\":" << d.crossings() << ",\"hyperbolic\":"
         << (ni.hyperbolic ? "true" : "false");
@@ -94,7 +94,7 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
     }
     o << ",\"upper\":[";
     bool first = true;
-    for (const ProfileEntry &e : node.profile.entries()) {
+    for (const ProfileEntry &e : link.profile.entries()) {
       bool constructive = true;
       for (RecordId r : g.proof(e.record))
         if (g.record(r).kind == RecordKind::leaf &&
@@ -107,15 +107,15 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
     }
     o << "],\"lower\":[";
     first = true;
-    if (node.components <= ProofGraph::kMaxLowerComponents)
-      for (const Partition &p : allPartitions(node.components)) {
+    if (link.components <= ProofGraph::kMaxLowerComponents)
+      for (const Partition &p : allPartitions(link.components)) {
         const auto f = g.lowerWhy(n, p);
         if (f.value <= 0 || !(f.storedFor == p)) continue; // stored bounds only, once each
         o << (first ? "" : ",") << "{\"partition\":\"" << p.str() << "\",\"value\":"
           << (f.value >= ProofGraph::kNoSurface ? std::string("\"inf\"") : std::to_string(f.value))
           << ",\"kind\":\"" << kindName(f.reason.kind) << "\"";
         if (f.reason.kind == Kind::literature)
-          o << ",\"source\":\"" << json::escape(node.lowerBoundSource) << "\"";
+          o << ",\"source\":\"" << json::escape(link.lowerBoundSource) << "\"";
         o << "}";
         first = false;
       }
@@ -136,7 +136,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   // bound is not Lipschitz (lower_bound_sources.csv, `special`) can beat the
   // target's own literature bound.
   const ProofGraph &g = v.g;
-  const NodeId target = v.target;
+  const LinkId target = v.target;
   const Partition goal = v.goal;
   const int targetLower = g.lower(target, goal);
   int litLo = -1;
@@ -144,14 +144,14 @@ void writeLowerReport(const std::string &work, const GraphView &v,
     if (auto g4 = linknaming::parseTableG4(e->g4)) litLo = g4->first;
   std::ofstream out(work + "/lower_report.jsonl");
   out << "{\"target\":\"" << json::escape(targetName) << "\",\"target_lower\":" << targetLower
-      << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g.nodeCount() << "}\n";
+      << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g.linkCount() << "}\n";
   // What node n's lower bound `seed` alone carries to the target: every other
   // lower bound forgotten (clearLowerBounds()), n seeded, relaxed. Only
   // consistent facts are ever seeded -- a value the node could really have,
   // at most its best proved genus -- or the split rules, which read proved
   // surfaces, would pump bounds without limit. -1 when the what-if itself
   // meets a contradiction (then nothing it says is used).
-  auto carried = [&](NodeId n, int seed) {
+  auto carried = [&](LinkId n, int seed) {
     ProofGraph what = g;
     what.clearLowerBounds();
     const size_t before = what.contradictions().size();
@@ -164,7 +164,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   // run's threads (serially they were a third of a run's driver time,
   // 2026-09-30); the lines are then written in the same order as before.
   struct Job {
-    NodeId n;
+    LinkId n;
     std::string name;
     int lo, hi, could;
     int carries = 0, couldCarry = 0;
@@ -216,12 +216,12 @@ void writeLowerReport(const std::string &work, const GraphView &v,
             << "\n";
 }
 
-void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> &subjects,
-                   const NodeRegistry &reg) {
+void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> &subjects,
+                   const LinkRegistry &reg) {
   // The cascade: subjects, as the atlas's results/cascade/nodes.csv lists
   // them (cascade_record.py), so a later identity can be attached to each.
-  std::ofstream nodes(work + "/" + kFrozenNodesCsv);
-  nodes << "name,components,crossings,pd,signs,gauss,label\n";
+  std::ofstream links(work + "/" + kFrozenNodesCsv);
+  links << "name,components,crossings,pd,signs,gauss,label\n";
   for (const auto &[n, name] : subjects) {
     if (name.rfind(kFrozenCascadeSubjectPrefix, 0) != 0) continue;
     const linknaming::GaussDiagram &d = reg.info(n).diagram;
@@ -236,7 +236,7 @@ void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> 
       gauss << ']';
     }
     gauss << ']';
-    nodes << csvField(name) << ',' << d.components() << ',' << d.crossings() << ','
+    links << csvField(name) << ',' << d.components() << ',' << d.crossings() << ','
           << csvField(diagramPD(d)) << ',' << csvField(signs.str()) << ','
           << csvField(gauss.str()) << ',' << kFrozenNodesCsvLabel << n << '\n';
   }

@@ -45,16 +45,16 @@ namespace fs = std::filesystem;
 
 namespace {
 
-SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
-  NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
+  LinkMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
   SearchedLink searched;
-  searched.node = nm.node;
+  searched.link = nm.link;
   searched.diagram = d;
-  searched.nodeMap = nm.componentMap;
+  searched.linkMap = nm.componentMap;
   searched.pd = pd;
   searched.layers = 2;
   return searched;
@@ -89,7 +89,7 @@ int main() {
 
   const std::string pd = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
   CobordismAssembler assembler(g, reg, searched);
   Searcher searcher(sigs, nullptr, capThree(), 4);

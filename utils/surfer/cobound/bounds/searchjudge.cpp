@@ -18,8 +18,8 @@ namespace {
 // as a leaf depends on it, and a duplicate of the searched link taking its
 // own class-mate's would give an assisted bound at least its literature
 // lower bound: never a contradiction, never constructive.
-NodeAxioms::Options judgeOptions(unsigned threads) {
-  NodeAxioms::Options o;
+LinkAxioms::Options judgeOptions(unsigned threads) {
+  LinkAxioms::Options o;
   o.literature = true;
   o.classes = false;
   o.threads = threads;
@@ -43,18 +43,18 @@ SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int lay
   std::vector<size_t> origin(link.countComponents());
   std::iota(origin.begin(), origin.end(), 0);
   const GaussDiagram diagram = GaussDiagram::of(link, origin);
-  const NodeMatch m = reg_.intern(linknaming::simplifyKeepingComponents(diagram), "target " + name);
-  target_ = m.node;
-  components_ = g_.node(target_).components;
+  const LinkMatch m = reg_.intern(linknaming::simplifyKeepingComponents(diagram), "target " + name);
+  target_ = m.link;
+  components_ = g_.link(target_).components;
   axioms_.target = target_;
   axioms_.targetClass = name;
   axioms_.depth.emplace(target_, 0);
   // Its literature lower bound, always: what the gates hold every proof to.
   g_.setGenusLowerBound(target_, literatureLo, "literature " + name);
   SearchedLink searched;
-  searched.node = target_;
+  searched.link = target_;
   searched.diagram = diagram;
-  searched.nodeMap = m.componentMap;
+  searched.linkMap = m.componentMap;
   searched.pd = pd;
   searched.layers = layers;
   assembler_ = std::make_unique<CobordismAssembler>(g_, reg_, searched);
@@ -63,7 +63,7 @@ SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int lay
 SearchJudge::Verdict SearchJudge::add(const outgoing::OutgoingLink &link, int genus,
                                       const std::string &key) {
   ++finds_;
-  const size_t before = g_.nodeCount();
+  const size_t before = g_.linkCount();
   AddedCobordism e;
   try {
     e = assembler_->addRead(link, genus, key);
@@ -72,8 +72,8 @@ SearchJudge::Verdict SearchJudge::add(const outgoing::OutgoingLink &link, int ge
     e.why = ex.what();
   }
   if (!e.ok) ++failures_;
-  std::vector<NodeId> fresh;
-  for (size_t n = before; n < g_.nodeCount(); ++n) fresh.push_back(static_cast<NodeId>(n));
+  std::vector<LinkId> fresh;
+  for (size_t n = before; n < g_.linkCount(); ++n) fresh.push_back(static_cast<LinkId>(n));
   axioms_.name(fresh, 1);
   g_.propagate();
   g_.propagateLower();

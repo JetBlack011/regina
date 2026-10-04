@@ -74,10 +74,10 @@ public:
 
 private:
   ProofGraph g_;
-  NodeRegistry reg_;
-  NodeAxioms axioms_;
+  LinkRegistry reg_;
+  LinkAxioms axioms_;
   std::unique_ptr<CobordismAssembler> assembler_;
-  NodeId target_ = -1;
+  LinkId target_ = -1;
   int components_ = 1;
   int literatureLo_ = 0;
   long long finds_ = 0, failures_ = 0;

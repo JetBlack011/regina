@@ -224,7 +224,7 @@ int runWithoutGoal(const config::Config &cfg) {
     if (!graphTables)
       graphTables = &graphTablesOwn.emplace(
           linknaming::ExactTables::load(knotTablePath, linkTablePath, knotSymmetryPath));
-    graphNamer.emplace(*graphTables, bounds::NodeAxioms::namerLimits());
+    graphNamer.emplace(*graphTables, bounds::LinkAxioms::namerLimits());
   } catch (const std::exception &e) {
     std::cerr << "[!] the cobordism graph cannot load the tables: " << e.what() << "\n";
     return 1;

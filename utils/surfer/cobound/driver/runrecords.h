@@ -28,15 +28,15 @@
 
 namespace runrecords {
 
-using bounds::NodeId;
+using bounds::LinkId;
 
 /// What the records read of a goal run's graph.
 struct GraphView {
   const bounds::ProofGraph &g;
-  const bounds::NodeRegistry &reg;
-  const std::map<NodeId, std::string> &tableName;
-  const std::map<NodeId, int> &depth;
-  NodeId target = -1;
+  const bounds::LinkRegistry &reg;
+  const std::map<LinkId, std::string> &tableName;
+  const std::map<LinkId, int> &depth;
+  LinkId target = -1;
   bounds::Partition goal; ///< the target's goal partition
 };
 
@@ -51,14 +51,14 @@ void append(const std::string &work, const std::string &line);
  * searched (`searched`).
  */
 void writeProfiles(const std::string &work, const GraphView &v,
-                   const std::function<std::string(NodeId)> &subjectName,
-                   const std::function<bool(NodeId)> &searched);
+                   const std::function<std::string(LinkId)> &subjectName,
+                   const std::function<bool(LinkId)> &searched);
 
 /**
  * <work>/node_bounds.jsonl at a run's end: every node's identity, diagram,
  * proved profile entries and lower bounds (README.md, "Lower-bound mode").
  */
-void writeNodeBounds(const std::string &work, const GraphView &v);
+void writeLinkBounds(const std::string &work, const GraphView &v);
 
 /**
  * <work>/lower_report.jsonl (lower_report): for every tabulated node, what
@@ -71,8 +71,8 @@ void writeLowerReport(const std::string &work, const GraphView &v,
 
 /// <work>/nodes.csv: the cascade: subjects searched (`subjects`, by node),
 /// with their diagrams, for the atlas's results/cascade/nodes.csv.
-void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> &subjects,
-                   const bounds::NodeRegistry &reg);
+void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> &subjects,
+                   const bounds::LinkRegistry &reg);
 
 } // namespace runrecords
 

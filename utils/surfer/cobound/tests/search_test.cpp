@@ -42,16 +42,16 @@ using namespace search;
 
 namespace {
 
-SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(LinkRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
-  NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
+  LinkMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
   SearchedLink searched;
-  searched.node = nm.node;
+  searched.link = nm.link;
   searched.diagram = d;
-  searched.nodeMap = nm.componentMap;
+  searched.linkMap = nm.componentMap;
   searched.pd = pd;
   searched.layers = 2;
   return searched;
@@ -90,13 +90,13 @@ std::string content(const ProofGraph &g, const AddedCobordism &e, const std::vec
     parts.push_back(p);
   }
   std::sort(parts.begin(), parts.end());
-  std::vector<NodeId> pieces;
-  for (const NodeMatch &m : e.pieces) pieces.push_back(m.node);
+  std::vector<LinkId> pieces;
+  for (const LinkMatch &m : e.pieces) pieces.push_back(m.link);
   std::sort(pieces.begin(), pieces.end());
   std::string out = "genus " + std::to_string(w.shape.genus) + ", far node " +
                     (e.pieces.size() == 1 ? std::to_string(e.outgoing) : "split") +
                     ", pieces";
-  for (NodeId p : pieces) out += ' ' + std::to_string(p);
+  for (LinkId p : pieces) out += ' ' + std::to_string(p);
   out += ", surface components";
   for (const std::string &p : parts) out += ' ' + p;
   return out;
@@ -115,14 +115,14 @@ std::vector<std::vector<int>> symmetries(const GaussDiagram &d) {
 }
 
 // Whether the two reads of one surface say the same, up to symmetries.
-bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId incomingLink, const AddedCobordism &a,
+bool sameEdge(const ProofGraph &g, const LinkRegistry &reg, LinkId incomingLink, const AddedCobordism &a,
               const AddedCobordism &b) {
-  const int incomingN = g.node(incomingLink).components;
+  const int incomingN = g.link(incomingLink).components;
   std::vector<int> incomingId(incomingN);
   for (int i = 0; i < incomingN; ++i) incomingId[i] = i;
   if (!a.ok || !b.ok || a.direct || b.direct)
     return content(g, a, incomingId, {}) == content(g, b, incomingId, {});
-  const int outgoingN = g.node(a.outgoing).components;
+  const int outgoingN = g.link(a.outgoing).components;
   std::vector<int> outgoingId(outgoingN);
   for (int i = 0; i < outgoingN; ++i) outgoingId[i] = i;
   const std::string want = content(g, a, incomingId, outgoingId);
@@ -157,7 +157,7 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
               const std::string &pd, long long accepted, long long otherOrientation) {
   // One graph and registry for both reads, so equal far sides are one node.
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
   CobordismAssembler inProcess(g, reg, searched);
   CobordismAssembler byPairSig(g, reg, searched);
@@ -186,7 +186,7 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
     signed_.push_back({{pd, 2, k.faces}, sig});
     const AddedCobordism b = byPairSig.add({sig, k.genus, key});
     ++compared;
-    if (a.ok && sameEdge(g, reg, searched.node, a, b)) {
+    if (a.ok && sameEdge(g, reg, searched.link, a, b)) {
       ++same;
     } else {
       std::cout << "  " << name << " kept surface " << i << " (" << k.outgoingName << "): in process ok="
@@ -268,7 +268,7 @@ void testBatchSigning() {
 
 void testStop(const linknaming::SignatureTable &sigs) {
   ProofGraph g;
-  NodeRegistry reg(g);
+  LinkRegistry reg(g);
   CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
   Searcher searcher(sigs, nullptr, capThree(), 4);
   int asked = 0;
