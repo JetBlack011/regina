@@ -169,7 +169,15 @@ private:
   std::string subjectName(LinkId n) const;
   /// With a database (`cobordisms`): signs every kept surface of the run into
   /// it, and writes <work>/nodes.csv for the `cascade:` subjects. Idempotent.
+  /// A write that fails is recorded (recordWriteFailure()); unsigned
+  /// cobordisms stay in their pending files, for `cobound sign`.
   void signIntoDatabase();
+  /// A run record, a certificate, a search's log.txt or the database that
+  /// could not be written: the run halts and claims no goal -- exit 2, and
+  /// outcome `io-error` when it happens at the run's end (`halted` when a
+  /// search's records fail mid-run, as a search's own failed write does).
+  /// The first failure is the halt's reason; each is printed.
+  void recordWriteFailure(const std::string &what);
   void printOutcome(const std::string &outcome) const;
   void printShape() const;
   /// The run's records' view of its graph.
@@ -178,17 +186,27 @@ private:
   }
   /// <work>/profiles.jsonl, for the atlas page; written at every exit that
   /// writes the run's other files.
-  void writePartitionGenera() const {
-    runrecords::writePartitionGenera(
-        cfg_.work, view(), [this](LinkId n) { return subjectName(n); },
-        [this](LinkId n) { return searchSubject_.count(n) > 0; });
+  void writePartitionGenera() {
+    try {
+      runrecords::writePartitionGenera(
+          cfg_.work, view(), [this](LinkId n) { return subjectName(n); },
+          [this](LinkId n) { return searchSubject_.count(n) > 0; });
+    } catch (const std::exception &e) {
+      recordWriteFailure(e.what());
+    }
   }
   CertificateGoal certificateGoal() const {
     return {cfg_.targetName, cfg_.targetPD,  cfg_.goalGenus,         cfg_.goalLower,
             cfg_.goalDisjoint, target_,      goalPartition(target_)};
   }
   CertificateWriter certificates() const { return {g_, reg_, tableName_, sources_}; }
-  void log(const std::string &line) { runrecords::append(cfg_.work, line); }
+  void log(const std::string &line) {
+    try {
+      runrecords::append(cfg_.work, line);
+    } catch (const std::exception &e) {
+      recordWriteFailure(e.what());
+    }
+  }
 
   GoalOptions cfg_;
   CobordismGraph g_;
@@ -279,13 +297,33 @@ std::string Scheduler::subjectName(LinkId n) const {
          kFrozenCascadeSubjectNodeMark + std::to_string(n);
 }
 
+void Scheduler::recordWriteFailure(const std::string &what) {
+  if (halt_.empty()) {
+    halt_ = "an output write failed -- " + what;
+    std::cout << "[!!] HALT: " << halt_ << "\n";
+  } else {
+    std::cout << "[!!] an output write failed -- " << what << "\n";
+  }
+}
+
 void Scheduler::signIntoDatabase() {
   if (cfg_.cobordismsPath.empty() || signed_) return;
   signed_ = true;
-  runrecords::writeLinksCsv(cfg_.work, searchSubject_, reg_);
-  const SignResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
-                                    names_, static_cast<unsigned>(cfg_.threads),
-                                    cfg_.pairSigCache);
+  try {
+    runrecords::writeLinksCsv(cfg_.work, searchSubject_, reg_);
+  } catch (const std::exception &e) {
+    recordWriteFailure(e.what());
+  }
+  SignResult s;
+  try {
+    s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst, names_,
+                    static_cast<unsigned>(cfg_.threads), cfg_.pairSigCache);
+  } catch (const std::exception &e) {
+    recordWriteFailure(std::string("database: ") + e.what());
+    std::cout << "[!] the run's cobordisms were not signed into " << cfg_.cobordismsPath
+              << "; `cobound sign` with work = " << cfg_.work << " signs them\n";
+    return;
+  }
   appended_ = s.appended;
   signResult_ = s;
   std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
@@ -652,11 +690,17 @@ void Scheduler::expand(LinkId n, long surfaces) {
     roundsJson = rj.str() + ']';
     drainTail = run.drainTail;
     drainTailSeconds = run.drainTailSeconds;
-    std::ofstream(dir + "/log.txt")
-        << "[+] " << subject << " " << searched.pd << "\n[+] " << subject << ": "
-        << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << subject
-        << ": accounting: " << run.accounting << "\n[+] " << subject
-        << ": diagram naming: " << run.naming << "\n";
+    {
+      std::ofstream hopLog(dir + "/log.txt");
+      hopLog << "[+] " << subject << " " << searched.pd << "\n[+] " << subject << ": "
+             << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << subject
+             << ": accounting: " << run.accounting << "\n[+] " << subject
+             << ": diagram naming: " << run.naming << "\n";
+      hopLog.flush();
+      if (!hopLog)
+        recordWriteFailure(kFrozenHopLine + std::to_string(k) + ": " + dir +
+                           "/log.txt cannot be written");
+    }
     namingJson = [&] {
       std::ostringstream o;
       o << std::fixed << std::setprecision(1) << ",\"naming_diagram_s\":"
@@ -1031,28 +1075,57 @@ int Scheduler::run() {
   signIntoDatabase();
   const double databaseSeconds = secondsSince(tDatabase);
   const auto tReport = Clock::now();
-  if (cfg_.lowerReport)
-    runrecords::writeLowerReport(cfg_.work, view(), tables_, cfg_.targetName, special_,
-                                 static_cast<unsigned>(std::max(cfg_.threads, 1)));
+  if (cfg_.lowerReport) {
+    try {
+      runrecords::writeLowerReport(cfg_.work, view(), tables_, cfg_.targetName, special_,
+                                   static_cast<unsigned>(std::max(cfg_.threads, 1)));
+    } catch (const std::exception &e) {
+      recordWriteFailure(e.what());
+    }
+  }
   const double reportSeconds = secondsSince(tReport);
   const auto tBounds = Clock::now();
-  runrecords::writeLinkBounds(cfg_.work, view());
+  try {
+    runrecords::writeLinkBounds(cfg_.work, view());
+  } catch (const std::exception &e) {
+    recordWriteFailure(e.what());
+  }
   writePartitionGenera();
   logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, databaseSeconds,
          reportSeconds, secondsSince(tBounds));
+  // A record of the run that could not be written (the database, a run
+  // record): the run claims nothing -- no certificate, no goal met.
+  if (!halt_.empty()) {
+    printOutcome("io-error");
+    return 2;
+  }
+  // A goal is reported met only once its certificate is on disk: a
+  // certificate that cannot be written halts the run instead.
   if (lowerMet() && !upperMet()) {
     // The bound's proof: the reasons from the target down to their leaves.
     const Partition goal = goalPartition(target_);
+    try {
+      certificates().writeLower(cfg_.work + "/lower_certificate.json", certificateGoal());
+    } catch (const std::exception &e) {
+      recordWriteFailure(std::string("lower certificate: ") + e.what());
+      printOutcome("io-error");
+      return 2;
+    }
     std::cout << "[+] LOWER GOAL MET: " << cfg_.targetName << " genus >= "
               << g_.lower(target_, goal) << " (literature-assisted); the proof:\n";
     certificates().describeLower(std::cout, target_, goal, 0);
-    certificates().writeLower(cfg_.work + "/lower_certificate.json", certificateGoal());
     std::cout << "[+] lower certificate " << cfg_.work << "/lower_certificate.json\n";
     printOutcome("met");
     return 0;
   }
   if (goalMet()) {
-    certificates().writeUpper(cfg_.work + "/certificate.json", certificateGoal());
+    try {
+      certificates().writeUpper(cfg_.work + "/certificate.json", certificateGoal());
+    } catch (const std::exception &e) {
+      recordWriteFailure(std::string("certificate: ") + e.what());
+      printOutcome("io-error");
+      return 2;
+    }
     bool constructive = true;
     for (DerivationId r : g_.proof(best->derivation))
       if (g_.derivation(r).kind == DerivationKind::leaf &&

@@ -104,8 +104,10 @@ inline constexpr char kFrozenRejectionSampleHeader[] =
 inline constexpr char kFrozenNewWitnessesOutcome[] = " new witnesses, outcome ";
 /// `[+] witness store: K kept, F new, A appended to P` (signing into the database).
 inline constexpr char kFrozenWitnessStoreLine[] = "[+] witness store: ";
-/// The outgoing links' names loaded, or why not (dispatch.py fails a search
-/// without the first when the flag is on).
+/// `[+] exact far-side names: N table entries (T ms)`: the tables the outgoing
+/// links are named against, loaded; every run without a goal prints it
+/// (dispatch.py fails a search without it). A run that cannot load them exits
+/// 1 before searching.
 inline constexpr char kFrozenExactFarSideNamesLine[] = "[+] exact far-side names: ";
 /// A goal run's per-search lines: `[+] hop <k> <name>: accounting: ...`,
 /// `: diagram naming:`, `: breadth:`, `[!!] hop <k>: surface accounting

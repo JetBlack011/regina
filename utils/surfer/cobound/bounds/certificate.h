@@ -80,10 +80,12 @@ public:
       : g_(g), reg_(reg), tableName_(tableName), sources_(sources) {}
 
   /// certificate.json at `path`: the proof of the target's best genus on
-  /// the goal partition. Nothing when there is none.
+  /// the goal partition. Nothing when there is none. Throws
+  /// std::runtime_error when the file cannot be opened or written (the run
+  /// then halts and claims no goal: scheduler.cpp).
   void writeUpper(const std::string &path, const CertificateGoal &goal) const;
   /// lower_certificate.json at `path`: the proof of lower(target, goal)
-  /// as a tree of facts, children before parents.
+  /// as a tree of facts, children before parents. Throws as writeUpper().
   void writeLower(const std::string &path, const CertificateGoal &goal) const;
   /// The proof of lower(n, q), readably: its reason, then the reasons of
   /// what it read, indented, down to literature and linking leaves.

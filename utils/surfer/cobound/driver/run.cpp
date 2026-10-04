@@ -321,6 +321,15 @@ int runWithoutGoal(const config::Config &cfg) {
   std::vector<std::string> ioFailed;
   size_t processedThisRun = 0;
   size_t searchedThisRun = 0;
+  // Each search of this run: its row, its exhaustion claim before the search
+  // and its new cobordisms -- what the run's end withdraws and reports again
+  // if the verdicts or the database cannot be written there.
+  struct Searched {
+    std::string name;
+    long long depthBefore = -1;
+    long long newCobordisms = 0;
+  };
+  std::vector<Searched> searchedRows;
 
   for (const auto &row : pending) {
     if (runsignals::interrupted()) {
@@ -368,7 +377,13 @@ int runWithoutGoal(const config::Config &cfg) {
       out.literatureHi = row.hi;
       out.searchOutcome = "build-failed";
       outputRows[row.name] = std::move(out);
-      verdicts::writeOutputCsv(outputPath, rows, outputRows);
+      try {
+        verdicts::writeOutputCsv(outputPath, rows, outputRows);
+      } catch (const std::exception &e) {
+        ioFailed.push_back(row.name);
+        std::cout << "[!!] " << row.name << ": an output write failed -- verdicts: " << e.what()
+                  << " (the run goes on and exits 2)\n";
+      }
     };
     if (buildFailed) {
       recordBuildFailure();
@@ -498,16 +513,17 @@ int runWithoutGoal(const config::Config &cfg) {
                 << " surfaces accepted but none reached the witness record; "
                    "no exhaustion claimed for this search\n";
 
-    if (run.stats.deepestExhaustedCap && run.accountingFailure.empty() &&
-        !run.nothingExamined && !run.drainSkipped && run.ioFailure.empty()) {
+    const auto prior = outputRows.find(row.name);
+    const long long depthBefore = prior == outputRows.end() ? -1 : prior->second.exhaustedDepth;
+    const bool exhaustive = run.stats.deepestExhaustedCap && run.accountingFailure.empty() &&
+                            !run.nothingExamined && !run.drainSkipped && run.ioFailure.empty();
+    if (exhaustive) {
       OutputRow &out = outputRows[row.name];
       // Never let a shallower run overwrite a deeper exhaustive result.
       out.exhaustedDepth = std::max(out.exhaustedDepth, *run.stats.deepestExhaustedCap);
-      std::cout << "[+] " << row.name << ": EXHAUSTIVE to " << *run.stats.deepestExhaustedCap
-                << " added faces -- every root enumerated to completion, so "
-                   "no cobordism exists for it at that depth.\n";
     }
     ++searchedThisRun;
+    searchedRows.push_back({row.name, depthBefore, static_cast<long long>(run.newCobordisms)});
 
     // Record what this search actually cost before anything else, so even
     // a fatal halt below leaves the bookkeeping behind.
@@ -522,7 +538,26 @@ int runWithoutGoal(const config::Config &cfg) {
         out.status = "unresolved";
     }
 
-    verdicts::writeOutputCsv(outputPath, rows, outputRows);
+    // The verdicts shard holds the search's record before the search claims
+    // anything: one that cannot be written makes the search an I/O error (no
+    // exhaustion claim, outcome io-error), as a failed write during it does.
+    // Its frontier, written above, stays: it vouches only for the prefix's
+    // cobordisms, which are in its pending file.
+    bool recordedVerdicts = true;
+    try {
+      verdicts::writeOutputCsv(outputPath, rows, outputRows);
+    } catch (const std::exception &ex) {
+      recordedVerdicts = false;
+      if (run.ioFailure.empty()) run.ioFailure = std::string("verdicts: ") + ex.what();
+      if (run.outcome != "fatal-bug") run.outcome = "io-error";
+      OutputRow &out = outputRows[row.name];
+      out.exhaustedDepth = depthBefore;
+      out.searchOutcome = run.outcome;
+    }
+    if (exhaustive && recordedVerdicts)
+      std::cout << "[+] " << row.name << ": EXHAUSTIVE to " << *run.stats.deepestExhaustedCap
+                << " added faces -- every root enumerated to completion, so "
+                   "no cobordism exists for it at that depth.\n";
 
     // The search's breadth, and what became of its frontier (written above).
     if (resumeFrom || frontierDir) {
@@ -585,9 +620,44 @@ int runWithoutGoal(const config::Config &cfg) {
     ++processedThisRun;
   }
 
-  verdicts::writeOutputCsv(outputPath, rows, outputRows);
-  // The run's pending cobordisms, signed into the database (divergence 7).
-  signPending();
+  // The run's end: the verdicts, and the run's pending cobordisms signed into
+  // the database (divergence 7). A write failure in either is an I/O error of
+  // every search this run made: unsigned cobordisms stay in their pending
+  // files (`cobound sign` signs them), the searches' exhaustion claims are
+  // withdrawn, each search is reported again with outcome io-error
+  // (dispatch.py reads a row's last outcome line), and the run exits 2.
+  std::string endFailure;
+  bool signFailed = false;
+  try {
+    verdicts::writeOutputCsv(outputPath, rows, outputRows);
+  } catch (const std::exception &e) {
+    endFailure = std::string("verdicts: ") + e.what();
+  }
+  try {
+    signPending();
+  } catch (const std::exception &e) {
+    signFailed = true;
+    if (endFailure.empty()) endFailure = std::string("database: ") + e.what();
+    std::cout << "[!] the run's cobordisms were not signed into " << cobordismsPath
+              << "; `cobound sign` with work = " << workDir << " signs them\n";
+  }
+  if (!endFailure.empty()) {
+    std::cout << "[!!] an output write failed at the run's end -- " << endFailure
+              << " (this run's searches vouch for nothing: no exhaustion claim; the run "
+                 "exits 2)\n";
+    for (const Searched &s : searchedRows) {
+      OutputRow &out = outputRows[s.name];
+      out.exhaustedDepth = s.depthBefore;
+      if (out.searchOutcome != "fatal-bug") out.searchOutcome = "io-error";
+      std::cout << "[+] " << s.name << ": " << (signFailed ? 0 : s.newCobordisms)
+                << kFrozenNewWitnessesOutcome << out.searchOutcome << "\n";
+    }
+    try {
+      verdicts::writeOutputCsv(outputPath, rows, outputRows);
+    } catch (const std::exception &) {
+      // already reported above
+    }
+  }
   fatal::haltIfFlagged();
 
   std::cout << "\n[+] Done. Searched " << searchedThisRun << " of " << processedThisRun
@@ -602,7 +672,9 @@ int runWithoutGoal(const config::Config &cfg) {
     std::cerr << "[!] " << ioFailed.size()
               << " search(es) failed an output write (first: " << ioFailed.front()
               << "); exiting 2\n";
-  if (!unaccounted.empty() || !ioFailed.empty()) return 2;
+  if (!endFailure.empty())
+    std::cerr << "[!] the run's end failed an output write (" << endFailure << "); exiting 2\n";
+  if (!unaccounted.empty() || !ioFailed.empty() || !endFailure.empty()) return 2;
   return 0;
 }
 

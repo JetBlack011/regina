@@ -5,6 +5,8 @@
 #include "cobound/bounds/certificate.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <stdexcept>
@@ -14,6 +16,22 @@
 #include "cobound/frozen.h"
 
 namespace bounds {
+
+namespace {
+// A certificate's file, opened for writing; one that cannot be opened throws.
+std::ofstream openCertificate(const std::string &path) {
+  std::ofstream c(path);
+  if (!c) throw std::runtime_error("cannot open " + path + ": " + std::strerror(errno));
+  return c;
+}
+// Whether its writes reached the file: flushed first, since a failed write is
+// only seen once the buffer reaches the file. A failure throws: a goal met
+// with no certificate on disk is never reported as met.
+void finishCertificate(std::ofstream &c, const std::string &path) {
+  c.flush();
+  if (!c) throw std::runtime_error("writing " + path + " failed: " + std::strerror(errno));
+}
+} // namespace
 
 // How a certificate finds a cobordism's surface: a master cobordism's pair
 // signature inline; an in-process one's faces in its searched link's thickening, with
@@ -183,7 +201,7 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
     return id;
   };
   const long top = visit(goal.target, goal.partition);
-  std::ofstream c(path);
+  std::ofstream c = openCertificate(path);
   c << "{\"target\":\"" << json::escape(goal.targetName) << "\",\"target_pd\":\""
     << json::escape(goal.targetPD) << "\",\"goal_lower\":" << goal.goalLower << ",\"goal\":\""
     << (goal.disjoint ? "disjoint" : "connected") << "\",\"lower\":"
@@ -264,12 +282,13 @@ void CertificateWriter::writeLower(const std::string &path, const CertificateGoa
   c << "\n],\"nodes\":[\n";
   writeLinks(c, links);
   c << "\n]}\n";
+  finishCertificate(c, path);
 }
 
 void CertificateWriter::writeUpper(const std::string &path, const CertificateGoal &goal) const {
   auto best = g_.best(goal.target, goal.partition);
   if (!best) return;
-  std::ofstream c(path);
+  std::ofstream c = openCertificate(path);
   c << "{\"target\":\"" << json::escape(goal.targetName) << "\",\"target_pd\":\""
     << json::escape(goal.targetPD) << "\",\"goal_genus\":" << goal.goalGenus
     << ",\"goal\":\"" << (goal.disjoint ? "disjoint" : "connected") << "\",\"genus\":"
@@ -279,6 +298,7 @@ void CertificateWriter::writeUpper(const std::string &path, const CertificateGoa
   c << "\n],\"nodes\":[\n";
   writeLinks(c, links);
   c << "\n]}\n";
+  finishCertificate(c, path);
 }
 
 void CertificateWriter::writeLinks(std::ostream &c, const std::set<LinkId> &links) const {

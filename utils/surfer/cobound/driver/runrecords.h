@@ -24,6 +24,11 @@
  *  nodes.csv. Every name and format is frozen (plan, Hard constraint 2):
  *  the atlas's cascade_layer.py, cascade_record.py and search_breadth.py
  *  read them.
+ *
+ *  Every writer throws std::runtime_error when its file cannot be opened or
+ *  a write to it fails (the stream is flushed and checked): a run whose
+ *  record is incomplete halts and claims no goal (scheduler.cpp,
+ *  Scheduler::recordWriteFailure()).
  */
 
 namespace runrecords {

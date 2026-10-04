@@ -4,11 +4,14 @@
 
 #include "cobound/driver/runrecords.h"
 
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include "cobound/bounds/searchcobordisms.h"
@@ -23,8 +26,27 @@ namespace runrecords {
 
 using namespace bounds;
 
+namespace {
+// A run record's file, opened for writing; one that cannot be opened throws.
+std::ofstream openRecord(const std::string &path, std::ios::openmode mode = std::ios::out) {
+  std::ofstream out(path, mode);
+  if (!out) throw std::runtime_error("cannot open " + path + ": " + std::strerror(errno));
+  return out;
+}
+// Whether a record's writes reached its file: flushed first, since a failed
+// write is only seen once the buffer reaches the file. A failure throws; the
+// run then halts (scheduler.cpp, Scheduler::recordWriteFailure()).
+void finishRecord(std::ofstream &out, const std::string &path) {
+  out.flush();
+  if (!out) throw std::runtime_error("writing " + path + " failed: " + std::strerror(errno));
+}
+} // namespace
+
 void append(const std::string &work, const std::string &line) {
-  std::ofstream(work + "/" + kFrozenCascadeJsonl, std::ios::app) << line << "\n";
+  const std::string path = work + "/" + kFrozenCascadeJsonl;
+  std::ofstream out = openRecord(path, std::ios::app);
+  out << line << "\n";
+  finishRecord(out, path);
 }
 
 void writePartitionGenera(const std::string &work, const GraphView &v,
@@ -32,7 +54,8 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
                    const std::function<bool(LinkId)> &searched) {
   const CobordismGraph &g = v.g;
   const LinkRegistry &reg = v.reg;
-  std::ofstream out(work + "/" + kFrozenProfilesJsonl);
+  const std::string path = work + "/" + kFrozenProfilesJsonl;
+  std::ofstream out = openRecord(path);
   for (LinkId n = 0; n < static_cast<LinkId>(g.linkCount()); ++n) {
     // A crossingless link is named as the atlas's recorder names it (cascade_record.py):
     // it is never a search's subject, so subjectName() has no better name.
@@ -54,13 +77,15 @@ void writePartitionGenera(const std::string &work, const GraphView &v,
     out << ",\"searched\":" << (searched(n) ? "true" : "false") << ','
         << g.partitionGeneraFields(n) << "}\n";
   }
+  finishRecord(out, path);
 }
 
 void writeLinkBounds(const std::string &work, const GraphView &v) {
   using Kind = CobordismGraph::LowerReason::Kind;
   const CobordismGraph &g = v.g;
   const LinkRegistry &reg = v.reg;
-  std::ofstream o(work + "/" + kFrozenNodeBoundsJsonl);
+  const std::string path = work + "/" + kFrozenNodeBoundsJsonl;
+  std::ofstream o = openRecord(path);
   auto kindName = [](Kind k) {
     switch (k) {
     case Kind::literature: return "literature";
@@ -121,6 +146,7 @@ void writeLinkBounds(const std::string &work, const GraphView &v) {
       }
     o << "]}\n";
   }
+  finishRecord(o, path);
 }
 
 void writeLowerReport(const std::string &work, const GraphView &v,
@@ -142,7 +168,8 @@ void writeLowerReport(const std::string &work, const GraphView &v,
   int litLo = -1;
   if (const linknaming::TableEntry *e = tables.entry(targetName))
     if (auto g4 = linknaming::parseTableG4(e->g4)) litLo = g4->first;
-  std::ofstream out(work + "/lower_report.jsonl");
+  const std::string path = work + "/lower_report.jsonl";
+  std::ofstream out = openRecord(path);
   out << "{\"target\":\"" << json::escape(targetName) << "\",\"target_lower\":" << targetLower
       << ",\"lit_lo\":" << litLo << ",\"nodes\":" << g.linkCount() << "}\n";
   // What link n's lower bound `seed` alone carries to the target: every other
@@ -207,6 +234,7 @@ void writeLowerReport(const std::string &work, const GraphView &v,
       bestCouldName = name;
     }
   }
+  finishRecord(out, path);
   std::cout << "[+] lower report: target lower " << targetLower << " (literature " << litLo
             << "); best carried " << (bestName.empty() ? std::string("none")
                                                        : std::to_string(bestCarry) + " from " + bestName)
@@ -220,7 +248,8 @@ void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> 
                    const LinkRegistry &reg) {
   // The `cascade:` subjects, as the atlas's results/cascade/nodes.csv lists
   // them (cascade_record.py), so a later identity can be attached to each.
-  std::ofstream links(work + "/" + kFrozenNodesCsv);
+  const std::string path = work + "/" + kFrozenNodesCsv;
+  std::ofstream links = openRecord(path);
   links << "name,components,crossings,pd,signs,gauss,label\n";
   for (const auto &[n, name] : subjects) {
     if (name.rfind(kFrozenCascadeSubjectPrefix, 0) != 0) continue;
@@ -240,6 +269,7 @@ void writeLinksCsv(const std::string &work, const std::map<LinkId, std::string> 
           << csvField(diagramPD(d)) << ',' << csvField(signs.str()) << ','
           << csvField(gauss.str()) << ',' << kFrozenNodesCsvLabel << n << '\n';
   }
+  finishRecord(links, path);
 }
 
 } // namespace runrecords
