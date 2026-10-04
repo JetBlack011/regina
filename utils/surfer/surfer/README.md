@@ -303,9 +303,9 @@ cache takes a fraction of a second.
 
 ## Tests
 
-`ctest` in `build/utils/surfer/surfer`. `submanifold_test` and
-`predicate_order_test` are deliberately exhaustive and take minutes; run them
-on an idle machine.
+`ctest` in `build/utils/surfer/surfer`. `submanifold_test` is the slow one,
+deliberately exhaustive: about 20 s on an idle 8-core machine against a 300 s
+timeout, which CPU contention alone can exceed, so run it on an idle machine.
 
 | test | pins |
 |---|---|
