@@ -33,8 +33,8 @@ namespace {
 
 // An exclusive flock(2) on the store's sidecar lock file, released on
 // destruction.
-struct StoreLock : appendonly::FileLock {
-  explicit StoreLock(const std::string &store) : appendonly::FileLock(store + ".lock") {}
+struct DatabaseLock : appendonly::FileLock {
+  explicit DatabaseLock(const std::string &database) : appendonly::FileLock(database + ".lock") {}
 };
 
 void identitiesOf(const std::string &path, std::unordered_set<std::string> &into,
@@ -137,14 +137,14 @@ std::vector<PendingCobordism> readKept(const std::string &work,
   return out;
 }
 
-StoreResult signPending(const std::string &work, const std::string &store,
+SignResult signPending(const std::string &work, const std::string &database,
                         const std::vector<std::string> &dedupeAgainst,
                         const solver::NameTable &names, unsigned threads,
-                        const std::string &pairSigCache, const LoadedStore &loaded,
+                        const std::string &pairSigCache, const LoadedPrefix &loaded,
                         const std::function<bool(const PendingCobordism &)> &sidecarLine) {
   std::vector<std::pair<std::string, long long>> readTo;
   std::vector<PendingCobordism> pending = readKept(work, &readTo);
-  StoreResult r = storeKept(std::move(pending), store, dedupeAgainst, names, threads,
+  SignResult r = signKept(std::move(pending), database, dedupeAgainst, names, threads,
                             pairSigCache, loaded, sidecarLine);
   // Signed (or already in the store): recorded only once the store holds
   // them, so a failure leaves the file to be signed again.
@@ -155,24 +155,24 @@ StoreResult signPending(const std::string &work, const std::string &store,
   return r;
 }
 
-StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &store,
+SignResult signKept(std::vector<PendingCobordism> pending, const std::string &database,
                       const std::vector<std::string> &dedupeAgainst,
                       const solver::NameTable &names, unsigned threads,
-                      const std::string &pairSigCache, const LoadedStore &loaded,
+                      const std::string &pairSigCache, const LoadedPrefix &loaded,
                       const std::function<bool(const PendingCobordism &)> &sidecarLine) {
-  StoreResult r;
+  SignResult r;
   r.kept = pending.size();
   if (pending.empty()) return r;
 
   // The store's identities as they stand: the run's own copy of what it
   // loaded and what was appended since, or the whole file.
-  auto storeIdentities = [&](std::unordered_set<std::string> &into) {
+  auto databaseIdentities = [&](std::unordered_set<std::string> &into) {
     if (!loaded.identities) {
-      identitiesOf(store, into);
+      identitiesOf(database, into);
       return;
     }
     for (const std::string &id : *loaded.identities) into.insert(id);
-    identitiesSince(store, loaded.bytes, into);
+    identitiesSince(database, loaded.bytes, into);
   };
 
   // Fresh against the read-only stores (once) and the store as it stands.
@@ -180,8 +180,8 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
   std::unordered_set<std::string> seen;
   for (const std::string &path : dedupeAgainst) identitiesOf(path, seen, threads);
   {
-    StoreLock lock(store);
-    storeIdentities(seen);
+    DatabaseLock lock(database);
+    databaseIdentities(seen);
   }
   r.dedupeSeconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - tDedupe).count();
@@ -220,9 +220,9 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
 
   // Under the lock: re-read what the store holds now (another run may have
   // appended since), and append only what is still new.
-  StoreLock lock(store);
+  DatabaseLock lock(database);
   std::unordered_set<std::string> now;
-  storeIdentities(now);
+  databaseIdentities(now);
   std::vector<cobordisms::Cobordism> append;
   std::vector<std::pair<std::string, int>> appendDiagrams;
   std::vector<char> appendSidecar;
@@ -232,7 +232,7 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
       appendDiagrams.push_back(diagramOf[i]);
       appendSidecar.push_back(sidecar[i]);
     }
-  cobordisms::appendCobordisms(store, append, 0);
+  cobordisms::appendCobordisms(database, append, 0);
   r.appended = append.size();
   // Which diagram each pair signature's ambient was built from: a hop's row
   // is a node's own diagram, not a table PD, so the atlas's farsidename
@@ -244,7 +244,7 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
       lines += append[i].pairSigKey + ',' + std::to_string(appendDiagrams[i].second) + ',' +
                csvField(appendDiagrams[i].first) + '\n';
   if (!lines.empty()) {
-    const std::string sidecarPath = store + kFrozenRowsSidecarSuffix;
+    const std::string sidecarPath = database + kFrozenRowsSidecarSuffix;
     if (!fs::exists(sidecarPath)) lines = kFrozenRowsSidecarHeader + lines;
     // fsynced like the store it describes (it was not, before phase 3).
     appendonly::append(sidecarPath, lines, appendonly::Sync::yes);

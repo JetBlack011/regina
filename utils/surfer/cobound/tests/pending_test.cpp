@@ -127,25 +127,25 @@ int main() {
   solver::NameTable names;
   solver::loadNameTable(knots, names);
   solver::loadNameTable(links, names);
-  const std::string store = (dir / "cobordisms.csv").string();
+  const std::string database = (dir / "cobordisms.csv").string();
   // Every surface offered twice: within one batch, an identity is recorded once.
   std::vector<PendingCobordism> twice = back;
   twice.insert(twice.end(), back.begin(), back.end());
-  StoreResult s = storeKept(twice, store, {}, names, 3);
+  SignResult s = signKept(twice, database, {}, names, 3);
   CHECK_EQ(s.kept, 2 * pending.size(), "store: every surface offered");
   CHECK_EQ(s.fresh, sigOfIdentity.size(), "store: one fresh surface per witness identity");
   CHECK_EQ(s.appended, sigOfIdentity.size(), "store: all of them appended");
-  std::vector<cobordisms::Cobordism> stored = cobordisms::loadCobordisms(store, false);
-  CHECK_EQ(stored.size(), sigOfIdentity.size(), "store: one line per identity");
+  std::vector<cobordisms::Cobordism> inDatabase = cobordisms::loadCobordisms(database, false);
+  CHECK_EQ(inDatabase.size(), sigOfIdentity.size(), "store: one line per identity");
   int sigOk = 0, provenanceOk = 0, candidatesOk = 0;
   {
-    std::ifstream in(store);
+    std::ifstream in(database);
     std::string line;
     std::getline(in, line);
     CHECK_EQ(line, std::string(cobordisms::COBORDISMS_HEADER), "store: the header");
     while (std::getline(in, line)) {
       cobordisms::Cobordism w;
-      cobordisms::cobordismFromFields(parseCsvLine(line), w, true, false, store);
+      cobordisms::cobordismFromFields(parseCsvLine(line), w, true, false, database);
       auto it = sigOfIdentity.find(cobordisms::cobordismIdentity(w));
       if (it != sigOfIdentity.end() && it->second == w.pairSig) ++sigOk;
       if (w.subject == "3_1" && w.sourceSearch == "3_1" && w.thickenLayers == 2 && w.maxFaces == 3)
@@ -155,16 +155,16 @@ int main() {
         ++candidatesOk;
     }
   }
-  CHECK_EQ(sigOk, static_cast<int>(stored.size()),
+  CHECK_EQ(sigOk, static_cast<int>(inDatabase.size()),
            "store: each pair signature is the one taken in the searched thickening");
-  CHECK_EQ(provenanceOk, static_cast<int>(stored.size()), "store: subject and provenance");
-  CHECK_EQ(candidatesOk, static_cast<int>(stored.size()),
+  CHECK_EQ(provenanceOk, static_cast<int>(inDatabase.size()), "store: subject and provenance");
+  CHECK_EQ(candidatesOk, static_cast<int>(inDatabase.size()),
            "store: other_candidates as the sweep fills them");
 
   // The row sidecar: one line per stored witness, its key a stored pair
   // signature's and its row the hop's own PD.
   {
-    std::ifstream in(store + ".rows.csv");
+    std::ifstream in(database + ".rows.csv");
     std::string line;
     std::getline(in, line);
     CHECK_EQ(line, std::string("witness,layers,row_pd"), "rows sidecar: header");
@@ -173,19 +173,19 @@ int main() {
       std::vector<std::string> f = parseCsvLine(line);
       if (f.size() == 3) sidecar[f[0]] = f[2];
     }
-    CHECK_EQ(sidecar.size(), stored.size(), "rows sidecar: one line per stored witness");
+    CHECK_EQ(sidecar.size(), inDatabase.size(), "rows sidecar: one line per stored witness");
     int keyed = 0;
-    for (const auto &w : cobordisms::loadCobordisms(store, true))
+    for (const auto &w : cobordisms::loadCobordisms(database, true))
       if (sidecar.count(w.pairSigKey) && sidecar[w.pairSigKey] == pd) ++keyed;
-    CHECK_EQ(keyed, static_cast<int>(stored.size()),
+    CHECK_EQ(keyed, static_cast<int>(inDatabase.size()),
              "rows sidecar: every stored witness keyed to its hop row's PD");
   }
 
   // 3. Deduplication.
-  s = storeKept(back, store, {}, names, 3);
+  s = signKept(back, database, {}, names, 3);
   CHECK(s.fresh == 0 && s.appended == 0, "again: nothing new, nothing appended");
   const std::string other = (dir / "other.csv").string();
-  s = storeKept(back, other, {store}, names, 3);
+  s = signKept(back, other, {database}, names, 3);
   CHECK(s.fresh == 0 && s.appended == 0 && !fs::exists(other),
         "against a store holding them: nothing appended");
 

@@ -81,7 +81,7 @@ private:
 };
 
 
-struct StoreResult {
+struct SignResult {
   size_t kept = 0;     ///< surfaces offered
   size_t fresh = 0;    ///< of those, witness identities new to the store
   size_t appended = 0; ///< written
@@ -91,7 +91,7 @@ struct StoreResult {
 
 /// What a store already holds, as a run loaded it: the identities of its
 /// first `bytes` bytes. storeKept() then reads only what was appended since.
-struct LoadedStore {
+struct LoadedPrefix {
   const std::unordered_set<std::string> *identities = nullptr;
   std::uintmax_t bytes = 0;
 };
@@ -112,11 +112,11 @@ long long signedThrough(const std::string &path);
 /// <path>.signed record set to what was read (plan divergence 1: a frontier
 /// whose pending file is signed at least as far as it recorded may be
 /// resumed). Returns storeKept()'s result.
-StoreResult signPending(const std::string &work, const std::string &store,
+SignResult signPending(const std::string &work, const std::string &database,
                         const std::vector<std::string> &dedupeAgainst,
                         const solver::NameTable &names, unsigned threads,
                         const std::string &pairSigCache = "",
-                        const LoadedStore &loaded = {},
+                        const LoadedPrefix &loaded = {},
                         const std::function<bool(const PendingCobordism &)> &sidecarLine = {});
 
 
@@ -134,11 +134,11 @@ StoreResult signPending(const std::string &work, const std::string &store,
  * `sidecarLine`, when given, says which appended cobordisms get a
  * `.rows.csv` line (by default every one).
  */
-StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &store,
+SignResult signKept(std::vector<PendingCobordism> pending, const std::string &database,
                       const std::vector<std::string> &dedupeAgainst,
                       const solver::NameTable &names, unsigned threads,
                       const std::string &pairSigCache = "",
-                      const LoadedStore &loaded = {},
+                      const LoadedPrefix &loaded = {},
                       const std::function<bool(const PendingCobordism &)> &sidecarLine = {});
 
 /**
@@ -160,7 +160,7 @@ public:
   /// cobordisms::witnessIdentity() of each.
   const std::unordered_set<std::string> &identities() const { return identities_; }
   /// The store's first bytes() bytes are what was loaded.
-  LoadedStore loaded() const { return {&identities_, bytes_}; }
+  LoadedPrefix loaded() const { return {&identities_, bytes_}; }
 
 private:
   std::filesystem::path path_;

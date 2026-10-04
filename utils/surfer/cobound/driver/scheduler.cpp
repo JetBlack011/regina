@@ -85,7 +85,7 @@ using bounds::DerivationId;
 using bounds::DerivationKind;
 using bounds::allPartitions;
 using bounds::diagramPD;
-using cobordisms::StoreResult;
+using cobordisms::SignResult;
 using cobordisms::signPending;
 using linknaming::simplifyKeepingComponents;
 using search::SearchResult;
@@ -226,8 +226,8 @@ private:
   int searches_ = 0;
   int invariantFailures_ = 0;
   std::map<LinkId, std::string> searchSubject_; ///< each searched node's subject name
-  bool stored_ = false;
-  size_t storedAppended_ = 0;             ///< witnesses the store gained
+  bool signed_ = false;
+  size_t appended_ = 0;             ///< witnesses the store gained
   std::set<LinkId> boosted_;              ///< hubs already expanded wide (--hub-degree)
   std::string stopReason_ = "nothing-useful"; ///< why the loop ended short of the goal
   std::map<std::string, bool> special_;   ///< --lower-sources: name -> special
@@ -255,10 +255,10 @@ private:
     double kept = 0;       ///< kept.csv (fsynced) and frontier.txt per hop
   };
   DriverTimes driver_, driverAtLastSearch_;
-  StoreResult storeResult_; ///< storeWitnesses()'s counts and times
+  SignResult signResult_; ///< storeWitnesses()'s counts and times
   /// Writes the run's own record to cascade.jsonl: its whole wall and CPU,
   /// and where the time outside the hops went.
-  void logRun(double wall, double cpu, double startup, double loop, double store,
+  void logRun(double wall, double cpu, double startup, double loop, double databaseSeconds,
               double lowerReport, double linkBounds);
 };
 
@@ -271,14 +271,14 @@ std::string Scheduler::subjectName(LinkId n) const {
 }
 
 void Scheduler::signIntoDatabase() {
-  if (cfg_.cobordismsPath.empty() || stored_) return;
-  stored_ = true;
+  if (cfg_.cobordismsPath.empty() || signed_) return;
+  signed_ = true;
   runrecords::writeLinksCsv(cfg_.work, searchSubject_, reg_);
-  const StoreResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
+  const SignResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
                                     names_, static_cast<unsigned>(cfg_.threads),
                                     cfg_.pairSigCache);
-  storedAppended_ = s.appended;
-  storeResult_ = s;
+  appended_ = s.appended;
+  signResult_ = s;
   std::cout << kFrozenWitnessStoreLine << s.kept << " kept, " << s.fresh << " new, "
             << s.appended << " appended to " << cfg_.cobordismsPath << " (signed in "
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
@@ -741,7 +741,7 @@ void Scheduler::expand(LinkId n, long surfaces) {
             << "\n";
 }
 
-void Scheduler::logRun(double wall, double cpu, double startup, double loop, double store,
+void Scheduler::logRun(double wall, double cpu, double startup, double loop, double databaseSeconds,
                      double lowerReport, double linkBounds) {
   std::ostringstream o;
   o << std::fixed << std::setprecision(1) << "{\"run\":\"" << json::escape(cfg_.targetName)
@@ -751,8 +751,8 @@ void Scheduler::logRun(double wall, double cpu, double startup, double loop, dou
     << ",\"hop_cpu_s\":" << cpuSpent_ << ",\"choose_s\":" << driver_.choose
     << ",\"useful_s\":" << driver_.useful << ",\"lower_slack_s\":" << driver_.lowerSlack
     << ",\"master_s\":" << driver_.master << ",\"kept_s\":" << driver_.kept
-    << ",\"store_s\":" << store << ",\"store_dedupe_s\":" << storeResult_.dedupeSeconds
-    << ",\"store_sign_s\":" << storeResult_.signSeconds
+    << ",\"store_s\":" << databaseSeconds << ",\"store_dedupe_s\":" << signResult_.dedupeSeconds
+    << ",\"store_sign_s\":" << signResult_.signSeconds
     << ",\"lower_report_s\":" << lowerReport << ",\"node_bounds_s\":" << linkBounds
     << ",\"hops\":" << searches_ << ",\"nodes\":" << g_.linkCount() << "}";
   log(o.str());
@@ -955,9 +955,9 @@ int Scheduler::run() {
             << g_.derivationCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
-  const auto tStore = Clock::now();
+  const auto tDatabase = Clock::now();
   signIntoDatabase();
-  const double storeSeconds = secondsSince(tStore);
+  const double databaseSeconds = secondsSince(tDatabase);
   const auto tReport = Clock::now();
   if (cfg_.lowerReport)
     runrecords::writeLowerReport(cfg_.work, view(), tables_, cfg_.targetName, special_,
@@ -966,7 +966,7 @@ int Scheduler::run() {
   const auto tBounds = Clock::now();
   runrecords::writeLinkBounds(cfg_.work, view());
   writePartitionGenera();
-  logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, storeSeconds,
+  logRun(secondsSince(tRun), timers::processCpuSeconds() - cpuRun, startupSeconds, wall, databaseSeconds,
          reportSeconds, secondsSince(tBounds));
   if (lowerMet() && !upperMet()) {
     // The bound's proof: the reasons from the target down to their leaves.
@@ -999,7 +999,7 @@ int Scheduler::run() {
 void Scheduler::printOutcome(const std::string &outcome) const {
   // The line a campaign's runner parses, in verifyslicegenus's own shape
   // (dispatch.py RE_OUTCOME): witnesses newly recorded, and why the run ended.
-  std::cout << "[+] " << cfg_.targetName << ": " << storedAppended_
+  std::cout << "[+] " << cfg_.targetName << ": " << appended_
             << kFrozenNewWitnessesOutcome << outcome << "\n";
 }
 

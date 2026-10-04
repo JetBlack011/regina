@@ -79,21 +79,21 @@ int main() {
   const fs::path dir = fs::temp_directory_path() /
                        ("witnessstore_test." + std::to_string(::getpid()));
   fs::create_directories(dir);
-  const fs::path store = dir / "cobordisms.csv";
+  const fs::path database = dir / "cobordisms.csv";
 
   // 1. Round trip of a line.
   {
     const Cobordism w = sample("cascade:run/L6a5{0;1}/n3", 1, 0);
     const std::string line = cobordisms::formatCobordism(w);
     Cobordism back;
-    check(cobordisms::cobordismFromFields(parseCsvLine(line), back, true, false, store) &&
+    check(cobordisms::cobordismFromFields(parseCsvLine(line), back, true, false, database) &&
               same(w, back) && back.pairSig == w.pairSig,
           "a witness round-trips through its line");
     check(line.back() == ',', "resolved_vertices 0 is written empty");
     const Cobordism r = sample("L6a5{0;1}", 0, 2);
     Cobordism backR;
     cobordisms::cobordismFromFields(parseCsvLine(cobordisms::formatCobordism(r)), backR, false,
-                                    false, store);
+                                    false, database);
     check(backR.resolvedVertices == 2 && backR.pairSig.empty(),
           "resolved_vertices 2 round-trips; the pair signature is dropped when not kept");
   }
@@ -101,18 +101,18 @@ int main() {
   // 2. Appends.
   {
     std::vector<Cobordism> ws = {sample("a", 0, 0), sample("b", 1, 0)};
-    cobordisms::appendCobordisms(store, ws, 0);
-    const std::string first = slurp(store);
+    cobordisms::appendCobordisms(database, ws, 0);
+    const std::string first = slurp(database);
     check(first.rfind(std::string(cobordisms::COBORDISMS_HEADER) + "\n", 0) == 0,
           "a new store starts with the header");
     check(ws[0].pairSig.empty() && ws[0].fileOffset > 0 && ws[1].fileOffset > ws[0].fileOffset,
           "appended witnesses get their offsets and drop their pair signatures");
     std::vector<Cobordism> more = {sample("c", 2, 1)};
-    cobordisms::appendCobordisms(store, more, 0);
-    const std::string second = slurp(store);
+    cobordisms::appendCobordisms(database, more, 0);
+    const std::string second = slurp(database);
     check(second.compare(0, first.size(), first) == 0 && second.size() > first.size(),
           "a second append keeps every earlier byte");
-    const auto loaded = cobordisms::loadCobordisms(store, true);
+    const auto loaded = cobordisms::loadCobordisms(database, true);
     check(loaded.size() == 3 && loaded[2].subject == "c" && loaded[2].resolvedVertices == 1 &&
               !loaded[0].pairSigKey.empty(),
           "the store loads back, keys computed");
@@ -120,14 +120,14 @@ int main() {
 
   // 3. A torn last line.
   {
-    std::ofstream(store, std::ios::app | std::ios::binary) << "cobordism,torn,1,Unknot";
-    check(cobordisms::loadCobordisms(store, false).size() == 3,
+    std::ofstream(database, std::ios::app | std::ios::binary) << "cobordism,torn,1,Unknot";
+    check(cobordisms::loadCobordisms(database, false).size() == 3,
           "a torn last line is ignored on load");
     std::vector<Cobordism> d = {sample("d", 0, 0)};
-    cobordisms::appendCobordisms(store, d, 0);
-    const auto loaded = cobordisms::loadCobordisms(store, false);
+    cobordisms::appendCobordisms(database, d, 0);
+    const auto loaded = cobordisms::loadCobordisms(database, false);
     check(loaded.size() == 4 && loaded.back().subject == "d" &&
-              slurp(store).find("torn") == std::string::npos,
+              slurp(database).find("torn") == std::string::npos,
           "the next append truncates it first");
   }
 

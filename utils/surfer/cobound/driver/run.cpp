@@ -296,7 +296,7 @@ int runWithoutGoal(const config::Config &cfg) {
       auto it = tablePD.find(p.cobordism.subject);
       return it == tablePD.end() || it->second != p.incomingPD;
     };
-    const cobordisms::StoreResult s = cobordisms::signPending(
+    const cobordisms::SignResult s = cobordisms::signPending(
         workDir, cobordismsPath, {}, names, numThreads, pairSigCacheDir.value_or(""),
         recorded.loaded(), sidecarLine);
     signedAppended = s.appended;
