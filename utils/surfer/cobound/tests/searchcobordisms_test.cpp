@@ -28,16 +28,16 @@ using namespace bounds;
 
 namespace {
 
-struct Row {
+struct StoredLine {
   std::string subject, other, genus, otherComponents, pairsig;
 };
 
 // Minimal CSV reader for cobordisms.csv (quoted fields may hold commas).
-std::vector<Row> readCobordisms(const std::string &path) {
+std::vector<StoredLine> readCobordisms(const std::string &path) {
   std::ifstream in(path);
   std::string line;
   std::getline(in, line); // header
-  std::vector<Row> rows;
+  std::vector<StoredLine> lines;
   while (std::getline(in, line)) {
     std::vector<std::string> f;
     std::string cur;
@@ -50,9 +50,9 @@ std::vector<Row> readCobordisms(const std::string &path) {
     f.push_back(cur);
     // kind,subject,subject_components,other,other_candidates,other_components,
     // genus,tubed,pairsig,...
-    rows.push_back({f[1], f[3], f[6], f[5], f[8]});
+    lines.push_back({f[1], f[3], f[6], f[5], f[8]});
   }
-  return rows;
+  return lines;
 }
 
 GaussDiagram of(const regina::Link &l) {
@@ -63,16 +63,16 @@ GaussDiagram of(const regina::Link &l) {
 
 // The row as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
-SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
   GaussDiagram d = of(linknaming::linkFromTablePD(pd));
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  SearchedLink row;
-  row.node = nm.node;
-  row.diagram = d;
-  row.nodeMap = nm.componentMap;
-  row.pd = pd;
-  row.layers = 2;
-  return row;
+  SearchedLink searched;
+  searched.node = nm.node;
+  searched.diagram = d;
+  searched.nodeMap = nm.componentMap;
+  searched.pd = pd;
+  searched.layers = 2;
+  return searched;
 }
 
 const char *PD_10_3 =
@@ -85,13 +85,13 @@ const char *PD_L11n33 =
 void test10_3() {
   ProofGraph g;
   NodeRegistry reg(g);
-  SearchedLink row = makeRow(reg, PD_10_3);
-  CobordismAssembler assembler(g, reg, row); // certifies the row (throws if not)
+  SearchedLink searched = makeSearchedLink(reg, PD_10_3);
+  CobordismAssembler assembler(g, reg, searched); // certifies the row (throws if not)
   CHECK(true, "10_3: the row is certified");
   auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_10_3_witnesses.csv");
   CHECK_EQ(static_cast<int>(ws.size()), 9, "10_3: nine witnesses");
   int ok = 0, selfLoops = 0, splits = 0;
-  for (const Row &r : ws) {
+  for (const StoredLine &r : ws) {
     AddedCobordism e = assembler.add({r.pairsig, std::stoi(r.genus), r.other});
     CHECK(e.ok, "10_3 witness assembles: " + r.other + " " + e.why);
     if (!e.ok) continue;
@@ -99,7 +99,7 @@ void test10_3() {
     CHECK_EQ(static_cast<int>(e.shape.outComponent.size()), std::stoi(r.otherComponents),
              "far-side curve count matches the witness file: " + r.other);
     if (r.other == "10_3") {
-      CHECK_EQ(e.outgoing, row.node, "the far side 10_3 is the row's own node");
+      CHECK_EQ(e.outgoing, searched.node, "the far side 10_3 is the row's own node");
       ++selfLoops;
     }
     if (r.other.find(" u ") != std::string::npos || r.other == "2-component unlink") {
@@ -111,7 +111,7 @@ void test10_3() {
   CHECK(selfLoops >= 1, "10_3's identity witness is a self-loop");
   CHECK(splits >= 3, "split far sides recognised");
   g.propagate();
-  auto best = g.bestConnected(row.node);
+  auto best = g.bestConnected(searched.node);
   CHECK(best.has_value() && best->genus == 0, "10_3 is proved slice");
   if (best) {
     for (RecordId r : g.proof(best->record))
@@ -130,19 +130,19 @@ void test10_3() {
 void testL11n33() {
   ProofGraph g;
   NodeRegistry reg(g);
-  SearchedLink row = makeRow(reg, PD_L11n33);
-  CobordismAssembler assembler(g, reg, row);
+  SearchedLink searched = makeSearchedLink(reg, PD_L11n33);
+  CobordismAssembler assembler(g, reg, searched);
   // The certificate's map: knotbuilder's component order onto the node's.
-  CHECK_EQ(static_cast<int>(assembler.rowToNode().size()), 2, "two row components");
+  CHECK_EQ(static_cast<int>(assembler.incomingToLink().size()), 2, "two row components");
   auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_L11n33_witnesses.csv");
   int ok = 0;
-  for (const Row &r : ws) {
+  for (const StoredLine &r : ws) {
     AddedCobordism e = assembler.add({r.pairsig, std::stoi(r.genus), r.other});
     CHECK(e.ok, "L11n33 witness assembles: " + r.other + " " + e.why);
     if (!e.ok) continue;
     ++ok;
     if (r.other == "L11n33{1}" && r.genus == "0") {
-      CHECK_EQ(e.outgoing, row.node, "the identity far side is the row's node");
+      CHECK_EQ(e.outgoing, searched.node, "the identity far side is the row's node");
       // A self-loop of two annuli maps component i to component i.
       const LinkCobordism &we = g.cobordism(e.edge);
       if (e.shape.components == 2) {
@@ -169,11 +169,11 @@ void testFastMatchesReference() {
                           std::pair{PD_L11n33, "hop_L11n33_witnesses.csv"}}) {
     ProofGraph gf, gr;
     NodeRegistry rf(gf), rr(gr);
-    CobordismAssembler fast(gf, rf, makeRow(rf, pd), CobordismAssembler::Read::fast);
-    CobordismAssembler ref(gr, rr, makeRow(rr, pd), CobordismAssembler::Read::reference);
+    CobordismAssembler fast(gf, rf, makeSearchedLink(rf, pd), CobordismAssembler::Read::fast);
+    CobordismAssembler ref(gr, rr, makeSearchedLink(rr, pd), CobordismAssembler::Read::reference);
     auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/" + file);
     int compared = 0;
-    for (const Row &r : ws) {
+    for (const StoredLine &r : ws) {
       AddedCobordism a = fast.add({r.pairsig, std::stoi(r.genus), r.other});
       AddedCobordism b = ref.add({r.pairsig, std::stoi(r.genus), r.other});
       CHECK(a.ok && b.ok, std::string("both reads assemble: ") + r.other);

@@ -135,21 +135,21 @@ void testUnknot() {
 // Why reduction matters: a hop's row is certified by drawing knotbuilder's
 // link back (HopAssembler), and knotbuilder's drawer cannot draw a diagram
 // with a nugatory crossing. The reduced diagram's row certifies.
-void testReducedRowsCertify() {
+void testReducedDiagramsCertify() {
   using regina::ExampleLink;
   const GaussDiagram d =
       sumThroughTwist(of(ExampleLink::trefoilLeft()), 0, of(ExampleLink::figureEight()), 1);
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
     NodeRegistry reg(g);
-    SearchedLink row;
-    row.node = reg.intern(diagram, "row").node;
-    row.diagram = diagram;
-    row.nodeMap = {0};
-    row.pd = rowPD(diagram);
-    row.layers = 2;
+    SearchedLink searched;
+    searched.node = reg.intern(diagram, "row").node;
+    searched.diagram = diagram;
+    searched.nodeMap = {0};
+    searched.pd = diagramPD(diagram);
+    searched.layers = 2;
     try {
-      CobordismAssembler assembler(g, reg, row);
+      CobordismAssembler assembler(g, reg, searched);
       return true;
     } catch (const std::exception &) {
       return false;
@@ -164,7 +164,7 @@ void testReducedRowsCertify() {
 // orientation and the row did not certify. Lifted off, it is a split unknot:
 // the link is unchanged (Jones polynomial, linking numbers), the diagram
 // comes apart, and every piece's row certifies.
-void testLiftedRowsCertify() {
+void testLiftedDiagramsCertify() {
   GaussDiagram d;
   d.signs = {1, 1, 1, -1, -1, -1};
   d.comps = {{5, -6}, {4, 2}, {1, -4, -5, 6, -2, -3}, {-1, 3}};
@@ -172,15 +172,15 @@ void testLiftedRowsCertify() {
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
     NodeRegistry reg(g);
-    SearchedLink row;
-    row.node = reg.intern(diagram, "row").node;
-    row.diagram = diagram;
-    row.nodeMap.resize(diagram.components());
-    std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
-    row.pd = rowPD(diagram);
-    row.layers = 2;
+    SearchedLink searched;
+    searched.node = reg.intern(diagram, "row").node;
+    searched.diagram = diagram;
+    searched.nodeMap.resize(diagram.components());
+    std::iota(searched.nodeMap.begin(), searched.nodeMap.end(), 0);
+    searched.pd = diagramPD(diagram);
+    searched.layers = 2;
     try {
-      CobordismAssembler assembler(g, reg, row);
+      CobordismAssembler assembler(g, reg, searched);
       return true;
     } catch (const std::exception &) {
       return false;
@@ -217,8 +217,8 @@ void testLiftedRowsCertify() {
 } // namespace
 
 int main() {
-  testReducedRowsCertify();
-  testLiftedRowsCertify();
+  testReducedDiagramsCertify();
+  testLiftedDiagramsCertify();
   testDiagramHits();
   testDifferentDiagramsSameLink();
   testOrientationVariantsAreDifferentNodes();

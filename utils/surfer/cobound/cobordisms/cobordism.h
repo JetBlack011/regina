@@ -84,7 +84,7 @@ struct Cobordism {
     bool outgoingNamed = false;
 
     // Provenance: which search produced this, and under what budget.
-    std::string sourceRow;
+    std::string sourceSearch;
     int thickenLayers = 1;
     long long maxFaces = 0; /**< 0 means the search was unbounded. */
 

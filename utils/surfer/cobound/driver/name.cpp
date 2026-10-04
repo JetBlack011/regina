@@ -122,13 +122,13 @@ int commands::name(const std::vector<std::string> &args) {
     for (auto &[k, v] : pdCodes(links)) pd.emplace(k, v);
 
     // --profile: cumulative ms per step, printed to stderr at the end.
-    double msRow = 0, msOrient = 0, msDraw = 0, msName = 0, msDecode = 0, msIso = 0;
+    double msIncoming = 0, msOrient = 0, msDraw = 0, msName = 0, msDecode = 0, msIso = 0;
     double msSurface = 0, msRead = 0, msBoundaryBuild = 0;
-    long cobordisms = 0, rows = 0, named = 0;
+    long cobordisms = 0, diagrams = 0, named = 0;
     auto ms = [](std::chrono::steady_clock::time_point t) {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
     };
-    auto flushRow = [&](const outgoing::OutgoingReader *r) {
+    auto flushIncoming = [&](const outgoing::OutgoingReader *r) {
         if (r) {
             msDecode += r->msDecode(); msIso += r->msIsomorphism();
             msSurface += r->msSurfaceBuild(); msRead += r->msBoundaryRead();
@@ -141,33 +141,33 @@ int commands::name(const std::vector<std::string> &args) {
     std::string line;
     while (std::getline(std::cin, line)) {
         std::istringstream in(line);
-        std::string id, row, layers, sig;
-        if (!std::getline(in, id, '\t') || !std::getline(in, row, '\t') ||
+        std::string id, incoming, layers, sig;
+        if (!std::getline(in, id, '\t') || !std::getline(in, incoming, '\t') ||
             !std::getline(in, layers, '\t') || !std::getline(in, sig))
             continue;
         const auto start = std::chrono::steady_clock::now();
         try {
-            if (redrawKey != row + "\t" + layers) {
+            if (redrawKey != incoming + "\t" + layers) {
                 // A row is a table name, or the PD code itself: a cascade
                 // hop's row is a node's own diagram, which no table holds
                 // (its witnesses' <store>.rows.csv gives it; cascade/keptstore.h).
                 std::string code;
-                if (!row.empty() && (row.front() == '[' || row.rfind("PD[", 0) == 0)) {
-                    code = row;
+                if (!incoming.empty() && (incoming.front() == '[' || incoming.rfind("PD[", 0) == 0)) {
+                    code = incoming;
                 } else {
-                    auto it = pd.find(row);
-                    if (it == pd.end()) throw regina::InvalidArgument("no PD code for row " + row);
+                    auto it = pd.find(incoming);
+                    if (it == pd.end()) throw regina::InvalidArgument("no PD code for row " + incoming);
                     code = it->second;
                 }
                 for (char &ch : code)
                     if (ch == ';') ch = ',';
-                flushRow(redraw.get());
+                flushIncoming(redraw.get());
                 redraw.reset();
                 const auto tr = std::chrono::steady_clock::now();
                 redraw = std::make_unique<outgoing::OutgoingReader>(code, std::stoi(layers));
-                msRow += ms(tr);
-                ++rows;
-                redrawKey = row + "\t" + layers;
+                msIncoming += ms(tr);
+                ++diagrams;
+                redrawKey = incoming + "\t" + layers;
                 cache.clear();
             }
             ++cobordisms;
@@ -178,7 +178,7 @@ int commands::name(const std::vector<std::string> &args) {
                                   : redraw->outgoingLinkFast(sig, why);
             msOrient += ms(to) - (redraw->msDecode() + redraw->msIsomorphism() - before);
             if (!link) {
-                std::cout << id << '\t' << row << "\tFAILED\t" << why << '\n';
+                std::cout << id << '\t' << incoming << "\tFAILED\t" << why << '\n';
                 continue;
             }
             const auto td = std::chrono::steady_clock::now();
@@ -200,18 +200,18 @@ int commands::name(const std::vector<std::string> &args) {
                        << '/' << n.pieces[i].crossings;
             const long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - start).count();
-            std::cout << id << '\t' << row << "\tok\t" << n.name << '\t' << n.exact << '\t'
+            std::cout << id << '\t' << incoming << "\tok\t" << n.name << '\t' << n.exact << '\t'
                       << n.pinned << '\t' << d.components << '\t' << n.splitUnknots << '\t'
                       << pieces.str() << '\t' << n.proof() << '\t' << drawn.size() << '\t'
                       << ms << '\n';
         } catch (const std::exception &e) {
-            std::cout << id << '\t' << row << "\tFAILED\t" << e.what() << '\n';
+            std::cout << id << '\t' << incoming << "\tFAILED\t" << e.what() << '\n';
         }
     }
-    flushRow(redraw.get());
+    flushIncoming(redraw.get());
     if (profile)
-        std::cerr << "profile: " << cobordisms << " witnesses, " << rows << " rows, "
-                  << named << " distinct diagrams named; ms: build row " << msRow
+        std::cerr << "profile: " << cobordisms << " witnesses, " << diagrams << " rows, "
+                  << named << " distinct diagrams named; ms: build row " << msIncoming
                   << ", decode pairsig " << msDecode << ", isomorphism search " << msIso
                   << ", surface+orient " << msOrient << " (KnottedSurface build " << msSurface
                   << " = constructor/boundary builds " << msBoundaryBuild << " + addFaces "

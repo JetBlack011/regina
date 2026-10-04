@@ -35,14 +35,14 @@ namespace bounds {
 
 /// What a checker needs to replay one cobordism edge of the graph.
 struct EdgeInfo {
-  std::string searchDir, rowPD, key;
+  std::string searchDir, incomingPD, key;
   AddedCobordism he;
   int layers = 2;
   std::string pairsig; ///< inline for master witnesses (no hop directory)
   /// The row diagram's component i is the node's rowNodeMap[i]: identity
   /// for a hop on the node's own diagram, the registry's map for a master
   /// row (the table's diagram).
-  std::vector<int> rowNodeMap;
+  std::vector<int> incomingLinkMap;
   /// An in-process hop's surface, as triangles of the row's thickening,
   /// and that thickening's digest (WitnessRedrawer::buildChecksum()). A
   /// certificate carries both; the checker rebuilds the row, refuses a

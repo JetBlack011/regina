@@ -68,18 +68,18 @@ void writeTables() {
 
 // The row thickened as verifyslicegenus does it (buildAmbient(): two
 // layers, the collar through both).
-struct Row : ThickenedLink {
-    explicit Row(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }
+struct Thickened : ThickenedLink {
+    explicit Thickened(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }
 };
 
 void test_collar_outgoing_is_the_incoming(const std::string &name, const std::string &pd,
                                      const std::string &want,
                                      const linknaming::SignatureTable &table) {
-    Row row(pd);
-    outgoing::DiagramNamer namer(row.link.tri, knotbuilder::parsePDCode(pd).size(),
-                                *row.cob, table);
-    Skeleton<4, 2> skeleton(row.tri);
-    KnottedSurface collar(skeleton, row.seedFaces);
+    Thickened thickened(pd);
+    outgoing::DiagramNamer namer(thickened.link.tri, knotbuilder::parsePDCode(pd).size(),
+                                *thickened.cob, table);
+    Skeleton<4, 2> skeleton(thickened.tri);
+    KnottedSurface collar(skeleton, thickened.seedFaces);
     std::string got = "<no far side>";
     for (const auto &[bc, link] : collar.boundaryLinks())
         if (namer.handles(bc)) got = namer.name(link);
@@ -89,12 +89,12 @@ void test_collar_outgoing_is_the_incoming(const std::string &name, const std::st
 }
 
 void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
-    Row row("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-    outgoing::DiagramNamer namer(row.link.tri, 3, *row.cob, table);
-    size_t bc = row.tri.boundaryComponent(0)->index() == row.cob->baseBoundaryComponent()->index()
+    Thickened thickened("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
+    outgoing::DiagramNamer namer(thickened.link.tri, 3, *thickened.cob, table);
+    size_t bc = thickened.tri.boundaryComponent(0)->index() == thickened.cob->baseBoundaryComponent()->index()
                     ? 1
                     : 0;
-    regina::Triangulation<3> boundary = row.tri.boundaryComponent(bc)->build();
+    regina::Triangulation<3> boundary = thickened.tri.boundaryComponent(bc)->build();
     const regina::Triangle<3> *t = boundary.triangle(0);
     std::vector<const regina::Edge<3> *> edges{t->edge(0), t->edge(1), t->edge(2)};
     Link curve(boundary, edges);

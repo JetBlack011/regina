@@ -84,7 +84,7 @@ using bounds::ProofGraph;
 using bounds::RecordId;
 using bounds::RecordKind;
 using bounds::allPartitions;
-using bounds::rowPD;
+using bounds::diagramPD;
 using cobordisms::StoreResult;
 using cobordisms::signPending;
 using linknaming::simplifyKeepingComponents;
@@ -211,8 +211,8 @@ private:
   std::unique_ptr<Searcher> searcher_;
   /// The database's cobordisms as free edges (master_witnesses).
   std::unique_ptr<DatabaseCobordisms> database_;
-  bool masterRowsFor(NodeId n) const {
-    return database_ && database_->rowsFor(n, axioms_, tables_);
+  bool masterSubjectsFor(NodeId n) const {
+    return database_ && database_->subjectsFor(n, axioms_, tables_);
   }
   bool masterDone(NodeId n) const { return database_ && database_->loaded(n); }
   void loadMaster(NodeId n, bool countsAsExpansion = true);
@@ -304,7 +304,7 @@ void Scheduler::loadMaster(NodeId n, bool countsAsExpansion) {
   driver_.master += database_->load(n, load);
   // The target's own rows stand in for its first hop at this budget level;
   // a node loaded lazily is expanded right after, so its load counts nothing.
-  if (countsAsExpansion && masterRowsFor(n)) expansions_[n].push_back(0);
+  if (countsAsExpansion && masterSubjectsFor(n)) expansions_[n].push_back(0);
 }
 
 bool Scheduler::useful(NodeId n) const {
@@ -505,21 +505,21 @@ void Scheduler::expand(NodeId n, long surfaces) {
                           kFrozenHopDirNodeMark + std::to_string(n);
   fs::create_directories(dir);
   const GaussDiagram &d = reg_.info(n).diagram;
-  SearchedLink row;
-  row.node = n;
-  row.diagram = d;
-  row.nodeMap.resize(d.components());
-  std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
-  row.pd = rowPD(d);
-  row.layers = *cfg_.runShape.layers;
+  SearchedLink searched;
+  searched.node = n;
+  searched.diagram = d;
+  searched.nodeMap.resize(d.components());
+  std::iota(searched.nodeMap.begin(), searched.nodeMap.end(), 0);
+  searched.pd = diagramPD(d);
+  searched.layers = *cfg_.runShape.layers;
   using clock = std::chrono::steady_clock;
   auto seconds = [](clock::time_point a, clock::time_point b) {
     return std::chrono::duration<double>(b - a).count();
   };
-  const auto tRow = clock::now();
+  const auto tBuild = clock::now();
   std::unique_ptr<CobordismAssembler> assembler;
   try {
-    assembler = std::make_unique<CobordismAssembler>(g_, reg_, row);
+    assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched);
   } catch (const std::exception &e) {
     refused_.insert(n);
     // The row as given, to diagnose the refusal: its PD, whether Regina can
@@ -535,7 +535,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
     }
     gauss << "]}";
     log("{\"hop\":" + std::to_string(k) + ",\"node\":" + std::to_string(n) +
-        ",\"refused\":\"" + json::escape(e.what()) + "\",\"pd\":\"" + json::escape(row.pd) +
+        ",\"refused\":\"" + json::escape(e.what()) + "\",\"pd\":\"" + json::escape(searched.pd) +
         "\",\"pd_ambiguous\":" + (d.link().pdAmbiguous() ? "true" : "false") +
         ",\"diagram\":" + gauss.str() + "}");
     std::cout << "[!] node " << n << " refused: " << e.what() << "\n";
@@ -544,15 +544,15 @@ void Scheduler::expand(NodeId n, long surfaces) {
   // Where a hop's time goes, logged per hop: the row's build and
   // certification, the search's setup and the search itself, adding its
   // surfaces, naming new nodes, and relaxing the graph.
-  double rowSeconds = seconds(tRow, clock::now()), setupSeconds = 0, searchSeconds = 0;
+  double buildSeconds = seconds(tBuild, clock::now()), setupSeconds = 0, searchSeconds = 0;
   std::string roundsJson = "[]";
   size_t drainTail = 0;
   double drainTailSeconds = 0;
   std::string namingJson; // the drain's naming times
   // The hop's subject: what its witnesses are recorded under, and what its
   // log lines are named by (subjectName()).
-  const std::string rowName = subjectName(n);
-  searchSubject_[n] = rowName;
+  const std::string subject = subjectName(n);
+  searchSubject_[n] = subject;
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
   size_t cobordisms = 0;
@@ -576,7 +576,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
     if (e.ok) {
       ++assembled;
       const bool inProcess = !faces.empty();
-      EdgeInfo info{dir, row.pd, key, e, 2, "", row.nodeMap, std::move(faces),
+      EdgeInfo info{dir, searched.pd, key, e, 2, "", searched.nodeMap, std::move(faces),
                     inProcess ? build : std::string()};
       if (e.direct) edges_.direct[key] = std::move(info);
       else edges_.byEdge[e.edge] = std::move(info);
@@ -595,16 +595,16 @@ void Scheduler::expand(NodeId n, long surfaces) {
     SearchResult run;
     try {
       SearchRequest request =
-          searcher_->requestFor(assembler->redrawer(), rowName, surfaces, cfg_.searchSeconds);
+          searcher_->requestFor(assembler->redrawer(), subject, surfaces, cfg_.searchSeconds);
       request.resume = resume;
-      if (tables_.entry(rowName)) request.censusName = linknaming::baseName(rowName);
+      if (tables_.entry(subject)) request.censusName = linknaming::baseName(subject);
       // Every kept surface, durably, as the search runs (divergence 7): the
       // hop's pending file, signed at the run's end (storeWitnesses()).
-      request.rowPD = row.pd;
-      request.layers = row.layers;
+      request.incomingPD = searched.pd;
+      request.layers = searched.layers;
       if (!cfg_.cobordismsPath.empty()) request.pending = dir + "/kept.csv";
       request.runDirectory = cfg_.work;
-      run = searcher_->run(assembler->redrawer().rowBuild(), request);
+      run = searcher_->run(assembler->redrawer().thickened(), request);
     } catch (const SeedInvariantFailure &e) {
       // Divergence 2: an impossible state halts the run, once what it found
       // is written (run()).
@@ -630,9 +630,9 @@ void Scheduler::expand(NodeId n, long surfaces) {
     drainTail = run.drainTail;
     drainTailSeconds = run.drainTailSeconds;
     std::ofstream(dir + "/log.txt")
-        << "[+] " << rowName << " " << row.pd << "\n[+] " << rowName << ": "
-        << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << rowName
-        << ": accounting: " << run.accounting << "\n[+] " << rowName
+        << "[+] " << subject << " " << searched.pd << "\n[+] " << subject << ": "
+        << run.kept.size() << " kept, outcome " << run.outcome << "\n[+] " << subject
+        << ": accounting: " << run.accounting << "\n[+] " << subject
         << ": diagram naming: " << run.naming << "\n";
     namingJson = [&] {
       std::ostringstream o;
@@ -645,8 +645,8 @@ void Scheduler::expand(NodeId n, long surfaces) {
     // Every hop's accounting in the driver log too, in verifyslicegenus's
     // shape after the hop number, so a campaign audits each hop as it
     // audits a row (tools/orchestrate/audit_rows.py).
-    std::cout << "[+] " << kFrozenHopLine << k << " " << rowName << ": accounting: "
-              << run.accounting << "\n[+] " << kFrozenHopLine << k << " " << rowName
+    std::cout << "[+] " << kFrozenHopLine << k << " " << subject << ": accounting: "
+              << run.accounting << "\n[+] " << kFrozenHopLine << k << " " << subject
               << ": diagram naming: " << run.naming
               << "\n";
     if (run.impossible > 0) {
@@ -662,7 +662,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
                 << "is recorded)\n";
     }
     // The node's breadth so far, and where its next hop carries on from.
-    std::cout << "[+] " << kFrozenHopLine << k << " " << rowName << ": breadth: "
+    std::cout << "[+] " << kFrozenHopLine << k << " " << subject << ": breadth: "
               << (run.frontier ? run.frontier->summary() : std::string("not recorded"))
               << "; resumed "
               << (!resume ? std::string("none")
@@ -710,7 +710,7 @@ void Scheduler::expand(NodeId n, long surfaces) {
   o << "{\"hop\":" << k << ",\"node\":" << n << ",\"crossings\":" << d.crossings()
     << ",\"surfaces\":" << surfaces << ",\"status\":" << r.status
     << ",\"wall\":" << std::fixed << std::setprecision(1) << r.wall << ",\"cpu\":" << r.cpu
-    << ",\"assemble\":" << assemble << ",\"row\":" << rowSeconds
+    << ",\"assemble\":" << assemble << ",\"row\":" << buildSeconds
     << ",\"setup\":" << setupSeconds << ",\"search\":" << searchSeconds
     << ",\"add\":" << addSeconds << ",\"name_nodes\":" << nodeSeconds
     << ",\"propagate\":" << propagateSeconds << ",\"rounds\":" << roundsJson
@@ -898,7 +898,7 @@ int Scheduler::run() {
     }
     // Free edges first (no search, so no budget): the target's own master
     // rows, if it is a table entry the atlas searched.
-    if (database_ && !masterDone(target_) && masterRowsFor(target_)) {
+    if (database_ && !masterDone(target_) && masterSubjectsFor(target_)) {
       loadMaster(target_);
       continue;
     }
@@ -931,7 +931,7 @@ int Scheduler::run() {
       std::cout << "[+] raising the hop budget to " << budget << " surfaces\n";
       continue;
     }
-    if (database_ && !masterDone(*n) && masterRowsFor(*n)) {
+    if (database_ && !masterDone(*n) && masterSubjectsFor(*n)) {
       // Its stored rows first: free edges, which may close the proof
       // without the hop, and are in any case what the hop would refind.
       loadMaster(*n, /*countsAsExpansion=*/false);

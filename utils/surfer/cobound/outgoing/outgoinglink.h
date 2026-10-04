@@ -53,7 +53,7 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve);
  * (search::judgeRowOrientation()'s consistentFlips(): one walk.)
  */
 std::optional<std::map<size_t, int>> incomingFlips(
-    const search::RowOrientation &row,
+    const search::IncomingOrientation &incoming,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
@@ -75,7 +75,7 @@ struct OutgoingLink {
  */
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
-    const search::RowOrientation &row, size_t incomingBC);
+    const search::IncomingOrientation &incoming, size_t incomingBC);
 
 /**
  * As above, from a surface's boundary as a search hands it out
@@ -85,7 +85,7 @@ std::optional<OutgoingLink> orientedOutgoingLink(
 std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
-    const OutgoingMap &map, const search::RowOrientation &row,
+    const OutgoingMap &map, const search::IncomingOrientation &incoming,
     size_t incomingBC, std::string *why = nullptr);
 
 /**

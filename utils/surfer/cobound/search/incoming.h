@@ -33,14 +33,14 @@ namespace search {
  * component, rebuilt via `BoundaryComponent<4>::build()` (see
  * buildRowOrientation()).
  */
-struct RowOrientation {
+struct IncomingOrientation {
     std::unordered_map<size_t, size_t> tailOf;
     /**< Edge index of L in the search-side triangulation -> index of that
          edge's tail vertex under the row's PD orientation. Keyed by edge,
          not by vertex pair, so two edges joining the same pair of vertices
          can never be confused. */
     std::vector<size_t> edges; /**< Sorted keys of tailOf: L's edge set. */
-    std::unordered_map<size_t, size_t> rowIndexOf;
+    std::unordered_map<size_t, size_t> incomingIndexOf;
     /**< Edge index of L in the search-side triangulation -> that edge's
          position in the rowEdges given to buildRowOrientation(), i.e. which
          edge of the row's own link it is. Lets a caller tell which
@@ -72,9 +72,9 @@ struct RowOrientation {
  * `requiredEdges`, or if the image of L fails to chain into closed directed
  * curves.
  */
-RowOrientation
-buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
-                    const std::vector<bool> &rowReversed,
+IncomingOrientation
+buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdges,
+                    const std::vector<bool> &diagramReversed,
                     const regina::Triangulation<3> &incomingTri,
                     const std::vector<size_t> *requiredEdges = nullptr);
 } // namespace search
@@ -99,8 +99,8 @@ namespace search {
  * Filled in place by buildRow() and never moved: a DiagramNamer and a
  * SurfaceSearch built from it hold pointers into `link.tri` and `cob`.
  */
-struct RowBuild : ThickenedLink {
-    std::optional<search::RowOrientation> orientation;
+struct IncomingThickening : ThickenedLink {
+    std::optional<search::IncomingOrientation> orientation;
     /**< The row map: L's edges and PD orientation in search-side terms. */
     std::vector<size_t> incomingEdges;
     /**< The row's own link on the search side, as sorted edge indices of that
@@ -114,8 +114,8 @@ struct RowBuild : ThickenedLink {
  *
  * \throws regina::InvalidArgument as either does.
  */
-void buildRow(const std::string &pdNotation, int thickenLayers,
-              int collarLayers, RowBuild &row);
+void buildIncoming(const std::string &pdNotation, int thickenLayers,
+              int collarLayers, IncomingThickening &thickened);
 
 /**
  * The row map for an ambient built by buildAmbient(). Checks, once, that the
@@ -124,7 +124,7 @@ void buildRow(const std::string &pdNotation, int thickenLayers,
  * \throws regina::InvalidArgument for a row map that cannot be built or
  * fails those checks.
  */
-void orientRow(RowBuild &row);
+void orientIncoming(IncomingThickening &thickened);
 
 } // namespace search
 

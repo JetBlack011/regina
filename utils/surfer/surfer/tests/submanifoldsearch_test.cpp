@@ -544,18 +544,18 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
                  "edge-level, and exempts its own seed ---\n";
 
     const char *TREFOIL_PD = "1 4 2 5 3 6 4 1 5 2 6 3";
-    ThickenedLink row; // two layers, the collar through both, no cone
-    buildAmbient(TREFOIL_PD, 2, 2, row);
+    ThickenedLink thickened; // two layers, the collar through both, no cone
+    buildAmbient(TREFOIL_PD, 2, 2, thickened);
 
-    size_t incomingBC = row.incomingBC;
-    const regina::Triangulation<4> &tri = row.tri;
+    size_t incomingBC = thickened.incomingBC;
+    const regina::Triangulation<4> &tri = thickened.tri;
     EXPECT_EQ((int)tri.countBoundaryComponents(), 2,
               "no cone() -- search side and far side are both still open, "
               "genuinely distinct ambient boundary components");
 
     size_t outgoingBC = (incomingBC == 0) ? 1 : 0;
 
-    const std::vector<int> &seedFaces = row.seedFaces;
+    const std::vector<int> &seedFaces = thickened.seedFaces;
     EXPECT_EQ(seedFaces.empty(), false, "the collar produced a non-empty seed");
 
     // At least one seed triangle is NOT itself a boundary triangle of

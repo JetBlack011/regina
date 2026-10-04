@@ -71,16 +71,16 @@ int main(int argc, char *argv[]) {
             const std::string pd = line.substr(c1 + 1, c2 - c1 - 1);
             ++c.rows;
             try {
-                ThickenedLink row;
-                buildAmbient(pd, layers, layers, row);
-                const regina::Triangulation<3> &t = row.link.tri;
+                ThickenedLink thickened;
+                buildAmbient(pd, layers, layers, thickened);
+                const regina::Triangulation<3> &t = thickened.link.tri;
 
                 long loopT = 0;
                 for (const regina::Edge<3> *e : t.edges())
                     if (e->vertex(0) == e->vertex(1))
                         ++loopT;
 
-                const regina::Triangulation<4> &tri = row.tri;
+                const regina::Triangulation<4> &tri = thickened.tri;
 
                 long loop4 = 0;
                 for (const regina::Edge<4> *e : tri.edges())

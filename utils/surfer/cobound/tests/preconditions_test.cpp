@@ -98,7 +98,7 @@ void test_gate_reasons() {
 
 void test_accounting() {
     {
-        RowAccounting a;
+        SearchAccounting a;
         a.described = 10;
         a.recorded = 3;
         a.duplicate = 5;
@@ -127,7 +127,7 @@ void test_accounting() {
                  "a rebuild failure");
     }
     {
-        RowAccounting a;
+        SearchAccounting a;
         a.described = 5;
         a.recorded = 4;
         expectEq(a.failure(5, 0, false),
@@ -135,7 +135,7 @@ void test_accounting() {
                  "a described surface in no bucket");
     }
     {
-        RowAccounting a;
+        SearchAccounting a;
         a.described = 6;
         a.recorded = 1;
         for (Gate g : {Gate::nonOrientable, Gate::incomingBroken,
@@ -150,7 +150,7 @@ void test_accounting() {
                  "impossible states are a failure");
     }
     {
-        RowAccounting a;
+        SearchAccounting a;
         a.described = 3;
         a.reject(Gate::orientation);
         a.reject(Gate::orientation);
@@ -171,7 +171,7 @@ std::vector<std::string> watch(WatchdogLimits limits, long long satisfying,
                                std::chrono::milliseconds wait) {
     std::mutex m;
     std::vector<std::string> reasons;
-    RowWatchdog w(std::move(limits), [&](const char *why) {
+    SearchWatchdog w(std::move(limits), [&](const char *why) {
         std::lock_guard<std::mutex> lock(m);
         reasons.emplace_back(why);
     });
@@ -187,15 +187,15 @@ void test_watchdog() {
     auto r = watch({}, 0, 450ms);
     expect(r.empty(), "no limit: never fires");
 
-    r = watch({.surfaceTarget = 100, .rowSeconds = 0.0}, 100, 450ms);
+    r = watch({.surfaceTarget = 100, .seconds = 0.0}, 100, 450ms);
     expect(r.size() == 1 && r[0] == "surface-target",
            "target and deadline in one tick: the target is recorded");
 
-    r = watch({.surfaceTarget = 100, .rowSeconds = 0.0}, 99, 450ms);
+    r = watch({.surfaceTarget = 100, .seconds = 0.0}, 99, 450ms);
     expect(r.size() == 1 && r[0] == "timeout",
            "short of the target: the deadline");
 
-    r = watch({.rowSeconds = 10.0}, 0, 450ms);
+    r = watch({.seconds = 10.0}, 0, 450ms);
     expect(r.empty(), "before the deadline: nothing");
 }
 
@@ -219,7 +219,7 @@ class OutgoingStubNamer : public BoundaryNamer {
 
 struct GateRun {
     long long accepted = 0;
-    RowAccounting acct;
+    SearchAccounting acct;
     std::string failure;
     long long drainSkipped = 0;
     int signaturesChecked = 0;
@@ -232,8 +232,8 @@ struct GateRun {
 // the first few also have their deferred pair signature compared.
 void gateRun(const std::string &pd, const std::string &name, GateRun &out,
              int signatures) {
-    RowBuild rb;
-    buildRow(pd, 2, 2, rb);
+    IncomingThickening rb;
+    buildIncoming(pd, 2, 2, rb);
     SurfaceSearchLimits limits;
     limits.capturePairSig = true;
     SurfaceSearch e(rb.tri, rb.seedFaces, rb.incomingBC);

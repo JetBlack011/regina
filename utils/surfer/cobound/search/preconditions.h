@@ -83,7 +83,7 @@ enum class OrientationVerdict {
 };
 
 /** judgeRowOrientation()'s answer: the verdict, and the flips it implies. */
-struct RowOrientationJudgement {
+struct IncomingOrientationJudgement {
     OrientationVerdict verdict = OrientationVerdict::mismatch;
     /** Per surface component met by a curve, +1 when its curves run as the
      *  row's link does, -1 when against: every component's, when the
@@ -120,13 +120,13 @@ struct RowOrientationJudgement {
  * `foreignEdge` and `incoherentCurve` cannot happen for a correctly built
  * row in a seeded search; the caller treats them as bugs.
  */
-RowOrientationJudgement judgeRowOrientation(
-    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+IncomingOrientationJudgement judgeIncomingOrientation(
+    const IncomingOrientation &incoming, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
 /** judgeRowOrientation()'s verdict. */
-OrientationVerdict classifyRowOrientation(
-    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+OrientationVerdict classifyIncomingOrientation(
+    const IncomingOrientation &incoming, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf);
 
 } // namespace search
@@ -175,7 +175,7 @@ struct GatedSurface {
  * row's component count; the row's own orientation, per surface component
  * (search::classifyRowOrientation()); at most one far side.
  */
-GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row);
+GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickening &thickened);
 
 /**
  * The name a witness records for an accepted surface's one far side: the
@@ -194,7 +194,7 @@ std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *na
  * row end they must add up to what the search accepted. A surface can never
  * vanish between the search and the witness record without being counted.
  */
-struct RowAccounting {
+struct SearchAccounting {
     std::atomic<long long> described{0};
     std::atomic<long long> recorded{0};
     std::atomic<long long> duplicate{0};
@@ -245,7 +245,7 @@ struct RowAccounting {
  * string (surface components are unlabelled, so the entries are sorted).
  */
 std::string keptKey(const cobordisms::Cobordism &w, const outgoing::OutgoingLink &link,
-                    const outgoing::OutgoingReader &row);
+                    const outgoing::OutgoingReader &reader);
 } // namespace search
 
 #endif // SURFER_COBOUND_PRECONDITIONS_H

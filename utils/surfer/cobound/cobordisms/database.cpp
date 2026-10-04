@@ -61,7 +61,7 @@ std::string formatCobordism(const cobordisms::Cobordism &w) {
       << csvField(w.other) << ',' << csvField(candidates.str()) << ','
       << w.otherComponents << ',' << w.genus << ','
       << (w.tubed ? "true" : "false") << ',' << csvField(w.pairSig) << ','
-      << csvField(w.sourceRow) << ',' << w.thickenLayers << ',' << w.maxFaces
+      << csvField(w.sourceSearch) << ',' << w.thickenLayers << ',' << w.maxFaces
       << ',';
   if (w.resolvedVertices != 0)
     out << w.resolvedVertices;
@@ -99,7 +99,7 @@ bool cobordismFromFields(std::vector<std::string> f, cobordisms::Cobordism &w,
     w.pairSigKey = cobordisms::cobordismKey(f[8]);
   if (keepPairSig)
     w.pairSig = std::move(f[8]);
-  w.sourceRow = f[9];
+  w.sourceSearch = f[9];
   // Optional 13th field (absent in files written before it existed).
   // Informational only, so an unreadable value never costs the witness
   // itself.
@@ -252,7 +252,7 @@ DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
     while (std::getline(side, line)) {
       auto f = parseCsvLine(line);
       if (f.size() >= 3 && !f[2].empty())
-        rowPD_[f[0]] = f[2];
+        incomingPD_[f[0]] = f[2];
     }
   }
   std::getline(in, line);
@@ -273,7 +273,7 @@ DatabaseIndex::DatabaseIndex(const std::string &path) : path_(path) {
   }
 }
 
-std::vector<StoredCobordism> DatabaseIndex::rows(const std::string &subject) const {
+std::vector<StoredCobordism> DatabaseIndex::ofSubject(const std::string &subject) const {
   auto it = offsets_.find(subject);
   return it == offsets_.end() ? std::vector<StoredCobordism>{} : read(it->second, 1u << 30);
 }
@@ -299,9 +299,9 @@ std::vector<StoredCobordism> DatabaseIndex::read(const std::vector<std::streamof
                           path_))
       continue;
     s.cobordism.fileOffset = static_cast<long long>(off);
-    if (!rowPD_.empty())
-      if (auto r = rowPD_.find(cobordisms::cobordismKey(s.cobordism.pairSig)); r != rowPD_.end())
-        s.rowPD = r->second;
+    if (!incomingPD_.empty())
+      if (auto r = incomingPD_.find(cobordisms::cobordismKey(s.cobordism.pairSig)); r != incomingPD_.end())
+        s.incomingPD = r->second;
     out.push_back(std::move(s));
   }
   return out;

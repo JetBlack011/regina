@@ -35,11 +35,11 @@ pairSigContextFor(const regina::Triangulation<4> &thickening, const std::string 
 
 std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
                                     unsigned threads, const std::string &cacheDir) {
-  std::map<std::pair<std::string, int>, std::vector<size_t>> byRow;
+  std::map<std::pair<std::string, int>, std::vector<size_t>> byDiagram;
   for (size_t i = 0; i < requests.size(); ++i)
-    byRow[{requests[i].rowPD, requests[i].layers}].push_back(i);
-  std::vector<const std::pair<const std::pair<std::string, int>, std::vector<size_t>> *> rows;
-  for (const auto &entry : byRow) rows.push_back(&entry);
+    byDiagram[{requests[i].incomingPD, requests[i].layers}].push_back(i);
+  std::vector<const std::pair<const std::pair<std::string, int>, std::vector<size_t>> *> diagrams;
+  for (const auto &entry : byDiagram) diagrams.push_back(&entry);
 
   std::vector<std::string> out(requests.size());
   std::mutex errorMutex;
@@ -48,14 +48,14 @@ std::vector<std::string> pairSigsOf(const std::vector<SignRequest> &requests,
   // ambient's isoSig, nearly all of signing) on threads / workers of them,
   // so a run that kept surfaces from one row -- every 12-crossing knot row
   // of a campaign -- signs on all of them rather than one.
-  if (rows.empty()) return out;
-  const size_t n = std::min<size_t>(std::max(threads, 1u), rows.size());
+  if (diagrams.empty()) return out;
+  const size_t n = std::min<size_t>(std::max(threads, 1u), diagrams.size());
   const unsigned inner = std::max(1u, static_cast<unsigned>(std::max(threads, 1u) / n));
-  parallelFor(rows.size(), static_cast<unsigned>(n), [&](size_t r) {
+  parallelFor(diagrams.size(), static_cast<unsigned>(n), [&](size_t r) {
     try {
-      const auto &[row, indices] = *rows[r];
-      search::RowBuild rb;
-      search::buildRow(row.first, row.second, row.second, rb);
+      const auto &[diagram, indices] = *diagrams[r];
+      search::IncomingThickening rb;
+      search::buildIncoming(diagram.first, diagram.second, diagram.second, rb);
       const std::unique_ptr<PairSigContext<4, 2>> context =
           pairSigContextFor(rb.tri, cacheDir, inner);
       for (size_t i : indices) out[i] = context->sig(requests[i].faces);

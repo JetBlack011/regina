@@ -42,19 +42,19 @@ using namespace search;
 
 namespace {
 
-SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  SearchedLink row;
-  row.node = nm.node;
-  row.diagram = d;
-  row.nodeMap = nm.componentMap;
-  row.pd = pd;
-  row.layers = 2;
-  return row;
+  SearchedLink searched;
+  searched.node = nm.node;
+  searched.diagram = d;
+  searched.nodeMap = nm.componentMap;
+  searched.pd = pd;
+  searched.layers = 2;
+  return searched;
 }
 
 // What an edge says, independent of how its surface was read: per surface
@@ -69,14 +69,14 @@ SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
 // symmetric far side (the Hopf link) may be matched to its node by either of
 // two component maps. Both reads are then true, and differ by a symmetry of
 // the row and one of the far side: so they are compared up to those.
-std::string content(const ProofGraph &g, const AddedCobordism &e, const std::vector<int> &rowPerm,
+std::string content(const ProofGraph &g, const AddedCobordism &e, const std::vector<int> &incomingPerm,
                     const std::vector<int> &outgoingPerm) {
   if (!e.ok) return "not ok: " + e.why;
   if (e.direct) return "direct";
   const LinkCobordism &w = g.cobordism(e.edge);
   std::map<int, std::pair<std::vector<int>, std::vector<int>>> bySurface;
   for (size_t c = 0; c < w.shape.inComponent.size(); ++c)
-    bySurface[w.shape.inComponent[c]].first.push_back(rowPerm[c]);
+    bySurface[w.shape.inComponent[c]].first.push_back(incomingPerm[c]);
   for (size_t j = 0; j < w.outMap.size(); ++j)
     bySurface[w.shape.outComponent[j]].second.push_back(outgoingPerm[w.outMap[j]]);
   std::vector<std::string> parts;
@@ -115,21 +115,21 @@ std::vector<std::vector<int>> symmetries(const GaussDiagram &d) {
 }
 
 // Whether the two reads of one surface say the same, up to symmetries.
-bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, const AddedCobordism &a,
+bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId incomingLink, const AddedCobordism &a,
               const AddedCobordism &b) {
-  const int rowN = g.node(rowNode).components;
-  std::vector<int> rowId(rowN);
-  for (int i = 0; i < rowN; ++i) rowId[i] = i;
+  const int incomingN = g.node(incomingLink).components;
+  std::vector<int> incomingId(incomingN);
+  for (int i = 0; i < incomingN; ++i) incomingId[i] = i;
   if (!a.ok || !b.ok || a.direct || b.direct)
-    return content(g, a, rowId, {}) == content(g, b, rowId, {});
+    return content(g, a, incomingId, {}) == content(g, b, incomingId, {});
   const int outgoingN = g.node(a.outgoing).components;
   std::vector<int> outgoingId(outgoingN);
   for (int i = 0; i < outgoingN; ++i) outgoingId[i] = i;
-  const std::string want = content(g, a, rowId, outgoingId);
+  const std::string want = content(g, a, incomingId, outgoingId);
   std::vector<std::vector<int>> outgoingSyms = {outgoingId};
   if (a.pieces.size() == 1 && reg.known(a.outgoing))
     outgoingSyms = symmetries(reg.info(a.outgoing).diagram);
-  for (const auto &rp : symmetries(reg.info(rowNode).diagram))
+  for (const auto &rp : symmetries(reg.info(incomingLink).diagram))
     for (const auto &fp : outgoingSyms)
       if (content(g, b, rp, fp) == want) return true;
   return false;
@@ -153,14 +153,14 @@ RunShape capThree() {
 // searched thickening; testBatchSigning() signs them again all at once.
 std::vector<std::pair<SignRequest, std::string>> signed_;
 
-void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
+void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name,
               const std::string &pd, long long accepted, long long otherOrientation) {
   // One graph and registry for both reads, so equal far sides are one node.
   ProofGraph g;
   NodeRegistry reg(g);
-  const SearchedLink row = makeRow(reg, pd);
-  CobordismAssembler inProcess(g, reg, row);
-  CobordismAssembler byPairSig(g, reg, row);
+  const SearchedLink searched = makeSearchedLink(reg, pd);
+  CobordismAssembler inProcess(g, reg, searched);
+  CobordismAssembler byPairSig(g, reg, searched);
 
   Searcher searcher(sigs, nullptr, capThree(), 4);
   SearchResult run = searcher.run(inProcess.redrawer(), name, 1'000'000'000LL, 600);
@@ -176,7 +176,7 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
   std::set<std::string> keys;
   int same = 0, compared = 0, fromFaces = 0;
   const outgoing::OutgoingReader &redraw = inProcess.redrawer();
-  const std::vector<int> seed = redraw.rowBuild().seedFaces;
+  const std::vector<int> seed = redraw.thickened().seedFaces;
   for (size_t i = 0; i < run.kept.size(); ++i) {
     const KeptSurface &k = run.kept[i];
     keys.insert(k.key);
@@ -186,7 +186,7 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
     signed_.push_back({{pd, 2, k.faces}, sig});
     const AddedCobordism b = byPairSig.add({sig, k.genus, key});
     ++compared;
-    if (a.ok && sameEdge(g, reg, row.node, a, b)) {
+    if (a.ok && sameEdge(g, reg, searched.node, a, b)) {
       ++same;
     } else {
       std::cout << "  " << name << " kept surface " << i << " (" << k.outgoingName << "): in process ok="
@@ -269,7 +269,7 @@ void testBatchSigning() {
 void testStop(const linknaming::SignatureTable &sigs) {
   ProofGraph g;
   NodeRegistry reg(g);
-  CobordismAssembler assembler(g, reg, makeRow(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
+  CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
   Searcher searcher(sigs, nullptr, capThree(), 4);
   int asked = 0;
   SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600,
@@ -286,8 +286,8 @@ int main() {
   const std::string data = COBOUND_TEST_DATA;
   const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(
       data + "/knots_to_6.csv", data + "/links_to_6.csv");
-  checkRow(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
-  checkRow(sigs, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
+  checkSearch(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
+  checkSearch(sigs, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
   testBuildChecksum();
   testBatchSigning();
   testStop(sigs);

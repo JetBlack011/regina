@@ -86,7 +86,7 @@ void writeNodeBounds(const std::string &work, const GraphView &v) {
       o << ",\"crossings\":" << d.crossings() << ",\"hyperbolic\":"
         << (ni.hyperbolic ? "true" : "false");
       if (ni.hyperbolic) o << ",\"volume\":" << std::setprecision(12) << ni.volume;
-      o << ",\"pd\":\"" << json::escape(rowPD(d)) << "\",\"signs\":" << json::array(d.signs) << ",\"gauss\":[";
+      o << ",\"pd\":\"" << json::escape(diagramPD(d)) << "\",\"signs\":" << json::array(d.signs) << ",\"gauss\":[";
       for (size_t c = 0; c < d.comps.size(); ++c) o << (c ? "," : "") << json::array(d.comps[c]);
       o << "],\"linking\":[";
       for (size_t a = 0; a < ni.linking.size(); ++a) o << (a ? "," : "") << json::array(ni.linking[a]);
@@ -237,7 +237,7 @@ void writeNodesCsv(const std::string &work, const std::map<NodeId, std::string> 
     }
     gauss << ']';
     nodes << csvField(name) << ',' << d.components() << ',' << d.crossings() << ','
-          << csvField(rowPD(d)) << ',' << csvField(signs.str()) << ','
+          << csvField(diagramPD(d)) << ',' << csvField(signs.str()) << ','
           << csvField(gauss.str()) << ',' << kFrozenNodesCsvLabel << n << '\n';
   }
 }

@@ -121,7 +121,7 @@ private:
  * the same reasoning that makes witness checkpoints a per-row operation.
  */
 void appendSurfaceStats(const std::filesystem::path &path,
-                        const std::string &rowName, long long maxFaces,
+                        const std::string &subject, long long maxFaces,
                         const std::map<SurfaceStatsKey, long long> &counts);
 
 /**
@@ -131,7 +131,7 @@ void appendSurfaceStats(const std::filesystem::path &path,
  * run keeps what it measured.
  */
 void appendSelfIntersectionCensus(const std::filesystem::path &path,
-                                  const std::string &rowName,
+                                  const std::string &subject,
                                   long long maxFaces, bool resolveUnlinked,
                                   const SearchStats &stats,
                                   SelfIntersectionCensus &census);

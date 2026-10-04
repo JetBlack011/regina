@@ -45,8 +45,8 @@ void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
   if (it == edges_.byEdge.end()) return;
   const AddedCobordism &he = it->second.he;
   c << ",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
-    << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
-    << ",\"row_node_map\":" << json::array(it->second.rowNodeMap);
+    << json::escape(it->second.incomingPD) << "\",\"layers\":" << it->second.layers
+    << ",\"row_node_map\":" << json::array(it->second.incomingLinkMap);
   writeSurface(c, it->second);
   c << ",\"split_edge\":" << he.splitEdge << ",\"farCurveEdges\":[";
   for (size_t j = 0; j < he.outgoingCurveEdges.size(); ++j)
@@ -101,7 +101,7 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
       if (auto it = edges_.direct.find(key); it != edges_.direct.end()) {
         c << ",\"witness\":\"" << json::escape(it->second.key)
           << "\",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
-          << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
+          << json::escape(it->second.incomingPD) << "\",\"layers\":" << it->second.layers;
         writeSurface(c, it->second);
       }
     }
@@ -289,7 +289,7 @@ void CertificateWriter::writeNodes(std::ostream &c, const std::set<NodeId> &node
       // The node's own diagram, as signed Gauss data: component maps refer
       // to ITS component order, which a PD round trip need not keep.
       const linknaming::GaussDiagram &d = reg_.info(n).diagram;
-      c << ",\"pd\":\"" << json::escape(rowPD(d)) << "\",\"signs\":[";
+      c << ",\"pd\":\"" << json::escape(diagramPD(d)) << "\",\"signs\":[";
       for (size_t k = 0; k < d.signs.size(); ++k) c << (k ? "," : "") << d.signs[k];
       c << "],\"gauss\":[";
       for (size_t i = 0; i < d.comps.size(); ++i) {

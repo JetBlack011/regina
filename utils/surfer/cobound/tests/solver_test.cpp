@@ -946,7 +946,7 @@ void test_split_boundary_unnamed_side_flagged() {
 // OrientedCurve against a triangulation's own edges. Two vertex-disjoint
 // edges stand in for two components of the row's link.
 // ─────────────────────────────────────────────────────────────────────────────
-void test_classify_row_orientation() {
+void test_classify_incoming_orientation() {
     regina::Triangulation<3> tri;
     tri.newTetrahedron();
     tri.newTetrahedron(); // unglued: its edges are disjoint from the first's
@@ -956,9 +956,9 @@ void test_classify_row_orientation() {
     regina::Edge<3> *e1 = tri.tetrahedron(0)->edge(5);
     regina::Edge<3> *e2 = tri.tetrahedron(1)->edge(0); // not the row's
 
-    RowOrientation row;
-    row.tailOf[e0->index()] = e0->vertex(0)->index();
-    row.tailOf[e1->index()] = e1->vertex(0)->index();
+    IncomingOrientation incoming;
+    incoming.tailOf[e0->index()] = e0->vertex(0)->index();
+    incoming.tailOf[e1->index()] = e1->vertex(0)->index();
 
     const std::map<const regina::Edge<3> *, size_t> oneComponent = {
         {e0, 0}, {e1, 0}};
@@ -967,24 +967,24 @@ void test_classify_row_orientation() {
     using V = OrientationVerdict;
 
     std::vector<OrientedCurve> allMatch = {{{e0, false}}, {{e1, false}}};
-    EXPECT_EQ(classifyRowOrientation(row, allMatch, oneComponent) == V::match,
+    EXPECT_EQ(classifyIncomingOrientation(incoming, allMatch, oneComponent) == V::match,
               true, "both curves agree with the row's tag: match");
 
     std::vector<OrientedCurve> allFlipped = {{{e0, true}}, {{e1, true}}};
-    EXPECT_EQ(classifyRowOrientation(row, allFlipped, oneComponent) ==
+    EXPECT_EQ(classifyIncomingOrientation(incoming, allFlipped, oneComponent) ==
                   V::match,
               true,
               "both disagree, uniformly: the surface's other orientation");
 
     std::vector<OrientedCurve> mixed = {{{e0, false}}, {{e1, true}}};
-    EXPECT_EQ(classifyRowOrientation(row, mixed, oneComponent) ==
+    EXPECT_EQ(classifyIncomingOrientation(incoming, mixed, oneComponent) ==
                   V::mismatch,
               true,
               "ONE surface component inducing a mixed pattern witnesses a "
               "different oriented variant -- the L6a3{0}/L6a3{1} "
               "misattribution -- and is rejected");
 
-    EXPECT_EQ(classifyRowOrientation(row, mixed, twoComponents) == V::match,
+    EXPECT_EQ(classifyIncomingOrientation(incoming, mixed, twoComponents) == V::match,
               true,
               "the D2 regression (2026-09-26): the same pattern split across "
               "TWO surface components is a match, since each component is "
@@ -995,39 +995,39 @@ void test_classify_row_orientation() {
     std::vector<OrientedCurve> foreign = {{{e2, false}}};
     const std::map<const regina::Edge<3> *, size_t> foreignComponent = {
         {e2, 0}};
-    EXPECT_EQ(classifyRowOrientation(row, foreign, foreignComponent) ==
+    EXPECT_EQ(classifyIncomingOrientation(incoming, foreign, foreignComponent) ==
                   V::foreignEdge,
               true, "an edge that is not the row's own is reported as such");
 
     std::vector<OrientedCurve> incoherent = {{{e0, false}, {e1, true}}};
-    EXPECT_EQ(classifyRowOrientation(row, incoherent, oneComponent) ==
+    EXPECT_EQ(classifyIncomingOrientation(incoming, incoherent, oneComponent) ==
                   V::incoherentCurve,
               true, "one curve whose edges disagree in direction");
 
     std::vector<OrientedCurve> single = {{{e0, false}}};
-    EXPECT_EQ(classifyRowOrientation(row, single, {}) == V::incoherentCurve,
+    EXPECT_EQ(classifyIncomingOrientation(incoming, single, {}) == V::incoherentCurve,
               true, "a curve with no known surface component is not guessed");
 
     // The judgement's flips (phase 3: the one walk behind both
     // classifyRowOrientation() and outgoing::incomingFlips()).
     using Flips = std::map<size_t, int>;
     const Flips keep = {{0, 1}}, reverse = {{0, -1}}, each = {{0, 1}, {1, -1}};
-    EXPECT_EQ(judgeRowOrientation(row, allMatch, oneComponent).flips == keep, true,
+    EXPECT_EQ(judgeIncomingOrientation(incoming, allMatch, oneComponent).flips == keep, true,
               "matching curves keep their component (+1)");
-    EXPECT_EQ(judgeRowOrientation(row, allFlipped, oneComponent).flips == reverse, true,
+    EXPECT_EQ(judgeIncomingOrientation(incoming, allFlipped, oneComponent).flips == reverse, true,
               "uniformly reversed curves reverse it (-1)");
-    EXPECT_EQ(judgeRowOrientation(row, mixed, twoComponents).flips == each, true,
+    EXPECT_EQ(judgeIncomingOrientation(incoming, mixed, twoComponents).flips == each, true,
               "two components, each its own flip");
-    const RowOrientationJudgement none = judgeRowOrientation(row, {}, oneComponent);
+    const IncomingOrientationJudgement none = judgeIncomingOrientation(incoming, {}, oneComponent);
     EXPECT_EQ(none.verdict == V::mismatch && none.noCurves, true,
               "no curves: a mismatch (nothing witnesses the row)");
     EXPECT_EQ(none.consistentFlips() == std::optional<Flips>(Flips()), true,
               "...whose flips are the empty map, as incomingFlips() always gave");
-    EXPECT_EQ(!judgeRowOrientation(row, mixed, oneComponent).consistentFlips(), true,
+    EXPECT_EQ(!judgeIncomingOrientation(incoming, mixed, oneComponent).consistentFlips(), true,
               "a mismatch has no flips");
-    EXPECT_EQ(!judgeRowOrientation(row, foreign, foreignComponent).consistentFlips(), true,
+    EXPECT_EQ(!judgeIncomingOrientation(incoming, foreign, foreignComponent).consistentFlips(), true,
               "nor has a foreign edge");
-    EXPECT_EQ(judgeRowOrientation(row, mixed, twoComponents).consistentFlips() ==
+    EXPECT_EQ(judgeIncomingOrientation(incoming, mixed, twoComponents).consistentFlips() ==
                   std::optional<Flips>(each),
               true, "a match's flips are the judgement's");
 }
@@ -1515,7 +1515,7 @@ int main() {
         test_split_boundary_seeded_ignores_names);
     run("split_boundary_unnamed_side_flagged",
         test_split_boundary_unnamed_side_flagged);
-    run("classify_row_orientation", test_classify_row_orientation);
+    run("classify_row_orientation", test_classify_incoming_orientation);
     run("witness_identity", test_cobordism_identity);
     run("exact_far_side", test_named_outgoing);
     run("sum_rules", test_sum_rules);

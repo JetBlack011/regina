@@ -56,7 +56,7 @@ Cobordism sample(const std::string &subject, int genus, int resolved) {
   w.genus = genus;
   w.tubed = true;
   w.pairSig = "-cabcdef" + std::to_string(genus);
-  w.sourceRow = subject;
+  w.sourceSearch = subject;
   w.thickenLayers = 2;
   w.maxFaces = 5;
   w.resolvedVertices = resolved;
@@ -67,7 +67,7 @@ bool same(const Cobordism &a, const Cobordism &b) {
   return a.kind == b.kind && a.subject == b.subject &&
          a.subjectComponents == b.subjectComponents && a.other == b.other &&
          a.otherCandidates == b.otherCandidates && a.otherComponents == b.otherComponents &&
-         a.genus == b.genus && a.tubed == b.tubed && a.sourceRow == b.sourceRow &&
+         a.genus == b.genus && a.tubed == b.tubed && a.sourceSearch == b.sourceSearch &&
          a.thickenLayers == b.thickenLayers && a.maxFaces == b.maxFaces &&
          a.resolvedVertices == b.resolvedVertices;
 }
@@ -214,9 +214,9 @@ int main() {
     const cobordisms::DatabaseIndex index(db.string());
     check(index.subjects() == 2 && index.has("K") && !index.has("torn"),
           "the index: two subjects, the torn line left out");
-    const auto k = index.rows("K");
+    const auto k = index.ofSubject("K");
     check(k.size() == 2 && k[0].cobordism.genus == 1 && k[1].cobordism.genus == 3 &&
-              k[1].cobordism.pairSig == "-cabcdef3" && k[0].rowPD.empty(),
+              k[1].cobordism.pairSig == "-cabcdef3" && k[0].incomingPD.empty(),
           "rows(): a subject's lines, in file order, pair signatures kept");
     const auto byBase = index.byOutgoing(cobordisms::DatabaseIndex::base("3_1"), 10);
     check(byBase.size() == 1 && byBase[0].cobordism.subject == "L",

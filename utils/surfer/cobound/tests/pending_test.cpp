@@ -45,19 +45,19 @@ namespace fs = std::filesystem;
 
 namespace {
 
-SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeSearchedLink(NodeRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  SearchedLink row;
-  row.node = nm.node;
-  row.diagram = d;
-  row.nodeMap = nm.componentMap;
-  row.pd = pd;
-  row.layers = 2;
-  return row;
+  SearchedLink searched;
+  searched.node = nm.node;
+  searched.diagram = d;
+  searched.nodeMap = nm.componentMap;
+  searched.pd = pd;
+  searched.layers = 2;
+  return searched;
 }
 
 RunShape capThree() {
@@ -90,8 +90,8 @@ int main() {
   const std::string pd = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
   ProofGraph g;
   NodeRegistry reg(g);
-  const SearchedLink row = makeRow(reg, pd);
-  CobordismAssembler assembler(g, reg, row);
+  const SearchedLink searched = makeSearchedLink(reg, pd);
+  CobordismAssembler assembler(g, reg, searched);
   Searcher searcher(sigs, nullptr, capThree(), 4);
   SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, 1752LL, "the canaries' count for 3_1 at cap 3");
@@ -100,9 +100,9 @@ int main() {
   std::vector<PendingCobordism> pending;
   std::map<std::string, std::string> sigOfIdentity; // first surface of each identity
   for (const KeptSurface &ks : run.kept) {
-    PendingCobordism p{ks.cobordism, row.pd, row.layers, ks.faces};
-    p.cobordism.sourceRow = "3_1";
-    p.cobordism.thickenLayers = row.layers;
+    PendingCobordism p{ks.cobordism, searched.pd, searched.layers, ks.faces};
+    p.cobordism.sourceSearch = "3_1";
+    p.cobordism.thickenLayers = searched.layers;
     p.cobordism.maxFaces = 3;
     sigOfIdentity.emplace(cobordisms::cobordismIdentity(p.cobordism),
                           pairSigOf(assembler.redrawer().thickening(), ks.faces));
@@ -119,7 +119,7 @@ int main() {
   int same = 0;
   for (size_t i = 0; i < back.size() && i < pending.size(); ++i)
     if (sameCobordism(back[i].cobordism, pending[i].cobordism) && back[i].faces == pending[i].faces &&
-        back[i].rowPD == pending[i].rowPD && back[i].layers == pending[i].layers)
+        back[i].incomingPD == pending[i].incomingPD && back[i].layers == pending[i].layers)
       ++same;
   CHECK_EQ(same, static_cast<int>(pending.size()), "kept.csv: every field and face round-trips");
 
@@ -148,7 +148,7 @@ int main() {
       cobordisms::cobordismFromFields(parseCsvLine(line), w, true, false, store);
       auto it = sigOfIdentity.find(cobordisms::cobordismIdentity(w));
       if (it != sigOfIdentity.end() && it->second == w.pairSig) ++sigOk;
-      if (w.subject == "3_1" && w.sourceRow == "3_1" && w.thickenLayers == 2 && w.maxFaces == 3)
+      if (w.subject == "3_1" && w.sourceSearch == "3_1" && w.thickenLayers == 2 && w.maxFaces == 3)
         ++provenanceOk;
       if (w.kind == cobordisms::CobordismKind::direct ||
           w.otherCandidates == names.candidates(w.other, w.otherComponents))
@@ -168,15 +168,15 @@ int main() {
     std::string line;
     std::getline(in, line);
     CHECK_EQ(line, std::string("witness,layers,row_pd"), "rows sidecar: header");
-    std::map<std::string, std::string> rows;
+    std::map<std::string, std::string> sidecar;
     while (std::getline(in, line)) {
       std::vector<std::string> f = parseCsvLine(line);
-      if (f.size() == 3) rows[f[0]] = f[2];
+      if (f.size() == 3) sidecar[f[0]] = f[2];
     }
-    CHECK_EQ(rows.size(), stored.size(), "rows sidecar: one line per stored witness");
+    CHECK_EQ(sidecar.size(), stored.size(), "rows sidecar: one line per stored witness");
     int keyed = 0;
     for (const auto &w : cobordisms::loadCobordisms(store, true))
-      if (rows.count(w.pairSigKey) && rows[w.pairSigKey] == pd) ++keyed;
+      if (sidecar.count(w.pairSigKey) && sidecar[w.pairSigKey] == pd) ++keyed;
     CHECK_EQ(keyed, static_cast<int>(stored.size()),
              "rows sidecar: every stored witness keyed to its hop row's PD");
   }

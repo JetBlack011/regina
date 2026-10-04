@@ -44,15 +44,15 @@ BoundaryCondition conditionFor(BoundaryConditionMode mode, int componentCount) {
     }
 }
 
-RowWatchdog::RowWatchdog(WatchdogLimits limits,
-                         std::function<void(const char *)> endRow)
-    : limits_(std::move(limits)), endRow_(std::move(endRow)) {
+SearchWatchdog::SearchWatchdog(WatchdogLimits limits,
+                         std::function<void(const char *)> endSearch)
+    : limits_(std::move(limits)), endSearch_(std::move(endSearch)) {
     if (!limits_.any())
         return;
     thread_ = std::thread([this] {
-        const auto rowDeadline =
+        const auto searchDeadline =
             std::chrono::steady_clock::now() +
-            std::chrono::duration<double>(limits_.rowSeconds.value_or(0));
+            std::chrono::duration<double>(limits_.seconds.value_or(0));
         while (!done_.load(std::memory_order_relaxed)) {
             {
                 std::unique_lock<std::mutex> lock(wakeMutex_);
@@ -66,18 +66,18 @@ RowWatchdog::RowWatchdog(WatchdogLimits limits,
             if (limits_.surfaceTarget &&
                 satisfying_.load(std::memory_order_relaxed) >=
                     *limits_.surfaceTarget) {
-                endRow_("surface-target");
+                endSearch_("surface-target");
                 break;
             }
-            if (limits_.rowSeconds && std::chrono::steady_clock::now() >= rowDeadline) {
-                endRow_("timeout");
+            if (limits_.seconds && std::chrono::steady_clock::now() >= searchDeadline) {
+                endSearch_("timeout");
                 break;
             }
         }
     });
 }
 
-void RowWatchdog::stop() {
+void SearchWatchdog::stop() {
     {
         std::lock_guard<std::mutex> lock(wakeMutex_);
         done_.store(true, std::memory_order_relaxed);
@@ -87,7 +87,7 @@ void RowWatchdog::stop() {
         thread_.join();
 }
 
-RowWatchdog::~RowWatchdog() { stop(); }
+SearchWatchdog::~SearchWatchdog() { stop(); }
 
 } // namespace search
 
@@ -141,25 +141,25 @@ Searcher::Searcher(const linknaming::SignatureTable *signatures,
     exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-SearchResult Searcher::run(const outgoing::OutgoingReader &row,
-                        const std::string &rowName, long long surfaceTarget,
+SearchResult Searcher::run(const outgoing::OutgoingReader &reader,
+                        const std::string &subject, long long surfaceTarget,
                         double seconds,
                         const std::function<bool(const KeptSurface &)> &stop,
                         const SearchFrontier *resume,
                         std::optional<std::string> censusName) const {
-  SearchRequest request = requestFor(row, rowName, surfaceTarget, seconds);
+  SearchRequest request = requestFor(reader, subject, surfaceTarget, seconds);
   request.resume = resume;
   request.stop = stop;
   request.censusName = std::move(censusName);
-  return run(row.rowBuild(), request);
+  return run(reader.thickened(), request);
 }
 
-SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &row,
-                                      const std::string &rowName, long long surfaceTarget,
+SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &reader,
+                                      const std::string &subject, long long surfaceTarget,
                                       double seconds) const {
   SearchRequest request;
-  request.name = rowName;
-  request.row = &row;
+  request.name = subject;
+  request.reader = &reader;
   request.shape = searchShape(shape_);
   request.surfaceTarget = surfaceTarget;
   request.seconds = seconds;
@@ -170,7 +170,7 @@ SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &row,
   return request;
 }
 
-SearchResult Searcher::run(const search::RowBuild &rb,
+SearchResult Searcher::run(const search::IncomingThickening &rb,
                         const SearchRequest &request) const {
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = timers::processCpuSeconds();
@@ -183,7 +183,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
   const SearchOutputs &outputs = request.outputs;
   if (rb.seedFaces.empty())
     throw SearchRefused("hop: the row has no collar seed");
-  if (!request.row)
+  if (!request.reader)
     throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
 
   // Declared before the search, which holds pointers to them. Every
@@ -278,7 +278,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
 
   // Every surface the drain describes lands in exactly one of its buckets
   // (see the accounting after the search).
-  search::RowAccounting acct;
+  search::SearchAccounting acct;
   // The fixtures for divergence 2's test: with SURFER_TEST_UNACCOUNTED
   // naming this search, its first described surface is dropped from every
   // bucket, as a surface lost between the drain and the record would be;
@@ -354,7 +354,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
   // Started just before the search (below). It polls at 200ms but has no
   // access to SearchStats; onProgress is the only place the live count is
   // handed to us, so it publishes it there.
-  std::optional<search::RowWatchdog> watchdog;
+  std::optional<search::SearchWatchdog> watchdog;
   SurfaceSearchCallbacks callbacks;
   // A stop nobody else noted (a signal: divergence 8) is not running out of
   // candidates.
@@ -462,7 +462,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
     std::optional<outgoing::OutgoingLink> link;
     {
       link = outgoing::orientedOutgoingLink(g.orientedLinks, g.surfaceOf,
-                                           request.row->outgoing(), g.flips,
+                                           request.reader->outgoing(), g.flips,
                                            rb.incomingBC);
       if (!link) {
         // Only a surface component off the row, which the gate's flips (one
@@ -486,7 +486,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
     w.tubed = !info.connected;
     w.resolvedVertices = info.resolvedVertices;
     // The cobordism as the database will record it: its provenance now.
-    w.sourceRow = request.name;
+    w.sourceSearch = request.name;
     w.thickenLayers = request.layers;
     w.maxFaces = shape.maxFaces.value_or(0);
     std::string outgoingName;
@@ -518,7 +518,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
       acct.duplicate.fetch_add(1, std::memory_order_relaxed);
       return;
     }
-    std::string key = search::keptKey(w, *link, *request.row);
+    std::string key = search::keptKey(w, *link, *request.reader);
     {
       std::lock_guard<std::mutex> lock(keptMutex);
       if (!keys.insert(key).second) {
@@ -537,7 +537,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
                   .cobordism = std::move(w)};
     std::lock_guard<std::mutex> lock(keptMutex);
     if (pending)
-      pending->add(cobordisms::PendingCobordism{k.cobordism, request.rowPD, request.layers, k.faces});
+      pending->add(cobordisms::PendingCobordism{k.cobordism, request.incomingPD, request.layers, k.faces});
     if (request.stop && !stopped.load() && request.stop(k)) {
       stopped.store(true);
       noteStop("stopped");
@@ -563,7 +563,7 @@ SearchResult Searcher::run(const search::RowBuild &rb,
   // what it found.
   watchdog.emplace(
       search::WatchdogLimits{.surfaceTarget = request.surfaceTarget,
-                                .rowSeconds = request.seconds},
+                                .seconds = request.seconds},
       [&](const char *why) {
         noteStop(why);
         e.requestStop();

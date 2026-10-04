@@ -883,16 +883,16 @@ int main(int argc, char *argv[]) {
   if (havePD) {
     // The same ambient verifyslicegenus searches a row in, without its row
     // map: surfer reports what it finds and judges nothing against L.
-    ThickenedLink row;
+    ThickenedLink thickened;
     try {
-      buildAmbient(pdCode, thickenLayers, collarLayers, row);
+      buildAmbient(pdCode, thickenLayers, collarLayers, thickened);
     } catch (const regina::InvalidArgument &e) {
       usage(argv[0], std::string("Invalid PD code: ") + e.what());
     }
     if (collarLayers > 0)
-      std::cerr << "[+] Collar seed faces = " << row.seedFaces.size() << "\n";
+      std::cerr << "[+] Collar seed faces = " << thickened.seedFaces.size() << "\n";
 
-    runSearch(row.tri, row.seedFaces, cond, numThreads, outputPath,
+    runSearch(thickened.tri, thickened.seedFaces, cond, numThreads, outputPath,
              iddfsIterations,
              iddfsStep, iddfsStart, iddfsFinalThreads, limits,
              orientableOnly, maxFaces, rootBudgetStart, rootBudgetGrowth,

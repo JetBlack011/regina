@@ -79,7 +79,7 @@ std::string formatKept(const PendingCobordism &p) {
   std::ostringstream faces;
   for (size_t i = 0; i < p.faces.size(); ++i) faces << (i ? " " : "") << p.faces[i];
   return cobordisms::formatCobordism(p.cobordism) + ',' + csvField(faces.str()) + ',' +
-         csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
+         csvField(p.incomingPD) + ',' + std::to_string(p.layers) + '\n';
 }
 
 void appendKept(const std::string &searchDir, const std::vector<PendingCobordism> &kept) {
@@ -128,7 +128,7 @@ std::vector<PendingCobordism> readKept(const std::string &work,
         throw std::runtime_error(path.string() + ": a malformed kept witness");
       std::istringstream faces(f[13]);
       for (int t; faces >> t;) p.faces.push_back(t);
-      p.rowPD = f[14];
+      p.incomingPD = f[14];
       p.layers = std::stoi(f[15]);
       out.push_back(std::move(p));
     }
@@ -194,18 +194,18 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
 
   std::vector<SignRequest> requests;
   requests.reserve(fresh.size());
-  for (const PendingCobordism &p : fresh) requests.push_back({p.rowPD, p.layers, p.faces});
+  for (const PendingCobordism &p : fresh) requests.push_back({p.incomingPD, p.layers, p.faces});
   const auto t0 = std::chrono::steady_clock::now();
   std::vector<std::string> sigs = pairSigsOf(requests, threads, pairSigCache);
   r.signSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
   std::vector<cobordisms::Cobordism> out;
   // parallel to out: row PD, layers, and whether the sidecar records it
-  std::vector<std::pair<std::string, int>> rowOf;
+  std::vector<std::pair<std::string, int>> diagramOf;
   std::vector<char> sidecar;
   out.reserve(fresh.size());
   for (size_t i = 0; i < fresh.size(); ++i) {
-    rowOf.emplace_back(fresh[i].rowPD, fresh[i].layers);
+    diagramOf.emplace_back(fresh[i].incomingPD, fresh[i].layers);
     sidecar.push_back(!sidecarLine || sidecarLine(fresh[i]));
     cobordisms::Cobordism w = std::move(fresh[i].cobordism);
     w.pairSig = std::move(sigs[i]);
@@ -224,12 +224,12 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
   std::unordered_set<std::string> now;
   storeIdentities(now);
   std::vector<cobordisms::Cobordism> append;
-  std::vector<std::pair<std::string, int>> appendRows;
+  std::vector<std::pair<std::string, int>> appendDiagrams;
   std::vector<char> appendSidecar;
   for (size_t i = 0; i < out.size(); ++i)
     if (!now.count(cobordisms::cobordismIdentity(out[i]))) {
       append.push_back(std::move(out[i]));
-      appendRows.push_back(rowOf[i]);
+      appendDiagrams.push_back(diagramOf[i]);
       appendSidecar.push_back(sidecar[i]);
     }
   cobordisms::appendCobordisms(store, append, 0);
@@ -241,8 +241,8 @@ StoreResult storeKept(std::vector<PendingCobordism> pending, const std::string &
   std::string lines;
   for (size_t i = 0; i < append.size(); ++i)
     if (appendSidecar[i])
-      lines += append[i].pairSigKey + ',' + std::to_string(appendRows[i].second) + ',' +
-               csvField(appendRows[i].first) + '\n';
+      lines += append[i].pairSigKey + ',' + std::to_string(appendDiagrams[i].second) + ',' +
+               csvField(appendDiagrams[i].first) + '\n';
   if (!lines.empty()) {
     const std::string sidecarPath = store + kFrozenRowsSidecarSuffix;
     if (!fs::exists(sidecarPath)) lines = kFrozenRowsSidecarHeader + lines;

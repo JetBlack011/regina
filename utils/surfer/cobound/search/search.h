@@ -75,9 +75,9 @@ BoundaryCondition conditionFor(BoundaryConditionMode mode, int componentCount);
 /** When RowWatchdog ends a row's search. Unset limits never fire. */
 struct WatchdogLimits {
     std::optional<long long> surfaceTarget;
-    std::optional<double> rowSeconds;
+    std::optional<double> seconds;
 
-    bool any() const { return surfaceTarget || rowSeconds; }
+    bool any() const { return surfaceTarget || seconds; }
 };
 
 /**
@@ -90,12 +90,12 @@ struct WatchdogLimits {
  *
  * No thread is started when no limit is set.
  */
-class RowWatchdog {
+class SearchWatchdog {
 public:
-    RowWatchdog(WatchdogLimits limits, std::function<void(const char *)> endRow);
-    ~RowWatchdog();
-    RowWatchdog(const RowWatchdog &) = delete;
-    RowWatchdog &operator=(const RowWatchdog &) = delete;
+    SearchWatchdog(WatchdogLimits limits, std::function<void(const char *)> endSearch);
+    ~SearchWatchdog();
+    SearchWatchdog(const SearchWatchdog &) = delete;
+    SearchWatchdog &operator=(const SearchWatchdog &) = delete;
 
     /** The live count of surfaces satisfying the boundary condition, from
      *  SearchCallbacks::onProgress (the only place it is handed out). */
@@ -107,7 +107,7 @@ public:
 
 private:
     WatchdogLimits limits_;
-    std::function<void(const char *)> endRow_;
+    std::function<void(const char *)> endSearch_;
     std::atomic<long long> satisfying_{0};
     std::atomic<bool> done_{false};
     std::mutex wakeMutex_;
@@ -226,7 +226,7 @@ struct SearchRequest {
   std::string name;
   /// The row's redrawer (required): each kept surface's outgoing link is
   /// oriented on it and keyed by its row components.
-  const outgoing::OutgoingReader *row = nullptr;
+  const outgoing::OutgoingReader *reader = nullptr;
   SearchShape shape;
 
   /// When to stop: at this many surfaces satisfying the condition, or
@@ -264,7 +264,7 @@ struct SearchRequest {
   std::optional<std::string> pending;
   /// The row's PD and layers, as a pending line and a cobordism's
   /// provenance record them (`sign` rebuilds the row from them).
-  std::string rowPD;
+  std::string incomingPD;
   int layers = 2;
   /// The identities of the database the run loaded (RecordedWitnesses): a
   /// find with one of them is a duplicate, one cobordism per identity
@@ -415,7 +415,7 @@ public:
   /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   /// `censusName`, if any, is SearchRequest::censusName.
-  SearchResult run(const outgoing::OutgoingReader &row, const std::string &rowName,
+  SearchResult run(const outgoing::OutgoingReader &reader, const std::string &subject,
              long long surfaceTarget, double seconds,
              const std::function<bool(const KeptSurface &)> &stop = {},
              const SearchFrontier *resume = nullptr,
@@ -424,7 +424,7 @@ public:
   /// The request run(row, rowName, ...) makes: a hop's search of `row`
   /// (searchShape() of this searcher's HopShape, its frontier always
   /// recorded), for a caller that adds to it (its pending file, say).
-  SearchRequest requestFor(const outgoing::OutgoingReader &row, const std::string &rowName,
+  SearchRequest requestFor(const outgoing::OutgoingReader &reader, const std::string &subject,
                            long long surfaceTarget, double seconds) const;
 
   /**
@@ -441,7 +441,7 @@ public:
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */
-  SearchResult run(const search::RowBuild &rb, const SearchRequest &request) const;
+  SearchResult run(const search::IncomingThickening &rb, const SearchRequest &request) const;
 
 private:
   const linknaming::SignatureTable *signatures_;

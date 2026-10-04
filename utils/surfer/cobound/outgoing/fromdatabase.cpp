@@ -64,24 +64,24 @@ std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulat
     return carried;
 }
 
-OutgoingReader::OutgoingReader(const std::string &rowPD, int layers) {
+OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
     if (layers < 1) throw regina::InvalidArgument("WitnessRedrawer: layers must be >= 1");
     // The row's thickening, exactly as verifyslicegenus builds it: collared
     // through every layer.
-    search::buildRow(rowPD, layers, layers, rb_);
+    search::buildIncoming(incomingPD, layers, layers, rb_);
     const regina::Triangulation<4> &W = rb_.tri;
     outgoing_ = std::make_unique<OutgoingMap>(rb_.link.tri, *rb_.cob);
     drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(rb_.link.tri, rb_.pdcode.size());
     skeleton_ = std::make_unique<Skeleton<4, 2>>(W);
-    rowCycles_ = knotbuilder::DiagramDrawer::cyclesOf(rb_.link.edges, rb_.link.reversed);
+    incomingCycles_ = knotbuilder::DiagramDrawer::cyclesOf(rb_.link.edges, rb_.link.reversed);
     {
         // A search-side edge -> its row edge (the row map) -> its T edge ->
         // the cycle holding it.
         std::unordered_map<size_t, size_t> cycleOfT;
-        for (size_t c = 0; c < rowCycles_.size(); ++c)
-            for (const auto &de : rowCycles_[c]) cycleOfT[de.edge] = c;
-        for (const auto &[edge, rowEdge] : rb_.orientation->rowIndexOf)
-            rowComponentOf_[edge] = cycleOfT.at(rb_.link.edges[rowEdge]->index());
+        for (size_t c = 0; c < incomingCycles_.size(); ++c)
+            for (const auto &de : incomingCycles_[c]) cycleOfT[de.edge] = c;
+        for (const auto &[edge, incomingEdge] : rb_.orientation->incomingIndexOf)
+            incomingComponentOf_[edge] = cycleOfT.at(rb_.link.edges[incomingEdge]->index());
     }
     for (size_t c = 0; c < W.countBoundaryComponents(); ++c) {
         const regina::BoundaryComponent<4> *bc = W.boundaryComponent(c);
@@ -422,12 +422,12 @@ std::optional<outgoing::OutgoingLink> parseLink(const std::string &text) {
   return link;
 }
 
-RowReadBacks::RowReadBacks(const std::string &dir, const std::string &rowPD, int layers,
+ReadBacks::ReadBacks(const std::string &dir, const std::string &incomingPD, int layers,
                            const std::string &buildDigest)
     : digest_(buildDigest) {
   if (dir.empty()) return;
   fs::create_directories(dir);
-  path_ = dir + "/" + cobordisms::cobordismKey(rowPD + "|" + std::to_string(layers)) + ".readback";
+  path_ = dir + "/" + cobordisms::cobordismKey(incomingPD + "|" + std::to_string(layers)) + ".readback";
   std::ifstream in(path_, std::ios::binary);
   std::string line;
   if (!in || !std::getline(in, line) || in.eof()) {
@@ -457,14 +457,14 @@ RowReadBacks::RowReadBacks(const std::string &dir, const std::string &rowPD, int
   }
 }
 
-const CachedReadBack *RowReadBacks::get(const std::string &cobordismKey) const {
+const CachedReadBack *ReadBacks::get(const std::string &cobordismKey) const {
   auto it = entries_.find(cobordismKey);
   if (it == entries_.end()) return nullptr;
   ++hits_;
   return &it->second;
 }
 
-void RowReadBacks::put(const std::string &cobordismKey, const CachedReadBack &r) {
+void ReadBacks::put(const std::string &cobordismKey, const CachedReadBack &r) {
   if (path_.empty()) return;
   if (!entries_.emplace(cobordismKey, r).second) return;
   std::string why = r.why;
@@ -473,7 +473,7 @@ void RowReadBacks::put(const std::string &cobordismKey, const CachedReadBack &r)
   pending_ += cobordismKey + (r.link ? "\tok\t" + serialiseLink(*r.link) : "\tfail\t" + why) + '\n';
 }
 
-void RowReadBacks::flush() {
+void ReadBacks::flush() {
   if (path_.empty() || (pending_.empty() && !rewrite_)) return;
   appendonly::FileLock lock(path_ + ".lock");
   std::string out;

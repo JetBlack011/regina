@@ -60,11 +60,11 @@ int main(int argc, char *argv[]) {
     const int layers = argc > 2 ? std::stoi(argv[2]) : 2;
     const int samples = argc > 3 ? std::stoi(argv[3]) : 2000;
 
-    ThickenedLink row; // as the search builds it: the collar through every layer
-    buildAmbient(pd, layers, layers, row);
-    const size_t incomingBC = row.incomingBC;
-    const regina::Triangulation<4> &tri = row.tri;
-    const std::vector<int> &seed = row.seedFaces;
+    ThickenedLink thickened; // as the search builds it: the collar through every layer
+    buildAmbient(pd, layers, layers, thickened);
+    const size_t incomingBC = thickened.incomingBC;
+    const regina::Triangulation<4> &tri = thickened.tri;
+    const std::vector<int> &seed = thickened.seedFaces;
 
     std::cout << "cobordism: " << tri.size() << " pentachora, "
               << tri.countTriangles() << " triangles\n"

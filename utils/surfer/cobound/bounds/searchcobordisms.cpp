@@ -29,7 +29,7 @@ GaussDiagram gaussOf(const knotbuilder::Diagram &d) {
   return g;
 }
 
-std::string rowPD(const GaussDiagram &d) {
+std::string diagramPD(const GaussDiagram &d) {
   regina::Link l = d.link();
   if (l.pdAmbiguous()) {
     // Only harmless when each ambiguous component (over at every crossing it
@@ -50,35 +50,35 @@ std::string rowPD(const GaussDiagram &d) {
   return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
                            Read read)
-    : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
-  redraw_ = std::make_unique<outgoing::OutgoingReader>(row_.pd, row_.layers);
-  certifyRow_();
+    : read_(read), g_(graph), nodes_(nodes), searched_(std::move(searched)) {
+  redraw_ = std::make_unique<outgoing::OutgoingReader>(searched_.pd, searched_.layers);
+  certifyIncoming_();
 }
 
-CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
                            std::unique_ptr<outgoing::OutgoingReader> built, Read read)
-    : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)), redraw_(std::move(built)) {
+    : read_(read), g_(graph), nodes_(nodes), searched_(std::move(searched)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
-  certifyRow_();
+  certifyIncoming_();
 }
 
-void CobordismAssembler::certifyRow_() {
-  const auto &cycles = redraw_->rowCycles();
+void CobordismAssembler::certifyIncoming_() {
+  const auto &cycles = redraw_->incomingCycles();
   // Certify the row: knotbuilder's link, drawn back, is row.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
-  auto iso = linknaming::findDiagramIsomorphism(drawn, row_.diagram, /*allowMirror=*/false,
+  auto iso = linknaming::findDiagramIsomorphism(drawn, searched_.diagram, /*allowMirror=*/false,
                                     /*allowReverse=*/false);
   if (!iso)
     throw std::runtime_error(
         "HopAssembler: the row's triangulated link does not redraw as its "
         "diagram (no orientation-preserving isomorphism); refusing the row");
-  if (row_.nodeMap.size() != row_.diagram.components())
+  if (searched_.nodeMap.size() != searched_.diagram.components())
     throw std::invalid_argument("HopAssembler: nodeMap size");
-  rowToNode_.resize(drawn.components());
+  incomingToLink_.resize(drawn.components());
   for (size_t i = 0; i < drawn.components(); ++i)
-    rowToNode_[i] = row_.nodeMap[iso->componentMap[i]];
+    incomingToLink_[i] = searched_.nodeMap[iso->componentMap[i]];
 }
 
 std::optional<outgoing::OutgoingLink>
@@ -88,11 +88,11 @@ CobordismAssembler::readBack(const std::string &pairsig, std::string &why) const
 }
 
 std::optional<std::vector<size_t>>
-CobordismAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
+CobordismAssembler::surfaceOfIncomingComponents(const outgoing::OutgoingLink &link,
                                      std::string &why) const {
-  std::vector<size_t> of(redraw_->rowCycles().size(), static_cast<size_t>(-1));
+  std::vector<size_t> of(redraw_->incomingCycles().size(), static_cast<size_t>(-1));
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i) {
-    const size_t rc = redraw_->rowComponentOf(link.incomingFirstEdge[i]);
+    const size_t rc = redraw_->incomingComponentOf(link.incomingFirstEdge[i]);
     if (of[rc] != static_cast<size_t>(-1)) {
       why = "a row component met twice";
       return std::nullopt;
@@ -122,8 +122,8 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
                               const std::string &key) {
   AddedCobordism out;
   std::string why;
-  auto surfaceOfRowComponent = surfaceOfRowComponents(read, why);
-  if (!surfaceOfRowComponent) {
+  auto surfaceOfIncomingComponent = surfaceOfIncomingComponents(read, why);
+  if (!surfaceOfIncomingComponent) {
     out.why = why;
     return out;
   }
@@ -135,16 +135,16 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     auto [it, ins] = compIndex.try_emplace(sc, static_cast<int>(compIndex.size()));
     return it->second;
   };
-  const size_t n = redraw_->rowCycles().size();
+  const size_t n = redraw_->incomingCycles().size();
   std::vector<int> inComp(n, -1);
   for (size_t rc = 0; rc < n; ++rc)
-    inComp[rc] = idx((*surfaceOfRowComponent)[rc]);
+    inComp[rc] = idx((*surfaceOfIncomingComponent)[rc]);
   CobordismShape shape;
   shape.genus = genus;
   shape.inComponent.resize(n);
   // Incoming curves in NODE order: node component rowToNode_[rc] <- rc.
   for (size_t rc = 0; rc < n; ++rc)
-    shape.inComponent[rowToNode_[rc]] = inComp[rc];
+    shape.inComponent[incomingToLink_[rc]] = inComp[rc];
   for (size_t sc : link->surfaceComponent) shape.outComponent.push_back(idx(sc));
   for (const auto &cyc : link->curves) {
     std::vector<size_t> es;
@@ -163,7 +163,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     // A surface bounding the row alone: a leaf for the row's node.
     std::vector<int> labels(n);
     for (size_t i = 0; i < n; ++i) labels[i] = shape.inComponent[i];
-    g_.addLeaf(row_.node, Partition::fromLabels(labels), genus,
+    g_.addLeaf(searched_.node, Partition::fromLabels(labels), genus,
                kFrozenDirectWitnessSource + key);
     out.ok = true;
     out.direct = true;
@@ -212,7 +212,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
     if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
-  out.edge = g_.addCobordism(row_.node, out.outgoing, shape, inMap, outMap, key);
+  out.edge = g_.addCobordism(searched_.node, out.outgoing, shape, inMap, outMap, key);
   out.ok = true;
   return out;
 }

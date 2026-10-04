@@ -476,11 +476,11 @@ void test_build_ambient_seed_in_index_order() {
     const char *pds[] = {"[[1;5;2;4];[3;1;4;6];[5;3;6;2]]",
                          "PD[X[6; 1; 7; 2]; X[8; 3; 5; 4]; X[2; 5; 3; 6]; X[4; 7; 1; 8]]"};
     for (const char *pd : pds) {
-        ThickenedLink row;
-        buildAmbient(pd, 2, 2, row);
-        bool increasing = !row.seedFaces.empty();
-        for (size_t i = 1; i < row.seedFaces.size(); ++i)
-            if (row.seedFaces[i - 1] >= row.seedFaces[i]) increasing = false;
+        ThickenedLink thickened;
+        buildAmbient(pd, 2, 2, thickened);
+        bool increasing = !thickened.seedFaces.empty();
+        for (size_t i = 1; i < thickened.seedFaces.size(); ++i)
+            if (thickened.seedFaces[i - 1] >= thickened.seedFaces[i]) increasing = false;
         EXPECT_EQ(increasing, true,
                   std::string(pd) + ": seed faces non-empty and strictly increasing");
     }

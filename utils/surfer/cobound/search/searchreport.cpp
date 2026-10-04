@@ -18,7 +18,7 @@ namespace search {
 report::RollingReport progressBlock;
 
 void appendSurfaceStats(const std::filesystem::path &path,
-                        const std::string &rowName, long long maxFaces,
+                        const std::string &subject, long long maxFaces,
                         const std::map<SurfaceStatsKey, long long> &counts) {
   if (counts.empty())
     return;
@@ -31,7 +31,7 @@ void appendSurfaceStats(const std::filesystem::path &path,
   if (needHeader)
     out << kFrozenSurfaceStatsHeader;
   for (const auto &[key, n] : counts)
-    out << csvField(rowName) << ',' << maxFaces << ',' << key.triangles << ','
+    out << csvField(subject) << ',' << maxFaces << ',' << key.triangles << ','
         << (key.orientable ? "true" : "false") << ',' << key.genus << ','
         << key.punctures << ',' << key.tubedGenus << ','
         << key.closedComponents << ',' << (key.connected ? "true" : "false")
@@ -39,7 +39,7 @@ void appendSurfaceStats(const std::filesystem::path &path,
 }
 
 void appendSelfIntersectionCensus(const std::filesystem::path &path,
-                                  const std::string &rowName,
+                                  const std::string &subject,
                                   long long maxFaces, bool resolveUnlinked,
                                   const SearchStats &stats,
                                   SelfIntersectionCensus &census) {
@@ -69,7 +69,7 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
   auto get = [](const std::atomic<long long> &a) {
     return a.load(std::memory_order_relaxed);
   };
-  out << csvField(rowName) << ',' << maxFaces << ','
+  out << csvField(subject) << ',' << maxFaces << ','
       << (resolveUnlinked ? "true" : "false") << ',' << stats.satisfyingCount
       << ',' << stats.embeddedCount << ',' << stats.resolvedCount << ','
       << get(census.singular) << ',' << get(census.interiorUnlinked) << ','

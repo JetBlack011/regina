@@ -29,7 +29,7 @@ namespace cobordisms {
 /// but the pair signature), and what its signature is computed from.
 struct PendingCobordism {
   cobordisms::Cobordism cobordism;
-  std::string rowPD;
+  std::string incomingPD;
   int layers = 2;
   std::vector<int> faces;
 };

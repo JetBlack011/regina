@@ -40,25 +40,25 @@ size_t mapEdgeIndex(const regina::Edge<3> *e,
 
 // The row's directed link under `iso`: edge index -> (tail, head) vertex
 // indices in `dest`, and the edge's position in rowEdges.
-using RowImage = std::unordered_map<size_t, std::tuple<size_t, size_t, size_t>>;
-RowImage
-directedImage(const std::vector<const regina::Edge<3> *> &rowEdges,
-              const std::vector<bool> &rowReversed,
+using IncomingImage = std::unordered_map<size_t, std::tuple<size_t, size_t, size_t>>;
+IncomingImage
+directedImage(const std::vector<const regina::Edge<3> *> &diagramEdges,
+              const std::vector<bool> &diagramReversed,
               const regina::Triangulation<3> &dest,
               const regina::Isomorphism<3> &iso) {
-    RowImage image;
-    for (size_t i = 0; i < rowEdges.size(); ++i) {
+    IncomingImage image;
+    for (size_t i = 0; i < diagramEdges.size(); ++i) {
         const regina::Vertex<3> *tail =
-            rowReversed[i] ? rowEdges[i]->vertex(1) : rowEdges[i]->vertex(0);
+            diagramReversed[i] ? diagramEdges[i]->vertex(1) : diagramEdges[i]->vertex(0);
         const regina::Vertex<3> *head =
-            rowReversed[i] ? rowEdges[i]->vertex(0) : rowEdges[i]->vertex(1);
-        image[mapEdgeIndex(rowEdges[i], dest, iso)] = {
+            diagramReversed[i] ? diagramEdges[i]->vertex(0) : diagramEdges[i]->vertex(1);
+        image[mapEdgeIndex(diagramEdges[i], dest, iso)] = {
             mapVertexIndex(tail, dest, iso), mapVertexIndex(head, dest, iso), i};
     }
     return image;
 }
 
-std::vector<size_t> sortedKeys(const RowImage &image) {
+std::vector<size_t> sortedKeys(const IncomingImage &image) {
     std::vector<size_t> keys;
     keys.reserve(image.size());
     for (const auto &[e, ends] : image)
@@ -68,38 +68,38 @@ std::vector<size_t> sortedKeys(const RowImage &image) {
 }
 } // namespace
 
-RowOrientation
-buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
-                    const std::vector<bool> &rowReversed,
+IncomingOrientation
+buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdges,
+                    const std::vector<bool> &diagramReversed,
                     const regina::Triangulation<3> &incomingTri,
                     const std::vector<size_t> *requiredEdges) {
-    if (rowEdges.empty())
+    if (diagramEdges.empty())
         throw regina::InvalidArgument(
             "buildRowOrientation(): rowEdges must not be empty");
-    if (rowReversed.size() != rowEdges.size())
+    if (diagramReversed.size() != diagramEdges.size())
         throw regina::InvalidArgument(
             "buildRowOrientation(): rowReversed and rowEdges differ in size");
 
-    const regina::Triangulation<3> &rowTri = rowEdges.front()->triangulation();
+    const regina::Triangulation<3> &diagramTri = diagramEdges.front()->triangulation();
 
     // What the old code used: whichever isomorphism isIsomorphicTo() returns.
     std::optional<regina::Isomorphism<3>> legacy =
-        rowTri.isIsomorphicTo(incomingTri);
+        diagramTri.isIsomorphicTo(incomingTri);
     if (!legacy)
         throw regina::InvalidArgument(
             "buildRowOrientation(): the row's own triangulation is not "
             "isomorphic to searchSideTri");
     auto legacyImage =
-        directedImage(rowEdges, rowReversed, incomingTri, *legacy);
+        directedImage(diagramEdges, diagramReversed, incomingTri, *legacy);
 
-    std::optional<RowImage> chosen;
+    std::optional<IncomingImage> chosen;
     if (!requiredEdges || sortedKeys(legacyImage) == *requiredEdges) {
         chosen = legacyImage;
     } else {
-        rowTri.findAllIsomorphisms(
+        diagramTri.findAllIsomorphisms(
             incomingTri, [&](const regina::Isomorphism<3> &iso) {
                 auto image =
-                    directedImage(rowEdges, rowReversed, incomingTri, iso);
+                    directedImage(diagramEdges, diagramReversed, incomingTri, iso);
                 if (sortedKeys(image) != *requiredEdges)
                     return false; // keep looking
                 chosen = std::move(image);
@@ -111,13 +111,13 @@ buildRowOrientation(const std::vector<const regina::Edge<3> *> &rowEdges,
                 "onto the seed's edges in the search-side boundary");
     }
 
-    RowOrientation result;
+    IncomingOrientation result;
     std::vector<edgecycles::EdgeEnds> directed;
     directed.reserve(chosen->size());
     for (const auto &[e, ends] : *chosen) {
-        const auto &[tail, head, rowIndex] = ends;
+        const auto &[tail, head, diagramIndex] = ends;
         result.tailOf[e] = tail;
-        result.rowIndexOf[e] = rowIndex;
+        result.incomingIndexOf[e] = diagramIndex;
         directed.push_back({e, tail, head});
     }
     const std::optional<size_t> cycles = edgecycles::countDirectedCycles(directed);
@@ -158,36 +158,36 @@ std::vector<size_t> boundaryEdgesOf(const regina::Triangulation<4> &tri,
 
 namespace search {
 
-void orientRow(RowBuild &row) {
-    const auto &edges2 = row.link.edges;
-    const auto &reversed2 = row.link.reversed;
+void orientIncoming(IncomingThickening &thickened) {
+    const auto &edges2 = thickened.link.edges;
+    const auto &reversed2 = thickened.link.reversed;
     // The seed's own edges on the search side: exactly L x {0}.
-    if (!row.seedFaces.empty())
-        row.incomingEdges = search::boundaryEdgesOf(row.tri, row.seedFaces,
-                                                   row.incomingBC);
-    row.orientation = search::buildRowOrientation(
-        edges2, reversed2, row.tri.boundaryComponent(row.incomingBC)->build(),
-        row.seedFaces.empty() ? nullptr : &row.incomingEdges);
-    if (row.seedFaces.empty())
-        row.incomingEdges = row.orientation->edges;
+    if (!thickened.seedFaces.empty())
+        thickened.incomingEdges = search::boundaryEdgesOf(thickened.tri, thickened.seedFaces,
+                                                   thickened.incomingBC);
+    thickened.orientation = search::buildIncomingOrientation(
+        edges2, reversed2, thickened.tri.boundaryComponent(thickened.incomingBC)->build(),
+        thickened.seedFaces.empty() ? nullptr : &thickened.incomingEdges);
+    if (thickened.seedFaces.empty())
+        thickened.incomingEdges = thickened.orientation->edges;
 
     // Setup-time checks on the row's own link, in place of any per-surface
     // ones: the search side is fixed from here on.
-    if (row.incomingEdges.size() != edges2.size())
+    if (thickened.incomingEdges.size() != edges2.size())
         throw regina::InvalidArgument(
-            "the search side holds " + std::to_string(row.incomingEdges.size()) +
+            "the search side holds " + std::to_string(thickened.incomingEdges.size()) +
             " link edges, the diagram " + std::to_string(edges2.size()));
-    if (row.orientation->components !=
-        static_cast<size_t>(row.componentCount))
+    if (thickened.orientation->components !=
+        static_cast<size_t>(thickened.componentCount))
         throw regina::InvalidArgument(
             "the search-side link has " +
-            std::to_string(row.orientation->components) +
-            " components, the diagram " + std::to_string(row.componentCount));
+            std::to_string(thickened.orientation->components) +
+            " components, the diagram " + std::to_string(thickened.componentCount));
 }
 
-void buildRow(const std::string &pdNotation, int thickenLayers,
-              int collarLayers, RowBuild &row) {
-    buildAmbient(pdNotation, thickenLayers, collarLayers, row);
-    orientRow(row);
+void buildIncoming(const std::string &pdNotation, int thickenLayers,
+              int collarLayers, IncomingThickening &thickened) {
+    buildAmbient(pdNotation, thickenLayers, collarLayers, thickened);
+    orientIncoming(thickened);
 }
 } // namespace search

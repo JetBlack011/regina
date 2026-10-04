@@ -19,29 +19,29 @@ OutgoingCurve outgoingCurve(const OrientedCurve &curve) {
 }
 
 std::optional<std::map<size_t, int>> incomingFlips(
-    const search::RowOrientation &row,
+    const search::IncomingOrientation &incoming,
     const std::vector<OrientedCurve> &incomingCurves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    return search::judgeRowOrientation(row, incomingCurves, surfaceComponentOf)
+    return search::judgeIncomingOrientation(incoming, incomingCurves, surfaceComponentOf)
         .consistentFlips();
 }
 
 std::optional<OutgoingLink> orientedOutgoingLink(
     const KnottedSurface &surface, const OutgoingMap &map,
-    const search::RowOrientation &row, size_t incomingBC) {
+    const search::IncomingOrientation &incoming, size_t incomingBC) {
     return orientedOutgoingLink(surface.orientedBoundaryLinks(),
                                 surface.boundaryEdgeSurfaceComponent(), map,
-                                row, incomingBC);
+                                incoming, incomingBC);
 }
 
 std::optional<OutgoingLink> orientedOutgoingLink(
     const std::vector<std::pair<size_t, std::vector<OrientedCurve>>> &oriented,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
-    const OutgoingMap &map, const search::RowOrientation &row,
+    const OutgoingMap &map, const search::IncomingOrientation &incoming,
     size_t incomingBC, std::string *why) {
     std::optional<std::map<size_t, int>> flips;
     for (const auto &[bc, curves] : oriented)
-        if (bc == incomingBC) flips = incomingFlips(row, curves, surfaceOf);
+        if (bc == incomingBC) flips = incomingFlips(incoming, curves, surfaceOf);
     if (!flips) {
         if (why) *why = "incoming orientation is inconsistent";
         return std::nullopt;

@@ -294,7 +294,7 @@ int runWithoutGoal(const config::Config &cfg) {
           tablePD.emplace(r.name, r.pd);
     const auto sidecarLine = [&](const cobordisms::PendingCobordism &p) {
       auto it = tablePD.find(p.cobordism.subject);
-      return it == tablePD.end() || it->second != p.rowPD;
+      return it == tablePD.end() || it->second != p.incomingPD;
     };
     const cobordisms::StoreResult s = cobordisms::signPending(
         workDir, cobordismsPath, {}, names, numThreads, pairSigCacheDir.value_or(""),
@@ -369,7 +369,7 @@ int runWithoutGoal(const config::Config &cfg) {
       judge = std::make_unique<bounds::SearchJudge>(row.name, row.pdNotation, thickenLayers,
                                                      row.lo, *graphTables, *graphNamer,
                                                      names.symmetries(), numThreads);
-      if (judge->row().rowBuild().orientation->divergedFromDefaultIsomorphism)
+      if (judge->reader().thickened().orientation->divergedFromDefaultIsomorphism)
         std::cerr << "[i] " << row.name
                   << ": the diagram's triangulation has a symmetry moving "
                      "L; using the map that takes L onto its own seed "
@@ -378,7 +378,7 @@ int runWithoutGoal(const config::Config &cfg) {
       std::cerr << "[!] " << row.name << ": failed to build (" << e.what() << "), skipping\n";
       buildFailed = true;
     }
-    const search::RowBuild *rbp = judge ? &judge->row().rowBuild() : nullptr;
+    const search::IncomingThickening *rbp = judge ? &judge->reader().thickened() : nullptr;
 
     // A row that cannot be built, or that the search refuses: recorded as
     // such, and the run goes on.
@@ -429,7 +429,7 @@ int runWithoutGoal(const config::Config &cfg) {
     // curve count on EVERY ambient boundary component, the far side
     // included, so a knot row searched under it can only ever discover
     // single-curve far sides: proper, the default, lifts that.
-    const search::RowBuild &rb = *rbp;
+    const search::IncomingThickening &rb = *rbp;
     request.shape.condition = search::conditionFor(boundaryConditionMode, rb.componentCount);
     // The search stops at the surface target or the per-row time limit; the
     // boundary drain then finishes.
@@ -448,12 +448,12 @@ int runWithoutGoal(const config::Config &cfg) {
                                std::to_string(nextSearch++) + kFrozenHopDirNodeMark + "0";
     std::filesystem::create_directories(searchDir);
     request.pending = searchDir + "/kept.csv";
-    request.rowPD = row.pdNotation;
+    request.incomingPD = row.pdNotation;
     request.layers = thickenLayers;
     request.knownIdentities = &recorded.identities();
     request.runDirectory = workDir;
     // Each find, judged by the row's own cobordism graph as it is kept.
-    request.row = &judge->row();
+    request.reader = &judge->reader();
     long long judged = 0;
     request.judge = [&](const search::KeptSurface &k) {
       const bounds::SearchJudge::Verdict v =

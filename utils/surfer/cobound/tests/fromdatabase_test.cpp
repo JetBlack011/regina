@@ -102,7 +102,7 @@ int main() {
   // 2. Written by one, read whole by the next; a failure is kept too.
   const std::string dir = tempDir();
   {
-    RowReadBacks c(dir, PD_10_3, 2, digest);
+    ReadBacks c(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(c.loaded()), 0, "a new cache is empty");
     for (size_t i = 0; i < sigs.size(); ++i)
       c.put(cobordisms::cobordismKey(sigs[i]), {fresh[i], ""});
@@ -110,7 +110,7 @@ int main() {
     c.flush();
   }
   {
-    RowReadBacks c(dir, PD_10_3, 2, digest);
+    ReadBacks c(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(c.loaded()), 10, "every entry comes back");
     bool all = true;
     for (size_t i = 0; i < sigs.size(); ++i) {
@@ -123,19 +123,19 @@ int main() {
           "a failure is kept with its reason");
     CHECK_EQ(static_cast<int>(c.hits()), 10, "hits counted");
     // The same row at other layers is another file.
-    RowReadBacks other(dir, PD_10_3, 3, digest);
+    ReadBacks other(dir, PD_10_3, 3, digest);
     CHECK_EQ(static_cast<int>(other.loaded()), 0, "layers are part of the row");
   }
 
   // 3. Another build digest: ignored, then replaced.
   {
-    RowReadBacks c(dir, PD_10_3, 2, "not-this-build");
+    ReadBacks c(dir, PD_10_3, 2, "not-this-build");
     CHECK_EQ(static_cast<int>(c.loaded()), 0, "a stale digest's entries are not used");
     c.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
     c.flush();
-    RowReadBacks again(dir, PD_10_3, 2, "not-this-build");
+    ReadBacks again(dir, PD_10_3, 2, "not-this-build");
     CHECK_EQ(static_cast<int>(again.loaded()), 1, "the file was started afresh for that build");
-    RowReadBacks orig(dir, PD_10_3, 2, digest);
+    ReadBacks orig(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(orig.loaded()), 0, "and the old build's entries are gone");
   }
 
@@ -143,7 +143,7 @@ int main() {
   {
     fs::remove_all(dir);
     {
-      RowReadBacks c(dir, PD_10_3, 2, digest);
+      ReadBacks c(dir, PD_10_3, 2, digest);
       c.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
       c.flush();
     }
@@ -154,11 +154,11 @@ int main() {
       std::ofstream f(path, std::ios::app | std::ios::binary);
       f << cobordisms::cobordismKey(sigs[1]) << "\tok\t" << serialiseLink(*fresh[1]).substr(0, 5);
     }
-    RowReadBacks c(dir, PD_10_3, 2, digest);
+    ReadBacks c(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(c.loaded()), 1, "the torn line is skipped");
     c.put(cobordisms::cobordismKey(sigs[2]), {fresh[2], ""});
     c.flush();
-    RowReadBacks after(dir, PD_10_3, 2, digest);
+    ReadBacks after(dir, PD_10_3, 2, digest);
     CHECK_EQ(static_cast<int>(after.loaded()), 2, "the torn line was cut, the new one kept");
     const CachedReadBack *r = after.get(cobordisms::cobordismKey(sigs[2]));
     CHECK(r && r->link && sameLink(*r->link, *fresh[2]), "the appended read-back is intact");
@@ -166,7 +166,7 @@ int main() {
 
   // 5. No cache.
   {
-    RowReadBacks none("", PD_10_3, 2, digest);
+    ReadBacks none("", PD_10_3, 2, digest);
     none.put(cobordisms::cobordismKey(sigs[0]), {fresh[0], ""});
     none.flush();
     CHECK(none.get(cobordisms::cobordismKey(sigs[0])) == nullptr, "an empty dir keeps nothing");

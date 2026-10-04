@@ -69,8 +69,8 @@ public:
   /// Whether the database holds cobordisms for link `n` (a table link): rows
   /// of its class's table entries (named into `rows`), or cobordisms of other
   /// rows whose outgoing link has its base name.
-  bool rowsFor(NodeId n, const NodeAxioms &axioms, const linknaming::ExactTables &tables,
-               std::vector<std::string> *rows = nullptr) const;
+  bool subjectsFor(NodeId n, const NodeAxioms &axioms, const linknaming::ExactTables &tables,
+               std::vector<std::string> *subjects = nullptr) const;
   /// Whether `n`'s cobordisms were loaded already.
   bool loaded(NodeId n) const { return done_.count(n) > 0; }
 

@@ -38,12 +38,12 @@ struct Cobordism {
   /// The PD its row was searched on, when the file's `.rows.csv` sidecar
   /// records it (a cascade hop's row is its node's simplified diagram, not
   /// the table's); empty for the table's PD.
-  std::string rowPD;
+  std::string incomingPD;
 };
 
 Cobordism carried(const cobordisms::StoredCobordism &s) {
   return {s.cobordism.other, s.cobordism.pairSig, s.cobordism.genus, s.cobordism.otherComponents,
-          s.cobordism.thickenLayers, s.rowPD};
+          s.cobordism.thickenLayers, s.incomingPD};
 }
 
 } // namespace
@@ -57,9 +57,9 @@ DatabaseCobordisms::DatabaseCobordisms(const std::string &database,
       tablePD_[row.name] = row.pd;
 }
 
-bool DatabaseCobordisms::rowsFor(NodeId n, const NodeAxioms &axioms,
+bool DatabaseCobordisms::subjectsFor(NodeId n, const NodeAxioms &axioms,
                                  const linknaming::ExactTables &tables,
-                                 std::vector<std::string> *rows) const {
+                                 std::vector<std::string> *subjects) const {
   auto it = axioms.tableName.find(n);
   if (it == axioms.tableName.end()) return false;
   // Every table entry of this link's class (one oriented link up to mirror
@@ -71,7 +71,7 @@ bool DatabaseCobordisms::rowsFor(NodeId n, const NodeAxioms &axioms,
   for (const linknaming::TableEntry *v : tables.variants(e->base))
     if (axioms.classOf(v->name) == canon && index_.has(v->name)) {
       any = true;
-      if (rows) rows->push_back(v->name);
+      if (subjects) subjects->push_back(v->name);
     }
   return any;
 }
@@ -80,14 +80,14 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   const auto tLoad = Clock::now();
   done_.insert(n);
   std::vector<std::string> own;
-  if (!rowsFor(n, ld.axioms, ld.tables, &own)) return secondsSince(tLoad);
+  if (!subjectsFor(n, ld.axioms, ld.tables, &own)) return secondsSince(tLoad);
   ProofGraph &g = ld.g;
   NodeRegistry &reg = ld.reg;
   const linknaming::ExactTables &tables = ld.tables;
   std::map<NodeId, std::string> &tableName = ld.axioms.tableName;
   double readSeconds = 0; // phase A: the assembly's waits for the readers
   const size_t nodesBefore = g.nodeCount();
-  int assembled = 0, failed = 0, refusedRows = 0;
+  int assembled = 0, failed = 0, refusedSubjects = 0;
   // A witness can be on an upper proof only if its genus is at most the
   // goal (glue() never lowers a genus), and on a lower proof only if the
   // charge it costs, at least its genus, is affordable: at most the largest
@@ -104,14 +104,14 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   // other rows whose recorded far side names this node's base (a hint: the
   // far side is redrawn and identified exactly like any other).
   std::map<std::string, std::vector<Cobordism>> bySubject;
-  std::set<std::string> ownRows(own.begin(), own.end());
+  std::set<std::string> ownSubjects(own.begin(), own.end());
   for (const std::string &name : own)
-    for (const cobordisms::StoredCobordism &s : index_.rows(name))
+    for (const cobordisms::StoredCobordism &s : index_.ofSubject(name))
       if (const Cobordism w = carried(s); keep(w)) bySubject[s.cobordism.subject].push_back(w);
   size_t reverse = 0;
   for (const cobordisms::StoredCobordism &s :
        index_.byOutgoing(cobordisms::DatabaseIndex::base(tableName[n]), 300))
-    if (const Cobordism w = carried(s); !ownRows.count(s.cobordism.subject) && keep(w)) {
+    if (const Cobordism w = carried(s); !ownSubjects.count(s.cobordism.subject) && keep(w)) {
       bySubject[s.cobordism.subject].push_back(w);
       ++reverse;
     }
@@ -122,7 +122,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   // read_back_cache. Then, serially and in the same order as before, each
   // row is interned, certified and its read-backs added: the graph is
   // exactly what the one-phase loop built.
-  struct RowRead {
+  struct SubjectRead {
     std::string name, pd;
     int layers = 2;
     std::vector<const Cobordism *> ws;
@@ -133,18 +133,18 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     std::vector<char> invariant; // the read-back broke an invariant (logic_error)
     size_t cacheHits = 0;
   };
-  std::vector<RowRead> reads;
+  std::vector<SubjectRead> reads;
   for (const auto &[name, ws] : bySubject) {
     const linknaming::TableEntry *e = tables.entry(name);
     auto pdIt = tablePD_.find(name);
     if (!e || pdIt == tablePD_.end()) continue;
     // One read per (row PD, layers): the table's PD unless the sidecar
     // recorded the row the witness was really searched on.
-    std::map<std::pair<std::string, int>, std::vector<const Cobordism *>> byRow;
+    std::map<std::pair<std::string, int>, std::vector<const Cobordism *>> byDiagram;
     for (const Cobordism &w : ws)
-      byRow[{w.rowPD.empty() ? pdIt->second : w.rowPD, w.layers}].push_back(&w);
-    for (const auto &[key, group] : byRow) {
-      RowRead r;
+      byDiagram[{w.incomingPD.empty() ? pdIt->second : w.incomingPD, w.layers}].push_back(&w);
+    for (const auto &[key, group] : byDiagram) {
+      SubjectRead r;
       r.name = name;
       r.pd = key.first;
       r.layers = key.second;
@@ -160,15 +160,15 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   // row (2026-10-02: a fresh pool per batch of 2 x threads rows, joined before
   // the batch was assembled, cost L10n112's cold load 6% of its wall).
   const std::string &readBackCache = ld.readBackCache;
-  auto readRow = [&](size_t i) {
-    RowRead &r = reads[i];
+  auto readSubject = [&](size_t i) {
+    SubjectRead &r = reads[i];
     try {
       r.redraw = std::make_unique<outgoing::OutgoingReader>(r.pd, r.layers);
     } catch (const std::exception &ex) {
       r.buildError = ex.what();
       return;
     }
-    outgoing::RowReadBacks cache(readBackCache, r.pd, r.layers,
+    outgoing::ReadBacks cache(readBackCache, r.pd, r.layers,
                        readBackCache.empty() ? std::string() : r.redraw->buildChecksum());
     r.links.resize(r.ws.size());
     r.why.resize(r.ws.size());
@@ -221,7 +221,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
         if (stopReading || nextRead >= reads.size()) return;
         i = nextRead++;
       }
-      readRow(i);
+      readSubject(i);
       {
         std::lock_guard<std::mutex> lock(readMutex);
         readDone[i] = 1;
@@ -249,7 +249,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
   for (size_t t = 0, k = std::min<size_t>(std::max(ld.threads, 1u), reads.size()); t < k; ++t)
     pool.threads.emplace_back(reader);
   // Row i, read: what the assembly waited for it is read-back time.
-  auto awaitRow = [&](size_t i) {
+  auto awaitSubject = [&](size_t i) {
     const auto tWait = Clock::now();
     {
       std::unique_lock<std::mutex> lock(readMutex);
@@ -259,24 +259,24 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     }
     readSeconds += secondsSince(tWait);
   };
-  const auto tRows = Clock::now();
+  const auto tSubjects = Clock::now();
   size_t cacheHits = 0;
   // A row is interned once per PD it was searched on: the table's own
   // diagram (simplified, then the registry's exact tests), or the recorded
   // diagram of a cascade hop, which is a node's diagram of another run:
   // already reduced, so interned as it is. An own row must be THIS node.
-  struct RowNode {
+  struct SubjectLink {
     NodeMatch match;
     GaussDiagram diagram; ///< the row's diagram, in the row PD's component order
   };
-  std::map<std::string, RowNode> interned; // by row PD
+  std::map<std::string, SubjectLink> interned; // by row PD
   for (size_t i = 0; i < reads.size(); ++i) {
-    awaitRow(i);
-    RowRead &r = reads[i];
+    awaitSubject(i);
+    SubjectRead &r = reads[i];
     cacheHits += r.cacheHits;
     auto seen = interned.find(r.pd);
     if (seen == interned.end()) {
-      RowNode rn;
+      SubjectLink rn;
       if (r.pd == tablePD_.at(r.name)) {
         rn.diagram = GaussDiagram::of(tables.entry(r.name)->diagram);
         rn.match = reg.intern(linknaming::simplifyKeepingComponents(rn.diagram),
@@ -286,26 +286,26 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
         rn.match = reg.intern(rn.diagram, kFrozenRowLabel + r.name + " (recorded diagram)");
       }
       seen = interned.emplace(r.pd, std::move(rn)).first;
-      if (ownRows.count(r.name) && seen->second.match.node != n) {
-        ++refusedRows;
+      if (ownSubjects.count(r.name) && seen->second.match.node != n) {
+        ++refusedSubjects;
         std::cout << "[!] master row " << r.name << " did not intern as node " << n
                   << " (got " << seen->second.match.node << "); not used\n";
       }
     }
     const NodeMatch &m = seen->second.match;
-    if (ownRows.count(r.name) && m.node != n) continue;
-    SearchedLink row;
-    row.node = m.node;
-    row.diagram = seen->second.diagram;
-    row.nodeMap = m.componentMap;
-    row.pd = r.pd;
-    row.layers = r.layers;
+    if (ownSubjects.count(r.name) && m.node != n) continue;
+    SearchedLink searched;
+    searched.node = m.node;
+    searched.diagram = seen->second.diagram;
+    searched.nodeMap = m.componentMap;
+    searched.pd = r.pd;
+    searched.layers = r.layers;
     std::unique_ptr<CobordismAssembler> assembler;
     try {
       if (!r.buildError.empty()) throw std::runtime_error(r.buildError);
-      assembler = std::make_unique<CobordismAssembler>(g, reg, row, std::move(r.redraw));
+      assembler = std::make_unique<CobordismAssembler>(g, reg, searched, std::move(r.redraw));
     } catch (const std::exception &ex) {
-      ++refusedRows;
+      ++refusedSubjects;
       std::cout << "[!] master row " << r.name << " refused: " << ex.what() << "\n";
       continue;
     }
@@ -330,13 +330,13 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
       }
       if (!he.ok) { ++failed; continue; }
       ++assembled;
-      EdgeInfo info{"master", row.pd, key, he, r.layers, w->pairsig, row.nodeMap};
+      EdgeInfo info{"master", searched.pd, key, he, r.layers, w->pairsig, searched.nodeMap};
       if (he.direct) ld.edges.direct["master:" + key] = info;
       else ld.edges.byEdge[he.edge] = info;
     }
   }
   // Phase B, the serial assembly: the row loop less its read-backs.
-  const double assembleSeconds = secondsSince(tRows) - readSeconds;
+  const double assembleSeconds = secondsSince(tSubjects) - readSeconds;
   const auto tName = Clock::now();
   std::vector<NodeId> fresh;
   for (size_t m = nodesBefore; m < g.nodeCount(); ++m) fresh.push_back(static_cast<NodeId>(m));
@@ -355,7 +355,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     << ",\"assemble_s\":" << assembleSeconds << ",\"name_s\":" << nameSeconds
     << ",\"propagate_s\":" << propagateSeconds
     << ",\"own_rows\":" << own.size() << ",\"reverse_witnesses\":" << reverse
-    << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedRows
+    << ",\"subject_rows\":" << bySubject.size() << ",\"refused_rows\":" << refusedSubjects
     << ",\"skipped_genus\":" << skippedGenus
     << ",\"assembled\":" << assembled << ",\"failed\":" << failed
     << ",\"read_back_cache_hits\":" << cacheHits

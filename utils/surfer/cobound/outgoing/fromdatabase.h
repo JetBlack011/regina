@@ -68,7 +68,7 @@ class OutgoingReader {
      * \param rowPD the row's PD code, as the tables write it.
      * \param layers the witnesses' thicken_layers (cobordisms.csv).
      */
-    OutgoingReader(const std::string &rowPD, int layers);
+    OutgoingReader(const std::string &incomingPD, int layers);
     OutgoingReader(const OutgoingReader &) = delete;
     OutgoingReader &operator=(const OutgoingReader &) = delete;
 
@@ -133,20 +133,20 @@ class OutgoingReader {
     const regina::Triangulation<4> &thickening() const { return rb_.tri; }
     const Skeleton<4, 2> &skeleton() const { return *skeleton_; }
     const OutgoingMap &outgoing() const { return *outgoing_; }
-    const search::RowOrientation &row() const { return *rb_.orientation; }
+    const search::IncomingOrientation &orientation() const { return *rb_.orientation; }
     size_t incomingBC() const { return rb_.incomingBC; }
-    const std::vector<size_t> &rowEdges() const { return rb_.incomingEdges; }
+    const std::vector<size_t> &incomingEdges() const { return rb_.incomingEdges; }
     const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
     /** The row's own components, in DiagramDrawer::cyclesOf() order. */
-    const std::vector<knotbuilder::EdgeCycle> &rowCycles() const { return rowCycles_; }
+    const std::vector<knotbuilder::EdgeCycle> &incomingCycles() const { return incomingCycles_; }
     /** Which of rowCycles() the search-side edge `edgeIndex` (an index into
      *  the incoming boundary component's built triangulation) lies on.
      *  \throws std::out_of_range for an edge that is not one of L's. */
-    size_t rowComponentOf(size_t edgeIndex) const { return rowComponentOf_.at(edgeIndex); }
+    size_t incomingComponentOf(size_t edgeIndex) const { return incomingComponentOf_.at(edgeIndex); }
     const knotbuilder::TriangulationWithLink &built() const { return rb_.link; }
     /** The whole row build: a search run in thickening() (cascadesearch's
      *  in-process hops) sees exactly what this redrawer reads. */
-    const search::RowBuild &rowBuild() const { return rb_; }
+    const search::IncomingThickening &thickened() const { return rb_; }
 
     /** Cumulative milliseconds spent decoding pair signatures, and searching
      *  for the isomorphism onto the thickening (carry()). */
@@ -179,12 +179,12 @@ class OutgoingReader {
                                             const std::vector<int> &faces,
                                             const IsoSource &isos) const;
 
-    search::RowBuild rb_; /**< T, the thickening, its collar and row map. */
+    search::IncomingThickening rb_; /**< T, the thickening, its collar and row map. */
     std::unique_ptr<OutgoingMap> outgoing_;
     std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
-    std::vector<knotbuilder::EdgeCycle> rowCycles_;
-    std::unordered_map<size_t, size_t> rowComponentOf_; /**< see rowComponentOf() */
+    std::vector<knotbuilder::EdgeCycle> incomingCycles_;
+    std::unordered_map<size_t, size_t> incomingComponentOf_; /**< see rowComponentOf() */
     mutable double msDecode_ = 0, msIso_ = 0, msSurface_ = 0, msRead_ = 0, msBoundaryBuild_ = 0;
 
     // The fast path's per-row state (outgoingLinkFast()).
@@ -213,10 +213,10 @@ std::optional<outgoing::OutgoingLink> parseLink(const std::string &text);
 
 /// One row's read-backs: loaded from its file, appended as new ones are
 /// computed. Not shared between threads (one per row being read).
-class RowReadBacks {
+class ReadBacks {
 public:
   /// An empty dir means no cache (get() finds nothing, put() keeps nothing).
-  RowReadBacks(const std::string &dir, const std::string &rowPD, int layers,
+  ReadBacks(const std::string &dir, const std::string &incomingPD, int layers,
                const std::string &buildDigest);
 
   const CachedReadBack *get(const std::string &cobordismKey) const;

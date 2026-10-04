@@ -31,7 +31,7 @@ std::string pairSigOf(const regina::Triangulation<4> &thickening,
 
 /// A kept surface to sign: the row it was found in, and its faces there.
 struct SignRequest {
-  std::string rowPD;
+  std::string incomingPD;
   int layers = 2;
   std::vector<int> faces;
 };

@@ -170,18 +170,18 @@ int commands::draw(const std::vector<std::string> &args) {
     const knotbuilder::TriangulationWithLink &built = redraw.built();
 
     // The row's own components, in cyclesOf() order, and each row edge's component.
-    const auto &rowCycles = redraw.rowCycles();
-    std::vector<size_t> componentOfRowEdge(built.edges.size());
+    const auto &incomingCycles = redraw.incomingCycles();
+    std::vector<size_t> componentOfIncomingEdge(built.edges.size());
     {
         std::unordered_map<size_t, size_t> compOfT;
-        for (size_t c = 0; c < rowCycles.size(); ++c)
-            for (const auto &de : rowCycles[c]) compOfT[de.edge] = c;
+        for (size_t c = 0; c < incomingCycles.size(); ++c)
+            for (const auto &de : incomingCycles[c]) compOfT[de.edge] = c;
         for (size_t i = 0; i < built.edges.size(); ++i)
-            componentOfRowEdge[i] = compOfT.at(built.edges[i]->index());
+            componentOfIncomingEdge[i] = compOfT.at(built.edges[i]->index());
     }
-    const knotbuilder::Diagram rowDiagram = redraw.drawer().draw(rowCycles);
-    std::cout << kFrozenDrawRowLine << rowCycles.size() << " lk=" << matrix(rowDiagram)
-              << (gauss ? gaussFields(rowDiagram) + " build=" + redraw.buildChecksum()
+    const knotbuilder::Diagram incomingDiagram = redraw.drawer().draw(incomingCycles);
+    std::cout << kFrozenDrawRowLine << incomingCycles.size() << " lk=" << matrix(incomingDiagram)
+              << (gauss ? gaussFields(incomingDiagram) + " build=" + redraw.buildChecksum()
                         : std::string())
               << "\n";
 
@@ -204,7 +204,7 @@ int commands::draw(const std::vector<std::string> &args) {
 
     // One witness's W line, from its surface in the thickening.
     auto describe = [&](const std::string &id, KnottedSurface &surface) {
-            auto link = outgoing::orientedOutgoingLink(surface, redraw.outgoing(), redraw.row(),
+            auto link = outgoing::orientedOutgoingLink(surface, redraw.outgoing(), redraw.orientation(),
                                                       redraw.incomingBC());
             if (!link) {
                 std::cout << "W " << id << " FAILED incoming orientation is inconsistent\n";
@@ -219,8 +219,8 @@ int commands::draw(const std::vector<std::string> &args) {
                 if (bc != redraw.incomingBC()) continue;
                 for (const OrientedCurve &curve : curves) {
                     if (curve.empty()) continue;
-                    size_t rowEdge = redraw.row().rowIndexOf.at(curve.front().edge->index());
-                    incoming[surfaceOf.at(curve.front().edge)].push_back(componentOfRowEdge[rowEdge]);
+                    size_t incomingEdge = redraw.orientation().incomingIndexOf.at(curve.front().edge->index());
+                    incoming[surfaceOf.at(curve.front().edge)].push_back(componentOfIncomingEdge[incomingEdge]);
                 }
             }
             std::ostringstream inc;

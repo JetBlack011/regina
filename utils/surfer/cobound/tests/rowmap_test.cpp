@@ -86,11 +86,11 @@ std::vector<size_t> seedEdgesOn(const regina::Triangulation<4> &tri,
     return {edges.begin(), edges.end()};
 }
 
-void checkRow(const std::string &name, const std::string &pd) {
+void checkIncomingMap(const std::string &name, const std::string &pd) {
     // The campaign shape: two layers, collared through both.
-    search::RowBuild rb;
+    search::IncomingThickening rb;
     try {
-        search::buildRow(pd, 2, 2, rb);
+        search::buildIncoming(pd, 2, 2, rb);
     } catch (const regina::InvalidArgument &e) {
         std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
                   << "\n";
@@ -105,21 +105,21 @@ void checkRow(const std::string &name, const std::string &pd) {
     EXPECT_EQ(rb.componentCount, components,
               name + ": the row's component count");
 
-    const std::vector<size_t> rowEdges = seedEdgesOn(tri, seedFaces, bc);
-    EXPECT_EQ(rowEdges.size(), edges2.size(),
+    const std::vector<size_t> seedEdges = seedEdgesOn(tri, seedFaces, bc);
+    EXPECT_EQ(seedEdges.size(), edges2.size(),
               name + ": the seed holds every edge of L on the search side");
-    EXPECT_EQ(rb.incomingEdges == rowEdges, true,
+    EXPECT_EQ(rb.incomingEdges == seedEdges, true,
               name + ": the row's search edges are the seed's own");
 
-    const RowOrientation &row = *rb.orientation;
-    if (row.divergedFromDefaultIsomorphism) {
+    const IncomingOrientation &incoming = *rb.orientation;
+    if (incoming.divergedFromDefaultIsomorphism) {
         ++divergedRows;
         std::cout << "  (" << name << ": the default isomorphism would have "
                   << "mapped L differently)\n";
     }
-    EXPECT_EQ(row.edges == rowEdges, true,
+    EXPECT_EQ(incoming.edges == seedEdges, true,
               name + ": the row map lands exactly on the seed's edges");
-    EXPECT_EQ(row.components, static_cast<size_t>(components),
+    EXPECT_EQ(incoming.components, static_cast<size_t>(components),
               name + ": one closed directed curve per component");
 
     SurfaceSearch protectedSearch(tri, seedFaces, bc);
@@ -135,7 +135,7 @@ void checkRow(const std::string &name, const std::string &pd) {
             curves = std::move(cs);
     EXPECT_EQ(curves.size(), static_cast<size_t>(components),
               name + ": the collar's search-side boundary is L");
-    EXPECT_EQ(classifyRowOrientation(row, curves,
+    EXPECT_EQ(classifyIncomingOrientation(incoming, curves,
                                      collarSurface
                                          .boundaryEdgeSurfaceComponent()) ==
                   OrientationVerdict::match,
@@ -144,7 +144,7 @@ void checkRow(const std::string &name, const std::string &pd) {
                      "oriented on its own) matches the row's orientation");
 }
 
-void test_row_map_battery() {
+void test_incoming_map_battery() {
     const std::vector<std::pair<std::string, std::string>> rows = {
         {"3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"},
         {"4_1", "[[4;2;5;1];[8;6;1;5];[6;3;7;4];[2;7;3;8]]"},
@@ -169,10 +169,10 @@ void test_row_map_battery() {
                       "X[7; 10; 8; 11]; X[3; 5; 4; 8]; X[9; 3; 10; 2]]"},
     };
     for (const auto &[name, pd] : rows)
-        checkRow(name, pd);
+        checkIncomingMap(name, pd);
 }
 
-void test_row_map_refuses_foreign_edges() {
+void test_incoming_map_refuses_foreign_edges() {
     ThickenedLink built; // two layers, no collar
     buildAmbient("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 0, built);
     auto &[t2, edges2, reversed2] = built.link;
@@ -181,7 +181,7 @@ void test_row_map_refuses_foreign_edges() {
     const std::vector<size_t> nonsense = {0};
     bool threw = false;
     try {
-        buildRowOrientation(edges2, reversed2,
+        buildIncomingOrientation(edges2, reversed2,
                             tri.boundaryComponent(bc)->build(), &nonsense);
     } catch (const regina::InvalidArgument &) {
         threw = true;
@@ -215,7 +215,7 @@ void sweepTable(const std::string &path, int maxCrossings) {
         }
         if (maxCrossings > 0 && crossings > maxCrossings)
             continue;
-        checkRow(name, pd);
+        checkIncomingMap(name, pd);
         ++rows;
     }
     std::cout << "swept " << rows << " rows of " << path << "\n";
@@ -227,8 +227,8 @@ int main(int argc, char **argv) {
     if (argc >= 2) {
         sweepTable(argv[1], argc >= 3 ? std::stoi(argv[2]) : 0);
     } else {
-        test_row_map_battery();
-        test_row_map_refuses_foreign_edges();
+        test_incoming_map_battery();
+        test_incoming_map_refuses_foreign_edges();
     }
     std::cout << passed << " passed, " << failed_count << " failed; "
               << divergedRows << " rows where isIsomorphicTo() would have "

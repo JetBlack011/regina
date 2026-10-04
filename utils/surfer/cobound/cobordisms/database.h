@@ -78,7 +78,7 @@ class PairSigReader {
 /// diagram its search ran on (empty: the subject's table PD).
 struct StoredCobordism {
     cobordisms::Cobordism cobordism;
-    std::string rowPD;
+    std::string incomingPD;
 };
 
 /**
@@ -98,7 +98,7 @@ class DatabaseIndex {
 
     bool has(const std::string &subject) const { return offsets_.count(subject) > 0; }
     /// The cobordisms of the row `subject`.
-    std::vector<StoredCobordism> rows(const std::string &subject) const;
+    std::vector<StoredCobordism> ofSubject(const std::string &subject) const;
     /// The cobordisms of OTHER rows whose recorded outgoing link has this
     /// base name (a hint only); at most `cap`.
     std::vector<StoredCobordism> byOutgoing(const std::string &base, size_t cap) const;
@@ -110,7 +110,7 @@ class DatabaseIndex {
     std::string path_;
     std::unordered_map<std::string, std::vector<std::streamoff>> offsets_;
     std::unordered_map<std::string, std::vector<std::streamoff>> byOther_;
-    std::unordered_map<std::string, std::string> rowPD_; ///< witness key -> row PD
+    std::unordered_map<std::string, std::string> incomingPD_; ///< witness key -> row PD
 };
 
 /// cobordisms::witnessIdentity() of every witness loadWitnesses() would

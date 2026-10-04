@@ -70,11 +70,11 @@ public:
   /// rebuilds a KnottedSurface (~1 s). hopedges_test checks they agree.
   enum class Read { fast, reference };
 
-  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
+  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
                Read read = Read::fast);
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
-  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
+  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink searched,
                std::unique_ptr<outgoing::OutgoingReader> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
@@ -87,7 +87,7 @@ public:
                   const std::string &key);
 
   /// knotbuilder's row component i is the node's component rowToNode()[i].
-  const std::vector<int> &rowToNode() const { return rowToNode_; }
+  const std::vector<int> &incomingToLink() const { return incomingToLink_; }
 
   /// The row's thickening and everything read from it.
   const outgoing::OutgoingReader &redrawer() const { return *redraw_; }
@@ -97,14 +97,14 @@ private:
                                                 std::string &why) const;
   /// Per knotbuilder row component, the surface component it lies on.
   std::optional<std::vector<size_t>>
-  surfaceOfRowComponents(const outgoing::OutgoingLink &link, std::string &why) const;
-  void certifyRow_();
+  surfaceOfIncomingComponents(const outgoing::OutgoingLink &link, std::string &why) const;
+  void certifyIncoming_();
   Read read_;
   ProofGraph &g_;
   NodeRegistry &nodes_;
-  SearchedLink row_;
+  SearchedLink searched_;
   std::unique_ptr<outgoing::OutgoingReader> redraw_;
-  std::vector<int> rowToNode_;
+  std::vector<int> incomingToLink_;
 };
 
 /// The GaussDiagram of a drawn diagram, `origin` = drawn component index.
@@ -114,6 +114,6 @@ linknaming::GaussDiagram gaussOf(const knotbuilder::Diagram &d);
 /// labels from 1). Throws if the PD would not fix every orientation
 /// (regina::Link::pdAmbiguous()), unless every ambiguous component is split
 /// from the rest, when orientation there cannot matter.
-std::string rowPD(const linknaming::GaussDiagram &d);
+std::string diagramPD(const linknaming::GaussDiagram &d);
 
 } // namespace bounds

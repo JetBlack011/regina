@@ -44,10 +44,10 @@ splitBoundary(const std::vector<BoundaryComponentNames> &boundaryComponents,
     return result;
 }
 
-RowOrientationJudgement judgeRowOrientation(
-    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+IncomingOrientationJudgement judgeIncomingOrientation(
+    const IncomingOrientation &incoming, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    RowOrientationJudgement out;
+    IncomingOrientationJudgement out;
     auto verdict = [&out](OrientationVerdict v) {
         out.verdict = v;
         return out;
@@ -58,8 +58,8 @@ RowOrientationJudgement judgeRowOrientation(
 
         std::optional<bool> curveMatch;
         for (const OrientedEdge &oe : curve) {
-            auto it = row.tailOf.find(oe.edge->index());
-            if (it == row.tailOf.end())
+            auto it = incoming.tailOf.find(oe.edge->index());
+            if (it == incoming.tailOf.end())
                 return verdict(OrientationVerdict::foreignEdge);
             const regina::Vertex<3> *tail =
                 oe.reversed ? oe.edge->vertex(1) : oe.edge->vertex(0);
@@ -83,10 +83,10 @@ RowOrientationJudgement judgeRowOrientation(
                                 : OrientationVerdict::match);
 }
 
-OrientationVerdict classifyRowOrientation(
-    const RowOrientation &row, const std::vector<OrientedCurve> &curves,
+OrientationVerdict classifyIncomingOrientation(
+    const IncomingOrientation &incoming, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceComponentOf) {
-    return judgeRowOrientation(row, curves, surfaceComponentOf).verdict;
+    return judgeIncomingOrientation(incoming, curves, surfaceComponentOf).verdict;
 }
 
 } // namespace search
@@ -106,7 +106,7 @@ const char *gateReason(Gate gate) {
     return "unknown";
 }
 
-GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
+GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickening &thickened) {
     GatedSurface g;
     if (!info.orientable) {
         // orientableOnly=true prunes these during the search.
@@ -117,12 +117,12 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     // The search side is L by construction (the seed; asserted once at row
     // setup), so splitBoundary() just takes component searchSideBC.
     g.split = search::splitBoundary(info.boundaryComponents,
-                                            row.incomingBC);
+                                            thickened.incomingBC);
     if (g.split.unnamedSide) {
         g.gate = Gate::unnamedSide;
         return g;
     }
-    if (g.split.searchCurveCount != static_cast<size_t>(row.componentCount)) {
+    if (g.split.searchCurveCount != static_cast<size_t>(thickened.componentCount)) {
         g.gate = Gate::incomingBroken;
         return g;
     }
@@ -136,7 +136,7 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     g.surfaceOf = info.captureBoundaryEdgeSurfaceComponent();
     bool foundIncoming = false;
     for (auto &[c, curves] : g.orientedLinks) {
-        if (c == row.incomingBC) {
+        if (c == thickened.incomingBC) {
             g.incomingCurves = curves;
             foundIncoming = true;
             break;
@@ -145,8 +145,8 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const RowBuild &row) {
     search::OrientationVerdict verdict =
         search::OrientationVerdict::incoherentCurve;
     if (foundIncoming) {
-        search::RowOrientationJudgement judged =
-            search::judgeRowOrientation(*row.orientation, g.incomingCurves,
+        search::IncomingOrientationJudgement judged =
+            search::judgeIncomingOrientation(*thickened.orientation, g.incomingCurves,
                                                 g.surfaceOf);
         verdict = judged.verdict;
         g.flips = std::move(judged.flips);
@@ -179,7 +179,7 @@ std::string nameOutgoing(const GatedSurface &g, const outgoing::DiagramNamer *na
     return name;
 }
 
-void RowAccounting::reject(Gate gate) {
+void SearchAccounting::reject(Gate gate) {
     switch (gate) {
     case Gate::accepted: break;
     case Gate::nonOrientable:
@@ -203,7 +203,7 @@ void RowAccounting::reject(Gate gate) {
     }
 }
 
-std::string RowAccounting::failure(long long accepted, long long rebuildFailed,
+std::string SearchAccounting::failure(long long accepted, long long rebuildFailed,
                                    bool drainSkipped) const {
     const long long nDescribed = described.load();
     if (bucketed() != nDescribed)
@@ -226,7 +226,7 @@ std::string RowAccounting::failure(long long accepted, long long rebuildFailed,
     return {};
 }
 
-std::string RowAccounting::summary(long long accepted, bool drainSkipped) const {
+std::string SearchAccounting::summary(long long accepted, bool drainSkipped) const {
     return "accepted " + std::to_string(accepted) + ", described " +
            std::to_string(described.load()) + ", recorded " +
            std::to_string(recorded.load()) + ", duplicate " +
@@ -244,11 +244,11 @@ namespace {
 // carries, as a canonical string: surface components are unlabelled, so the
 // per-component entries are sorted.
 std::string groupingOf(const outgoing::OutgoingLink &link,
-                       const outgoing::OutgoingReader &row) {
+                       const outgoing::OutgoingReader &reader) {
   std::map<size_t, std::pair<std::vector<size_t>, int>> bySurface;
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i)
     bySurface[link.incomingSurfaceComponent[i]].first.push_back(
-        row.rowComponentOf(link.incomingFirstEdge[i]));
+        reader.incomingComponentOf(link.incomingFirstEdge[i]));
   for (size_t sc : link.surfaceComponent) ++bySurface[sc].second;
   std::vector<std::string> parts;
   for (auto &[sc, entry] : bySurface) {
@@ -266,8 +266,8 @@ std::string groupingOf(const outgoing::OutgoingLink &link,
 } // namespace
 
 std::string keptKey(const cobordisms::Cobordism &w, const outgoing::OutgoingLink &link,
-                    const outgoing::OutgoingReader &row) {
-    return cobordisms::cobordismIdentity(w) + '\x1f' + groupingOf(link, row);
+                    const outgoing::OutgoingReader &reader) {
+    return cobordisms::cobordismIdentity(w) + '\x1f' + groupingOf(link, reader);
 }
 
 } // namespace search

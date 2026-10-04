@@ -302,12 +302,12 @@ int countLinkComponents(const std::vector<const regina::Edge<3> *> &edges) {
 } // namespace
 
 void buildAmbient(const std::string &pdNotation, int thickenLayers,
-                  int collarLayers, ThickenedLink &row) {
-    row.pdcode = knotbuilder::parsePDCode(pdNotation);
-    row.link = knotbuilder::buildLink(row.pdcode);
+                  int collarLayers, ThickenedLink &thickened) {
+    thickened.pdcode = knotbuilder::parsePDCode(pdNotation);
+    thickened.link = knotbuilder::buildLink(thickened.pdcode);
 
-    auto &[t2, edges2, reversed2] = row.link;
-    row.componentCount = countLinkComponents(edges2);
+    auto &[t2, edges2, reversed2] = thickened.link;
+    thickened.componentCount = countLinkComponents(edges2);
 
     std::vector<int> edgeIndices;
     edgeIndices.reserve(edges2.size());
@@ -319,8 +319,8 @@ void buildAmbient(const std::string &pdNotation, int thickenLayers,
     // L's edges in the cobordism's base. The collar must be extended on
     // every layer it is meant to cover: CollarBuilder::addLayer() captures
     // only the most recently built layer's prisms.
-    row.cob.emplace(t2);
-    CobordismBuilder<3> &cob = *row.cob;
+    thickened.cob.emplace(t2);
+    CobordismBuilder<3> &cob = *thickened.cob;
     CollarBuilder collarBuilder(edgeIndices);
     for (int i = 0; i < thickenLayers; ++i) {
         cob.thicken();
@@ -328,15 +328,15 @@ void buildAmbient(const std::string &pdNotation, int thickenLayers,
             collarBuilder.addLayer(cob);
     }
 
-    row.incomingBC = cob.baseBoundaryComponent()->index();
-    row.tri = cob.getCobordism();
+    thickened.incomingBC = cob.baseBoundaryComponent()->index();
+    thickened.tri = cob.getCobordism();
 
     if (collarLayers > 0) {
         for (regina::Triangle<4> *t : collarBuilder.resolve())
-            row.seedFaces.push_back(static_cast<int>(t->index()));
+            thickened.seedFaces.push_back(static_cast<int>(t->index()));
         // In index order, never the set's (address) order: a surface's
         // triangles are numbered from the seed's, so each component's
         // orientation, and so where each of its curves starts, follows it.
-        std::ranges::sort(row.seedFaces);
+        std::ranges::sort(thickened.seedFaces);
     }
 }
