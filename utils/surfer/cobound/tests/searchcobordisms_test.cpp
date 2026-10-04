@@ -21,7 +21,7 @@
 #include "linknaming/tests/check.h"
 
 #ifndef COBOUND_TEST_DATA
-#error "CASCADE_TEST_DATA must point at cascade/tests/data"
+#error "COBOUND_TEST_DATA must point at cobound/tests/data"
 #endif
 
 using linknaming::GaussDiagram;
@@ -237,5 +237,5 @@ int main() {
   testFastMatchesReference();
   test10_3();
   testL11n33();
-  return checks::finish("hopedges_test");
+  return checks::finish("searchcobordisms_test");
 }

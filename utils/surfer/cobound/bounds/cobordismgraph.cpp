@@ -44,9 +44,9 @@ void requireBijection(const std::vector<int> &map, int n, const char *what) {
 LinkId CobordismGraph::addLink(int components, std::string label,
                            std::optional<std::vector<std::vector<int>>> lk) {
   if (components < 1)
-    throw std::invalid_argument("addNode: a link has at least one component");
+    throw std::invalid_argument("addLink: a link has at least one component");
   if (lk && static_cast<int>(lk->size()) != components)
-    throw std::invalid_argument("addNode: linking matrix size");
+    throw std::invalid_argument("addLink: linking matrix size");
   GraphLink n;
   n.id = static_cast<LinkId>(links_.size());
   n.components = components;
@@ -83,11 +83,11 @@ RelationId CobordismGraph::addCobordism(LinkId in, LinkId out, CobordismShape sh
                               std::vector<int> inMap, std::vector<int> outMap,
                               std::string key) {
   shape.validate();
-  requireBijection(inMap, links_.at(in).components, "addWitness inMap");
-  requireBijection(outMap, links_.at(out).components, "addWitness outMap");
+  requireBijection(inMap, links_.at(in).components, "addCobordism inMap");
+  requireBijection(outMap, links_.at(out).components, "addCobordism outMap");
   if (inMap.size() != shape.inComponent.size() ||
       outMap.size() != shape.outComponent.size())
-    throw std::invalid_argument("addWitness: map size != curve count");
+    throw std::invalid_argument("addCobordism: map size != curve count");
   LinkCobordism e;
   e.id = static_cast<RelationId>(cobordisms_.size());
   e.in = in;
@@ -829,12 +829,12 @@ std::string CobordismGraph::recheck(DerivationId rid) const {
   case DerivationKind::cobordismForward:
   case DerivationKind::cobordismReverse: {
     if (r.children.size() != 1)
-      return "a witness record needs exactly one child";
+      return "a cobordism derivation needs exactly one child";
     const LinkCobordism &e = cobordisms_.at(r.relation);
     const Derivation &c = derivations_.at(r.children[0]);
     const bool fwd = r.kind == DerivationKind::cobordismForward;
     if (c.link != (fwd ? e.out : e.in) || r.link != (fwd ? e.in : e.out))
-      return "endpoints do not match the edge";
+      return "endpoints do not match the cobordism";
     d = throughCobordism(e, fwd, c.partition, c.genus);
     break;
   }

@@ -94,7 +94,7 @@ void test_regina_hit_formats_via_linknames() {
     EXPECT_EQ(
         census::localCensusLookup("fake-sig-regina-linkname").value_or("<MISS>"),
         std::string("4_1 (L104001 : #1)"),
-        "a source='regina' hit whose base name is in linknames.h is "
+        "a source='regina' hit whose base name is in censusnames.h is "
         "formatted the same way censusLookupName() formats a real "
         "Census::lookup() hit");
 }
@@ -106,7 +106,7 @@ void test_regina_hit_raw_when_no_linknames_entry() {
     EXPECT_EQ(
         census::localCensusLookup("fake-sig-regina-no-linkname").value_or("<MISS>"),
         std::string("not-in-linknames-table"),
-        "a source='regina' hit with no linknames.h entry returns the "
+        "a source='regina' hit with no censusnames.h entry returns the "
         "raw census name unchanged");
 }
 
@@ -329,8 +329,8 @@ void test_real_triangulation_isosig_key_matches_production_query() {
 
     EXPECT_EQ(census::nameComplement(EdgeComplement(figureEight, {})),
               std::string("synthetic-name-for-fig8"),
-              "...and the SAME key is what identify::resolveRecognition()/"
-              "identify::identify() actually queries with, end to end (not "
+              "...and the SAME key is what census::resolveAnswer()/"
+              "census::nameComplement() actually queries with, end to end (not "
               "some other signature computed independently)");
 
     complement::resetCacheForTesting();

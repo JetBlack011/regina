@@ -64,7 +64,7 @@ LinkNamer::LinkNamer(const Tables &tables, NamerLimits limits,
       caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)) {
     // Every cache is keyed by entries of one Tables.
     if (caches_->tables != &tables_)
-        throw std::invalid_argument("ExactNamer: table caches built for other tables");
+        throw std::invalid_argument("LinkNamer: table caches built for other tables");
 }
 
 const regina::Laurent2<regina::Integer> &LinkNamer::homfly(const TableEntry &e, bool mirror) const {
@@ -423,8 +423,9 @@ PieceName LinkNamer::namePiece(const GaussDiagram &piece) const {
                     invariantSurvivors(piece, pieceHomfly(), m->base, nullptr);
                 if (!std::includes(survivors.begin(), survivors.end(), m->names.begin(),
                                    m->names.end()))
-                    throw std::logic_error("exactnaming: the isometry pins a variant of " +
-                                           m->base + " that the invariants rule out");
+                    throw std::logic_error(
+                        "LinkNamer::namePiece(): the isometry pins a variant of " + m->base +
+                        " that the invariants rule out");
             }
             if (!m->names.empty()) {
                 p.by = PieceName::By::isometry;

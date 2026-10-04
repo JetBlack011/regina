@@ -205,7 +205,7 @@ void run(const std::string &name, void (*fn)()) {
 int main() {
     run("components_from_name", test_components_from_name);
     run("base_name", test_base_name);
-    run("normalize_identified_name", test_normalize_complement_name);
+    run("normalize_complement_name", test_normalize_complement_name);
     run("split_names", test_split_names);
     run("composite_parts", test_composite_parts);
     run("knot_marks", test_knot_marks);

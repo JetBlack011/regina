@@ -210,8 +210,8 @@ SignResult signKept(std::vector<PendingCobordism> pending, const std::string &da
     cobordisms::Cobordism w = std::move(fresh[i].cobordism);
     w.pairSig = std::move(sigs[i]);
     if (w.pairSig.empty())
-      throw std::runtime_error("storeKept: an empty pair signature for a " + w.subject +
-                               " witness");
+      throw std::runtime_error("signKept: an empty pair signature for a " + w.subject +
+                               " cobordism");
     w.otherCandidates.clear();
     if (w.kind == cobordisms::CobordismKind::cobordism)
       w.otherCandidates = names.candidates(w.other, w.otherComponents);

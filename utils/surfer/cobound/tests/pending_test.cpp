@@ -34,7 +34,7 @@
 #include "cobound/solver/literature.h"
 
 #ifndef COBOUND_TEST_DATA
-#error "CASCADE_TEST_DATA must point at cascade/tests/data"
+#error "COBOUND_TEST_DATA must point at cobound/tests/data"
 #endif
 
 using linknaming::GaussDiagram;
@@ -83,7 +83,7 @@ int main() {
   const std::string data = COBOUND_TEST_DATA;
   const std::string knots = data + "/knots_to_6.csv", links = data + "/links_to_6.csv";
   const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(knots, links);
-  const fs::path dir = fs::temp_directory_path() / ("keptstore_test." + std::to_string(::getpid()));
+  const fs::path dir = fs::temp_directory_path() / ("pending_test." + std::to_string(::getpid()));
   const fs::path searchDir = dir / "hop_0_n0";
   fs::create_directories(searchDir);
 
@@ -194,5 +194,5 @@ int main() {
   CHECK_EQ(readKept(dir.string()).size(), pending.size(), "a torn kept line is skipped");
 
   fs::remove_all(dir);
-  return checks::finish("keptstore_test");
+  return checks::finish("pending_test");
 }

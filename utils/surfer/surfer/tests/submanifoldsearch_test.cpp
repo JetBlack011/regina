@@ -572,14 +572,14 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
     }
     EXPECT_EQ(someSeedFaceIsInterior, true,
               "at least one seed triangle is interior (not itself a "
-              "boundary face) despite touching searchSideBC via an edge");
+              "boundary face) despite touching incomingBC via an edge");
 
     EmbeddingSearch<4, 2> unprotected(tri);
     size_t baselineCount = unprotected.numEmbeddableFaces();
 
     EmbeddingSearch<4, 2> protectedUnseeded(tri, incomingBC);
     EXPECT_EQ(protectedUnseeded.numEmbeddableFaces() < baselineCount, true,
-              "protecting searchSideBC strictly reduces the embeddable face "
+              "protecting incomingBC strictly reduces the embeddable face "
               "count -- the edge-level exclusion catches interior faces "
               "with just one edge on it, not only its own boundary faces");
 
@@ -608,7 +608,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
         outgoingFaceThrew = true;
     }
     EXPECT_EQ(outgoingFaceThrew, false,
-              "a far-side face is still a valid seed under searchSideBC "
+              "an outgoing face is still a valid seed under incomingBC "
               "protection -- protecting one boundary component doesn't "
               "restrict any other");
 }
@@ -1504,7 +1504,7 @@ int main() {
     run("test_triple_self_fold_excluded", test_triple_self_fold_excluded);
     run("test_backpressure_does_not_drop_or_double_count_surfaces",
         test_backpressure_does_not_drop_or_double_count_surfaces);
-    run("test_boundary_link_batch_recognizes_unknot",
+    run("test_boundary_link_batch_names_unknot",
         test_boundary_link_batch_names_unknot);
     run("test_seeded_enumerator_preserves_anchor",
         test_seeded_enumerator_preserves_anchor);

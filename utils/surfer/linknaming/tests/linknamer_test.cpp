@@ -50,9 +50,9 @@ static int failed_count = 0;
 
 namespace {
 
-const char *KNOTS = "exactnaming_test_knots.csv";
-const char *LINKS = "exactnaming_test_links.csv";
-const char *SYMMETRY = "exactnaming_test_symmetry.csv";
+const char *KNOTS = "linknamer_test_knots.csv";
+const char *LINKS = "linknamer_test_links.csv";
+const char *SYMMETRY = "linknamer_test_symmetry.csv";
 
 const std::vector<std::pair<std::string, std::string>> KNOT_ROWS = {
     {"3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]],1"},

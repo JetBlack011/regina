@@ -68,7 +68,7 @@ bool sameLink(const outgoing::OutgoingLink &a, const outgoing::OutgoingLink &b) 
 }
 
 std::string tempDir() {
-  std::string d = (fs::temp_directory_path() / ("readbackcache_test_" + std::to_string(::getpid())))
+  std::string d = (fs::temp_directory_path() / ("fromdatabase_test_" + std::to_string(::getpid())))
                       .string();
   fs::remove_all(d);
   return d;
@@ -172,5 +172,5 @@ int main() {
     CHECK(none.get(cobordisms::cobordismKey(sigs[0])) == nullptr, "an empty dir keeps nothing");
   }
   fs::remove_all(dir);
-  return checks::finish("readbackcache_test");
+  return checks::finish("fromdatabase_test");
 }

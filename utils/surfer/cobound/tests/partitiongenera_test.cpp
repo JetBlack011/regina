@@ -369,5 +369,5 @@ int main() {
   testLinking();
   testPartitionGenera();
   testGlueMonotone();
-  return checks::finish("profile_test");
+  return checks::finish("partitiongenera_test");
 }

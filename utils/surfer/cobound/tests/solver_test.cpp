@@ -849,7 +849,7 @@ void test_split_boundary_single_curve_is_safe() {
     BoundarySplit split = splitBoundary(components, 0);
 
     EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(1),
-              "component 0 (== searchSideBC) is the search side");
+              "component 0 (== incomingBC) is the incoming side");
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
               "exactly one other side");
     EXPECT_EQ(split.otherSides[0].name, std::string("4_1"),
@@ -887,8 +887,8 @@ void test_split_boundary_linked_multicomponent_is_kept() {
 
     EXPECT_EQ(split.otherSides[0].name, std::string("L6a3"), "named");
     EXPECT_EQ(split.otherSides[0].components, 2,
-              "a genuinely linked multi-component far side is KEPT, not "
-              "refused: it is recorded, and farSideBearsBound() is what "
+              "a genuinely linked multi-component outgoing link is KEPT, not "
+              "refused: it is recorded, and outgoingBearsBound() is what "
               "declines to bound anything by it");
 }
 
@@ -920,7 +920,7 @@ void test_split_boundary_seeded_ignores_names() {
     BoundarySplit split = splitBoundary(components, 0);
 
     EXPECT_EQ(split.searchCurveCount, static_cast<size_t>(1),
-              "the search side is component searchSideBC, whatever it was "
+              "the incoming side is component incomingBC, whatever it was "
               "named");
     EXPECT_EQ(split.otherSides.size(), static_cast<size_t>(1),
               "the far side is still classified");
@@ -1049,10 +1049,10 @@ void test_cobordism_identity() {
               "a different genus is a different witness");
 
     std::vector<Cobordism> cobordisms = {a};
-    EXPECT_EQ(haveCobordism(cobordisms, b), false, "haveWitness() agrees");
-    EXPECT_EQ(haveCobordism(cobordisms, c), false, "haveWitness() agrees");
+    EXPECT_EQ(haveCobordism(cobordisms, b), false, "haveCobordism() agrees");
+    EXPECT_EQ(haveCobordism(cobordisms, c), false, "haveCobordism() agrees");
     cobordisms.push_back(b);
-    EXPECT_EQ(haveCobordism(cobordisms, b), true, "haveWitness() agrees");
+    EXPECT_EQ(haveCobordism(cobordisms, b), true, "haveCobordism() agrees");
 }
 
 } // namespace
@@ -1416,11 +1416,11 @@ int main() {
     run("external_proofs", test_external_proofs);
     run("derived_lower_above_derived_upper_is_a_contradiction",
         test_derived_lower_above_derived_upper_is_a_contradiction);
-    run("knot_far_side_named_as_a_link_bounds_nothing",
+    run("knot_outgoing_named_as_a_link_bounds_nothing",
         test_knot_outgoing_named_as_a_link_bounds_nothing);
-    run("proved_link_far_side_bears_bound",
+    run("proved_link_outgoing_bears_bound",
         test_proved_link_outgoing_bears_bound);
-    run("split_far_side_upper_bound", test_split_outgoing_upper_bound);
+    run("split_outgoing_upper_bound", test_split_outgoing_upper_bound);
     run("split_unknot_factor_changes_nothing",
         test_split_unknot_factor_changes_nothing);
     run("split_lower_bound_is_not_additive",
@@ -1433,9 +1433,9 @@ int main() {
         test_split_composite_alternative_keeps_its_mirror);
     run("split_with_a_link_factor_has_no_lower_bound",
         test_split_with_a_link_factor_has_no_lower_bound);
-    run("unproved_split_far_side_bounds_nothing",
+    run("unproved_split_outgoing_bounds_nothing",
         test_unproved_split_outgoing_bounds_nothing);
-    run("composite_far_side_upper_bound", test_composite_outgoing_upper_bound);
+    run("composite_outgoing_upper_bound", test_composite_outgoing_upper_bound);
     run("composite_takes_the_worst_orientation",
         test_composite_takes_the_worst_orientation);
     run("unproved_composite_bounds_nothing",
@@ -1448,7 +1448,7 @@ int main() {
         test_candidates_expand_orientation_variants);
     run("candidates_filtered_by_observed_component_count",
         test_candidates_filtered_by_observed_component_count);
-    run("direct_witness_gives_upper_bound",
+    run("direct_cobordism_gives_upper_bound",
         test_direct_cobordism_gives_upper_bound);
     run("knot_cobordism_reduces_to_the_classic_rule",
         test_knot_cobordism_reduces_to_the_classic_rule);
@@ -1456,7 +1456,7 @@ int main() {
         test_component_correction_on_the_upper_bound);
     run("component_correction_on_the_lower_bound",
         test_component_correction_on_the_lower_bound);
-    run("unlink_far_side_carries_no_component_penalty",
+    run("unlink_outgoing_carries_no_component_penalty",
         test_unlink_outgoing_carries_no_component_penalty);
     run("linked_far_side_bounds_nothing", test_linked_outgoing_bounds_nothing);
     run("unlink_axiom_is_constructive", test_unlink_axiom_is_constructive);
@@ -1466,10 +1466,10 @@ int main() {
         test_slice_composite_allowlist_is_not_a_pattern);
     run("orientation_variants_are_not_a_candidate_set",
         test_orientation_variants_are_not_a_candidate_set);
-    run("far_side_bears_bound", test_outgoing_bears_bound);
-    run("chains_through_an_unnamed_isosig_node",
+    run("outgoing_bears_bound", test_outgoing_bears_bound);
+    run("chains_through_an_unnamed_isosig_link",
         test_chains_through_an_unnamed_isosig_link);
-    run("tubed_witness_genus_is_taken_at_face_value",
+    run("tubed_cobordism_genus_is_taken_at_face_value",
         test_tubed_cobordism_genus_is_taken_at_face_value);
     run("propagation_terminates_on_a_cycle",
         test_propagation_terminates_on_a_cycle);
@@ -1477,22 +1477,22 @@ int main() {
         test_self_cobordism_cannot_confirm_the_literature);
     run("self_cobordism_still_allows_a_real_bound_from_elsewhere",
         test_self_cobordism_still_allows_a_real_bound_from_elsewhere);
-    run("ambiguous_far_side_gets_no_reverse_bound",
+    run("ambiguous_outgoing_gets_no_reverse_bound",
         test_ambiguous_outgoing_gets_no_reverse_bound);
-    run("unambiguous_far_side_does_get_a_reverse_bound",
+    run("unambiguous_outgoing_does_get_a_reverse_bound",
         test_unambiguous_outgoing_does_get_a_reverse_bound);
     run("two_step_cycle_through_an_alias_is_refused",
         test_two_step_cycle_through_an_alias_is_refused);
     run("longer_cycle_is_refused", test_longer_cycle_is_refused);
     run("support_set_records_what_a_bound_rests_on",
         test_support_set_records_what_a_bound_rests_on);
-    run("unregistered_multicomponent_far_side_gets_no_reverse_bound",
+    run("unregistered_multicomponent_outgoing_gets_no_reverse_bound",
         test_unregistered_multicomponent_outgoing_gets_no_reverse_bound);
-    run("unregistered_SINGLE_component_far_side_still_chains",
+    run("unregistered_SINGLE_component_outgoing_still_chains",
         test_unregistered_SINGLE_component_outgoing_still_chains);
     run("two_component_isosig_node_does_not_chain",
         test_two_component_isosig_link_does_not_chain);
-    run("unlink_far_side_still_chains_and_is_penalty_free",
+    run("unlink_outgoing_still_chains_and_is_penalty_free",
         test_unlink_outgoing_still_chains_and_is_penalty_free);
     run("judge_verified", test_judge_verified);
     run("judge_distinguishes_assisted_verification",
@@ -1500,7 +1500,7 @@ int main() {
     run("judge_improved", test_judge_improved);
     run("judge_contradiction", test_judge_contradiction);
     run("judge_unresolved", test_judge_unresolved);
-    run("have_witness_dedup", test_have_cobordism_dedup);
+    run("have_cobordism_dedup", test_have_cobordism_dedup);
     run("build_depends_on_chain", test_build_depends_on_chain);
     run("build_depends_on_is_cycle_safe", test_build_depends_on_is_cycle_safe);
     run("split_boundary_single_curve_is_safe",
@@ -1515,9 +1515,9 @@ int main() {
         test_split_boundary_seeded_ignores_names);
     run("split_boundary_unnamed_side_flagged",
         test_split_boundary_unnamed_side_flagged);
-    run("classify_row_orientation", test_classify_incoming_orientation);
-    run("witness_identity", test_cobordism_identity);
-    run("exact_far_side", test_named_outgoing);
+    run("classify_incoming_orientation", test_classify_incoming_orientation);
+    run("cobordism_identity", test_cobordism_identity);
+    run("named_outgoing", test_named_outgoing);
     run("sum_rules", test_sum_rules);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "

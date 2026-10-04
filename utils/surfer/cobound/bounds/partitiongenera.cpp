@@ -122,7 +122,7 @@ bool PartitionGenera::implies(const Partition &p, int g) const {
 
 bool PartitionGenera::insert(const Partition &p, int g, long derivation) {
   if (p.size() != n_)
-    throw std::invalid_argument("Profile::insert: partition size != link");
+    throw std::invalid_argument("PartitionGenera::insert: partition size != link");
   if (implies(p, g))
     return false;
   std::erase_if(entries_, [&](const PartitionGenus &e) {

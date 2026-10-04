@@ -111,8 +111,8 @@ int commands::name(const std::vector<std::string> &args) {
                      "       [--search-height H] [--search-visits N] [--simplify-tries N]\n"
                      "       [--exhaustive-height H] [--max-search-crossings N]\n"
                      "       [--deep-height H] [--deep-visits N] [--max-deep-crossings N]\n"
-                     "       [--profile] [--reference] < witnesses\n"
-                     "(defaults: exactnaming::NamerLimits)\n";
+                     "       [--profile] [--reference] < cobordisms\n"
+                     "(defaults: linknaming::NamerLimits)\n";
         return 2;
     }
     const linknaming::Tables tables = linknaming::Tables::load(knots, links, symmetry);

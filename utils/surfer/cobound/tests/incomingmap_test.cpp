@@ -92,7 +92,7 @@ void checkIncomingMap(const std::string &name, const std::string &pd) {
     try {
         search::buildIncoming(pd, 2, 2, thickened);
     } catch (const regina::InvalidArgument &e) {
-        std::cout << "  FAIL: " << name << ": buildRow threw: " << e.what()
+        std::cout << "  FAIL: " << name << ": buildIncoming threw: " << e.what()
                   << "\n";
         ++failed_count;
         return;

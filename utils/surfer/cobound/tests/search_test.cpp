@@ -33,7 +33,7 @@
 #include "linknaming/tests/check.h"
 
 #ifndef COBOUND_TEST_DATA
-#error "CASCADE_TEST_DATA must point at cascade/tests/data"
+#error "COBOUND_TEST_DATA must point at cobound/tests/data"
 #endif
 
 using linknaming::GaussDiagram;
@@ -292,5 +292,5 @@ int main() {
   testBuildChecksum();
   testBatchSigning();
   testStop(sigs);
-  return checks::finish("hoprunner_test");
+  return checks::finish("search_test");
 }

@@ -96,7 +96,7 @@ namespace search {
 SearchShape searchShape(const RunShape &shape) {
   if (!shape.layers || !shape.maxFaces || !shape.iddfsIterations || !shape.iddfsStart ||
       !shape.iddfsStep || !shape.rootBudgetStart || !shape.rootBudgetGrowth)
-    throw std::logic_error("searchShape(): the hop shape leaves a field that decides what a "
+    throw std::logic_error("searchShape(): the run shape leaves a field that decides what a "
                            "search visits unset (the config sets every one)");
   SearchShape s;
   s.condition = BoundaryCondition::proper;
@@ -119,8 +119,8 @@ SearchShape searchShape(const RunShape &shape) {
 }
 
 SeedInvariantFailure::SeedInvariantFailure(size_t touching)
-    : std::runtime_error("hop: " + std::to_string(touching) +
-                         " searchable non-seed triangles touch the search "
+    : std::runtime_error("Searcher::run(): " + std::to_string(touching) +
+                         " searchable non-seed triangles touch the incoming "
                          "side, so found surfaces could change it"),
       touching(touching) {}
 
@@ -176,15 +176,15 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   const double cpu0 = timers::processCpuSeconds();
   const SearchShape &shape = request.shape;
   if (!shape.resolveUnlinked)
-    throw std::logic_error("HopSearcher::run(): the search shape does not say whether "
+    throw std::logic_error("Searcher::run(): the search shape does not say whether "
                            "resolvable surfaces count (resolve_unlinked has no default)");
   const bool resolveUnlinked = *shape.resolveUnlinked;
   const LiteratureInterval &literature = request.literature;
   const SearchOutputs &outputs = request.outputs;
   if (thickened.seedFaces.empty())
-    throw SearchRefused("hop: the row has no collar seed");
+    throw SearchRefused("Searcher::run(): the incoming link has no collar seed");
   if (!request.reader)
-    throw std::logic_error("HopSearcher::run(): the request has no row to read its finds on");
+    throw std::logic_error("Searcher::run(): the request has no reader to read its finds on");
 
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the search draws its outgoing links.

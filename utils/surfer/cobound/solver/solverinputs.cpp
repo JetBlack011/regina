@@ -39,7 +39,7 @@ std::unordered_map<std::string, std::string> loadNameAliases(const std::filesyst
     if (complement::isUnlinkName(f[1]))
       throw std::runtime_error("Name alias table maps '" + f[0] + "' to '" + f[1] +
                                "': an unknot/unlink can only be established "
-                               "by identify(), never by alias");
+                               "by census::nameComplement(), never by alias");
     aliases.emplace(f[0], f[1]);
   }
   return aliases;

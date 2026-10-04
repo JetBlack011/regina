@@ -17,5 +17,5 @@ int main() {
   CHECK(!mayUseLiteratureUpperBound("", "13n_65", true), "an unnamed node has none");
   CHECK(mayUseLiteratureUpperBound("3_1", "", true),
         "an off-table target excludes nothing");
-  return checks::finish("leaves_test");
+  return checks::finish("axioms_test");
 }

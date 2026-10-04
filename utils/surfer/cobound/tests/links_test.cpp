@@ -225,5 +225,5 @@ int main() {
   testDifferentDiagramsSameLink();
   testOrientationVariantsAreDifferentLinks();
   testUnknot();
-  return checks::finish("nodes_test");
+  return checks::finish("links_test");
 }

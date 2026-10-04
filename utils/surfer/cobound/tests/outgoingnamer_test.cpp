@@ -50,8 +50,8 @@ static int failed_count = 0;
 
 namespace {
 
-const char *KNOTS = "farsidenaming_test_knots.csv";
-const char *LINKS = "farsidenaming_test_links.csv";
+const char *KNOTS = "outgoingnamer_test_knots.csv";
+const char *LINKS = "outgoingnamer_test_links.csv";
 
 void writeTables() {
     std::ofstream k(KNOTS);
@@ -106,7 +106,7 @@ void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
 }
 
 void test_tables_refuse_to_be_empty() {
-    const char *empty = "farsidenaming_test_empty.csv";
+    const char *empty = "outgoingnamer_test_empty.csv";
     { std::ofstream e(empty); e << "Name,PD Notation,Genus-4D\n"; }
     bool threw = false;
     try {

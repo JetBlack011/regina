@@ -810,5 +810,5 @@ int main() {
   testContradictionGates();
   testSaturationAndMaps();
   testRandomFixedPoints();
-  return checks::finish("proofgraph_test");
+  return checks::finish("cobordismgraph_test");
 }

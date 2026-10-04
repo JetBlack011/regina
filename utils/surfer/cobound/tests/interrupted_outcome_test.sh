@@ -94,13 +94,13 @@ CONF
   "$C" run --config "$T/g-$1.conf" > "$T/g-$1.log" 2>&1 &
   signal_after $! "$1"
   [ "$rc" = 77 ] && { echo "SKIP: the goal run ended before it could be signalled"; exit 77; }
-  hop=$(grep -h 'outcome' "$d"/hop_0_n0/log.txt 2>/dev/null || true)
+  search=$(grep -h 'outcome' "$d"/hop_0_n0/log.txt 2>/dev/null || true)
   last=$(grep -oE 'outcome [a-z-]+$' "$T/g-$1.log" | tail -1)
-  echo "goal, $1: exit $rc, hop: '$hop', run: '$last'"
+  echo "goal, $1: exit $rc, search: '$search', run: '$last'"
   if grep -q 'GOAL MET' "$T/g-$1.log"; then
     echo "SKIP: the goal was met before the signal arrived"; exit 77; fi
   [ "$rc" = 1 ] || { echo "FAIL: the goal run exited $rc after $1, not 1"; exit 1; }
-  case $hop in *"outcome interrupted"*) ;; *) echo "FAIL: the hop did not record interrupted"; exit 1 ;; esac
+  case $search in *"outcome interrupted"*) ;; *) echo "FAIL: the search did not record interrupted"; exit 1 ;; esac
   [ "$last" = "outcome interrupted" ] || { echo "FAIL: the run's outcome is '$last'"; exit 1; }
   if grep -qE '^\[\+\] hop 1 ' "$T/g-$1.log"; then
     echo "FAIL: the goal run started another search after $1"; exit 1; fi

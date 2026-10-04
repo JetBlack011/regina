@@ -33,10 +33,10 @@ void check(const std::string &what, const std::string &got,
 } // namespace
 
 int main() {
-    std::cout << "witnesskey\n";
+    std::cout << "cobordismkey\n";
 
     // A real pair signature prefix, keyed the way frontier.py keys it.
-    check("witnessKey is the 12-char prefix",
+    check("cobordismKey is the 12-char prefix",
           cobordisms::cobordismKey("abc"), "a9993e364706");
     check("the empty signature's key", cobordisms::cobordismKey(""),
           "da39a3ee5e6b");

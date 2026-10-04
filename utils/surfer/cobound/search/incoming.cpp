@@ -75,10 +75,10 @@ buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdge
                     const std::vector<size_t> *requiredEdges) {
     if (diagramEdges.empty())
         throw regina::InvalidArgument(
-            "buildRowOrientation(): rowEdges must not be empty");
+            "buildIncomingOrientation(): diagramEdges must not be empty");
     if (diagramReversed.size() != diagramEdges.size())
         throw regina::InvalidArgument(
-            "buildRowOrientation(): rowReversed and rowEdges differ in size");
+            "buildIncomingOrientation(): diagramReversed and diagramEdges differ in size");
 
     const regina::Triangulation<3> &diagramTri = diagramEdges.front()->triangulation();
 
@@ -87,8 +87,8 @@ buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdge
         diagramTri.isIsomorphicTo(incomingTri);
     if (!legacy)
         throw regina::InvalidArgument(
-            "buildRowOrientation(): the row's own triangulation is not "
-            "isomorphic to searchSideTri");
+            "buildIncomingOrientation(): the diagram's own triangulation is not "
+            "isomorphic to incomingTri");
     auto legacyImage =
         directedImage(diagramEdges, diagramReversed, incomingTri, *legacy);
 
@@ -107,8 +107,8 @@ buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdge
             });
         if (!chosen)
             throw regina::InvalidArgument(
-                "buildRowOrientation(): no isomorphism takes the row's link "
-                "onto the seed's edges in the search-side boundary");
+                "buildIncomingOrientation(): no isomorphism takes the diagram's link "
+                "onto the seed's edges in the incoming boundary");
     }
 
     IncomingOrientation result;
@@ -123,7 +123,7 @@ buildIncomingOrientation(const std::vector<const regina::Edge<3> *> &diagramEdge
     const std::optional<size_t> cycles = edgecycles::countDirectedCycles(directed);
     if (!cycles)
         throw regina::InvalidArgument(
-            "buildRowOrientation(): the link's edges do not chain into "
+            "buildIncomingOrientation(): the link's edges do not chain into "
             "closed directed curves (one edge leaving and one arriving at "
             "every vertex)");
     result.components = *cycles;

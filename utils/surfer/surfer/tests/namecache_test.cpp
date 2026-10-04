@@ -165,10 +165,10 @@ void test_automorphism_invariance() {
     });
 
     EXPECT_EQ(r1, realResult,
-              "identifyCached({0}, ...) returns its compute()'s real "
+              "nameCached({0}, ...) returns its compute()'s real "
               "result");
     EXPECT_EQ(r2, realResult,
-              "identifyCached() for edge 0's image under a boundary "
+              "nameCached() for edge 0's image under a boundary "
               "automorphism returns the SAME result as edge 0 itself");
     EXPECT_EQ(sentinelCalled, false,
               "...without ever invoking its own compute() callback (a "

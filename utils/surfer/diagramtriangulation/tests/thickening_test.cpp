@@ -511,7 +511,7 @@ int main() {
     run("test_all_facet_pairs_two_tets", test_all_facet_pairs_two_tets);
     run("test_isOrdered_checks_every_facet", test_isOrdered_checks_every_facet);
     run("test_dim2_doubled_triangle", test_dim2_doubled_triangle);
-    run("test_base_boundary_component_identifies_bottom_not_top",
+    run("test_base_boundary_component_is_the_bottom_not_top",
         test_base_boundary_component_is_the_bottom_not_top);
     run("test_build_ambient_seed_in_index_order",
         test_build_ambient_seed_in_index_order);

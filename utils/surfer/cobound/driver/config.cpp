@@ -380,7 +380,7 @@ const std::vector<Key> &schema() {
 
         // ---- name ----
         key("namer_search_height", Type::integer, {{C::name, def("2")}},
-            "--search-height (farsidename)", "exactnaming::NamerLimits::searchHeight."),
+            "--search-height (farsidename)", "linknaming::NamerLimits::searchHeight."),
         key("namer_search_visits", Type::integer, {{C::name, def("20000")}},
             "--search-visits (farsidename)", "NamerLimits::searchVisits."),
         key("namer_simplify_tries", Type::integer, {{C::name, def("24")}},

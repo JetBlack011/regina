@@ -44,7 +44,7 @@ std::string diagramPD(const GaussDiagram &d) {
       if (!allOver) continue;
       for (size_t o = 0; o < d.components(); ++o)
         if (o != c && lk[c][o] != 0)
-          throw std::runtime_error("rowPD: an over-everywhere component is linked");
+          throw std::runtime_error("diagramPD: an over-everywhere component is linked");
     }
   }
   return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
@@ -60,7 +60,7 @@ CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &link
 CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
                            std::unique_ptr<outgoing::OutgoingReader> built, Read read)
     : read_(read), g_(graph), links_(links), searched_(std::move(searched)), redraw_(std::move(built)) {
-  if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
+  if (!redraw_) throw std::invalid_argument("CobordismAssembler: no outgoing reader");
   certifyIncoming_();
 }
 
@@ -72,10 +72,10 @@ void CobordismAssembler::certifyIncoming_() {
                                     /*allowReverse=*/false);
   if (!iso)
     throw std::runtime_error(
-        "HopAssembler: the row's triangulated link does not redraw as its "
-        "diagram (no orientation-preserving isomorphism); refusing the row");
+        "CobordismAssembler: the triangulated incoming link does not redraw as its "
+        "diagram (no orientation-preserving isomorphism); refusing the incoming link");
   if (searched_.linkMap.size() != searched_.diagram.components())
-    throw std::invalid_argument("HopAssembler: nodeMap size");
+    throw std::invalid_argument("CobordismAssembler: linkMap size");
   incomingToLink_.resize(drawn.components());
   for (size_t i = 0; i < drawn.components(); ++i)
     incomingToLink_[i] = searched_.linkMap[iso->componentMap[i]];
@@ -211,7 +211,8 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   }
   out.pieceOrigins = pieceOrigins;
   for (int v : outMap)
-    if (v < 0) throw std::logic_error("hop: a far-side curve is in no piece");
+    if (v < 0)
+      throw std::logic_error("CobordismAssembler::add(): an outgoing curve is in no piece");
   out.cobordism = g_.addCobordism(searched_.link, out.outgoing, shape, inMap, outMap, key);
   out.ok = true;
   return out;

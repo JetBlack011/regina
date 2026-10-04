@@ -56,7 +56,7 @@ void haltIfFlagged() {
       << message << "\n\n"
       << "This is a mathematical impossibility, not a data or literature "
          "issue -- it means\n"
-         "surfacesearch.h/embeddedsubmanifold.h computed something wrong "
+         "surfacesearch.h/submanifold.h computed something wrong "
          "(a bad genus, a\n"
          "false claim of embeddedness, etc.). Nothing else this run could "
          "report from here\n"

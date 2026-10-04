@@ -99,7 +99,7 @@ void test_complement_cache_clear_threshold() {
     census::nameComplement(EdgeComplement(figureEight, {}));
 
     EXPECT_EQ(complement::cacheStats().cacheResets >= 1, true,
-              "recognitionCache reset at least once after exceeding its "
+              "the complement cache reset at least once after exceeding its "
               "(deliberately tiny) limit");
 
     complement::cacheLimit.store(defaultLimit);
@@ -203,7 +203,7 @@ void test_name_link_unlink() {
     EXPECT_EQ(link.countComponents(), 2,
               "fixture sanity: the flipped Hopf shadow has 2 components");
     EXPECT_EQ(census::nameComplement(link), std::string("2-component unlink"),
-              "identify(const Link&) names a split 2-component unlink via "
+              "nameComplement(const Link&) names a split 2-component unlink via "
               "the free-fundamental-group fast path, instead of falling "
               "back to a bare isoSig");
 }
@@ -221,7 +221,7 @@ void test_name_link_hopf_not_unknot() {
               "fixture sanity: the Hopf link has 2 components");
     EXPECT_EQ(census::nameComplement(link) != "Unknot", true,
               "the (linked) Hopf link's complement is not a handlebody, "
-              "so identify() must not call it \"Unknot\"");
+              "so nameComplement() must not call it \"Unknot\"");
 }
 
 // The Pachner-search policy. With no local census, every non-trivial
@@ -280,11 +280,11 @@ void run(const std::string &name, void (*fn)()) {
 }
 
 int main() {
-    run("recognition_cache_clear_threshold",
+    run("complement_cache_clear_threshold",
         test_complement_cache_clear_threshold);
-    run("recognition_cache_clear_race", test_complement_cache_clear_race);
-    run("identify_link_unlink", test_name_link_unlink);
-    run("identify_link_hopf_not_unknot", test_name_link_hopf_not_unknot);
+    run("complement_cache_clear_race", test_complement_cache_clear_race);
+    run("name_link_unlink", test_name_link_unlink);
+    run("name_link_hopf_not_unknot", test_name_link_hopf_not_unknot);
     run("pachner_search_policy", test_pachner_search_policy);
 
 

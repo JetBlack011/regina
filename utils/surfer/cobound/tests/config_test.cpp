@@ -170,7 +170,7 @@ std::vector<Reference> references() {
       {"boundary_signature_cache_limit", C::goal, "1000000",
        "HopShape::boundarySignatureCacheLimit"},
       {"complement_cache_limit", C::run, std::to_string(complement::cacheLimit.load()),
-       "identify::recognitionCacheLimit"},
+       "complement::cacheLimit"},
       {"complement_cache_limit", C::goal, "1500000", "HopShape::recognitionCacheLimit"},
       {"outgoing_names", C::run, "0", "verifyslicegenus exactFarSideNames"},
       {"outgoing_names", C::goal, "1", "cascadesearch: every hop names exactly"},

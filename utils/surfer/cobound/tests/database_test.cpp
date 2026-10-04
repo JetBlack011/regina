@@ -75,9 +75,9 @@ bool same(const Cobordism &a, const Cobordism &b) {
 } // namespace
 
 int main() {
-  std::cout << "witnessstore\n";
+  std::cout << "database\n";
   const fs::path dir = fs::temp_directory_path() /
-                       ("witnessstore_test." + std::to_string(::getpid()));
+                       ("database_test." + std::to_string(::getpid()));
   fs::create_directories(dir);
   const fs::path database = dir / "cobordisms.csv";
 
@@ -173,7 +173,7 @@ int main() {
         allSame = allSame && cobordisms::cobordismIdentities(big, threads, range) == serial;
     check(allSame && serial.size() > 100 && serial.count(cobordisms::cobordismIdentity(
                                                sample("late", 4, 0))),
-          "witnessIdentities() equals loadWitnesses()'s identities at every range split");
+          "cobordismIdentities() equals loadCobordisms()'s identities at every range split");
     check(cobordisms::cobordismIdentities(dir / "absent.csv", 4).empty(),
           "a missing file has no identities");
   }
@@ -210,14 +210,14 @@ int main() {
     std::ofstream(db, std::ios::app | std::ios::binary) << "cobordism,K,2,torn";
     const std::vector<Cobordism> all = cobordisms::readCobordisms(db);
     check(all.size() == 3 && all[0].pairSig == "-cabcdef1" && all[2].pairSig == "-cabcdef3",
-          "readWitnesses(): every complete line, pair signatures kept, the torn one left out");
+          "readCobordisms(): every complete line, pair signatures kept, the torn one left out");
     const cobordisms::DatabaseIndex index(db.string());
     check(index.subjects() == 2 && index.has("K") && !index.has("torn"),
           "the index: two subjects, the torn line left out");
     const auto k = index.ofSubject("K");
     check(k.size() == 2 && k[0].cobordism.genus == 1 && k[1].cobordism.genus == 3 &&
               k[1].cobordism.pairSig == "-cabcdef3" && k[0].incomingPD.empty(),
-          "rows(): a subject's lines, in file order, pair signatures kept");
+          "ofSubject(): a subject's lines, in file order, pair signatures kept");
     const auto byBase = index.byOutgoing(cobordisms::DatabaseIndex::base("3_1"), 10);
     check(byBase.size() == 1 && byBase[0].cobordism.subject == "L",
           "byOutgoing(): the outgoing base, mirror mark dropped");
@@ -228,6 +228,6 @@ int main() {
   }
 
   fs::remove_all(dir);
-  std::cout << (failures ? "witnessstore_test: FAILED\n" : "witnessstore_test: all passed\n");
+  std::cout << (failures ? "database_test: FAILED\n" : "database_test: all passed\n");
   return failures ? 1 : 0;
 }
