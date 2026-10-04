@@ -97,6 +97,15 @@ add_test(NAME unaccounted_search_test
 set_tests_properties(unaccounted_search_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
+# A failed output write ends its search as an I/O error, never the process:
+# no frontier, no exhaustion claim, what it kept signed; exit 2 (plan, phase
+# 7.3). See the script's header.
+add_test(NAME io_failure_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/io_failure_test.sh
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(io_failure_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # A contradiction halts every run, with its code: 2 at depth 0, 3 with a goal
 # (plan divergence 6). See the script's header.
 add_test(NAME contradiction_halt_test

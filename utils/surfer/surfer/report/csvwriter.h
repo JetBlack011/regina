@@ -79,6 +79,13 @@ public:
   // lower thread count, or a raised ulimit -n).
   void finalize();
 
+  // After a failure (writeRow() or finalize() threw): closes and removes the
+  // shard files, so a failed output leaves no temporary files behind (a full
+  // disk is the likeliest failure). The output path is left as it is. Call it
+  // once, single-threaded, after every writing thread has joined, instead of
+  // finalize(). Never throws.
+  void discard() noexcept;
+
 private:
   struct Shard {
     std::filesystem::path path;

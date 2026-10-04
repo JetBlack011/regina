@@ -272,6 +272,30 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     if (outcome == "exhausted") outcome = why;
   };
 
+  // A failed output write (the surface log, rejection samples, the pending
+  // file, surface stats, the self-intersection census) ends the search, never
+  // the process: several of these writers run on the drain's and the judge's
+  // threads, where a throw is std::terminate. The first failure is kept, the
+  // search stops (its drain still finishes, so what it found reaches the
+  // pending file), and its outcome is `io-error`: no frontier, no exhaustion
+  // claim, and the run reports it non-zero (SearchResult::ioFailure).
+  std::mutex ioMutex;
+  std::string ioFailure;
+  std::atomic<bool> ioFailed{false};
+  auto failIo = [&](const std::string &what) {
+    {
+      std::lock_guard<std::mutex> lock(ioMutex);
+      if (!ioFailure.empty()) return;
+      ioFailure = what;
+    }
+    ioFailed.store(true);
+    noteStop("io-error");
+    std::cout << "[!] " << request.name << ": an output write failed (" << what
+              << "); the search stops: io-error\n"
+              << std::flush;
+    e.requestStop();
+  };
+
   SearchResult out;
   out.complementCacheBefore = complement::cacheStats();
   out.censusWritesBefore = census::insertCounts();
@@ -316,6 +340,8 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
                               << csvField(info.boundaryDescription) << ','
                               << csvField(sig) << '\n';
     outputs.rejectionSamples->flush();
+    // A stream does not throw: its state says whether the write reached the file.
+    if (!*outputs.rejectionSamples) failIo("rejection_sample_log: a write failed");
   };
 
   // One kept surface per keptKey() (divergence 7), none whose identity the
@@ -368,7 +394,9 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     // The pending file's 60 s writes run through the enumeration too, not
     // only the post-search drain (below): the drain describes surfaces while
     // the search runs, so a kill during enumeration loses at most a minute.
-    if (pending) pending->checkpoint(/*force=*/false);
+    if (pending)
+      if (const std::string err = pending->checkpoint(/*force=*/false); !err.empty())
+        failIo("pending file: " + err);
   };
   // The equalising rule, checked where each surface is counted, so a search
   // stops at the target rather than a progress tick later (see
@@ -403,7 +431,8 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
           // to be interrupted, so checkpoint from here: a kill loses at most
           // a minute of found surfaces.
           if (pending)
-            pending->checkpoint(/*force=*/false);
+            if (const std::string err = pending->checkpoint(/*force=*/false); !err.empty())
+              failIo("pending file: " + err);
         };
   callbacks.onBoundaryProcessingComplete =
       [&](size_t total, std::chrono::steady_clock::duration elapsed) {
@@ -429,13 +458,19 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
           .tubedGenus = info.tubedGenus,
           .closedComponents = info.closedComponents,
           .connected = info.connected});
-    if (surfaceLog) {
+    // Once the log has failed, no further row is tried (the search is
+    // stopping: failIo()).
+    if (surfaceLog && !ioFailed.load(std::memory_order_relaxed)) {
       std::string pairSig = info.capturePairSig ? info.capturePairSig() : std::string{};
       std::ostringstream line;
       line << (info.orientable ? "true" : "false") << ',' << info.genus << ','
            << info.tubedGenus << ',' << info.punctures << ',' << info.triangleCount
            << ',' << csvField(pairSig);
-      surfaceLog->writeRow(line.str());
+      try {
+        surfaceLog->writeRow(line.str());
+      } catch (const std::exception &ex) {
+        failIo(std::string("surface_log: ") + ex.what());
+      }
     }
 
     acct.described.fetch_add(1, std::memory_order_relaxed);
@@ -600,7 +635,8 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
                     << "]). Checkpointing now.\n"
                     << std::flush;
           if (pending)
-            pending->checkpoint(/*force=*/true);
+            if (const std::string err = pending->checkpoint(/*force=*/true); !err.empty())
+              failIo("pending file: " + err);
         }
         if (j.contradiction.empty()) continue;
         // The graph's gates: something the search or the naming computed is
@@ -647,15 +683,29 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   finishJudging();
   // Every kept surface is described and judged: the rest of the pending
   // file, fsynced, before anything reads this search's record. A failure
-  // here throws: what the search kept would otherwise never be signed.
+  // here is the search's I/O error: what reached the file is what is
+  // signed, and the search vouches for nothing.
   if (pending) {
-    pending->flush();
+    try {
+      pending->flush();
+    } catch (const std::exception &ex) {
+      failIo(std::string("pending file: ") + ex.what());
+    }
     out.pendingPath = pending->path().string();
     out.pendingBytes = pending->syncedBytes();
   }
   watchdog->stop();
-  if (surfaceLog)
-    surfaceLog->finalize();
+  if (surfaceLog) {
+    if (!ioFailed.load()) {
+      try {
+        surfaceLog->finalize();
+      } catch (const std::exception &ex) {
+        failIo(std::string("surface_log: ") + ex.what());
+      }
+    }
+    // A failed log leaves no shard files behind.
+    if (ioFailed.load()) surfaceLog->discard();
+  }
 
   // Accounting: every surface the search accepted must have been described
   // by the drain (unless the drain was deliberately cut short), and every
@@ -687,14 +737,22 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   out.nothingExamined = acct.nothingExamined();
   out.impossible = acct.impossible();
 
-  if (surfaceStats)
-    search::appendSurfaceStats(*outputs.surfaceStats, request.name,
-                                  shape.maxFaces.value_or(0), surfaceStats->take());
-  if (selfIntersectionCensus)
-    search::appendSelfIntersectionCensus(*outputs.selfIntersectionCensus,
-                                            request.name, shape.maxFaces.value_or(0),
-                                            resolveUnlinked, stats,
-                                            *selfIntersectionCensus);
+  try {
+    if (surfaceStats)
+      search::appendSurfaceStats(*outputs.surfaceStats, request.name,
+                                    shape.maxFaces.value_or(0), surfaceStats->take());
+  } catch (const std::exception &ex) {
+    failIo(ex.what());
+  }
+  try {
+    if (selfIntersectionCensus)
+      search::appendSelfIntersectionCensus(*outputs.selfIntersectionCensus,
+                                              request.name, shape.maxFaces.value_or(0),
+                                              resolveUnlinked, stats,
+                                              *selfIntersectionCensus);
+  } catch (const std::exception &ex) {
+    failIo(ex.what());
+  }
   if (outputs.progress)
     search::progressBlock.forget();
 
@@ -704,6 +762,10 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   if (!out.accountingFailure.empty() || out.nothingExamined)
     noteStop("unaccounted");
   out.outcome = outcome;
+  // A failed write outranks every other ending but a halt: the search's
+  // outputs are incomplete, whatever else stopped it.
+  out.ioFailure = ioFailure;
+  if (!out.ioFailure.empty() && out.outcome != "fatal-bug") out.outcome = "io-error";
   out.resumed = e.resumedFrontier();
   out.resumeRefusal = pendingRefusal.empty() ? e.resumeRefusal() : pendingRefusal;
   if (request.resume)
@@ -716,9 +778,10 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   out.frontierSeconds = e.frontierSeconds();
   // Only a prefix whose every surface was examined may be skipped later
   // (divergence 1): the accounting balanced, something was examined, the
-  // drain completed, and the pending file is fsynced (it was, above, or the
-  // search threw).
-  if (out.accountingFailure.empty() && !drainSkipped && !out.nothingExamined)
+  // drain completed, the pending file is fsynced, and every output was
+  // written (no I/O error).
+  if (out.accountingFailure.empty() && !drainSkipped && !out.nothingExamined &&
+      out.ioFailure.empty())
     out.frontier = out.recordedFrontier;
   out.stats = stats;
   out.petals = e.petalCacheStats();

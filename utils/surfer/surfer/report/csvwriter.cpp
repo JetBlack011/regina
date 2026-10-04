@@ -67,6 +67,17 @@ void CsvWriter::finalize() {
   std::cerr << "[+] Wrote CSV output to " << outputPath_.string() << "\n";
 }
 
+void CsvWriter::discard() noexcept {
+  for (auto &shard : shards_) {
+    std::lock_guard<std::mutex> lock(shard->mutex);
+    shard->buffer.clear();
+    shard->file.close();
+    std::error_code ec;
+    std::filesystem::remove(shard->path, ec);
+  }
+  shards_.clear();
+}
+
 void CsvWriter::flush(Shard &shard) {
   if (shard.buffer.empty())
     return;

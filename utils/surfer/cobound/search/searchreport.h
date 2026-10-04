@@ -119,6 +119,9 @@ private:
  * Appended per search rather than written once at the end so that an
  * interrupted run keeps the statistics of every search that did finish --
  * the same reasoning that makes pending checkpoints a per-search operation.
+ *
+ * \throws std::runtime_error when the file cannot be opened or written
+ * (Searcher::run() makes it the search's I/O error).
  */
 void appendSurfaceStats(const std::filesystem::path &path,
                         const std::string &subject, long long maxFaces,
@@ -128,7 +131,7 @@ void appendSurfaceStats(const std::filesystem::path &path,
  * Appends one row of --self-intersection-census output (see
  * SelfIntersectionCensus) for `subject`, with the search's own resolved
  * count alongside. Per search, like appendSurfaceStats(), so an interrupted
- * run keeps what it measured.
+ * run keeps what it measured. Throws as appendSurfaceStats() does.
  */
 void appendSelfIntersectionCensus(const std::filesystem::path &path,
                                   const std::string &subject,

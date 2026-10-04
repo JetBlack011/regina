@@ -5,10 +5,13 @@
 #include "cobound/search/searchreport.h"
 #include "cobound/frozen.h"
 
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include "linknaming/complement/complementcache.h"
 #include "surfer/report/csvwriter.h"
@@ -24,10 +27,8 @@ void appendSurfaceStats(const std::filesystem::path &path,
     return;
   const bool needHeader = !std::filesystem::exists(path);
   std::ofstream out(path, std::ios::app);
-  if (!out) {
-    std::cerr << "[!] could not open " << path << " for --surface-stats\n";
-    return;
-  }
+  if (!out)
+    throw std::runtime_error("surface_stats: cannot open " + path.string());
   if (needHeader)
     out << kFrozenSurfaceStatsHeader;
   for (const auto &[key, n] : counts)
@@ -36,6 +37,11 @@ void appendSurfaceStats(const std::filesystem::path &path,
         << key.punctures << ',' << key.tubedGenus << ','
         << key.closedComponents << ',' << (key.connected ? "true" : "false")
         << ',' << n << '\n';
+  // A failed write is only seen once the buffer reaches the file.
+  out.flush();
+  if (!out)
+    throw std::runtime_error("surface_stats: writing " + path.string() + " failed: " +
+                             std::strerror(errno));
 }
 
 void appendSelfIntersectionCensus(const std::filesystem::path &path,
@@ -45,11 +51,8 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
                                   SelfIntersectionCensus &census) {
   const bool needHeader = !std::filesystem::exists(path);
   std::ofstream out(path, std::ios::app);
-  if (!out) {
-    std::cerr << "[!] could not open " << path
-              << " for --self-intersection-census\n";
-    return;
-  }
+  if (!out)
+    throw std::runtime_error("self_intersection_census: cannot open " + path.string());
   if (needHeader)
     out << kFrozenSelfIntersectionCensusHeader;
   size_t outgoingConfigs, outgoingCleanConfigs;
@@ -82,6 +85,10 @@ void appendSelfIntersectionCensus(const std::filesystem::path &path,
       << outgoingCleanConfigs << ',' << (saturated ? "true" : "false") << ','
       << get(census.audited) << ',' << get(census.auditKnotted) << ','
       << csvField(hits) << '\n';
+  out.flush();
+  if (!out)
+    throw std::runtime_error("self_intersection_census: writing " + path.string() +
+                             " failed: " + std::strerror(errno));
 }
 
 void printProgress(const SearchStats &stats, SurfaceSearch &e) {

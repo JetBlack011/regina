@@ -60,10 +60,12 @@ public:
   /// Queues one kept surface's line. Thread-safe.
   void add(const PendingCobordism &p);
   /// Appends and fsyncs what was added since the last write, unless the
-  /// last write was under 60 s ago; `force` writes at once. A failure is
-  /// reported on stderr, never thrown (the next write retries: nothing
-  /// queued is dropped). Thread-safe.
-  void checkpoint(bool force);
+  /// last write was under 60 s ago; `force` writes at once. Returns why a
+  /// write failed, or "" -- never throws, since it runs on the search's
+  /// worker, drain and judge threads: the caller ends its search as an I/O
+  /// error (search.h, SearchResult::ioFailure). What is queued stays queued,
+  /// and the next write retries it. Thread-safe.
+  std::string checkpoint(bool force);
   /// The end of the search: appends and fsyncs the rest. Throws on failure.
   void flush();
   /// The file's length after the last successful write (its length when

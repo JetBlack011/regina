@@ -651,7 +651,14 @@ void Scheduler::expand(LinkId n, long surfaces) {
               << run.accounting << "\n[+] " << kFrozenHopLine << k << " " << subject
               << ": diagram naming: " << run.naming
               << "\n";
-    if (run.impossible > 0) {
+    if (!run.ioFailure.empty()) {
+      // A failed output write (phase 7.3): the run's outputs are incomplete,
+      // so it halts (divergence 2's code, 2), once this search's finds are
+      // recorded (below) and signed (run()), even if they meet the goal.
+      halt_ = kFrozenHopLine + std::to_string(k) + ": an output write failed -- " +
+              run.ioFailure;
+      std::cout << "[!!] HALT: " << halt_ << "\n";
+    } else if (run.impossible > 0) {
       // Divergence 2: a state that cannot occur halts the run, once this
       // search's finds are recorded (below) and signed (run()), even if they
       // meet the goal.
@@ -677,8 +684,15 @@ void Scheduler::expand(LinkId n, long surfaces) {
       try {
         run.frontier->save(dir + "/frontier.txt");
       } catch (const std::exception &e) {
+        // An output write that failed (phase 7.3): the run halts, as for a
+        // failed write during the search.
         std::cout << "[!] " << kFrozenHopLine << k << ": frontier not written: " << e.what()
                   << "\n";
+        if (halt_.empty()) {
+          halt_ = kFrozenHopLine + std::to_string(k) + ": an output write failed -- frontier: " +
+                  e.what();
+          std::cout << "[!!] HALT: " << halt_ << "\n";
+        }
       }
       frontiers_[n] = std::move(*run.frontier);
     } else {

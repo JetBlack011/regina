@@ -344,8 +344,10 @@ int runWithoutGoal(const config::Config &cfg) {
   searchShape.resolveUnlinked = resolveUnlinked;
   searchShape.limits = limits;
 
-  // Searches whose accounting failed (divergence 2): the run exits 2.
+  // Searches whose accounting failed (divergence 2), and searches whose
+  // outputs could not be written (an I/O error): the run exits 2.
   std::vector<std::string> unaccounted;
+  std::vector<std::string> ioFailed;
   size_t processedThisRun = 0;
   size_t searchedThisRun = 0;
 
@@ -496,6 +498,25 @@ int runWithoutGoal(const config::Config &cfg) {
     if (!run.fatal.empty())
       fatal::flag(run.fatal);
 
+    // The frontier, written before anything is claimed from the search: one
+    // that cannot be written makes the search an I/O error (no frontier, no
+    // exhaustion claim), as a failed write during the search does. Written
+    // only when the search can vouch for every surface in its prefix: every
+    // cobordism of that prefix is in its pending file, fsynced -- else a later
+    // run would skip surfaces nobody looked at.
+    std::string frontierFailure;
+    if (frontierDir && run.frontier) {
+      try {
+        std::filesystem::create_directories(*frontierDir);
+        run.frontier->save(frontierPath(*frontierDir));
+      } catch (const std::exception &ex) {
+        frontierFailure = ex.what();
+        run.frontier.reset();
+        if (run.ioFailure.empty()) run.ioFailure = "frontier: " + frontierFailure;
+        if (run.outcome != "fatal-bug") run.outcome = "io-error";
+      }
+    }
+
     // Surfaces were accepted, yet not one reached the cobordism record. That
     // can be genuine (every one bounds another oriented variant), but it
     // is also exactly what a broken gate looks like, so it never licenses a
@@ -506,7 +527,7 @@ int runWithoutGoal(const config::Config &cfg) {
                    "no exhaustion claimed for this search\n";
 
     if (run.stats.deepestExhaustedCap && run.accountingFailure.empty() &&
-        !run.nothingExamined && !run.drainSkipped) {
+        !run.nothingExamined && !run.drainSkipped && run.ioFailure.empty()) {
       OutputRow &out = outputRows[row.name];
       // Never let a shallower run overwrite a deeper exhaustive result.
       out.exhaustedDepth = std::max(out.exhaustedDepth, *run.stats.deepestExhaustedCap);
@@ -531,22 +552,14 @@ int runWithoutGoal(const config::Config &cfg) {
 
     verdicts::writeOutputCsv(outputPath, rows, outputRows);
 
-    // The search's breadth, and its frontier: written only now that every
-    // cobordism of the prefix it covers is in its pending file, fsynced, and
-    // only when the search can vouch for having examined every surface in it --
-    // else a later run would skip surfaces nobody looked at.
+    // The search's breadth, and what became of its frontier (written above).
     if (resumeFrom || frontierDir) {
       search::printBreadth(std::cout, row.name, run);
       if (frontierDir && run.recordedFrontier) {
-        if (run.frontier) {
-          try {
-            std::filesystem::create_directories(*frontierDir);
-            run.frontier->save(frontierPath(*frontierDir));
-          } catch (const std::exception &ex) {
-            std::cout << "[!] " << row.name << ": WARNING: frontier not "
-                      << "written: " << ex.what() << "\n";
-          }
-        } else {
+        if (!frontierFailure.empty()) {
+          std::cout << "[!] " << row.name << ": frontier not written: " << frontierFailure
+                    << "\n";
+        } else if (!run.frontier) {
           std::cout << "[!] " << row.name << ": frontier not written: the "
                     << "row cannot vouch for every surface in its prefix\n";
         }
@@ -568,6 +581,12 @@ int runWithoutGoal(const config::Config &cfg) {
                 << run.accountingFailure
                 << " (its search vouches for nothing: no frontier, no "
                    "exhaustion claim; the run goes on and exits 2)\n";
+    }
+    if (!run.ioFailure.empty()) {
+      ioFailed.push_back(row.name);
+      std::cout << "[!!] " << row.name << ": an output write failed -- " << run.ioFailure
+                << " (its search vouches for nothing: no frontier, no exhaustion claim; "
+                   "the run goes on and exits 2)\n";
     }
     if (fatal::flagged())
       fatal::haltIfFlagged();
@@ -603,12 +622,15 @@ int runWithoutGoal(const config::Config &cfg) {
             << " rows visited this run.\n";
   std::cout << "[+] Witness file: " << cobordisms.size() + signedAppended << " witnesses in "
             << cobordismsPath << "\n";
-  if (!unaccounted.empty()) {
+  if (!unaccounted.empty())
     std::cerr << "[!] " << unaccounted.size()
               << " search(es) failed their surface accounting (first: " << unaccounted.front()
               << "); exiting 2\n";
-    return 2;
-  }
+  if (!ioFailed.empty())
+    std::cerr << "[!] " << ioFailed.size()
+              << " search(es) failed an output write (first: " << ioFailed.front()
+              << "); exiting 2\n";
+  if (!unaccounted.empty() || !ioFailed.empty()) return 2;
   return 0;
 }
 

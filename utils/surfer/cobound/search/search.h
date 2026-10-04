@@ -311,7 +311,7 @@ struct SearchResult {
   long long accepted = 0;
   std::string accounting;        ///< the `accounting:` body (preconditions.h, SearchAccounting)
   std::string accountingFailure; ///< empty iff every surface is accounted for
-  std::string outcome;           ///< surface-target, exhausted, timeout, stopped
+  std::string outcome;           ///< surface-target, exhausted, timeout, stopped, io-error, ...
   double wall = 0;               ///< seconds
   double cpu = 0;                ///< process CPU seconds over the search
   double setup = 0;              ///< wall before the search: namer, search, seed checks
@@ -375,6 +375,13 @@ struct SearchResult {
   /// Why the search found something impossible (the cobordism graph's
   /// gates: SearchRequest::judge); empty when it did not.
   std::string fatal;
+  /// The first output write that failed (the surface log, rejection samples,
+  /// the pending file, surface stats, the self-intersection census); empty
+  /// when every write succeeded. The search stopped there, its outcome is
+  /// `io-error`, it has no frontier, and its drivers claim no exhaustion
+  /// from it and report it non-zero: exit 2 at the end of a run without a
+  /// goal, a halt (exit 2) in a goal run (plan, phase 7.3).
+  std::string ioFailure;
 };
 
 class Searcher {
@@ -436,10 +443,11 @@ public:
    * accounts for every surface. run(reader, ...) above is a goal run's search
    * through it.
    *
+   * A failed output write never throws (SearchResult::ioFailure).
+   *
    * \throws SeedInvariantFailure when the seed invariant fails;
    * SearchRefused for a link with no seed, or
-   * whose diagram namer cannot be built; std::runtime_error when the
-   * pending file cannot be written at the search's end.
+   * whose diagram namer cannot be built.
    */
   SearchResult run(const search::IncomingThickening &thickened, const SearchRequest &request) const;
 

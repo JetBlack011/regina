@@ -284,24 +284,25 @@ void PendingWriter::write_() {
   synced_ = static_cast<long long>(fs::file_size(path_));
 }
 
-void PendingWriter::checkpoint(bool force) {
+std::string PendingWriter::checkpoint(bool force) {
   const long long now = tickNow();
   if (!force &&
       now - lastWriteTick_.load(std::memory_order_relaxed) < CHECKPOINT_INTERVAL_MS)
-    return;
+    return {};
   std::lock_guard<std::mutex> lock(mutex_);
   if (!force &&
       now - lastWriteTick_.load(std::memory_order_relaxed) < CHECKPOINT_INTERVAL_MS)
-    return;
+    return {};
   lastWriteTick_.store(now, std::memory_order_relaxed);
   try {
     write_();
   } catch (const std::exception &e) {
-    // A failed checkpoint must not kill a running search: what is queued
-    // stays queued, and the next write (the search's end, at the latest)
-    // tries again and may throw.
-    std::cerr << "[!] pending checkpoint failed: " << e.what() << "\n";
+    // A throw here would end the process (this runs on the search's threads):
+    // the failure is the caller's to report, and what is queued stays queued
+    // for the next write (the search's end, at the latest).
+    return e.what();
   }
+  return {};
 }
 
 void PendingWriter::flush() {
