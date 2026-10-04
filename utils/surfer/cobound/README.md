@@ -100,7 +100,7 @@ apply):
 | `census` | path | `SURFER_CENSUS_PATH` | **required** | `SURFER_CENSUS_PATH` | · | · | · | The local census. |
 | `dedupe_against` | paths | · | unset | · | unset | · | · | Read-only databases whose cobordisms are not recorded again when signing (comma-separated). |
 | `pair_sig_cache` | path | unset | unset | · | unset | unset | · | Where pair-signature contexts (`.pairsigctx`) are kept between runs. |
-| `threads` | threads | `auto` | `10` | · | `10` | · | `auto` | Threads for searching, naming and signing (`auto`: the machine's). At one thread, signing is not overlapped with the search. |
+| `threads` | threads | `auto` | `10` | · | `10` | · | `auto` | Threads for searching, naming and signing (`auto`: the machine's). Signing comes after every search, at the run's end, and builds the pair-signature contexts on these threads too. |
 | `layers` | integer | `2` | `2` | · | · | `2` | · | Layers of the thickening a search runs in, collared through all of them. |
 | `boundary_condition` | auto \| connected \| proper | `proper` | · | · | · | · | · | Which surfaces a search without a goal accepts: `proper`, or `connected` (`auto`: connected for a knot). A goal run always searches `proper`. |
 | `resolve_unlinked` | flag | **required** | **required** | · | · | · | · | Also accept surfaces whose only self-intersections are unlinked. No default: it changes what counts toward a surface target and every frontier's fingerprint. |
@@ -139,7 +139,7 @@ apply):
 | `master_cobordisms` (formerly `master_witnesses`) | path | · | unset | · | · | · | · | A read-only database whose cobordisms of each table link about to be searched enter the graph first. |
 | `read_back_cache` | path | · | unset | · | · | · | · | Where those cobordisms' outgoing links are kept between runs. |
 | `run_name` | text | · | unset | · | · | · | · | The run's name in untabulated links' subject names (needed with `cobordisms`). |
-| `hub_degree` | integer | · | `0` | · | · | · | · | A link with this many cobordisms is searched once at `hub_surfaces` (0: off). |
+| `hub_degree` | integer | · | `0` | · | · | · | · | A link with this many cobordisms is searched once at `hub_surfaces`, when that is above the current surface target (0: off). |
 | `hub_surfaces` | integer | · | `0` | · | · | · | · | A hub's surface target. |
 | `lower_report` | flag | · | `0` | · | · | · | · | Write `lower_report.jsonl` at the run's end. |
 | `lower_sources` | path | · | unset | · | · | · | · | Which literature lower bounds are special (the atlas's `lower_bound_sources.csv`). |
@@ -439,7 +439,8 @@ loop, until a check ends it:
    doubled target would pass `max_surface_target` (`nothing-useful`);
 7. load the chosen link's database cobordisms first, if any (free cobordisms, which
    may close the proof without a search), then search it. A link with at least
-   `hub_degree` cobordisms is searched once at `hub_surfaces`.
+   `hub_degree` cobordisms is searched once at `hub_surfaces`, when that is
+   above the current surface target.
 
 **Choosing.** A link is eligible when it has a diagram of at most
 `max_crossings` crossings, was not refused, has not been searched at this

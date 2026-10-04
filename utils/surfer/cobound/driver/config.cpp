@@ -220,9 +220,9 @@ const std::vector<Key> &schema() {
         key("threads", Type::threads,
             {{C::run, def("auto")}, {C::goal, def("10")}, {C::sign, def("10")}, {C::name, def("auto")}},
             "--threads (verifyslicegenus, cascadesearch)",
-            "Threads for searching, naming and signing (`auto`: the machine's). At one thread "
-            "the signing at the run's end is not overlapped with the search, so a one-thread "
-            "run pays its pair-signature contexts in full after it."),
+            "Threads for searching, naming and signing (`auto`: the machine's). Signing comes "
+            "after every search, at the run's end, and builds the pair-signature contexts on "
+            "these threads too."),
         key("layers", Type::integer, {{C::run, def("2")}, {C::goal, def("2")}, {C::draw, def("2")}},
             "--thicken-layers and --collar-layers (verifyslicegenus; collared through every "
             "layer), farsidediagram --layers",
@@ -352,7 +352,8 @@ const std::vector<Key> &schema() {
             "The run's name in the subjects of its untabulated links, "
             "cascade:<run>/<target>/n<link> (a frozen format; needed with cobordisms)."),
         key("hub_degree", Type::integer, {{C::goal, def("0")}}, "--hub-degree (cascadesearch)",
-            "A link with this many cobordisms is searched once at hub_surfaces (0: off)."),
+            "A link with this many cobordisms is searched once at hub_surfaces, when that is "
+            "above the current surface target (0: off)."),
         key("hub_surfaces", Type::integer, {{C::goal, def("0")}}, "--hub-surfaces (cascadesearch)",
             "A hub's surface target."),
         key("lower_report", Type::flag, {{C::goal, def("0")}}, "--lower-report (cascadesearch)",
