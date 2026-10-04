@@ -249,7 +249,7 @@ void test_component_correction_on_the_lower_bound() {
 }
 
 void test_unlink_outgoing_carries_no_component_penalty() {
-    // The `+ n_far - 1` term assumes the outgoing link is capped with its minimal
+    // The `+ n_b - 1` term assumes the outgoing link is capped with its minimal
     // CONNECTED surface. An n-component unlink instead bounds n DISJOINT
     // discs, and gluing those onto a connected cobordism still yields a
     // connected surface -- so chi* = n, not 2 - n, and the penalty vanishes.

@@ -656,7 +656,7 @@ class KnottedSurface : public EmbeddedSubmanifold<4, 2> {
      * Measurement only: classifies the current (non-embedded,
      * BoundaryCondition-satisfying) surface into one of
      * SelfIntersectionCensus's buckets, and a multiOpen one further by which
-     * side its multi-open vertices lie on (when the census knows the search
+     * side its multi-open vertices lie on (when the census knows the incoming
      * side). A no-op without a census.
      */
     void tallySelfIntersection() const;

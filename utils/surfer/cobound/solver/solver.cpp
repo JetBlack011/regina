@@ -600,7 +600,7 @@ propagate(const std::vector<cobordisms::Cobordism> &cobordisms, const NameTable 
                 continue;
 
             // Both endpoints, with the component count that belongs to each.
-            // `far` is the side supplying the bound; `near` is the side
+            // `from` is the side supplying the bound; `to` is the side
             // receiving it.
             struct Direction {
                 std::string to;

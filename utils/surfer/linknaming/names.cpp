@@ -296,8 +296,8 @@ std::vector<std::string> nameCandidates(const std::string &name) {
 }
 
 int componentsFromName(const std::string &name) {
-    // A split name's components are its factors' added up. Without this a far
-    // side recorded as "3_1 u Unknot" would claim ONE component, and every
+    // A split name's components are its factors' added up. Without this an outgoing
+    // link recorded as "3_1 u Unknot" would claim ONE component, and every
     // check matching a name's component count against the curve count actually
     // observed on that boundary would reject it.
     //

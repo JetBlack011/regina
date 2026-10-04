@@ -596,7 +596,7 @@ void test_protected_boundary_component_edge_level_and_seed_exemption() {
               "trigger (this is the exact bug caught in review)");
 
     // The outgoing link remains completely unrestricted when incomingBC is
-    // protected: a single-face seed taken from the far boundary component
+    // protected: a single-face seed taken from the outgoing boundary component
     // embeds without issue.
     int outgoingFaceIdx =
         static_cast<int>(tri.boundaryComponent(outgoingBC)->triangle(0)->index());

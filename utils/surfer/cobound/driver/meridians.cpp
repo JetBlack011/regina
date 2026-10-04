@@ -120,8 +120,8 @@ void writeTri(std::ostream &out, const std::string &text) {
 // An outgoing link reaches cobordisms.csv as a NAME -- often a census name that no
 // literature table knows -- and a name is not a signature, so it cannot be
 // looked up in a table of complements we built ourselves. This recovers the
-// signature from the pair signature, which every cobordism carries, so a far
-// side named only "L109021" or "m129 : #3" can still be matched against
+// signature from the pair signature, which every cobordism carries, so an
+// outgoing link named only "L109021" or "m129 : #3" can still be matched against
 // cobordism-atlas/results/reference_complements.json.
 //
 // Unlike dump, this simplifies: the caller wants the same canonical form
