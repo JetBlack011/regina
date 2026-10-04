@@ -148,8 +148,8 @@ void printBoundaryProgress(size_t processed, size_t total,
   progressBlock.draw(report.str());
 }
 
-void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const search::HopRun &run) {
+void printBreadth(std::ostream &out, const std::string &name,
+                       const search::SearchResult &run) {
   out << "[+] " << name << ": breadth: ";
   if (const auto &f = run.recordedFrontier)
     out << f->summary() << "; fingerprint " << f->fingerprint.substr(0, 12);
@@ -165,7 +165,7 @@ void printSweepBreadth(std::ostream &out, const std::string &name,
       << std::defaultfloat;
 }
 
-void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run) {
+void printOutcome(std::ostream &out, const std::string &name, const search::SearchResult &run) {
   out << "[+] " << name << ": " << run.newCobordisms << kFrozenNewWitnessesOutcome
       << run.outcome;
   if (run.otherOrientation > 0)
@@ -177,7 +177,7 @@ void printOutcome(std::ostream &out, const std::string &name, const search::HopR
 }
 
 void printIdentification(std::ostream &out, const std::string &name,
-                         const search::HopRun &run) {
+                         const search::SearchResult &run) {
   const complement::RecognitionCacheStats &r = run.recognitionAfter;
   const complement::RecognitionCacheStats &before = run.recognitionBefore;
   const namecache::BoundarySignatureCacheStats &b = run.boundaryCache;
@@ -218,7 +218,7 @@ void printIdentification(std::ostream &out, const std::string &name,
 }
 
 void printSearchProfile(std::ostream &out, const std::string &name,
-                        const search::HopRun &run) {
+                        const search::SearchResult &run) {
   // Where the search's time went. Measurement only; parsed by
   // cobound/tests/bench_search.sh.
   const SearchStats::Profile &p = run.stats.profile;

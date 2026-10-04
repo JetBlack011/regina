@@ -125,7 +125,7 @@ namespace search {
 /// one source of every value (plan, "search-shape defaults"; with a goal,
 /// the campaign's shape: atlas tools/orchestrate/hosts.conf [campaign]), and
 /// searchShape() refuses a shape with one unset.
-struct HopShape {
+struct RunShape {
   /// Thicken and collar layers of a hop's row (both), and the profile's
   /// layers=. A master row's layers are its witnesses' own.
   std::optional<int> layers;
@@ -171,11 +171,11 @@ struct SearchShape {
 /// A hop's SearchShape: `proper`, `shape`'s rounds, cap and budgets, its
 /// limits, one name per multi-curve component and no pair signatures (a
 /// hop keeps faces).
-SearchShape searchShape(const HopShape &shape);
+SearchShape searchShape(const RunShape &shape);
 
 /** The searched link's literature interval, as a search reports it: the
  *  CONSTRUCTIVE line and the progress block (verifyslicegenus's). */
-struct SweepInputs {
+struct LiteratureInterval {
   int literatureLo = 0, literatureHi = 0;
 };
 
@@ -284,7 +284,7 @@ struct SearchRequest {
   /// every search of the run).
   std::function<FindJudgement(const KeptSurface &)> judge;
 
-  SweepInputs sweep;
+  LiteratureInterval literature;
   SearchOutputs outputs;
 };
 
@@ -306,7 +306,7 @@ struct SearchRefused : std::runtime_error {
 };
 
 /// What a hop did.
-struct HopRun {
+struct SearchResult {
   std::vector<KeptSurface> kept;
   long long accepted = 0;
   std::string accounting;        ///< the `accounting:` body (rowsearch.h)
@@ -377,7 +377,7 @@ struct HopRun {
   std::string fatal;
 };
 
-class HopSearcher {
+class Searcher {
 public:
   /// `signatures` and `exact` name far sides as verifyslicegenus names them
   /// (outgoing::DiagramNamer), which is what surfaces are deduplicated by.
@@ -385,14 +385,14 @@ public:
   /// table caches (`exactCaches`, or the searcher's own when null), so what
   /// naming learns about the tables -- the HOMFLY index above all -- is
   /// built once, not once per hop. The cascade's.
-  HopSearcher(const linknaming::SignatureTable &signatures,
-              const linknaming::ExactTables *exact, HopShape shape,
+  Searcher(const linknaming::SignatureTable &signatures,
+              const linknaming::ExactTables *exact, RunShape shape,
               unsigned threads,
               std::shared_ptr<linknaming::TableCaches> exactCaches = nullptr);
 
   /// Any caller's. Without `signatures`, every boundary is named by its
   /// complement. Exact names use this searcher's own caches.
-  HopSearcher(const linknaming::SignatureTable *signatures,
+  Searcher(const linknaming::SignatureTable *signatures,
               const linknaming::ExactTables *exact, unsigned threads);
 
   /**
@@ -415,7 +415,7 @@ public:
   /// `surfaceTarget` is the search's breadth, so a resumed hop adds only the
   /// surfaces beyond its frontier's (SearchCallbacks::surfaceTarget).
   /// `censusName`, if any, is SearchRequest::censusName.
-  HopRun run(const outgoing::OutgoingReader &row, const std::string &rowName,
+  SearchResult run(const outgoing::OutgoingReader &row, const std::string &rowName,
              long long surfaceTarget, double seconds,
              const std::function<bool(const KeptSurface &)> &stop = {},
              const SearchFrontier *resume = nullptr,
@@ -424,7 +424,7 @@ public:
   /// The request run(row, rowName, ...) makes: a hop's search of `row`
   /// (searchShape() of this searcher's HopShape, its frontier always
   /// recorded), for a caller that adds to it (its pending file, say).
-  SearchRequest hopRequest(const outgoing::OutgoingReader &row, const std::string &rowName,
+  SearchRequest requestFor(const outgoing::OutgoingReader &row, const std::string &rowName,
                            long long surfaceTarget, double seconds) const;
 
   /**
@@ -441,12 +441,12 @@ public:
    * whose diagram namer cannot be built; std::runtime_error when the
    * pending file cannot be written at the search's end.
    */
-  HopRun run(const search::RowBuild &rb, const SearchRequest &request) const;
+  SearchResult run(const search::RowBuild &rb, const SearchRequest &request) const;
 
 private:
   const linknaming::SignatureTable *signatures_;
   const linknaming::ExactTables *exact_;
-  HopShape shape_;
+  RunShape shape_;
   unsigned threads_;
   std::shared_ptr<linknaming::TableCaches> exactCaches_;
 };

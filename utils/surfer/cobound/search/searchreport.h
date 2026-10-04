@@ -149,22 +149,22 @@ constexpr int REJECTION_SAMPLES_PER_REASON = 20;
 /** `breadth:` (the atlas's search_breadth.py parses it): the recorded
  *  frontier, whether the frontier the search was offered was carried on
  *  from, and the frontier's cost. */
-void printSweepBreadth(std::ostream &out, const std::string &name,
-                       const search::HopRun &run);
+void printBreadth(std::ostream &out, const std::string &name,
+                       const search::SearchResult &run);
 
 /** `N new witnesses, outcome X` and `accounting:` (dispatch.py's RE_OUTCOME
  *  and RE_ACCOUNTING). */
-void printOutcome(std::ostream &out, const std::string &name, const search::HopRun &run);
+void printOutcome(std::ostream &out, const std::string &name, const search::SearchResult &run);
 
 /** `identification:` (the census and recognition counters as the search ended, against
  *  the search's start), `diagram naming:` and their warnings. */
 void printIdentification(std::ostream &out, const std::string &name,
-                         const search::HopRun &run);
+                         const search::SearchResult &run);
 
 /** `search profile:` (bench_search.sh parses it), with the linking audit
  *  when it is on. */
 void printSearchProfile(std::ostream &out, const std::string &name,
-                        const search::HopRun &run);
+                        const search::SearchResult &run);
 
 } // namespace search
 

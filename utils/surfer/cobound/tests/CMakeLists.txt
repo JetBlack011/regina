@@ -39,7 +39,7 @@ endforeach()
 foreach(TEST searchcobordisms_test search_test pending_test fromdatabase_test
              thickening_rows_test)
   target_compile_definitions(${TEST} PRIVATE
-    CASCADE_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
+    COBOUND_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
 endforeach()
 
 # No gate may depend on an identified name: the same exhaustive search, with

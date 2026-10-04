@@ -261,13 +261,13 @@ int runWithoutGoal(const config::Config &cfg) {
   // go to <work>/hop_<k>_n0/kept.csv, as a goal run's hops' do, and the run's
   // end signs every pending file there into the database, on all the run's
   // threads (`cobound sign` does the same for a run that was killed).
-  int nextHop = 0;
+  int nextSearch = 0;
   if (std::filesystem::is_directory(workDir))
     for (const auto &d : std::filesystem::directory_iterator(workDir)) {
       const std::string n = d.path().filename().string();
       if (n.rfind(kFrozenHopDirPrefix, 0) != 0) continue;
       try {
-        nextHop = std::max(nextHop, std::stoi(n.substr(sizeof kFrozenHopDirPrefix - 1)) + 1);
+        nextSearch = std::max(nextSearch, std::stoi(n.substr(sizeof kFrozenHopDirPrefix - 1)) + 1);
       } catch (const std::exception &) {
       }
     }
@@ -441,13 +441,13 @@ int runWithoutGoal(const config::Config &cfg) {
     // A knot row's complement goes into the census after its search (when
     // census writes are on).
     request.censusName = linknaming::baseName(row.name);
-    request.sweep = {.literatureLo = row.lo, .literatureHi = row.hi};
+    request.literature = {.literatureLo = row.lo, .literatureHi = row.hi};
     // Its finds: kept one per cobordism (none the database holds), written to
     // its pending file as it runs, and signed at the run's end (divergence 7).
-    const std::string hopDir = workDir + "/" + kFrozenHopDirPrefix +
-                               std::to_string(nextHop++) + kFrozenHopDirNodeMark + "0";
-    std::filesystem::create_directories(hopDir);
-    request.pending = hopDir + "/kept.csv";
+    const std::string searchDir = workDir + "/" + kFrozenHopDirPrefix +
+                               std::to_string(nextSearch++) + kFrozenHopDirNodeMark + "0";
+    std::filesystem::create_directories(searchDir);
+    request.pending = searchDir + "/kept.csv";
     request.rowPD = row.pdNotation;
     request.layers = thickenLayers;
     request.knownIdentities = &recorded.identities();
@@ -471,9 +471,9 @@ int runWithoutGoal(const config::Config &cfg) {
 
     // One searcher per row, so each row's exact names start from fresh
     // table caches, as they always have.
-    const search::HopSearcher searcher(signatureTable ? &*signatureTable : nullptr,
+    const search::Searcher searcher(signatureTable ? &*signatureTable : nullptr,
                                         exactTables ? &*exactTables : nullptr, numThreads);
-    search::HopRun run;
+    search::SearchResult run;
     try {
       run = searcher.run(rb, request);
     } catch (const search::SeedInvariantFailure &f) {
@@ -534,7 +534,7 @@ int runWithoutGoal(const config::Config &cfg) {
     // only when the row can vouch for having examined every surface in it --
     // else a later run would skip surfaces nobody looked at.
     if (resumeFrom || frontierDir) {
-      search::printSweepBreadth(std::cout, row.name, run);
+      search::printBreadth(std::cout, row.name, run);
       if (frontierDir && run.recordedFrontier) {
         if (run.frontier) {
           try {

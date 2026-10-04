@@ -160,7 +160,7 @@ struct CertifiedBounds {
   std::vector<solver::ExternalProof> proofs;
   size_t skipped = 0; ///< rows not CERTIFIED proofs of the connected goal
 };
-CertifiedBounds loadCascadeProofs(const std::filesystem::path &path,
+CertifiedBounds loadCertifiedBounds(const std::filesystem::path &path,
                                   const std::function<const std::string &(const std::string &)> &classOf);
 
 } // namespace solverinputs

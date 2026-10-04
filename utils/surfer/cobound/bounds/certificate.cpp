@@ -43,8 +43,8 @@ void CertificateWriter::writeCobordism(std::ostream &c, EdgeId eid,
     << ",\"outComponent\":" << json::array(we.shape.outComponent) << "},\"inMap\":" << json::array(we.inMap)
     << ",\"outMap\":" << json::array(we.outMap);
   if (it == edges_.byEdge.end()) return;
-  const HopEdge &he = it->second.he;
-  c << ",\"hop_dir\":\"" << json::escape(it->second.hopDir) << "\",\"row_pd\":\""
+  const AddedCobordism &he = it->second.he;
+  c << ",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
     << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers
     << ",\"row_node_map\":" << json::array(it->second.rowNodeMap);
   writeSurface(c, it->second);
@@ -100,7 +100,7 @@ void CertificateWriter::writeRecords(std::ostream &c, const std::vector<RecordId
       const std::string key = rec.source.substr(sizeof kFrozenDirectWitnessSource - 1);
       if (auto it = edges_.direct.find(key); it != edges_.direct.end()) {
         c << ",\"witness\":\"" << json::escape(it->second.key)
-          << "\",\"hop_dir\":\"" << json::escape(it->second.hopDir) << "\",\"row_pd\":\""
+          << "\",\"hop_dir\":\"" << json::escape(it->second.searchDir) << "\",\"row_pd\":\""
           << json::escape(it->second.rowPD) << "\",\"layers\":" << it->second.layers;
         writeSurface(c, it->second);
       }

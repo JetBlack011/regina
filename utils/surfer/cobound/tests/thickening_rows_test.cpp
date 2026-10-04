@@ -17,7 +17,7 @@ int main() {
   size_t rows = 0;
   for (const char *file : {"knots_to_6.csv", "links_to_6.csv"})
     for (const linknaming::TableRow &row :
-         linknaming::readTableRows(std::string(CASCADE_TEST_DATA) + "/" + file)) {
+         linknaming::readTableRows(std::string(COBOUND_TEST_DATA) + "/" + file)) {
       ++rows;
       ThickenedLink t;
       buildAmbient(row.pd, 2, 2, t);

@@ -43,7 +43,7 @@ int solveWith(const config::Config &cfg) {
   const std::string outgoingResolutionsPath = cfg.text("far_side_resolutions");
   const std::string outgoingNamesPath = cfg.text("far_side_exact");
   const std::string linkClassesPath = cfg.text("link_classes");
-  const std::string cascadeProofsPath = cfg.text("cascade_proofs");
+  const std::string certifiedBoundsPath = cfg.text("cascade_proofs");
   const bool sumRules = cfg.flag("sum_rules");
   const int maxCrossings = static_cast<int>(cfg.integer("max_crossings"));
   const std::string censusPath = cfg.text("census");
@@ -181,17 +181,17 @@ int solveWith(const config::Config &cfg) {
   // names (the target and every literature leaf) read through the link
   // classes, as witnesses'.
   std::vector<solver::ExternalProof> externalProofs;
-  if (!cascadeProofsPath.empty()) {
+  if (!certifiedBoundsPath.empty()) {
     solverinputs::CertifiedBounds certified;
     try {
-      certified = solverinputs::loadCascadeProofs(cascadeProofsPath, classOf);
+      certified = solverinputs::loadCertifiedBounds(certifiedBoundsPath, classOf);
     } catch (const std::exception &e) {
       std::cerr << "[!] " << e.what() << "\n";
       return 1;
     }
     externalProofs = std::move(certified.proofs);
     std::cout << "[+] Cascade proofs: " << externalProofs.size()
-              << " certified bounds on connected g4 from " << cascadeProofsPath;
+              << " certified bounds on connected g4 from " << certifiedBoundsPath;
     if (certified.skipped)
       std::cout << " (" << certified.skipped << " others skipped)";
     std::cout << "\n";

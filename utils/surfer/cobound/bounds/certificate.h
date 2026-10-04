@@ -35,8 +35,8 @@ namespace bounds {
 
 /// What a checker needs to replay one cobordism edge of the graph.
 struct EdgeInfo {
-  std::string hopDir, rowPD, key;
-  HopEdge he;
+  std::string searchDir, rowPD, key;
+  AddedCobordism he;
   int layers = 2;
   std::string pairsig; ///< inline for master witnesses (no hop directory)
   /// The row diagram's component i is the node's rowNodeMap[i]: identity

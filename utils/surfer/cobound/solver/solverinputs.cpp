@@ -254,7 +254,7 @@ std::unordered_map<std::string, std::string> loadLinkClasses(const std::filesyst
   return linkClasses;
 }
 
-CertifiedBounds loadCascadeProofs(const std::filesystem::path &path,
+CertifiedBounds loadCertifiedBounds(const std::filesystem::path &path,
                                   const std::function<const std::string &(const std::string &)> &classOf) {
   CertifiedBounds out;
   std::ifstream in(path);

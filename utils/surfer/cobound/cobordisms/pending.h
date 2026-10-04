@@ -39,7 +39,7 @@ struct PendingCobordism {
 std::string formatKept(const PendingCobordism &p);
 
 /// Appends `kept` to <hopDir>/kept.csv and fsyncs (formatKept()).
-void appendKept(const std::string &hopDir, const std::vector<PendingCobordism> &kept);
+void appendKept(const std::string &searchDir, const std::vector<PendingCobordism> &kept);
 
 /**
  * A search's pending file (kept.csv), written while the search runs: every

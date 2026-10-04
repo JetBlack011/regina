@@ -93,7 +93,7 @@ RowWatchdog::~RowWatchdog() { stop(); }
 
 namespace search {
 
-SearchShape searchShape(const HopShape &shape) {
+SearchShape searchShape(const RunShape &shape) {
   if (!shape.layers || !shape.maxFaces || !shape.iddfsIterations || !shape.iddfsStart ||
       !shape.iddfsStep || !shape.rootBudgetStart || !shape.rootBudgetGrowth)
     throw std::logic_error("searchShape(): the hop shape leaves a field that decides what a "
@@ -124,8 +124,8 @@ SeedInvariantFailure::SeedInvariantFailure(size_t touching)
                          "side, so found surfaces could change it"),
       touching(touching) {}
 
-HopSearcher::HopSearcher(const linknaming::SignatureTable &signatures,
-                         const linknaming::ExactTables *exact, HopShape shape,
+Searcher::Searcher(const linknaming::SignatureTable &signatures,
+                         const linknaming::ExactTables *exact, RunShape shape,
                          unsigned threads,
                          std::shared_ptr<linknaming::TableCaches> exactCaches)
     : signatures_(&signatures), exact_(exact), shape_(shape), threads_(threads),
@@ -134,27 +134,27 @@ HopSearcher::HopSearcher(const linknaming::SignatureTable &signatures,
     exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-HopSearcher::HopSearcher(const linknaming::SignatureTable *signatures,
+Searcher::Searcher(const linknaming::SignatureTable *signatures,
                          const linknaming::ExactTables *exact, unsigned threads)
     : signatures_(signatures), exact_(exact), threads_(threads) {
   if (exact_)
     exactCaches_ = std::make_shared<linknaming::TableCaches>(*exact_);
 }
 
-HopRun HopSearcher::run(const outgoing::OutgoingReader &row,
+SearchResult Searcher::run(const outgoing::OutgoingReader &row,
                         const std::string &rowName, long long surfaceTarget,
                         double seconds,
                         const std::function<bool(const KeptSurface &)> &stop,
                         const SearchFrontier *resume,
                         std::optional<std::string> censusName) const {
-  SearchRequest request = hopRequest(row, rowName, surfaceTarget, seconds);
+  SearchRequest request = requestFor(row, rowName, surfaceTarget, seconds);
   request.resume = resume;
   request.stop = stop;
   request.censusName = std::move(censusName);
   return run(row.rowBuild(), request);
 }
 
-SearchRequest HopSearcher::hopRequest(const outgoing::OutgoingReader &row,
+SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &row,
                                       const std::string &rowName, long long surfaceTarget,
                                       double seconds) const {
   SearchRequest request;
@@ -170,7 +170,7 @@ SearchRequest HopSearcher::hopRequest(const outgoing::OutgoingReader &row,
   return request;
 }
 
-HopRun HopSearcher::run(const search::RowBuild &rb,
+SearchResult Searcher::run(const search::RowBuild &rb,
                         const SearchRequest &request) const {
   const auto wall0 = std::chrono::steady_clock::now();
   const double cpu0 = timers::processCpuSeconds();
@@ -179,7 +179,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     throw std::logic_error("HopSearcher::run(): the search shape does not say whether "
                            "resolvable surfaces count (resolve_unlinked has no default)");
   const bool resolveUnlinked = *shape.resolveUnlinked;
-  const SweepInputs &sweep = request.sweep;
+  const LiteratureInterval &literature = request.literature;
   const SearchOutputs &outputs = request.outputs;
   if (rb.seedFaces.empty())
     throw SearchRefused("hop: the row has no collar seed");
@@ -272,7 +272,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
     if (outcome == "exhausted") outcome = why;
   };
 
-  HopRun out;
+  SearchResult out;
   out.recognitionBefore = complement::recognitionCacheStats();
   out.censusWritesBefore = census::insertCounts();
 
@@ -396,9 +396,9 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
           if (outputs.progress)
             search::printBoundaryProgress(
                 processed, total, elapsed,
-                constructive.load() ? std::optional<int>(sweep.literatureLo)
+                constructive.load() ? std::optional<int>(literature.literatureLo)
                                     : std::nullopt,
-                sweep.literatureHi);
+                literature.literatureHi);
           // The drain is the long pole of a search and the phase most likely
           // to be interrupted, so checkpoint from here: a kill loses at most
           // a minute of found surfaces.
@@ -596,7 +596,7 @@ HopRun HopSearcher::run(const search::RowBuild &rb,
         if (j.constructive && !constructive.exchange(true, std::memory_order_relaxed)) {
           std::cout << "[+] " << request.name << kFrozenConstructiveWitnessFound
                     << *j.constructive
-                    << " (literature [" << sweep.literatureLo << ", " << sweep.literatureHi
+                    << " (literature [" << literature.literatureLo << ", " << literature.literatureHi
                     << "]). Checkpointing now.\n"
                     << std::flush;
           if (pending)

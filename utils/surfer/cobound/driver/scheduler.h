@@ -36,9 +36,9 @@ struct GoalOptions {
   bool censusLoaded = false;
   int goalGenus = 0;
   bool goalDisjoint = false; // goal on the singleton partition (disjoint discs)
-  long hopSurfaces = 0, maxHopSurfaces = 0;
+  long surfaceTarget = 0, maxSurfaceTarget = 0;
   int threads = 1;
-  int maxExpansions = 0;
+  int maxSearches = 0;
   double cpuBudget = 0;
   /// Each search's wall-clock backstop.
   double searchSeconds = 0;
@@ -49,7 +49,7 @@ struct GoalOptions {
   /// entry the database holds rows of gets those cobordisms as free edges.
   std::string masterCobordisms;
   /// Each search's shape.
-  search::HopShape hopShape;
+  search::RunShape runShape;
   /// The complement cache's limit, as the profile line prints it (it is
   /// process-wide: setup::applyRunSettings() sets it).
   size_t complementCacheLimit = 0;

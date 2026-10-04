@@ -51,22 +51,22 @@ SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int lay
   axioms_.depth.emplace(target_, 0);
   // Its literature lower bound, always: what the gates hold every proof to.
   g_.setGenusLowerBound(target_, literatureLo, "literature " + name);
-  HopRow row;
+  SearchedLink row;
   row.node = target_;
   row.diagram = diagram;
   row.nodeMap = m.componentMap;
   row.pd = pd;
   row.layers = layers;
-  hop_ = std::make_unique<HopAssembler>(g_, reg_, row);
+  assembler_ = std::make_unique<CobordismAssembler>(g_, reg_, row);
 }
 
 SearchJudge::Verdict SearchJudge::add(const outgoing::OutgoingLink &link, int genus,
                                       const std::string &key) {
   ++finds_;
   const size_t before = g_.nodeCount();
-  HopEdge e;
+  AddedCobordism e;
   try {
-    e = hop_->addRead(link, genus, key);
+    e = assembler_->addRead(link, genus, key);
   } catch (const std::exception &ex) {
     e.ok = false;
     e.why = ex.what();

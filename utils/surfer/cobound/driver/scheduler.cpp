@@ -70,9 +70,9 @@ using bounds::DatabaseCobordisms;
 using bounds::DatabaseLoad;
 using bounds::EdgeInfo;
 using bounds::EdgeInfos;
-using bounds::HopAssembler;
-using bounds::HopEdge;
-using bounds::HopRow;
+using bounds::CobordismAssembler;
+using bounds::AddedCobordism;
+using bounds::SearchedLink;
 using bounds::Node;
 using bounds::NodeAxioms;
 using bounds::NodeId;
@@ -88,9 +88,9 @@ using bounds::rowPD;
 using cobordisms::StoreResult;
 using cobordisms::signPending;
 using linknaming::simplifyKeepingComponents;
-using search::HopRun;
-using search::HopSearcher;
-using search::HopShape;
+using search::SearchResult;
+using search::Searcher;
+using search::RunShape;
 using search::KeptSurface;
 using search::SearchRequest;
 using search::SeedInvariantFailure;
@@ -103,9 +103,9 @@ namespace {
 using timers::Clock;
 using timers::secondsSince;
 
-class Cascade {
+class Scheduler {
 public:
-  explicit Cascade(GoalOptions c)
+  explicit Scheduler(GoalOptions c)
       : cfg_(std::move(c)), reg_(g_),
         tables_(linknaming::ExactTables::load(cfg_.knotTable, cfg_.linkTable,
                                                cfg_.knotSymmetry)),
@@ -179,7 +179,7 @@ private:
   void writeProfiles() const {
     runrecords::writeProfiles(
         cfg_.work, view(), [this](NodeId n) { return subjectName(n); },
-        [this](NodeId n) { return hopSubject_.count(n) > 0; });
+        [this](NodeId n) { return searchSubject_.count(n) > 0; });
   }
   CertificateGoal certificateGoal() const {
     return {cfg_.targetName, cfg_.targetPD,  cfg_.goalGenus,         cfg_.goalLower,
@@ -208,7 +208,7 @@ private:
   /// What a checker needs to replay each witness edge (certificate.json).
   EdgeInfos edges_;
   std::optional<linknaming::SignatureTable> signatures_;
-  std::unique_ptr<HopSearcher> searcher_;
+  std::unique_ptr<Searcher> searcher_;
   /// The database's cobordisms as free edges (master_witnesses).
   std::unique_ptr<DatabaseCobordisms> database_;
   bool masterRowsFor(NodeId n) const {
@@ -223,9 +223,9 @@ private:
   /// joins by diagram only, so it must never be compared with a node's name.
   std::string classOf(const std::string &name) const { return axioms_.classOf(name); }
   double cpuSpent_ = 0, wallSpent_ = 0;
-  int hops_ = 0;
+  int searches_ = 0;
   int invariantFailures_ = 0;
-  std::map<NodeId, std::string> hopSubject_; ///< each searched node's subject name
+  std::map<NodeId, std::string> searchSubject_; ///< each searched node's subject name
   bool stored_ = false;
   size_t storedAppended_ = 0;             ///< witnesses the store gained
   std::set<NodeId> boosted_;              ///< hubs already expanded wide (--hub-degree)
@@ -254,7 +254,7 @@ private:
     double master = 0;     ///< loadMaster(), whole
     double kept = 0;       ///< kept.csv (fsynced) and frontier.txt per hop
   };
-  DriverTimes driver_, driverAtLastHop_;
+  DriverTimes driver_, driverAtLastSearch_;
   StoreResult storeResult_; ///< storeWitnesses()'s counts and times
   /// Writes the run's own record to cascade.jsonl: its whole wall and CPU,
   /// and where the time outside the hops went.
@@ -262,7 +262,7 @@ private:
               double lowerReport, double nodeBounds);
 };
 
-std::string Cascade::subjectName(NodeId n) const {
+std::string Scheduler::subjectName(NodeId n) const {
   if (n == target_ && cfg_.targetName != "target") return cfg_.targetName;
   if (auto it = tableName_.find(n); it != tableName_.end() && tables_.entry(it->second))
     return it->second;
@@ -270,10 +270,10 @@ std::string Cascade::subjectName(NodeId n) const {
          kFrozenCascadeSubjectNodeMark + std::to_string(n);
 }
 
-void Cascade::signIntoDatabase() {
+void Scheduler::signIntoDatabase() {
   if (cfg_.cobordismsPath.empty() || stored_) return;
   stored_ = true;
-  runrecords::writeNodesCsv(cfg_.work, hopSubject_, reg_);
+  runrecords::writeNodesCsv(cfg_.work, searchSubject_, reg_);
   const StoreResult s = signPending(cfg_.work, cfg_.cobordismsPath, cfg_.dedupeAgainst,
                                     names_, static_cast<unsigned>(cfg_.threads),
                                     cfg_.pairSigCache);
@@ -284,7 +284,7 @@ void Cascade::signIntoDatabase() {
             << std::fixed << std::setprecision(0) << s.signSeconds << " s)\n";
 }
 
-void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
+void Scheduler::loadMaster(NodeId n, bool countsAsExpansion) {
   // A witness can be on an upper proof only if its genus is at most the
   // goal (glue() never lowers a genus), and on a lower proof only if the
   // charge it costs, at least its genus, is affordable: at most the largest
@@ -307,7 +307,7 @@ void Cascade::loadMaster(NodeId n, bool countsAsExpansion) {
   if (countsAsExpansion && masterRowsFor(n)) expansions_[n].push_back(0);
 }
 
-bool Cascade::useful(NodeId n) const {
+bool Scheduler::useful(NodeId n) const {
   // What-if: give n the best profile it could conceivably have (every
   // partition its linking numbers allow, at its proved lower bound) and see
   // whether the target's goal would follow over the edges found so far.
@@ -324,7 +324,7 @@ bool Cascade::useful(NodeId n) const {
   return goalMetIn(what, target_, goalPartition(target_), cfg_.goalGenus);
 }
 
-void Cascade::loadLowerSources() {
+void Scheduler::loadLowerSources() {
   special_.clear();
   lowerLMax_ = 0;
   if (cfg_.lowerSources.empty()) return;
@@ -347,7 +347,7 @@ void Cascade::loadLowerSources() {
   }
 }
 
-void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
+void Scheduler::lowerSlacks(const std::vector<NodeId> &ns) const {
   // One what-if per node (ProofGraph::lowerIf copies the graph and relaxes
   // it, so they are independent), on the run's threads, cached until the
   // graph changes.
@@ -388,14 +388,14 @@ void Cascade::lowerSlacks(const std::vector<NodeId> &ns) const {
   for (size_t i = 0; i < todo.size(); ++i) lowerCache_.carried[todo[i]] = out[i];
 }
 
-std::optional<int> Cascade::lowerSlack(NodeId n) const {
+std::optional<int> Scheduler::lowerSlack(NodeId n) const {
   lowerSlacks({n});
   const auto &c = lowerCache_.carried.at(n);
   if (!c) return std::nullopt;
   return *c - cfg_.goalLower;
 }
 
-bool Cascade::usefulLower(NodeId n, int *slack) const {
+bool Scheduler::usefulLower(NodeId n, int *slack) const {
   if (cfg_.goalLower < 0 || n == target_) return false;
   if (g_.node(n).components > ProofGraph::kMaxLowerComponents) return false;
   if (reg_.info(n).diagram.crossings() > cfg_.lowerMaxCrossings) return false;
@@ -405,7 +405,7 @@ bool Cascade::usefulLower(NodeId n, int *slack) const {
   return true;
 }
 
-std::optional<NodeId> Cascade::choose() {
+std::optional<NodeId> Scheduler::choose() {
   const auto tChoose = Clock::now();
   struct ChooseTimer {
     DriverTimes &d;
@@ -487,7 +487,7 @@ std::optional<NodeId> Cascade::choose() {
   return cands.front().n;
 }
 
-void Cascade::expand(NodeId n, long surfaces) {
+void Scheduler::expand(NodeId n, long surfaces) {
   // A node searched before carries on from where that search stopped (the
   // hop's surface target is its breadth, so it adds only what is new); one
   // already searched this far (a hub's wide hop, say) has nothing new at
@@ -500,26 +500,26 @@ void Cascade::expand(NodeId n, long surfaces) {
               << " surfaces; nothing new at " << surfaces << "\n";
     return;
   }
-  const int k = hops_++;
+  const int k = searches_++;
   const std::string dir = cfg_.work + "/" + kFrozenHopDirPrefix + std::to_string(k) +
                           kFrozenHopDirNodeMark + std::to_string(n);
   fs::create_directories(dir);
   const GaussDiagram &d = reg_.info(n).diagram;
-  HopRow row;
+  SearchedLink row;
   row.node = n;
   row.diagram = d;
   row.nodeMap.resize(d.components());
   std::iota(row.nodeMap.begin(), row.nodeMap.end(), 0);
   row.pd = rowPD(d);
-  row.layers = *cfg_.hopShape.layers;
+  row.layers = *cfg_.runShape.layers;
   using clock = std::chrono::steady_clock;
   auto seconds = [](clock::time_point a, clock::time_point b) {
     return std::chrono::duration<double>(b - a).count();
   };
   const auto tRow = clock::now();
-  std::unique_ptr<HopAssembler> hop;
+  std::unique_ptr<CobordismAssembler> assembler;
   try {
-    hop = std::make_unique<HopAssembler>(g_, reg_, row);
+    assembler = std::make_unique<CobordismAssembler>(g_, reg_, row);
   } catch (const std::exception &e) {
     refused_.insert(n);
     // The row as given, to diagnose the refusal: its PD, whether Regina can
@@ -552,16 +552,16 @@ void Cascade::expand(NodeId n, long surfaces) {
   // The hop's subject: what its witnesses are recorded under, and what its
   // log lines are named by (subjectName()).
   const std::string rowName = subjectName(n);
-  hopSubject_[n] = rowName;
+  searchSubject_[n] = rowName;
   const size_t nodesBefore = g_.nodeCount();
   int assembled = 0, failed = 0;
   size_t cobordisms = 0;
   // One kept surface into the graph. Its edge's key is its provenance:
   // hop<k>#<i> (it has no pair signature).
-  const std::string build = hop->redrawer().buildChecksum();
+  const std::string build = assembler->redrawer().buildChecksum();
   auto take = [&](const std::string &key, const std::string &label,
-                  const std::function<HopEdge()> &add, std::vector<int> faces) {
-    HopEdge e;
+                  const std::function<AddedCobordism()> &add, std::vector<int> faces) {
+    AddedCobordism e;
     try {
       e = add();
     } catch (const std::logic_error &ex) {
@@ -592,10 +592,10 @@ void Cascade::expand(NodeId n, long surfaces) {
   } r;
   std::chrono::steady_clock::time_point t0;
   {
-    HopRun run;
+    SearchResult run;
     try {
       SearchRequest request =
-          searcher_->hopRequest(hop->redrawer(), rowName, surfaces, cfg_.searchSeconds);
+          searcher_->requestFor(assembler->redrawer(), rowName, surfaces, cfg_.searchSeconds);
       request.resume = resume;
       if (tables_.entry(rowName)) request.censusName = linknaming::baseName(rowName);
       // Every kept surface, durably, as the search runs (divergence 7): the
@@ -604,7 +604,7 @@ void Cascade::expand(NodeId n, long surfaces) {
       request.layers = row.layers;
       if (!cfg_.cobordismsPath.empty()) request.pending = dir + "/kept.csv";
       request.runDirectory = cfg_.work;
-      run = searcher_->run(hop->redrawer().rowBuild(), request);
+      run = searcher_->run(assembler->redrawer().rowBuild(), request);
     } catch (const SeedInvariantFailure &e) {
       // Divergence 2: an impossible state halts the run, once what it found
       // is written (run()).
@@ -688,7 +688,7 @@ void Cascade::expand(NodeId n, long surfaces) {
     for (size_t i = 0; i < run.kept.size(); ++i) {
       KeptSurface &ks = run.kept[i];
       const std::string key = kFrozenHopKeyPrefix + std::to_string(k) + "#" + std::to_string(i);
-      take(key, ks.outgoingName, [&] { return hop->addRead(ks.link, ks.genus, key); },
+      take(key, ks.outgoingName, [&] { return assembler->addRead(ks.link, ks.genus, key); },
            std::move(ks.faces));
     }
   }
@@ -725,12 +725,12 @@ void Cascade::expand(NodeId n, long surfaces) {
     << ",\"invariant_failures\":" << invariantFailures_
     // The driver's time since the previous hop record: choosing this node
     // (and the loads before it), and this hop's kept.csv and frontier.
-    << ",\"choose_s\":" << driver_.choose - driverAtLastHop_.choose
-    << ",\"useful_s\":" << driver_.useful - driverAtLastHop_.useful
-    << ",\"lower_slack_s\":" << driver_.lowerSlack - driverAtLastHop_.lowerSlack
-    << ",\"master_s\":" << driver_.master - driverAtLastHop_.master
-    << ",\"kept_s\":" << driver_.kept - driverAtLastHop_.kept << "}";
-  driverAtLastHop_ = driver_;
+    << ",\"choose_s\":" << driver_.choose - driverAtLastSearch_.choose
+    << ",\"useful_s\":" << driver_.useful - driverAtLastSearch_.useful
+    << ",\"lower_slack_s\":" << driver_.lowerSlack - driverAtLastSearch_.lowerSlack
+    << ",\"master_s\":" << driver_.master - driverAtLastSearch_.master
+    << ",\"kept_s\":" << driver_.kept - driverAtLastSearch_.kept << "}";
+  driverAtLastSearch_ = driver_;
   log(o.str());
   std::cout << "[+] " << kFrozenHopLine << k << ": node " << n << " (" << d.crossings()
             << " crossings, "
@@ -741,7 +741,7 @@ void Cascade::expand(NodeId n, long surfaces) {
             << "\n";
 }
 
-void Cascade::logRun(double wall, double cpu, double startup, double loop, double store,
+void Scheduler::logRun(double wall, double cpu, double startup, double loop, double store,
                      double lowerReport, double nodeBounds) {
   std::ostringstream o;
   o << std::fixed << std::setprecision(1) << "{\"run\":\"" << json::escape(cfg_.targetName)
@@ -754,11 +754,11 @@ void Cascade::logRun(double wall, double cpu, double startup, double loop, doubl
     << ",\"store_s\":" << store << ",\"store_dedupe_s\":" << storeResult_.dedupeSeconds
     << ",\"store_sign_s\":" << storeResult_.signSeconds
     << ",\"lower_report_s\":" << lowerReport << ",\"node_bounds_s\":" << nodeBounds
-    << ",\"hops\":" << hops_ << ",\"nodes\":" << g_.nodeCount() << "}";
+    << ",\"hops\":" << searches_ << ",\"nodes\":" << g_.nodeCount() << "}";
   log(o.str());
 }
 
-int Cascade::run() {
+int Scheduler::run() {
   const auto tRun = Clock::now();
   const double cpuRun = timers::processCpuSeconds();
   fs::create_directories(cfg_.work);
@@ -772,7 +772,7 @@ int Cascade::run() {
     // From the node namer's tables: one table load (phase 5).
     signatures_ = linknaming::SignatureTable::fromTables(tables_);
     // The searches' outgoing namers share the node namer's table caches.
-    searcher_ = std::make_unique<HopSearcher>(*signatures_, &tables_, cfg_.hopShape,
+    searcher_ = std::make_unique<Searcher>(*signatures_, &tables_, cfg_.runShape,
                                               static_cast<unsigned>(cfg_.threads),
                                               namer_.caches());
     std::cout << "[+] hops in process: " << signatures_->knots() << " knot and "
@@ -782,7 +782,7 @@ int Cascade::run() {
               << " s)\n";
   }
   {
-    const HopShape &s = cfg_.hopShape;
+    const RunShape &s = cfg_.runShape;
     std::cout << "[+] hop shape: cap " << *s.maxFaces << ", IDDFS " << *s.iddfsIterations
               << " from " << *s.iddfsStart << " step " << *s.iddfsStep << ", root budget "
               << *s.rootBudgetStart << " x" << *s.rootBudgetGrowth << "\n";
@@ -865,7 +865,7 @@ int Cascade::run() {
             << "\n";
   const auto start = std::chrono::steady_clock::now();
   const double startupSeconds = secondsSince(tRun);
-  long budget = cfg_.hopSurfaces;
+  long budget = cfg_.surfaceTarget;
   while (true) {
     // A halt first (divergence 2): even a goal met by the hop that found an
     // impossible state is not reported as met.
@@ -908,7 +908,7 @@ int Cascade::run() {
     // was met cost more than the hops (2026-09-30, close1: 35-45 loads and
     // ~2,500 read-backs per row).
     auto n = choose();
-    if (hops_ >= cfg_.maxExpansions) {
+    if (searches_ >= cfg_.maxSearches) {
       std::cout << "[-] expansion limit\n";
       stopReason_ = "expansion-limit";
       break;
@@ -921,7 +921,7 @@ int Cascade::run() {
     if (!n) {
       // Every useful node searched at this budget: search them again deeper
       // (a surface-target round only covers a prefix of the roots).
-      if (budget * 2 > cfg_.maxHopSurfaces) {
+      if (budget * 2 > cfg_.maxSurfaceTarget) {
         std::cout << "[-] nothing useful left\n";
         stopReason_ = "nothing-useful";
         break;
@@ -951,7 +951,7 @@ int Cascade::run() {
   }
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   auto best = g_.best(target_, goalPartition(target_));
-  std::cout << "[+] done: " << hops_ << " hops, " << g_.nodeCount() << " nodes, "
+  std::cout << "[+] done: " << searches_ << " hops, " << g_.nodeCount() << " nodes, "
             << g_.recordCount() << " records; " << std::fixed << std::setprecision(0)
             << wall << " s wall, " << cpuSpent_ << " s search CPU. Target best: "
             << (best ? std::to_string(best->genus) : "none") << "\n";
@@ -996,14 +996,14 @@ int Cascade::run() {
   return 1;
 }
 
-void Cascade::printOutcome(const std::string &outcome) const {
+void Scheduler::printOutcome(const std::string &outcome) const {
   // The line a campaign's runner parses, in verifyslicegenus's own shape
   // (dispatch.py RE_OUTCOME): witnesses newly recorded, and why the run ended.
   std::cout << "[+] " << cfg_.targetName << ": " << storedAppended_
             << kFrozenNewWitnessesOutcome << outcome << "\n";
 }
 
-void Cascade::printProfile() const {
+void Scheduler::printProfile() const {
   // Everything that decides what a run covers, as key=value, so a campaign
   // records what actually ran rather than what its configuration asked for.
   // The keys are cascadesearch's option names (frozen: campaigns record
@@ -1011,15 +1011,15 @@ void Cascade::printProfile() const {
   // max_hop_surfaces max_surface_target, max_expansions max_searches,
   // recognition_cache_limit complement_cache_limit, master_witnesses and
   // witness_store the databases read and signed into.
-  const HopShape &s = cfg_.hopShape;
+  const RunShape &s = cfg_.runShape;
   std::cout << "[+] profile: goal=" << (cfg_.goalDisjoint ? "disjoint" : "connected")
             << " goal_genus=" << cfg_.goalGenus << " goal_lower=" << cfg_.goalLower
             << " lower_max_crossings=" << cfg_.lowerMaxCrossings
             << " master_loads=lazy"
             << " literature=" << (cfg_.literature ? 1 : 0)
-            << " hop_mode=process hop_surfaces=" << cfg_.hopSurfaces
-            << " max_hop_surfaces=" << cfg_.maxHopSurfaces
-            << " max_expansions=" << cfg_.maxExpansions << " cpu_budget=" << cfg_.cpuBudget
+            << " hop_mode=process hop_surfaces=" << cfg_.surfaceTarget
+            << " max_hop_surfaces=" << cfg_.maxSurfaceTarget
+            << " max_expansions=" << cfg_.maxSearches << " cpu_budget=" << cfg_.cpuBudget
             << " strategy=" << cfg_.strategy << " max_crossings=" << cfg_.maxCrossings
             << " hub_degree=" << cfg_.hubDegree << " hub_surfaces=" << cfg_.hubSurfaces
             << " threads=" << cfg_.threads << " max_faces=" << *s.maxFaces
@@ -1049,17 +1049,17 @@ GoalOptions goalOptions(const config::Config &cfg) {
   o.censusDb = cfg.text("census");
   o.goalGenus = static_cast<int>(cfg.integer("goal_genus"));
   o.goalDisjoint = cfg.text("goal_partition") == "disjoint";
-  o.hopSurfaces = static_cast<long>(cfg.integer("surface_target"));
-  o.maxHopSurfaces = static_cast<long>(cfg.integer("max_surface_target"));
+  o.surfaceTarget = static_cast<long>(cfg.integer("surface_target"));
+  o.maxSurfaceTarget = static_cast<long>(cfg.integer("max_surface_target"));
   o.threads = static_cast<int>(cfg.threads());
-  o.maxExpansions = static_cast<int>(cfg.integer("max_searches"));
+  o.maxSearches = static_cast<int>(cfg.integer("max_searches"));
   o.cpuBudget = cfg.real("cpu_budget");
   o.searchSeconds = cfg.real("search_seconds");
   o.maxCrossings = static_cast<size_t>(cfg.integer("max_crossings"));
   o.strategy = cfg.text("strategy");
   o.literature = cfg.flag("literature");
   o.masterCobordisms = cfg.text("master_witnesses");
-  HopShape &h = o.hopShape;
+  RunShape &h = o.runShape;
   h.layers = static_cast<int>(cfg.integer("layers"));
   h.maxFaces = cfg.integer("max_faces");
   h.iddfsIterations = static_cast<unsigned>(cfg.integer("iddfs_iterations"));
@@ -1098,8 +1098,8 @@ GoalOptions goalOptions(const config::Config &cfg) {
 }
 
 int runToGoal(const GoalOptions &options) {
-  Cascade cascade(options);
-  return cascade.run();
+  Scheduler scheduler(options);
+  return scheduler.run();
 }
 
 } // namespace scheduler

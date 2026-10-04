@@ -63,7 +63,7 @@ void identitiesSince(const std::string &path, std::uintmax_t from,
   }
 }
 
-int hopNumber(const fs::path &dir) {
+int searchNumber(const fs::path &dir) {
   // hop_<k>_n<node>
   const std::string name = dir.filename().string();
   try {
@@ -82,11 +82,11 @@ std::string formatKept(const PendingCobordism &p) {
          csvField(p.rowPD) + ',' + std::to_string(p.layers) + '\n';
 }
 
-void appendKept(const std::string &hopDir, const std::vector<PendingCobordism> &kept) {
+void appendKept(const std::string &searchDir, const std::vector<PendingCobordism> &kept) {
   if (kept.empty()) return;
   std::string buffer;
   for (const PendingCobordism &p : kept) buffer += formatKept(p);
-  appendonly::append(hopDir + "/kept.csv", buffer, appendonly::Sync::yes);
+  appendonly::append(searchDir + "/kept.csv", buffer, appendonly::Sync::yes);
 }
 
 long long signedThrough(const std::string &path) {
@@ -105,7 +105,7 @@ std::vector<PendingCobordism> readKept(const std::string &work,
           fs::exists(e.path() / "kept.csv"))
         dirs.push_back(e.path());
   std::sort(dirs.begin(), dirs.end(), [](const fs::path &a, const fs::path &b) {
-    return hopNumber(a) < hopNumber(b);
+    return searchNumber(a) < searchNumber(b);
   });
   std::vector<PendingCobordism> out;
   for (const fs::path &dir : dirs) {

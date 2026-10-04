@@ -19,7 +19,7 @@
 #include "linknaming/tables.h"
 #include "linknaming/tests/check.h"
 
-#ifndef CASCADE_TEST_DATA
+#ifndef COBOUND_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
@@ -63,10 +63,10 @@ GaussDiagram of(const regina::Link &l) {
 
 // The row as searched: its own (unsimplified) diagram, interned via its
 // simplification (simplify keeps component indices, so the map carries).
-HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
   GaussDiagram d = of(linknaming::linkFromTablePD(pd));
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  HopRow row;
+  SearchedLink row;
   row.node = nm.node;
   row.diagram = d;
   row.nodeMap = nm.componentMap;
@@ -85,14 +85,14 @@ const char *PD_L11n33 =
 void test10_3() {
   ProofGraph g;
   NodeRegistry reg(g);
-  HopRow row = makeRow(reg, PD_10_3);
-  HopAssembler hop(g, reg, row); // certifies the row (throws if not)
+  SearchedLink row = makeRow(reg, PD_10_3);
+  CobordismAssembler assembler(g, reg, row); // certifies the row (throws if not)
   CHECK(true, "10_3: the row is certified");
-  auto ws = readCobordisms(std::string(CASCADE_TEST_DATA) + "/hop_10_3_witnesses.csv");
+  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_10_3_witnesses.csv");
   CHECK_EQ(static_cast<int>(ws.size()), 9, "10_3: nine witnesses");
   int ok = 0, selfLoops = 0, splits = 0;
   for (const Row &r : ws) {
-    HopEdge e = hop.add({r.pairsig, std::stoi(r.genus), r.other});
+    AddedCobordism e = assembler.add({r.pairsig, std::stoi(r.genus), r.other});
     CHECK(e.ok, "10_3 witness assembles: " + r.other + " " + e.why);
     if (!e.ok) continue;
     ++ok;
@@ -130,14 +130,14 @@ void test10_3() {
 void testL11n33() {
   ProofGraph g;
   NodeRegistry reg(g);
-  HopRow row = makeRow(reg, PD_L11n33);
-  HopAssembler hop(g, reg, row);
+  SearchedLink row = makeRow(reg, PD_L11n33);
+  CobordismAssembler assembler(g, reg, row);
   // The certificate's map: knotbuilder's component order onto the node's.
-  CHECK_EQ(static_cast<int>(hop.rowToNode().size()), 2, "two row components");
-  auto ws = readCobordisms(std::string(CASCADE_TEST_DATA) + "/hop_L11n33_witnesses.csv");
+  CHECK_EQ(static_cast<int>(assembler.rowToNode().size()), 2, "two row components");
+  auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/hop_L11n33_witnesses.csv");
   int ok = 0;
   for (const Row &r : ws) {
-    HopEdge e = hop.add({r.pairsig, std::stoi(r.genus), r.other});
+    AddedCobordism e = assembler.add({r.pairsig, std::stoi(r.genus), r.other});
     CHECK(e.ok, "L11n33 witness assembles: " + r.other + " " + e.why);
     if (!e.ok) continue;
     ++ok;
@@ -169,13 +169,13 @@ void testFastMatchesReference() {
                           std::pair{PD_L11n33, "hop_L11n33_witnesses.csv"}}) {
     ProofGraph gf, gr;
     NodeRegistry rf(gf), rr(gr);
-    HopAssembler fast(gf, rf, makeRow(rf, pd), HopAssembler::Read::fast);
-    HopAssembler ref(gr, rr, makeRow(rr, pd), HopAssembler::Read::reference);
-    auto ws = readCobordisms(std::string(CASCADE_TEST_DATA) + "/" + file);
+    CobordismAssembler fast(gf, rf, makeRow(rf, pd), CobordismAssembler::Read::fast);
+    CobordismAssembler ref(gr, rr, makeRow(rr, pd), CobordismAssembler::Read::reference);
+    auto ws = readCobordisms(std::string(COBOUND_TEST_DATA) + "/" + file);
     int compared = 0;
     for (const Row &r : ws) {
-      HopEdge a = fast.add({r.pairsig, std::stoi(r.genus), r.other});
-      HopEdge b = ref.add({r.pairsig, std::stoi(r.genus), r.other});
+      AddedCobordism a = fast.add({r.pairsig, std::stoi(r.genus), r.other});
+      AddedCobordism b = ref.add({r.pairsig, std::stoi(r.genus), r.other});
       CHECK(a.ok && b.ok, std::string("both reads assemble: ") + r.other);
       if (!a.ok || !b.ok) continue;
       // The two reads may list the far-side curves in different orders.

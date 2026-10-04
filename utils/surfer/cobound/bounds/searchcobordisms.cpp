@@ -50,21 +50,21 @@ std::string rowPD(const GaussDiagram &d) {
   return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
 }
 
-HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
                            Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)) {
   redraw_ = std::make_unique<outgoing::OutgoingReader>(row_.pd, row_.layers);
   certifyRow_();
 }
 
-HopAssembler::HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+CobordismAssembler::CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
                            std::unique_ptr<outgoing::OutgoingReader> built, Read read)
     : read_(read), g_(graph), nodes_(nodes), row_(std::move(row)), redraw_(std::move(built)) {
   if (!redraw_) throw std::invalid_argument("HopAssembler: no redrawer");
   certifyRow_();
 }
 
-void HopAssembler::certifyRow_() {
+void CobordismAssembler::certifyRow_() {
   const auto &cycles = redraw_->rowCycles();
   // Certify the row: knotbuilder's link, drawn back, is row.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
@@ -82,13 +82,13 @@ void HopAssembler::certifyRow_() {
 }
 
 std::optional<outgoing::OutgoingLink>
-HopAssembler::readBack(const std::string &pairsig, std::string &why) const {
+CobordismAssembler::readBack(const std::string &pairsig, std::string &why) const {
   return read_ == Read::fast ? redraw_->outgoingLinkFast(pairsig, why)
                             : redraw_->outgoingLink(pairsig, why);
 }
 
 std::optional<std::vector<size_t>>
-HopAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
+CobordismAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
                                      std::string &why) const {
   std::vector<size_t> of(redraw_->rowCycles().size(), static_cast<size_t>(-1));
   for (size_t i = 0; i < link.incomingFirstEdge.size(); ++i) {
@@ -107,20 +107,20 @@ HopAssembler::surfaceOfRowComponents(const outgoing::OutgoingLink &link,
   return of;
 }
 
-HopEdge HopAssembler::add(const SignedCobordism &w) {
+AddedCobordism CobordismAssembler::add(const SignedCobordism &w) {
   std::string why;
   auto link = readBack(w.pairsig, why);
   if (!link) {
-    HopEdge out;
+    AddedCobordism out;
     out.why = why;
     return out;
   }
   return addRead(*link, w.genus, w.key);
 }
 
-HopEdge HopAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
+AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, int genus,
                               const std::string &key) {
-  HopEdge out;
+  AddedCobordism out;
   std::string why;
   auto surfaceOfRowComponent = surfaceOfRowComponents(read, why);
   if (!surfaceOfRowComponent) {

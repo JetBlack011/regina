@@ -142,14 +142,14 @@ void testReducedRowsCertify() {
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
     NodeRegistry reg(g);
-    HopRow row;
+    SearchedLink row;
     row.node = reg.intern(diagram, "row").node;
     row.diagram = diagram;
     row.nodeMap = {0};
     row.pd = rowPD(diagram);
     row.layers = 2;
     try {
-      HopAssembler hop(g, reg, row);
+      CobordismAssembler assembler(g, reg, row);
       return true;
     } catch (const std::exception &) {
       return false;
@@ -172,7 +172,7 @@ void testLiftedRowsCertify() {
   auto certifies = [](const GaussDiagram &diagram) {
     ProofGraph g;
     NodeRegistry reg(g);
-    HopRow row;
+    SearchedLink row;
     row.node = reg.intern(diagram, "row").node;
     row.diagram = diagram;
     row.nodeMap.resize(diagram.components());
@@ -180,7 +180,7 @@ void testLiftedRowsCertify() {
     row.pd = rowPD(diagram);
     row.layers = 2;
     try {
-      HopAssembler hop(g, reg, row);
+      CobordismAssembler assembler(g, reg, row);
       return true;
     } catch (const std::exception &) {
       return false;

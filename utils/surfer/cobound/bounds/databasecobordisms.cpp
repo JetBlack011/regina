@@ -294,16 +294,16 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     }
     const NodeMatch &m = seen->second.match;
     if (ownRows.count(r.name) && m.node != n) continue;
-    HopRow row;
+    SearchedLink row;
     row.node = m.node;
     row.diagram = seen->second.diagram;
     row.nodeMap = m.componentMap;
     row.pd = r.pd;
     row.layers = r.layers;
-    std::unique_ptr<HopAssembler> hop;
+    std::unique_ptr<CobordismAssembler> assembler;
     try {
       if (!r.buildError.empty()) throw std::runtime_error(r.buildError);
-      hop = std::make_unique<HopAssembler>(g, reg, row, std::move(r.redraw));
+      assembler = std::make_unique<CobordismAssembler>(g, reg, row, std::move(r.redraw));
     } catch (const std::exception &ex) {
       ++refusedRows;
       std::cout << "[!] master row " << r.name << " refused: " << ex.what() << "\n";
@@ -312,7 +312,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
     for (size_t k = 0; k < r.ws.size(); ++k) {
       const Cobordism *w = r.ws[k];
       const std::string key = cobordisms::cobordismKey(w->pairsig);
-      HopEdge he;
+      AddedCobordism he;
       if (r.invariant[k]) {
         ++ld.invariantFailures;
         std::cout << "[!!] master witness " << key << ": INVARIANT: " << r.why[k] << "\n";
@@ -320,7 +320,7 @@ double DatabaseCobordisms::load(NodeId n, DatabaseLoad &ld) {
         he.why = r.why[k];
       } else {
         try {
-          he = hop->addRead(*r.links[k], w->genus, "master:" + key);
+          he = assembler->addRead(*r.links[k], w->genus, "master:" + key);
         } catch (const std::logic_error &ex) {
           ++ld.invariantFailures;
           std::cout << "[!!] master witness " << key << ": INVARIANT: " << ex.what() << "\n";

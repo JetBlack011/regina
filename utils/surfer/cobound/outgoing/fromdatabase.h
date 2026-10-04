@@ -40,8 +40,8 @@
  *  Appends hold an flock on the file; a torn last line is ignored.
  */
 
-#ifndef CASCADE_READBACKCACHE_H
-#define CASCADE_READBACKCACHE_H
+#ifndef SURFER_COBOUND_FROMDATABASE_H
+#define SURFER_COBOUND_FROMDATABASE_H
 
 #include <functional>
 #include <memory>

@@ -33,7 +33,7 @@
 #include "cobound/cobordisms/database.h"
 #include "cobound/solver/literature.h"
 
-#ifndef CASCADE_TEST_DATA
+#ifndef COBOUND_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
@@ -45,13 +45,13 @@ namespace fs = std::filesystem;
 
 namespace {
 
-HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  HopRow row;
+  SearchedLink row;
   row.node = nm.node;
   row.diagram = d;
   row.nodeMap = nm.componentMap;
@@ -60,8 +60,8 @@ HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
   return row;
 }
 
-HopShape capThree() {
-  HopShape s;
+RunShape capThree() {
+  RunShape s;
   s.layers = 2;
   s.maxFaces = 3;
   s.iddfsIterations = 0;
@@ -80,20 +80,20 @@ bool sameCobordism(const cobordisms::Cobordism &a, const cobordisms::Cobordism &
 } // namespace
 
 int main() {
-  const std::string data = CASCADE_TEST_DATA;
+  const std::string data = COBOUND_TEST_DATA;
   const std::string knots = data + "/knots_to_6.csv", links = data + "/links_to_6.csv";
   const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(knots, links);
   const fs::path dir = fs::temp_directory_path() / ("keptstore_test." + std::to_string(::getpid()));
-  const fs::path hopDir = dir / "hop_0_n0";
-  fs::create_directories(hopDir);
+  const fs::path searchDir = dir / "hop_0_n0";
+  fs::create_directories(searchDir);
 
   const std::string pd = "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]";
   ProofGraph g;
   NodeRegistry reg(g);
-  const HopRow row = makeRow(reg, pd);
-  HopAssembler hop(g, reg, row);
-  HopSearcher searcher(sigs, nullptr, capThree(), 4);
-  HopRun run = searcher.run(hop.redrawer(), "3_1", 1'000'000'000LL, 600);
+  const SearchedLink row = makeRow(reg, pd);
+  CobordismAssembler assembler(g, reg, row);
+  Searcher searcher(sigs, nullptr, capThree(), 4);
+  SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, 1752LL, "the canaries' count for 3_1 at cap 3");
 
   // What cascadesearch does with them (expand()).
@@ -105,15 +105,15 @@ int main() {
     p.cobordism.thickenLayers = row.layers;
     p.cobordism.maxFaces = 3;
     sigOfIdentity.emplace(cobordisms::cobordismIdentity(p.cobordism),
-                          pairSigOf(hop.redrawer().thickening(), ks.faces));
+                          pairSigOf(assembler.redrawer().thickening(), ks.faces));
     pending.push_back(std::move(p));
   }
   CHECK(pending.size() >= sigOfIdentity.size(), "at least one kept surface per identity");
 
   // 1. kept.csv round trip (in two appends, as two hops would write it).
   const size_t half = pending.size() / 2;
-  appendKept(hopDir.string(), {pending.begin(), pending.begin() + half});
-  appendKept(hopDir.string(), {pending.begin() + half, pending.end()});
+  appendKept(searchDir.string(), {pending.begin(), pending.begin() + half});
+  appendKept(searchDir.string(), {pending.begin() + half, pending.end()});
   std::vector<PendingCobordism> back = readKept(dir.string());
   CHECK_EQ(back.size(), pending.size(), "kept.csv: every kept surface comes back");
   int same = 0;
@@ -190,7 +190,7 @@ int main() {
         "against a store holding them: nothing appended");
 
   // 4. A torn last line is skipped.
-  std::ofstream(hopDir / "kept.csv", std::ios::app) << "cobordism,3_1,1,Unkn";
+  std::ofstream(searchDir / "kept.csv", std::ios::app) << "cobordism,3_1,1,Unkn";
   CHECK_EQ(readKept(dir.string()).size(), pending.size(), "a torn kept line is skipped");
 
   fs::remove_all(dir);

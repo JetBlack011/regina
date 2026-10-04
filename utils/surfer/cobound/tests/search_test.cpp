@@ -31,7 +31,7 @@
 #include "linknaming/tables.h"
 #include "linknaming/tests/check.h"
 
-#ifndef CASCADE_TEST_DATA
+#ifndef COBOUND_TEST_DATA
 #error "CASCADE_TEST_DATA must point at cascade/tests/data"
 #endif
 
@@ -42,13 +42,13 @@ using namespace search;
 
 namespace {
 
-HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
+SearchedLink makeRow(NodeRegistry &reg, const std::string &pd) {
   const regina::Link l = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(l.countComponents());
   for (size_t i = 0; i < origin.size(); ++i) origin[i] = i;
   GaussDiagram d = GaussDiagram::of(l, origin);
   NodeMatch nm = reg.intern(simplifyKeepingComponents(d), "row");
-  HopRow row;
+  SearchedLink row;
   row.node = nm.node;
   row.diagram = d;
   row.nodeMap = nm.componentMap;
@@ -69,7 +69,7 @@ HopRow makeRow(NodeRegistry &reg, const std::string &pd) {
 // symmetric far side (the Hopf link) may be matched to its node by either of
 // two component maps. Both reads are then true, and differ by a symmetry of
 // the row and one of the far side: so they are compared up to those.
-std::string content(const ProofGraph &g, const HopEdge &e, const std::vector<int> &rowPerm,
+std::string content(const ProofGraph &g, const AddedCobordism &e, const std::vector<int> &rowPerm,
                     const std::vector<int> &outgoingPerm) {
   if (!e.ok) return "not ok: " + e.why;
   if (e.direct) return "direct";
@@ -115,8 +115,8 @@ std::vector<std::vector<int>> symmetries(const GaussDiagram &d) {
 }
 
 // Whether the two reads of one surface say the same, up to symmetries.
-bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, const HopEdge &a,
-              const HopEdge &b) {
+bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, const AddedCobordism &a,
+              const AddedCobordism &b) {
   const int rowN = g.node(rowNode).components;
   std::vector<int> rowId(rowN);
   for (int i = 0; i < rowN; ++i) rowId[i] = i;
@@ -136,8 +136,8 @@ bool sameEdge(const ProofGraph &g, const NodeRegistry &reg, NodeId rowNode, cons
 }
 
 // The canaries' shape: exhaustive to 3 added faces, one pass, no budget.
-HopShape capThree() {
-  HopShape s;
+RunShape capThree() {
+  RunShape s;
   s.layers = 2;
   s.maxFaces = 3;
   s.iddfsIterations = 0;
@@ -158,12 +158,12 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
   // One graph and registry for both reads, so equal far sides are one node.
   ProofGraph g;
   NodeRegistry reg(g);
-  const HopRow row = makeRow(reg, pd);
-  HopAssembler inProcess(g, reg, row);
-  HopAssembler byPairSig(g, reg, row);
+  const SearchedLink row = makeRow(reg, pd);
+  CobordismAssembler inProcess(g, reg, row);
+  CobordismAssembler byPairSig(g, reg, row);
 
-  HopSearcher searcher(sigs, nullptr, capThree(), 4);
-  HopRun run = searcher.run(inProcess.redrawer(), name, 1'000'000'000LL, 600);
+  Searcher searcher(sigs, nullptr, capThree(), 4);
+  SearchResult run = searcher.run(inProcess.redrawer(), name, 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, accepted, name + ": accepted, as the canaries pin it");
   CHECK_EQ(run.outcome, std::string("exhausted"), name + ": exhausted at cap 3");
   CHECK_EQ(run.accountingFailure, std::string(), name + ": the accounting balances");
@@ -181,10 +181,10 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
     const KeptSurface &k = run.kept[i];
     keys.insert(k.key);
     const std::string key = name + "#" + std::to_string(i);
-    const HopEdge a = inProcess.addRead(k.link, k.genus, key);
+    const AddedCobordism a = inProcess.addRead(k.link, k.genus, key);
     const std::string sig = pairSigOf(redraw.thickening(), k.faces);
     signed_.push_back({{pd, 2, k.faces}, sig});
-    const HopEdge b = byPairSig.add({sig, k.genus, key});
+    const AddedCobordism b = byPairSig.add({sig, k.genus, key});
     ++compared;
     if (a.ok && sameEdge(g, reg, row.node, a, b)) {
       ++same;
@@ -198,7 +198,7 @@ void checkRow(const linknaming::SignatureTable &sigs, const std::string &name,
     std::string why;
     auto link = redraw.outgoingLinkFromFaces(k.faces, why);
     if (link) {
-      const HopEdge c = inProcess.addRead(*link, k.genus, key);
+      const AddedCobordism c = inProcess.addRead(*link, k.genus, key);
       if (c.ok && c.outgoingCurveEdges == a.outgoingCurveEdges && c.shape.outComponent == a.shape.outComponent &&
           c.shape.inComponent == a.shape.inComponent && c.outgoing == a.outgoing)
         ++fromFaces;
@@ -269,10 +269,10 @@ void testBatchSigning() {
 void testStop(const linknaming::SignatureTable &sigs) {
   ProofGraph g;
   NodeRegistry reg(g);
-  HopAssembler hop(g, reg, makeRow(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
-  HopSearcher searcher(sigs, nullptr, capThree(), 4);
+  CobordismAssembler assembler(g, reg, makeRow(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
+  Searcher searcher(sigs, nullptr, capThree(), 4);
   int asked = 0;
-  HopRun run = searcher.run(hop.redrawer(), "3_1", 1'000'000'000LL, 600,
+  SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600,
                             [&](const KeptSurface &) { return ++asked == 1; });
   CHECK_EQ(run.outcome, std::string("stopped"), "stop: the outcome says so");
   CHECK(run.accepted < 1752, "stop: the search ended early");
@@ -283,7 +283,7 @@ void testStop(const linknaming::SignatureTable &sigs) {
 } // namespace
 
 int main() {
-  const std::string data = CASCADE_TEST_DATA;
+  const std::string data = COBOUND_TEST_DATA;
   const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(
       data + "/knots_to_6.csv", data + "/links_to_6.csv");
   checkRow(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);

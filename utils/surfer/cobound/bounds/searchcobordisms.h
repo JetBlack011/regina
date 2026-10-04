@@ -18,7 +18,7 @@
 namespace bounds {
 
 /// What a hop searched: a node, as the diagram written into the row's PD.
-struct HopRow {
+struct SearchedLink {
   NodeId node = -1;
   /// The diagram the row was built from (its PD), components in its order.
   linknaming::GaussDiagram diagram;
@@ -34,7 +34,7 @@ struct SignedCobordism {
   std::string key; ///< provenance (witness key)
 };
 
-struct HopEdge {
+struct AddedCobordism {
   bool ok = false;
   std::string why;          ///< when !ok
   bool direct = false;      ///< no far side: the surface bounds the row alone
@@ -62,7 +62,7 @@ struct HopEdge {
  * searched carries the node's oriented link. Throws std::runtime_error if it
  * does not exist: a hop whose row cannot be certified contributes nothing.
  */
-class HopAssembler {
+class CobordismAssembler {
 public:
   /// How a witness is read back from its pair signature. `fast` is
   /// WitnessRedrawer::outgoingLinkFast() (no re-run of the embeddedness
@@ -70,20 +70,20 @@ public:
   /// rebuilds a KnottedSurface (~1 s). hopedges_test checks they agree.
   enum class Read { fast, reference };
 
-  HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
                Read read = Read::fast);
   /// As above, with the row's redrawer already built (for row.pd and
   /// row.layers): master rows are built on worker threads, then assembled.
-  HopAssembler(ProofGraph &graph, NodeRegistry &nodes, HopRow row,
+  CobordismAssembler(ProofGraph &graph, NodeRegistry &nodes, SearchedLink row,
                std::unique_ptr<outgoing::OutgoingReader> built, Read read = Read::fast);
 
   /// A stored witness: read back from its pair signature, then addRead().
-  HopEdge add(const SignedCobordism &w);
+  AddedCobordism add(const SignedCobordism &w);
 
   /// A surface already read: its oriented far side and incoming side, as
   /// outgoing::orientedOutgoingLink() gives them for a surface in
   /// redrawer().thickening() (an in-process hop's search; see hoprunner.h).
-  HopEdge addRead(const outgoing::OutgoingLink &link, int genus,
+  AddedCobordism addRead(const outgoing::OutgoingLink &link, int genus,
                   const std::string &key);
 
   /// knotbuilder's row component i is the node's component rowToNode()[i].
@@ -102,7 +102,7 @@ private:
   Read read_;
   ProofGraph &g_;
   NodeRegistry &nodes_;
-  HopRow row_;
+  SearchedLink row_;
   std::unique_ptr<outgoing::OutgoingReader> redraw_;
   std::vector<int> rowToNode_;
 };
