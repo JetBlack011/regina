@@ -130,9 +130,15 @@ Boundary curves are named by the caller's `BoundaryNamer`, which the search
 refuses to start without. `UnlinkBoundaryNamer` names census-free
 (`Unknot`, `<n>-component unlink`, else the complement's isomorphism
 signature); `cobound` supplies the slice-genus search's own. A namer may say
-`Unknot` or `<n>-component unlink` only with a proof; whatever it cannot
-prove it may name as it likes, provided that name bears no bound. Names are
-memoised per boundary component by
+`Unknot` or `<n>-component unlink` only with a proof. The search reads no
+other name (it counts curves), so any other name answers to its reader.
+`cobound solve` gates bounds by the curves' count (`cobound/README.md`, "Which
+outgoing links bear a bound"): one curve bears a bound whatever it is called,
+so a name of one curve must denote one knot up to mirror, which a name taken
+from its complement does (Gordon–Luecke; cobound's own `|` descriptions are
+the exception described there); 2 or more curves bear nothing unless they are
+an unlink or proved by another input, so their name need not determine
+them. Names are memoised per boundary component by
 `BoundarySignatureCache`, keyed by the marked edge set up to the component's
 automorphisms, so a namer sees each distinct curve set once.
 

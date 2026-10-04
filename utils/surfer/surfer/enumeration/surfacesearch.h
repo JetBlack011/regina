@@ -198,9 +198,14 @@ struct SurfaceSearchLimits {
  * BoundarySignatureCache miss (the cache still memoises the result per edge
  * set), from drain threads concurrently, so it must be thread-safe.
  *
- * A name must be proved: "Unknot" and "<n>-component unlink" only for an
- * unknot and an unlink. Anything a namer cannot prove, it may still name
- * however it likes provided the name bears no bound.
+ * A namer may say "Unknot" and "<n>-component unlink" only with a proof.
+ * The search reads no other name (it counts curves), so any other name
+ * answers to its reader. cobound's solver gates bounds by the curves'
+ * count: one curve bears a bound whatever it is called, so a name of one
+ * curve must denote one knot up to mirror (a name taken from its complement
+ * does, by Gordon-Luecke), and 2 or more curves bear nothing unless they are
+ * an unlink or proved by another input. See cobound/README.md, "Which
+ * outgoing links bear a bound".
  */
 class BoundaryNamer {
   public:

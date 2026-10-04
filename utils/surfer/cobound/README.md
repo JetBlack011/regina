@@ -830,16 +830,28 @@ planar surface: no component penalty) and every slice composite mentioned, and
 grounded by direct cobordisms and certified bounds. A disconnected find
 counts: its `genus` is its tubed genus.
 
-- **Which outgoing links bear a bound** (`outgoingBearsBound()`): a knot
-  (Gordon–Luecke: the complement determines it up to mirror, which g₄ does not
-  see), a proved unlink, or an outgoing link proved per cobordism
-  (`outgoing_resolutions`). Any other link of 2 or more components bounds
-  nothing: one complement belongs to infinitely many links, with different
-  slice genera, and a max/min over a base name's orientation variants is not
-  a bound over the real possibilities. Such cobordisms are still recorded; the
-  solver declines them. A `complement:` description bears nothing.
+- **Which outgoing links bear a bound** (`outgoingBearsBound()`). The gate is
+  the observed component count, never the name: a cobordism bears a bound when
+  its outgoing link has one component, is named an unlink, or was proved per
+  cobordism (`outgoing_resolutions`, or an entry of `outgoing_names_file`).
+  One component bears whatever it is called (Gordon–Luecke: the complement
+  determines a knot up to mirror, which g₄ does not see). Two or more
+  components not proved per cobordism bear nothing, even under a name: one
+  complement belongs to infinitely many links, with different slice genera,
+  and a max/min over a base name's orientation variants is not a bound over
+  the real possibilities. Such cobordisms are still recorded; the solver
+  declines them. A description therefore bears nothing by its count, not by
+  being a description: a `complement:` description always has 2 or more
+  components, but a one-component `|` description (a composite knot whose
+  summands' relative chirality is not pinned) bears, through the reverse
+  direction, and an `outgoing_names_file` entry with a `?` component index
+  (`3_1 #_? L2a1{0}`) counts as proved and bears forward. The rule that a
+  description bears nothing, whatever its count, is the atlas's to make, in
+  both solvers together.
 - **The reverse direction** (bounding the outgoing link from the subject)
-  needs the outgoing link's identity: a knot, or a name (`outgoing_names_file`).
+  needs the outgoing link's identity: one component, or a name (not a
+  description) from `outgoing_names_file`; never an unlink, which is an axiom
+  already.
 - **Splits, composites and sums.** A split outgoing link's upper bound comes
   from its factors' surfaces placed side by side; its lower bound is not
   additive (`K ⊔ −K` bounds an annulus): g₄(A # B) − 1 ≤ g₄(A ⊔ B) ≤ g₄(A # B),

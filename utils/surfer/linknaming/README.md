@@ -36,9 +36,16 @@ folders.
 ## Names and descriptions
 
 A **name** is an identity: it determines the link up to mirror and global
-reversal, neither of which a slice genus sees, so it may stand as one link and
-receive bounds (`LinkName::isName`). Anything weaker is a proved
+reversal, neither of which a slice genus sees, so it may stand as one link
+(`LinkName::isName`): a goal run anchors on a composite only when it is a name,
+and `solve` bounds an `outgoing_names_file` entry of 2 or more components from
+its subject only when it is a name. Anything weaker is a proved
 **description**: what it says is true, but it does not single out one link.
+Whether an outgoing link carries a bound to its subject is a separate rule,
+by its component count (`cobound/README.md`, "Which outgoing links bear a
+bound"): the search records the string, not `isName`, so a 2-component
+`diagram:<sig>` name bears nothing there, and a one-component description can
+bear.
 
 | shape | written | |
 |---|---|---|
@@ -51,7 +58,7 @@ receive bounds (`LinkName::isName`). Anything weaker is a proved
 | a split union | `A u B` (Unknot last) | description |
 | knots summed into a link | `3_1 #_? L2a1{0}` | description |
 | links summed along components | `#{L2a1{0}[?] # L4a1{1}[?]}` | description |
-| a link of 2+ components named only by its complement | `complement:<name>` | description; bears nothing |
+| a link of 2+ components named only by its complement | `complement:<name>` | description; bears nothing, by its count |
 
 `?` marks a component index the namer does not compute. In `#{...}` a piece
 summed at two sites is written at both, so a reader counts each occurrence as
