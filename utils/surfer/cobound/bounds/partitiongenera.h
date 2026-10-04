@@ -1,6 +1,6 @@
-// profile.h
+// partitiongenera.h
 //
-// What the cascade knows about how a link bounds surfaces in B^4, and how a
+// What a goal run knows about how a link bounds surfaces in B^4, and how a
 // cobordism transports that knowledge. See README.md, "Profiles".
 //
 // Conventions. A link's components are numbered 0, ..., n-1. A surface F in
@@ -8,10 +8,10 @@
 // components) determines
 //   - a partition of {0, ..., n-1}: which components bound the same piece of F;
 //   - its total genus: the sum of the genera of its pieces.
-// A profile records, for a link, the pairs (partition, total genus) that
+// A link's partition genera record the pairs (partition, total genus) that
 // surfaces we can exhibit achieve.
 //
-// Two facts make a profile a Pareto set (README.md, "Profiles"):
+// Two facts make a link's partition genera a Pareto set (README.md, "Profiles"):
 //   - tubing two pieces together keeps the total genus and merges their blocks
 //     (paper lem:tubing), so (P, g) achievable implies (Q, g) achievable for
 //     every Q coarser than P;
@@ -34,13 +34,13 @@ namespace bounds {
 /**
  * The part of a cobordism C in S^3 x [0,1] that bounds depend on.
  *
- * C runs from its incoming link (at 0; for a witness, the searched link) to
- * its outgoing link (at 1; the far side). Its components are numbered
+ * C runs from its incoming link (at 0; for a cobordism, the searched link) to
+ * its outgoing link (at 1). Its components are numbered
  * 0, ..., components-1; each boundary curve lies on exactly one of them.
  */
 struct CobordismShape {
   int components = 0;
-  /// The sum of the genera of C's components. A witness's `genus` column is
+  /// The sum of the genera of C's components. A cobordism's `genus` column is
   /// exactly this (its tubed genus: see cobordismgraph.h).
   int genus = 0;
   /// For each incoming curve, in the incoming link's component order, the
@@ -51,7 +51,7 @@ struct CobordismShape {
 
   /// Throws std::invalid_argument unless every curve's component is in range
   /// and every component carries at least one curve (a component with no
-  /// boundary would be closed, which a witness never has).
+  /// boundary would be closed, which a cobordism never has).
   void validate() const;
 
   /// The same cobordism read in the other direction: incoming and outgoing
@@ -106,7 +106,7 @@ std::optional<Glued> glue(const CobordismShape &c, Side glued,
  */
 bool linkingAllows(const Partition &p, const std::vector<std::vector<int>> &lk);
 
-/// One achievable (partition, total genus) and the proof record behind it.
+/// One achievable (partition, total genus) and the derivation behind it.
 struct PartitionGenus {
   Partition partition;
   int genus = 0;
@@ -134,7 +134,7 @@ public:
   bool insert(const Partition &p, int g, long derivation);
 
   /// The least genus known for a surface whose partition refines `target`
-  /// (and the record proving it), or nullopt. For the one-block partition
+  /// (and the derivation proving it), or nullopt. For the one-block partition
   /// this is the connected slice genus bound.
   std::optional<PartitionGenus> best(const Partition &target) const;
 

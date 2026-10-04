@@ -1,6 +1,6 @@
 // leaves.h
 //
-// Which outside facts may become proof-graph leaves, and the links that
+// Which outside facts may become cobordism-graph leaves, and the links that
 // receive them. See README.md, "Leaf facts".
 
 #pragma once
@@ -21,10 +21,10 @@ namespace bounds {
 // (linknaming/tables.h), the one parser of that field.
 
 /**
- * Whether a node whose exact table class is `nodeClass` may receive that
+ * Whether a link whose exact table class is `linkClass` may receive that
  * class's literature UPPER bound as a leaf. Never the target's own class:
  * the target's literature value proving the target would be circular, and a
- * duplicate node of the target (a diagram the registry did not recognise)
+ * duplicate link of the target (a diagram the registry did not match)
  * would otherwise do exactly that. Lower bounds are always kept: they only
  * gate contradictions.
  */
@@ -34,24 +34,24 @@ bool mayUseLiteratureUpperBound(const std::string &linkClass,
 
 /**
  * The outside facts a cobordism graph's links rest on, attached as each link
- * joins the graph: the link named exactly (ExactNamer::identify(); a knot
+ * joins the graph: the link named (LinkNamer::namePiece(); a knot
  * the tables hold only summand by summand, by the whole-diagram namer), and
  * given what its name proves -- its literature lower bound always (the
  * contradiction gates read it), its literature upper bound as a leaf unless
  * it is the target's own class, and the unknot's disc when it is a slice
  * composite (an anchor). An untabulated link with visible sum spheres is cut
  * into its prime summands, each a link of its own, joined to it by a sum
- * edge and named in turn.
+ * and named in turn.
  *
- * A goal run (cascadesearch) and a depth-0 search's own graph (SearchJudge)
+ * A goal run (Scheduler) and a depth-0 search's own graph (SearchJudge)
  * name their links this one way.
  */
 class LinkAxioms {
 public:
   struct Options {
-    /// Literature upper bounds may be leaves (cascadesearch --literature).
+    /// Literature upper bounds may be leaves (the `literature` key).
     bool literature = true;
-    /// Compare table names by their link class (ExactNamer::canonicalName(),
+    /// Compare table names by their link class (LinkNamer::canonicalName(),
     /// computed lazily per base); false, by the name itself, which costs
     /// nothing at depth 0 (plan, "Startup per process").
     bool classes = true;
@@ -66,16 +66,16 @@ public:
   static linknaming::NamerLimits namerLimits();
 
   /// All references must outlive this. `symmetries` may change content
-  /// later (cascadesearch fills its NameTable after constructing this).
+  /// later (a goal run fills its NameTable after constructing this).
   LinkAxioms(CobordismGraph &graph, LinkRegistry &links, const linknaming::Tables &tables,
              const linknaming::LinkNamer &namer,
              const linknaming::SymmetryTable &symmetries, Options options);
   LinkAxioms(const LinkAxioms &) = delete;
   LinkAxioms &operator=(const LinkAxioms &) = delete;
 
-  /// Names every node of `ns` (on the threads: names are independent of
+  /// Names every link of `ns` (on the threads: names are independent of
   /// each other), then records each at `depth` with its table name and
-  /// outside facts, in node order, as one at a time would; summands of a
+  /// outside facts, in link order, as one at a time would; summands of a
   /// sum are named at depth + 1.
   void name(const std::vector<LinkId> &ns, int depth);
 
@@ -83,14 +83,14 @@ public:
   std::string classOf(const std::string &tableName) const;
 
   /// The target: never anchored as a composite, and its class's literature
-  /// upper bound is no leaf, even of a duplicate node of it.
+  /// upper bound is no leaf, even of a duplicate link of it.
   LinkId target = -1;
   std::string targetClass;
 
   // What naming found.
   std::map<LinkId, std::string> tableName; ///< a table (or composite) name
-  std::map<LinkId, int> depth;             ///< hops from the target when met
-  std::map<LinkId, std::vector<LinkId>> sumOf; ///< each sum node's summands
+  std::map<LinkId, int> depth;             ///< searches from the target when met
+  std::map<LinkId, std::vector<LinkId>> sumOf; ///< each sum link's summands
   int anchors = 0;
 
 private:

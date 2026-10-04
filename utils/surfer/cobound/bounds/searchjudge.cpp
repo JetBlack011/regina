@@ -35,9 +35,9 @@ SearchJudge::SearchJudge(const std::string &name, const std::string &pd, int lay
                          const linknaming::SymmetryTable &symmetries, unsigned threads)
     : reg_(g_), axioms_(g_, reg_, tables, namer, symmetries, judgeOptions(threads)),
       literatureLo_(literatureLo) {
-  // The searched link as a node, as a goal run's graph takes a table row's
+  // The searched link as a graph link, as a goal run's graph takes a table link's
   // stored cobordisms: interned from its simplified diagram, assembled
-  // against the row's own (HopAssembler certifies that the triangulated
+  // against the searched diagram (CobordismAssembler certifies that the triangulated
   // link redraws as it).
   const regina::Link link = linknaming::linkFromTablePD(pd);
   std::vector<size_t> origin(link.countComponents());

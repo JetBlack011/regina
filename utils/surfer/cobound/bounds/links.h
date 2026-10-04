@@ -1,6 +1,6 @@
 // links.h
 //
-// The cascade's links, each a node of the proof graph, identified exactly
+// A goal run's links, each a link of the cobordism graph, matched exactly
 // and with the component map that soundness rests on. See README.md,
 // "Component maps".
 
@@ -19,13 +19,13 @@
 
 namespace bounds {
 
-/// How a diagram was found to be a node.
+/// How a diagram was found to be a link.
 struct LinkMatch {
   LinkId link = -1;
-  /// The diagram's component i is the node's component componentMap[i].
+  /// The diagram's component i is the link's component componentMap[i].
   std::vector<int> componentMap;
-  bool mirrored = false; ///< the diagram is the node's mirror image
-  bool reversed = false; ///< every component of the diagram runs against the node's
+  bool mirrored = false; ///< the diagram is the link's mirror image
+  bool reversed = false; ///< every component of the diagram runs against the link's
   bool created = false;
   std::string method; ///< "new", "diagram", "isometry" or "unknot"
 };
@@ -43,16 +43,16 @@ struct LinkRegistryStats {
 };
 
 /**
- * Interns connected (one split piece), simplified diagrams as proof-graph
- * nodes. A match is only ever claimed on an exact test:
- *   - a diagram isomorphism (cascade/diagramiso.h), up to mirror and global
- *     reversal, whose component map is the node's; or
+ * Interns connected (one split piece), simplified diagrams as cobordism-graph
+ * links. A match is only ever claimed on an exact test:
+ *   - a diagram isomorphism (linknaming/diagrams/diagramiso.h), up to mirror and global
+ *     reversal, whose component map is the link's; or
  *   - for hyperbolic diagrams, an isometry of complements carrying meridians
  *     to meridians with ONE orientation sign on every component
  *     (linknaming::KernelLink, exact when found), whose component map is
  *     the isometry's.
- * A miss creates a new node: two nodes for one link cost duplicated search,
- * never soundness. One node for two links is what must not happen, and
+ * A miss creates a new graph link: two graph links for one link cost duplicated
+ * search, never soundness. One graph link for two links is what must not happen, and
  * cannot, since every match above is a proof.
  */
 class LinkRegistry {
@@ -64,7 +64,7 @@ public:
   /// \pre `piece` is one split piece (linknaming::splitPieces()), simplified.
   LinkMatch intern(const linknaming::GaussDiagram &piece, const std::string &label);
 
-  /// The unknot's node (created on first use, with its disc as a leaf).
+  /// The unknot's link (created on first use, with its disc as a leaf).
   LinkId unknot();
 
   const LinkInfo &info(LinkId n) const { return info_.at(n); }
@@ -78,7 +78,7 @@ private:
   std::map<LinkId, LinkInfo> info_;
   std::map<LinkId, std::unique_ptr<linknaming::KernelLink>> kernel_;
   std::multimap<std::string, LinkId> byDiagramKey_;
-  // Hyperbolic nodes by (components, volume rounded to 1e-6); lookups scan
+  // Hyperbolic links by (components, volume rounded to 1e-6); lookups scan
   // neighbouring buckets, so rounding never hides a match.
   std::multimap<std::pair<size_t, long long>, LinkId> byVolume_;
   LinkId unknot_ = -1;

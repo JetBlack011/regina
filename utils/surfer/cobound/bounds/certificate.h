@@ -24,36 +24,37 @@
  *  key), read by the atlas's cascade_check.py and cascade_record.py.
  *
  *  An upper certificate is the proof of the target's best genus on the goal
- *  partition: its records, children before parents, each witness record
- *  with what a checker needs to replay its surface (the row, the faces and
- *  the thickening's digest, or the pair signature), and every node it
+ *  partition: its derivations (`records[]`), children before parents, each cobordism
+ *  derivation with what a checker needs to replay its surface (the searched
+ *  diagram, the faces and
+ *  the thickening's digest, or the pair signature), and every link it
  *  names. A lower certificate is the proof of the target's lower bound as a
  *  tree of facts.
  */
 
 namespace bounds {
 
-/// What a checker needs to replay one cobordism edge of the graph.
+/// What a checker needs to replay one cobordism of the graph.
 struct CobordismSource {
   std::string searchDir, incomingPD, key;
   AddedCobordism added;
   int layers = 2;
-  std::string pairsig; ///< inline for master witnesses (no hop directory)
-  /// The row diagram's component i is the node's rowNodeMap[i]: identity
-  /// for a hop on the node's own diagram, the registry's map for a master
-  /// row (the table's diagram).
+  std::string pairsig; ///< inline for master cobordisms (no search directory)
+  /// The searched diagram's component i is the link's incomingLinkMap[i]:
+  /// identity for a search on the link's own diagram, the registry's map for a
+  /// master cobordism (searched on the table's diagram).
   std::vector<int> incomingLinkMap;
-  /// An in-process hop's surface, as triangles of the row's thickening,
-  /// and that thickening's digest (WitnessRedrawer::buildChecksum()). A
-  /// certificate carries both; the checker rebuilds the row, refuses a
+  /// An in-process search's surface, as triangles of its thickening,
+  /// and that thickening's digest (OutgoingReader::buildChecksum()). A
+  /// certificate carries both; the checker rebuilds the thickening, refuses a
   /// different digest, and rebuilds the surface from its faces. No pair
-  /// signature is ever computed for it (that is only for a witness bound
+  /// signature is ever computed for it (that is only for a cobordism bound
   /// for the atlas; pairSigsOf()).
   std::vector<int> faces;
   std::string build;
 };
 
-/// Every edge's EdgeInfo: witness edges by edge, direct witnesses by key.
+/// Every cobordism's CobordismSource: graph cobordisms by relation, direct ones by key.
 struct CobordismSources {
   std::map<RelationId, CobordismSource> byCobordism;
   std::map<std::string, CobordismSource> direct;
@@ -70,7 +71,7 @@ struct CertificateGoal {
 };
 
 /// Writes a goal's certificates from the graph, its links, their table
-/// names and how each edge's surface is found. All references must outlive
+/// names and how each cobordism's surface is found. All references must outlive
 /// the writer.
 class CertificateWriter {
 public:

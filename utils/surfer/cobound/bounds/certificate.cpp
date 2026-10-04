@@ -15,8 +15,8 @@
 
 namespace bounds {
 
-// How a certificate finds a witness's surface: a master witness's pair
-// signature inline; an in-process one's faces in its row's thickening, with
+// How a certificate finds a cobordism's surface: a master cobordism's pair
+// signature inline; an in-process one's faces in its searched link's thickening, with
 // that thickening's digest.
 void CertificateWriter::writeSurface(std::ostream &c, const CobordismSource &info) {
   if (!info.pairsig.empty()) c << ",\"pairsig\":\"" << json::escape(info.pairsig) << "\"";
@@ -29,9 +29,10 @@ void CertificateWriter::writeSurface(std::ostream &c, const CobordismSource &inf
 
 void CertificateWriter::writeCobordism(std::ostream &c, RelationId eid,
                                          std::set<LinkId> &links) const {
-  // A witness edge as a checker replays it: its key, ends, shape and maps,
-  // and (for an edge with a hop or master row) the row, the surface (faces
-  // and build digest, or pair signature) and each far-side piece's match.
+  // A cobordism as a checker replays it: its key, ends, shape and maps,
+  // and (for one found by a search or read from the master) the searched
+  // diagram, the surface (faces and build digest, or pair signature) and
+  // each outgoing piece's match.
   const LinkCobordism &cob = g_.cobordism(eid);
   links.insert(cob.in);
   links.insert(cob.out);
@@ -112,18 +113,18 @@ void CertificateWriter::writeDerivations(std::ostream &c, const std::vector<Deri
 
 void CertificateWriter::writeLower(const std::string &path, const CertificateGoal &goal) const {
   // The proof of lower(target, goal) as a tree of facts, children before
-  // parents (README.md, "Lower-bound mode"): each fact is a node, a
-  // partition, the value the bound holds there, and its reason. A witness
-  // fact carries the edge exactly as an upper record does, so the checker
+  // parents (README.md, "Lower-bound mode"): each fact is a link, a
+  // partition, the value the bound holds there, and its reason. A cobordism
+  // fact carries the cobordism exactly as an upper derivation does, so the checker
   // replays the surface the same way, then recomputes the cap's addition
   // and the other end's partition itself. Split facts carry the upper
-  // records they subtract, with those records' own proofs.
+  // derivations they subtract, with those derivations' own proofs.
   using Kind = CobordismGraph::LowerReason::Kind;
   struct Fact {
     LinkId link;
     Partition q;
     CobordismGraph::LowerFact f;
-    long from = -1;          ///< witness / split-piece: the fact read
+    long from = -1;          ///< cobordism / split-piece: the fact read
     std::vector<long> pieces; ///< split-whole: the pieces' facts
   };
   std::vector<Fact> facts;
@@ -286,7 +287,7 @@ void CertificateWriter::writeLinks(std::ostream &c, const std::set<LinkId> &link
     c << (first ? "" : ",\n") << "{\"id\":" << n << ",\"label\":\""
       << json::escape(g_.link(n).label) << "\",\"components\":" << g_.link(n).components;
     if (reg_.known(n) && reg_.info(n).diagram.crossings() > 0) {
-      // The node's own diagram, as signed Gauss data: component maps refer
+      // The link's own diagram, as signed Gauss data: component maps refer
       // to ITS component order, which a PD round trip need not keep.
       const linknaming::GaussDiagram &d = reg_.info(n).diagram;
       c << ",\"pd\":\"" << json::escape(diagramPD(d)) << "\",\"signs\":[";

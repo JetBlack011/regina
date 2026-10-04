@@ -51,19 +51,19 @@ std::vector<LinkId> LinkAxioms::linksSince(size_t first) const {
 }
 
 void LinkAxioms::name(const std::vector<LinkId> &ns, int atDepth) {
-  // Naming is most of what a hop does outside its search, and each node's
+  // Naming is most of what a goal run does outside its searches, and each link's
   // name is independent of the others', so the names are found on a pool
-  // (ExactNamer is safe to share: its caches are locked, and its SnapPea
-  // calls serialised) and applied here in node order, as one at a time would.
+  // (LinkNamer is safe to share: its caches are locked, and its SnapPea
+  // calls serialised) and applied here in link order, as one at a time would.
   std::vector<std::optional<linknaming::PieceName>> names(ns.size());
-  // A knot identify() leaves untabulated may be a connected sum the tables
+  // A knot namePiece() leaves untabulated may be a connected sum the tables
   // hold only summand by summand: the whole-diagram namer cuts it at its
-  // visible sum spheres and composes `A#mB` (exactnamer.h, step 3).
+  // visible sum spheres and composes `A#mB` (linknamer.h, step 3).
   std::vector<std::optional<linknaming::LinkName>> composites(ns.size());
-  // Any untabulated node (knot or link) with visible sum spheres is cut into
-  // its prime summands, which become nodes joined to it by a sum edge
+  // Any untabulated link (a knot included) with visible sum spheres is cut into
+  // its prime summands, which become links joined to it by a sum
   // (applySum; paper lem:sum-partitions): the tables list prime links only,
-  // and most far sides of small links are sums of smaller ones.
+  // and most outgoing links of small links are sums of smaller ones.
   std::vector<std::vector<GaussDiagram>> summands(ns.size());
   parallelFor(ns.size(), std::max(options_.threads, 1u), [&](size_t i) {
     const LinkId n = ns[i];
@@ -98,10 +98,10 @@ void LinkAxioms::name(const std::vector<LinkId> &ns, int atDepth) {
 }
 
 void LinkAxioms::applySum(LinkId n, const std::vector<GaussDiagram> &primes, int atDepth) {
-  // Each prime is interned as a node (a duplicate costs search, never
+  // Each prime is interned as a link (a duplicate costs search, never
   // soundness), and its components are mapped to the whole's through the
   // registry's component map and the prime's origins. The new summand
-  // nodes are then named like any other (literature leaves included), so
+  // links are then named like any other (literature leaves included), so
   // the sum rule can combine their bounds.
   const size_t before = g_.linkCount();
   std::vector<LinkId> pieces;
@@ -136,11 +136,11 @@ void LinkAxioms::applySum(LinkId n, const std::vector<GaussDiagram> &primes, int
 }
 
 void LinkAxioms::applyComposite(LinkId n, const linknaming::LinkName &fs) {
-  // The composite's name is recorded (certificates, node bounds, the
-  // subject name stays cascade:, since no table row holds it). It is an
+  // The composite's name is recorded (certificates, link bounds, the
+  // subject name stays cascade:, since no table entry holds it). It is an
   // ANCHOR when its summands cancel in concordance (cobordismgraph.h
   // isElementarySlice: the explicit allowlist, or symmetry types from
-  // --knot-symmetry): K # m(K^r) bounds a ribbon disc, so the node gets the
+  // --knot-symmetry): K # m(K^r) bounds a ribbon disc, so the link gets the
   // unknot's leaf, constructive like the unknot's, never for the target.
   tableName[n] = fs.name;
   if (n == target) return;
@@ -164,7 +164,7 @@ void LinkAxioms::applyName(LinkId n, const linknaming::PieceName &pn) {
   const auto [lo, hi] = *g4;
   g_.setGenusLowerBound(n, lo, "literature " + name + " " + e->g4);
   // Never let the target's own literature value prove the target, even
-  // through a duplicate node of it (README.md, "Leaf facts").
+  // through a duplicate link of it (README.md, "Leaf facts").
   if (!mayUseLiteratureUpperBound(classOf(name), targetClass, options_.literature))
     return;
   g_.addLeaf(n, Partition::coarsest(g_.link(n).components), hi,

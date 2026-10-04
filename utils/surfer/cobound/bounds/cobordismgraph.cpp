@@ -1,4 +1,4 @@
-// proofgraph.cpp
+// cobordismgraph.cpp
 
 #include "cobound/bounds/cobordismgraph.h"
 
@@ -100,7 +100,7 @@ RelationId CobordismGraph::addCobordism(LinkId in, LinkId out, CobordismShape sh
   links_[in].cobordisms.push_back(e.id);
   if (out != in)
     links_[out].cobordisms.push_back(e.id);
-  // Existing records at either end can now be pushed across it.
+  // Existing derivations at either end can now be pushed across it.
   for (LinkId x : {in, out})
     for (const PartitionGenus &pe : links_[x].partitionGenera.entries())
       pending_.push_back(pe.derivation);
@@ -235,7 +235,7 @@ DerivationId CobordismGraph::insert(LinkId n, const Partition &p, int genus,
 std::optional<std::pair<Partition, int>>
 CobordismGraph::throughCobordism(const LinkCobordism &e, bool forward,
                            const Partition &p, int genus) const {
-  // forward: p partitions node `out`; glue on the outgoing side and read the
+  // forward: p partitions link `out`; glue on the outgoing side and read the
   // result on the incoming curves. reverse: the other way round.
   const std::vector<int> &gluedMap = forward ? e.outMap : e.inMap;
   const std::vector<int> &freeMap = forward ? e.inMap : e.outMap;
@@ -327,7 +327,7 @@ std::optional<Partition> CobordismGraph::restrictSplit(const Split &s,
 }
 
 void CobordismGraph::deriveFrom(DerivationId rid) {
-  // Copy: insert() may reallocate records_ and nodes_ entries' vectors.
+  // Copy: insert() may reallocate derivations_ and links_ entries' vectors.
   const Derivation r = derivations_[rid];
   const GraphLink &n = links_[r.link];
   const std::vector<RelationId> cobordismIds = n.cobordisms;
@@ -393,7 +393,7 @@ void CobordismGraph::deriveFrom(DerivationId rid) {
           insert(s.pieces[k], *p, r.genus, DerivationKind::splitRestrict, sid,
                  {rid}, "");
     }
-    // As a piece (possibly several times, if the same node appears twice):
+    // As a piece (possibly several times, if the same link appears twice):
     // combine with every current entry of the other pieces.
     for (size_t k = 0; k < s.pieces.size(); ++k) {
       if (s.pieces[k] != r.link)
@@ -412,7 +412,7 @@ void CobordismGraph::deriveFrom(DerivationId rid) {
       }
       if (anyEmpty)
         continue;
-      // Collect every combination first: insert() can reallocate records_.
+      // Collect every combination first: insert() can reallocate derivations_.
       std::vector<std::vector<DerivationId>> combos;
       std::vector<const Derivation *> pick(s.pieces.size());
       std::function<void(size_t)> rec = [&](size_t j) {
@@ -443,8 +443,8 @@ void CobordismGraph::deriveFrom(DerivationId rid) {
 
 long CobordismGraph::propagate() {
   const size_t before = derivations_.size();
-  // Records are processed in creation order; each derivation only ever
-  // creates strictly improving records (insert()), and genus is bounded
+  // Derivations are processed in creation order; each one only ever
+  // creates strictly improving derivations (insert()), and genus is bounded
   // below by 0 over finitely many partitions, so this terminates.
   while (!pending_.empty()) {
     std::vector<DerivationId> batch;

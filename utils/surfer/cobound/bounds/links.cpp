@@ -118,7 +118,7 @@ LinkMatch LinkRegistry::intern(const GaussDiagram &piece, const std::string &lab
     }
   }
 
-  // 3. A new node.
+  // 3. A new link.
   LinkInfo ni;
   ni.diagram = piece;
   ni.linking = linknaming::linkingMatrix(piece);

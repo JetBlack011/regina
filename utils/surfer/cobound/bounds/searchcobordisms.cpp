@@ -1,4 +1,4 @@
-// hopedges.cpp
+// searchcobordisms.cpp
 
 #include "cobound/bounds/searchcobordisms.h"
 
@@ -66,7 +66,7 @@ CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &link
 
 void CobordismAssembler::certifyIncoming_() {
   const auto &cycles = redraw_->incomingCycles();
-  // Certify the row: knotbuilder's link, drawn back, is row.diagram.
+  // Certify the incoming link: knotbuilder's link, drawn back, is searched.diagram.
   const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
   auto iso = linknaming::findDiagramIsomorphism(drawn, searched_.diagram, /*allowMirror=*/false,
                                     /*allowReverse=*/false);
@@ -142,7 +142,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   CobordismShape shape;
   shape.genus = genus;
   shape.inComponent.resize(n);
-  // Incoming curves in NODE order: node component rowToNode_[rc] <- rc.
+  // Incoming curves in link order: link component incomingToLink_[rc] <- rc.
   for (size_t rc = 0; rc < n; ++rc)
     shape.inComponent[incomingToLink_[rc]] = inComp[rc];
   for (size_t sc : link->surfaceComponent) shape.outComponent.push_back(idx(sc));
@@ -157,10 +157,10 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   out.shape = shape;
 
   std::vector<int> inMap(n);
-  for (size_t i = 0; i < n; ++i) inMap[i] = static_cast<int>(i); // already node order
+  for (size_t i = 0; i < n; ++i) inMap[i] = static_cast<int>(i); // already link order
 
   if (link->curves.empty()) {
-    // A surface bounding the row alone: a leaf for the row's node.
+    // A surface bounding the searched link alone: a leaf for it.
     std::vector<int> labels(n);
     for (size_t i = 0; i < n; ++i) labels[i] = shape.inComponent[i];
     g_.addLeaf(searched_.link, Partition::fromLabels(labels), genus,
@@ -170,7 +170,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     return out;
   }
 
-  // The far side, drawn, split into pieces, each simplified and interned.
+  // The outgoing link, drawn, split into pieces, each simplified and interned.
   const knotbuilder::Diagram d = redraw_->drawer().draw(link->curves);
   const GaussDiagram whole = gaussOf(d);
   const size_t m = whole.components();
@@ -193,7 +193,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
     for (size_t i = 0; i < pieceOrigins[0].size(); ++i)
       outMap[pieceOrigins[0][i]] = out.pieces[0].componentMap[i];
   } else {
-    // A split far side: a fresh whole node (never merged: mirroring or
+    // A split outgoing link: a fresh whole link (never merged: mirroring or
     // reversing ONE piece changes a split link), joined to its pieces.
     out.outgoing = g_.addLink(static_cast<int>(m), kFrozenSplitFarSideLabel + key,
                              linknaming::linkingMatrix(whole));

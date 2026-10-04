@@ -1,4 +1,4 @@
-// profile.cpp
+// partitiongenera.cpp
 
 #include "cobound/bounds/partitiongenera.h"
 
