@@ -389,21 +389,17 @@ struct SearchResult {
 
 class Searcher {
 public:
-  /// `signatures` and `tables` name outgoing links as every search names them
-  /// (outgoing::OutgoingNamer), which is what surfaces are deduplicated by.
-  /// Both must outlive the searcher. Every search's names use one set of
-  /// table caches (`tableCaches`, or the searcher's own when null), so what
-  /// naming learns about the tables -- the HOMFLY index above all -- is
-  /// built once, not once per search. A goal run's.
-  Searcher(const linknaming::SignatureTable &signatures,
-              const linknaming::Tables *tables, RunShape shape,
-              unsigned threads,
-              std::shared_ptr<linknaming::TableCaches> tableCaches = nullptr);
+  /// `tables` name outgoing links as every search names them
+  /// (outgoing::OutgoingNamer: the link namer, always), which is what
+  /// surfaces are deduplicated by. They must outlive the searcher. Every
+  /// search's names use one set of table caches (`tableCaches`, or the
+  /// searcher's own when null), so what naming learns about the tables -- the
+  /// HOMFLY index above all -- is built once, not once per search. A goal run's.
+  Searcher(const linknaming::Tables &tables, RunShape shape, unsigned threads,
+           std::shared_ptr<linknaming::TableCaches> tableCaches = nullptr);
 
-  /// Any caller's. Without `signatures`, every boundary is named by its
-  /// complement. Names use this searcher's own caches.
-  Searcher(const linknaming::SignatureTable *signatures,
-              const linknaming::Tables *tables, unsigned threads);
+  /// Any caller's. Names use this searcher's own caches.
+  Searcher(const linknaming::Tables &tables, unsigned threads);
 
   /**
    * Searches `reader`'s thickening, seeded with its collar, under `proper`,
@@ -456,8 +452,7 @@ public:
   SearchResult run(const search::IncomingThickening &thickened, const SearchRequest &request) const;
 
 private:
-  const linknaming::SignatureTable *signatures_;
-  const linknaming::Tables *tables_;
+  const linknaming::Tables *tables_; ///< never null
   RunShape shape_;
   unsigned threads_;
   std::shared_ptr<linknaming::TableCaches> tableCaches_;

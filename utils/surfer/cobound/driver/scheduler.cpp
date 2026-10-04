@@ -214,7 +214,6 @@ private:
   std::unique_ptr<outgoing::OutgoingReader> targetReader_;
   /// What a checker needs to replay each cobordism (certificate.json).
   CobordismSources sources_;
-  std::optional<linknaming::SignatureTable> signatures_;
   std::unique_ptr<Searcher> searcher_;
   /// The database's cobordisms as free cobordisms (master_cobordisms).
   std::unique_ptr<DatabaseCobordisms> database_;
@@ -801,14 +800,12 @@ int Scheduler::run() {
     std::cout << "[!] census not found at " << cfg_.censusDb << "\n";
   {
     const auto t0 = std::chrono::steady_clock::now();
-    // From the link namer's tables: one table load (phase 5).
-    signatures_ = linknaming::SignatureTable::fromTables(tables_);
-    // The searches' outgoing namers share the link namer's table caches.
-    searcher_ = std::make_unique<Searcher>(*signatures_, &tables_, cfg_.runShape,
-                                              static_cast<unsigned>(cfg_.threads),
-                                              namer_.caches());
-    std::cout << "[+] hops in process: " << signatures_->knots() << " knot and "
-              << signatures_->links() << " link diagram signatures ("
+    // The searches' outgoing namers share the link namer's tables and caches
+    // (one table load: phase 5).
+    searcher_ = std::make_unique<Searcher>(tables_, cfg_.runShape,
+                                           static_cast<unsigned>(cfg_.threads), namer_.caches());
+    std::cout << "[+] hops in process: outgoing links named by the link namer over "
+              << tables_.size() << " table entries ("
               << std::fixed << std::setprecision(1)
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
               << " s)\n";
@@ -1146,10 +1143,6 @@ GoalOptions goalOptions(const config::Config &cfg) {
   o.lowerMaxCrossings = static_cast<size_t>(cfg.integer("lower_max_crossings"));
   o.hubDegree = static_cast<size_t>(cfg.integer("hub_degree"));
   o.hubSurfaces = static_cast<long>(cfg.integer("hub_surfaces"));
-  // What the retired cascadesearch refused, still refused.
-  if (!cfg.flag("outgoing_names"))
-    throw config::Error("outgoing_names (formerly exact_far_side_names) cannot be 0 in a run "
-                        "with a goal (its searches always name outgoing links)");
   if (!o.cobordismsPath.empty() && o.runName.empty())
     throw config::Error("cobordisms needs run_name in a run with a goal");
   if (o.goalLower >= 0 && o.lowerSources.empty())

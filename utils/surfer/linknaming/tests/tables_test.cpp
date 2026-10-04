@@ -222,39 +222,6 @@ void test_round_trip_every_table_pd() {
 // already loaded (one table load, phase 5), is the one fromTables() reads
 // from the files: the same signatures and the same first-wins names. On a
 // small table (always), and on the atlas's whole tables when present.
-void test_signature_table_from_loaded_tables() {
-    char tmpl[] = "/tmp/sigtable_XXXXXX";
-    const std::filesystem::path dir = mkdtemp(tmpl);
-    std::ofstream(dir / "knots.csv")
-        << "Name,PD Notation,Genus-4D\n"
-           "3_1,[[1;5;2;4];[3;1;4;6];[5;3;6;2]],1\n"
-           "4_1,[[4;2;5;1];[8;6;1;5];[6;3;7;4];[2;7;3;8]],1\n";
-    std::ofstream(dir / "links.csv")
-        << "Name,PD Notation,Genus-4D\n"
-           "L2a1{0},PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]],0\n"
-           "L2a1{1},PD[X[4; 2; 3; 1]; X[2; 4; 1; 3]],0\n";
-    auto compare = [](const std::filesystem::path &k, const std::filesystem::path &l,
-                      const char *what) {
-        const linknaming::SignatureTable fromFiles =
-            linknaming::SignatureTable::fromTables(k.string(), l.string());
-        const Tables tables = Tables::load(k.string(), l.string(), "");
-        const linknaming::SignatureTable shared = linknaming::SignatureTable::fromTables(tables);
-        EXPECT_EQ(shared.knots(), fromFiles.knots(), std::string(what) + ": knot signatures");
-        EXPECT_EQ(shared.links(), fromFiles.links(), std::string(what) + ": link signatures");
-        EXPECT_EQ(shared == fromFiles, true,
-                  std::string(what) + ": the same table from the loaded tables as from the files");
-    };
-    compare(dir / "knots.csv", dir / "links.csv", "small table");
-    std::filesystem::remove_all(dir);
-    const std::filesystem::path data = atlasData();
-    if (data.empty()) {
-        std::cout << "  SKIPPED the whole tables: no atlas tables (set SURFER_TEST_ATLAS_DATA)\n";
-        return;
-    }
-    compare(data / "4d_smooth_slice_genus_13_crossings_pd_codes.csv",
-            data / "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv", "the atlas tables");
-}
-
 SymmetryTable symmetryTable() {
     SymmetryTable names;
     names["3_1"] = SymmetryType::reversible;
@@ -324,7 +291,6 @@ int main() {
     run("elementary_slice", test_elementary_slice);
     run("elementary_slice_with_marks", test_elementary_slice_with_marks);
     run("round_trip_every_table_pd", test_round_trip_every_table_pd);
-    run("signature_table_from_loaded_tables", test_signature_table_from_loaded_tables);
 
     std::cout << bold << "\n=== Summary: " << passed << " passed, "
               << failed_count << " failed ===" << resetColor << "\n";

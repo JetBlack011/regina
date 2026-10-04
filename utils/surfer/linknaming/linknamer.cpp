@@ -18,6 +18,7 @@
 #include "linknaming/census/censusnaming.h"
 #include "linknaming/complement/linkcomplement.h"
 #include "linknaming/complement/unlinknaming.h"
+#include "linknaming/names.h"
 
 namespace linknaming {
 
@@ -61,7 +62,8 @@ std::string LinkName::proof() const {
 LinkNamer::LinkNamer(const Tables &tables, NamerLimits limits,
                        std::shared_ptr<TableCaches> caches)
     : tables_(tables), limits_(limits),
-      caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)) {
+      caches_(caches ? std::move(caches) : std::make_shared<TableCaches>(tables)),
+      memory_(std::make_unique<RouteMemory>()) {
     // Every cache is keyed by entries of one Tables.
     if (caches_->tables != &tables_)
         throw std::invalid_argument("LinkNamer: table caches built for other tables");
@@ -348,11 +350,14 @@ std::optional<std::string> LinkNamer::tableSideBase(
     return std::nullopt;
 }
 
-void LinkNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const {
+void LinkNamer::decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes,
+                          bool simplified) const {
     regina::Link l = g.link();
-    l.simplify(); // never reflects or reverses
-    if (limits_.exhaustiveHeight > 0 && l.size() > 0 && l.size() <= limits_.maxSearchCrossings)
-        while (l.size() > 0 && l.simplifyExhaustive(limits_.exhaustiveHeight)) {}
+    if (!simplified) {
+        l.simplify(); // never reflects or reverses
+        if (limits_.exhaustiveHeight > 0 && l.size() > 0 && l.size() <= limits_.maxSearchCrossings)
+            while (l.size() > 0 && l.simplifyExhaustive(limits_.exhaustiveHeight)) {}
+    }
     const GaussDiagram s = GaussDiagram::of(l, g.origin);
     if (s.components() != g.components())
         throw regina::InvalidArgument("simplify() changed the number of components");
@@ -398,7 +403,10 @@ PieceName LinkNamer::namePiece(const GaussDiagram &piece) const {
         return true;
     };
     if (limits_.exactDiagram && tryExact(l)) return p;
-    for (int t = 0; limits_.exactDiagram && t < limits_.simplifyTries; ++t) {
+    const int tries = p.components == 1 && limits_.knotSimplifyTries >= 0
+                          ? limits_.knotSimplifyTries
+                          : limits_.simplifyTries;
+    for (int t = 0; limits_.exactDiagram && t < tries; ++t) {
         regina::Link m(l);
         m.simplify();
         if (tryExact(m)) return p;
@@ -573,12 +581,12 @@ std::vector<std::string> knotSumSpellings(const std::vector<const PieceName *> &
 
 } // namespace
 
-LinkName LinkNamer::name(const regina::Link &drawn) const {
+LinkName LinkNamer::name(const regina::Link &drawn, bool simplified) const {
     const size_t n = drawn.countComponents();
     std::vector<size_t> origin(n);
     std::iota(origin.begin(), origin.end(), 0);
     std::vector<GaussDiagram> primes;
-    decompose(GaussDiagram::of(drawn, origin), primes);
+    decompose(GaussDiagram::of(drawn, origin), primes, simplified);
 
     LinkName out;
     std::vector<bool> covered(n, false);
@@ -728,6 +736,35 @@ std::string NamingStats::slowest() const {
 // task's format change.
 constexpr char kFrozenFarSidesDrawn[] = " far sides drawn: unknot ";
 
+void NamingStats::count(const RoutedName &r, bool oriented, size_t components) {
+    if (r.complementCalled) ++fallbacks;
+    if (r.learned) ++learned;
+    if (r.nonPlanar) ++nonPlanar;
+    microsFallback += r.microsComplement;
+    if (oriented) {
+        microsOriented += r.microsDiagram;
+        ++(r.cached ? orientedCacheHits : orientedNamed);
+        if (r.by == NamedBy::complement && !r.cached) ++orientedByComplement;
+        return;
+    }
+    microsDiagram += r.microsDiagram;
+    ++calls;
+    switch (r.by) {
+    case NamedBy::unknot: ++unknots; break;
+    case NamedBy::unlink: ++unlinks; break;
+    case NamedBy::tableKnot: ++tableKnots; break;
+    case NamedBy::learnedKnot: ++learnedKnots; break;
+    case NamedBy::tableLink: ++tableLinks; break;
+    case NamedBy::otherLink: ++otherLinks; break;
+    case NamedBy::learnedLink: ++learnedLinks; break;
+    case NamedBy::complement:
+        // A complement answer met again is a learned one; a fresh one is
+        // counted with the fallbacks above.
+        if (r.cached) ++(components == 1 ? learnedKnots : learnedLinks);
+        break;
+    }
+}
+
 std::string NamingStats::summary() const {
     auto secs = [](long long micros) {
         std::ostringstream o;
@@ -737,114 +774,222 @@ std::string NamingStats::summary() const {
     std::ostringstream o;
     o << calls << kFrozenFarSidesDrawn << unknots << ", unlink " << unlinks
       << ", table knot " << tableKnots << ", learned knot " << learnedKnots
-      << ", table link " << tableLinks << ", other link " << diagramLinks << " (+"
-      << jonesLinks << " by Jones), learned link " << learnedLinks
-      << "; complement fallbacks " << fallbacks << " (" << learned << " learned, "
-      << nonPlanar << " non-planar drawings); exact oriented names " << orientedNamed
-      << " (+" << orientedCacheHits << " cached, " << orientedFailed << " failed); diagrams "
-      << secs(microsDiagram) << "s, fallbacks " << secs(microsFallback) << "s, exact "
-      << secs(microsOriented) << "s; slowest " << secs(slowestMicros()) << "s";
+      << ", table link " << tableLinks << ", other link " << otherLinks
+      << ", learned link " << learnedLinks << "; complement fallbacks " << fallbacks << " ("
+      << learned << " learned, " << nonPlanar << " non-planar drawings); oriented names "
+      << orientedNamed << " (+" << orientedCacheHits << " cached, " << orientedByComplement
+      << " by complement); diagrams " << secs(microsDiagram) << "s, fallbacks "
+      << secs(microsFallback) << "s, oriented " << secs(microsOriented) << "s; slowest "
+      << secs(slowestMicros()) << "s";
     if (const std::string s = slowest(); !s.empty()) o << " (" << s << ")";
     return o.str();
 }
 
-DiagramNamer::DiagramNamer(const SignatureTable &table) : table_(table) {}
+namespace {
 
-std::string DiagramNamer::name(const Link &curves,
-                            const std::function<DrawnCurves()> &draw) const {
-    ++stats_.calls;
-    const auto start = std::chrono::steady_clock::now();
-    const long long fallbacksBefore = stats_.fallbacks.load();
-    std::string out = nameOnce(curves, draw);
-    stats_.noteDuration(microsSince(start),
-                        stats_.fallbacks.load() != fallbacksBefore ? "complement" : "diagram",
-                        out);
-    return census::perturbedForTesting(std::move(out));
+// Whether every piece of `n` was named by a table: none untabulated, and no
+// search contradicted by the invariants.
+bool tabulated(const LinkName &n) {
+    return std::none_of(n.pieces.begin(), n.pieces.end(), [](const PieceName &p) {
+        return p.by == PieceName::By::untabulated;
+    });
 }
 
-std::string DiagramNamer::nameOnce(const Link &curves,
-                                const std::function<DrawnCurves()> &draw) const {
-    const auto start = std::chrono::steady_clock::now();
-    const size_t n = curves.comps_.size();
-    std::string key; // what a fallback's answer is remembered under
-    try {
-        DrawnCurves drawn = draw();
-        if (drawn.outcome == DrawnCurves::Outcome::nonPlanar) {
-            ++stats_.nonPlanar; // a drawer defect: never name from it, and never learn
-        } else if (drawn.outcome == DrawnCurves::Outcome::drawn) {
-            const bool someLinking = drawn.someLinking;
-            regina::Link simplified = std::move(drawn.diagram);
-            simplified.simplify();
-            if (simplified.size() == 0) {
-                stats_.microsDiagram += microsSince(start);
-                if (n == 1) { ++stats_.unknots; return complement::unlinkName(1); }
-                ++stats_.unlinks;
-                return complement::unlinkName(n);
-            }
-            if (n == 1) {
-                std::string sig = simplified.knotSig(true, true);
-                if (const std::string *hit = table_.knot(sig)) {
-                    ++stats_.tableKnots;
-                    stats_.microsDiagram += microsSince(start);
-                    return *hit;
-                }
-                key = "K" + sig;
-            } else {
-                std::string sig = simplified.sig<2>(true, true, true);
-                if (const std::string *hit = table_.link(sig)) {
-                    ++stats_.tableLinks;
-                    stats_.microsDiagram += microsSince(start);
-                    return *hit;
-                }
-                key = "L" + sig;
-                if (someLinking) {
-                    ++stats_.diagramLinks;
-                    stats_.microsDiagram += microsSince(start);
-                    return "diagram:" + sig;
-                }
-            }
-            {
-                std::lock_guard<std::mutex> lock(learnedMutex_);
-                if (auto it = learned_.find(key); it != learned_.end()) {
-                    ++(n == 1 ? stats_.learnedKnots : stats_.learnedLinks);
-                    stats_.microsDiagram += microsSince(start);
-                    return it->second;
-                }
-            }
-            if (n > 1) {
-                // Every linking number is zero. A Jones polynomial other than the
-                // unlink's still proves this is not an unlink.
-                regina::Laurent<regina::Integer> unlink;
-                {
-                    std::lock_guard<std::mutex> lock(learnedMutex_);
-                    auto it = unlinkJones_.find(n);
-                    if (it == unlinkJones_.end())
-                        it = unlinkJones_.emplace(n, regina::Link(n).jones()).first;
-                    unlink = it->second;
-                }
-                if (simplified.jones() != unlink) {
-                    ++stats_.jonesLinks;
-                    stats_.microsDiagram += microsSince(start);
-                    return "diagram:" + key.substr(1);
-                }
-            }
-        }
-    } catch (const regina::InvalidArgument &) {
-        key.clear();
-    }
-    stats_.microsDiagram += microsSince(start);
+// A link of `components` curves named only by its complement: a
+// description, never a knot's (a knot's complement names it: Gordon-Luecke).
+std::string complementDescription(const std::string &name, size_t components) {
+    if (components < 2)
+        throw std::logic_error("complementDescription(): a knot is named by its complement, "
+                               "never described by it");
+    return kComplementDescription + name;
+}
 
-    // The complement route, as before this namer existed; its answer is
-    // remembered against the diagram.
-    const auto fb = std::chrono::steady_clock::now();
-    ++stats_.fallbacks;
-    std::string name = census::nameComplement(curves);
-    stats_.microsFallback += microsSince(fb);
-    if (!key.empty()) {
-        std::lock_guard<std::mutex> lock(learnedMutex_);
-        if (learned_.try_emplace(key, name).second) ++stats_.learned;
+} // namespace
+
+RoutedName LinkNamer::nameDrawing(const DrawnCurves &drawing, size_t components,
+                                  const ComplementRoute &complement) const {
+    const auto start = std::chrono::steady_clock::now();
+    RouteMemory &m = *memory_;
+    std::string key;
+    RoutedName r;
+    bool known = false;
+    if (drawing.outcome == DrawnCurves::Outcome::drawn) {
+        key = drawing.diagram.sig<2>(false, false, true);
+        std::lock_guard<std::mutex> lock(m.mutex);
+        if (auto it = m.drawings.find(key); it != m.drawings.end()) {
+            r = it->second;
+            known = true;
+        }
     }
-    return name;
+    if (known) {
+        r.cached = true;
+        r.complementCalled = r.nonPlanar = r.learned = false;
+        r.microsComplement = 0;
+        r.microsDiagram = microsSince(start);
+    } else {
+        r = nameDrawingUncached(drawing, components, complement);
+        if (!key.empty()) {
+            // Two threads may name one drawing at once: the first answer kept
+            // is the one both return, so a drawing has one name in a search.
+            std::lock_guard<std::mutex> lock(m.mutex);
+            if (m.drawings.size() >= kDrawingMemoryLimit) m.drawings.clear();
+            const RoutedName &kept = m.drawings.try_emplace(key, r).first->second;
+            r.name = kept.name;
+            r.isName = kept.isName;
+            r.by = kept.by;
+        }
+    }
+    r.name = census::perturbedForTesting(std::move(r.name));
+    return r;
+}
+
+RoutedName LinkNamer::nameDrawingUncached(const DrawnCurves &drawing, size_t components,
+                                          const ComplementRoute &complement) const {
+    RouteMemory &m = *memory_;
+    RoutedName r;
+    auto clock = std::chrono::steady_clock::now();
+    auto lap = [&] {
+        const auto now = std::chrono::steady_clock::now();
+        const long long us =
+            std::chrono::duration_cast<std::chrono::microseconds>(now - clock).count();
+        clock = now;
+        return us;
+    };
+    auto byComplement = [&] {
+        r.microsDiagram += lap();
+        r.complementCalled = true;
+        std::string answer = normalizeComplementName(complement());
+        r.microsComplement += lap();
+        return answer;
+    };
+    auto learnedAnswer = [&](const std::string &k) -> std::optional<RoutedName> {
+        std::lock_guard<std::mutex> lock(m.mutex);
+        if (auto it = m.learned.find(k); it != m.learned.end()) return it->second;
+        return std::nullopt;
+    };
+    auto learn = [&](const std::string &k) {
+        std::lock_guard<std::mutex> lock(m.mutex);
+        if (m.learned.try_emplace(k, r).second) r.learned = true;
+    };
+
+    if (drawing.outcome != DrawnCurves::Outcome::drawn) {
+        // Nothing to name from a diagram: the complement route.
+        r.nonPlanar = drawing.outcome == DrawnCurves::Outcome::nonPlanar;
+        const std::string answer = byComplement();
+        r.by = NamedBy::complement;
+        if (components == 1 || complement::isUnlinkName(answer)) {
+            r.name = answer;
+            r.isName = true;
+        } else {
+            r.name = complementDescription(answer, components);
+        }
+        return r;
+    }
+
+    if (components == 1) {
+        // One attempt at simplifying (knotSimplifyTries more, per piece, below).
+        regina::Link s(drawing.diagram);
+        s.simplify();
+        if (s.size() == 0) {
+            r.by = NamedBy::unknot;
+            r.name = complement::unlinkName(1);
+            r.isName = true;
+            r.microsDiagram += lap();
+            return r;
+        }
+        // The table signature: the simplified diagram IS a version of a table knot.
+        if (const std::vector<VersionMatch> *ms = tables_.exact(s.sig<2>(false, false, true))) {
+            std::set<std::string> names;
+            for (const VersionMatch &v : *ms) names.insert(canonicalName(*v.entry));
+            r.by = NamedBy::tableKnot;
+            for (const std::string &x : names) r.name += (r.name.empty() ? "" : "|") + x;
+            r.isName = names.size() == 1;
+            r.microsDiagram += lap();
+            return r;
+        }
+        const std::string k = "K" + s.knotSig(true, true);
+        if (std::optional<RoutedName> a = learnedAnswer(k)) {
+            r.by = NamedBy::learnedKnot;
+            r.name = a->name;
+            r.isName = a->isName;
+            r.microsDiagram += lap();
+            return r;
+        }
+        // Its pieces: summands cut at visible spheres, each by its diagram, its
+        // isometry, its search.
+        const LinkName n = name(s, /*simplified=*/true);
+        if (tabulated(n)) {
+            r.by = NamedBy::tableKnot;
+            r.name = n.name;
+            r.isName = n.isName;
+            r.microsDiagram += lap();
+            return r;
+        }
+        // A knot no table piece names: its complement names it (Gordon-Luecke).
+        r.name = byComplement();
+        r.isName = true;
+        r.by = NamedBy::complement;
+        learn(k);
+        return r;
+    }
+
+    // A link: its pieces, oriented as drawn.
+    const LinkName n = name(drawing.diagram);
+    r.name = n.name;
+    r.isName = n.isName;
+    if (n.pieces.empty()) {
+        r.by = NamedBy::unlink;
+        r.microsDiagram += lap();
+        return r;
+    }
+    r.by = tabulated(n) ? NamedBy::tableLink : NamedBy::otherLink;
+    if (r.by == NamedBy::tableLink) {
+        r.microsDiagram += lap();
+        return r;
+    }
+    // An untabulated piece that might be an unlink the simplification could
+    // not untangle: every linking number 0, and the unlink's Jones polynomial.
+    // Only the complement can prove it one; it never replaces the name with
+    // anything weaker.
+    std::vector<size_t> origin(components);
+    std::iota(origin.begin(), origin.end(), size_t(0));
+    const std::vector<long> lk = linkingNumbers(GaussDiagram::of(drawing.diagram, origin));
+    if (std::any_of(lk.begin(), lk.end(), [](long x) { return x != 0; })) {
+        r.microsDiagram += lap();
+        return r;
+    }
+    regina::Link s(drawing.diagram);
+    s.simplify();
+    regina::Laurent<regina::Integer> unlink;
+    {
+        std::lock_guard<std::mutex> lock(m.mutex);
+        auto it = m.unlinkJones.find(components);
+        if (it == m.unlinkJones.end())
+            it = m.unlinkJones.emplace(components, regina::Link(components).jones()).first;
+        unlink = it->second;
+    }
+    if (s.jones() != unlink) {
+        r.microsDiagram += lap();
+        return r;
+    }
+    const std::string k = "L" + s.sig<2>(true, true, true);
+    if (std::optional<RoutedName> a = learnedAnswer(k)) {
+        if (a->by == NamedBy::unlink) {
+            r.by = NamedBy::learnedLink;
+            r.name = a->name;
+            r.isName = true;
+        }
+        r.microsDiagram += lap();
+        return r;
+    }
+    const std::string answer = byComplement();
+    if (complement::isUnlinkName(answer)) {
+        r.by = NamedBy::unlink;
+        r.name = answer;
+        r.isName = true;
+    }
+    learn(k);
+    return r;
 }
 
 } // namespace linknaming

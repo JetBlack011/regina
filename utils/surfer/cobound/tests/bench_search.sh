@@ -85,6 +85,9 @@ for sec, keys in (
 EOF
 )"
 [ -n "$CFG_THREADS" ] || { echo "bench_search.sh: no [$HOST] section in $CONF" >&2; exit 2; }
+# EXACT_FAR_SIDE_NAMES=1 asks for the outgoing names of hosts.conf's
+# exact_far_side_names = 1 (both sides), whatever [campaign] says.
+CFG_EXACT_FAR_SIDE_NAMES=${EXACT_FAR_SIDE_NAMES:-$CFG_EXACT_FAR_SIDE_NAMES}
 THREADS=${THREADS:-$CFG_THREADS}
 CENSUS=${CENSUS:-$CFG_CENSUS_DB}
 
@@ -160,7 +163,9 @@ run_one() {
         *) echo "bench_search.sh: mode must be b1 or b2" >&2; return 2 ;;
       esac
       echo "resolve_unlinked = $([ "$CFG_RESOLVE_UNLINKED" = 1 ] && echo 1 || echo 0)"
-      echo "outgoing_names = $([ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && echo 1 || echo 0)"
+      # cobound names outgoing links always (phase 7.1; a cobound from before
+      # defaults to 0 without a goal): stated only when [campaign] asks for it.
+      [ "$CFG_EXACT_FAR_SIDE_NAMES" = 1 ] && echo "outgoing_names = 1"
     } > "$run/run.conf"
     cmd=("$bin" run --config "$run/run.conf")
     # Word-split on purpose: e.g. EXTRA_ARGS="--set audit_linking=1".

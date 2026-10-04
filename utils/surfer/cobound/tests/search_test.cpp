@@ -156,7 +156,7 @@ RunShape capThree() {
 // searched thickening; testBatchSigning() signs them again all at once.
 std::vector<std::pair<SignRequest, std::string>> signed_;
 
-void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name,
+void checkSearch(const linknaming::Tables &tables, const std::string &name,
               const std::string &pd, long long accepted, long long otherOrientation) {
   // One graph and registry for both reads, so equal outgoing links are one graph link.
   CobordismGraph g;
@@ -165,7 +165,7 @@ void checkSearch(const linknaming::SignatureTable &sigs, const std::string &name
   CobordismAssembler inProcess(g, reg, searched);
   CobordismAssembler byPairSig(g, reg, searched);
 
-  Searcher searcher(sigs, nullptr, capThree(), 4);
+  Searcher searcher(tables, capThree(), 4);
   SearchResult run = searcher.run(inProcess.redrawer(), name, 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, accepted, name + ": accepted, as the canaries pin it");
   CHECK_EQ(run.outcome, std::string("exhausted"), name + ": exhausted at cap 3");
@@ -269,11 +269,11 @@ void testBatchSigning() {
   CHECK(requests.size() >= 4, "batch: surfaces from both rows");
 }
 
-void testStop(const linknaming::SignatureTable &sigs) {
+void testStop(const linknaming::Tables &tables) {
   CobordismGraph g;
   LinkRegistry reg(g);
   CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
-  Searcher searcher(sigs, nullptr, capThree(), 4);
+  Searcher searcher(tables, capThree(), 4);
   int asked = 0;
   SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600,
                             [&](const KeptSurface &) { return ++asked == 1; });
@@ -285,11 +285,11 @@ void testStop(const linknaming::SignatureTable &sigs) {
 
 // A search certifies its incoming link against the PD it is given: a PD the
 // reader's thickening does not carry is refused, never searched (phase 7.2).
-void testRefusesAnotherDiagram(const linknaming::SignatureTable &sigs) {
+void testRefusesAnotherDiagram(const linknaming::Tables &tables) {
   CobordismGraph g;
   LinkRegistry reg(g);
   CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
-  Searcher searcher(sigs, nullptr, capThree(), 4);
+  Searcher searcher(tables, capThree(), 4);
   SearchRequest request = searcher.requestFor(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
   CHECK_EQ(request.incomingPD, std::string("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"),
            "certify: a request certifies against its reader's own PD");
@@ -307,13 +307,13 @@ void testRefusesAnotherDiagram(const linknaming::SignatureTable &sigs) {
 
 int main() {
   const std::string data = COBOUND_TEST_DATA;
-  const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(
-      data + "/knots_to_6.csv", data + "/links_to_6.csv");
-  checkSearch(sigs, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
-  checkSearch(sigs, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
+  const linknaming::Tables tables = linknaming::Tables::load(
+      data + "/knots_to_6.csv", data + "/links_to_6.csv", "");
+  checkSearch(tables, "3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 1752, 0);
+  checkSearch(tables, "L2a1{0}", "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]", 945, 150);
   testBuildChecksum();
   testBatchSigning();
-  testStop(sigs);
-  testRefusesAnotherDiagram(sigs);
+  testStop(tables);
+  testRefusesAnotherDiagram(tables);
   return checks::finish("search_test");
 }

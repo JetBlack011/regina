@@ -35,6 +35,10 @@ std::string stripCensusSuffix(const std::string &name) {
     return name.substr(0, name.find(" : "));
 }
 
+bool isComplementDescription(const std::string &name) {
+    return name.rfind(kComplementDescription, 0) == 0;
+}
+
 std::string normalizeComplementName(const std::string &name) {
     if (name.size() < 4 || name.back() != ')')
         return name;

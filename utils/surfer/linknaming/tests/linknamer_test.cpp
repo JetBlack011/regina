@@ -14,7 +14,14 @@
 //       summed along components get the atlas syntax, exact only when the
 //       name is an identity;
 //    5. the Gauss-diagram cut finds exactly the visible summands;
-//    6. namers sharing table caches name as namers with their own do.
+//    6. namers sharing table caches name as namers with their own do;
+//    7. the full route a search names outgoing links by (nameDrawing(),
+//       under a search's limits): a table knot by its table signature, a sum
+//       of table knots by its pieces, a link by its pieces; a drawing met
+//       again from memory; an untabulated knot and a knot whose drawing failed
+//       by their complement (a name), a link whose drawing failed described by
+//       its complement (`complement:`) unless it is an unlink; names and
+//       descriptions alike perturbed under SURFER_TEST_PERTURB_NAMES.
 //
 
 #include <algorithm>
@@ -27,7 +34,9 @@
 #include <link/link.h>
 
 #include "linknaming/linknamer.h"
+#include "linknaming/names.h"
 #include "linknaming/tables.h"
+#include "linknaming/census/censusnaming.h"
 #include "linknaming/diagrams/gaussdiagram.h"
 
 using namespace linknaming;
@@ -349,6 +358,94 @@ void test_visible_sum(void) {
     EXPECT_EQ(visibleSum(t).has_value(), false, "the trefoil shows none");
 }
 
+// A search's limits (cobound's outgoing::OutgoingNamer::limits()): the
+// diagram steps and isometry, no Reidemeister search, a knot one attempt.
+NamerLimits searchLimits() {
+    NamerLimits l;
+    l.simplifyTries = 2;
+    l.knotSimplifyTries = 0;
+    l.exhaustiveHeight = 0;
+    l.searchHeight = -1;
+    l.deepHeight = -1;
+    l.tableSideHeight = -1;
+    return l;
+}
+
+DrawnCurves drawn(const regina::Link &l) {
+    DrawnCurves d;
+    d.outcome = DrawnCurves::Outcome::drawn;
+    d.diagram = l;
+    return d;
+}
+
+void test_name_drawing(const Tables &t) {
+    const LinkNamer n(t, searchLimits());
+    int complementCalls = 0;
+    auto complementSays = [&complementCalls](std::string answer) {
+        return [&complementCalls, answer] {
+            ++complementCalls;
+            return answer;
+        };
+    };
+    const auto never = complementSays("NEVER");
+
+    RoutedName r = n.nameDrawing(drawn(table("3_1")), 1, never);
+    EXPECT_EQ(r.name, std::string("3_1"), "route: a table knot by its table signature");
+    EXPECT_EQ(r.isName && r.by == NamedBy::tableKnot && !r.cached, true,
+              "route: a table knot is a name, by table");
+    r = n.nameDrawing(drawn(table("3_1")), 1, never);
+    EXPECT_EQ(r.cached && r.name == "3_1", true, "route: a drawing met again, from memory");
+
+    const regina::Link square =
+        sum(gauss(table("3_1")), 0, gauss(mirrored(table("3_1")))).link();
+    r = n.nameDrawing(drawn(square), 1, never);
+    EXPECT_EQ(r.name, std::string("3_1#m3_1"), "route: the square knot by its pieces");
+    EXPECT_EQ(r.by == NamedBy::tableKnot && r.isName, true, "route: a sum of table knots is a name");
+
+    r = n.nameDrawing(drawn(table("L4a1{1}")), 2, never);
+    EXPECT_EQ(r.by == NamedBy::tableLink && r.isName, true, "route: a table link by its pieces");
+    EXPECT_EQ(r.name, n.canonicalName(*t.entry("L4a1{1}")), "route: its oriented variant");
+
+    r = n.nameDrawing(drawn(regina::Link(2)), 2, never);
+    EXPECT_EQ(r.by == NamedBy::unlink && r.name == "2-component unlink", true,
+              "route: two crossingless curves, the unlink");
+    EXPECT_EQ(complementCalls, 0, "route: no complement for what a drawing names");
+
+    // 5_1 is in no table here (and not hyperbolic): its complement names it.
+    const regina::Link fiveOne =
+        linkFromTablePD("[[2;8;3;7];[4;10;5;9];[6;2;7;1];[8;4;9;3];[10;6;1;5]]");
+    r = n.nameDrawing(drawn(fiveOne), 1, complementSays("5_1 (by its complement)"));
+    EXPECT_EQ(r.by == NamedBy::complement && r.complementCalled && r.isName, true,
+              "route: an untabulated knot is named by its complement (Gordon-Luecke)");
+    EXPECT_EQ(r.name, std::string("5_1"), "route: the complement's answer, normalized");
+    EXPECT_EQ(r.learned, true, "route: the answer is kept for its diagram");
+
+    DrawnCurves failed;
+    failed.outcome = DrawnCurves::Outcome::failed;
+    r = n.nameDrawing(failed, 1, complementSays("m016"));
+    EXPECT_EQ(r.name == "m016" && r.isName, true,
+              "route: a knot whose drawing failed is named by its complement");
+    r = n.nameDrawing(failed, 2, complementSays("7^2_1"));
+    EXPECT_EQ(r.name, std::string(kComplementDescription) + "7^2_1",
+              "route: a link whose drawing failed is only described by its complement");
+    EXPECT_EQ(r.isName, false, "route: a description is not a name");
+    EXPECT_EQ(isComplementDescription(r.name), true, "route: and is marked as one");
+    r = n.nameDrawing(failed, 3, complementSays("3-component unlink"));
+    EXPECT_EQ(r.name == "3-component unlink" && r.isName, true,
+              "route: an unlink proved by the complement is a name");
+
+    census::perturbNamesForTesting.store(true);
+    const std::string perturbedName = n.nameDrawing(drawn(table("3_1")), 1, never).name;
+    const std::string perturbedDescription =
+        n.nameDrawing(failed, 2, complementSays("7^2_1")).name;
+    census::perturbNamesForTesting.store(false);
+    EXPECT_EQ(perturbedName.rfind("3_1 [~", 0) == 0, true,
+              "route: a name is perturbed under the test hook (" + perturbedName + ")");
+    EXPECT_EQ(perturbedDescription.find(" [~") != std::string::npos &&
+                  isComplementDescription(perturbedDescription),
+              true, "route: and so is a description (" + perturbedDescription + ")");
+}
+
 } // namespace
 
 int main() {
@@ -365,6 +462,7 @@ int main() {
     test_isometry(tables);
     test_shared_caches(tables);
     test_visible_sum();
+    test_name_drawing(tables);
     std::cout << passed << " passed, " << failed_count << " failed\n";
     return failed_count == 0 ? 0 : 1;
 }

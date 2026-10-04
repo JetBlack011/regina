@@ -7,11 +7,14 @@
 # whole searches (the D1 bug, 2026-09-26).
 #
 # So: search the same targets twice, exhaustively and deterministically, once
-# with SURFER_TEST_PERTURB_NAMES set (every complement name gets a fresh
-# suffix, so no two namings ever agree). Which surfaces are accepted,
-# and why each is or is not recorded, must not change. Only the split between
-# "recorded" and "duplicate" may move, since dedup is BY name for outgoing links
-# that bear a bound; their sum may not.
+# with SURFER_TEST_PERTURB_NAMES set (every name and description the link
+# namer gives, and every complement name, gets a fresh suffix, so no two
+# namings ever agree). Which surfaces are accepted, and why each is or is not
+# recorded, must not change. Only the split between "recorded" and
+# "duplicate" may move, since dedup is BY name for outgoing links that bear a
+# bound; their sum may not. The full route must have run (knots by their
+# table signatures, links oriented per surface), and every outgoing name the
+# perturbed run recorded must carry the perturbation.
 set -eu
 
 C=$1
@@ -74,6 +77,19 @@ fi
 if ! grep -qE ': diagram naming: [1-9][0-9]* far sides drawn' "$T/plain/log"; then
   echo "FAIL: no far side was named from its diagram, so the namer went untested"
   exit 1
+fi
+if ! grep -qE ': diagram naming: .*table knot [1-9].*oriented names [1-9]' "$T/plain/log"; then
+  echo "FAIL: the link namer's full route did not run (no knot by its table, or no link"
+  echo "      named per surface)"; exit 1
+fi
+# The outgoing names the perturbed run recorded (the database's 4th column):
+# every one perturbed, names and descriptions alike; none in the plain run.
+unperturbed=$(awk -F, 'NR > 1 && $1 == "cobordism" && $4 !~ /\[~[0-9]+\]/' "$T/perturbed/cobordisms.csv" | wc -l)
+perturbed=$(awk -F, 'NR > 1 && $1 == "cobordism" && $4 ~ /\[~[0-9]+\]/' "$T/perturbed/cobordisms.csv" | wc -l)
+plainPerturbed=$(awk -F, 'NR > 1 && $4 ~ /\[~[0-9]+\]/' "$T/plain/cobordisms.csv" | wc -l)
+if [ "$perturbed" -eq 0 ] || [ "$unperturbed" -ne 0 ] || [ "$plainPerturbed" -ne 0 ]; then
+  echo "FAIL: recorded names: $perturbed perturbed and $unperturbed not in the perturbed run," \
+       "$plainPerturbed perturbed in the plain run"; exit 1
 fi
 if ! cmp -s "$T/plain.acct" "$T/perturbed.acct"; then
   echo "FAIL: perturbing names changed which surfaces were accepted or why"

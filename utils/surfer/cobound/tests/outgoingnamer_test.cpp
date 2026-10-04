@@ -1,17 +1,16 @@
 //
 //  outgoingnamer_test.cpp
 //
-//  outgoing::OutgoingNamer on real thickenings, the way verifyslicegenus uses
-//  it:
+//  outgoing::OutgoingNamer on real thickenings, the way a search uses it:
 //
 //    1. The bare collar L x [0,2] has the incoming link itself as its
 //       outgoing link, so the namer must name it as the incoming link: a
-//       table knot by its name, a table link by its base name -- straight
-//       from the diagram, with no complement drilled (the fallback counter
-//       stays at zero).
+//       table knot by its name; a table link, per edge set, by one of its
+//       variants (the curves as the search carries them), and per surface,
+//       oriented by the collar, as the incoming link's own variant -- all
+//       straight from the diagram, with no complement drilled.
 //    2. A curve around one triangle of the outgoing boundary is an unknot.
-//    3. The signature tables refuse to come back empty.
-//    4. The complement namers share one dispatch, and name an unlink's
+//    3. The complement namers share one dispatch, and name an unlink's
 //       curves alike with or without the census.
 //
 
@@ -25,12 +24,17 @@
 #include <triangulation/dim3.h>
 #include <triangulation/dim4.h>
 
-#include "diagramtriangulation/thickening/thickening.h"
-#include "surfer/submanifold/submanifold.h"
 #include "cobound/outgoing/outgoingnamer.h"
+#include "cobound/search/incoming.h"
+#include "cobound/search/preconditions.h"
 #include "diagramtriangulation/fromdiagram.h"
+#include "diagramtriangulation/thickening/thickening.h"
 #include "linknaming/complement/linkcomplement.h"
+#include "linknaming/linknamer.h"
+#include "linknaming/names.h"
+#include "linknaming/tables.h"
 #include "surfer/submanifold/skeleton.h"
+#include "surfer/submanifold/submanifold.h"
 
 static int passed = 0;
 static int failed_count = 0;
@@ -67,31 +71,48 @@ void writeTables() {
          "X[12; 6; 7; 5]; X[6; 12; 1; 11]; X[4; 8; 5; 7]],0\n";
 }
 
-// The incoming diagram thickened as a search does it (buildAmbient(): two
-// layers, the collar through both).
-struct Thickened : ThickenedLink {
-    explicit Thickened(const std::string &pd) { buildAmbient(pd, 2, 2, *this); }
-};
-
 void test_collar_outgoing_is_the_incoming(const std::string &name, const std::string &pd,
-                                     const std::string &want,
-                                     const linknaming::SignatureTable &table) {
-    Thickened thickened(pd);
+                                          const linknaming::Tables &tables) {
+    // The incoming diagram thickened as a search does it (two layers, the
+    // collar through both), with its incoming map.
+    search::IncomingThickening thickened;
+    search::buildIncoming(pd, 2, 2, thickened);
     outgoing::OutgoingNamer namer(thickened.link.tri, diagramtriangulation::parsePDCode(pd).size(),
-                                *thickened.cob, table);
+                                  *thickened.cob, tables);
     Skeleton<4, 2> skeleton(thickened.tri);
     KnottedSurface collar(skeleton, thickened.seedFaces);
-    std::string got = "<no far side>";
+    const linknaming::LinkNamer canonical(tables);
+    const std::string want = canonical.canonicalName(*tables.entry(name));
+    std::string perEdgeSet = "<no outgoing link>";
     for (const auto &[bc, link] : collar.boundaryLinks())
-        if (namer.handles(bc)) got = namer.name(link);
-    EXPECT_EQ(got, want, name + ": the collar's far side is the row itself");
+        if (namer.handles(bc)) perEdgeSet = namer.name(link);
+    if (thickened.componentCount == 1) {
+        EXPECT_EQ(perEdgeSet, want, name + ": the collar's outgoing knot is the incoming knot");
+    } else {
+        EXPECT_EQ(perEdgeSet.rfind(linknaming::baseName(name) + "{", 0) == 0, true,
+                  name + ": per edge set, a variant of the incoming link (" + perEdgeSet + ")");
+        // Per surface, oriented by the collar against the incoming link: the
+        // incoming link's own variant.
+        const auto oriented = collar.orientedBoundaryLinks();
+        const auto surfaceOf = collar.boundaryEdgeSurfaceComponent();
+        std::vector<OrientedCurve> incomingCurves;
+        for (const auto &[bc, curves] : oriented)
+            if (bc == thickened.incomingBC) incomingCurves = curves;
+        const search::IncomingOrientationJudgement judged =
+            search::judgeIncomingOrientation(*thickened.orientation, incomingCurves, surfaceOf);
+        std::string perSurface = "<no outgoing link>";
+        for (const auto &[bc, curves] : oriented)
+            if (namer.handles(bc)) perSurface = namer.orientedName(curves, surfaceOf, judged.flips);
+        EXPECT_EQ(perSurface, want, name + ": per surface, oriented, the incoming link's variant");
+    }
     EXPECT_EQ(namer.stats().fallbacks.load(), 0LL,
               name + ": named from the diagram, no complement drilled");
 }
 
-void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
-    Thickened thickened("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-    outgoing::OutgoingNamer namer(thickened.link.tri, 3, *thickened.cob, table);
+void test_small_curve_is_unknot(const linknaming::Tables &tables) {
+    search::IncomingThickening thickened;
+    search::buildIncoming("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2, 2, thickened);
+    outgoing::OutgoingNamer namer(thickened.link.tri, 3, *thickened.cob, tables);
     size_t bc = thickened.tri.boundaryComponent(0)->index() == thickened.cob->baseBoundaryComponent()->index()
                     ? 1
                     : 0;
@@ -103,26 +124,6 @@ void test_small_curve_is_unknot(const linknaming::SignatureTable &table) {
     EXPECT_EQ(namer.name(curve), std::string("Unknot"),
               "a curve around one triangle is an unknot, from its diagram");
     EXPECT_EQ(namer.stats().unknots.load(), 1LL, "counted as an unknot");
-}
-
-void test_tables_refuse_to_be_empty() {
-    const char *empty = "outgoingnamer_test_empty.csv";
-    { std::ofstream e(empty); e << "Name,PD Notation,Genus-4D\n"; }
-    bool threw = false;
-    try {
-        linknaming::SignatureTable::fromTables(empty, "");
-    } catch (const regina::InvalidArgument &) {
-        threw = true;
-    }
-    EXPECT_EQ(threw, true, "a knot table yielding no signatures is an error");
-    threw = false;
-    try {
-        linknaming::SignatureTable::fromTables("/nonexistent/table.csv", "");
-    } catch (const regina::InvalidArgument &) {
-        threw = true;
-    }
-    EXPECT_EQ(threw, true, "a missing table is an error");
-    std::remove(empty);
 }
 
 // The one complement dispatch (ComplementBoundaryNamer, phase 3): a lone
@@ -166,21 +167,20 @@ void test_complement_namers() {
 
 int main() {
     writeTables();
-    linknaming::SignatureTable table = linknaming::SignatureTable::fromTables(KNOTS, LINKS);
-    EXPECT_EQ(table.knots(), static_cast<size_t>(2), "both table knots signed");
-    EXPECT_EQ(table.links(), static_cast<size_t>(1),
-              "both orientations of L6a3 share one unoriented signature");
-
+    const linknaming::Tables tables = linknaming::Tables::load(KNOTS, LINKS, "");
     test_collar_outgoing_is_the_incoming("8_20", "[[1;7;2;6];[4;13;5;14];[5;9;6;8];[7;3;8;2];"
-                                    "[10;15;11;16];[12;9;13;10];[14;3;15;4];[16;11;1;12]]",
-                                    "8_20", table);
-    test_collar_outgoing_is_the_incoming("3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", "3_1", table);
+                                                 "[10;15;11;16];[12;9;13;10];[14;3;15;4];[16;11;1;12]]",
+                                         tables);
+    test_collar_outgoing_is_the_incoming("3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", tables);
     test_collar_outgoing_is_the_incoming(
         "L6a3{1}", "PD[X[10; 2; 11; 1]; X[2; 10; 3; 9]; X[8; 4; 9; 3]; X[12; 6; 7; 5]; "
                    "X[6; 12; 1; 11]; X[4; 8; 5; 7]]",
-        "L6a3", table);
-    test_small_curve_is_unknot(table);
-    test_tables_refuse_to_be_empty();
+        tables);
+    test_collar_outgoing_is_the_incoming(
+        "L6a3{0}", "PD[X[8; 1; 9; 2]; X[2; 9; 3; 10]; X[10; 3; 11; 4]; X[12; 5; 7; 6]; "
+                   "X[6; 7; 1; 8]; X[4; 11; 5; 12]]",
+        tables);
+    test_small_curve_is_unknot(tables);
     test_complement_namers();
 
     std::remove(KNOTS);

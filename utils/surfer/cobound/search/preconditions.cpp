@@ -167,16 +167,14 @@ GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickeni
 
 std::string nameOutgoing(const GatedSurface &g, const outgoing::OutgoingNamer *namer) {
     const search::BoundarySide &outgoingSide = g.split.otherSides.front();
-    std::string name = linknaming::normalizeComplementName(outgoingSide.name);
-    // An accepted surface's flips are the gate's (g.flips, its incoming
-    // curves judged once).
-    if (outgoingSide.components > 1 && namer && namer->orientedNamesOn()) {
+    // A link's name is oriented by the surface (an accepted surface's flips
+    // are the gate's: g.flips, its incoming curves judged once); a knot's is
+    // its edge set's, whatever the orientation.
+    if (outgoingSide.components > 1 && namer)
         for (const auto &[bc, curves] : g.orientedLinks)
             if (namer->handles(bc))
-                if (auto n = namer->orientedName(curves, g.surfaceOf, g.flips))
-                    name = *n;
-    }
-    return name;
+                return namer->orientedName(curves, g.surfaceOf, g.flips);
+    return linknaming::normalizeComplementName(outgoingSide.name);
 }
 
 void SearchAccounting::reject(Gate gate) {

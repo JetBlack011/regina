@@ -124,22 +124,16 @@ SeedInvariantFailure::SeedInvariantFailure(size_t touching)
                          "side, so found surfaces could change it"),
       touching(touching) {}
 
-Searcher::Searcher(const linknaming::SignatureTable &signatures,
-                         const linknaming::Tables *tables, RunShape shape,
-                         unsigned threads,
-                         std::shared_ptr<linknaming::TableCaches> tableCaches)
-    : signatures_(&signatures), tables_(tables), shape_(shape), threads_(threads),
-      tableCaches_(std::move(tableCaches)) {
-  if (tables_ && !tableCaches_)
+Searcher::Searcher(const linknaming::Tables &tables, RunShape shape, unsigned threads,
+                   std::shared_ptr<linknaming::TableCaches> tableCaches)
+    : tables_(&tables), shape_(shape), threads_(threads), tableCaches_(std::move(tableCaches)) {
+  if (!tableCaches_)
     tableCaches_ = std::make_shared<linknaming::TableCaches>(*tables_);
 }
 
-Searcher::Searcher(const linknaming::SignatureTable *signatures,
-                         const linknaming::Tables *tables, unsigned threads)
-    : signatures_(signatures), tables_(tables), threads_(threads) {
-  if (tables_)
-    tableCaches_ = std::make_shared<linknaming::TableCaches>(*tables_);
-}
+Searcher::Searcher(const linknaming::Tables &tables, unsigned threads)
+    : tables_(&tables), threads_(threads),
+      tableCaches_(std::make_shared<linknaming::TableCaches>(tables)) {}
 
 SearchResult Searcher::run(const outgoing::OutgoingReader &reader,
                         const std::string &subject, long long surfaceTarget,
@@ -198,9 +192,8 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     throw SearchRefused(ex.what());
   }
 
-  // Declared before the search, which holds pointers to them. Every
-  // boundary is named by its complement unless the search draws its outgoing links.
-  const outgoing::ComplementNamer complementNamer{};
+  // Declared before the search, which holds a pointer to it: the outgoing
+  // links are drawn and named by the link namer (phase 7.1: always).
   std::optional<outgoing::OutgoingNamer> namer;
   SurfaceSearch e(thickened.tri, thickened.seedFaces, thickened.incomingBC);
   e.configureLimits(shape.limits);
@@ -229,18 +222,15 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   e.setRecordFrontier(request.recordFrontier);
   if (request.pairSigCacheDir)
     e.setPairSigCacheDir(*request.pairSigCacheDir);
-  e.setBoundaryNamer(complementNamer);
-  if (signatures_) {
-    // A search whose outgoing links cannot be drawn is refused (divergence 2): its
-    // T does not read back, and naming it some other way would hide that.
-    try {
-      namer.emplace(thickened.link.tri, thickened.pdcode.size(), *thickened.cob, *signatures_);
-      if (tables_) namer->enableOrientedNames(*tables_, tableCaches_);
-    } catch (const std::exception &ex) {
-      throw SearchRefused(ex.what());
-    }
-    e.setBoundaryNamer(*namer);
+  // A search whose outgoing links cannot be drawn is refused (divergence 2): its
+  // T does not read back, and naming it some other way would hide that.
+  try {
+    namer.emplace(thickened.link.tri, thickened.pdcode.size(), *thickened.cob, *tables_,
+                  tableCaches_);
+  } catch (const std::exception &ex) {
+    throw SearchRefused(ex.what());
   }
+  e.setBoundaryNamer(*namer);
 
   {
     // The invariant that makes the incoming side fixed: no searchable
@@ -725,7 +715,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   // surfaces vanished unexamined -- the failure mode that once emptied whole
   // searches without a trace.
   const bool drainSkipped = e.boundaryProcessingSkipped();
-  if (namer) {
+  {
     const linknaming::NamingStats &ns = namer->stats();
     out.naming = ns.summary();
     out.namingDiagramSeconds = ns.microsDiagram / 1e6;

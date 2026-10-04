@@ -177,12 +177,13 @@ struct GatedSurface {
 GatedSurface gateSurface(const SurfaceBoundaryInfo &info, const IncomingThickening &thickened);
 
 /**
- * The name a cobordism records for an accepted surface's one outgoing link: the
- * namer's name, normalized (census::nameComplement() decorates a translated census hit as
- * "4_1 (m004 : #1)" while the tables call it "4_1"). With names on
- * (`namer->orientedNamesOn()`), a multi-component outgoing link takes its
- * oriented name when there is one: two surfaces whose outgoing links are
- * different orientation variants of one link must be two cobordisms.
+ * The name a cobordism records for an accepted surface's one outgoing link: a
+ * knot's, the namer's name for its edge set, normalized (census::nameComplement()
+ * decorates a translated census hit as "4_1 (m004 : #1)" while the tables call
+ * it "4_1"); a link's, its oriented name (OutgoingNamer::orientedName()) --
+ * two surfaces whose outgoing links are different orientation variants of one
+ * link must be two cobordisms -- or the description the complement gives
+ * when it cannot be drawn.
  *
  * \pre `g` is accepted with exactly one outgoing link.
  */

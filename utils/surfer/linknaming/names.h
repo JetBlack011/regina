@@ -15,12 +15,27 @@
 /*! \file utils/surfer/linknaming/names.h
  *  \brief The grammar of the names an outgoing link is recorded under, read back:
  *  component counts, bases, splits (`A u B`), alternatives (`A|B`),
- *  composites (`K #_c L`, `A#B`), sums (`#{...}`) and knot marks.
+ *  composites (`K #_c L`, `A#B`), sums (`#{...}`), knot marks, and the
+ *  descriptions that are not names (`?` joins, `complement:`).
  *
  *  Pure string functions, shared by both solvers' C++ side and the search.
  */
 
 namespace linknaming {
+
+/**
+ * The mark of a DESCRIPTION by complement: `complement:<name>` is a link of
+ * more than one component that only its complement names (a census name, or
+ * the complement's isoSig). A complement does not determine a link, so it
+ * bears nothing in either solver (its component count is the observed one,
+ * never 1). Never a knot's: a knot's complement names it (Gordon-Luecke), so
+ * a knot named by its complement carries that name bare. Written by
+ * LinkNamer::nameDrawing().
+ */
+inline constexpr char kComplementDescription[] = "complement:";
+
+/** Whether `name` is a description by complement (kComplementDescription). */
+bool isComplementDescription(const std::string &name);
 
 /**
  * The number of components of whatever `name` names, worked out from the

@@ -277,9 +277,11 @@ const std::vector<Key> &schema() {
             "--recognition-cache-limit (verifyslicegenus), --hop-recognition-cache "
             "(cascadesearch)",
             "Complement answers cached per process before the cache is cleared."),
-        formerly(key("outgoing_names", Type::flag, {{C::run, def("0")}, {C::goal, def("1")}},
+        formerly(key("outgoing_names", Type::flag, {{C::run, def("1")}, {C::goal, def("1")}},
                      "--exact-far-side-names (verifyslicegenus; a goal run's searches always did)",
-                     "Name multi-curve outgoing links, oriented (with a goal: always)."),
+                     "Always 1: outgoing links are always named, an oriented link per "
+                     "surface. Kept so configurations that pass it still parse; 0 is "
+                     "refused."),
                  "exact_far_side_names"),
         key("census_updates", Type::flag, {{C::run, def("1")}, {C::goal, def("0")}},
             "--no-census-updates (verifyslicegenus; the cascade never wrote)",

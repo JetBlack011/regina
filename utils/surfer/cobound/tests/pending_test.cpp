@@ -82,7 +82,7 @@ bool sameCobordism(const cobordisms::Cobordism &a, const cobordisms::Cobordism &
 int main() {
   const std::string data = COBOUND_TEST_DATA;
   const std::string knots = data + "/knots_to_6.csv", links = data + "/links_to_6.csv";
-  const linknaming::SignatureTable sigs = linknaming::SignatureTable::fromTables(knots, links);
+  const linknaming::Tables tables = linknaming::Tables::load(knots, links, "");
   const fs::path dir = fs::temp_directory_path() / ("pending_test." + std::to_string(::getpid()));
   const fs::path searchDir = dir / "hop_0_n0";
   fs::create_directories(searchDir);
@@ -92,7 +92,7 @@ int main() {
   LinkRegistry reg(g);
   const SearchedLink searched = makeSearchedLink(reg, pd);
   CobordismAssembler assembler(g, reg, searched);
-  Searcher searcher(sigs, nullptr, capThree(), 4);
+  Searcher searcher(tables, capThree(), 4);
   SearchResult run = searcher.run(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
   CHECK_EQ(run.accepted, 1752LL, "the canaries' count for 3_1 at cap 3");
 

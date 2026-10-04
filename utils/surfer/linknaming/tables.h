@@ -205,44 +205,4 @@ regina::Link linkFromTablePD(const std::string &pd);
 
 } // namespace linknaming
 
-namespace linknaming {
-
-/**
- * Diagram signatures of the knot and link tables: exact diagrams, so a hit
- * is a proof. Built once per process from the tables' PD codes.
- */
-class SignatureTable {
-  public:
-    /**
-     * \param knotTable, linkTable CSV files of "Name,PD,..." rows (either
-     *        may be empty to skip it). Link names are oriented
-     *        ("L6a3{1}"); the table maps every variant to its base name.
-     */
-    static SignatureTable fromTables(const std::string &knotTable,
-                                     const std::string &linkTable);
-    /**
-     * The same table from the tables a process has already loaded (one table
-     * load, shared with the cobordism graph's exact tables): the entries'
-     * diagrams are the ones fromTables() would parse, in the same order, so
-     * the signatures, and which name each keeps, are identical; no file is
-     * read and no PD code parsed again.
-     * \exception regina::InvalidArgument either table yielded no entries.
-     */
-    static SignatureTable fromTables(const linknaming::Tables &tables);
-
-    const std::string *knot(const std::string &knotSig) const;
-    const std::string *link(const std::string &linkSig) const;
-    bool isKnotName(const std::string &name) const { return knotNames_.contains(name); }
-    size_t knots() const { return knots_.size(); }
-    size_t links() const { return links_.size(); }
-    /** The same signatures, names and knot names. */
-    bool operator==(const SignatureTable &) const = default;
-
-  private:
-    std::unordered_map<std::string, std::string> knots_, links_;
-    std::unordered_set<std::string> knotNames_;
-};
-
-} // namespace linknaming
-
 #endif

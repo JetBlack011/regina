@@ -18,8 +18,8 @@
  *  its own in its run(); verifyslicegenus in its main).
  *
  *  The tables are loaded once: a run's tables (the depth-0 graph's,
- *  or a goal run's namer's), with diagram naming's signature table derived
- *  from them (linknaming::SignatureTable::fromTables(const Tables &)).
+ *  or a goal run's namer's), which its searches name their outgoing links by
+ *  too (linknaming::LinkNamer, through outgoing::OutgoingNamer).
  *  What is NOT loaded unless asked for: a database's cobordisms as a goal
  *  run's free cobordisms (master_cobordisms, a goal key: never without a goal),
  *  and link classes (computed lazily per base by a goal run's namer).

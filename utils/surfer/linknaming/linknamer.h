@@ -1,7 +1,8 @@
 //
 //  linknamer.h
 //
-//  Names, with proof, for oriented diagrams of outgoing links.
+//  THE namer: names, with proof, for oriented link diagrams, and the route a
+//  search names its outgoing links by.
 //
 
 /*! \file utils/surfer/linknaming/linknamer.h
@@ -60,8 +61,16 @@
  *  is pinned, possibly with split unknots; and composite knots whose every
  *  relative mirror and reversal that matters is pinned. Anything weaker is
  *  a proved DESCRIPTION: each piece is exactly the named table link, but how
- *  the pieces are joined is not all recorded, which is enough for rules
- *  that bound its slice genus from its pieces' but not for an identity.
+ *  the pieces are joined is not all recorded (`?`), which is enough for rules
+ *  that bound its slice genus from its pieces' but not for an identity; or a
+ *  link of more than one component named only by its complement
+ *  (`complement:`, names.h), which bears nothing.
+ *
+ *  A search names its outgoing links by the full route, nameDrawing(): a
+ *  drawing (todiagram.h) by the steps above, under the search's limits;
+ *  a knot no table piece names, and every drawing that failed, by its
+ *  complement (census::nameComplement()), which names a knot (Gordon-Luecke)
+ *  and only describes a link. See nameDrawing().
  */
 
 #ifndef SURFER_LINKNAMING_LINKNAMER_H
@@ -75,6 +84,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <link/link.h>
@@ -98,6 +108,10 @@ struct NamerLimits {
      *  and linking numbers; a disagreement is a bug and throws. */
     bool checkIsometryPins = true;
     int simplifyTries = 24;         /**< extra simplify() tries per piece */
+    /** Extra simplify() tries for a one-component piece; -1: simplifyTries.
+     *  A search's namer keeps the attempts each of its routes made before
+     *  they were merged (outgoing::OutgoingNamer::limits()). */
+    int knotSimplifyTries = -1;
     int exhaustiveHeight = 1;       /**< simplifyExhaustive() height (0: none) */
     int searchHeight = 2;           /**< rewrite() height (-1: no search) */
     size_t searchVisits = 20000;    /**< rewrite() diagrams per piece */
@@ -143,7 +157,7 @@ struct PieceName {
     std::string display() const;
 };
 
-/** An outgoing link's name, with how it was proved. */
+/** A link's name, with how it was proved. */
 struct LinkName {
     std::string name;
     bool isName = false;             /**< an identity; see the file comment */
@@ -153,6 +167,44 @@ struct LinkName {
     std::vector<PieceName> pieces;
     /** e.g. "diagram", "search+homfly", "untabulated", joined per piece. */
     std::string proof() const;
+};
+
+/** A drawing of the curves of one boundary component, as LinkNamer::nameDrawing()
+ *  names it. */
+struct DrawnCurves {
+    enum class Outcome {
+        drawn,     /**< `diagram` is the drawing. */
+        nonPlanar, /**< The drawer refused it as not planar: a drawer defect. */
+        failed     /**< Degenerate, or not a drawable set of curves. */
+    };
+    Outcome outcome = Outcome::failed;
+    regina::Link diagram; /**< When drawn: component i is the i-th curve. */
+};
+
+/** How LinkNamer::nameDrawing() named a drawing (NamingStats counts each). */
+enum class NamedBy {
+    unknot,      /**< one curve, no crossing left */
+    unlink,      /**< several curves, no crossing left; or proved by the complement */
+    tableKnot,   /**< a knot of table pieces: its table signature, a piece's
+                      diagram or isometry, a sum of them */
+    learnedKnot, /**< a knot whose simplified diagram the complement named before */
+    tableLink,   /**< a link of table pieces only */
+    otherLink,   /**< a link with an untabulated piece (`diagram:`) */
+    learnedLink, /**< a link the complement proved an unlink before */
+    complement,  /**< the complement route: an untabulated knot, a failed drawing */
+};
+
+/** What LinkNamer::nameDrawing() made of one drawing. */
+struct RoutedName {
+    std::string name; /**< a name, or a description (`?`, `|`, `complement:`) */
+    bool isName = false; /**< an identity (see the file comment) */
+    NamedBy by = NamedBy::complement;
+    bool cached = false;           /**< this drawing was named before */
+    bool complementCalled = false; /**< the complement route ran for this call */
+    bool nonPlanar = false;        /**< the drawer refused the drawing as not planar */
+    bool learned = false;          /**< a complement answer was kept against its diagram */
+    long long microsDiagram = 0;   /**< time in the diagram route */
+    long long microsComplement = 0; /**< time in the complement route */
 };
 
 /**
@@ -198,10 +250,46 @@ class LinkNamer {
     const std::shared_ptr<TableCaches> &caches() const { return caches_; }
 
     /**
-     * \param drawn an oriented, planar diagram of the outgoing link, component i
-     *        the i-th outgoing curve (diagramtriangulation::Diagram::link()).
+     * \param drawn an oriented, planar diagram of the link, component i its
+     *        i-th curve (diagramtriangulation::Diagram::link()).
+     * \param simplified `drawn` was simplified already (once): it is not
+     *        simplified again before it is cut into pieces.
      */
-    LinkName name(const regina::Link &drawn) const;
+    LinkName name(const regina::Link &drawn, bool simplified = false) const;
+
+    /** The complement route: the drawn curves named by their complement
+     *  (census::nameComplement() of their edges). */
+    using ComplementRoute = std::function<std::string()>;
+
+    /**
+     * THE route a search names an outgoing link by (plan, phase 7.1): one
+     * namer for every drawing, `components` curves drawn as `drawing`.
+     *
+     *   - A drawing that failed (degenerate, or refused as not planar) goes
+     *     to the complement route: a knot is named by its complement
+     *     (Gordon-Luecke); a link only described, `complement:<name>`
+     *     (names.h), unless the complement proves it an unlink.
+     *   - A knot: simplified once; no crossing left, the unknot; its table
+     *     signature (the simplified diagram IS a version of a table knot);
+     *     a complement answer learned for that diagram; its pieces (cut at
+     *     visible connected-sum spheres; each by its diagram, with
+     *     NamerLimits::knotSimplifyTries more attempts, its isometry, its
+     *     search, as the limits allow): a table knot or a sum of them. A
+     *     knot some piece of which no table names is named by its complement,
+     *     the answer learned against its simplified diagram.
+     *   - A link: name() under this namer's limits (its pieces, oriented as
+     *     drawn). One whose untabulated piece might be an unlink in disguise
+     *     -- every linking number 0 and the unlink's Jones polynomial -- is
+     *     tried on the complement route, which only ever replaces the name by
+     *     a proved unlink.
+     *
+     * Every drawing's answer is kept against its exact signature, so a drawing
+     * seen again is answered the same, and costs one signature. Names and
+     * descriptions alike are perturbed under census::perturbNamesForTesting
+     * (SURFER_TEST_PERTURB_NAMES). Thread-safe.
+     */
+    RoutedName nameDrawing(const DrawnCurves &drawing, size_t components,
+                           const ComplementRoute &complement) const;
 
     /** Naming one piece alone (exposed for tests). */
     PieceName namePiece(const GaussDiagram &piece) const;
@@ -214,10 +302,12 @@ class LinkNamer {
     const std::string &canonicalName(const TableEntry &e) const;
 
     /** Cuts a diagram at its visible connected-sum spheres (after
-     *  simplifying it) into prime pieces, each keeping its components'
-     *  origins; a diagram with no visible sphere gives itself. Exposed for
-     *  goal runs, which turn the pieces into summand links. */
-    void decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes) const;
+     *  simplifying it, unless `simplified`) into prime pieces, each keeping
+     *  its components' origins; a diagram with no visible sphere gives
+     *  itself. Exposed for goal runs, which turn the pieces into summand
+     *  links. */
+    void decompose(const GaussDiagram &g, std::vector<GaussDiagram> &primes,
+                   bool simplified = false) const;
 
   private:
     const regina::Laurent2<regina::Integer> &homfly(const TableEntry &e, bool mirror) const;
@@ -254,10 +344,28 @@ class LinkNamer {
     /** Whether an alternating graph (canonicalPlantri, reflection allowed) is
      *  in the flype orbit of an entry's table diagram's graph. */
     bool inFlypeOrbit(const TableEntry &e, const std::string &graph) const;
+    /** nameDrawing() before the perturbation, and without the drawing cache. */
+    RoutedName nameDrawingUncached(const DrawnCurves &drawing, size_t components,
+                                   const ComplementRoute &complement) const;
 
     const Tables &tables_;
     NamerLimits limits_;
     std::shared_ptr<TableCaches> caches_; /**< never null */
+
+    /** What nameDrawing() keeps: complement answers learned per simplified
+     *  diagram, every drawing's answer, the unlinks' Jones polynomials. */
+    struct RouteMemory {
+        std::mutex mutex;
+        std::unordered_map<std::string, RoutedName> learned;
+        /**< "K" + knotSig, or "L" + the unoriented signature -> the complement's answer. */
+        std::unordered_map<std::string, RoutedName> drawings;
+        /**< a drawing's exact signature (Link::sig<2>(false, false, true)) -> its answer. */
+        std::unordered_map<size_t, regina::Laurent<regina::Integer>> unlinkJones;
+        /**< n -> the Jones polynomial of the n-component unlink. */
+    };
+    /** Drawings remembered before the memory is cleared and starts again. */
+    static constexpr size_t kDrawingMemoryLimit = 1'000'000;
+    std::unique_ptr<RouteMemory> memory_; /**< never null */
 
   public:
     /** Variants merged by isometry whose literature 4-genera differ: a
@@ -268,29 +376,28 @@ class LinkNamer {
 /** Pairwise linking numbers of a diagram's components, sorted. */
 std::vector<long> linkingNumbers(const GaussDiagram &g);
 
-} // namespace linknaming
-
-/** The curves of one boundary component, as linkcomplement.h holds them
- *  (edges of a triangulation), for the complement route. */
-class Link;
-
-namespace linknaming {
-
-/** How DiagramNamer (and OutgoingNamer's names) named what it was asked
- *  to (cumulative). */
+/** What a search's outgoing namer named, by route (cumulative): nameDrawing()'s
+ *  answers, counted per entry point (outgoing::OutgoingNamer). */
 struct NamingStats {
+    /** Per edge set ("far sides drawn"): every answer, by how it was named. A
+     *  drawing named before counts as it was named then, but a complement
+     *  answer reused counts as learned. */
     std::atomic<long long> calls{0}, unknots{0}, unlinks{0}, tableKnots{0},
-        learnedKnots{0}, tableLinks{0}, diagramLinks{0}, jonesLinks{0},
-        learnedLinks{0}, fallbacks{0}, learned{0}, microsDiagram{0},
-        microsFallback{0};
-    std::atomic<long long> nonPlanar{0};
-    /**< Drawings the drawer refused as not planar (diagramtriangulation::NonPlanar):
-         each is a drawer defect, named by the complement route instead. */
-    std::atomic<long long> orientedNamed{0}, orientedCacheHits{0}, orientedFailed{0};
-    /**< orientedName(): names computed, answered from the cache, and
-         drawings that failed (the cobordism then keeps its unoriented name). */
-    std::atomic<long long> microsOriented{0};
-    /**< Time in the link namer itself (computed names only, not cache hits). */
+        learnedKnots{0}, tableLinks{0}, otherLinks{0}, learnedLinks{0};
+    /** The complement route, both entry points: how often it ran, answers kept
+     *  for their diagrams, and drawings refused as not planar (each a drawer
+     *  defect: diagramtriangulation::NonPlanar). */
+    std::atomic<long long> fallbacks{0}, learned{0}, nonPlanar{0};
+    /** Per surface: oriented names computed, answered from the drawing memory,
+     *  and the complement-route answers among them (drawings that failed). */
+    std::atomic<long long> orientedNamed{0}, orientedCacheHits{0}, orientedByComplement{0};
+    std::atomic<long long> microsDiagram{0}, microsFallback{0}, microsOriented{0};
+    /**< Time in the diagram route per edge set, in the complement route, and in
+         the diagram route per surface. */
+
+    /** Counts one answer: `oriented` for a surface's oriented name, else one
+     *  edge set's (with its component count). */
+    void count(const RoutedName &r, bool oriented, size_t components);
 
     /** The slowest single naming so far: which route, what it named, how
         long. One slow name can hold a whole drain's last thread. */
@@ -306,79 +413,6 @@ struct NamingStats {
     std::atomic<long long> slowestMicros_{0};
     mutable std::mutex slowestMutex_;
     std::string slowest_;
-};
-
-/** A drawing of one boundary component's curves, as DiagramNamer::name()
- *  asks for it. */
-struct DrawnCurves {
-    enum class Outcome {
-        drawn,     /**< `diagram` is the drawing. */
-        nonPlanar, /**< The drawer refused it as not planar: a drawer defect. */
-        failed     /**< Degenerate, or not a drawable set of curves. */
-    };
-    Outcome outcome = Outcome::failed;
-    regina::Link diagram; /**< When drawn: component i is the i-th curve. */
-    bool someLinking = false;
-    /**< When drawn: whether some pair of curves has a nonzero linking number. */
-};
-
-/**
- * Names the curves of one boundary component from their drawing, with
- * proof: lets Regina's Link::simplify() reduce the diagram, and then
- *
- *   - no crossings left: "Unknot", or "<n>-component unlink" (a diagram
- *     without crossings is the unlink);
- *   - a knot whose simplified diagram is exactly a table knot's diagram
- *     (knotSig, mirror and reversal allowed -- a slice genus sees neither):
- *     that table name;
- *   - a knot seen before under this diagram: the name proved then;
- *   - a link whose diagram is exactly one of the link table's (any of its
- *     orientation variants, so up to orientation): that link's base name.
- *     A link name bears no bound in the solvers;
- *   - any other link that is provably not an unlink -- a nonzero linking
- *     number, or a Jones polynomial other than the unlink's:
- *     "diagram:<signature>", a name that bears nothing but tells distinct
- *     links apart exactly (the unlink is the one link name that would bear
- *     a bound, so that is what must be ruled out first).
- *
- * Everything else -- a knot the table does not know, a link the Jones
- * polynomial cannot tell from an unlink, a drawing that failed or that the
- * drawer refused as not planar (counted in NamingStats::nonPlanar) -- falls
- * back to census::nameComplement(), the complement route. Whatever it returns is
- * remembered against the diagram's signature (a diagram determines its
- * link), so each distinct diagram costs at most one fallback, and repeats
- * of it get the same name. Names are perturbed as nameComplement()'s are under
- * census::perturbNamesForTesting.
- */
-class DiagramNamer {
-  public:
-    /** \param table outlives this namer. */
-    explicit DiagramNamer(const SignatureTable &table);
-
-    /**
-     * The name of `curves` -- all the curves of one boundary component --
-     * from the drawing `draw` makes of them. `draw` reports a drawing that
-     * failed rather than throwing. Thread-safe.
-     */
-    std::string name(const Link &curves,
-                     const std::function<DrawnCurves()> &draw) const;
-
-    /** What this namer has named (cumulative). A caller naming by other
-     *  routes too (OutgoingNamer::orientedName()) adds its counts here. */
-    NamingStats &stats() const { return stats_; }
-
-  private:
-    std::string nameOnce(const Link &curves,
-                         const std::function<DrawnCurves()> &draw) const;
-
-    const SignatureTable &table_;
-    mutable std::mutex learnedMutex_;
-    mutable std::unordered_map<std::string, std::string> learned_;
-    /**< "K" + knotSig or "L" + unoriented link signature -> the name the
-         complement route gave that diagram. */
-    mutable std::unordered_map<size_t, regina::Laurent<regina::Integer>> unlinkJones_;
-    /**< n -> the Jones polynomial of the n-component unlink. */
-    mutable NamingStats stats_;
 };
 
 } // namespace linknaming

@@ -107,7 +107,6 @@ inline constexpr char kFrozenWitnessStoreLine[] = "[+] witness store: ";
 /// The outgoing links' names loaded, or why not (dispatch.py fails a search
 /// without the first when the flag is on).
 inline constexpr char kFrozenExactFarSideNamesLine[] = "[+] exact far-side names: ";
-inline constexpr char kFrozenExactFarSideNamesOff[] = "[!] exact far-side names off: ";
 /// A goal run's per-search lines: `[+] hop <k> <name>: accounting: ...`,
 /// `: diagram naming:`, `: breadth:`, `[!!] hop <k>: surface accounting
 /// failed -- ...`, `[!] hop <k>: frontier not written: ...`, `[+] hop <k>:

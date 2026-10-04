@@ -172,7 +172,7 @@ std::vector<Reference> references() {
       {"complement_cache_limit", C::run, std::to_string(complement::cacheLimit.load()),
        "complement::cacheLimit"},
       {"complement_cache_limit", C::goal, "1500000", "HopShape::recognitionCacheLimit"},
-      {"outgoing_names", C::run, "0", "verifyslicegenus exactFarSideNames"},
+      {"outgoing_names", C::run, "1", "phase 7.1: always on (verifyslicegenus's was 0)"},
       {"outgoing_names", C::goal, "1", "cascadesearch: every hop names exactly"},
       {"census_updates", C::run, census::censusUpdates.load() ? "1" : "0",
        "census::censusUpdates (verifyslicegenus left it on)"},

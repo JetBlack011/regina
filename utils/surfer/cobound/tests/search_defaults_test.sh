@@ -11,7 +11,9 @@
 #     `work` (a run's pending files go there). A solve builds no search and
 #     needs neither. Nor have the tables and `targets`, run or solve: their
 #     old defaults were file names in the working directory;
-#   - the retired options are refused: the config replaces them;
+#   - the retired options are refused: the config replaces them; outgoing
+#     links are always named, so outgoing_names = 0 is refused by name, under
+#     either spelling (phase 7.1), and 1 still parses;
 #   - every run writes the configuration it ran with to <work>/cobound.conf,
 #     and that file, read back, runs the same search.
 set -eu
@@ -70,6 +72,16 @@ for k in knot_table link_table targets; do
     echo "FAIL: a solve went ahead without $k (exit $rc)"; cat "$T/no-$k.solve.log"; exit 1
   fi
 done
+# outgoing_names = 0 is refused by name, under either spelling; 1 parses.
+for k in outgoing_names exact_far_side_names; do
+  rc=0; run names0-$k --set resolve_unlinked=0 --set "work=$T/names0-$k/work" --set "$k=0" || rc=$?
+  if [ "$rc" -ne 2 ] || ! grep -q 'outgoing_names (formerly exact_far_side_names) = 0 is refused' "$T/names0-$k/err"; then
+    echo "FAIL: $k = 0 was not refused by name (exit $rc)"; cat "$T/names0-$k/err"; exit 1
+  fi
+done
+if ! run names1 --set resolve_unlinked=0 --set "work=$T/names1/work" --set exact_far_side_names=1; then
+  echo "FAIL: exact_far_side_names = 1 no longer parses"; cat "$T/names1/err"; exit 1
+fi
 # ... but a solve needs neither resolve_unlinked nor work.
 mkdir -p "$T/solve"; echo "$HDR" > "$T/solve/cobordisms.csv"
 if ! "$C" solve --set "targets=$T/rows.csv" --set "verdicts=$T/solve/out.csv" \

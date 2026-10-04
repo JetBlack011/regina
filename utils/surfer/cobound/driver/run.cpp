@@ -100,7 +100,6 @@ int runWithoutGoal(const config::Config &cfg) {
   // Accept surfaces whose only self-intersections are unlinked (paper §4.5,
   // KnottedSurface::isResolvable()). No default (plan divergence 3).
   const bool resolveUnlinked = cfg.flag("resolve_unlinked");
-  const bool outgoingNames = cfg.flag("outgoing_names");
   const std::string workDir = cfg.text("work");
   const unsigned numThreads = cfg.threads();
   // Thickened and collared through every layer (divergence 6: the cobordism
@@ -199,54 +198,26 @@ int runWithoutGoal(const config::Config &cfg) {
   std::cout << "[+] Name table: " << names.size() << " names (" << metadataRows
             << " from tables other than --input)\n";
 
-  // The tables, loaded once: the tables, which a search's own
-  // cobordism graph names its links by (divergence 6) and its outgoing links
-  // are named by (outgoing_names), and diagram naming's
-  // signature table, drawn from them.
-  std::optional<linknaming::Tables> outgoingTables;
-  if (outgoingNames) {
-    const auto t0 = std::chrono::steady_clock::now();
-    try {
-      outgoingTables =
-          linknaming::Tables::load(knotTablePath, linkTablePath, knotSymmetryPath);
-      std::cout << kFrozenExactFarSideNamesLine << outgoingTables->size() << " table entries ("
-                << std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now() - t0)
-                       .count()
-                << " ms)\n";
-    } catch (const std::exception &e) {
-      std::cerr << kFrozenExactFarSideNamesOff << e.what() << "\n";
-    }
-  }
-  std::optional<linknaming::Tables> graphTablesOwn;
-  const linknaming::Tables *graphTables = outgoingTables ? &*outgoingTables : nullptr;
+  // The tables, loaded once: a search's own cobordism graph names its links by
+  // them (divergence 6), and its outgoing links are named by them (phase 7.1:
+  // always). A run that cannot load them searches nothing. The frozen line
+  // says they are loaded (dispatch.py fails a row without it).
+  std::optional<linknaming::Tables> tablesOwn;
   std::optional<linknaming::LinkNamer> graphNamer;
   try {
-    if (!graphTables)
-      graphTables = &graphTablesOwn.emplace(
-          linknaming::Tables::load(knotTablePath, linkTablePath, knotSymmetryPath));
-    graphNamer.emplace(*graphTables, bounds::LinkAxioms::namerLimits());
+    const auto t0 = std::chrono::steady_clock::now();
+    tablesOwn.emplace(linknaming::Tables::load(knotTablePath, linkTablePath, knotSymmetryPath));
+    std::cout << kFrozenExactFarSideNamesLine << tablesOwn->size() << " table entries ("
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - t0)
+                     .count()
+              << " ms)\n";
+    graphNamer.emplace(*tablesOwn, bounds::LinkAxioms::namerLimits());
   } catch (const std::exception &e) {
-    std::cerr << "[!] the cobordism graph cannot load the tables: " << e.what() << "\n";
+    std::cerr << "[!] the tables cannot be loaded: " << e.what() << "\n";
     return 1;
   }
-  std::optional<linknaming::SignatureTable> signatureTable;
-  {
-    const auto t0 = std::chrono::steady_clock::now();
-    try {
-      // From the tables the graph already loaded: one table load (phase 5).
-      signatureTable = linknaming::SignatureTable::fromTables(*graphTables);
-      std::cout << "[+] diagram naming: " << signatureTable->knots() << " knot and "
-                << signatureTable->links() << " link diagram signatures ("
-                << std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now() - t0)
-                       .count()
-                << " ms)\n";
-    } catch (const std::exception &ex) {
-      std::cerr << "[!] diagram naming off: could not load the tables' signatures ("
-                << ex.what() << ")\n";
-    }
-  }
+  const linknaming::Tables *graphTables = &*tablesOwn;
 
   std::unordered_map<std::string, OutputRow> outputRows = verdicts::loadOutputCsv(outputPath);
 
@@ -477,8 +448,7 @@ int runWithoutGoal(const config::Config &cfg) {
 
     // One searcher per target, so each search's names start from fresh
     // table caches, as they always have.
-    const search::Searcher searcher(signatureTable ? &*signatureTable : nullptr,
-                                        outgoingTables ? &*outgoingTables : nullptr, numThreads);
+    const search::Searcher searcher(*graphTables, numThreads);
     search::SearchResult run;
     try {
       run = searcher.run(thickened, request);
@@ -651,6 +621,11 @@ int runWithoutGoal(const config::Config &cfg) {
 int commands::run(const std::vector<std::string> &args) {
   try {
     const config::Config cfg = config::forCommand("run", std::nullopt, args);
+    // Outgoing links are always named (phase 7.1): the key still parses, for
+    // the configurations that pass it, but 0 is refused.
+    if (!cfg.flag("outgoing_names"))
+      throw config::Error("outgoing_names (formerly exact_far_side_names) = 0 is refused: "
+                          "outgoing links are always named");
     const std::string work = cfg.text("work");
     std::filesystem::create_directories(work);
     report::atomicWrite(
