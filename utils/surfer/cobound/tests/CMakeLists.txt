@@ -97,6 +97,15 @@ add_test(NAME unaccounted_search_test
 set_tests_properties(unaccounted_search_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
+# Targets are searched on their given diagrams, certified in-binary: a table
+# row that does not certify is refused, an untabulated goal target falls back
+# to its simplified diagram, logged (plan, phase 7.2). See the script's header.
+add_test(NAME given_diagram_test
+         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/given_diagram_test.sh
+                 $<TARGET_FILE:cobound> ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set_tests_properties(given_diagram_test PROPERTIES
+  LABELS "surfer" TIMEOUT 300)
+
 # A failed output write ends its search as an I/O error, never the process:
 # no frontier, no exhaustion claim, what it kept signed; exit 2 (plan, phase
 # 7.3). See the script's header.

@@ -73,6 +73,9 @@ class OutgoingReader {
     OutgoingReader(const OutgoingReader &) = delete;
     OutgoingReader &operator=(const OutgoingReader &) = delete;
 
+    /** The PD code the thickening was built from, as given. */
+    const std::string &incomingPD() const { return incomingPD_; }
+
     /**
      * The cobordism's surface as triangle indices of the thickening, or
      * nullopt with `why` set when no isomorphism carries its incoming curve
@@ -187,6 +190,7 @@ class OutgoingReader {
     std::unique_ptr<diagramtriangulation::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
     std::vector<diagramtriangulation::EdgeCycle> incomingCycles_;
+    std::string incomingPD_;
     std::unordered_map<size_t, size_t> incomingComponentOf_; /**< see incomingComponentOf() */
     mutable double msDecode_ = 0, msIso_ = 0, msSurface_ = 0, msRead_ = 0, msBoundaryBuild_ = 0;
 

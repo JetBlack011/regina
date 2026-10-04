@@ -14,6 +14,8 @@
 //      surface components, the same genus, and outgoing links that split into the
 //      same pieces.
 //   3. Keys are distinct, and a stop request ends the search.
+//   4. A search certifies its triangulation against the PD it was given
+//      (phase 7.2): a request whose PD its reader does not carry is refused.
 
 #include <algorithm>
 #include <map>
@@ -281,6 +283,26 @@ void testStop(const linknaming::SignatureTable &sigs) {
            "stop: what was described is still accounted for");
 }
 
+// A search certifies its incoming link against the PD it is given: a PD the
+// reader's thickening does not carry is refused, never searched (phase 7.2).
+void testRefusesAnotherDiagram(const linknaming::SignatureTable &sigs) {
+  CobordismGraph g;
+  LinkRegistry reg(g);
+  CobordismAssembler assembler(g, reg, makeSearchedLink(reg, "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
+  Searcher searcher(sigs, nullptr, capThree(), 4);
+  SearchRequest request = searcher.requestFor(assembler.redrawer(), "3_1", 1'000'000'000LL, 600);
+  CHECK_EQ(request.incomingPD, std::string("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"),
+           "certify: a request certifies against its reader's own PD");
+  request.incomingPD = "[[4;2;5;1];[8;6;1;5];[6;3;7;4];[2;7;3;8]]"; // 4_1's
+  bool refused = false;
+  try {
+    searcher.run(assembler.redrawer().thickened(), request);
+  } catch (const SearchRefused &) {
+    refused = true;
+  }
+  CHECK(refused, "certify: a PD the triangulation does not carry is refused");
+}
+
 } // namespace
 
 int main() {
@@ -292,5 +314,6 @@ int main() {
   testBuildChecksum();
   testBatchSigning();
   testStop(sigs);
+  testRefusesAnotherDiagram(sigs);
   return checks::finish("search_test");
 }

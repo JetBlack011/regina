@@ -18,17 +18,6 @@ using linknaming::GaussDiagram;
 
 namespace bounds {
 
-GaussDiagram gaussOf(const diagramtriangulation::Diagram &d) {
-  GaussDiagram g;
-  for (const auto &c : d.crossings) g.signs.push_back(c.sign);
-  g.comps = d.gauss;
-  g.origin.resize(d.components);
-  for (size_t i = 0; i < d.components; ++i) g.origin[i] = i;
-  if (g.comps.size() != d.components)
-    throw std::logic_error("gaussOf: gauss codes do not cover every component");
-  return g;
-}
-
 std::string diagramPD(const GaussDiagram &d) {
   regina::Link l = d.link();
   if (l.pdAmbiguous()) {
@@ -66,20 +55,15 @@ CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &link
 }
 
 void CobordismAssembler::certifyIncoming_() {
-  const auto &cycles = redraw_->incomingCycles();
-  // Certify the incoming link: knotbuilder's link, drawn back, is searched.diagram.
-  const GaussDiagram drawn = gaussOf(redraw_->drawer().draw(cycles));
-  auto iso = linknaming::findDiagramIsomorphism(drawn, searched_.diagram, /*allowMirror=*/false,
-                                    /*allowReverse=*/false);
-  if (!iso)
-    throw std::runtime_error(
-        "CobordismAssembler: the triangulated incoming link does not redraw as its "
-        "diagram (no orientation-preserving isomorphism); refusing the incoming link");
+  // Certify the incoming link: knotbuilder's link, drawn back, is searched.diagram
+  // (search::certifyIncoming(), which every search runs on its own PD too).
+  const std::vector<int> map = search::certifyIncoming(
+      redraw_->drawer(), redraw_->incomingCycles(), searched_.diagram);
   if (searched_.linkMap.size() != searched_.diagram.components())
     throw std::invalid_argument("CobordismAssembler: linkMap size");
-  incomingToLink_.resize(drawn.components());
-  for (size_t i = 0; i < drawn.components(); ++i)
-    incomingToLink_[i] = searched_.linkMap[iso->componentMap[i]];
+  incomingToLink_.resize(map.size());
+  for (size_t i = 0; i < map.size(); ++i)
+    incomingToLink_[i] = searched_.linkMap[map[i]];
 }
 
 std::optional<outgoing::OutgoingLink>
@@ -173,7 +157,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
 
   // The outgoing link, drawn, split into pieces, each simplified and interned.
   const diagramtriangulation::Diagram d = redraw_->drawer().draw(link->curves);
-  const GaussDiagram whole = gaussOf(d);
+  const GaussDiagram whole = search::gaussOf(d);
   const size_t m = whole.components();
   // One pass: simplify() is randomised, so each simplified piece must stay
   // together with its own match and origins.

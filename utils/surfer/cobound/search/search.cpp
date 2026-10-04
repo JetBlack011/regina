@@ -167,6 +167,7 @@ SearchRequest Searcher::requestFor(const outgoing::OutgoingReader &reader,
   // carries on from it instead of searching this prefix again.
   request.recordFrontier = true;
   request.layers = *shape_.layers;
+  request.incomingPD = reader.incomingPD();
   return request;
 }
 
@@ -185,6 +186,17 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
     throw SearchRefused("Searcher::run(): the incoming link has no collar seed");
   if (!request.reader)
     throw std::logic_error("Searcher::run(): the request has no reader to read its finds on");
+  // Every search certifies that its triangulation carries the diagram it was
+  // given (plan, phase 7.2): the incoming link drawn back from T is that PD's
+  // diagram. A search that cannot is refused, never run on another diagram.
+  if (request.incomingPD.empty())
+    throw std::logic_error("Searcher::run(): the request has no incoming PD to certify");
+  try {
+    search::certifyIncoming(request.reader->drawer(), request.reader->incomingCycles(),
+                            search::diagramOfPD(request.incomingPD));
+  } catch (const std::exception &ex) {
+    throw SearchRefused(ex.what());
+  }
 
   // Declared before the search, which holds pointers to them. Every
   // boundary is named by its complement unless the search draws its outgoing links.

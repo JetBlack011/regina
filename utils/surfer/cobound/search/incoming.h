@@ -8,6 +8,7 @@
 #define SURFER_COBOUND_INCOMING_H
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,11 +17,14 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
+#include "diagramtriangulation/todiagram.h"
+#include "linknaming/diagrams/gaussdiagram.h"
 
 /*! \file utils/surfer/cobound/search/incoming.h
  *  \brief The incoming link of a search -- the link L searched from, on the
  *  incoming boundary T x {0} -- in the search's own terms: its edges and its
- *  PD orientation there (the incoming map).
+ *  PD orientation there (the incoming map), and the certification that T
+ *  carries the diagram the search was given (certifyIncoming()).
  */
 
 namespace search {
@@ -124,6 +128,43 @@ void buildIncoming(const std::string &pdNotation, int thickenLayers,
  * fails those checks.
  */
 void orientIncoming(IncomingThickening &thickened);
+
+/** The linknaming::GaussDiagram of a drawn diagram (todiagram.h): its
+ *  crossings' signs and Gauss codes, `origin` the drawn component index. */
+linknaming::GaussDiagram gaussOf(const diagramtriangulation::Diagram &d);
+
+/** Thrown by certifyIncoming(): T does not carry the diagram the search was
+ *  given. */
+struct IncomingNotCertified : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+/**
+ * The certification that a search's triangulation carries the diagram it was
+ * given (plan, phase 7.2): the incoming link as T holds it -- `cycles`, the
+ * incoming link's edge cycles in knotbuilder's component order -- drawn back
+ * from T by `drawer` (diagramtriangulation::DiagramDrawer on T) is
+ * isomorphic to `given` as a diagram, orientation kept and no mirror
+ * (linknaming::findDiagramIsomorphism()). Returns that isomorphism's
+ * component map: incoming component i is `given`'s component map[i].
+ *
+ * Every search certifies its incoming link against the PD it was given
+ * (Searcher::run()), at depth 0 as with a goal; a goal run's assembler maps
+ * the incoming curves onto its graph link's diagram through it too
+ * (bounds::CobordismAssembler). Never a fallback: a table row that does not
+ * certify is refused, since searching any other diagram would silently
+ * change T. (Only an untabulated goal target may fall back to its
+ * simplified diagram, and says so: scheduler.h.)
+ *
+ * \throws IncomingNotCertified when there is no such isomorphism.
+ */
+std::vector<int> certifyIncoming(const diagramtriangulation::DiagramDrawer &drawer,
+                                 const std::vector<diagramtriangulation::EdgeCycle> &cycles,
+                                 const linknaming::GaussDiagram &given);
+
+/** `pd`'s own diagram, as certifyIncoming() checks a search against it:
+ *  linknaming::linkFromTablePD(), components in the PD's order. */
+linknaming::GaussDiagram diagramOfPD(const std::string &pd);
 
 } // namespace search
 

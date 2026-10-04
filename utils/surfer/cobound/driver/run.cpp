@@ -363,10 +363,12 @@ int runWithoutGoal(const config::Config &cfg) {
     // The target's own cobordism graph (divergence 6), which judges its finds,
     // and the thickening the search runs in: search::buildIncoming() of its
     // PD, collared through every layer. buildIncoming() and the graph's
-    // certification of the incoming link throw for a bad PD, an incoming map
-    // that cannot be built or checked, or a triangulated link that does not
-    // redraw as its diagram; letting that escape would abort the whole run
-    // over one bad target.
+    // certification of the incoming link (search::certifyIncoming(), which the
+    // search runs on its own too: phase 7.2) throw for a bad PD, an incoming
+    // map that cannot be built or checked, or a triangulated link that does
+    // not redraw as its diagram; letting that escape would abort the whole run
+    // over one bad target. A target that does not certify is refused and
+    // recorded as a build failure, never searched on another diagram.
     std::unique_ptr<bounds::SearchJudge> judge;
     bool buildFailed = false;
     try {

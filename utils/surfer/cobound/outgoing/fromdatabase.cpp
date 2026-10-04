@@ -64,7 +64,8 @@ std::optional<std::vector<int>> OutgoingReader::pinned_(const regina::Triangulat
     return carried;
 }
 
-OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
+OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers)
+    : incomingPD_(incomingPD) {
     if (layers < 1) throw regina::InvalidArgument("OutgoingReader: layers must be >= 1");
     // The incoming diagram's thickening, exactly as a search builds it: collared
     // through every layer.

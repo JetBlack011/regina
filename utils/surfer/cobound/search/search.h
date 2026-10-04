@@ -263,7 +263,8 @@ struct SearchRequest {
   /// without a database keeps its finds in memory only).
   std::optional<std::string> pending;
   /// The incoming PD and layers, as a pending line and a cobordism's
-  /// provenance record them (`sign` rebuilds the thickening from them).
+  /// provenance record them (`sign` rebuilds the thickening from them). The
+  /// search certifies its thickening against this PD's diagram (required).
   std::string incomingPD;
   int layers = 2;
   /// The identities of the database the run loaded (LoadedDatabase): a
@@ -298,9 +299,11 @@ struct SeedInvariantFailure : std::runtime_error {
 };
 
 /// Thrown by Searcher::run() for a link it will not search: no collar
-/// seed, or an outgoing namer that cannot be built on it (plan divergence 2:
-/// refused, never searched by a fallback route). A goal run refuses the
-/// link; a run without a goal records the table row as a build failure and goes on.
+/// seed, a triangulation that does not carry the diagram it was given
+/// (search::certifyIncoming(), phase 7.2), or an outgoing namer that cannot be
+/// built on it (plan divergence 2: refused, never searched by a fallback
+/// route). A goal run refuses the link; a run without a goal records the
+/// table row as a build failure and goes on.
 struct SearchRefused : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
@@ -446,8 +449,9 @@ public:
    * A failed output write never throws (SearchResult::ioFailure).
    *
    * \throws SeedInvariantFailure when the seed invariant fails;
-   * SearchRefused for a link with no seed, or
-   * whose diagram namer cannot be built.
+   * SearchRefused for a link with no seed, whose triangulation does not
+   * carry its incoming PD (certifyIncoming()), or whose diagram namer cannot
+   * be built.
    */
   SearchResult run(const search::IncomingThickening &thickened, const SearchRequest &request) const;
 

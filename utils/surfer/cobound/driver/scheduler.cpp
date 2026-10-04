@@ -206,6 +206,12 @@ private:
   std::set<LinkId> refused_;
   /// Why the run must halt (an impossible state, divergence 2); empty if not.
   std::string halt_;
+  /// The target as it is searched: on the diagram it was given (its PD as
+  /// written, certified at the run's start: phase 7.2), unless an untabulated
+  /// target's given diagram did not certify. Unset: its registered diagram.
+  std::optional<SearchedLink> targetGiven_;
+  /// The first search of the target reuses the thickening its certification built.
+  std::unique_ptr<outgoing::OutgoingReader> targetReader_;
   /// What a checker needs to replay each cobordism (certificate.json).
   CobordismSources sources_;
   std::optional<linknaming::SignatureTable> signatures_;
@@ -506,14 +512,21 @@ void Scheduler::expand(LinkId n, long surfaces) {
   const std::string dir = cfg_.work + "/" + kFrozenHopDirPrefix + std::to_string(k) +
                           kFrozenHopDirNodeMark + std::to_string(n);
   fs::create_directories(dir);
-  const GaussDiagram &d = reg_.info(n).diagram;
+  // A link is searched on its registered diagram; the target on the diagram
+  // it was given (targetGiven_).
+  const bool given = n == target_ && targetGiven_;
+  const GaussDiagram &d = given ? targetGiven_->diagram : reg_.info(n).diagram;
   SearchedLink searched;
-  searched.link = n;
-  searched.diagram = d;
-  searched.linkMap.resize(d.components());
-  std::iota(searched.linkMap.begin(), searched.linkMap.end(), 0);
-  searched.pd = diagramPD(d);
-  searched.layers = *cfg_.runShape.layers;
+  if (given) {
+    searched = *targetGiven_;
+  } else {
+    searched.link = n;
+    searched.diagram = d;
+    searched.linkMap.resize(d.components());
+    std::iota(searched.linkMap.begin(), searched.linkMap.end(), 0);
+    searched.pd = diagramPD(d);
+    searched.layers = *cfg_.runShape.layers;
+  }
   using clock = std::chrono::steady_clock;
   auto seconds = [](clock::time_point a, clock::time_point b) {
     return std::chrono::duration<double>(b - a).count();
@@ -521,7 +534,10 @@ void Scheduler::expand(LinkId n, long surfaces) {
   const auto tBuild = clock::now();
   std::unique_ptr<CobordismAssembler> assembler;
   try {
-    assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched);
+    if (given && targetReader_)
+      assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched, std::move(targetReader_));
+    else
+      assembler = std::make_unique<CobordismAssembler>(g_, reg_, searched);
   } catch (const std::exception &e) {
     refused_.insert(n);
     // The diagram as given, to diagnose the refusal: its PD, whether Regina can
@@ -865,6 +881,35 @@ int Scheduler::run() {
   }
   LinkMatch t = reg_.intern(simp, "target " + cfg_.targetName);
   target_ = t.link;
+  // The target is searched on the diagram it was given (plan, phase 7.2),
+  // so a table row's T is the T every other run searches it on. Certified
+  // here, once: a table row that does not certify is refused -- searching
+  // any other diagram would silently change T -- and only an untabulated
+  // target falls back to its simplified diagram, and says so.
+  {
+    if (t.mirrored || t.reversed)
+      throw std::logic_error("the target interned mirrored or reversed");
+    SearchedLink givenLink;
+    givenLink.link = target_;
+    givenLink.diagram = raw;
+    givenLink.linkMap = t.componentMap; // simplifyKeepingComponents() keeps components
+    givenLink.pd = cfg_.targetPD;
+    givenLink.layers = *cfg_.runShape.layers;
+    try {
+      auto reader = std::make_unique<outgoing::OutgoingReader>(givenLink.pd, givenLink.layers);
+      search::certifyIncoming(reader->drawer(), reader->incomingCycles(), raw);
+      targetGiven_ = std::move(givenLink);
+      targetReader_ = std::move(reader);
+    } catch (const std::exception &e) {
+      if (tables_.entry(cfg_.targetName))
+        throw std::runtime_error("the target " + cfg_.targetName +
+                                 " is a table row whose given diagram does not certify (" +
+                                 e.what() + "); it is never searched on another diagram");
+      std::cout << "[!] target " << cfg_.targetName << ": its given diagram does not certify ("
+                << e.what() << "); searching its simplified diagram (" << simp.crossings()
+                << " crossings) instead\n";
+    }
+  }
   onNewLink(target_, 0);
   if (!composite.empty()) {
     tableName_[target_] = composite;

@@ -54,14 +54,15 @@ struct AddedCobordism {
 /**
  * Turns cobordisms of one search into cobordisms of the graph.
  *
- * Construction certifies the incoming link: the link drawn from knotbuilder's
- * triangulation of `searched.pd` must be isomorphic as a diagram to
- * `searched.diagram`
- * (orientation kept, no mirror). That isomorphism is the map from the
- * cobordisms' incoming curves (knotbuilder's component order) to the link's
- * components, and it is the per-link certificate that the triangulation
- * searched carries the link's oriented link. Throws std::runtime_error if it
- * does not exist: a search whose incoming link cannot be certified contributes nothing.
+ * Construction certifies the incoming link (search::certifyIncoming()): the
+ * link drawn from knotbuilder's triangulation of `searched.pd` must be
+ * isomorphic as a diagram to `searched.diagram` (orientation kept, no
+ * mirror). That isomorphism is the map from the cobordisms' incoming curves
+ * (knotbuilder's component order) to the link's components, and it is the
+ * per-link certificate that the triangulation searched carries the link's
+ * oriented link. Throws std::runtime_error (search::IncomingNotCertified) if
+ * it does not exist: a search whose incoming link cannot be certified
+ * contributes nothing.
  */
 class CobordismAssembler {
 public:
@@ -107,9 +108,6 @@ private:
   std::unique_ptr<outgoing::OutgoingReader> redraw_;
   std::vector<int> incomingToLink_;
 };
-
-/// The GaussDiagram of a drawn diagram, `origin` = drawn component index.
-linknaming::GaussDiagram gaussOf(const diagramtriangulation::Diagram &d);
 
 /// A PD code for a connected diagram, as a table row's `PD Notation` (`;`-separated,
 /// labels from 1). Throws if the PD would not fix every orientation

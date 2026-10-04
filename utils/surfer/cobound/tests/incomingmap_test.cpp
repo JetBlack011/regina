@@ -14,6 +14,10 @@
 //    3. The bare collar's own boundary classifies as a MATCH. For a link its
 //       collar is one annulus per component, each oriented independently;
 //       comparing their signs globally (D2) rejected it for some variants.
+//    4. certifyIncoming() (phase 7.2): T, drawn back, is the PD's own diagram,
+//       its component map a permutation; T does not carry the mirror of a
+//       chiral row, nor a diagram with a nugatory crossing (which knotbuilder's
+//       drawer cannot draw), and says so.
 //
 //  Built from real PD codes by search::buildIncoming(), the build
 //  every search uses. An optional argument
@@ -23,9 +27,11 @@
 //    ./incomingmap_test ../../../../cobordism-atlas/data/links_..._pd_codes.csv 8
 //
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <set>
 #include <sstream>
 #include <string>
@@ -37,6 +43,7 @@
 #include <triangulation/dim4.h>
 
 #include "diagramtriangulation/thickening/thickening.h"
+#include "cobound/outgoing/fromdatabase.h"
 #include "cobound/search/incoming.h"
 #include "cobound/search/preconditions.h"
 #include "surfer/submanifold/submanifold.h"
@@ -196,6 +203,59 @@ void test_incoming_map_refuses_foreign_edges() {
               "(so the zero asserted for a seeded search means something)");
 }
 
+// The battery's rows certify against their own PDs (phase 7.2), with a component
+// map that is a permutation; the mirror of 3_1 and 3_1 with a nugatory kink
+// do not.
+void test_certify_incoming() {
+    const std::vector<std::pair<std::string, std::string>> rows = {
+        {"3_1", "[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"},
+        {"8_20", "[[1;7;2;6];[4;13;5;14];[5;9;6;8];[7;3;8;2];[10;15;11;16];"
+                 "[12;9;13;10];[14;3;15;4];[16;11;1;12]]"},
+        {"L2a1{1}", "PD[X[4; 2; 3; 1]; X[2; 4; 1; 3]]"},
+        {"L6a4{1;1}", "PD[X[6; 2; 7; 1]; X[12; 6; 9; 5]; X[4; 9; 1; 10]; "
+                      "X[10; 7; 11; 8]; X[8; 3; 5; 4]; X[2; 12; 3; 11]]"},
+    };
+    for (const auto &[name, pd] : rows) {
+        const outgoing::OutgoingReader r(pd, 2);
+        const linknaming::GaussDiagram given = diagramOfPD(pd);
+        std::vector<int> map;
+        try {
+            map = certifyIncoming(r.drawer(), r.incomingCycles(), given);
+        } catch (const std::exception &e) {
+            std::cout << "  FAIL: " << name << ": not certified: " << e.what() << "\n";
+            ++failed_count;
+            continue;
+        }
+        std::vector<int> sorted = map;
+        std::sort(sorted.begin(), sorted.end());
+        std::vector<int> identity(given.components());
+        std::iota(identity.begin(), identity.end(), 0);
+        EXPECT_EQ(sorted == identity, true,
+                  name + ": certified, its component map a permutation of the components");
+    }
+    const outgoing::OutgoingReader trefoil("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]", 2);
+    linknaming::GaussDiagram mirror = diagramOfPD("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
+    for (auto &s : mirror.signs) s = -s;
+    for (auto &comp : mirror.comps)
+        for (auto &v : comp) v = -v;
+    bool refused = false;
+    try {
+        certifyIncoming(trefoil.drawer(), trefoil.incomingCycles(), mirror);
+    } catch (const IncomingNotCertified &) {
+        refused = true;
+    }
+    EXPECT_EQ(refused, true, "3_1's T does not carry its mirror image: not certified");
+    const char *kinked = "[[1;5;2;4];[3;1;4;8];[5;7;6;6];[7;3;8;2]]";
+    refused = false;
+    try {
+        const outgoing::OutgoingReader r(kinked, 2);
+        certifyIncoming(r.drawer(), r.incomingCycles(), diagramOfPD(kinked));
+    } catch (const std::exception &) {
+        refused = true;
+    }
+    EXPECT_EQ(refused, true, "3_1 with a nugatory kink does not certify");
+}
+
 void sweepTable(const std::string &path, int maxCrossings) {
     std::ifstream in(path);
     std::string line;
@@ -229,6 +289,7 @@ int main(int argc, char **argv) {
     } else {
         test_incoming_map_battery();
         test_incoming_map_refuses_foreign_edges();
+        test_certify_incoming();
     }
     std::cout << passed << " passed, " << failed_count << " failed; "
               << divergedRows << " rows where isIsomorphicTo() would have "

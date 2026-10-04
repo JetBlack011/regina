@@ -5,8 +5,11 @@
 #include "cobound/search/incoming.h"
 
 #include "linknaming/complement/edgecycles.h"
+#include "linknaming/diagrams/diagramiso.h"
+#include "linknaming/tables.h"
 
 #include <algorithm>
+#include <numeric>
 #include <optional>
 #include <tuple>
 #include <unordered_map>
@@ -189,5 +192,36 @@ void buildIncoming(const std::string &pdNotation, int thickenLayers,
               int collarLayers, IncomingThickening &thickened) {
     buildAmbient(pdNotation, thickenLayers, collarLayers, thickened);
     orientIncoming(thickened);
+}
+
+linknaming::GaussDiagram gaussOf(const diagramtriangulation::Diagram &d) {
+    linknaming::GaussDiagram g;
+    for (const auto &c : d.crossings) g.signs.push_back(c.sign);
+    g.comps = d.gauss;
+    g.origin.resize(d.components);
+    for (size_t i = 0; i < d.components; ++i) g.origin[i] = i;
+    if (g.comps.size() != d.components)
+        throw std::logic_error("gaussOf: gauss codes do not cover every component");
+    return g;
+}
+
+std::vector<int> certifyIncoming(const diagramtriangulation::DiagramDrawer &drawer,
+                                 const std::vector<diagramtriangulation::EdgeCycle> &cycles,
+                                 const linknaming::GaussDiagram &given) {
+    const linknaming::GaussDiagram drawn = gaussOf(drawer.draw(cycles));
+    auto iso = linknaming::findDiagramIsomorphism(drawn, given, /*allowMirror=*/false,
+                                                  /*allowReverse=*/false);
+    if (!iso)
+        throw IncomingNotCertified(
+            "the triangulated incoming link does not redraw as its diagram (no "
+            "orientation-preserving isomorphism): not certified, refused");
+    return iso->componentMap;
+}
+
+linknaming::GaussDiagram diagramOfPD(const std::string &pd) {
+    const regina::Link link = linknaming::linkFromTablePD(pd);
+    std::vector<size_t> origin(link.countComponents());
+    std::iota(origin.begin(), origin.end(), size_t(0));
+    return linknaming::GaussDiagram::of(link, origin);
 }
 } // namespace search
