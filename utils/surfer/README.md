@@ -85,9 +85,9 @@ all):
 | linknaming | `linknaming` | 12 |
 | cobound | `cobound_part` | 32 |
 
-Running `ctest` in `build/utils/surfer` runs all of them. A few are
-exhaustive and take minutes, and some time out on a loaded machine: run them
-idle. The atlas's full tables are found through `SURFER_TEST_ATLAS_DATA` (or
+Running `ctest` in `build/utils/surfer` runs all of them. Each takes under a
+minute on an idle 8-core machine, but a few are exhaustive and can run past
+their timeouts on a loaded one: run them idle. The atlas's full tables are found through `SURFER_TEST_ATLAS_DATA` (or
 the usual checkouts); `goal_layout_test` skips without them, and
 `tables_test` leaves out its whole-table round trip. Each part's README has
 a table of what its tests pin.
