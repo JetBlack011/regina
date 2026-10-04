@@ -161,8 +161,8 @@ const std::vector<Key> &schema() {
              {C::sign, required}, {C::name, required}},
             "--knot-table (verifyslicegenus, cascadesearch), --knots (farsidename)",
             "The knot table (Name,PD Notation,Genus-4D): literature bounds, table PDs, names. "
-            "Required everywhere: verifyslicegenus's default, the file's name in the working "
-            "directory, would read whatever CSV of that name happens to be there."),
+            "Required everywhere: a default file name would read whatever CSV of that name the "
+            "working directory happens to hold."),
         key("link_table", Type::path,
             {{C::run, required}, {C::goal, required}, {C::solve, required},
              {C::sign, required}, {C::name, required}},
@@ -189,8 +189,8 @@ const std::vector<Key> &schema() {
             "it)."),
         key("verdicts", Type::path, {{C::run, required}, {C::solve, required}},
             "--output (verifyslicegenus)",
-            "The verdicts file (verify_genus_v2.csv's columns). A run writes each searched "
-            "row's search record; solve re-derives every status and bound."),
+            "The verdicts file (the atlas's verify_genus_v2.csv columns). A run writes each "
+            "searched table row's search record; solve re-derives every status and bound."),
         key("cobordisms", Type::path,
             {{C::run, def("cobordisms.csv")}, {C::goal, unset}, {C::solve, def("cobordisms.csv")},
              {C::sign, required}},
@@ -201,9 +201,9 @@ const std::vector<Key> &schema() {
         key("work", Type::path, {{C::run, required}, {C::goal, required}, {C::sign, required}},
             "--work (verifyslicegenus, whose default <cobordisms>.pending retires; "
             "cascadesearch)",
-            "The run directory: each search's hop_<k>_n<node>/ (its pending cobordisms, "
-            "kept.csv), and with a goal the run's records. sign signs every pending file "
-            "in it."),
+            "The run directory: each search's directory hop_<k>_n<link>/ (a frozen name; its "
+            "pending cobordisms, kept.csv), and with a goal the run's records. sign signs "
+            "every pending file in it."),
         key("census", Type::path,
             {{C::run, def(SURFER_CENSUS_PATH)}, {C::goal, required}, {C::solve, def(SURFER_CENSUS_PATH)}},
             "--census-db (verifyslicegenus, cascadesearch)",
@@ -221,17 +221,17 @@ const std::vector<Key> &schema() {
             {{C::run, def("auto")}, {C::goal, def("10")}, {C::sign, def("10")}, {C::name, def("auto")}},
             "--threads (verifyslicegenus, cascadesearch)",
             "Threads for searching, naming and signing (`auto`: the machine's). At one thread "
-            "the end-of-run signing is not overlapped with the search, so a one-thread run "
-            "pays its pair-signature contexts in full after it (R1s x1.7, accepted on "
-            "2026-10-03)."),
+            "the signing at the run's end is not overlapped with the search, so a one-thread "
+            "run pays its pair-signature contexts in full after it."),
         key("layers", Type::integer, {{C::run, def("2")}, {C::goal, def("2")}, {C::draw, def("2")}},
             "--thicken-layers and --collar-layers (verifyslicegenus; collared through every "
             "layer), farsidediagram --layers",
             "Layers of the thickening a search runs in (collared through all of them)."),
         key("boundary_condition", Type::choice, {{C::run, def("proper")}},
             "--boundary-condition (verifyslicegenus)",
-            "Which surfaces a search without a goal accepts: `proper` (every row), `connected` "
-            "or `auto` (connected for a knot). A goal run always searches `proper`.",
+            "Which surfaces a search without a goal accepts: `proper` (every target), "
+            "`connected`, or `auto` (connected for a knot). A goal run always searches "
+            "`proper`.",
             {"auto", "connected", "proper"}),
         key("resolve_unlinked", Type::flag, {{C::run, required}, {C::goal, required}},
             "--resolve-unlinked / --no-resolve-unlinked",
@@ -239,7 +239,7 @@ const std::vector<Key> &schema() {
             "changes what counts toward a surface target and every frontier's fingerprint."),
         key("max_faces", Type::integer, {{C::run, unset}, {C::goal, def("5")}},
             "--max-faces (verifyslicegenus), --hop-max-faces (cascadesearch)",
-            "Faces a search may add to the collar seed (unset: no cap)."),
+            "Triangles a search may add to the collar seed (unset: no cap)."),
         key("iddfs_iterations", Type::integer, {{C::run, def("0")}, {C::goal, def("2")}},
             "--iddfs-iterations, --hop-iddfs-iterations", "Iterative-deepening rounds."),
         key("iddfs_start", Type::integer, {{C::run, unset}, {C::goal, def("4")}},
@@ -271,7 +271,8 @@ const std::vector<Key> &schema() {
         key("boundary_signature_cache_limit", Type::integer,
             {{C::run, def("200000")}, {C::goal, def("1000000")}},
             "--boundary-signature-cache-limit, --hop-boundary-cache",
-            "Outgoing names cached per search before the cache is cleared."),
+            "Boundary names cached per boundary component per search before the cache is "
+            "cleared."),
         key("complement_cache_limit", Type::integer,
             {{C::run, def("200000")}, {C::goal, def("1500000")}},
             "--recognition-cache-limit (verifyslicegenus), --hop-recognition-cache "
@@ -285,7 +286,8 @@ const std::vector<Key> &schema() {
                  "exact_far_side_names"),
         key("census_updates", Type::flag, {{C::run, def("1")}, {C::goal, def("0")}},
             "--no-census-updates (verifyslicegenus; the cascade never wrote)",
-            "Write the census: a knot row's complement after its search, and Pachner hits."),
+            "Write the census: a knot target's complement after its search, and Pachner "
+            "hits."),
         key("retriangulate_on_miss", Type::flag, {{C::run, def("1")}, {C::goal, def("0")}},
             "--no-retriangulate-on-miss (verifyslicegenus; the cascade's searches never did)",
             "Run a Pachner search for a knot complement the census misses."),
@@ -296,22 +298,23 @@ const std::vector<Key> &schema() {
             {{C::run, def("13")}, {C::goal, def("24")}, {C::solve, def("13")}},
             "--max-crossings (verifyslicegenus: rows above it are skipped; cascadesearch: no "
             "link above it is searched)",
-            "Without a goal (and for solve), rows above it are not searched (skipped); with "
-            "one, no link above it is searched."),
+            "Without a goal (and for solve), table rows above it are not searched (skipped); "
+            "with one, no link above it is searched."),
 
         // ---- what a search without a goal also writes ----
         key("frontier_dir", Type::path, {{C::run, unset}}, "--frontier-dir (verifyslicegenus)",
-            "Record each row's frontier as <dir>/<row>.frontier."),
+            "Record each target's frontier as <dir>/<target>.frontier."),
         key("resume_frontier_dir", Type::path, {{C::run, unset}},
             "--resume-frontier-dir (verifyslicegenus)",
-            "Carry each row on from <dir>/<row>.frontier."),
+            "Carry each target's search on from <dir>/<target>.frontier."),
         key("surface_log", Type::path, {{C::run, unset}}, "--surface-log (verifyslicegenus)",
-            "Every surface each search finds (rewritten per row): G-surfaces' instrument."),
+            "Every surface each search describes (rewritten per search): the instrument of "
+            "compare_surface_sets.sh, the equivalence check."),
         key("surface_stats", Type::path, {{C::run, unset}}, "--surface-stats (verifyslicegenus)",
-            "Appends each searched row's surface statistics (surface_stats.csv)."),
+            "Appends each search's surface statistics (surface_stats.csv)."),
         key("self_intersection_census", Type::path, {{C::run, unset}},
             "--self-intersection-census (verifyslicegenus)",
-            "Measurement only: appends each row's self-intersection census."),
+            "Measurement only: appends each search's self-intersection census."),
         key("rejection_sample_log", Type::path, {{C::run, unset}},
             "--rejection-sample-log (verifyslicegenus)",
             "The first surfaces each gate turns away, with their pair signatures."),
@@ -346,8 +349,8 @@ const std::vector<Key> &schema() {
             "--read-back-cache (cascadesearch)",
             "Where those cobordisms' outgoing links are kept between runs."),
         key("run_name", Type::text, {{C::goal, unset}}, "--run-name (cascadesearch)",
-            "The run's name in cascade:<run>/<target>/n<node> subjects (needed with "
-            "cobordisms)."),
+            "The run's name in the subjects of its untabulated links, "
+            "cascade:<run>/<target>/n<link> (a frozen format; needed with cobordisms)."),
         key("hub_degree", Type::integer, {{C::goal, def("0")}}, "--hub-degree (cascadesearch)",
             "A link with this many cobordisms is searched once at hub_surfaces (0: off)."),
         key("hub_surfaces", Type::integer, {{C::goal, def("0")}}, "--hub-surfaces (cascadesearch)",
@@ -369,13 +372,14 @@ const std::vector<Key> &schema() {
                  "far_side_resolutions"),
         formerly(key("outgoing_names_file", Type::path, {{C::solve, unset}},
                      "--far-side-exact (verifyslicegenus)",
-                     "Per-cobordism names of outgoing links (name)."),
+                     "Per-cobordism outgoing names, as `cobound name` gives them (the "
+                     "atlas's data/far_side_exact.csv)."),
                  "far_side_exact"),
         key("link_classes", Type::path, {{C::solve, unset}}, "--link-classes (verifyslicegenus)",
-            "The table's link classes (tableclasses)."),
+            "The tables' link classes (written by tableclasses)."),
         formerly(key("certified_bounds", Type::path, {{C::solve, unset}},
                      "--cascade-proofs (verifyslicegenus)",
-                     "Certified bounds (data/cascade_proofs.csv)."),
+                     "Bounds certified from goal runs (the atlas's data/cascade_proofs.csv)."),
                  "cascade_proofs"),
         key("sum_rules", Type::flag, {{C::solve, def("0")}}, "--sum-rules (verifyslicegenus)",
             "Bound sums along components and splits with link factors from their pieces."),
@@ -406,8 +410,8 @@ const std::vector<Key> &schema() {
         key("draw_gauss", Type::flag, {{C::draw, def("0")}}, "--gauss (farsidediagram)",
             "Append signed Gauss data (and the ROW line's build=)."),
         key("draw_faces", Type::flag, {{C::draw, def("0")}}, "--faces (farsidediagram)",
-            "Read `<id> <f1,f2,...>` (faces of the row's thickening) instead of pair "
-            "signatures."),
+            "Read `<id> <f1,f2,...>` (triangles of the incoming diagram's thickening) instead "
+            "of pair signatures."),
         key("draw_pairsig", Type::flag, {{C::draw, def("0")}}, "--pairsig (farsidediagram)",
             "With draw_faces: append each surface's pair signature."),
     };
