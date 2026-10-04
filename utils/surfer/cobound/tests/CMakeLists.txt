@@ -24,7 +24,7 @@ endforeach()
 # pair signatures; ~25 s on an idle machine.
 set_tests_properties(preconditions_test PROPERTIES TIMEOUT 120)
 
-# The cascade's tests: seconds each. See ../README.md, "Assumptions and their
+# The cobordism graph's and goal runs' tests: seconds each. See ../README.md, "Assumptions and their
 # tests", for what each pins.
 foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordisms_test
              search_test axioms_test pending_test fromdatabase_test thickening_rows_test
@@ -34,15 +34,15 @@ foreach(TEST partitiongenera_test cobordismgraph_test links_test searchcobordism
   add_test(NAME ${TEST} COMMAND ${TEST})
   set_tests_properties(${TEST} PROPERTIES LABELS "surfer" TIMEOUT 300)
 endforeach()
-# Real witnesses from the Phase 0 hops, and small tables to name far sides by
-# (data/), for the end-to-end tests.
+# Real cobordisms from the Phase 0 searches, and small tables to name outgoing
+# links by (data/), for the end-to-end tests.
 foreach(TEST searchcobordisms_test search_test pending_test fromdatabase_test
              thickening_rows_test)
   target_compile_definitions(${TEST} PRIVATE
     COBOUND_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
 endforeach()
 
-# No gate may depend on an identified name: the same exhaustive search, with
+# No gate may depend on a name: the same exhaustive search, with
 # every name perturbed, must accept exactly the same surfaces. See the
 # script's header.
 add_test(NAME name_independence_test
@@ -116,7 +116,7 @@ set_tests_properties(frontier_pending_test PROPERTIES
   LABELS "surfer" TIMEOUT 300)
 
 # The atlas's canaries (canaries.sh, cascade_canaries.sh) as a cobound test:
-# phase 0's accounting numbers on nine exhaustive rows and two goal runs. See
+# phase 0's accounting numbers on nine exhaustive searches and two goal runs. See
 # the script's header.
 add_test(NAME canaries_test
          COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/canaries_test.sh

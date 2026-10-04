@@ -20,7 +20,7 @@ D=$2
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-# "<id> <pairsig>": the first 12 witnesses (column 9 is the pair signature).
+# "<id> <pairsig>": the first 12 cobordisms (column 9 is the pair signature).
 awk -F, 'NR > 1 && NR <= 13 { print "w" NR, $9 }' "$D/search_10_3_cobordisms.csv" > "$T/pairsigs"
 # "<id> <pd>": every row of both small tables.
 for f in "$D/knots_to_6.csv" "$D/links_to_6.csv"; do

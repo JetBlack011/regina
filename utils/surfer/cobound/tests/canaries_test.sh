@@ -4,7 +4,7 @@
 # The atlas's canaries, as a cobound test pinning phase 0's numbers:
 #   - canaries.sh's nine rows (data/canaries.csv: 3_1, 6_1, 8_8, 8_20 and five
 #     links, their table lines verbatim), searched EXHAUSTIVELY at cap 3 by one
-#     run without a goal, census-free; each row's accounting line, the
+#     run without a goal, census-free; each search's accounting line, the
 #     recorded/duplicate split summed (it follows names, which are not
 #     canonical), must be data/canaries.expected's -- the atlas's
 #     tools/orchestrate/canaries.expected, phase 0's numbers, byte for byte;

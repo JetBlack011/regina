@@ -11,7 +11,7 @@
 # are identical exactly when the two builds found the same surfaces and
 # described each the same way, whatever order they found them in. The
 # accounting lines (less the recorded/duplicate split, which follows
-# non-canonical far-side names; see canaries.sh) must match too.
+# non-canonical outgoing link names; see canaries.sh) must match too.
 #
 # This is the equivalence check for a change that reorders the search
 # (the traversal rework) as much as for one that should change nothing.

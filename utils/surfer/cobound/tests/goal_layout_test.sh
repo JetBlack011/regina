@@ -13,7 +13,7 @@
 # searches) from work directories of five path lengths, which shifts every
 # later allocation, and require one normalised node_bounds.jsonl (tabulated
 # links by name, untabulated ones by their bounds, as G-regression compares
-# them). The run names far sides from its diagrams, which needs the atlas's
+# them). The run names outgoing links from their diagrams, which needs the atlas's
 # full tables: SURFER_TEST_ATLAS_DATA, or the usual checkouts; without them
 # the test is skipped.
 set -eu

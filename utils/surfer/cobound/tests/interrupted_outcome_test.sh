@@ -13,8 +13,8 @@
 # negative (paper prop:exhausted), and every merge keeps the maximum.
 #
 # Each case starts a search whose cap-5 run takes minutes, signals it after a
-# few seconds, and reads what it recorded: at depth 0 two rows (the second
-# must never start), and with a goal one hop.
+# few seconds, and reads what it recorded: at depth 0 two targets (the
+# second must never start), and with a goal one search.
 set -eu
 
 C=$1
@@ -22,9 +22,9 @@ DATA=$2
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 HDR='kind,subject,subject_components,other,other_candidates,other_components,genus,tubed,pairsig,source_row,thicken_layers,max_faces,resolved_vertices'
-# 6_1 then 6_2: rows run in crossing order (stable), so 6_2 would be next.
+# 6_1 then 6_2: targets are searched in crossing order (stable), so 6_2 would be next.
 { head -1 "$DATA/knots_to_6.csv"; grep '^6_1,' "$DATA/knots_to_6.csv"; grep '^6_2,' "$DATA/knots_to_6.csv"; } > "$T/rows.csv"
-# The goal case: 6_2 (4-genus 1) with goal 0, which no hop can meet.
+# The goal case: 6_2 (4-genus 1) with goal 0, which no search can meet.
 pd62=$(grep '^6_2,' "$DATA/knots_to_6.csv" | cut -d, -f2)
 
 # Signals $1 after 10 s (stdout is block-buffered into the log, so wait a

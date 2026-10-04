@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rough, repeatable search benchmarks for `cobound run` (or a retired
-# verifyslicegenus, to compare against it), one row per run. Results land in
+# verifyslicegenus, to compare against it), one target per run. Results land in
 # $BENCH_DIR/results.tsv; the "Search performance history" table in
 # utils/surfer/README.md is written from them.
 #
@@ -15,15 +15,15 @@
 #   bench_search.sh summary [tag]                    re-print a comparison
 #
 # B1 (exhaust-4): one IDDFS round at cap 4, no surface target, an empty
-#   witness file. Fixed work: every correct version accepts exactly the same
+#   database. Fixed work: every correct version accepts exactly the same
 #   surfaces, so `accepted` must match across binaries (a free correctness
-#   check) and wall time compares like for like. About a minute per row on
+#   check) and wall time compares like for like. About a minute per target on
 #   halcyon at f183dffbe. Its budget passes make each root's traversal a
 #   function of the root alone, so the `search profile:` walk counters
 #   (nodes, attempts, evaluated, replayed) are deterministic too: `summary`
 #   flags any difference, which an output-identical change must not have.
 # B2 (production): the full [campaign] shape (surface target, caps 4 then 5),
-#   with the witness store in $STORE copied in if set -- round 2, the drain
+#   with the database in $STORE copied in if set -- round 2, the drain
 #   tail and peak RSS as a campaign sees them.
 #
 # Every run starts from the same frozen census snapshot, taken once per
@@ -38,7 +38,7 @@
 #              (default: this machine's short hostname)
 #   THREADS    override the host's thread count
 #   CENSUS     census db to snapshot (default: the host section's census_db)
-#   STORE      witness store copied in for B2 (default: none, i.e. empty)
+#   STORE      a database (cobordisms.csv) copied in for B2 (default: none, i.e. empty)
 #   B1_ROWS    default: 10_141 L10a14{0} L10a127{1;1}
 #   B2_ROW     default: 10_141
 #   ROOT_BUDGET_START  override [campaign]'s (0 = unbudgeted; used to check

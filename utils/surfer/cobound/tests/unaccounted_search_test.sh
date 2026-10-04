@@ -5,9 +5,9 @@
 # outcome is `unaccounted`, with no frontier and no exhaustion claim, and the
 # run goes on. The exit code reports what the run was for:
 #   - without a goal (depth 0) completeness is the product, so the run exits 2,
-#     after searching every other row;
+#     after searching every other target;
 #   - with a goal the codes stay (0 met, 1 not met): the imbalance is
-#     completeness only, and the hop is marked suspect on its `[!!]` line.
+#     completeness only, and the search is marked suspect on its `[!!]` line.
 # SURFER_TEST_UNACCOUNTED=<search name> is the fixture: that search drops its
 # first described surface from every bucket, as a surface lost between the
 # drain and the record would be.
@@ -57,7 +57,7 @@ if [ "$(outcome 4_1)" != "exhausted 2" ] || [ ! -e "$T/frontiers/4_1.frontier" ]
 if ! grep -q '^\[!!\] 3_1: surface accounting failed' "$T/log"; then
   echo "FAIL: no [!!] line for the imbalanced search"; exit 1; fi
 
-# 2. With a goal: the codes stay. 3_1, goal 1, not met at cap 3 (cascade
+# 2. With a goal: the codes stay. 3_1, goal 1, not met at cap 3 (the goal
 #    canaries): exit 1; L2a1{0}, goal 0, met by its annulus: exit 0.
 goalconf() { # file name pd goal work
   cat > "$1" <<CONF

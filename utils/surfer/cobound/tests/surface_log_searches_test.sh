@@ -1,10 +1,10 @@
 #!/bin/sh
 # surface_log_searches_test.sh <cobound>
 #
-# surface_log makes one CsvWriter per row. CsvWriter caches each thread's
+# surface_log makes one CsvWriter per search. CsvWriter caches each thread's
 # shard in a function-local thread_local pointer, shared by every CsvWriter
-# in the process, so a thread that writes in one row and again in the next
-# uses a shard of the previous, destroyed writer. Two rows on one thread
+# in the process, so a thread that writes in one search and again in the next
+# uses a shard of the previous, destroyed writer. Two searches on one thread
 # must both be logged, and the run must finish.
 set -eu
 

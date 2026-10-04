@@ -8,7 +8,7 @@
 # search that finds a surface below it. The Hopf link L2a1{0} bounds an
 # annulus (a genus-0 surface for the link alone, found at once); its table
 # entry is rewritten to claim 4-genus 1. The surfaces are real, so a run
-# writes what it found before it halts (depth 0: the witness file).
+# writes what it found before it halts (depth 0: the database).
 set -eu
 
 C=$1
@@ -22,7 +22,7 @@ grep -q '^L2a1{0},.*,1$' "$T/links.csv" || { echo "FAIL: could not craft the tab
 { head -1 "$T/links.csv"; grep -F 'L2a1{0},' "$T/links.csv"; } > "$T/rows.csv"
 echo "$HDR" > "$T/cobordisms.csv"
 
-# 1. Depth 0: exit 2, the FATAL banner, and the row's witnesses on disk.
+# 1. Depth 0: exit 2, the FATAL banner, and the target's cobordisms on disk.
 rc=0
 cat > "$T/depth0.conf" <<CONF
 targets = $T/rows.csv

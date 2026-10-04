@@ -1,16 +1,16 @@
 #!/bin/sh
 # name_independence_test.sh <cobound>
 #
-# No gate of the search may depend on an identified name. Names are not
-# canonical -- a census hit's "#N" varies between identifications of the
+# No gate of the search may depend on a name. Names are not
+# canonical -- a census hit's "#N" varies between namings of the
 # same manifold -- and a gate that compared them once silently discarded
-# whole rows (the D1 bug, 2026-09-26).
+# whole searches (the D1 bug, 2026-09-26).
 #
-# So: search the same rows twice, exhaustively and deterministically, once
-# with SURFER_TEST_PERTURB_NAMES set (every identified name gets a fresh
-# suffix, so no two identifications ever agree). Which surfaces are accepted,
+# So: search the same targets twice, exhaustively and deterministically, once
+# with SURFER_TEST_PERTURB_NAMES set (every complement name gets a fresh
+# suffix, so no two namings ever agree). Which surfaces are accepted,
 # and why each is or is not recorded, must not change. Only the split between
-# "recorded" and "duplicate" may move, since dedup is BY name for far sides
+# "recorded" and "duplicate" may move, since dedup is BY name for outgoing links
 # that bear a bound; their sum may not.
 set -eu
 
@@ -23,8 +23,8 @@ Name,PD Notation,Genus-4D
 6_1,[[1;7;2;6];[3;10;4;11];[5;3;6;2];[7;1;8;12];[9;4;10;5];[11;9;12;8]],0
 L4a1{1},PD[X[6; 2; 7; 1]; X[8; 4; 5; 3]; X[2; 8; 3; 7]; X[4; 6; 1; 5]],1
 EOF
-# The same rows as the tables, so that far sides are named from their
-# diagrams (farsidenaming.h) -- the production path -- and the perturbation
+# The same rows as the tables, so that outgoing links are named from their
+# diagrams (outgoing/outgoingnamer.h) -- the production path -- and the perturbation
 # reaches those names too.
 head -2 "$T/rows.csv" > "$T/knots.csv"
 { head -1 "$T/rows.csv"; tail -1 "$T/rows.csv"; } > "$T/links.csv"
